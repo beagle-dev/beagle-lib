@@ -246,7 +246,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
 	calculateLogLikelihoods(rootNodeIndex, logLikelihoods);
 
 	for (int i = 0; i < kPatternCount; i++) {
-		logLikelihoodsD[i] = (double)branchLengths[i];
+		logLikelihoodsD[i] = (double)logLikelihoods[i];
 	}
 #endif
 
