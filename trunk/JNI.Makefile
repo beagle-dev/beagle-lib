@@ -31,13 +31,16 @@ mac :
 	cc -c -arch $(ARCH) -O3 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
 	   -DSTATE_COUNT=$(STATE_COUNT) \
 	   -DDOUBLE_PRECISION \
-	   -o $(OUTNAME).$(ARCH).o src/CPU/beagleCPU.c java/JNI/beagle_BeagleJNIWrapper.c
-	cc -o lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) \
-	   -$(MAC_LINK) $(OUTNAME).$(ARCH).o
-	lipo -create lib$(OUTNAME).$(ARCH).jnilib \
+	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/CPU/beagleCPU.c java/JNI/beagle_BeagleJNIWrapper.c
+	cc -o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) \
+	   -$(MAC_LINK) $(DEST)/$(OUTNAME).$(ARCH).o
+	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib
+	rm $(DEST)/$(OUTNAME).$(ARCH).o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib
 
 linux :
-	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT)  -o lib$(OUTNAME).o
-	ld -$(LINUX_LINK) -o $(DEST)/lib$(OUTNAME).so lib$(OUTNAME).o
+	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT) \
+	    -o $(DEST)/lib$(OUTNAME).o
+	ld -$(LINUX_LINK) -o $(DEST)/lib$(OUTNAME).so $(DEST)/lib$(OUTNAME).o
+	rm $(DEST)/lib$(OUTNAME).o
 
