@@ -10,11 +10,15 @@
 #define SCALING_REFRESH	0
 
 /* Definition of REAL can be switched between 'double' and 'float' */
+/*
 #ifdef DOUBLE_PRECISION
 #define REAL		double
 #else
 #define REAL		float
 #endif
+*/
+
+#define REAL		double
 
 // initialize the library
 //
@@ -81,7 +85,7 @@ void setCategoryProportions(REAL* inCategoryProportions);
 //
 // nodeIndex the node that requires the transition probability matrices
 // branchLength the expected length of this branch in substitutions per site
-void calculateProbabilityTransitionMatrices(int nodeIndex, double branchLength);
+void calculateProbabilityTransitionMatrices(int nodeIndex, REAL branchLength);
 
 // calculate partials using an array of operations
 //

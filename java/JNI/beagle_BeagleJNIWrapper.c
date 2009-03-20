@@ -6,6 +6,10 @@
 #include "beagle.h"
 #include "beagle_BeagleJNIWrapper.h"
 
+	 REAL** Evec;
+	 REAL** Ievc;
+	 REAL* Eval;
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    initialize
@@ -15,6 +19,14 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_initialize
 	(JNIEnv *env, jobject obj, jint nodeCount, jint tipCount, jint patternCount, jint categoryCount, jint matrixCount)
 {
 	initialize(nodeCount, tipCount, patternCount, categoryCount, matrixCount);
+
+	Evec = (REAL**)malloc(sizeof(REAL*) * STATE_COUNT);
+	Ievc = (REAL**)malloc(sizeof(REAL*) * STATE_COUNT);
+	for (int i = 0; i < STATE_COUNT; i++) {
+	    Evec[i] = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
+	    Ievc[i] = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
+	}
+	Eval = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
 }
 
 /*
@@ -99,30 +111,41 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 (JNIEnv *env, jobject obj, jint matrixIndex, jobjectArray inEigenVectors, jobjectArray inInvEigenVectors, jdoubleArray inEigenValues)
 {
-	static REAL Evec[STATE_COUNT][STATE_COUNT];
-	static REAL Ievc[STATE_COUNT][STATE_COUNT];
-	static REAL Eval[STATE_COUNT];
-
-	jdouble *values = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inEigenValues, 0);
-
+	jdouble *valuesD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inEigenValues, 0);
+#if (REAL==double)
 	for (int i = 0; i < STATE_COUNT; i++) {
-		jdoubleArray oneDim = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
-		jdouble *elements1 = (*env)->GetDoubleArrayElements(env, oneDim, 0);
-	
-		oneDim = (jdoubleArray)(*env)->GetObjectArrayElement(env, inInvEigenVectors, i);
-		jdouble *elements2 = (*env)->GetDoubleArrayElements(env, oneDim, 0);
-		
+		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
+        (*env)->GetDoubleArrayRegion(env, row1, 0, STATE_COUNT, Evec[i]);
+
+		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
+        (*env)->GetDoubleArrayRegion(env, row1, 0, STATE_COUNT, Ievc[i]);
+	}
+
+	setEigenDecomposition(matrixIndex, Evec, Ievc, (REAL*)valuesD);
+#else
+	for (int i = 0; i < STATE_COUNT; i++) {
+		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
+		jdouble *elements1 = (*env)->GetDoubleArrayElements(env, row1, 0);
+
+		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
+		jdouble *elements2 = (*env)->GetDoubleArrayElements(env, row2, 0);
+
 		for(int j = 0; j < STATE_COUNT; j++) {
 			Evec[i][j] = (REAL)elements1[j];
 			Ievc[i][j] = (REAL)elements2[j];
 		}
 
-		Eval[i] = (REAL)values[i];
+        (*env)->ReleaseDoubleArrayElements(env, row2, elements2, 0);
+        (*env)->ReleaseDoubleArrayElements(env, row1, elements1, 0);
+
+		Eval[i] = (REAL)valuesD[i];
 	}
 
-	(*env)->ReleasePrimitiveArrayCritical(env, inEigenValues, values, JNI_ABORT);
-
 	setEigenDecomposition(matrixIndex, Evec, Ievc, Eval);
+#endif
+
+	(*env)->ReleasePrimitiveArrayCritical(env, inEigenValues, valuesD, JNI_ABORT);
+
 }
 
 /*
@@ -198,7 +221,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
 {
 	jint *operations = (jint*)(*env)->GetPrimitiveArrayCritical(env, inOperations, 0);
 	jint *dependencies = (jint*)(*env)->GetPrimitiveArrayCritical(env, inDependencies, 0);
-	calculatePartials(operations, dependencies, operationCount);
+	calculatePartials((int *)operations, (int *)dependencies, operationCount);
 	(*env)->ReleasePrimitiveArrayCritical(env, inDependencies, dependencies, JNI_ABORT);
 	(*env)->ReleasePrimitiveArrayCritical(env, inOperations, operations, JNI_ABORT);
 }

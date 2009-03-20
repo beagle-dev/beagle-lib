@@ -153,7 +153,7 @@ void setTipPartials(
 					REAL* inPartials)
 {
 	int k = 0;
-	for (int i = 0; i < kMatrixCount; i++) {
+	for (int i = 0; i < kCategoryCount; i++) {
 		// set the partials identically for each matrix
 		memcpy(partials[0][tipIndex] + k, inPartials, sizeof(REAL) * kPatternCount * STATE_COUNT);
 		k += kPatternCount * STATE_COUNT;
@@ -169,7 +169,7 @@ void setTipStates(
 				  int* inStates)
 {
 	int k = 0;
-	for (int i = 0; i < kMatrixCount; i++) {
+	for (int i = 0; i < kCategoryCount; i++) {
 		for (int j = 0; j < kPatternCount; j++) {
 			states[tipIndex][k] = (inStates[j] < STATE_COUNT ? inStates[j] : STATE_COUNT);
 			k++;
@@ -197,10 +197,10 @@ void setEigenDecomposition(
 						   REAL** inInverseEigenVectors,
 						   REAL* inEigenValues)
 {
-	fprintf(stdout, "setEigenDecomposition for matrix %d", matrixIndex);
 	int l =0;
 	for (int i = 0; i < STATE_COUNT; i++) {
 		eigenValues[matrixIndex][i] = inEigenValues[i];
+
 		for (int j = 0; j < STATE_COUNT; j++) {
 			for (int k = 0; k < STATE_COUNT; k++) {
 				cMatrices[matrixIndex][l] = inEigenVectors[i][k] * inInverseEigenVectors[k][j];
@@ -208,7 +208,6 @@ void setEigenDecomposition(
 			}
 		}
 	}
-	fprintf(stdout, "setEigenDecomposition done");
 }
 
 // set the vector of category rates
@@ -236,7 +235,7 @@ void calculateProbabilityTransitionMatrices(int nodeIndex, REAL branchLength)
 {
 	static REAL tmp[STATE_COUNT];
 
-	currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
+//	currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
 
 	int n = 0;
 	int matrixIndex = 0;
@@ -286,7 +285,7 @@ void calculatePartials(
 		x++;
 		int nodeIndex3 = operations[x];
 		x++;
-		currentPartialsIndices[nodeIndex3] = 1 - currentPartialsIndices[nodeIndex3];
+//		currentPartialsIndices[nodeIndex3] = 1 - currentPartialsIndices[nodeIndex3];
 
 		if (nodeIndex1 < kTipCount) {
 			if (nodeIndex2 < kTipCount) {
