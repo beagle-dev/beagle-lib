@@ -10,15 +10,11 @@
 #define SCALING_REFRESH	0
 
 /* Definition of REAL can be switched between 'double' and 'float' */
-/*
 #ifdef DOUBLE_PRECISION
 #define REAL		double
 #else
 #define REAL		float
 #endif
-*/
-
-#define REAL		double
 
 // initialize the library
 //
