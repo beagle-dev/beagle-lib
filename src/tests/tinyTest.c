@@ -74,19 +74,21 @@ int main( int argc, const char* argv[] )
 		{ 0.0,  1.0,  0.0,  -1.0},
 		{ 1.0,  0.0,  -1.0,  0.0}
 	};
-	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
+	REAL eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 	
 	REAL **evecP = (REAL **)malloc(sizeof(REAL*) * STATE_COUNT);
 	REAL **ivecP = (REAL **)malloc(sizeof(REAL*) * STATE_COUNT);
 	
+	fprintf(stdout, "main()\n");
 	for (int i = 0; i < STATE_COUNT; i++) {
+		evecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
+		ivecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
 		for (int j = 0; j < STATE_COUNT; j++) {
-			evecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
-			ivecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
 			evecP[i][j] = evec[i][j];
 			ivecP[i][j] = ivec[i][j];
 		}		
 	}
+
 	setEigenDecomposition(0, evecP, ivecP, eval);
 	
 	calculateProbabilityTransitionMatrices(0, 0.1);
@@ -101,11 +103,11 @@ int main( int argc, const char* argv[] )
 	
 	calculatePartials(operations, NULL, 2);
 	
-	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
+	REAL *patternLogLik = (REAL*)malloc(sizeof(REAL) * nPatterns);
 	
 	calculateLogLikelihoods(4, patternLogLik);
 	
-	double logL = 0.0;
+	REAL logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
 		logL += patternLogLik[i];
 	}

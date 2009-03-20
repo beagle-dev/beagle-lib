@@ -197,6 +197,9 @@ void setEigenDecomposition(
 						   REAL** inInverseEigenVectors,
 						   REAL* inEigenValues)
 {
+	
+	fprintf(stdout, "setEigenDecomposition\n");
+
 	int l =0;
 	for (int i = 0; i < STATE_COUNT; i++) {
 		eigenValues[matrixIndex][i] = inEigenValues[i];
@@ -253,6 +256,7 @@ void calculateProbabilityTransitionMatrices(int nodeIndex, REAL branchLength)
 					m++;
 				}
 				matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+				
 				n++;
 			}
 			matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
