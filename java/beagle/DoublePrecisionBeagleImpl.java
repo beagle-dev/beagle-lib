@@ -206,49 +206,53 @@ public class DoublePrecisionBeagleImpl implements Beagle {
         System.arraycopy(categoryProportions, 0, this.categoryProportions, 0, this.categoryProportions.length);
     }
 
-    public void calculateProbabilityTransitionMatrices(int nodeIndex, double branchLength) {
-        if (DEBUG) System.err.println("Updating matrix for node " + nodeIndex);
+    public void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count) {
+        for (int u = 0; u < count; u++) {
+            int nodeIndex = nodeIndices[u];
 
-        currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
+            if (DEBUG) System.err.println("Updating matrix for node " + nodeIndex);
 
-        if (DEBUG && nodeIndex == 0) {
-            System.err.println(matrices[currentMatricesIndices[0]][0][0]);
-            System.err.println(matrices[currentMatricesIndices[0]][0][184]);
-        }
+            currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
 
-        double[] tmp = new double[stateCount];
-
-        int n = 0;
-        int matrixIndex = 0;
-        for (int l = 0; l < categoryCount; l++) {
-//	    if (DEBUG) System.err.println("1: Rate "+l+" = "+categoryRates[l]);
-            for (int i = 0; i < stateCount; i++) {
-                tmp[i] =  Math.exp(eigenValues[matrixIndex][i] * branchLength * categoryRates[l]);
+            if (DEBUG && nodeIndex == 0) {
+                System.err.println(matrices[currentMatricesIndices[0]][0][0]);
+                System.err.println(matrices[currentMatricesIndices[0]][0][184]);
             }
-//            if (DEBUG) System.err.println(new dr.math.matrixAlgebra.Vector(tmp));
-            //        if (DEBUG) System.exit(-1);
 
-            int m = 0;
-            for (int i = 0; i < stateCount; i++) {
-                for (int j = 0; j < stateCount; j++) {
-                    double sum = 0.0;
-                    for (int k = 0; k < stateCount; k++) {
-                        sum += cMatrices[matrixIndex][m] * tmp[k];
-                        m++;
+            double[] tmp = new double[stateCount];
+
+            int n = 0;
+            int matrixIndex = 0;
+            for (int l = 0; l < categoryCount; l++) {
+//	    if (DEBUG) System.err.println("1: Rate "+l+" = "+categoryRates[l]);
+                for (int i = 0; i < stateCount; i++) {
+                    tmp[i] =  Math.exp(eigenValues[matrixIndex][i] * branchLengths[u] * categoryRates[l]);
+                }
+//            if (DEBUG) System.err.println(new dr.math.matrixAlgebra.Vector(tmp));
+                //        if (DEBUG) System.exit(-1);
+
+                int m = 0;
+                for (int i = 0; i < stateCount; i++) {
+                    for (int j = 0; j < stateCount; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < stateCount; k++) {
+                            sum += cMatrices[matrixIndex][m] * tmp[k];
+                            m++;
+                        }
+                        //	    if (DEBUG) System.err.println("1: matrices[][]["+n+"] = "+sum);
+                        matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+                        n++;
                     }
-                    //	    if (DEBUG) System.err.println("1: matrices[][]["+n+"] = "+sum);
-                    matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+                    matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
                     n++;
                 }
-                matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
-                n++;
-            }
 
-            if (matrixCount > 1) {
-                matrixIndex ++;
-            }
+                if (matrixCount > 1) {
+                    matrixIndex ++;
+                }
 //            if (DEBUG) System.err.println(new dr.math.matrixAlgebra.Vector(matrices[currentMatricesIndices[nodeIndex]][nodeIndex]));
 //            if (DEBUG) System.exit(0);
+            }
         }
     }
 
