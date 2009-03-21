@@ -54,7 +54,7 @@ public class BeagleJNIWrapper implements Beagle {
 
     public native void setCategoryProportions(double[] categoryProportions);
 
-    public native void calculateProbabilityTransitionMatrices(int nodeIndex, double branchLength);
+    public native void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count);
 
     public native void calculatePartials(int[] operations, int[] dependencies, int operationCount);
 

@@ -46,7 +46,7 @@ public interface Beagle {
 
     public void setCategoryProportions(double[] categoryProportions);
 
-    public void calculateProbabilityTransitionMatrices(int nodeIndex, double branchLength);
+    public void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count);
 
     public void calculatePartials(int[] operations, int[] dependencies, int operationCount);
 
