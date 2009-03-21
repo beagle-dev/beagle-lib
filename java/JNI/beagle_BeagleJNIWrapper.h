@@ -74,10 +74,10 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateProbabilityTransitionMatrices
- * Signature: (ID)V
+ * Signature: ([I[DI)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransitionMatrices
-  (JNIEnv *, jobject, jint, jdouble);
+  (JNIEnv *, jobject, jintArray, jdoubleArray, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
