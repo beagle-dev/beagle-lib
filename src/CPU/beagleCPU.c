@@ -333,7 +333,7 @@ void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 	REAL* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
-    #ifdef IS_NUCLEOTIDES
+#ifdef IS_NUCLEOTIDES
 
 	int v = 0;
 	for (int l = 0; l < kCategoryCount; l++) {
@@ -357,7 +357,7 @@ void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 		}
 	}
 
-	#else
+#else
 
 	int v = 0;
 	for (int l = 0; l < kCategoryCount; l++) {
@@ -379,7 +379,7 @@ void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 		}
 	}
-	#endif
+#endif
 }
 
 /*
@@ -395,7 +395,7 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 	REAL* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
-    #ifdef IS_NUCLEOTIDES
+#ifdef IS_NUCLEOTIDES
 
 	int u = 0;
 	int v = 0;
@@ -448,7 +448,7 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 		}
 	}
 
-	#else
+#else
 	int u = 0;
 	int v = 0;
 
@@ -479,7 +479,7 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 			v += STATE_COUNT;
 		}
 	}
-	#endif
+#endif
 }
 
 void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
@@ -496,7 +496,7 @@ void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 	REAL sum1, sum2;
 
-    #ifdef IS_NUCLEOTIDES
+#ifdef IS_NUCLEOTIDES
 
 	int u = 0;
 	int v = 0;
@@ -555,7 +555,7 @@ void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 		}
 	}
 
-	#else
+#else
 
 	int u = 0;
 	int v = 0;
@@ -587,7 +587,7 @@ void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 		}
 	}
 
-	#endif
+#endif
 }
 
 // calculate the site log likelihoods at a particular node

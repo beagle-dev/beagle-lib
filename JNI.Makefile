@@ -28,7 +28,7 @@ OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 
 
 mac :
-	cc -c -arch $(ARCH) -O3 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
+	cc -c -arch $(ARCH) -O4 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
 	   -DSTATE_COUNT=$(STATE_COUNT) \
 	   -DDOUBLE_PRECISION \
 	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/CPU/beagleCPU.c java/JNI/beagle_BeagleJNIWrapper.c
