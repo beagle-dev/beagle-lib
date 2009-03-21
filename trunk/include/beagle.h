@@ -76,22 +76,26 @@ void setCategoryRates(REAL* inCategoryRates);
 // categoryProportions an array containing categoryCount proportions (which sum to 1.0)
 void setCategoryProportions(REAL* inCategoryProportions);
 
-// calculate a transition probability matrices for a given node. This will calculate
-// for all categories (and all matrices if more than one is being used).
+// calculate a transition probability matrices for a given list of node. This will
+// calculate for all categories (and all matrices if more than one is being used).
 //
-// nodeIndex the node that requires the transition probability matrices
-// branchLength the expected length of this branch in substitutions per site
-void calculateProbabilityTransitionMatrices(int nodeIndex, REAL branchLength);
+// nodeIndices an array of node indices that require transition probability matrices
+// branchLengths an array of expected lengths in substitutions per site
+// count the number of elements in the above arrays
+void calculateProbabilityTransitionMatrices(
+                                            int* nodeIndices,
+                                            REAL* branchLengths,
+                                            int count);
 
 // calculate partials using an array of operations
 //
 // operations an array of triplets of indices: the two source partials and the destination
 // dependencies an array of indices specify which operations are dependent on which (optional)
-// the number of operations
+// count the number of operations
 void calculatePartials(
 					   int* operations,
 					   int* dependencies,
-					   int operationCount);
+					   int count);
 
 // calculate the site log likelihoods at a particular node
 //
