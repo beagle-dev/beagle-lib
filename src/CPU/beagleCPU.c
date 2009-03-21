@@ -53,11 +53,11 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
 void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
 
 void printArray(char* name, REAL *array, int length) {
-	fprintf(stdout, "%s:", name);
+	fprintf(stderr, "%s:", name);
 	for (int i = 0; i < length; i++) {
-		fprintf(stdout, " %f", array[i]);
+		fprintf(stderr, " %f", array[i]);
 	}
-	fprintf(stdout, "\n");
+	fprintf(stderr, "\n");
 }
 
 // nodeCount the number of nodes in the tree
@@ -183,6 +183,7 @@ void setTipStates(
 void setStateFrequencies(REAL* inStateFrequencies)
 {
 	memcpy(frequencies, inStateFrequencies, sizeof(REAL) * STATE_COUNT);
+//    printArray("frequencies", frequencies, STATE_COUNT);
 }
 
 // sets the Eigen decomposition of a given substitution matrix
@@ -209,6 +210,8 @@ void setEigenDecomposition(
 			}
 		}
 	}
+//    printArray("cMatrices", cMatrices[matrixIndex], STATE_COUNT * STATE_COUNT * STATE_COUNT);
+//    printArray("eigenValues", eigenValues[matrixIndex], STATE_COUNT);
 }
 
 // set the vector of category rates
@@ -217,6 +220,7 @@ void setEigenDecomposition(
 void setCategoryRates(REAL* inCategoryRates)
 {
 	memcpy(categoryRates, inCategoryRates, sizeof(REAL) * kCategoryCount);
+//    printArray("categoryRates", categoryRates, kCategoryCount);
 }
 
 // set the vector of category proportions
@@ -225,6 +229,7 @@ void setCategoryRates(REAL* inCategoryRates)
 void setCategoryProportions(REAL* inCategoryProportions)
 {
 	memcpy(categoryProportions, inCategoryProportions, sizeof(REAL) * kCategoryCount);
+//    printArray("categoryProportions", categoryProportions, kCategoryCount);
 }
 
 // calculate a transition probability matrices for a given list of node. This will
@@ -243,34 +248,36 @@ void calculateProbabilityTransitionMatrices(
     for (int u = 0; u < count; u++) {
         int nodeIndex = nodeIndices[u];
 
-	currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
+		currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
 
-	int n = 0;
-	int matrixIndex = 0;
-	for (int l = 0; l < kCategoryCount; l++) {
-		for (int i = 0; i < STATE_COUNT; i++) {
-			tmp[i] =  exp(eigenValues[matrixIndex][i] * branchLengths[u] * categoryRates[l]);
-		}
+		int n = 0;
+		int matrixIndex = 0;
+		for (int l = 0; l < kCategoryCount; l++) {
+			for (int i = 0; i < STATE_COUNT; i++) {
+				tmp[i] =  exp(eigenValues[matrixIndex][i] * branchLengths[u] * categoryRates[l]);
+			}
 
-		int m = 0;
-		for (int i = 0; i < STATE_COUNT; i++) {
-			for (int j = 0; j < STATE_COUNT; j++) {
-				REAL sum = 0.0;
-				for (int k = 0; k < STATE_COUNT; k++) {
-					sum += cMatrices[matrixIndex][m] * tmp[k];
-					m++;
+			int m = 0;
+			for (int i = 0; i < STATE_COUNT; i++) {
+				for (int j = 0; j < STATE_COUNT; j++) {
+					REAL sum = 0.0;
+					for (int k = 0; k < STATE_COUNT; k++) {
+						sum += cMatrices[matrixIndex][m] * tmp[k];
+						m++;
+					}
+					matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+
+					n++;
 				}
-				matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
-
+				matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
 				n++;
 			}
-			matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
-			n++;
+			if (kMatrixCount > 1) {
+				matrixIndex ++;
+			}
 		}
-		if (kMatrixCount > 1) {
-			matrixIndex ++;
-		}
-	}
+//        printArray("matrices", matrices[currentMatricesIndices[nodeIndex]][nodeIndex], STATE_COUNT * STATE_COUNT);
+
     }
 
 }
@@ -309,6 +316,7 @@ void calculatePartials(
 				updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
 			}
 		}
+//        printArray("partials", partials[currentPartialsIndices[nodeIndex3]][nodeIndex3], kPatternCount * STATE_COUNT);
 	}
 }
 
@@ -592,6 +600,9 @@ void calculateLogLikelihoods(
 {
 
 	REAL* rootPartials = partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
+//    printArray("rootPartials", rootPartials, kPatternCount * STATE_COUNT);
+//    printArray("frequencies", frequencies, STATE_COUNT);
+//    printArray("categoryProportions", categoryProportions, kCategoryCount);
 
 	int u = 0;
 	int v = 0;
@@ -620,6 +631,8 @@ void calculateLogLikelihoods(
 		}
 	}
 
+//    printArray("integrationTmp", integrationTmp, kPatternCount * STATE_COUNT);
+
 	u = 0;
 	for (int k = 0; k < kPatternCount; k++) {
 
@@ -631,6 +644,8 @@ void calculateLogLikelihoods(
 		}
 		outLogLikelihoods[k] = log(sum);
 	}
+
+//    printArray("outLogLikelihoods", outLogLikelihoods, kPatternCount);
 }
 
 // store the current state of all partials and matrices

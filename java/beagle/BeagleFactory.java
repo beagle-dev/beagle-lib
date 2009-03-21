@@ -20,7 +20,7 @@ public class BeagleFactory {
 
 		if (registry == null) {  // Lazy loading
 			registry = new ArrayList<BeagleLoader>();  // List libraries in order of load-priority
-//            registry.add(new BeagleJNIWrapper.BeagleLoader());
+            registry.add(new BeagleJNIWrapper.BeagleLoader());
 		}
 
 		for(BeagleLoader loader: registry) {
