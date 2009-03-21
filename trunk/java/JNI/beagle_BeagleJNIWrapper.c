@@ -76,26 +76,27 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_finalize
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 	(JNIEnv *env, jobject obj, jint tipIndex, jdoubleArray inTipPartials)
 {
-	jdouble *tipPartialsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inTipPartials, 0);
-#if (REAL==double)
-	// working with double precision so just pass along the array
-	setTipPartials(tipIndex, tipPartialsD);
-#else
-	// working with single precision so just convert the array
-
 	// this function is only called to set up the data so we can malloc a temp array
 	REAL *tipPartials = (REAL *)malloc(sizeof(REAL) * kPatternCount);
 
+#if (REAL==double)
+    (*env)->GetDoubleArrayRegion(env, inTipPartials, 0, kPatternCount, tipPartials);
+	// working with double precision so just pass along the array
+	setTipPartials(tipIndex, tipPartials);
+#else
+	// working with single precision so just convert the array
+
+	jdouble *tipPartialsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inTipPartials, 0);
 	for (int i = 0; i < kPatternCount; i++) {
 		tipPartials[i] = (REAL)tipPartialsD[i];
 	}
+	(*env)->ReleasePrimitiveArrayCritical(env, inTipPartials, tipPartialsD, JNI_ABORT);
 
 	setTipPartials(tipIndex, tipPartials);
 
-	free(tipPartials);
-
 #endif
-	(*env)->ReleasePrimitiveArrayCritical(env, inTipPartials, tipPartialsD, JNI_ABORT);
+
+	free(tipPartials);
 }
 
 /*
@@ -106,9 +107,10 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 	(JNIEnv *env, jobject obj, jint tipIndex, jintArray inTipStates)
 {
-	jint *tipStates = (jint*)(*env)->GetPrimitiveArrayCritical(env, inTipStates, 0);
+	jint *tipStates = (jint *)malloc(sizeof(jint) * kPatternCount);
+    (*env)->GetIntArrayRegion(env, inTipStates, 0, kPatternCount, tipStates);
 	setTipStates(tipIndex, (int *)tipStates);
-	(*env)->ReleasePrimitiveArrayCritical(env, inTipStates, tipStates, JNI_ABORT);
+	free(tipStates);
 }
 
 /*
@@ -122,7 +124,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 	// A simple temporary array of fixed size so statically allocate it
 	static REAL frequencies[STATE_COUNT];
 
-#if (REAL==double)
+#if (REAL == double)
 	// working with double precision so just pass along the array
     (*env)->GetDoubleArrayRegion(env, inStateFrequencies, 0, STATE_COUNT, frequencies);
 
@@ -156,8 +158,8 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
         (*env)->GetDoubleArrayRegion(env, row1, 0, STATE_COUNT, Evec[i]);
 
-		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
-        (*env)->GetDoubleArrayRegion(env, row1, 0, STATE_COUNT, Ievc[i]);
+		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inInvEigenVectors, i);
+        (*env)->GetDoubleArrayRegion(env, row2, 0, STATE_COUNT, Ievc[i]);
 	}
 
 #else
@@ -166,7 +168,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
 		jdouble *elements1 = (*env)->GetDoubleArrayElements(env, row1, 0);
 
-		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
+		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inInvEigenVectors, i);
 		jdouble *elements2 = (*env)->GetDoubleArrayElements(env, row2, 0);
 
 		for(int j = 0; j < STATE_COUNT; j++) {
@@ -237,7 +239,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
 	(*env)->ReleasePrimitiveArrayCritical(env, inCategoryProportions, categoryProportionsD, JNI_ABORT);
 #endif
 
-	setCategoryRates(categoryValues);
+	setCategoryProportions(categoryValues);
 }
 
 /*
@@ -320,7 +322,6 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
 
 	(*env)->ReleasePrimitiveArrayCritical(env, outLogLikelihoods, logLikelihoodsD, JNI_ABORT);
 #endif
-
 }
 
 /*

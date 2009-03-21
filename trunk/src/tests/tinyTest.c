@@ -19,7 +19,7 @@ char *gorilla = "AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTA
 int* getStates(char *sequence) {
 	int n = strlen(sequence);
 	int *states = (int*)malloc(sizeof(int) * n);
-	
+
 	for (int i = 0; i < n; i++) {
 		switch (sequence[i]) {
 			case 'A':
@@ -37,30 +37,35 @@ int* getStates(char *sequence) {
 			default:
 				states[i] = 4;
 				break;
-		}		
+		}
 	}
 	return states;
 }
 
 int main( int argc, const char* argv[] )
-{	
-	
+{
+#if (REAL == double)
+	fprintf(stdout, "tinyTest double precision\n");
+#else
+	fprintf(stdout, "tinyTest single precision\n");
+#endif
+
 	int nPatterns = strlen(human);
 
 	initialize(5, 3, nPatterns, 1, 1);
 	setTipStates(0, getStates(human));
 	setTipStates(1, getStates(chimp));
 	setTipStates(2, getStates(gorilla));
-	
+
 	REAL freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 	setStateFrequencies(freqs);
 
 	REAL rates[1] = { 1.0 };
 	setCategoryRates(rates);
-	
+
 	REAL props[1] = { 1.0 };
 	setCategoryProportions(props);
-	
+
 	// an eigen decomposition for the JC69 model
 	REAL evec[4][4] = {
 		{ 1.0,  2.0,  0.0,  0.5},
@@ -75,43 +80,44 @@ int main( int argc, const char* argv[] )
 		{ 1.0,  0.0,  -1.0,  0.0}
 	};
 	REAL eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
-	
+
 	REAL **evecP = (REAL **)malloc(sizeof(REAL*) * STATE_COUNT);
 	REAL **ivecP = (REAL **)malloc(sizeof(REAL*) * STATE_COUNT);
-	
-	fprintf(stdout, "main()\n");
+
 	for (int i = 0; i < STATE_COUNT; i++) {
 		evecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
 		ivecP[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
 		for (int j = 0; j < STATE_COUNT; j++) {
 			evecP[i][j] = evec[i][j];
 			ivecP[i][j] = ivec[i][j];
-		}		
+		}
 	}
 
 	setEigenDecomposition(0, evecP, ivecP, eval);
-	
-	calculateProbabilityTransitionMatrices(0, 0.1);
-	calculateProbabilityTransitionMatrices(1, 0.1);
-	calculateProbabilityTransitionMatrices(2, 0.2);
-	calculateProbabilityTransitionMatrices(3, 0.1);
-	
+
+	int nodeIndices[4] = { 0, 1, 2, 3 };
+	REAL branchLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
+
+	calculateProbabilityTransitionMatrices(nodeIndices, branchLengths, 4);
+
 	int operations[5 * 3] = {
-		0, 1, 3, 
+		0, 1, 3,
 		2, 3, 4
 	};
-	
+
 	calculatePartials(operations, NULL, 2);
-	
+
 	REAL *patternLogLik = (REAL*)malloc(sizeof(REAL) * nPatterns);
-	
+
 	calculateLogLikelihoods(4, patternLogLik);
-	
+
 	REAL logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
 		logL += patternLogLik[i];
 	}
 
-	fprintf(stdout, "logL = %f", logL);
-	
+	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
+
+
+
 }
