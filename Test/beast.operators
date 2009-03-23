@@ -1,0 +1,15 @@
+
+Operator analysis
+Operator                                                  Pr(accept)  Performance suggestion
+scale(hky.kappa)                                  0.401   0.2913      good	
+scale(siteModel.alpha)                            0.183   0.3371      good	
+scale(clock.rate)                                 0.625   0.2528      good	
+up:clock.rate down:nodeHeights                    0.906   0.2353      slightly high	Try setting scaleFactor to about 0.9057
+scale(constant.popSize)                           0.322   0.2841      good	
+scale(treeModel.rootHeight)                       0.704   0.242       good	
+uniform(nodeHeights)                                      0.445       slightly high	
+subtreeSlide(treeModel)                           5.937   0.2557      good	
+Narrow Exchange(treeModel)                                0.2303      good	
+Wide Exchange(treeModel)                                  0.0189      good	
+wilsonBalding(treeModel)                                  0.0205      slightly low	
+
