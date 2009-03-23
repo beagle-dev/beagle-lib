@@ -45,6 +45,9 @@ public class BeagleFactory {
 			// return new SinglePrecisionBeagleImpl(stateCount);
             throw new UnsupportedOperationException("Single precision Java version of BEAGLE not implemented");
         } else {
+            if (stateCount == 4) {
+                return new DoublePrecision4StateBeagleImpl();
+            }
 			return new DoublePrecisionBeagleImpl(stateCount);
         }
 	}
