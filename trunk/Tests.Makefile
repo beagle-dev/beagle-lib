@@ -16,5 +16,5 @@ default :
 	cc -o tinytest -O3 -fast $(OPTIONS) -std=c99 \
 		-D STATE_COUNT=$(STATE_COUNT) \
 		-Iinclude/ \
-		src/CPU/beagleCPU.c \
+		src/CPU/beagleCPU2.c \
 	   	src/tests/tinyTest.c
