@@ -92,10 +92,12 @@ void calculateProbabilityTransitionMatrices(
 // operations an array of triplets of indices: the two source partials and the destination
 // dependencies an array of indices specify which operations are dependent on which (optional)
 // count the number of operations
+// rescale indicate if partials should be rescaled during peeling
 void calculatePartials(
 					   int* operations,
 					   int* dependencies,
-					   int count);
+					   int count,
+					   int rescale);
 
 // calculate the site log likelihoods at a particular node
 //
