@@ -256,8 +256,7 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
         }
     }
 
-   public int ss, sp, pp;
-
+    boolean first = true;
     public void calculatePartials(int[] operations, int[] dependencies, int operationCount) {
 
         int x = 0;
@@ -274,18 +273,20 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
             if (nodeIndex1 < tipCount) {
                 if (nodeIndex2 < tipCount) {
                     updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
-                    ss++;
                 } else {
+                    if (first) {
+                        for (int i = 0; i < 10000; i++) {
+                            updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+                        }
+                        first = false;
+                    }
                     updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-                    sp++;
                 }
             } else {
                 if (nodeIndex2 < tipCount) {
                     updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
-                    sp++;
                 } else {
                     updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-                    pp++;
                 }
             }
 
