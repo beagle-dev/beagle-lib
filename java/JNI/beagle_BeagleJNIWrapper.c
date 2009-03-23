@@ -76,11 +76,12 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_finalize
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 	(JNIEnv *env, jobject obj, jint tipIndex, jdoubleArray inTipPartials)
 {
+
 	// this function is only called to set up the data so we can malloc a temp array
 	REAL *tipPartials = (REAL *)malloc(sizeof(REAL) * kPatternCount);
 
-#if (REAL==double)
-    (*env)->GetDoubleArrayRegion(env, inTipPartials, 0, kPatternCount, tipPartials);
+#ifdef DOUBLE_PRECISION
+   (*env)->GetDoubleArrayRegion(env, inTipPartials, 0, kPatternCount, tipPartials);
 	// working with double precision so just pass along the array
 	setTipPartials(tipIndex, tipPartials);
 #else
@@ -90,9 +91,11 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 	for (int i = 0; i < kPatternCount; i++) {
 		tipPartials[i] = (REAL)tipPartialsD[i];
 	}
-	(*env)->ReleasePrimitiveArrayCritical(env, inTipPartials, tipPartialsD, JNI_ABORT);
 
 	setTipPartials(tipIndex, tipPartials);
+	(*env)->ReleasePrimitiveArrayCritical(env, inTipPartials, tipPartialsD, JNI_ABORT);
+
+
 
 #endif
 
@@ -151,7 +154,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 (JNIEnv *env, jobject obj, jint matrixIndex, jobjectArray inEigenVectors, jobjectArray inInvEigenVectors, jdoubleArray inEigenValues)
 {
-#if (REAL==double)
+#ifdef DOUBLE_PRECISION
     (*env)->GetDoubleArrayRegion(env, inEigenValues, 0, STATE_COUNT, Eval);
 
 	for (int i = 0; i < STATE_COUNT; i++) {
@@ -197,7 +200,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 	(JNIEnv *env, jobject obj, jdoubleArray inCategoryRates)
 {
-#if (REAL==double)
+#ifdef DOUBLE_PRECISION
 	// working with double precision so just pass along the array
     (*env)->GetDoubleArrayRegion(env, inCategoryRates, 0, kCategoryCount, categoryValues);
 #else
@@ -224,7 +227,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
 	(JNIEnv *env, jobject obj, jdoubleArray inCategoryProportions)
 {
 
-#if (REAL==double)
+#ifdef DOUBLE_PRECISION
 	// working with double precision so just pass along the array
     (*env)->GetDoubleArrayRegion(env, inCategoryProportions, 0, kCategoryCount, categoryValues);
 #else
@@ -233,7 +236,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
 
     // using categoryValues which is a global temporary array of categoryCount size
 	for (int i = 0; i < kCategoryCount; i++) {
-		categoryValues[i] = (REAL)categoryRatesD[i];
+		categoryValues[i] = (REAL)categoryProportionsD[i];
 	}
 
 	(*env)->ReleasePrimitiveArrayCritical(env, inCategoryProportions, categoryProportionsD, JNI_ABORT);
@@ -252,7 +255,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransiti
 {
     jint *nodeIndices = (*env)->GetIntArrayElements(env, inNodeIndices, 0);
 
-#if (REAL==double)
+#ifdef DOUBLE_PRECISION
      (*env)->GetDoubleArrayRegion(env, inBranchLengths, 0, count, branchValues);
 
 	// working with double precision so just pass along the array
@@ -286,7 +289,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
     jint *operations = (*env)->GetIntArrayElements(env, inOperations, 0);
     jint *dependencies = (*env)->GetIntArrayElements(env, inDependencies, 0);
 
-	calculatePartials((int *)operations, (int *)dependencies, count);
+	calculatePartials((int *)operations, (int *)dependencies, count, 0);
 
     (*env)->ReleaseIntArrayElements(env, inDependencies, dependencies, 0);
     (*env)->ReleaseIntArrayElements(env, inOperations, operations, 0);
@@ -301,7 +304,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
 	(JNIEnv *env, jobject obj, jint rootNodeIndex, jdoubleArray outLogLikelihoods)
 {
 
-#if (REAL==double)
+#ifdef DOUBLE_PRECISION
     jdouble *logLikelihoodsD = (*env)->GetDoubleArrayElements(env, outLogLikelihoods, 0);
 
 	// working with double precision so just pass along the array

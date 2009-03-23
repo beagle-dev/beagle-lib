@@ -105,7 +105,7 @@ int main( int argc, const char* argv[] )
 		2, 3, 4
 	};
 
-	calculatePartials(operations, NULL, 2);
+	calculatePartials(operations, NULL, 2, 0);
 
 	REAL *patternLogLik = (REAL*)malloc(sizeof(REAL) * nPatterns);
 
