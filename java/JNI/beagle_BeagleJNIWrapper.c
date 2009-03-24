@@ -78,7 +78,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 {
 
 	// this function is only called to set up the data so we can malloc a temp array
-	REAL *tipPartials = (REAL *)malloc(sizeof(REAL) * kPatternCount);
+	REAL *tipPartials = (REAL *)malloc(sizeof(REAL) * kPatternCount * STATE_COUNT);
 
 #ifdef DOUBLE_PRECISION
    (*env)->GetDoubleArrayRegion(env, inTipPartials, 0, kPatternCount, tipPartials);
@@ -88,7 +88,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 	// working with single precision so just convert the array
 
 	jdouble *tipPartialsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inTipPartials, 0);
-	for (int i = 0; i < kPatternCount; i++) {
+	for (int i = 0; i < kPatternCount * STATE_COUNT; i++) {
 		tipPartials[i] = (REAL)tipPartialsD[i];
 	}
 
@@ -127,7 +127,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 	// A simple temporary array of fixed size so statically allocate it
 	static REAL frequencies[STATE_COUNT];
 
-#if (REAL == double)
+#ifdef DOUBLE_PRECISION
 	// working with double precision so just pass along the array
     (*env)->GetDoubleArrayRegion(env, inStateFrequencies, 0, STATE_COUNT, frequencies);
 
@@ -136,7 +136,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 	jdouble *frequenciesD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inStateFrequencies, 0);
 
 
-	for (int i = 0; i < kPatternCount; i++) {
+	for (int i = 0; i < STATE_COUNT; i++) {
 		frequencies[i] = (REAL)frequenciesD[i];
 	}
 

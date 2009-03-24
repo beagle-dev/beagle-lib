@@ -13,8 +13,26 @@ import java.util.*;
 public class BeagleFactory {
 
 	public static final String STATE_COUNT = "stateCount";
+	public static final String PREFER_SINGLE_PRECISION = "preferSinglePrecision";
 	public static final String SINGLE_PRECISION = "singlePrecision";
-    public static final String INSTANCE_NUMBER = "instanceNumber";
+    public static final String DEVICE_NUMBER = "deviceNumber";
+    
+    private static Beagle load(BeagleLoader loader, Map<String, Object> configuration,
+    					       boolean singlePrecision) {
+    	configuration.put(BeagleFactory.SINGLE_PRECISION,singlePrecision);
+    	
+        System.out.print("Attempting to load beagle: " + loader.getLibraryName(configuration));
+
+        Beagle beagle = loader.createInstance(configuration);
+
+		if (beagle != null) {
+            System.out.println(" - SUCCESS");
+
+			return beagle;
+        }
+        System.out.println(" - FAILED");
+    	return null;
+    }
 
 	public static Beagle loadBeagleInstance(Map<String, Object> configuration) {
 
@@ -24,32 +42,35 @@ public class BeagleFactory {
 		}
 
 		for(BeagleLoader loader: registry) {
-            System.out.print("Attempting to load beagle: " + loader.getLibraryName(configuration));
-
-            Beagle beagle = loader.createInstance(configuration);
-
-			if (beagle != null) {
-                System.out.println(" - SUCCESS");
-
-				return beagle;
-            }
-            System.out.println(" - FAILED");
+			
+			// Try prefered precision library
+           Beagle beagle = load(loader, configuration,
+        		   (Boolean)configuration.get(BeagleFactory.PREFER_SINGLE_PRECISION));        		  
+           if (beagle != null)
+        	   return beagle;
+      
+           // Try alternative precision library
+           beagle = load(loader, configuration,
+        		   !(Boolean)configuration.get(BeagleFactory.PREFER_SINGLE_PRECISION));               
+           if (beagle != null)
+        	   return beagle;
 		}
 
 		// No libraries/processes available
 
 		int stateCount = (Integer)configuration.get(STATE_COUNT);
-		boolean singlePrecision = (Boolean)configuration.get(SINGLE_PRECISION);
+		boolean singlePrecision = (Boolean)configuration.get(PREFER_SINGLE_PRECISION);
 
 		if (singlePrecision) {
 			// return new SinglePrecisionBeagleImpl(stateCount);
-            throw new UnsupportedOperationException("Single precision Java version of BEAGLE not implemented");
-        } else {
+            // throw new UnsupportedOperationException("Single precision Java version of BEAGLE not implemented");
+			System.out.println("Single precision Java version of BEAGLE not available; defaulting to double precision");
+        } // else {
             if (stateCount == 4) {
                 return new DoublePrecision4StateBeagleImpl();
             }
 			return new DoublePrecisionBeagleImpl(stateCount);
-        }
+        // }
 	}
 
 	private static List<BeagleLoader> registry;
@@ -68,8 +89,8 @@ public class BeagleFactory {
     public static void main(String[] argv) {
         Map<String, Object> configuration = new HashMap<String, Object>();
         configuration.put(BeagleFactory.STATE_COUNT, 4);
-        configuration.put(BeagleFactory.SINGLE_PRECISION, false);
-        configuration.put(BeagleFactory.INSTANCE_NUMBER, 0);
+        configuration.put(BeagleFactory.PREFER_SINGLE_PRECISION, false);
+        configuration.put(BeagleFactory.DEVICE_NUMBER, 0);
 
         Beagle instance = BeagleFactory.loadBeagleInstance(configuration);
     }

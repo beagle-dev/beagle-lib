@@ -6,8 +6,8 @@
 #ifndef __beagle__
 #define __beagle__
 
-#define DYNAMIC_SCALING
-#define SCALING_REFRESH	0
+//#define DYNAMIC_SCALING
+//#define SCALING_REFRESH	0
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
