@@ -7,51 +7,36 @@
 #include "beagle_BeagleJNIWrapper.h"
 
 // Some temporary arrays used to convert floating point types
-REAL** Evec;
-REAL** Ievc;
-REAL* Eval;
+double** Evec;
+double** Ievc;
 
-REAL *categoryValues;
-REAL *branchValues;
-REAL *logLikelihoodValues;
-
-int kCategoryCount;
-int kPatternCount;
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    initialize
- * Signature: (IIIIII)V
+ * Signature: (IIIIIII)I
  */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_initialize
-	(JNIEnv *env, jobject obj, jint nodeCount, jint tipCount, jint patternCount, jint categoryCount, jint matrixCount)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initialize
+	(JNIEnv *env, jobject obj, jint nodeCount, jint tipCount, jint stateCount, jint patternCount, jint categoryCount, jint matrixCount)
 {
-	initialize(nodeCount, tipCount, patternCount, categoryCount, matrixCount);
+	jint instance = initialize(nodeCount, tipCount, stateCount, patternCount, categoryCount, matrixCount);
 
-    kCategoryCount = categoryCount;
-    kPatternCount = patternCount;
-
-	Evec = (REAL**)malloc(sizeof(REAL*) * STATE_COUNT);
-	Ievc = (REAL**)malloc(sizeof(REAL*) * STATE_COUNT);
+	Evec = (double**)malloc(sizeof(double*) * STATE_COUNT);
+	Ievc = (double**)malloc(sizeof(double*) * STATE_COUNT);
 	for (int i = 0; i < STATE_COUNT; i++) {
-	    Evec[i] = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
-	    Ievc[i] = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
+	    Evec[i] = (double*)malloc(sizeof(double) * STATE_COUNT);
+	    Ievc[i] = (double*)malloc(sizeof(double) * STATE_COUNT);
 	}
-	Eval = (REAL*)malloc(sizeof(REAL) * STATE_COUNT);
 
-	categoryValues = (REAL *)malloc(sizeof(REAL) * categoryCount);
-	branchValues = (REAL *)malloc(sizeof(REAL) * nodeCount);
-
-	logLikelihoodValues = (REAL *)malloc(sizeof(REAL) * patternCount);
-
+    return instance;
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    finalize
- * Signature: ()V
+ * Signature: (I)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_finalize
-	(JNIEnv *env, jobject obj)
+	(JNIEnv *env, jobject obj, jint instance)
 {
 	for (int i = 0; i < STATE_COUNT; i++) {
 	    free(Evec[i]);
@@ -59,103 +44,63 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_finalize
 	}
 	free(Evec);
 	free(Ievc);
-	free(Eval);
 
-	free(categoryValues);
-    free(branchValues);
-    free(logLikelihoodValues);
-
-	finalize();
+	finalize(instance);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipPartials
- * Signature: (I[D)V
+ * Signature: (II[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
-	(JNIEnv *env, jobject obj, jint tipIndex, jdoubleArray inTipPartials)
+	(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jdoubleArray inTipPartials)
 {
+    jdouble *tipPartials = (*env)->GetDoubleArrayElements(env, inTipPartials, NULL);
 
-	// this function is only called to set up the data so we can malloc a temp array
-	REAL *tipPartials = (REAL *)malloc(sizeof(REAL) * kPatternCount * STATE_COUNT);
+	setTipPartials(instance, tipIndex, (double *)tipPartials);
 
-#ifdef DOUBLE_PRECISION
-   (*env)->GetDoubleArrayRegion(env, inTipPartials, 0, kPatternCount, tipPartials);
-	// working with double precision so just pass along the array
-	setTipPartials(tipIndex, tipPartials);
-#else
-	// working with single precision so just convert the array
-
-	jdouble *tipPartialsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inTipPartials, 0);
-	for (int i = 0; i < kPatternCount * STATE_COUNT; i++) {
-		tipPartials[i] = (REAL)tipPartialsD[i];
-	}
-
-	setTipPartials(tipIndex, tipPartials);
-	(*env)->ReleasePrimitiveArrayCritical(env, inTipPartials, tipPartialsD, JNI_ABORT);
-
-
-
-#endif
-
-	free(tipPartials);
+    (*env)->ReleaseDoubleArrayElements(env, inTipPartials, tipPartials, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipStates
- * Signature: (I[I)V
+ * Signature: (II[I)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
-	(JNIEnv *env, jobject obj, jint tipIndex, jintArray inTipStates)
+	(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
 {
-	jint *tipStates = (jint *)malloc(sizeof(jint) * kPatternCount);
-    (*env)->GetIntArrayRegion(env, inTipStates, 0, kPatternCount, tipStates);
-	setTipStates(tipIndex, (int *)tipStates);
-	free(tipStates);
+    jint *tipStates = (*env)->GetIntArrayElements(env, inTipStates, NULL);
+
+	setTipStates(instance, tipIndex, (int *)tipStates);
+
+    (*env)->ReleaseIntArrayElements(env, inTipStates, tipStates, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setStateFrequencies
- * Signature: ([D)V
+ * Signature: (I[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
-	(JNIEnv *env, jobject obj, jdoubleArray inStateFrequencies)
+	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inStateFrequencies)
 {
-	// A simple temporary array of fixed size so statically allocate it
-	static REAL frequencies[STATE_COUNT];
+    jdouble *stateFrequencies = (*env)->GetDoubleArrayElements(env, inStateFrequencies, NULL);
 
-#ifdef DOUBLE_PRECISION
-	// working with double precision so just pass along the array
-    (*env)->GetDoubleArrayRegion(env, inStateFrequencies, 0, STATE_COUNT, frequencies);
+	setStateFrequencies(instance, (double *)stateFrequencies);
 
-#else
-	// working with single precision so just convert the array
-	jdouble *frequenciesD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inStateFrequencies, 0);
-
-
-	for (int i = 0; i < STATE_COUNT; i++) {
-		frequencies[i] = (REAL)frequenciesD[i];
-	}
-
-	(*env)->ReleasePrimitiveArrayCritical(env, inStateFrequencies, frequenciesD, JNI_ABORT);
-#endif
-
-	setStateFrequencies(frequencies);
+    (*env)->ReleaseDoubleArrayElements(env, inStateFrequencies, stateFrequencies, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setEigenDecomposition
- * Signature: (I[[D[[D[D)V
+ * Signature: (II[[D[[D[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
-(JNIEnv *env, jobject obj, jint matrixIndex, jobjectArray inEigenVectors, jobjectArray inInvEigenVectors, jdoubleArray inEigenValues)
+(JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jobjectArray inEigenVectors, jobjectArray inInvEigenVectors, jdoubleArray inEigenValues)
 {
-#ifdef DOUBLE_PRECISION
-    (*env)->GetDoubleArrayRegion(env, inEigenValues, 0, STATE_COUNT, Eval);
 
 	for (int i = 0; i < STATE_COUNT; i++) {
 		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
@@ -165,186 +110,111 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
         (*env)->GetDoubleArrayRegion(env, row2, 0, STATE_COUNT, Ievc[i]);
 	}
 
-#else
-	jdouble *valuesD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inEigenValues, 0);
-	for (int i = 0; i < STATE_COUNT; i++) {
-		jdoubleArray row1 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inEigenVectors, i);
-		jdouble *elements1 = (*env)->GetDoubleArrayElements(env, row1, 0);
+    jdouble *eigenValues = (*env)->GetDoubleArrayElements(env, inEigenValues, NULL);
 
-		jdoubleArray row2 = (jdoubleArray)(*env)->GetObjectArrayElement(env, inInvEigenVectors, i);
-		jdouble *elements2 = (*env)->GetDoubleArrayElements(env, row2, 0);
+	setEigenDecomposition(instance, matrixIndex, Evec, Ievc, (double *)eigenValues);
 
-		for(int j = 0; j < STATE_COUNT; j++) {
-			Evec[i][j] = (REAL)elements1[j];
-			Ievc[i][j] = (REAL)elements2[j];
-		}
-
-        (*env)->ReleaseDoubleArrayElements(env, row2, elements2, 0);
-        (*env)->ReleaseDoubleArrayElements(env, row1, elements1, 0);
-
-		Eval[i] = (REAL)valuesD[i];
-	}
-	(*env)->ReleasePrimitiveArrayCritical(env, inEigenValues, valuesD, JNI_ABORT);
-
-#endif
-
-	setEigenDecomposition(matrixIndex, Evec, Ievc, Eval);
-
+    (*env)->ReleaseDoubleArrayElements(env, inEigenValues, eigenValues, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setCategoryRates
- * Signature: ([D)V
+ * Signature: (I[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
-	(JNIEnv *env, jobject obj, jdoubleArray inCategoryRates)
+	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inCategoryRates)
 {
-#ifdef DOUBLE_PRECISION
-	// working with double precision so just pass along the array
-    (*env)->GetDoubleArrayRegion(env, inCategoryRates, 0, kCategoryCount, categoryValues);
-#else
-	// working with single precision so just convert the array
-	jdouble *categoryRatesD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inCategoryRates, 0);
+    jdouble *categoryRates = (*env)->GetDoubleArrayElements(env, inCategoryRates, NULL);
 
-    // using categoryValues which is a global temporary array of categoryCount size
-	for (int i = 0; i < kCategoryCount; i++) {
-		categoryValues[i] = (REAL)categoryRatesD[i];
-	}
+	setCategoryRates(instance, (double *)categoryRates);
 
-	(*env)->ReleasePrimitiveArrayCritical(env, inCategoryRates, categoryRatesD, JNI_ABORT);
-#endif
-
-	setCategoryRates(categoryValues);
+    (*env)->ReleaseDoubleArrayElements(env, inCategoryRates, categoryRates, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setCategoryProportions
- * Signature: ([D)V
+ * Signature: (I[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
-	(JNIEnv *env, jobject obj, jdoubleArray inCategoryProportions)
+	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inCategoryProportions)
 {
+    jdouble *categoryProportions = (*env)->GetDoubleArrayElements(env, inCategoryProportions, NULL);
 
-#ifdef DOUBLE_PRECISION
-	// working with double precision so just pass along the array
-    (*env)->GetDoubleArrayRegion(env, inCategoryProportions, 0, kCategoryCount, categoryValues);
-#else
-	// working with single precision so just convert the array
-	jdouble *categoryProportionsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inCategoryProportions, 0);
+	setCategoryProportions(instance, (double *)categoryProportions);
 
-    // using categoryValues which is a global temporary array of categoryCount size
-	for (int i = 0; i < kCategoryCount; i++) {
-		categoryValues[i] = (REAL)categoryProportionsD[i];
-	}
-
-	(*env)->ReleasePrimitiveArrayCritical(env, inCategoryProportions, categoryProportionsD, JNI_ABORT);
-#endif
-
-	setCategoryProportions(categoryValues);
+    (*env)->ReleaseDoubleArrayElements(env, inCategoryProportions, categoryProportions, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateProbabilityTransitionMatrices
- * Signature: ([I[DI)V
+ * Signature: (I[I[DI)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransitionMatrices
-	(JNIEnv *env, jobject obj, jintArray inNodeIndices, jdoubleArray inBranchLengths, jint count)
+	(JNIEnv *env, jobject obj, jint instance, jintArray inNodeIndices, jdoubleArray inBranchLengths, jint count)
 {
-    jint *nodeIndices = (*env)->GetIntArrayElements(env, inNodeIndices, 0);
+    jint *nodeIndices = (*env)->GetIntArrayElements(env, inNodeIndices, NULL);
+    jdouble *branchLengths = (*env)->GetDoubleArrayElements(env, inBranchLengths, NULL);
 
-#ifdef DOUBLE_PRECISION
-     (*env)->GetDoubleArrayRegion(env, inBranchLengths, 0, count, branchValues);
+	calculateProbabilityTransitionMatrices(instance, (int *)nodeIndices, (double *)branchLengths, count);
 
-	// working with double precision so just pass along the array
-	calculateProbabilityTransitionMatrices((int *)nodeIndices, branchValues, count);
-
-#else
-	// working with single precision so just convert the array
-	jdouble *branchLengthsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, inBranchLengths, 0);
-
-    // using branchValues which is a global temporary array of nodeCount size
-	for (int i = 0; i < count; i++) {
-		branchValues[i] = (REAL)branchLengthsD[i];
-	}
-
-	(*env)->ReleasePrimitiveArrayCritical(env, inBranchLengths, branchLengthsD, JNI_ABORT);
-
-	calculateProbabilityTransitionMatrices((int *)nodeIndices, branchValues, count);
-#endif
-
-    (*env)->ReleaseIntArrayElements(env, inNodeIndices, nodeIndices, 0);
+    (*env)->ReleaseDoubleArrayElements(env, inBranchLengths, branchLengths, JNI_ABORT);
+    (*env)->ReleaseIntArrayElements(env, inNodeIndices, nodeIndices, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculatePartials
- * Signature: ([I[II)V
+ * Signature: (I[I[II)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
-	(JNIEnv *env, jobject obj, jintArray inOperations, jintArray inDependencies, jint count)
+	(JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jintArray inDependencies, jint count)
 {
-    jint *operations = (*env)->GetIntArrayElements(env, inOperations, 0);
-    jint *dependencies = (*env)->GetIntArrayElements(env, inDependencies, 0);
+    jint *operations = (*env)->GetIntArrayElements(env, inOperations, NULL);
+    jint *dependencies = (*env)->GetIntArrayElements(env, inDependencies, NULL);
 
-	calculatePartials((int *)operations, (int *)dependencies, count, 0);
+	calculatePartials(instance, (int *)operations, (int *)dependencies, count, 0);
 
-    (*env)->ReleaseIntArrayElements(env, inDependencies, dependencies, 0);
-    (*env)->ReleaseIntArrayElements(env, inOperations, operations, 0);
+    (*env)->ReleaseIntArrayElements(env, inDependencies, dependencies, JNI_ABORT);
+    (*env)->ReleaseIntArrayElements(env, inOperations, operations, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateLogLikelihoods
- * Signature: (I[D)V
+ * Signature: (II[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
-	(JNIEnv *env, jobject obj, jint rootNodeIndex, jdoubleArray outLogLikelihoods)
+	(JNIEnv *env, jobject obj, jint instance, jint rootNodeIndex, jdoubleArray outLogLikelihoods)
 {
+    jdouble *logLikelihoods = (*env)->GetDoubleArrayElements(env, outLogLikelihoods, NULL);
 
-#ifdef DOUBLE_PRECISION
-    jdouble *logLikelihoodsD = (*env)->GetDoubleArrayElements(env, outLogLikelihoods, 0);
+	calculateLogLikelihoods(instance, rootNodeIndex, logLikelihoods);
 
-	// working with double precision so just pass along the array
-	calculateLogLikelihoods(rootNodeIndex, logLikelihoodsD);
-
-    (*env)->ReleaseDoubleArrayElements(env, outLogLikelihoods, logLikelihoodsD, 0);
-#else
-	// working with single precision so just convert the array
-
-    // using logLikelihoodValues which is a global temporary array of patternCount size
-	calculateLogLikelihoods(rootNodeIndex, logLikelihoodValues);
-
-	jdouble *logLikelihoodsD = (jdouble*)(*env)->GetPrimitiveArrayCritical(env, outLogLikelihoods, 0);
-
-	for (int i = 0; i < kPatternCount; i++) {
-		logLikelihoodsD[i] = (double)logLikelihoodValues[i];
-	}
-
-	(*env)->ReleasePrimitiveArrayCritical(env, outLogLikelihoods, logLikelihoodsD, JNI_ABORT);
-#endif
+    // not using JNI_ABORT flag here because we want the values to be copied back... 
+    (*env)->ReleaseDoubleArrayElements(env, outLogLikelihoods, logLikelihoods, 0);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    storeState
- * Signature: ()V
+ * Signature: (I)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_storeState
-	(JNIEnv *env, jobject obj)
+	(JNIEnv *env, jobject obj, jint instance)
 {
-	storeState();
+	storeState(instance);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    restoreState
- * Signature: ()V
+ * Signature: (I)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_restoreState
-	(JNIEnv *env, jobject obj)
+	(JNIEnv *env, jobject obj, jint instance)
 {
-	restoreState();
+	restoreState(instance);
 }
