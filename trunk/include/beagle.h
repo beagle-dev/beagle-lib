@@ -9,13 +9,6 @@
 //#define DYNAMIC_SCALING
 //#define SCALING_REFRESH	0
 
-/* Definition of REAL can be switched between 'double' and 'float' */
-#ifdef DOUBLE_PRECISION
-#define REAL		double
-#else
-#define REAL		float
-#endif
-
 // initialize the library
 //
 // This can be called multiple times to create multiple data partition instances
@@ -47,7 +40,7 @@ void finalize(int instance);
 void setTipPartials(
                     int instance,
 					int tipIndex,
-					REAL* inPartials);
+					double* inPartials);
 
 // set the states for a given tip
 //
@@ -64,7 +57,7 @@ void setTipStates(
 // stateFrequencies an array containing the state frequencies
 void setStateFrequencies(
                          int instance,
-                         REAL* inStateFrequencies);
+                         double* inStateFrequencies);
 
 // sets the Eigen decomposition for a given matrix
 //
@@ -75,23 +68,23 @@ void setStateFrequencies(
 void setEigenDecomposition(
                            int instance,
 						   int matrixIndex,
-						   REAL** inEigenVectors,
-						   REAL** inInverseEigenVectors,
-						   REAL* inEigenValues);
+						   double** inEigenVectors,
+						   double** inInverseEigenVectors,
+						   double* inEigenValues);
 
 // set the vector of category rates
 //
 // categoryRates an array containing categoryCount rate scalers
 void setCategoryRates(
                       int instance,
-                      REAL* inCategoryRates);
+                      double* inCategoryRates);
 
 // set the vector of category proportions
 //
 // categoryProportions an array containing categoryCount proportions (which sum to 1.0)
 void setCategoryProportions(
                             int instance,
-                            REAL* inCategoryProportions);
+                            double* inCategoryProportions);
 
 // calculate a transition probability matrices for a given list of node. This will
 // calculate for all categories (and all matrices if more than one is being used).
@@ -102,7 +95,7 @@ void setCategoryProportions(
 void calculateProbabilityTransitionMatrices(
                                             int instance,
                                             int* nodeIndices,
-                                            REAL* branchLengths,
+                                            double* branchLengths,
                                             int count);
 
 // calculate partials using an array of operations
@@ -125,7 +118,7 @@ void calculatePartials(
 void calculateLogLikelihoods(
                              int instance,
 		                     int rootNodeIndex,
-			                 REAL* outLogLikelihoods);
+			                 double* outLogLikelihoods);
 
 // store the current state of all partials and matrices
 void storeState(int instance);
