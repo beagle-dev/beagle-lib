@@ -18,26 +18,34 @@
 
 // initialize the library
 //
+// This can be called multiple times to create multiple data partition instances
+// each returning a unique identifier.
+//
 // nodeCount the number of nodes in the tree
 // tipCount the number of tips in the tree
+// stateCount the number of states
 // patternCount the number of site patterns
 // categoryCount the number of rate categories
 // matrixCount the number of substitution matrices (should be 1 or categoryCount)
-void initialize(
+//
+// returns the unique instance identifier (-1 if failed)
+int initialize(
 				int nodeCount,
 				int tipCount,
+				int stateCount,
 				int patternCount,
 				int categoryCount,
 				int matrixCount);
 
 // finalize and dispose of memory allocation if needed
-void finalize();
+void finalize(int instance);
 
 // set the partials for a given tip
 //
 // tipIndex the index of the tip
 // inPartials the array of partials, stateCount x patternCount
 void setTipPartials(
+                    int instance,
 					int tipIndex,
 					REAL* inPartials);
 
@@ -46,13 +54,17 @@ void setTipPartials(
 // tipIndex the index of the tip
 // inStates the array of states: 0 to stateCount - 1, missing = stateCount
 void setTipStates(
+                  int instance,
+                  int partition,
 				  int tipIndex,
 				  int* inStates);
 
 // set the vector of state frequencies
 //
 // stateFrequencies an array containing the state frequencies
-void setStateFrequencies(REAL* inStateFrequencies);
+void setStateFrequencies(
+                         int instance,
+                         REAL* inStateFrequencies);
 
 // sets the Eigen decomposition for a given matrix
 //
@@ -61,6 +73,7 @@ void setStateFrequencies(REAL* inStateFrequencies);
 // inverseEigenVectors an array containing the inverse Eigen Vectors
 // eigenValues an array containing the Eigen Values
 void setEigenDecomposition(
+                           int instance,
 						   int matrixIndex,
 						   REAL** inEigenVectors,
 						   REAL** inInverseEigenVectors,
@@ -69,12 +82,16 @@ void setEigenDecomposition(
 // set the vector of category rates
 //
 // categoryRates an array containing categoryCount rate scalers
-void setCategoryRates(REAL* inCategoryRates);
+void setCategoryRates(
+                      int instance,
+                      REAL* inCategoryRates);
 
 // set the vector of category proportions
 //
 // categoryProportions an array containing categoryCount proportions (which sum to 1.0)
-void setCategoryProportions(REAL* inCategoryProportions);
+void setCategoryProportions(
+                            int instance,
+                            REAL* inCategoryProportions);
 
 // calculate a transition probability matrices for a given list of node. This will
 // calculate for all categories (and all matrices if more than one is being used).
@@ -83,6 +100,7 @@ void setCategoryProportions(REAL* inCategoryProportions);
 // branchLengths an array of expected lengths in substitutions per site
 // count the number of elements in the above arrays
 void calculateProbabilityTransitionMatrices(
+                                            int instance,
                                             int* nodeIndices,
                                             REAL* branchLengths,
                                             int count);
@@ -94,6 +112,7 @@ void calculateProbabilityTransitionMatrices(
 // count the number of operations
 // rescale indicate if partials should be rescaled during peeling
 void calculatePartials(
+                       int instance,
 					   int* operations,
 					   int* dependencies,
 					   int count,
@@ -104,13 +123,14 @@ void calculatePartials(
 // rootNodeIndex the index of the root
 // outLogLikelihoods an array into which the site log likelihoods will be put
 void calculateLogLikelihoods(
-			int rootNodeIndex,
-			REAL* outLogLikelihoods);
+                             int instance,
+		                     int rootNodeIndex,
+			                 REAL* outLogLikelihoods);
 
 // store the current state of all partials and matrices
-void storeState();
+void storeState(int instance);
 
 // restore the stored state after a rejected move
-void restoreState();
+void restoreState(int instance);
 
 #endif // __beagle__
