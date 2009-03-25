@@ -22,21 +22,26 @@ ARCH		:= i386
 MAC_LINK	:= bundle  # Can also be 'dynamiclib'
 LINUX_LINK	:= shared
 
-OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
+OPTIONS		:= -fast
+# -fast -ffast-math -funroll-loops -fstrict-aliasing
 
 ############################################################
 
 
 mac :
-	cc -c -arch $(ARCH) -O4 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
+	cc -c -arch $(ARCH) -O3 $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
 	   -DSTATE_COUNT=$(STATE_COUNT) \
 	   -DDOUBLE_PRECISION \
-	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/CPU/beagleCPU.c java/JNI/beagle_BeagleJNIWrapper.c
+	   -o $(DEST)/beagleCPU2.$(ARCH).o src/CPU/beagleCPU2.c 
+	cc -c -arch $(ARCH) -O3 $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
+	   -DSTATE_COUNT=$(STATE_COUNT) \
+	   -DDOUBLE_PRECISION \
+	   -o $(DEST)/beagle_BeagleJNIWrapper.$(ARCH).o java/JNI/beagle_BeagleJNIWrapper.c
 	cc -o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) \
-	   -$(MAC_LINK) $(DEST)/$(OUTNAME).$(ARCH).o
+	   -$(MAC_LINK) $(DEST)/beagleCPU2.$(ARCH).o $(DEST)/beagle_BeagleJNIWrapper.$(ARCH).o
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib
-	rm $(DEST)/$(OUTNAME).$(ARCH).o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib
+	rm $(DEST)/*.o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib
 
 linux :
 	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT) \
