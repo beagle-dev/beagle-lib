@@ -12,79 +12,71 @@ import java.util.*;
  */
 public class BeagleFactory {
 
-	public static final String STATE_COUNT = "stateCount";
-	public static final String PREFER_SINGLE_PRECISION = "preferSinglePrecision";
-	public static final String SINGLE_PRECISION = "singlePrecision";
+    public static final String STATE_COUNT = "stateCount";
+    public static final String PREFER_SINGLE_PRECISION = "preferSinglePrecision";
+    public static final String SINGLE_PRECISION = "singlePrecision";
     public static final String DEVICE_NUMBER = "deviceNumber";
-    
-    private static Beagle load(BeagleLoader loader, Map<String, Object> configuration,
-    					       boolean singlePrecision) {
-    	configuration.put(BeagleFactory.SINGLE_PRECISION,singlePrecision);
-    	
+
+    private static Beagle load(BeagleLoader loader, Map<String, Object> configuration) {
+        // configuration.put(BeagleFactory.SINGLE_PRECISION, singlePrecision);
+
         System.out.print("Attempting to load beagle: " + loader.getLibraryName(configuration));
 
         Beagle beagle = loader.createInstance(configuration);
 
-		if (beagle != null) {
+        if (beagle != null) {
             System.out.println(" - SUCCESS");
 
-			return beagle;
+            return beagle;
         }
         System.out.println(" - FAILED");
-    	return null;
+        return null;
     }
 
-	public static Beagle loadBeagleInstance(Map<String, Object> configuration) {
+    public static Beagle loadBeagleInstance(Map<String, Object> configuration) {
 
-		if (registry == null) {  // Lazy loading
-			registry = new ArrayList<BeagleLoader>();  // List libraries in order of load-priority
+        if (registry == null) {  // Lazy loading
+            registry = new ArrayList<BeagleLoader>();  // List libraries in order of load-priority
             registry.add(new BeagleJNIWrapper.BeagleLoader());
-		}
+        }
 
-		for(BeagleLoader loader: registry) {
-			
-			// Try prefered precision library
-           Beagle beagle = load(loader, configuration,
-        		   (Boolean)configuration.get(BeagleFactory.PREFER_SINGLE_PRECISION));        		  
-           if (beagle != null)
-        	   return beagle;
-      
-           // Try alternative precision library
-           beagle = load(loader, configuration,
-        		   !(Boolean)configuration.get(BeagleFactory.PREFER_SINGLE_PRECISION));               
-           if (beagle != null)
-        	   return beagle;
-		}
+        for(BeagleLoader loader: registry) {
 
-		// No libraries/processes available
+            // Try prefered precision library
+            Beagle beagle = load(loader, configuration);
+            if (beagle != null)
+                return beagle;
+        }
 
-		int stateCount = (Integer)configuration.get(STATE_COUNT);
-		boolean singlePrecision = (Boolean)configuration.get(PREFER_SINGLE_PRECISION);
+        // No libraries/processes available
 
-		if (singlePrecision) {
-			// return new SinglePrecisionBeagleImpl(stateCount);
-            // throw new UnsupportedOperationException("Single precision Java version of BEAGLE not implemented");
-			System.out.println("Single precision Java version of BEAGLE not available; defaulting to double precision");
-        } // else {
-            if (stateCount == 4) {
-                return new DoublePrecision4StateBeagleImpl();
-            }
-			return new DoublePrecisionBeagleImpl(stateCount);
-        // }
-	}
+        int stateCount = (Integer)configuration.get(STATE_COUNT);
+//        boolean singlePrecision = (Boolean)configuration.get(PREFER_SINGLE_PRECISION);
+//
+//        if (singlePrecision) {
+//            // return new SinglePrecisionBeagleImpl(stateCount);
+//            // throw new UnsupportedOperationException("Single precision Java version of BEAGLE not implemented");
+//            System.out.println("Single precision Java version of BEAGLE not available; defaulting to double precision");
+//        } // else {
 
-	private static List<BeagleLoader> registry;
+        if (stateCount == 4) {
+            return new DoublePrecision4StateBeagleImpl();
+        }
+        return new DoublePrecisionBeagleImpl(stateCount);
+    }
 
-	protected interface BeagleLoader {
+    private static List<BeagleLoader> registry;
+
+    protected interface BeagleLoader {
         public String getLibraryName(Map<String, Object> configuration);
 
-		/**
-		 * Actual factory
-		 * @param configuration
-		 * @return
-		 */
-		public Beagle createInstance(Map<String, Object> configuration);
-	}
+        /**
+         * Actual factory
+         * @param configuration
+         * @return
+         */
+        public Beagle createInstance(Map<String, Object> configuration);
+    }
 
     public static void main(String[] argv) {
         Map<String, Object> configuration = new HashMap<String, Object>();

@@ -48,7 +48,6 @@ void setTipPartials(
 // inStates the array of states: 0 to stateCount - 1, missing = stateCount
 void setTipStates(
                   int instance,
-                  int partition,
 				  int tipIndex,
 				  int* inStates);
 
