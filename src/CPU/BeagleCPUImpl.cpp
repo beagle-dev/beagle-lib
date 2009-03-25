@@ -1,5 +1,5 @@
 /*
- *  BeaglecCPUImpl.cpp
+ *  BeagleCPUImpl.cpp
  *  BEAGLE
  *
  * @author Andrew Rambaut

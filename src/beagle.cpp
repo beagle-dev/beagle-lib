@@ -1,6 +1,10 @@
 /*
+ *  beagle.cpp
+ *  BEAGLE
+ *
  * @author Andrew Rambaut
  * @author Marc Suchard
+ *
  */
 
 #include <stdio.h>
@@ -9,6 +13,7 @@
 #include <math.h>
 
 #include "beagle.h"
+#include "BeagleImpl.h"
 #include "BeagleCPUImpl.h"
 
 BeagleImpl **instances = NULL;
