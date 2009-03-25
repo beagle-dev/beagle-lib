@@ -10,7 +10,7 @@ extern "C" {
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    initialize
- * Signature: (IIIII)I
+ * Signature: (IIIIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initialize
   (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
