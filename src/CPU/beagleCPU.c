@@ -22,26 +22,26 @@ int kPartialsSize;
 int kMatrixCount;
 int kCategoryCount;
 
-REAL** cMatrices;
-REAL** storedCMatrices;
-REAL** eigenValues;
-REAL** storedEigenValues;
+double** cMatrices;
+double** storedCMatrices;
+double** eigenValues;
+double** storedEigenValues;
 
-REAL* frequencies;
-REAL* storedFrequencies;
-REAL* categoryProportions;
-REAL* storedCategoryProportions;
-REAL* categoryRates;
-REAL* storedCategoryRates;
+double* frequencies;
+double* storedFrequencies;
+double* categoryProportions;
+double* storedCategoryProportions;
+double* categoryRates;
+double* storedCategoryRates;
 
-REAL* branchLengths;
-REAL* storedBranchLengths;
+double* branchLengths;
+double* storedBranchLengths;
 
-REAL* integrationTmp;
+double* integrationTmp;
 
-REAL*** partials;
+double*** partials;
 int** states;
-REAL*** matrices;
+double*** matrices;
 
 int* currentMatricesIndices;
 int* storedMatricesIndices;
@@ -52,7 +52,7 @@ void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3);
 void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
 void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
 
-void printArray(char* name, REAL *array, int length) {
+void printArray(char* name, double *array, int length) {
 	fprintf(stderr, "%s:", name);
 	for (int i = 0; i < length; i++) {
 		fprintf(stderr, " %f", array[i]);
@@ -65,9 +65,10 @@ void printArray(char* name, REAL *array, int length) {
 // patternCount the number of site patterns
 // categoryCount the number of rate scalers per branch
 // matrixCount the number of Q-matrices per branch (should be 1 or categoryCount)
-void initialize(
+int initialize(
 				int nodeCount,
 				int tipCount,
+				int stateCount,
 				int patternCount,
 				int categoryCount,
 				int matrixCount)
@@ -79,44 +80,44 @@ void initialize(
 	kMatrixCount = matrixCount;
 	kCategoryCount = categoryCount;
 
-	cMatrices = (REAL **)malloc(sizeof(REAL *) * kMatrixCount);
-	storedCMatrices = (REAL **)malloc(sizeof(REAL *) * kMatrixCount);
-	eigenValues = (REAL **)malloc(sizeof(REAL *) * kMatrixCount);
-	storedEigenValues = (REAL **)malloc(sizeof(REAL *) * kMatrixCount);
+	cMatrices = (double **)malloc(sizeof(double *) * kMatrixCount);
+	storedCMatrices = (double **)malloc(sizeof(double *) * kMatrixCount);
+	eigenValues = (double **)malloc(sizeof(double *) * kMatrixCount);
+	storedEigenValues = (double **)malloc(sizeof(double *) * kMatrixCount);
 
 	for (int i = 0; i < kMatrixCount; i++) {
-		cMatrices[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
-		storedCMatrices[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
-		eigenValues[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
-		storedEigenValues[i] = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
+		cMatrices[i] = (double *)malloc(sizeof(double) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
+		storedCMatrices[i] = (double *)malloc(sizeof(double) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
+		eigenValues[i] = (double *)malloc(sizeof(double) * STATE_COUNT);
+		storedEigenValues[i] = (double *)malloc(sizeof(double) * STATE_COUNT);
 	}
 
-	frequencies = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
-	storedFrequencies = (REAL *)malloc(sizeof(REAL) * STATE_COUNT);
+	frequencies = (double *)malloc(sizeof(double) * STATE_COUNT);
+	storedFrequencies = (double *)malloc(sizeof(double) * STATE_COUNT);
 
-	categoryRates = (REAL *)malloc(sizeof(REAL) * kCategoryCount);
-	storedCategoryRates = (REAL *)malloc(sizeof(REAL) * kCategoryCount);
+	categoryRates = (double *)malloc(sizeof(double) * kCategoryCount);
+	storedCategoryRates = (double *)malloc(sizeof(double) * kCategoryCount);
 
-	categoryProportions = (REAL *)malloc(sizeof(REAL) * kCategoryCount);
-	storedCategoryProportions = (REAL *)malloc(sizeof(REAL) * kCategoryCount);
+	categoryProportions = (double *)malloc(sizeof(double) * kCategoryCount);
+	storedCategoryProportions = (double *)malloc(sizeof(double) * kCategoryCount);
 
-	branchLengths = (REAL *)malloc(sizeof(REAL) * kNodeCount);
-	storedBranchLengths = (REAL *)malloc(sizeof(REAL) * kNodeCount);
+	branchLengths = (double *)malloc(sizeof(double) * kNodeCount);
+	storedBranchLengths = (double *)malloc(sizeof(double) * kNodeCount);
 
 	// a temporary array used in calculating log likelihoods
-	integrationTmp = (REAL *)malloc(sizeof(REAL) * patternCount * STATE_COUNT);
+	integrationTmp = (double *)malloc(sizeof(double) * patternCount * STATE_COUNT);
 
 	kPartialsSize = kPatternCount * STATE_COUNT * kCategoryCount;
 
-	partials = (REAL ***)malloc(sizeof(REAL**) * 2);
-	partials[0] = (REAL **)malloc(sizeof(REAL*) * nodeCount);
-	partials[1] = (REAL **)malloc(sizeof(REAL*) * nodeCount);
+	partials = (double ***)malloc(sizeof(double**) * 2);
+	partials[0] = (double **)malloc(sizeof(double*) * nodeCount);
+	partials[1] = (double **)malloc(sizeof(double*) * nodeCount);
 
 	states = (int **)malloc(sizeof(int*) * nodeCount);
 
 	for (int i = 0; i < nodeCount; i++) {
-		partials[0][i] = (REAL *)malloc(sizeof(REAL) * kPartialsSize);
-		partials[1][i] = (REAL *)malloc(sizeof(REAL) * kPartialsSize);
+		partials[0][i] = (double *)malloc(sizeof(double) * kPartialsSize);
+		partials[1][i] = (double *)malloc(sizeof(double) * kPartialsSize);
 		states[i] = (int *)malloc(sizeof(int) * kPatternCount * kCategoryCount);
 	}
 
@@ -128,18 +129,20 @@ void initialize(
   	memset(currentPartialsIndices, 0, sizeof(int) * kNodeCount);
   	storedPartialsIndices = (int *)malloc(sizeof(int) * kNodeCount);
 
-	matrices = (REAL ***)malloc(sizeof(REAL**) * 2);
-	matrices[0] = (REAL **)malloc(sizeof(REAL*) * kNodeCount);
-	matrices[1] = (REAL **)malloc(sizeof(REAL*) * kNodeCount);
+	matrices = (double ***)malloc(sizeof(double**) * 2);
+	matrices[0] = (double **)malloc(sizeof(double*) * kNodeCount);
+	matrices[1] = (double **)malloc(sizeof(double*) * kNodeCount);
 	for (int i = 0; i < kNodeCount; i++) {
-		matrices[0][i] = (REAL *)malloc(sizeof(REAL) * kCategoryCount * MATRIX_SIZE);
-		matrices[1][i] = (REAL *)malloc(sizeof(REAL) * kCategoryCount * MATRIX_SIZE);
+		matrices[0][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
+		matrices[1][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
 	}
 
+    // this implementation only allows one instance...
+    return 0;
 }
 
 // finalize and dispose of memory allocation if needed
-void finalize()
+void finalize(int instance)
 {
 	// free all that stuff...
 }
@@ -149,13 +152,14 @@ void finalize()
 // tipIndex the index of the tip
 // inPartials the array of partials, stateCount x patternCount
 void setTipPartials(
+                    int instance,
 					int tipIndex,
-					REAL* inPartials)
+					double* inPartials)
 {
 	int k = 0;
 	for (int i = 0; i < kCategoryCount; i++) {
 		// set the partials identically for each matrix
-		memcpy(partials[0][tipIndex] + k, inPartials, sizeof(REAL) * kPatternCount * STATE_COUNT);
+		memcpy(partials[0][tipIndex] + k, inPartials, sizeof(double) * kPatternCount * STATE_COUNT);
 		k += kPatternCount * STATE_COUNT;
 	}
 }
@@ -165,6 +169,7 @@ void setTipPartials(
 // tipIndex the index of the tip
 // inStates the array of states: 0 to stateCount - 1, missing = stateCount
 void setTipStates(
+                  int instance,
 				  int tipIndex,
 				  int* inStates)
 {
@@ -180,9 +185,9 @@ void setTipStates(
 // set the vector of state frequencies
 //
 // inStateFrequencies an array containing the state frequencies
-void setStateFrequencies(REAL* inStateFrequencies)
+void setStateFrequencies(int instance, double* inStateFrequencies)
 {
-	memcpy(frequencies, inStateFrequencies, sizeof(REAL) * STATE_COUNT);
+	memcpy(frequencies, inStateFrequencies, sizeof(double) * STATE_COUNT);
 //    printArray("frequencies", frequencies, STATE_COUNT);
 }
 
@@ -193,10 +198,11 @@ void setStateFrequencies(REAL* inStateFrequencies)
 // inverseEigenVectors an array containing the inverse Eigen Vectors
 // eigenValues an array containing the Eigen Values
 void setEigenDecomposition(
+                           int instance,
 						   int matrixIndex,
-						   REAL** inEigenVectors,
-						   REAL** inInverseEigenVectors,
-						   REAL* inEigenValues)
+						   double** inEigenVectors,
+						   double** inInverseEigenVectors,
+						   double* inEigenValues)
 {
 
 	int l =0;
@@ -217,18 +223,18 @@ void setEigenDecomposition(
 // set the vector of category rates
 //
 // categoryRates an array containing categoryCount rate scalers
-void setCategoryRates(REAL* inCategoryRates)
+void setCategoryRates(int instance, double* inCategoryRates)
 {
-	memcpy(categoryRates, inCategoryRates, sizeof(REAL) * kCategoryCount);
+	memcpy(categoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
 //    printArray("categoryRates", categoryRates, kCategoryCount);
 }
 
 // set the vector of category proportions
 //
 // categoryProportions an array containing categoryCount proportions (which sum to 1.0)
-void setCategoryProportions(REAL* inCategoryProportions)
+void setCategoryProportions(int instance, double* inCategoryProportions)
 {
-	memcpy(categoryProportions, inCategoryProportions, sizeof(REAL) * kCategoryCount);
+	memcpy(categoryProportions, inCategoryProportions, sizeof(double) * kCategoryCount);
 //    printArray("categoryProportions", categoryProportions, kCategoryCount);
 }
 
@@ -239,11 +245,12 @@ void setCategoryProportions(REAL* inCategoryProportions)
 // branchLengths an array of expected lengths in substitutions per site
 // count the number of elements in the above arrays
 void calculateProbabilityTransitionMatrices(
+                                            int instance,
                                             int* nodeIndices,
-                                            REAL* branchLengths,
+                                            double* branchLengths,
                                             int count)
 {
-	static REAL tmp[STATE_COUNT];
+	static double tmp[STATE_COUNT];
 
     for (int u = 0; u < count; u++) {
         int nodeIndex = nodeIndices[u];
@@ -260,7 +267,7 @@ void calculateProbabilityTransitionMatrices(
 			int m = 0;
 			for (int i = 0; i < STATE_COUNT; i++) {
 				for (int j = 0; j < STATE_COUNT; j++) {
-					REAL sum = 0.0;
+					double sum = 0.0;
 					for (int k = 0; k < STATE_COUNT; k++) {
 						sum += cMatrices[matrixIndex][m] * tmp[k];
 						m++;
@@ -289,6 +296,7 @@ void calculateProbabilityTransitionMatrices(
 // count the number of operations
 // rescale indicate if partials should be rescaled during peeling
 void calculatePartials(
+                       int instance,
 					   int* operations,
 					   int* dependencies,
 					   int count,
@@ -327,13 +335,13 @@ void calculatePartials(
  */
 void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 {
-	REAL* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	REAL* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
+	double* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
+	double* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
 	int* states1 = states[nodeIndex1];
 	int* states2 = states[nodeIndex2];
 
-	REAL* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
+	double* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
 #ifdef IS_NUCLEOTIDES
 
@@ -389,13 +397,13 @@ void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
  */
 void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 {
-	REAL* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	REAL* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
+	double* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
+	double* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
 	int* states1 = states[nodeIndex1];
-	REAL* partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
+	double* partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
 
-	REAL* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
+	double* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
 #ifdef IS_NUCLEOTIDES
 
@@ -411,7 +419,7 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 			partials3[u] = matrices1[w + state1];
 
-			REAL sum = matrices2[w] * partials2[v]; w++;
+			double sum = matrices2[w] * partials2[v]; w++;
 			sum +=	matrices2[w] * partials2[v + 1]; w++;
 			sum +=	matrices2[w] * partials2[v + 2]; w++;
 			sum +=	matrices2[w] * partials2[v + 3]; w++;
@@ -463,9 +471,9 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 			for (int i = 0; i < STATE_COUNT; i++) {
 
-				REAL tmp = matrices1[w + state1];
+				double tmp = matrices1[w + state1];
 
-				REAL sum = 0.0;
+				double sum = 0.0;
 				for (int j = 0; j < STATE_COUNT; j++) {
 					sum += matrices2[w] * partials2[v + j];
 					w++;
@@ -486,17 +494,17 @@ void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 
 void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 {
-	REAL* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	REAL* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
+	double* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
+	double* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
-	REAL* partials1 = partials[currentPartialsIndices[nodeIndex1]][nodeIndex1];
-	REAL* partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
+	double* partials1 = partials[currentPartialsIndices[nodeIndex1]][nodeIndex1];
+	double* partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
 
-	REAL* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
+	double* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
 	/* fprintf(stdout, "*** operation %d: %d, %d -> %d\n", op, nodeIndex1, nodeIndex2, nodeIndex3); */
 
-	REAL sum1, sum2;
+	double sum1, sum2;
 
 #ifdef IS_NUCLEOTIDES
 
@@ -597,11 +605,12 @@ void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
 // rootNodeIndex the index of the root
 // outLogLikelihoods an array into which the site log likelihoods will be put
 void calculateLogLikelihoods(
+                             int instance,
 							 int rootNodeIndex,
-							 REAL* outLogLikelihoods)
+							 double* outLogLikelihoods)
 {
 
-	REAL* rootPartials = partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
+	double* rootPartials = partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
 //    printArray("rootPartials", rootPartials, kPatternCount * STATE_COUNT);
 //    printArray("frequencies", frequencies, STATE_COUNT);
 //    printArray("categoryProportions", categoryProportions, kCategoryCount);
@@ -638,7 +647,7 @@ void calculateLogLikelihoods(
 	u = 0;
 	for (int k = 0; k < kPatternCount; k++) {
 
-		REAL sum = 0.0;
+		double sum = 0.0;
 		for (int i = 0; i < STATE_COUNT; i++) {
 
 			sum += frequencies[i] * integrationTmp[u];
@@ -651,27 +660,27 @@ void calculateLogLikelihoods(
 }
 
 // store the current state of all partials and matrices
-void storeState()
+void storeState(int instance)
 {
 	for (int i = 0; i < kMatrixCount; i++) {
-		memcpy(storedCMatrices[i], cMatrices[i], sizeof(REAL) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
-		memcpy(storedEigenValues[i], eigenValues[i], sizeof(REAL) * STATE_COUNT);
+		memcpy(storedCMatrices[i], cMatrices[i], sizeof(double) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
+		memcpy(storedEigenValues[i], eigenValues[i], sizeof(double) * STATE_COUNT);
 	}
 
-	memcpy(storedFrequencies, frequencies, sizeof(REAL) * STATE_COUNT);
-	memcpy(storedCategoryRates, categoryRates, sizeof(REAL) * kCategoryCount);
-	memcpy(storedCategoryProportions, categoryProportions, sizeof(REAL) * kCategoryCount);
-	memcpy(storedBranchLengths, branchLengths, sizeof(REAL) * kNodeCount);
+	memcpy(storedFrequencies, frequencies, sizeof(double) * STATE_COUNT);
+	memcpy(storedCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
+	memcpy(storedCategoryProportions, categoryProportions, sizeof(double) * kCategoryCount);
+	memcpy(storedBranchLengths, branchLengths, sizeof(double) * kNodeCount);
 
 	memcpy(storedMatricesIndices, currentMatricesIndices, sizeof(int) * kNodeCount);
 	memcpy(storedPartialsIndices, currentPartialsIndices, sizeof(int) * kNodeCount);
 }
 
 // restore the stored state after a rejected move
-void restoreState()
+void restoreState(int instance)
 {
 	// Rather than copying the stored stuff back, just swap the pointers...
-	REAL** tmp = cMatrices;
+	double** tmp = cMatrices;
 	cMatrices = storedCMatrices;
 	storedCMatrices = tmp;
 
@@ -679,7 +688,7 @@ void restoreState()
 	eigenValues = storedEigenValues;
 	storedEigenValues = tmp;
 
-	REAL *tmp1 = frequencies;
+	double *tmp1 = frequencies;
 	frequencies = storedFrequencies;
 	storedFrequencies = tmp1;
 
