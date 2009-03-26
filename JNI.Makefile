@@ -28,19 +28,18 @@ OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 
 
 mac :
-	g++ -c -arch $(ARCH) -O4 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c++98\
-	   -DSTATE_COUNT=$(STATE_COUNT) \
-	   -DDOUBLE_PRECISION \
-	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
-	   
-	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) -std=c++98 \
-	   -$(MAC_LINK) $(DEST)/$(OUTNAME).$(ARCH).o 
+	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) \
+	    -$(MAC_LINK) \
+	    $(MAC_INCLUDES) \
+	    -DSTATE_COUNT=$(STATE_COUNT) \
+	    -DDOUBLE_PRECISION \
+ 		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
+	 
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib
 	     
-	rm $(DEST)/$(OUTNAME).$(ARCH).o  \
-		$(DEST)/lib$(OUTNAME).$(ARCH).jnilib 
+	rm $(DEST)/lib$(OUTNAME).$(ARCH).jnilib 
 
 linux :
 	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT) \
