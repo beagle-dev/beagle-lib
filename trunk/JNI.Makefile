@@ -4,7 +4,7 @@
 
 STATE_COUNT = 4
 
-OUTNAME		:= BEAGLE-$(STATE_COUNT)-D
+OUTNAME		:= BEAGLE-$(STATE_COUNT)
 
 ############
 
@@ -18,6 +18,7 @@ LINUX_INCLUDES	+= -I$(LINUX_JAVA_HOME)/include -I$(LINUX_JAVA_HOME)/include/linu
 DEST	:= lib
 
 ARCH		:= i386
+ARCH2		:= x86_64
 
 MAC_LINK	:= bundle  # Can also be 'dynamiclib'
 LINUX_LINK	:= shared
@@ -35,11 +36,19 @@ mac :
 	    -DDOUBLE_PRECISION \
  		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
 	 
+	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib -framework JavaVM -arch $(ARCH2) \
+	    -$(MAC_LINK) \
+	    $(MAC_INCLUDES) \
+	    -DSTATE_COUNT=$(STATE_COUNT) \
+	    -DDOUBLE_PRECISION \
+ 		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
+	 
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
+				$(DEST)/lib$(OUTNAME).$(ARCH2).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib
 	     
-	rm $(DEST)/lib$(OUTNAME).$(ARCH).jnilib 
+	rm $(DEST)/lib$(OUTNAME).$(ARCH).jnilib $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib 
 
 linux :
 	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT) \
