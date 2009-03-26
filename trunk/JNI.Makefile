@@ -28,18 +28,13 @@ OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 
 
 mac :
-	cc -c -arch $(ARCH) -O4 -fast $(OPTIONS) $(MAC_INCLUDES) -std=c99 \
-	   -DSTATE_COUNT=$(STATE_COUNT) \
-	   -DDOUBLE_PRECISION \
-	   -o $(DEST)/beagle_BeagleJNIWrapper.$(ARCH).o java/JNI/beagle_BeagleJNIWrapper.c
-	   
 	cc -c -arch $(ARCH) -O4 -fast $(OPTIONS) $(MAC_INCLUDES) \
 	   -DSTATE_COUNT=$(STATE_COUNT) \
 	   -DDOUBLE_PRECISION \
-	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/beagle.cpp src/CPU/BeagleCPUImpl.cpp 
+	   -o $(DEST)/$(OUTNAME).$(ARCH).o src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
 	   
 	cc -o $(DEST)/lib$(OUTNAME).$(ARCH).jnilib -framework JavaVM -arch $(ARCH) \
-	   -$(MAC_LINK) $(DEST)/$(OUTNAME).$(ARCH).o $(DEST)/beagle_BeagleJNIWrapper.$(ARCH).o
+	   -$(MAC_LINK) $(DEST)/$(OUTNAME).$(ARCH).o
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib

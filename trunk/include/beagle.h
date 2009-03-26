@@ -10,10 +10,6 @@
 #ifndef __beagle__
 #define __beagle__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 //#define DYNAMIC_SCALING
 //#define SCALING_REFRESH	0
 
@@ -133,7 +129,4 @@ void storeState(int instance);
 // restore the stored state after a rejected move
 void restoreState(int instance);
 
-#ifdef __cplusplus
-}
-#endif
 #endif // __beagle__
