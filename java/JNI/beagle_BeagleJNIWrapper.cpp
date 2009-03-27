@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <jni.h>
 
 #include "beagle.h"
 #include "beagle_BeagleJNIWrapper.h"
@@ -167,10 +168,10 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransiti
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculatePartials
- * Signature: (I[I[II)V
+ * Signature: (I[I[IIB)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
-	(JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jintArray inDependencies, jint count)
+	(JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jintArray inDependencies, jint count, jboolean rescale)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
     jint *dependencies = env->GetIntArrayElements(inDependencies, NULL);
@@ -193,7 +194,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
 
 	calculateLogLikelihoods(instance, rootNodeIndex, logLikelihoods);
 
-    // not using JNI_ABORT flag here because we want the values to be copied back... 
+    // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outLogLikelihoods, logLikelihoods, 0);
 }
 

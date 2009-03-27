@@ -201,3 +201,14 @@ extern "C" void nativeGPUPartialsPartialsPruning(
 
 extern "C" void nativeGPUGetTransitionProbabilitiesSquare(REAL **dPtrQueue, REAL *dEvec,
 		REAL *dIevc, REAL *dEigenValues, REAL *distanceQueue, int totalMatrix);
+
+extern "C" void nativeGPUPartialsPartialsPruningDynamicScaling(
+	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL *scalingFactors,
+	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
+
+extern "C" void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScalingFactors,
+		int nodeCount, int patternCount);
+
+extern "C" void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
+		REAL *dRootScalingFactors,
+		int patternCount, int matrixCount, int nodeCount);

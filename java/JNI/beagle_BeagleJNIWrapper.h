@@ -82,10 +82,10 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransiti
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculatePartials
- * Signature: (I[I[II)V
+ * Signature: (I[I[IIB)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
-  (JNIEnv *, jobject, jint, jintArray, jintArray, jint);
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jint, jboolean);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

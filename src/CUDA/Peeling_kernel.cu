@@ -424,7 +424,7 @@ __global__ void kernelPartialsPartialsSmallFixedScaling(REAL* partials1, REAL* p
 }
 #endif // PADDED_STATE_COUNT == 4
 
-void nativeGPUPartialsPartialsPruningDynamicScaling(
+extern "C" void nativeGPUPartialsPartialsPruningDynamicScaling(
 	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL *scalingFactors,
 	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling) {
 
@@ -758,7 +758,7 @@ __global__ void kernelGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *r
 
 }
 
-void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScalingFactors, int nodeCount, int patternCount) {
+extern "C" void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScalingFactors, int nodeCount, int patternCount) {
 
 	dim3 grid(patternCount/PATTERN_BLOCK_SIZE);
 	if (patternCount % PATTERN_BLOCK_SIZE != 0)
@@ -820,7 +820,7 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL 
 }
 
 
-void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
+extern "C" void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
 		REAL *dRootScalingFactors,
 		int patternCount, int matrixCount, int nodeCount) {
 

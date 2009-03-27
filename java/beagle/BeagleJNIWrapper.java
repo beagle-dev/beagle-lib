@@ -72,8 +72,8 @@ public class BeagleJNIWrapper implements Beagle {
         calculateProbabilityTransitionMatrices(instance, nodeIndices, branchLengths, count);
     }
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount) {
-        calculatePartials(instance, operations, dependencies, operationCount);
+    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale) {
+        calculatePartials(instance, operations, dependencies, operationCount, rescale);
     }
 
     public void calculateLogLikelihoods(int rootNodeIndex, double[] outLogLikelihoods) {
@@ -117,7 +117,7 @@ public class BeagleJNIWrapper implements Beagle {
 
     public native void calculateProbabilityTransitionMatrices(int instance, int[] nodeIndices, double[] branchLengths, int count);
 
-    public native void calculatePartials(int instance, int[] operations, int[] dependencies, int operationCount);
+    public native void calculatePartials(int instance, int[] operations, int[] dependencies, int operationCount, boolean rescale);
 
     public native void calculateLogLikelihoods(int instance, int rootNodeIndex, double[] outLogLikelihoods);
 

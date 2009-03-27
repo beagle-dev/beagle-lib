@@ -10,7 +10,7 @@
 #include <math.h>
 #include <cuda.h>
 
-//#define DYNAMIC_SCALING
+#define DYNAMIC_SCALING
 
 #define SCALING_REFRESH	0
 //#define ALWAYS_RESCALE

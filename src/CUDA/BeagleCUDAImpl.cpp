@@ -704,9 +704,7 @@ void BeagleCUDAImpl::calculatePartials(
 	fprintf(stderr,"Entering updatePartials\n");
 #endif
 
-	int instance = INSTANCE;
-
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 #ifdef DYNAMIC_SCALING
 	if (doRescaling == 0) // Forces rescaling on first computation
