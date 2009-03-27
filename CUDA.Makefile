@@ -27,7 +27,7 @@ HEADER=$(BASEDIR)
 STATE_COUNT = 60
 SCALE = 1E+0f
 		       
-EXECUTABLE_D	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT)-D.$(EXT)
+EXECUTABLE_D	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).$(EXT)
 EXECUTABLE_S	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT)-S.$(EXT)
 
 CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
@@ -70,8 +70,8 @@ cpp: directories
 		 --ptxas-options=-v \
 		 --compiler-options -fPIC \
 		 --compiler-options -funroll-loops \
-		  -arch sm_13 -DDOUBLE_PRECISION \
 		  -DCUDA \
+		  -DDEBUG \
 		 -o $(EXECUTABLE_D)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
 	
 	

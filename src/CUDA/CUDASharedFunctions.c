@@ -101,7 +101,11 @@ void printfCudaVector(REAL* dPtr, int length) {
 
 	REAL* hPtr = (REAL *) malloc(sizeof(REAL) * length);
 	SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(REAL)*length, cudaMemcpyDeviceToHost),dPtr);
-	printfVector(hPtr, length);
+#ifdef DOUBLE_PRECISION
+	printfVectorD(hPtr, length);
+#else
+	printfVectorF(hPtr,length);
+#endif
 	free(hPtr);
 }
 
@@ -115,6 +119,22 @@ REAL sumCudaVector(REAL *dPtr, int length) {
 		sum += hPtr[i];
 	free(hPtr);
 	return sum;
+}
+
+void printfVectorD(double* ptr, int length) {
+	fprintf(stderr,"[ %1.5e", ptr[0]);
+	int i;
+	for (i = 1; i < length; i++)
+		fprintf(stderr," %1.5e", ptr[i]);
+	fprintf(stderr," ]\n");
+}
+
+void printfVectorF(float* ptr, int length) {
+	fprintf(stderr,"[ %1.5e", ptr[0]);
+	int i;
+	for (i = 1; i < length; i++)
+		fprintf(stderr," %1.5e", ptr[i]);
+	fprintf(stderr," ]\n");
 }
 
 void printfVector(REAL* ptr, int length) {
