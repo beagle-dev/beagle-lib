@@ -36,6 +36,16 @@ CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/TransitionProbabilities_kernel.cu \
 		   ./src/CUDA/Peeling_kernel.cu \
 		   ./java/JNI/beagle_BeagleJNIWrapper.c
+		   
+CUFILES_CPP	:= ./src/CUDA/CUDASharedFunctions.c	\
+			./src/CUDA/Queue.cpp \
+		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
+		   ./src/CUDA/BeagleCUDAImpl.cpp \
+		   ./src/CUDA/TransitionProbabilities_kernel.cu \
+		   ./src/CUDA/Peeling_kernel.cu \
+		   ./src/beagle.cpp \
+		   ./java/JNI/beagle_BeagleJNIWrapper.cpp		   
+		   
 		         		       		      
 ############################################################
 
@@ -53,6 +63,17 @@ directories :
 
 clean:
 	rm -f $(CCOFILES) $(EXECUTABLE)
+	
+cpp: directories
+	@echo "using device mode!"
+	nvcc -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
+		 --ptxas-options=-v \
+		 --compiler-options -fPIC \
+		 --compiler-options -funroll-loops \
+		  -arch sm_13 -DDOUBLE_PRECISION \
+		  -DCUDA \
+		 -o $(EXECUTABLE_D)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+	
 	
 device: directories
 	@echo "using device mode!"

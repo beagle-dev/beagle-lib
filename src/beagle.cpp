@@ -14,7 +14,12 @@
 
 #include "beagle.h"
 #include "BeagleImpl.h"
-#include "BeagleCPUImpl.h"
+
+#ifndef CUDA
+	#include "CPU/BeagleCPUImpl.h"
+#else
+	#include "CUDA/BeagleCUDAImpl.h"
+#endif
 
 BeagleImpl **instances = NULL;
 int instanceCount = 0;
@@ -30,7 +35,12 @@ int initialize(
     int instance = instanceCount;
     instanceCount++;
     instances = (BeagleImpl **)realloc(instances, sizeof(BeagleImpl *) * instanceCount);
+
+#ifndef CUDA
     instances[instance] = new BeagleCPUImpl();
+#else
+    instances[instance] = new BeagleCUDAImpl();
+#endif
 
     instances[instance]->initialize(nodeCount, tipCount, stateCount, patternCount, categoryCount, matrixCount);
 

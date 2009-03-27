@@ -10,6 +10,12 @@
 #ifndef __beagle_impl__
 #define __beagle_impl__
 
+#ifdef DOUBLE_PRECISION
+	#define REAL	double
+#else
+	#define REAL	float
+#endif
+
 class BeagleImpl {
 public:
 	virtual void initialize(
