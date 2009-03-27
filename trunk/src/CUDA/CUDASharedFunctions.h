@@ -25,9 +25,9 @@
 
 //#define DTEST
 
-//#define DEBUG_FLOW
+#define DEBUG_FLOW
 //#define DEBUG_GPU
-//#define DEBUG_BEAGLE
+#define DEBUG_BEAGLE
 
 //#define DEBUG_13
 
@@ -198,7 +198,7 @@ REAL *allocateGPURealMemory(int length);
 
 INT  *allocateGPUIntMemory(int length);
 
-//void checkCUDAError(const char *msg);
+void checkCUDAError(const char *msg);
 
 void freeGPUMemory(void *ptr);
 
@@ -231,6 +231,10 @@ void storeGPUIntMemoryArray(INT *toGPUPtr, INT *fromGPUPtr, int length);
 //__global__ void matrixMulMod( REAL* C, REAL* A, REAL* B, int wA, int wB);
 
 void printfCudaVector(REAL *dPtr, int length);
+
+void printfVectorD(double *ptr, int length);
+
+void printfVectorF(float *ptr, int length);
 
 void printfVector(REAL *ptr, int length);
 

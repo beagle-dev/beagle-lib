@@ -245,10 +245,16 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 	partialsSize = patternCount * PADDED_STATE_COUNT
 			* matrixCount;
 
-	hFrequenciesCache = NULL;
-	hPartialsCache = NULL;
-	hMatrixCache = NULL;
-	hNodeCache = NULL;
+	hFrequenciesCache = (REAL*)calloc(PADDED_STATE_COUNT, SIZE_REAL);
+	hPartialsCache = (REAL*)calloc(partialsSize,SIZE_REAL);
+	hMatrixCache = (REAL*)calloc(CMATRIX_SIZE, SIZE_REAL);
+
+//	hNodeCache = NULL;
+
+#ifndef DOUBLE_PRECISION
+	hCategoryCache = (REAL*)malloc(matrixCount*SIZE_REAL);
+	hLogLikelihoodsCache = (REAL*)malloc(truePatternCount*SIZE_REAL);
+#endif
 
 	doRescaling = 1;
 	sinceRescaling = 0;
@@ -265,7 +271,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 
 	for (i = 0; i < taxaCount; i++) {
 		hTmpPartials[i] = (REAL *) malloc(
-				partialsSize * SIZE_REAL); // TODO Don't forget to free these
+				partialsSize * SIZE_REAL);
 	}
 #endif
 
@@ -366,7 +372,7 @@ REAL *callocBEAGLE(int length, int instance) {
 }
 
 void BeagleCUDAImpl::finalize() {
-	freeNativeMemory();
+	//freeNativeMemory();
 }
 
 void BeagleCUDAImpl::setTipStates(int tipIndex,
@@ -385,34 +391,24 @@ void BeagleCUDAImpl::setTipStates(int tipIndex,
 
 void BeagleCUDAImpl::setTipPartials(int tipIndex,
 					double* inPartials) {
-
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering setTipPartials\n");
 #endif
 
-	int instance = INSTANCE;
-
-	REAL *inPartialsOffset = inPartials;
-
+	double *inPartialsOffset = inPartials;
 	int length = patternCount * PADDED_STATE_COUNT;
-
-	if (hPartialsCache == NULL)
-		hPartialsCache = callocBEAGLE(length
-				* matrixCount, instance);
-
 	REAL *tmpRealArrayOffset = hPartialsCache;
 
 	int s, p;
 	for (p = 0; p < truePatternCount; p++) {
+#ifdef DOUBLE_PRECISION
 		memcpy(tmpRealArrayOffset,inPartialsOffset, SIZE_REAL*STATE_COUNT);
-
+#else
+		MEMCPY(tmpRealArrayOffset,inPartialsOffset,STATE_COUNT,REAL);
+#endif
 		tmpRealArrayOffset += PADDED_STATE_COUNT;
 		inPartialsOffset += STATE_COUNT;
 	}
-	// Pad patterns as necessary
-	// these should already/always be zero'd
-	//for (p = 0; p < paddedPatterns * PADDED_STATE_COUNT; p++)
-	//	tmpRealArrayOffset[p] = 0;
 
 	// Replicate 1st copy "times" times
 	int i;
@@ -426,13 +422,6 @@ void BeagleCUDAImpl::setTipPartials(int tipIndex,
 	SAFE_CUDA(cudaMemcpy(dPartials[0][tipIndex],
 					hPartialsCache,
 					SIZE_REAL*length*matrixCount, cudaMemcpyHostToDevice),dPartials[0][tipIndex]);
-
-#ifdef DEBUG_6
-	printf("Setting tip for node %d : ",tipIndex);
-	printfCudaVector(dPartials[0][tipIndex],partialsSize);
-	printf("patternCount = %d, PADDED_STATE_COUNT = %d, matrixCount = %d\n",patternCount,PADDED_STATE_COUNT,matrixCount);
-#endif
-
 #else
 	memcpy(hTmpPartials[tipIndex],
 			hPartialsCache, SIZE_REAL
@@ -464,7 +453,7 @@ void BeagleCUDAImpl::setStateFrequencies(double* inFrequencies) {
 	CHECK_LAZY_STORE(instance);
 
 #ifdef DEBUG_BEAGLE
-	printfVector(inFrequencies,PADDED_STATE_COUNT);
+	printfVectorD(inFrequencies,PADDED_STATE_COUNT);
 //	exit(-1);
 #endif
 
@@ -477,12 +466,11 @@ void BeagleCUDAImpl::setStateFrequencies(double* inFrequencies) {
 	}
 #endif // PRE_LOAD
 
-	if (hFrequenciesCache == NULL) {
-		hFrequenciesCache = callocBEAGLE(PADDED_STATE_COUNT,
-				instance);
-	}
-
+#ifdef DOUBLE_PRECISION
 	memcpy(hFrequenciesCache,inFrequencies,STATE_COUNT*SIZE_REAL);
+#else
+	MEMCPY(hFrequenciesCache,inFrequencies,STATE_COUNT,REAL);
+#endif
 
 	cudaMemcpy(dFrequencies,hFrequenciesCache,
 			SIZE_REAL*PADDED_STATE_COUNT,cudaMemcpyHostToDevice);
@@ -521,10 +509,10 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 
 	// Native memory packing order (length): Ievc (state^2), Evec (state^2), Eval (state), EvalImag (state)
 
-	int length = 2 * (MATRIX_SIZE + PADDED_STATE_COUNT); // Storing extra space for complex eigenvalues
-
-	if (hMatrixCache == NULL)
-		hMatrixCache = callocBEAGLE(length, instance);
+//	int length = 2 * (MATRIX_SIZE + PADDED_STATE_COUNT); // Storing extra space for complex eigenvalues
+//
+//	if (hMatrixCache == NULL)
+//		hMatrixCache = callocBEAGLE(length, instance);
 
 	REAL *Ievc, *tmpIevc, *Evec, *tmpEvec, *Eval, *EvalImag;
 
@@ -534,8 +522,13 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 
 	int i, j;
 	for (i = 0; i < STATE_COUNT; i++) {
+#ifdef DOUBLE_PRECISION
 		memcpy(tmpIevc,inInverseEigenVectors[i],SIZE_REAL*STATE_COUNT);
 		memcpy(tmpEvec,inEigenVectors[i],SIZE_REAL*STATE_COUNT);
+#else
+		MEMCPY(tmpIevc,inInverseEigenVectors[i],STATE_COUNT,REAL);
+		MEMCPY(tmpEvec,inEigenVectors[i],STATE_COUNT,REAL);
+#endif
 
 		tmpIevc += PADDED_STATE_COUNT;
 		tmpEvec += PADDED_STATE_COUNT;
@@ -544,18 +537,35 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 	transposeSquareMatrix(Ievc, PADDED_STATE_COUNT); // Transposing matrices avoids incoherent memory read/writes
 	transposeSquareMatrix(Evec, PADDED_STATE_COUNT); // TODO Only need to tranpose sub-matrix of trueStateCount
 
+#ifdef DOUBLE_PRECISION
 	memcpy(Eval,inEigenValues,SIZE_REAL*STATE_COUNT);
+#else
+	MEMCPY(Eval,inEigenValues,STATE_COUNT,REAL);
+#endif
 
 #ifdef DEBUG_BEAGLE
-	printfVector(Eval,PADDED_STATE_COUNT);
-	printfVector(Evec,MATRIX_SIZE);
-	printfVector(Ievc,PADDED_STATE_COUNT*PADDED_STATE_COUNT);
+#ifdef DOUBLE_PRECISION
+	printfVectorD(Eval,PADDED_STATE_COUNT);
+	printfVectorD(Evec,MATRIX_SIZE);
+	printfVectorD(Ievc,PADDED_STATE_COUNT*PADDED_STATE_COUNT);
+#else
+	printfVectorF(Eval,PADDED_STATE_COUNT);
+	printfVectorF(Evec,MATRIX_SIZE);
+	printfVectorF(Ievc,PADDED_STATE_COUNT*PADDED_STATE_COUNT);
+#endif
 #endif
 
 	// Copy to CUDA device
 	cudaMemcpy(dIevc,Ievc, SIZE_REAL*MATRIX_SIZE, cudaMemcpyHostToDevice);
 	cudaMemcpy(dEvec,Evec, SIZE_REAL*MATRIX_SIZE, cudaMemcpyHostToDevice);
 	cudaMemcpy(dEigenValues,Eval, SIZE_REAL*PADDED_STATE_COUNT, cudaMemcpyHostToDevice);
+
+#ifdef DEBUG_BEAGLE
+	printfCudaVector(dEigenValues,PADDED_STATE_COUNT);
+	printfCudaVector(dEvec,MATRIX_SIZE);
+	printfCudaVector(dIevc,PADDED_STATE_COUNT*PADDED_STATE_COUNT);
+#endif
+
 
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Exiting updateEigenDecomposition\n");
@@ -573,20 +583,22 @@ void BeagleCUDAImpl::setCategoryRates(double* inCategoryRates) {
 
 	CHECK_LAZY_STORE(instance);
 
-	if (hMatrixCache == NULL) { // TODO Is necessary?
-		hMatrixCache = callocBEAGLE(
-				matrixCount, instance);
-	}
+#ifdef DOUBLE_PRECISION
+	double* categoryRates = inCategoryRates;
+#else
+	REAL* categoryRates = hCategoryCache;
+	MEMCPY(categoryRates,inCategoryRates,matrixCount,REAL);
+#endif
 
-	cudaMemcpy(dCategoryRates, inCategoryRates,
-			SIZE_REAL*matrixCount, cudaMemcpyHostToDevice);
+	cudaMemcpy(dCategoryRates, categoryRates,
+			SIZE_REAL*matrixCount, cudaMemcpyHostToDevice); // TODO Are these used on the GPU?
 
 #ifdef DEBUG_BEAGLE
 	printfCudaVector(dCategoryRates,matrixCount);
 #endif
 
-	memcpy(hCategoryRates, inCategoryRates,
-			SIZE_REAL*matrixCount); // TODO Can remove?
+	memcpy(hCategoryRates, categoryRates,
+			SIZE_REAL*matrixCount);
 
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Exiting updateCategoryRates\n");
@@ -602,7 +614,14 @@ void BeagleCUDAImpl::setCategoryProportions(double* inCategoryProportions) {
 
 	CHECK_LAZY_STORE(instance);
 
-	cudaMemcpy(dCategoryProportions, inCategoryProportions,
+#ifdef DOUBLE_PRECISION
+	REAL* categoryProportions = inCategoryProportions;
+#else
+	REAL* categoryProportions = hCategoryCache;
+	MEMCPY(categoryProportions,inCategoryProportions,matrixCount,REAL);
+#endif
+
+	cudaMemcpy(dCategoryProportions, categoryProportions,
 			SIZE_REAL*matrixCount, cudaMemcpyHostToDevice);
 
 #ifdef DEBUG_BEAGLE
@@ -638,7 +657,7 @@ void BeagleCUDAImpl::calculateProbabilityTransitionMatrices(
 			hPtrQueue[total]
 					= dMatrices[hCurrentMatricesIndices[nodeIndex]][nodeIndex]
 							+ l * MATRIX_SIZE;
-			hDistanceQueue[total] = branchLengths[x]
+			hDistanceQueue[total] = ((REAL)branchLengths[x])
 					* hCategoryRates[l];
 			total++;
 		}
@@ -649,6 +668,17 @@ void BeagleCUDAImpl::calculateProbabilityTransitionMatrices(
 			cudaMemcpyHostToDevice);
 	cudaMemcpy(dPtrQueue, hPtrQueue,
 			sizeof(REAL*) * total, cudaMemcpyHostToDevice);
+
+//#ifdef DEBUG_BEAGLE
+//	printf("bl[0] = %1.5e\n",branchLengths[0]);
+//	printf("matrixCount = %d\n",matrixCount);
+//	printf("cat rates = ");
+//	printfVector(hCategoryRates,matrixCount);
+//	printf("branch lengths = \n");
+//	printfVector(hDistanceQueue,total);
+//	printf("\n\n");
+//	printfCudaVector(dDistanceQueue,total);
+//#endif
 
 	nativeGPUGetTransitionProbabilitiesSquare(dPtrQueue,
 			dEvec, dIevc,
@@ -741,7 +771,7 @@ void BeagleCUDAImpl::calculatePartials(
 }
 
 void BeagleCUDAImpl::calculateLogLikelihoods(int rootNodeIndex,
-							 REAL* outLogLikelihoods) {
+							 double* outLogLikelihoods) {
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering calculateLogLikelihoods\n");
 #endif
@@ -780,14 +810,20 @@ void BeagleCUDAImpl::calculateLogLikelihoods(int rootNodeIndex,
 			matrixCount);
 #endif // DYNAMIC_SCALING
 
-#ifdef DEBUG
-	fprintf(stderr,"logLike = ");
-	printfCudaVector(dIntegrationTmp,truePatternCount);
-//	exit(-1);
-#endif
-
+#ifdef DOUBLE_PRECISION
 	cudaMemcpy(outLogLikelihoods,dIntegrationTmp,
 			SIZE_REAL*truePatternCount, cudaMemcpyDeviceToHost);
+#else
+	cudaMemcpy(hLogLikelihoodsCache,dIntegrationTmp,
+			SIZE_REAL*truePatternCount, cudaMemcpyDeviceToHost);
+	MEMCPY(outLogLikelihoods,hLogLikelihoodsCache,truePatternCount,double);
+#endif
+
+#ifdef DEBUG
+	printf("logLike = ");
+	printfVectorD(outLogLikelihoods,truePatternCount);
+	exit(-1);
+#endif
 
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Exiting calculateLogLikelihoods\n");
@@ -798,7 +834,7 @@ void BeagleCUDAImpl::handleStoreRestoreQueue() {
 
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering handleStoreRestoreQueue: ");
-	printQueue(&doStoreRestoreQueue);
+	doStoreRestoreQueue.printQueue();
 #endif
 
 	while (!doStoreRestoreQueue.queueEmpty()) {

@@ -45,10 +45,10 @@ private:
 	REAL* dStoredFrequencies;
 	REAL* dCategoryProportions;
 	REAL* dStoredCategoryProportions;
-	REAL* dCategoryRates;
+	REAL* dCategoryRates; // TODO Can remove; check that rates are not used on GPU
 	REAL* dStoredCategoryRates;
 
-	REAL* hCategoryRates; // TODO Remove when updateMatrices is done in parallel
+	REAL* hCategoryRates;
 	REAL *hStoredCategoryRates;
 
 	REAL* dIntegrationTmp;
@@ -94,9 +94,11 @@ private:
 	REAL** dPtrQueue;
 
 	REAL *hFrequenciesCache;
+	REAL *hCategoryCache;
+	REAL *hLogLikelihoodsCache;
 	REAL *hPartialsCache;
 	REAL *hMatrixCache;
-	REAL *hNodeCache;
+//	REAL *hNodeCache;
 
 	int doRescaling;
 	int doStore;
