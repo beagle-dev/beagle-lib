@@ -48,7 +48,7 @@ public interface Beagle {
 
     public void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count);
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount);
+    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale);
 
     public void calculateLogLikelihoods(int rootNodeIndex, double[] outLogLikelihoods);
 

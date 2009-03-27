@@ -256,7 +256,7 @@ public class DoublePrecisionBeagleImpl implements Beagle {
         }
     }
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount) {
+    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale) {
 
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
