@@ -27,8 +27,7 @@ HEADER=$(BASEDIR)
 STATE_COUNT = 60
 SCALE = 1E+0f
 		       
-EXECUTABLE_D	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).$(EXT)
-EXECUTABLE_S	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT)-S.$(EXT)
+EXECUTABLE	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).$(EXT)
 
 CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
@@ -37,14 +36,14 @@ CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/Peeling_kernel.cu \
 		   ./java/JNI/beagle_BeagleJNIWrapper.c
 		   
-CUFILES_CPP	:= ./src/CUDA/CUDASharedFunctions.c	\
-			./src/CUDA/Queue.cpp \
-		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
-		   ./src/CUDA/BeagleCUDAImpl.cpp \
-		   ./src/CUDA/TransitionProbabilities_kernel.cu \
-		   ./src/CUDA/Peeling_kernel.cu \
-		   ./src/beagle.cpp \
-		   ./java/JNI/beagle_BeagleJNIWrapper.cpp		   
+CUFILES_CPP	:=	src/CUDA/CUDASharedFunctions.c	\
+				src/CUDA/Queue.cpp \
+				src/CUDA/CUDASharedFunctions_kernel.cu \
+				src/CUDA/BeagleCUDAImpl.cpp \
+				src/CUDA/TransitionProbabilities_kernel.cu \
+				src/CUDA/Peeling_kernel.cu \
+				src/beagle.cpp \
+				java/JNI/beagle_BeagleJNIWrapper.cpp		   
 		   
 		         		       		      
 ############################################################
@@ -64,17 +63,32 @@ directories :
 clean:
 	rm -f $(CCOFILES) $(EXECUTABLE)
 	
-cpp: directories
+cpp-device: directories
 	@echo "using device mode!"
-	nvcc -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
-		 --ptxas-options=-v \
+	nvcc -O4 -shared -DSTATE_COUNT=$(STATE_COUNT) \
 		 --compiler-options -fPIC \
 		 --compiler-options -funroll-loops \
-		  -DCUDA \
-		  -DDEBUG \
-		 -o $(EXECUTABLE_D)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
-	
-	
+		 -DCUDA \
+		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+		
+cpp-debug: directories
+	@echo "using debug mode!"
+	nvcc -O4 -shared -DSTATE_COUNT=$(STATE_COUNT) \
+		 --compiler-options -fPIC \
+		 --compiler-options -funroll-loops \
+		 -DCUDA \
+		 -DDEBUG \
+		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)	
+		 
+cpp-device-double: directories
+	@echo "using device mode!"
+	nvcc -O4 -shared -DSTATE_COUNT=$(STATE_COUNT) \
+		 --compiler-options -fPIC \
+		 --compiler-options -funroll-loops \
+		 -DCUDA \
+		 -arch sm_13 -DDOUBLE_PRECISION \
+		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+		 	
 device: directories
 	@echo "using device mode!"
 	nvcc -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
@@ -91,7 +105,7 @@ device-double: directories
 		 --compiler-options -fPIC \
 		 --compiler-options -funroll-loops \
 		 -arch sm_13 -DDOUBLE_PRECISION \
-		 -o $(EXECUTABLE_D)  $(CUFILES) $(INCLUDES) $(LIB) $(DOLINK)
+		 -o $(EXECUTABLE)  $(CUFILES) $(INCLUDES) $(LIB) $(DOLINK)
 
 debug: directories
 	@echo "using debug mode!"
@@ -103,7 +117,7 @@ debug-double: directories
 	@echo "using debug mode!"
 	nvcc -DDEBUG -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
 		 -arch sm_13 -DDOUBLE_PRECISION \
-		 -o $(EXECUTABLE_D) $(CUFILES) $(INCLUDES) $(lib) $(DOLINK)		 
+		 -o $(EXECUTABLE) $(CUFILES) $(INCLUDES) $(lib) $(DOLINK)		 
 
 emulation: directories
 	@echo "using emulation mode!"
@@ -115,7 +129,7 @@ emulation-double: directories
 	@echo "using emulation mode!"
 	nvcc -g -DDEBUG -DKERNEL_PRINT_ENABLED -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
 	     -arch sm_13 -DDOUBLE_PRECISION \
-		 -o $(EXECUTABLE_D) $(CUFILES) $(INCLUDES) $(lib) $(DOLINK) -deviceemu		 
+		 -o $(EXECUTABLE) $(CUFILES) $(INCLUDES) $(lib) $(DOLINK) -deviceemu		 
 	
 	
 
