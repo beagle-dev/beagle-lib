@@ -9,6 +9,11 @@
 #include <cuda_runtime_api.h>
 #include "CUDASharedFunctions.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 REAL *allocateGPURealMemory(int length) {
 #ifdef DEBUG
 	fprintf(stderr,"Entering ANMA-Real\n");
@@ -120,53 +125,56 @@ void printfVector(REAL* ptr, int length) {
 	fprintf(stderr," ]\n");
 }
 
-void initQueue(queue *q) {
-	q->first = 0;
-	q->last = QUEUESIZE - 1;
-	q->count = 0;
+//void initQueue(queue *q) {
+//	q->first = 0;
+//	q->last = QUEUESIZE - 1;
+//	q->count = 0;
+//}
+//
+//void enQueue(queue *q, int x) {
+//	if (q->count >= QUEUESIZE)
+//		printf("Warning: queue overflow enqueue x=%d\n", x);
+//	else {
+//		q->last = (q->last + 1) % QUEUESIZE;
+//		q->q[q->last] = x;
+//		q->count = q->count + 1;
+//	}
+//}
+//
+//int deQueue(queue *q) {
+//	int x;
+//
+//	if (q->count <= 0)
+//		fprintf(stderr,"Warning: empty queue dequeue.\n");
+//	else {
+//		x = q->q[q->first];
+//		q->first = (q->first + 1) % QUEUESIZE;
+//		q->count = q->count - 1;
+//	}
+//
+//	return (x);
+//}
+//
+//int queueEmpty(queue *q) {
+//	if (q->count <= 0)
+//		return 1;
+//	else
+//		return 0;
+//}
+//
+//void printQueue(queue *q) {
+//	int i, j;
+//
+//	i = q->first;
+//
+//	while (i != q->last) {
+//		printf("%d ", q->q[i]);
+//		i = (i + 1) % QUEUESIZE;
+//	}
+//	printf("%d ", q->q[i]);
+//	printf("\n");
+//}
+
+#ifdef __cplusplus
 }
-
-void enQueue(queue *q, int x) {
-	if (q->count >= QUEUESIZE)
-		printf("Warning: queue overflow enqueue x=%d\n", x);
-	else {
-		q->last = (q->last + 1) % QUEUESIZE;
-		q->q[q->last] = x;
-		q->count = q->count + 1;
-	}
-}
-
-int deQueue(queue *q) {
-	int x;
-
-	if (q->count <= 0)
-		fprintf(stderr,"Warning: empty queue dequeue.\n");
-	else {
-		x = q->q[q->first];
-		q->first = (q->first + 1) % QUEUESIZE;
-		q->count = q->count - 1;
-	}
-
-	return (x);
-}
-
-int queueEmpty(queue *q) {
-	if (q->count <= 0)
-		return 1;
-	else
-		return 0;
-}
-
-void printQueue(queue *q) {
-	int i, j;
-
-	i = q->first;
-
-	while (i != q->last) {
-		printf("%d ", q->q[i]);
-		i = (i + 1) % QUEUESIZE;
-	}
-	printf("%d ", q->q[i]);
-	printf("\n");
-}
-
+#endif

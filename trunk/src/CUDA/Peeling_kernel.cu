@@ -494,7 +494,7 @@ void nativeGPUPartialsPartialsPruningDynamicScaling(
 
 }
 
-void nativeGPUPartialsPartialsPruning(
+extern "C" void nativeGPUPartialsPartialsPruning(
 	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2,
 	const unsigned int patternCount, const unsigned int matrixCount) {
 
@@ -766,8 +766,6 @@ void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScaling
 	dim3 block(PATTERN_BLOCK_SIZE);
 	kernelGPUComputeRootDynamicScaling<<<grid,block>>>(dNodePtrQueue, dRootScalingFactors, nodeCount, patternCount);
 
-//	cudaThreadSynchronize();
-
 }
 
 __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
@@ -843,6 +841,7 @@ void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootParti
 
 }
 
+extern "C"
 void nativeGPUIntegrateLikelihoods(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
 		int patternCount, int matrixCount) {
 

@@ -125,7 +125,7 @@ __global__ void matrixMulADB(REAL** listC, REAL* A, REAL* D, REAL* B,
 	}
 }
 
-void nativeGPUGetTransitionProbabilitiesSquare(REAL **dPtrQueue, REAL *dEvec,
+extern "C" void nativeGPUGetTransitionProbabilitiesSquare(REAL **dPtrQueue, REAL *dEvec,
 		REAL *dIevc, REAL *dEigenValues, REAL *distanceQueue, int totalMatrix) {
 
 #ifdef DEBUG

@@ -186,6 +186,10 @@
 											to[m] = (toType) from[m]; \
 										} }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int initCUDAContext();
 
 int migrateContext(CUcontext context);
@@ -220,11 +224,11 @@ void storeGPURealMemoryArray(REAL *toGPUPtr, REAL *fromGPUPtr, int length);
 
 void storeGPUIntMemoryArray(INT *toGPUPtr, INT *fromGPUPtr, int length);
 
-__global__ void matrixMul( REAL* C, REAL* A, REAL* B, int wA, int wB);
+//__global__ void matrixMul( REAL* C, REAL* A, REAL* B, int wA, int wB);
 
-__global__ void matrixMulParallel( REAL** C, REAL* A, REAL *cache, int wA, int wB, int matrixId);
+//__global__ void matrixMulParallel( REAL** C, REAL* A, REAL *cache, int wA, int wB, int matrixId);
 
-__global__ void matrixMulMod( REAL* C, REAL* A, REAL* B, int wA, int wB);
+//__global__ void matrixMulMod( REAL* C, REAL* A, REAL* B, int wA, int wB);
 
 void printfCudaVector(REAL *dPtr, int length);
 
@@ -256,24 +260,28 @@ void doRestore(int instance);
 
 void handleStoreRestoreQueue(int instance);
 
-#define QUEUESIZE       1000
+//void initQueue(queue *q);
+//
+//void enQueue(queue *q, int x);
+//
+//int deQueue(queue *q);
+//
+//int queueEmpty(queue *q);
+//
+//void printQueue(queue *q);
 
-typedef struct {
-        int q[QUEUESIZE+1];		/* body of queue */
-        int first;                      /* position of first element */
-        int last;                       /* position of last element */
-        int count;                      /* number of queue elements */
-} queue;
-
-void initQueue(queue *q);
-
-void enQueue(queue *q, int x);
-
-int deQueue(queue *q);
-
-int queueEmpty(queue *q);
-
-void printQueue(queue *q);
+#ifdef __cplusplus
+}
+#endif
+//
+//#define QUEUESIZE       1000
+//
+//typedef struct {
+//        int q[QUEUESIZE+1];		/* body of queue */
+//        int first;                      /* position of first element */
+//        int last;                       /* position of last element */
+//        int count;                      /* number of queue elements */
+//} queue;
 
 #endif // __CUDASharedFunctions
 
