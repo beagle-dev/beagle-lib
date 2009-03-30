@@ -19,7 +19,7 @@
 #define IS_NUCLEOTIDES
 #endif
 
-void BeagleCPUImpl::initialize(
+int BeagleCPUImpl::initialize(
 				int nodeCount,
 				int tipCount,
 				int stateCount,
@@ -90,6 +90,7 @@ void BeagleCPUImpl::initialize(
 		matrices[0][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
 		matrices[1][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
 	}
+	return SUCCESS;
 }
 
 void BeagleCPUImpl::finalize()

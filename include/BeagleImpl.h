@@ -16,9 +16,12 @@
 	#define REAL	float
 #endif
 
+#define SUCCESS	1
+#define ERROR	0
+
 class BeagleImpl {
 public:
-	virtual void initialize(
+	virtual int initialize(
 					int nodeCount,
 					int tipCount,
 					int stateCount,

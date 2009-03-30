@@ -17,9 +17,9 @@
 #include "CUDASharedFunctions.h"
 //#include "beagle.h"
 
-#define CMATRIX_SIZE		2 * PADDED_STATE_COUNT * PADDED_STATE_COUNT + 2 * PADDED_STATE_COUNT // Using memory saving format
+//#define CMATRIX_SIZE		2 * PADDED_STATE_COUNT * PADDED_STATE_COUNT + 2 * PADDED_STATE_COUNT // Using memory saving format
 #define MATRIX_SIZE     	PADDED_STATE_COUNT * PADDED_STATE_COUNT
-#define MATRIX_CACHE_SIZE	PADDED_STATE_COUNT * PADDED_STATE_COUNT * PADDED_STATE_COUNT
+//#define MATRIX_CACHE_SIZE	PADDED_STATE_COUNT * PADDED_STATE_COUNT * PADDED_STATE_COUNT
 #define EVAL_SIZE			PADDED_STATE_COUNT // Change to 2 * PADDED_STATE_COUNT for complex models
 #define	RESTORE_VALUE	1
 #define STORE_VALUE		2
@@ -48,8 +48,8 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
 	cudaSetDevice(device);
 	int i;
 
-	dCMatrix = allocateGPURealMemory(MATRIX_CACHE_SIZE);
-	dStoredMatrix = allocateGPURealMemory(MATRIX_CACHE_SIZE);
+//	dCMatrix = allocateGPURealMemory(MATRIX_CACHE_SIZE);
+//	dStoredMatrix = allocateGPURealMemory(MATRIX_CACHE_SIZE);
 	dEvec = allocateGPURealMemory(MATRIX_SIZE);
 	dIevc = allocateGPURealMemory(MATRIX_SIZE);
 	dStoredEvec = allocateGPURealMemory(MATRIX_SIZE);
@@ -61,12 +61,12 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
 	dFrequencies = allocateGPURealMemory(PADDED_STATE_COUNT);
 	dStoredFrequencies = allocateGPURealMemory(PADDED_STATE_COUNT);
 
-	dCategoryRates = allocateGPURealMemory(
-			matrixCount);
+//	dCategoryRates = allocateGPURealMemory(
+//			matrixCount);
 	hCategoryRates = (REAL *) malloc(sizeof(REAL)
 			* matrixCount);
-	dStoredCategoryRates = allocateGPURealMemory(
-			matrixCount);
+//	dStoredCategoryRates = allocateGPURealMemory(
+//			matrixCount);
 	hStoredCategoryRates = (REAL *) malloc(sizeof(REAL)
 			* matrixCount);
 
@@ -212,14 +212,8 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 	fprintf(stderr,"Entering initialize\n");
 #endif
 
-	// Increase instance storage
-//	numThreads++;
-//	thread = (threadVariables*) realloc(thread, numThreads
-//			* sizeof(threadVariables));
-
 	int i;
 	device = deviceNumber;
-	trueStateCount = STATE_COUNT;
 	nodeCount = inNodeCount;
 	taxaCount = (nodeCount + 1) / 2;
 	truePatternCount = inPatternCount;
@@ -247,7 +241,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 
 	hFrequenciesCache = (REAL*)calloc(PADDED_STATE_COUNT, SIZE_REAL);
 	hPartialsCache = (REAL*)calloc(partialsSize,SIZE_REAL);
-	hMatrixCache = (REAL*)calloc(CMATRIX_SIZE, SIZE_REAL);
+	hMatrixCache = (REAL*)calloc(2*MATRIX_SIZE + EVAL_SIZE, SIZE_REAL);
 
 //	hNodeCache = NULL;
 
@@ -286,15 +280,18 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 #endif
 }
 
-void BeagleCUDAImpl::initialize(int nodeCount,
+int BeagleCUDAImpl::initialize(int nodeCount,
 				int tipCount,
 				int stateCount,
 				int patternCount,
 				int categoryCount,
 				int matrixCount) {
 
+	// TODO Determine if CUDA device satisfies memory requirements.
+
 	int numDevices = printGPUInfo();
 	initializeDevice(DEVICE_NUMBER, nodeCount, tipCount, patternCount, categoryCount);
+	return SUCCESS;
 }
 
 void BeagleCUDAImpl::freeTmpPartials() {
@@ -318,8 +315,8 @@ void BeagleCUDAImpl::freeNativeMemory() {
 		freeGPUMemory(dStates[i]);
 	}
 
-	freeGPUMemory(dCMatrix);
-	freeGPUMemory(dStoredMatrix);
+//	freeGPUMemory(dCMatrix);
+//	freeGPUMemory(dStoredMatrix);
 	freeGPUMemory(dEvec);
 	freeGPUMemory(dIevc);
 
@@ -448,13 +445,12 @@ void BeagleCUDAImpl::setStateFrequencies(double* inFrequencies) {
 	fprintf(stderr,"Entering updateRootFreqencies\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 #ifdef DEBUG_BEAGLE
 	printfVectorD(inFrequencies,PADDED_STATE_COUNT);
-//	exit(-1);
 #endif
 
 #ifdef PRE_LOAD
@@ -503,9 +499,9 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 	fprintf(stderr,"Entering updateEigenDecomposition\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 	// Native memory packing order (length): Ievc (state^2), Evec (state^2), Eval (state), EvalImag (state)
 
@@ -579,9 +575,9 @@ void BeagleCUDAImpl::setCategoryRates(double* inCategoryRates) {
 	fprintf(stderr,"Entering updateCategoryRates\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 #ifdef DOUBLE_PRECISION
 	double* categoryRates = inCategoryRates;
@@ -590,12 +586,12 @@ void BeagleCUDAImpl::setCategoryRates(double* inCategoryRates) {
 	MEMCPY(categoryRates,inCategoryRates,matrixCount,REAL);
 #endif
 
-	cudaMemcpy(dCategoryRates, categoryRates,
-			SIZE_REAL*matrixCount, cudaMemcpyHostToDevice); // TODO Are these used on the GPU?
+//	cudaMemcpy(dCategoryRates, categoryRates,
+//			SIZE_REAL*matrixCount, cudaMemcpyHostToDevice); // TODO Are these used on the GPU?
 
-#ifdef DEBUG_BEAGLE
-	printfCudaVector(dCategoryRates,matrixCount);
-#endif
+//#ifdef DEBUG_BEAGLE
+//	printfCudaVector(dCategoryRates,matrixCount);
+//#endif
 
 	memcpy(hCategoryRates, categoryRates,
 			SIZE_REAL*matrixCount);
@@ -610,9 +606,9 @@ void BeagleCUDAImpl::setCategoryProportions(double* inCategoryProportions) {
 	fprintf(stderr,"Entering updateCategoryProportions\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 #ifdef DOUBLE_PRECISION
 	REAL* categoryProportions = inCategoryProportions;
@@ -641,9 +637,9 @@ void BeagleCUDAImpl::calculateProbabilityTransitionMatrices(
 	fprintf(stderr,"Entering updateMatrices\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 	int x, total = 0;
 	for (x = 0; x < count; x++) {
@@ -669,17 +665,7 @@ void BeagleCUDAImpl::calculateProbabilityTransitionMatrices(
 	cudaMemcpy(dPtrQueue, hPtrQueue,
 			sizeof(REAL*) * total, cudaMemcpyHostToDevice);
 
-//#ifdef DEBUG_BEAGLE
-//	printf("bl[0] = %1.5e\n",branchLengths[0]);
-//	printf("matrixCount = %d\n",matrixCount);
-//	printf("cat rates = ");
-//	printfVector(hCategoryRates,matrixCount);
-//	printf("branch lengths = \n");
-//	printfVector(hDistanceQueue,total);
-//	printf("\n\n");
-//	printfCudaVector(dDistanceQueue,total);
-//#endif
-
+	// Set-up and call GPU kernel
 	nativeGPUGetTransitionProbabilitiesSquare(dPtrQueue,
 			dEvec, dIevc,
 			dEigenValues, dDistanceQueue,
@@ -687,7 +673,6 @@ void BeagleCUDAImpl::calculateProbabilityTransitionMatrices(
 
 #ifdef DEBUG_BEAGLE
 	printfCudaVector(hPtrQueue[0],MATRIX_SIZE);
-	//exit(-1);
 #endif
 
 #ifdef DEBUG_FLOW
@@ -773,12 +758,11 @@ void BeagleCUDAImpl::calculateLogLikelihoods(int rootNodeIndex,
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering calculateLogLikelihoods\n");
 #endif
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
-	CHECK_LAZY_STORE(instance);
+	CHECK_LAZY_STORE();
 
 #ifdef DYNAMIC_SCALING
-
 	if (doRescaling) {
 		// Construct node-list for scalingFactors
 		int n;
@@ -870,8 +854,8 @@ void BeagleCUDAImpl::doStoreState() {
 
 	storeGPURealMemoryArray(dStoredFrequencies,
 			dFrequencies, PADDED_STATE_COUNT);
-	storeGPURealMemoryArray(dStoredCategoryRates,
-			dCategoryRates, matrixCount);
+//	storeGPURealMemoryArray(dStoredCategoryRates,
+//			dCategoryRates, matrixCount);
 	memcpy(hStoredCategoryRates,
 			hCategoryRates, matrixCount
 					* sizeof(REAL));
@@ -920,11 +904,11 @@ void BeagleCUDAImpl::doRestoreState() {
 	fprintf(stderr,"Entering doRestore\n");
 #endif
 	// Rather than copying the stored stuff back, just swap the pointers...
-	REAL* tmp = dCMatrix;
-	dCMatrix = dStoredMatrix;
-	dStoredMatrix = tmp;
+//	REAL* tmp = dCMatrix;
+//	dCMatrix = dStoredMatrix;
+//	dStoredMatrix = tmp;
 
-	tmp = dEvec;
+	REAL* tmp = dEvec;
 	dEvec = dStoredEvec;
 	dStoredEvec = tmp;
 
@@ -940,9 +924,9 @@ void BeagleCUDAImpl::doRestoreState() {
 	dFrequencies = dStoredFrequencies;
 	dStoredFrequencies = tmp;
 
-	tmp = dCategoryRates;
-	dCategoryRates = dStoredCategoryRates;
-	dStoredCategoryRates = tmp;
+//	tmp = dCategoryRates;
+//	dCategoryRates = dStoredCategoryRates;
+//	dStoredCategoryRates = tmp;
 
 	tmp = hCategoryRates;
 	hCategoryRates = hStoredCategoryRates;
@@ -984,7 +968,7 @@ void BeagleCUDAImpl::restoreState() {
 	fprintf(stderr,"Entering restoreState\n");
 #endif
 
-	int instance = INSTANCE;
+//	int instance = INSTANCE;
 
 #ifdef LAZY_STORE
 	doStoreRestoreQueue.enQueue(RESTORE_VALUE);
