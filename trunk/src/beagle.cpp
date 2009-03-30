@@ -11,15 +11,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <list>
+#include <vector>
 
 #include "beagle.h"
 #include "BeagleImpl.h"
 
-#ifndef CUDA
-	#include "CPU/BeagleCPUImpl.h"
-#else
+#ifdef CUDA
 	#include "CUDA/BeagleCUDAImpl.h"
 #endif
+#include "CPU/BeagleCPUImpl.h"
 
 BeagleImpl **instances = NULL;
 int instanceCount = 0;
@@ -32,19 +33,30 @@ int initialize(
 				int categoryCount,
 				int matrixCount)
 {
-    int instance = instanceCount;
-    instanceCount++;
-    instances = (BeagleImpl **)realloc(instances, sizeof(BeagleImpl *) * instanceCount);
-
-#ifndef CUDA
-    instances[instance] = new BeagleCPUImpl();
-#else
-    instances[instance] = new BeagleCUDAImpl();
+	// Set-up a list of implementations in trial-order
+	std::list<BeagleImpl*> possibleBeagles;
+#ifdef CUDA
+	possibleBeagles.push_back(new BeagleCUDAImpl());
 #endif
+	possibleBeagles.push_back(new BeagleCPUImpl());
 
-    instances[instance]->initialize(nodeCount, tipCount, stateCount, patternCount, categoryCount, matrixCount);
+	// Try each implementation
+    for(std::list<BeagleImpl*>::iterator beagle = possibleBeagles.begin();
+		beagle != possibleBeagles.end(); beagle++) {
+    	// Determine if appropriate
+    	if ((*beagle)->initialize(nodeCount, tipCount, stateCount, patternCount,
+    			           categoryCount, matrixCount)) {
+    		// Add implementation to list of instances
+    		int instance = instanceCount;
+    		instanceCount++;
+    		instances = (BeagleImpl **)realloc(instances, sizeof(BeagleImpl *) * instanceCount);
+    		instances[instance] = *beagle;
+    		return instance;
+    	}
+    }
 
-    return instance;
+    // No implementations found or appropriate
+    return ERROR;
 }
 
 void finalize(int instance)

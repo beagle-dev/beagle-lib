@@ -44,7 +44,7 @@ int* storedMatricesIndices;
 int* currentPartialsIndices;
 int* storedPartialsIndices;
 public:
-	virtual void initialize(
+	virtual int initialize(
 					int nodeCount,
 					int tipCount,
 					int stateCount,

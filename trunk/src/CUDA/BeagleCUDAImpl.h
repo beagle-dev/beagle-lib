@@ -20,7 +20,7 @@ private:
 	int loaded;
 #endif
 
-	int trueStateCount; // the "true" stateCount (without padding)
+//	int trueStateCount; // the "true" stateCount (without padding)
 	int nodeCount;
 	int patternCount;
 	int truePatternCount;
@@ -32,8 +32,8 @@ private:
 	int paddedStates; // # of states to pad so that "true" + padded states = PADDED_STATE_COUNT (a multiple of 16, except for DNA models)
 	int paddedPatterns; // # of patterns to pad so that (patternCount + paddedPatterns) * PADDED_STATE_COUNT is a multiple of 16
 
-	REAL* dCMatrix;
-	REAL* dStoredMatrix;
+//	REAL* dCMatrix;
+//	REAL* dStoredMatrix;
 	REAL* dEigenValues;
 	REAL* dStoredEigenValues;
 	REAL* dEvec;
@@ -45,8 +45,8 @@ private:
 	REAL* dStoredFrequencies;
 	REAL* dCategoryProportions;
 	REAL* dStoredCategoryProportions;
-	REAL* dCategoryRates; // TODO Can remove; check that rates are not used on GPU
-	REAL* dStoredCategoryRates;
+//	REAL* dCategoryRates; // TODO Can remove; check that rates are not used on GPU
+//	REAL* dStoredCategoryRates;
 
 	REAL* hCategoryRates;
 	REAL *hStoredCategoryRates;
@@ -114,7 +114,7 @@ private:
 	int storedSinceRescaling;
 
 public:
-	virtual void initialize(
+	virtual int initialize(
 					int nodeCount,
 					int tipCount,
 					int stateCount,
@@ -163,7 +163,7 @@ public:
 
 	virtual void restoreState();
 
-	private:
+private:
     void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3);
     void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
     void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
@@ -187,6 +187,8 @@ public:
     void getGPUInfo(int iDevice, char *name, int *memory, int *speed);
 
     void transposeSquareMatrix(REAL *mat, int size);
+
+    long memoryRequirement(int taxaCount, int stateCount);
 
 };
 
