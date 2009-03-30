@@ -26,6 +26,7 @@ private:
 	int truePatternCount;
 	int partialsSize;
 	int matrixSize;
+	int categoryCount;
 	int matrixCount;
 	int taxaCount;
 
@@ -180,6 +181,7 @@ private:
 				          int inNodeCount,
 				          int inStateTipCount,
 				          int inPatternCount,
+				          int inCategoryCount,
 				          int inMatrixCount);
     void initializeInstanceMemory();
 
