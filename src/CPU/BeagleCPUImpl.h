@@ -36,8 +36,10 @@ double* storedBranchLengths;
 double* integrationTmp;
 
 double*** partials;
-int** states;
+int** tipStates;
 double*** matrices;
+
+bool useTipPartials;
 
 int* currentMatricesIndices;
 int* storedMatricesIndices;
@@ -79,7 +81,7 @@ public:
 												double* branchLengths,
 												int count);
 
-	virtual void calculatePartials(
+	void calculatePartials(
 						   int* operations,
 						   int* dependencies,
 						   int count,

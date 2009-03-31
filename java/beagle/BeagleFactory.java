@@ -60,9 +60,9 @@ public class BeagleFactory {
 //        } // else {
 
         if (stateCount == 4) {
-            return new DoublePrecision4StateBeagleImpl();
+            return new FourStateBeagleImpl();
         }
-        return new DoublePrecisionBeagleImpl(stateCount);
+        return new GeneralBeagleImpl(stateCount);
     }
 
     private static List<BeagleLoader> registry;
