@@ -64,15 +64,20 @@ int BeagleCPUImpl::initialize(
 	kPartialsSize = kPatternCount * STATE_COUNT * kCategoryCount;
 
 	partials = (double ***)malloc(sizeof(double**) * 2);
-	partials[0] = (double **)malloc(sizeof(double*) * nodeCount);
-	partials[1] = (double **)malloc(sizeof(double*) * nodeCount);
+	partials[0] = (double **)malloc(sizeof(double*) * kNodeCount);
+	partials[1] = (double **)malloc(sizeof(double*) * kNodeCount);
 
-	states = (int **)malloc(sizeof(int*) * nodeCount);
+	tipStates = (int **)malloc(sizeof(int*) * kTipCount);
+	for (int i = 0; i < kNodeCount; i++) {
+		partials[0][i] = NULL;
+		partials[1][i] = NULL;
+		tipStates[i] = NULL;
+    }
+    useTipPartials = false;
 
-	for (int i = 0; i < nodeCount; i++) {
+	for (int i = kTipCount; i < kNodeCount; i++) {
 		partials[0][i] = (double *)malloc(sizeof(double) * kPartialsSize);
 		partials[1][i] = (double *)malloc(sizeof(double) * kPartialsSize);
-		states[i] = (int *)malloc(sizeof(int) * kPatternCount * kCategoryCount);
 	}
 
   	currentMatricesIndices = (int *)malloc(sizeof(int) * kNodeCount);
@@ -102,22 +107,25 @@ void BeagleCPUImpl::setTipPartials(
 					int tipIndex,
 					double* inPartials)
 {
+	partials[0][tipIndex] = (double *)malloc(sizeof(double) * kPartialsSize);
 	int k = 0;
 	for (int i = 0; i < kCategoryCount; i++) {
 		// set the partials identically for each matrix
 		memcpy(partials[0][tipIndex] + k, inPartials, sizeof(double) * kPatternCount * STATE_COUNT);
 		k += kPatternCount * STATE_COUNT;
 	}
+    useTipPartials = true;
 }
 
 void BeagleCPUImpl::setTipStates(
 				  int tipIndex,
 				  int* inStates)
 {
+    tipStates[tipIndex] = (int *)malloc(sizeof(int) * kPatternCount * kCategoryCount);
 	int k = 0;
 	for (int i = 0; i < kCategoryCount; i++) {
 		for (int j = 0; j < kPatternCount; j++) {
-			states[tipIndex][k] = (inStates[j] < STATE_COUNT ? inStates[j] : STATE_COUNT);
+			tipStates[tipIndex][k] = (inStates[j] < STATE_COUNT ? inStates[j] : STATE_COUNT);
 			k++;
 		}
 	}
@@ -218,18 +226,22 @@ void BeagleCPUImpl::calculatePartials(
 		x++;
 		currentPartialsIndices[nodeIndex3] = 1 - currentPartialsIndices[nodeIndex3];
 
-		if (nodeIndex1 < kTipCount) {
-			if (nodeIndex2 < kTipCount) {
-				updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
-			} else {
-				updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-			}
-		} else {
-			if (nodeIndex2 < kTipCount) {
-				updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
-			} else {
-				updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-			}
+        if (useTipPartials) {
+            updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+        } else {
+		    if (nodeIndex1 < kTipCount) {
+			    if (nodeIndex2 < kTipCount) {
+			    	updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
+			    } else {
+			    	updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+			    }
+		    } else {
+			    if (nodeIndex2 < kTipCount) {
+			    	updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
+			    } else {
+			    	updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+			    }
+		    }
 		}
 	}
 }
@@ -242,8 +254,8 @@ void BeagleCPUImpl::updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeI
 	double* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
 	double* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
-	int* states1 = states[nodeIndex1];
-	int* states2 = states[nodeIndex2];
+	int* states1 = tipStates[nodeIndex1];
+	int* states2 = tipStates[nodeIndex2];
 
 	double* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
@@ -304,7 +316,7 @@ void BeagleCPUImpl::updateStatesPartials(int nodeIndex1, int nodeIndex2, int nod
 	double* matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
 	double* matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
-	int* states1 = states[nodeIndex1];
+	int* states1 = tipStates[nodeIndex1];
 	double* partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
 
 	double* partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];

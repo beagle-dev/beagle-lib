@@ -2,7 +2,7 @@ package beagle;
 
 import java.util.logging.Logger;
 
-public class DoublePrecision4StateBeagleImpl implements Beagle {
+public class GeneralBeagleImpl implements Beagle {
 
     public static final boolean DEBUG = false;
 
@@ -29,7 +29,7 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
 
     protected double[][][] partials;
 
-    protected int[][] states;
+    protected int[][] tipStates;
 
     protected double[][][] matrices;
 
@@ -39,17 +39,18 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
     protected int[] storedPartialsIndices;
 
     protected boolean useScaling = false;
+    protected boolean useTipPartials = false;
 
     protected double[][][] scalingFactors;
-
 
     /**
      * Constructor
      *
+     * @param stateCount number of states
      */
-    public DoublePrecision4StateBeagleImpl() {
-        this.stateCount = 4;
-        Logger.getLogger("beagle").info("Constructing double-precision 4-state Java BEAGLE implementation.");
+    public GeneralBeagleImpl(int stateCount) {
+        this.stateCount = stateCount;
+        Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
     }
 
     public boolean canHandleTipPartials() {
@@ -114,14 +115,17 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
 
         partialsSize = patternCount * stateCount * categoryCount;
 
-        partials = new double[2][nodeCount][partialsSize];
+        tipStates = new int[tipCount][];
+        partials = new double[2][nodeCount][];
+        scalingFactors = new double[2][nodeCount][];
+        for (int i = tipCount; i < nodeCount; i++) {
+            partials[0][i] = new double[partialsSize];
+            partials[1][i] = new double[partialsSize];
+            scalingFactors[0][i] = new double[patternCount];
+            scalingFactors[1][i] = new double[patternCount];
+        }
 
-        scalingFactors = new double[2][nodeCount][patternCount];
-
-        states = new int[nodeCount][patternCount * categoryCount];
-
-        matrixSize = stateCount * stateCount;
-//        matrixSize = (stateCount + 1) * stateCount;
+        matrixSize = (stateCount + 1) * stateCount;
 
         matrices = new double[2][nodeCount][categoryCount * matrixSize];
 
@@ -145,7 +149,7 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
         partials = null;
         currentPartialsIndices = null;
         storedPartialsIndices = null;
-        states = null;
+        tipStates = null;
         matrices = null;
         currentMatricesIndices = null;
         storedMatricesIndices = null;
@@ -156,12 +160,14 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
      * Sets partials for a tip
      */
     public void setTipPartials(int tipIndex, double[] partials) {
-
+        this.partials[0][tipIndex] = new double[partialsSize];
         int k = 0;
         for (int i = 0; i < categoryCount; i++) {
             System.arraycopy(partials, 0, this.partials[0][tipIndex], k, partials.length);
             k += partials.length;
         }
+
+        useTipPartials = true;
     }
 
     /**
@@ -172,10 +178,11 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
      * @param states   an array of patternCount state indices
      */
     public void setTipStates(int tipIndex, int[] states) {
+        tipStates[tipIndex] = new int[patternCount * categoryCount];
         int k = 0;
         for (int i = 0; i < categoryCount; i++) {
-            for (int j = 0; j < states.length; j++) {
-                this.states[tipIndex][k] = (states[j] < stateCount ? states[j] : stateCount);
+            for (int state : states) {
+                this.tipStates[tipIndex][k] = (state < stateCount ? state : stateCount);
                 k++;
             }
         }
@@ -243,8 +250,8 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
                         matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
                         n++;
                     }
-//                    matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
-//                    n++;
+                    matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
+                    n++;
                 }
 
                 if (matrixCount > 1) {
@@ -269,17 +276,21 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
 
             currentPartialsIndices[nodeIndex3] = 1 - currentPartialsIndices[nodeIndex3];
 
-            if (nodeIndex1 < tipCount) {
-                if (nodeIndex2 < tipCount) {
-                    updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
-                } else {
-                    updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-                }
+            if (useTipPartials) {
+                updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
             } else {
-                if (nodeIndex2 < tipCount) {
-                    updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
+                if (nodeIndex1 < tipCount) {
+                    if (nodeIndex2 < tipCount) {
+                        updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
+                    } else {
+                        updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+                    }
                 } else {
-                    updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+                    if (nodeIndex2 < tipCount) {
+                        updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
+                    } else {
+                        updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
+                    }
                 }
             }
 
@@ -292,76 +303,36 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
     /**
      * Calculates partial likelihoods at a node when both children have states.
      */
-    private void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
     {
         double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
         double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
-        int[] states1 = states[nodeIndex1];
-        int[] states2 = states[nodeIndex2];
+        int[] states1 = tipStates[nodeIndex1];
+        int[] states2 = tipStates[nodeIndex2];
 
         double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
-        // copied from NucleotideLikelihoodCore
-        int u = 0;
         int v = 0;
-        for (int j = 0; j < categoryCount; j++) {
+
+        for (int l = 0; l < categoryCount; l++) {
 
             for (int k = 0; k < patternCount; k++) {
-
-                int w = u;
 
                 int state1 = states1[k];
                 int state2 = states2[k];
 
-                if (state1 < 4 && state2 < 4) {
+                int w = l * matrixSize;
+
+                for (int i = 0; i < stateCount; i++) {
 
                     partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-                    v++;	w += 4;
 
-                } else if (state1 < 4) {
-                    // child 2 has a gap or unknown state so don't use it
-
-                    partials3[v] = matrices1[w + state1];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1];
-                    v++;	w += 4;
-                    partials3[v] = matrices1[w + state1];
-                    v++;	w += 4;
-
-                } else if (state2 < 4) {
-                    // child 2 has a gap or unknown state so don't use it
-                    partials3[v] = matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices2[w + state2];
-                    v++;	w += 4;
-                    partials3[v] = matrices2[w + state2];
-                    v++;	w += 4;
-
-                } else {
-                    // both children have a gap or unknown state so set partials to 1
-                    partials3[v] = 1.0;
                     v++;
-                    partials3[v] = 1.0;
-                    v++;
-                    partials3[v] = 1.0;
-                    v++;
-                    partials3[v] = 1.0;
-                    v++;
+                    w += (stateCount + 1);
                 }
-            }
 
-            u += 16;
+            }
         }
     }
 
@@ -371,94 +342,52 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
      * @param nodeIndex2
      * @param nodeIndex3
      */
-    private void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
     {
         double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
         double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
 
-        int[] states1 = states[nodeIndex1];
+        int[] states1 = tipStates[nodeIndex1];
         double[] partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
 
         double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
-        // copied from NucleotideLikelihoodCore
+        double sum, tmp;
+
         int u = 0;
         int v = 0;
-        int w = 0;
 
         for (int l = 0; l < categoryCount; l++) {
+
             for (int k = 0; k < patternCount; k++) {
 
                 int state1 = states1[k];
 
-                if (state1 < 4) {
+                int w = l * matrixSize;
 
-                    double sum;
+                for (int i = 0; i < stateCount; i++) {
 
-                    sum =	matrices2[w] * partials2[v];
-                    sum +=	matrices2[w + 1] * partials2[v + 1];
-                    sum +=	matrices2[w + 2] * partials2[v + 2];
-                    sum +=	matrices2[w + 3] * partials2[v + 3];
-                    partials3[u] = matrices1[w + state1] * sum;	u++;
+                    tmp = matrices1[w + state1];
 
-                    sum =	matrices2[w + 4] * partials2[v];
-                    sum +=	matrices2[w + 5] * partials2[v + 1];
-                    sum +=	matrices2[w + 6] * partials2[v + 2];
-                    sum +=	matrices2[w + 7] * partials2[v + 3];
-                    partials3[u] = matrices1[w + 4 + state1] * sum;	u++;
+                    sum = 0.0;
+                    for (int j = 0; j < stateCount; j++) {
+                        sum += matrices2[w] * partials2[v + j];
+                        w++;
+                    }
 
-                    sum =	matrices2[w + 8] * partials2[v];
-                    sum +=	matrices2[w + 9] * partials2[v + 1];
-                    sum +=	matrices2[w + 10] * partials2[v + 2];
-                    sum +=	matrices2[w + 11] * partials2[v + 3];
-                    partials3[u] = matrices1[w + 8 + state1] * sum;	u++;
+                    // increment for the extra column at the end
+                    w++;
 
-                    sum =	matrices2[w + 12] * partials2[v];
-                    sum +=	matrices2[w + 13] * partials2[v + 1];
-                    sum +=	matrices2[w + 14] * partials2[v + 2];
-                    sum +=	matrices2[w + 15] * partials2[v + 3];
-                    partials3[u] = matrices1[w + 12 + state1] * sum;	u++;
-
-                    v += 4;
-
-                } else {
-                    // Child 1 has a gap or unknown state so don't use it
-
-                    double sum;
-
-                    sum =	matrices2[w] * partials2[v];
-                    sum +=	matrices2[w + 1] * partials2[v + 1];
-                    sum +=	matrices2[w + 2] * partials2[v + 2];
-                    sum +=	matrices2[w + 3] * partials2[v + 3];
-                    partials3[u] = sum;	u++;
-
-                    sum =	matrices2[w + 4] * partials2[v];
-                    sum +=	matrices2[w + 5] * partials2[v + 1];
-                    sum +=	matrices2[w + 6] * partials2[v + 2];
-                    sum +=	matrices2[w + 7] * partials2[v + 3];
-                    partials3[u] = sum;	u++;
-
-                    sum =	matrices2[w + 8] * partials2[v];
-                    sum +=	matrices2[w + 9] * partials2[v + 1];
-                    sum +=	matrices2[w + 10] * partials2[v + 2];
-                    sum +=	matrices2[w + 11] * partials2[v + 3];
-                    partials3[u] = sum;	u++;
-
-                    sum =	matrices2[w + 12] * partials2[v];
-                    sum +=	matrices2[w + 13] * partials2[v + 1];
-                    sum +=	matrices2[w + 14] * partials2[v + 2];
-                    sum +=	matrices2[w + 15] * partials2[v + 3];
-                    partials3[u] = sum;	u++;
-
-                    v += 4;
+                    partials3[u] = tmp * sum;
+                    u++;
                 }
-            }
 
-            w += 16;
+                v += stateCount;
+            }
         }
     }
 
-    private void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
     {
         double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
         double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
@@ -468,61 +397,48 @@ public class DoublePrecision4StateBeagleImpl implements Beagle {
 
         double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
 
-        // copied from NucleotideLikelihoodCore
-
         double sum1, sum2;
 
         int u = 0;
         int v = 0;
-        int w = 0;
 
         for (int l = 0; l < categoryCount; l++) {
+
             for (int k = 0; k < patternCount; k++) {
 
-                sum1 = matrices1[w] * partials1[v];
-                sum2 = matrices2[w] * partials2[v];
-                sum1 += matrices1[w + 1] * partials1[v + 1];
-                sum2 += matrices2[w + 1] * partials2[v + 1];
-                sum1 += matrices1[w + 2] * partials1[v + 2];
-                sum2 += matrices2[w + 2] * partials2[v + 2];
-                sum1 += matrices1[w + 3] * partials1[v + 3];
-                sum2 += matrices2[w + 3] * partials2[v + 3];
-                partials3[u] = sum1 * sum2; u++;
+                int w = l * matrixSize;
 
-                sum1 = matrices1[w + 4] * partials1[v];
-                sum2 = matrices2[w + 4] * partials2[v];
-                sum1 += matrices1[w + 5] * partials1[v + 1];
-                sum2 += matrices2[w + 5] * partials2[v + 1];
-                sum1 += matrices1[w + 6] * partials1[v + 2];
-                sum2 += matrices2[w + 6] * partials2[v + 2];
-                sum1 += matrices1[w + 7] * partials1[v + 3];
-                sum2 += matrices2[w + 7] * partials2[v + 3];
-                partials3[u] = sum1 * sum2; u++;
+                for (int i = 0; i < stateCount; i++) {
 
-                sum1 = matrices1[w + 8] * partials1[v];
-                sum2 = matrices2[w + 8] * partials2[v];
-                sum1 += matrices1[w + 9] * partials1[v + 1];
-                sum2 += matrices2[w + 9] * partials2[v + 1];
-                sum1 += matrices1[w + 10] * partials1[v + 2];
-                sum2 += matrices2[w + 10] * partials2[v + 2];
-                sum1 += matrices1[w + 11] * partials1[v + 3];
-                sum2 += matrices2[w + 11] * partials2[v + 3];
-                partials3[u] = sum1 * sum2; u++;
+                    sum1 = sum2 = 0.0;
 
-                sum1 = matrices1[w + 12] * partials1[v];
-                sum2 = matrices2[w + 12] * partials2[v];
-                sum1 += matrices1[w + 13] * partials1[v + 1];
-                sum2 += matrices2[w + 13] * partials2[v + 1];
-                sum1 += matrices1[w + 14] * partials1[v + 2];
-                sum2 += matrices2[w + 14] * partials2[v + 2];
-                sum1 += matrices1[w + 15] * partials1[v + 3];
-                sum2 += matrices2[w + 15] * partials2[v + 3];
-                partials3[u] = sum1 * sum2; u++;
+                    for (int j = 0; j < stateCount; j++) {
+                        sum1 += matrices1[w] * partials1[v + j];
+                        sum2 += matrices2[w] * partials2[v + j];
 
-                v += 4;
+                        w++;
+                    }
+
+                    // increment for the extra column at the end
+                    w++;
+
+                    partials3[u] = sum1 * sum2;
+                    u++;
+                }
+                v += stateCount;
+
             }
 
-            w += 16;
+            if (DEBUG) {
+//    	    	System.err.println("1:PP node = "+nodeIndex3);
+//    	    	for(int p=0; p<partials3.length; p++) {
+//    	    		System.err.println("1:PP\t"+partials3[p]);
+//    	    	}
+                System.err.println("node = "+nodeIndex3);
+//                System.err.println(new dr.math.matrixAlgebra.Vector(partials3));
+//                System.err.println(new dr.math.matrixAlgebra.Vector(scalingFactors[currentPartialsIndices[nodeIndex3]][nodeIndex3]));
+                //System.exit(-1);
+            }
         }
     }
 
