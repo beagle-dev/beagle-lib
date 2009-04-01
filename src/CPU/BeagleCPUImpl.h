@@ -103,3 +103,16 @@ public:
 
 };
 
+class BeagleCPUImplFactory : public BeagleImplFactory {
+    public:
+    	virtual BeagleImpl* createImpl(
+								int nodeCount,
+    							int tipCount,
+    							int stateCount,
+    							int patternCount,
+    							int categoryCount,
+    							int matrixCount);
+
+    	virtual const char* getName();
+};
+

@@ -95,6 +95,8 @@ int BeagleCPUImpl::initialize(
 		matrices[0][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
 		matrices[1][i] = (double *)malloc(sizeof(double) * kCategoryCount * MATRIX_SIZE);
 	}
+
+	fprintf(stderr,"done through here!\n");
 	return SUCCESS;
 }
 
@@ -623,4 +625,25 @@ void BeagleCPUImpl::restoreState()
 	currentPartialsIndices = storedPartialsIndices;
 	storedPartialsIndices = tmp2;
 }
+
+BeagleImpl*  BeagleCPUImplFactory::createImpl(
+						int nodeCount,
+						int tipCount,
+						int stateCount,
+						int patternCount,
+						int categoryCount,
+						int matrixCount) {
+	BeagleImpl* impl = new BeagleCPUImpl();
+	if(impl->initialize(nodeCount,tipCount,stateCount,patternCount,categoryCount,matrixCount))
+		return impl;
+	impl->finalize();
+	delete impl;
+	return NULL;
+}
+
+const char* BeagleCPUImplFactory::getName() {
+	return "CPU";
+}
+
+
 

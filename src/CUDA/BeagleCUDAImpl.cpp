@@ -1044,3 +1044,23 @@ void BeagleCUDAImpl::getGPUInfo(int iDevice, char *name, int *memory, int *speed
 	strcpy(name, deviceProp.name);
 }
 
+BeagleImpl*  BeagleCUDAImplFactory::createImpl(
+						int nodeCount,
+						int tipCount,
+						int stateCount,
+						int patternCount,
+						int categoryCount,
+						int matrixCount) {
+	BeagleImpl* impl = new BeagleCUDAImpl();
+	if (impl->initialize(nodeCount,tipCount,stateCount,patternCount,categoryCount,matrixCount))
+		return impl;
+	impl->finalize();
+	delete impl;
+	return NULL;
+}
+
+const char* BeagleCUDAImplFactory::getName() {
+	return "CUDA";
+}
+
+

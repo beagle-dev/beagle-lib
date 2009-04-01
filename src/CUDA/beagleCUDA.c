@@ -363,7 +363,7 @@ void initializeDevice(int instance, int deviceNumber,
 
 	for (i = 0; i < thread[instance].taxaCount; i++) {
 		thread[instance].hTmpPartials[i] = (REAL *) malloc(
-				thread[instance].partialsSize * SIZE_REAL); // TODO Don't forget to free these
+				thread[instance].partialsSize * SIZE_REAL);
 	}
 #endif
 
@@ -670,7 +670,7 @@ void setCategoryRates(REAL* inCategoryRates) {
 
 	CHECK_LAZY_STORE(instance);
 
-	if (thread[instance].hMatrixCache == NULL) { // TODO Is necessary?
+	if (thread[instance].hMatrixCache == NULL) {
 		thread[instance].hMatrixCache = callocBEAGLE(
 				thread[instance].matrixCount, instance);
 	}

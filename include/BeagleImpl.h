@@ -72,4 +72,17 @@ public:
 
 };
 
+class BeagleImplFactory {
+    public:
+	virtual BeagleImpl* createImpl(
+							int nodeCount,
+							int tipCount,
+							int stateCount,
+							int patternCount,
+							int categoryCount,
+							int matrixCount) = 0; // pure virtual
+
+	virtual const char* getName() = 0; // pure virtual
+};
+
 #endif // __beagle_impl__

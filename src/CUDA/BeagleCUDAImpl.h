@@ -46,7 +46,7 @@ private:
 	REAL* dStoredFrequencies;
 	REAL* dCategoryProportions;
 	REAL* dStoredCategoryProportions;
-//	REAL* dCategoryRates; // TODO Can remove; check that rates are not used on GPU
+//	REAL* dCategoryRates;
 //	REAL* dStoredCategoryRates;
 
 	REAL* hCategoryRates;
@@ -192,6 +192,18 @@ private:
 
     long memoryRequirement(int taxaCount, int stateCount);
 
+};
+
+class BeagleCUDAImplFactory : public BeagleImplFactory {
+    public:
+    	virtual BeagleImpl* createImpl(
+								int nodeCount,
+    							int tipCount,
+    							int stateCount,
+    							int patternCount,
+    							int categoryCount,
+    							int matrixCount);
+    	virtual const char* getName();
 };
 
 // Kernel links

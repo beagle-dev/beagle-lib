@@ -19,11 +19,15 @@
 
 #ifdef CUDA
 	#include "CUDA/BeagleCUDAImpl.h"
+//	#include "CUDA/BeagleCUDAImplFactory.h"
 #endif
 #include "CPU/BeagleCPUImpl.h"
+//#include "CPU/BeagleCPUImplFactory.h"
 
 BeagleImpl **instances = NULL;
 int instanceCount = 0;
+
+std::list<BeagleImplFactory*> implFactory;
 
 int initialize(
 				int nodeCount,
@@ -33,26 +37,29 @@ int initialize(
 				int categoryCount,
 				int matrixCount)
 {
-	// Set-up a list of implementations in trial-order
-	std::list<BeagleImpl*> possibleBeagles;
+	// Set-up a list of implementation factories in trial-order
+	if (implFactory.size() == 0) {
 #ifdef CUDA
-	possibleBeagles.push_back(new BeagleCUDAImpl());
+		implFactory.push_back(new BeagleCUDAImplFactory());
 #endif
-	possibleBeagles.push_back(new BeagleCPUImpl());
+		implFactory.push_back(new BeagleCPUImplFactory());
+	}
+fprintf(stderr,"starting up...\n");
 
 	// Try each implementation
-    for(std::list<BeagleImpl*>::iterator beagle = possibleBeagles.begin();
-		beagle != possibleBeagles.end(); beagle++) {
-    	// Determine if appropriate
-    	if ((*beagle)->initialize(nodeCount, tipCount, stateCount, patternCount,
-    			           categoryCount, matrixCount)) {
-    		// Add implementation to list of instances
+    for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();
+		factory != implFactory.end(); factory++) {
+    	fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
+    	BeagleImpl* beagle = (*factory)->createImpl(nodeCount,tipCount,stateCount,patternCount,categoryCount,matrixCount);
+    	if (beagle != NULL) {
+    		fprintf(stderr,"Success\n");
     		int instance = instanceCount;
-    		instanceCount++;
-    		instances = (BeagleImpl **)realloc(instances, sizeof(BeagleImpl *) * instanceCount);
-    		instances[instance] = *beagle;
-    		return instance;
+    	    instanceCount++;
+    	    instances = (BeagleImpl **)realloc(instances, sizeof(BeagleImpl *) * instanceCount);
+    	    instances[instance] = beagle;
+    	    return instance;
     	}
+    	fprintf(stderr,"Failed\n");
     }
 
     // No implementations found or appropriate
