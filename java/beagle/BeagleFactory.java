@@ -13,7 +13,7 @@ import java.util.*;
 public class BeagleFactory {
 
     public static final String STATE_COUNT = "stateCount";
-    public static final String PREFER_SINGLE_PRECISION = "preferSinglePrecision";
+    public static final String PREFER_SINGLE_PRECISION = "preferS inglePrecision";
     public static final String SINGLE_PRECISION = "singlePrecision";
     public static final String DEVICE_NUMBER = "deviceNumber";
 
