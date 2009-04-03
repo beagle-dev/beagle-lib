@@ -68,7 +68,7 @@ int BeagleCPUImpl::initialize(
 	partials[1] = (double **)malloc(sizeof(double*) * kNodeCount);
 
 	tipStates = (int **)malloc(sizeof(int*) * kTipCount);
-	for (int i = 0; i < kNodeCount; i++) {
+	for (int i = 0; i < kTipCount; i++) {
 		partials[0][i] = NULL;
 		partials[1][i] = NULL;
 		tipStates[i] = NULL;
