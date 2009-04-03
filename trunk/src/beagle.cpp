@@ -19,10 +19,8 @@
 
 #ifdef CUDA
 	#include "CUDA/BeagleCUDAImpl.h"
-//	#include "CUDA/BeagleCUDAImplFactory.h"
 #endif
 #include "CPU/BeagleCPUImpl.h"
-//#include "CPU/BeagleCPUImplFactory.h"
 
 BeagleImpl **instances = NULL;
 int instanceCount = 0;
@@ -44,7 +42,6 @@ int initialize(
 #endif
 		implFactory.push_back(new BeagleCPUImplFactory());
 	}
-fprintf(stderr,"starting up...\n");
 
 	// Try each implementation
     for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();

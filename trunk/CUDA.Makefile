@@ -28,6 +28,7 @@ STATE_COUNT = 60
 SCALE = 1E+0f
 		       
 EXECUTABLE	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).$(EXT)
+OBJECT	    := $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).so
 
 CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
@@ -61,6 +62,14 @@ all : cpp-device
 
 directories :
 	if test ! -e $(TARGET_DIR); then mkdir $(TARGET_DIR); fi
+	
+test : cpp-device
+	@echo "hello"	
+	g++ -o tinytest -O3 -fast $(OPTIONS) \
+		-D STATE_COUNT=$(STATE_COUNT) \
+		-Iinclude/ \
+		$(OBJECT) \
+	   	src/tests/tinyTest.cpp
 
 clean:
 	rm -f $(CCOFILES) $(EXECUTABLE)
@@ -71,7 +80,8 @@ cpp-device: directories cpu
 		 --compiler-options -fPIC \
 		 --compiler-options -funroll-loops \
 		 -DCUDA \
-		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+		 -o $(OBJECT)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+	cp $(OBJECT) $(EXECUTABLE)
 		
 cpp-debug: directories cpu
 	@echo "using debug mode!"
@@ -99,7 +109,6 @@ cpp-device-double: directories cpu
 	
 cpu : BeagleCPUImpl.o
 
-
 BeagleCPUImpl.o :
 	g++ -c -o lib/BeagleCPUImpl.o \
 		$(OPTIONS) \
@@ -107,7 +116,6 @@ BeagleCPUImpl.o :
 	    -DDOUBLE_PRECISION \
 		$(INCLUDES) \
 		$(LIB) \
- 		src/CPU/BeagleCPUImpl.cpp 	
-
-
-
+ 		src/CPU/BeagleCPUImpl.cpp
+ 
+ 		
