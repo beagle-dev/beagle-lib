@@ -15,18 +15,12 @@
 
 #include "BeagleCUDAImpl.h"
 #include "CUDASharedFunctions.h"
-//#include "beagle.h"
 
-//#define CMATRIX_SIZE		2 * PADDED_STATE_COUNT * PADDED_STATE_COUNT + 2 * PADDED_STATE_COUNT // Using memory saving format
 #define MATRIX_SIZE     	PADDED_STATE_COUNT * PADDED_STATE_COUNT
-//#define MATRIX_CACHE_SIZE	PADDED_STATE_COUNT * PADDED_STATE_COUNT * PADDED_STATE_COUNT
 #define EVAL_SIZE			PADDED_STATE_COUNT // Change to 2 * PADDED_STATE_COUNT for complex models
 #define	RESTORE_VALUE	1
 #define STORE_VALUE		2
 #define STORE_RESTORE_MAX_LENGTH	2
-
-#define DEVICE_NUMBER	0 // TODO Send info from wrapper
-#define INSTANCE	0 // TODO Send info from wrapper
 
 #ifdef LAZY_STORE
 #define CHECK_LAZY_STORE(instance)	\
@@ -35,6 +29,8 @@
 #else
 #define CHECK_LAZY_STORE
 #endif // LAZY_STORE
+
+int currentDevice = -1;
 
 void checkNativeMemory(void *ptr) {
 	if (ptr == NULL) {
@@ -233,7 +229,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
 	taxaCount = (nodeCount + 1) / 2;
 	truePatternCount = inPatternCount;
 	categoryCount = inCategoryCount;
-/**/	matrixCount = inMatrixCount;
+	matrixCount = inMatrixCount;
 
 	paddedStates = 0;
 	paddedPatterns = 0;
@@ -305,8 +301,19 @@ int BeagleCUDAImpl::initialize(int nodeCount,
 
 	// TODO Determine if CUDA device satisfies memory requirements.
 
-	int numDevices = printGPUInfo();
-	initializeDevice(DEVICE_NUMBER, nodeCount, tipCount, patternCount, categoryCount, matrixCount);
+	int numDevices = getGPUDeviceCount();
+	if (numDevices == 0) {
+		fprintf(stderr,"No GPU devices found");
+		return ERROR;
+	}
+
+	// Static load balancing; each instance gets added to the next available device
+	currentDevice++;
+	if (currentDevice == numDevices)
+		currentDevice = 0;
+	printGPUInfo(currentDevice);
+
+	initializeDevice(currentDevice, nodeCount, tipCount, patternCount, categoryCount, matrixCount);
 	return SUCCESS;
 }
 
@@ -394,7 +401,7 @@ void BeagleCUDAImpl::setTipStates(int tipIndex,
 	fprintf(stderr,"Entering setTipStates\n");
 #endif
 
-	fprintf(stderr,"Unsupported operation!\n");
+	fprintf(stderr,"Currently unsupported operation!\n");
 	exit(-1);
 
 #ifdef DEBUG_FLOW
@@ -515,16 +522,9 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 	fprintf(stderr,"Entering updateEigenDecomposition\n");
 #endif
 
-//	int instance = INSTANCE;
-
 	CHECK_LAZY_STORE();
 
 	// Native memory packing order (length): Ievc (state^2), Evec (state^2), Eval (state), EvalImag (state)
-
-//	int length = 2 * (MATRIX_SIZE + PADDED_STATE_COUNT); // Storing extra space for complex eigenvalues
-//
-//	if (hMatrixCache == NULL)
-//		hMatrixCache = callocBEAGLE(length, instance);
 
 	REAL *Ievc, *tmpIevc, *Evec, *tmpEvec, *Eval, *EvalImag;
 
@@ -585,13 +585,10 @@ void BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 
 }
 
-
 void BeagleCUDAImpl::setCategoryRates(double* inCategoryRates) {
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering updateCategoryRates\n");
 #endif
-
-//	int instance = INSTANCE;
 
 	CHECK_LAZY_STORE();
 
@@ -601,13 +598,6 @@ void BeagleCUDAImpl::setCategoryRates(double* inCategoryRates) {
 	REAL* categoryRates = hCategoryCache;
 	MEMCPY(categoryRates,inCategoryRates,categoryCount,REAL);
 #endif
-
-//	cudaMemcpy(dCategoryRates, categoryRates,
-//			SIZE_REAL*categoryCount, cudaMemcpyHostToDevice); // TODO Are these used on the GPU?
-
-//#ifdef DEBUG_BEAGLE
-//	printfCudaVector(dCategoryRates,categoryCount);
-//#endif
 
 	memcpy(hCategoryRates, categoryRates,
 			SIZE_REAL*categoryCount);
@@ -621,8 +611,6 @@ void BeagleCUDAImpl::setCategoryProportions(double* inCategoryProportions) {
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering updateCategoryProportions\n");
 #endif
-
-//	int instance = INSTANCE;
 
 	CHECK_LAZY_STORE();
 
@@ -772,7 +760,6 @@ void BeagleCUDAImpl::calculateLogLikelihoods(int rootNodeIndex,
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering calculateLogLikelihoods\n");
 #endif
-//	int instance = INSTANCE;
 
 	CHECK_LAZY_STORE();
 
@@ -898,8 +885,6 @@ void BeagleCUDAImpl::storeState() {
 	fprintf(stderr,"Entering storeState\n");
 #endif
 
-	int instance = INSTANCE;
-
 #ifdef LAZY_STORE
 	doStoreRestoreQueue.enQueue(STORE_VALUE);
 #else
@@ -982,8 +967,6 @@ void BeagleCUDAImpl::restoreState() {
 	fprintf(stderr,"Entering restoreState\n");
 #endif
 
-//	int instance = INSTANCE;
-
 #ifdef LAZY_STORE
 	doStoreRestoreQueue.enQueue(RESTORE_VALUE);
 #else
@@ -996,9 +979,7 @@ void BeagleCUDAImpl::restoreState() {
 
 }
 
-int BeagleCUDAImpl::printGPUInfo() {
-	char* nativeName = "*** Marc is too lazy to write this function!";
-
+int BeagleCUDAImpl::getGPUDeviceCount() {
 	int cDevices;
 	CUresult status;
 	status = cuInit(0);
@@ -1010,29 +991,25 @@ int BeagleCUDAImpl::printGPUInfo() {
 	if (cDevices == 0) {
 		return 0;
 	}
+	return cDevices;
+}
+
+void BeagleCUDAImpl::printGPUInfo(int device) {
 
 	fprintf(stderr,"GPU Device Information:");
-
-	int iDevice;
-	for (iDevice = 0; iDevice < cDevices; iDevice++) {
 
 		char name[256];
 		int totalGlobalMemory = 0;
 		int clockSpeed = 0;
 
 		// New CUDA functions in cutil.h do not work in JNI files
-		getGPUInfo(iDevice, name, &totalGlobalMemory, &clockSpeed);
-		fprintf(stderr,"\nDevice #%d: %s\n",(iDevice+1),name);
+		getGPUInfo(device, name, &totalGlobalMemory, &clockSpeed);
+		fprintf(stderr,"\nDevice #%d: %s\n",(device+1),name);
 		double mem = totalGlobalMemory / 1024.0 / 1024.0;
 		double clo = clockSpeed / 1000000.0;
 		fprintf(stderr,"\tGlobal Memory (MB) : %1.2f\n",mem);
 		fprintf(stderr,"\tClock Speed (Ghz)  : %1.2f\n",clo);
-	}
 
-	if (cDevices == 0)
-		fprintf(stderr,"None found.\n");
-
-	return cDevices;
 }
 
 void BeagleCUDAImpl::getGPUInfo(int iDevice, char *name, int *memory, int *speed) {
@@ -1062,5 +1039,3 @@ BeagleImpl*  BeagleCUDAImplFactory::createImpl(
 const char* BeagleCUDAImplFactory::getName() {
 	return "CUDA";
 }
-
-

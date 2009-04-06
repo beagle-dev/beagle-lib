@@ -185,7 +185,9 @@ private:
 				          int inMatrixCount);
     void initializeInstanceMemory();
 
-    int printGPUInfo();
+
+    int getGPUDeviceCount();
+    void printGPUInfo(int device);
     void getGPUInfo(int iDevice, char *name, int *memory, int *speed);
 
     void transposeSquareMatrix(REAL *mat, int size);
