@@ -60,6 +60,7 @@ public class BeagleFactory {
 //        } // else {
 
         if (stateCount == 4) {
+//            return new DependencyAwareBeagleImpl();
             return new FourStateBeagleImpl();
         }
         return new GeneralBeagleImpl(stateCount);
