@@ -119,9 +119,9 @@ public class DependencyAwareBeagleImpl extends GeneralBeagleImpl {
                 }
             }
 
-            if (useScaling) {
-                scalePartials(nodeIndex3);
-            }
+//            if (useScaling) {
+//                scalePartials(nodeIndex3);
+//            }
             return 0;
         }
 
