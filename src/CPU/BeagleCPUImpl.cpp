@@ -195,7 +195,10 @@ void BeagleCPUImpl::calculateProbabilityTransitionMatrices(
 						sum += cMatrices[matrixIndex][m] * tmp[k];
 						m++;
 					}
-					matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+					if (sum > 0)
+						matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+					else
+						matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 0;
 
 					n++;
 				}
