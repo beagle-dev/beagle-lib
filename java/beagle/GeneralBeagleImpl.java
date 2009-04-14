@@ -6,6 +6,9 @@ public class GeneralBeagleImpl implements Beagle {
 
     public static final boolean DEBUG = false;
 
+
+    public static final boolean DYNAMIC_SCALING = true;
+
     protected final int stateCount;
     protected int nodeCount;
     protected int tipCount;
@@ -38,10 +41,11 @@ public class GeneralBeagleImpl implements Beagle {
     protected int[] currentPartialsIndices;
     protected int[] storedPartialsIndices;
 
-    protected boolean useScaling = false;
     protected boolean useTipPartials = false;
 
     protected double[][][] scalingFactors;
+    protected double[] rootScalingFactors;
+    protected double[] storedRootScalingFactors;
 
     /**
      * Constructor
@@ -117,12 +121,19 @@ public class GeneralBeagleImpl implements Beagle {
 
         tipStates = new int[tipCount][];
         partials = new double[2][nodeCount][];
-        scalingFactors = new double[2][nodeCount][];
         for (int i = tipCount; i < nodeCount; i++) {
             partials[0][i] = new double[partialsSize];
             partials[1][i] = new double[partialsSize];
-            scalingFactors[0][i] = new double[patternCount];
-            scalingFactors[1][i] = new double[patternCount];
+        }
+
+        if (DYNAMIC_SCALING) {
+            scalingFactors = new double[2][nodeCount][];
+            for (int i = tipCount; i < nodeCount; i++) {
+                scalingFactors[0][i] = new double[patternCount];
+                scalingFactors[1][i] = new double[patternCount];
+            }
+            rootScalingFactors = new double[patternCount];
+            storedRootScalingFactors = new double[patternCount];
         }
 
         matrixSize = (stateCount + 1) * stateCount;
@@ -151,6 +162,9 @@ public class GeneralBeagleImpl implements Beagle {
         storedPartialsIndices = null;
         tipStates = null;
         matrices = null;
+        scalingFactors = null;
+        rootScalingFactors = null;
+        storedRootScalingFactors = null;
         currentMatricesIndices = null;
         storedMatricesIndices = null;
     }
@@ -217,7 +231,7 @@ public class GeneralBeagleImpl implements Beagle {
         for (int u = 0; u < count; u++) {
             int nodeIndex = nodeIndices[u];
 
-//            if (DEBUG) System.err.println("Updating matrix for node " + nodeIndex);
+            if (DEBUG) System.err.println("Updating matrix for node " + nodeIndex);
 
             currentMatricesIndices[nodeIndex] = 1 - currentMatricesIndices[nodeIndex];
 
@@ -294,7 +308,7 @@ public class GeneralBeagleImpl implements Beagle {
                 }
             }
 
-            if (useScaling) {
+            if (DYNAMIC_SCALING && rescale) {
                 scalePartials(nodeIndex3);
             }
         }
@@ -498,27 +512,6 @@ public class GeneralBeagleImpl implements Beagle {
 
 
     /**
-     * This function returns the scaling factor for that pattern by summing over
-     * the log scalings used at each node. If scaling is off then this just returns
-     * a 0.
-     *
-     * @return the log scaling factor
-     */
-    public double getLogScalingFactor(int pattern) {
-        double logScalingFactor = 0.0;
-        if (useScaling) {
-            for (int i = 0; i < nodeCount; i++) {
-                logScalingFactor += scalingFactors[currentPartialsIndices[i]][i][pattern];
-                if (DEBUG && pattern == 1) System.err.println("Adding "+scalingFactors[currentPartialsIndices[i]][i][pattern]);
-            }
-        }
-
-        if (DEBUG) System.err.println("1:SF "+logScalingFactor+" for "+pattern);
-        return logScalingFactor;
-    }
-
-
-    /**
      * Calculates pattern log likelihoods at a node.
      *
      * @param rootNodeIndex the index of the root node
@@ -559,6 +552,10 @@ public class GeneralBeagleImpl implements Beagle {
             }
         }
 
+        if (DYNAMIC_SCALING) {
+            calculateRootScalingFactors();
+        }
+
         u = 0;
         for (int k = 0; k < patternCount; k++) {
 
@@ -568,13 +565,25 @@ public class GeneralBeagleImpl implements Beagle {
                 sum += frequencies[i] * tmp[u];
                 u++;
             }
-            outLogLikelihoods[k] = Math.log(sum) + getLogScalingFactor(k);
+            outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
             if (DEBUG) {
-                System.err.println("log lik "+k+" = "+outLogLikelihoods[k]);
+                System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
             }
         }
         if (DEBUG) System.exit(-1);
     }
+
+    private void calculateRootScalingFactors() {
+        for (int k = 0; k < patternCount; k++) {
+            double logScalingFactor = 0.0;
+            for (int i = 0; i < nodeCount; i++) {
+                logScalingFactor += scalingFactors[currentPartialsIndices[i]][i][k];
+            }
+            if (DEBUG) System.err.println("1:SF "+logScalingFactor+" for "+ k);
+        }
+
+    }
+
 
     /**
      * Store current state
@@ -592,6 +601,8 @@ public class GeneralBeagleImpl implements Beagle {
 
         System.arraycopy(currentMatricesIndices, 0, storedMatricesIndices, 0, nodeCount);
         System.arraycopy(currentPartialsIndices, 0, storedPartialsIndices, 0, nodeCount);
+
+        System.arraycopy(rootScalingFactors, 0, storedRootScalingFactors, 0, patternCount);
     }
 
     /**
@@ -618,6 +629,10 @@ public class GeneralBeagleImpl implements Beagle {
         tmp1 = categoryProportions;
         categoryProportions = storedCategoryProportions;
         storedCategoryProportions = tmp1;
+
+        tmp1 = rootScalingFactors;
+        rootScalingFactors = storedRootScalingFactors;
+        storedRootScalingFactors = tmp1;
 
         int[] tmp3 = currentMatricesIndices;
         currentMatricesIndices = storedMatricesIndices;
