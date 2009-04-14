@@ -113,8 +113,10 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
 				partialsSize);
 
 #ifdef DYNAMIC_SCALING
-		dScalingFactors[0][i] = allocateGPURealMemory(patternCount);
-		dScalingFactors[1][i] = allocateGPURealMemory(patternCount);
+		if (i >= taxaCount) {
+			dScalingFactors[0][i] = allocateGPURealMemory(patternCount);
+			dScalingFactors[1][i] = allocateGPURealMemory(patternCount);
+		}
 #endif
 	}
 

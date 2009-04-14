@@ -4,7 +4,7 @@ import java.util.logging.Logger;
 
 public class GeneralBeagleImpl implements Beagle {
 
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
     public static final boolean SCALING = true;
     public static final boolean DYNAMIC_SCALING = true;
     
@@ -270,7 +270,10 @@ public class GeneralBeagleImpl implements Beagle {
                             m++;
                         }
                         //	    if (DEBUG) System.err.println("1: matrices[][]["+n+"] = "+sum);
-                        matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+                        if (sum > 0)
+                        	matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+                        else
+                        	matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 0; // TODO Decision: set to -sum (as BEAST does)
                         n++;
                     }
                     matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
@@ -514,7 +517,7 @@ public class GeneralBeagleImpl implements Beagle {
                 v += (patternCount - 1) * stateCount;
             }
 
-            if (scaleFactor < 1E+40) {
+//            if (scaleFactor < 1E-40) {
 
                 v = u;
                 for (int k = 0; k < categoryCount; k++) {
@@ -526,9 +529,9 @@ public class GeneralBeagleImpl implements Beagle {
                 }
                 scalingFactors[indices[nodeIndex]][nodeIndex][i] = Math.log(scaleFactor);
 
-            } else {
-                scalingFactors[indices[nodeIndex]][nodeIndex][i] = 0.0;
-            }
+//            } else {
+//                scalingFactors[indices[nodeIndex]][nodeIndex][i] = 0.0;
+//            }
             u += stateCount;
 
 
