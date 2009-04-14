@@ -9,6 +9,7 @@ ifeq ($(OSNAME),Linux)
 	CUDA_SDK_PATH	:= /opt/NVIDIA_CUDA_SDK
 	JAVA_HOME 		:= /usr/java/default
 	INCLUDES		+= -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -Iinclude
+	EXTRA_OPTIONS	:=
 endif
 
 ifeq ($(OSNAME),Darwin)
@@ -16,6 +17,7 @@ ifeq ($(OSNAME),Darwin)
 	CUDA_SDK_PATH 	:= /Developer/CUDA
 	JAVA_HOME		:= /System/Library/Frameworks/JavaVM.framework
 	INCLUDES		+= -I$(JAVA_HOME)/Headers -Iinclude
+	EXTRA_OPTIONS	:= -fast
 endif
 
 CUDA_INSTALL_PATH	:= /usr/local/cuda
@@ -28,7 +30,7 @@ STATE_COUNT = 60
 SCALE = 1E+0f
 		       
 EXECUTABLE	:= $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).$(EXT)
-OBJECT	    := $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).so
+OBJECT	    := $(TARGET_DIR)/libBEAGLE-$(STATE_COUNT).object
 
 CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
@@ -47,7 +49,7 @@ CUFILES_CPP	:=	src/CUDA/CUDASharedFunctions.c	\
 				java/JNI/beagle_BeagleJNIWrapper.cpp \
 				lib/BeagleCPUImpl.o	   
 		   		   
-OPTIONS		:= -fast -funroll-loops -ffast-math -fstrict-aliasing
+OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 		         		       		      
 ############################################################
 
@@ -101,6 +103,16 @@ cpp-device-double: directories cpu
 		 -arch sm_13 -DDOUBLE_PRECISION \
 		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
 		 	
+cpp-debug-double: directories cpu
+	@echo "using device mode!"
+	nvcc -O4 -shared -DSTATE_COUNT=$(STATE_COUNT) \
+		 --compiler-options -fPIC \
+		 --compiler-options -funroll-loops \
+		 -DCUDA \
+		 -DDEBUG \
+		 -arch sm_13 -DDOUBLE_PRECISION \
+		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+		 		 	
 #emulation-double: directories
 #	@echo "using emulation mode!"
 #	nvcc -g -DDEBUG -DKERNEL_PRINT_ENABLED -O3 -shared -DSTATE_COUNT=$(STATE_COUNT) -DSCALE=$(SCALE)\
@@ -112,6 +124,7 @@ cpu : BeagleCPUImpl.o
 BeagleCPUImpl.o :
 	g++ -c -o lib/BeagleCPUImpl.o \
 		$(OPTIONS) \
+		$(EXTRA_OPTIONS) \
 	    -DSTATE_COUNT=$(STATE_COUNT) \
 	    -DDOUBLE_PRECISION \
 		$(INCLUDES) \
