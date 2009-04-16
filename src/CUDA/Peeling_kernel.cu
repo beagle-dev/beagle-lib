@@ -131,7 +131,7 @@ __global__ void kernelPartialsDynamicScaling(REAL *allPartials, REAL *scalingFac
 		__syncthreads();
 	}
 
-	__syncthreads();
+//	__syncthreads();
 
 	if (state == 0 && matrix == 0) {
 		max = 0;
@@ -800,23 +800,33 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL 
 		sum[state] += dRootPartials[u + delta*r] * matrixProp[r];
 	}
 
+	sum[state] *= stateFreq[state];
 	__syncthreads();
 
-	if (state == 0) { // TODO Can parallelize this reduction
+//	if (state == 0) { // Can parallelize this reduction -- see below
+//		REAL final = 0;
+//		for(int i=0; i<PADDED_STATE_COUNT; i++) {
+//			final += sum[i];
+//		}
+//
+//		dResult[pattern] = log(final) + dRootScalingFactors[pattern];
+//	}
 
-		REAL final = 0;
-		for(int i=0; i<PADDED_STATE_COUNT; i++) {
-			final += sum[i] * stateFreq[i];
+	for (int i=LARGEST_POWER_OF_2/2; i>0; i>>=1) { // parallelized reduction *** only works for powers-of-2 ****
+		if (state < i) {
+			sum[state] += sum[state+i];
 		}
-
-
-#ifdef KERNEL_PRINT_ENABLED
-//		printf("0:SC = %1.2e for %d\n",scale,pattern);
-#endif
-
-		dResult[pattern] = log(final) + dRootScalingFactors[pattern];
-
+		__syncthreads();
 	}
+
+	if (state == 0) {
+#ifndef IS_POWER_OF_2
+		for(int i=LARGEST_POWER_OF_2; i<PADDED_STATE_COUNT; i++)
+			sum[state] += sum[i];
+#endif
+		dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
+	}
+
 }
 
 

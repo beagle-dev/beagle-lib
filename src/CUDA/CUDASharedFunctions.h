@@ -51,25 +51,39 @@
  * BLOCK_PEELING_SIZE - # of the states to pre-fetch in inner-sum in pruning;
  * 						BLOCK_PEELING_SIZE <= PATTERN_BLOCK_SIZE and
  * 						*must* be a divisor of PADDED_STATE_COUNT
+ *
+ * LARGEST_POWER_OF_2 - Largest power of 2 less than or equal to PADDED_STATE_COUNT
+ *
  */
 
 #if (STATE_COUNT == 4)
 	#define PADDED_STATE_COUNT	4
+	#define LARGEST_POWER_OF_2	4
+	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 16) // else if
 	#define PADDED_STATE_COUNT	16
+	#define LARGEST_POWER_OF_2  16
+	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 32) // else if
 	#define PADDED_STATE_COUNT	32
+	#define LARGEST_POWER_OF_2  32
+	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 64) // else if
 	#define PADDED_STATE_COUNT	64
+	#define LARGEST_POWER_OF_2  64
+	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 128) // else if
 	#define PADDED_STATE_COUNT	128
+	#define LARGEST_POWER_OF_2  128
+	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 192) // else if
 	#define PADDED_STATE_COUNT 192
+	#define LARGEST_POWER_OF_2 128
 #endif
 #endif
 #endif
