@@ -67,7 +67,6 @@ __global__ void kernelPartialsPartialsFixedScaling(REAL* partials1, REAL* partia
 		sPartials2[patIdx][state] = 0;
 	}
 
-//	if (state == 0)
 	if (patIdx == 0 && state < PATTERN_BLOCK_SIZE )
 		fixedScalingFactors[state] = scalingFactors[blockIdx.x*PATTERN_BLOCK_SIZE + state]; // TODO If PATTERN_BLOCK_SIZE > PADDED_STATE_COUNT, there is a bug here
 
@@ -90,7 +89,7 @@ __global__ void kernelPartialsPartialsFixedScaling(REAL* partials1, REAL* partia
 		}
 
 		__syncthreads(); // GTX280 FIX HERE
-		// TODO Add fix elsewhere
+
 	}
 
 	if (pattern < totalPatterns)
@@ -121,7 +120,7 @@ __global__ void kernelPartialsDynamicScaling(REAL *allPartials, REAL *scalingFac
 	__syncthreads();
 
 	int i;
-	for (i=PADDED_STATE_COUNT/2; i>0; i>>=1) { // parallelized reduction
+	for (i=PADDED_STATE_COUNT/2; i>0; i>>=1) { // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
 		if (state < i) {
 			REAL compare1 = partials[matrix][state];
 			REAL compare2 = partials[matrix][state+i];
@@ -130,8 +129,6 @@ __global__ void kernelPartialsDynamicScaling(REAL *allPartials, REAL *scalingFac
 		}
 		__syncthreads();
 	}
-
-//	__syncthreads();
 
 	if (state == 0 && matrix == 0) {
 		max = 0;
@@ -176,9 +173,13 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL *allPartials, REAL *scalin
 		partials[state] = allPartials[m*patternCount*PADDED_STATE_COUNT + pattern*PADDED_STATE_COUNT + state];
 		__syncthreads();
 
-		int i;
-		for(i=PADDED_STATE_COUNT/2; i>0; i>>=1) {
-			if( state < i) {
+#ifdef IS_POWER_OF_TWO
+	for (int i=PADDED_STATE_COUNT/2; i>0; i>>=1) { // parallelized reduction *** only works for powers-of-2 ****
+		if (state < i) {
+#else
+	for (int i=SMALLEST_POWER_OF_TWO/2; i>0; i>>=1) {
+		if (state < i && state+i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
 				REAL compare1 = partials[state];
 				REAL compare2 = partials[state+i];
 				if( compare2 > compare1)
@@ -654,9 +655,7 @@ void nativeGPUIntegratePartials(
 	fprintf(stderr,"Completed GPU IP\n");
 #endif
 
-
 }
-
 
 void nativeGPUStatesStatesPruning(
 	INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2,
@@ -721,13 +720,28 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL *dResult, REAL *dRootPartials
 
 	__syncthreads();
 
-	if (state == 0) { // TODO Can parallelize this reduction
-		REAL final = 0;
-		for(int i=0; i<PADDED_STATE_COUNT; i++) {
-			final += sum[i] * stateFreq[i];
+//	if (state == 0) { // Can parallelize this reduction -- see below
+//		REAL final = 0;
+//		for(int i=0; i<PADDED_STATE_COUNT; i++) {
+//			final += sum[i] * stateFreq[i];
+//		}
+//		dResult[pattern] = log(final);
+//	}
+
+#ifdef IS_POWER_OF_TWO
+	for (int i=PADDED_STATE_COUNT/2; i>0; i>>=1) { // parallelized reduction *** only works for powers-of-2 ****
+		if (state < i) {
+#else
+	for (int i=SMALLEST_POWER_OF_TWO/2; i>0; i>>=1) {
+		if (state < i && state+i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+			sum[state] += sum[state+i];
 		}
-		dResult[pattern] = log(final);
+		__syncthreads();
 	}
+
+	if (state == 0)
+		dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
 }
 
 __global__ void kernelGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *rootScaling, int nodeCount, int patternCount) {
@@ -788,7 +802,7 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL 
 		int x = matrixEdge + state;
 		if (x < matrixCount)
 			matrixProp[x] = dCategoryProportions[x];
-		__syncthreads(); // TODO REMOVE???
+//		__syncthreads(); // TODO REMOVE???
 	}
 
 	__syncthreads();
@@ -812,20 +826,20 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL 
 //		dResult[pattern] = log(final) + dRootScalingFactors[pattern];
 //	}
 
-	for (int i=LARGEST_POWER_OF_2/2; i>0; i>>=1) { // parallelized reduction *** only works for powers-of-2 ****
+#ifdef IS_POWER_OF_TWO
+	for (int i=PADDED_STATE_COUNT/2; i>0; i>>=1) { // parallelized reduction *** only works for powers-of-2 ****
 		if (state < i) {
+#else
+	for (int i=SMALLEST_POWER_OF_TWO/2; i>0; i>>=1) {
+		if (state < i && state+i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
 			sum[state] += sum[state+i];
 		}
 		__syncthreads();
 	}
 
-	if (state == 0) {
-#ifndef IS_POWER_OF_2
-		for(int i=LARGEST_POWER_OF_2; i<PADDED_STATE_COUNT; i++)
-			sum[state] += sum[i];
-#endif
+	if (state == 0)
 		dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
-	}
 
 }
 

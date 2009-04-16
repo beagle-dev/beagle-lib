@@ -52,38 +52,27 @@
  * 						BLOCK_PEELING_SIZE <= PATTERN_BLOCK_SIZE and
  * 						*must* be a divisor of PADDED_STATE_COUNT
  *
- * LARGEST_POWER_OF_2 - Largest power of 2 less than or equal to PADDED_STATE_COUNT
+ * SMALLEST_POWER_OF_TWO - Smallest power of 2 greater than or equal to PADDED_STATE_COUNT (if not already a power of 2)
  *
  */
 
 #if (STATE_COUNT == 4)
 	#define PADDED_STATE_COUNT	4
-	#define LARGEST_POWER_OF_2	4
-	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 16) // else if
 	#define PADDED_STATE_COUNT	16
-	#define LARGEST_POWER_OF_2  16
-	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 32) // else if
 	#define PADDED_STATE_COUNT	32
-	#define LARGEST_POWER_OF_2  32
-	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 64) // else if
 	#define PADDED_STATE_COUNT	64
-	#define LARGEST_POWER_OF_2  64
-	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 128) // else if
 	#define PADDED_STATE_COUNT	128
-	#define LARGEST_POWER_OF_2  128
-	#define IS_POWER_OF_2
 #else
 #if (STATE_COUNT <= 192) // else if
 	#define PADDED_STATE_COUNT 192
-	#define LARGEST_POWER_OF_2 128
 #endif
 #endif
 #endif
@@ -92,6 +81,7 @@
 #endif
 
 #define PADDED_STATES	PADDED_STATE_COUNT - STATE_COUNT
+#define IS_POWER_OF_TWO
 
 #if (PADDED_STATE_COUNT == 4)
 	#define PATTERN_BLOCK_SIZE	16
@@ -119,6 +109,8 @@
 	#define PATTERN_BLOCK_SIZE	2
 	#define BLOCK_PEELING_SIZE	2
 	#define SLOW_REWEIGHING
+	#define SMALLEST_POWER_OF_TWO 256
+	#undef IS_POWER_OF_TWO
 #endif
 
 /* Defaults */
