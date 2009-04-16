@@ -706,7 +706,7 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL *dResult, REAL *dRootPartials
 		int x = matrixEdge + state;
 		if (x < matrixCount)
 			matrixProp[x] = dCategoryProportions[x];
-		__syncthreads(); // TODO REMOVE???
+//		__syncthreads(); // TODO REMOVE???
 	}
 
 	__syncthreads();
@@ -718,12 +718,13 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL *dResult, REAL *dRootPartials
 		sum[state] += dRootPartials[u + delta*r] * matrixProp[r];
 	}
 
+	sum[state] *= stateFreq[state];
 	__syncthreads();
 
 //	if (state == 0) { // Can parallelize this reduction -- see below
 //		REAL final = 0;
 //		for(int i=0; i<PADDED_STATE_COUNT; i++) {
-//			final += sum[i] * stateFreq[i];
+//			final += sum[i];
 //		}
 //		dResult[pattern] = log(final);
 //	}
@@ -741,7 +742,7 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL *dResult, REAL *dRootPartials
 	}
 
 	if (state == 0)
-		dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
+		dResult[pattern] = log(sum[state]);
 }
 
 __global__ void kernelGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *rootScaling, int nodeCount, int patternCount) {
