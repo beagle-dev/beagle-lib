@@ -764,8 +764,9 @@ __global__ void kernelGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *r
 		if (pattern == 1)
 			printf("added %1.2e\n",nodeScales[pattern]);
 #endif
-
-		total += log(nodeScales[pattern]);
+		REAL factor = nodeScales[pattern];
+		if (factor > 0) // Small check here for 0s in unscaled nodes
+			total += log(factor);
 	}
 
 	if (pattern < patternCount)

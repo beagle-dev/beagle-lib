@@ -765,7 +765,6 @@ void BeagleCUDAImpl::calculatePartials(
 
 		REAL* scalingFactors = dScalingFactors[hCurrentScalingFactorsIndices[nodeIndex3]][nodeIndex3];
 
-
 		if (tipStates1 != 0) {
 			if (tipStates2 != 0 ) {
 //				nativeGPUStatesStatesPruningDynamicScaling(
