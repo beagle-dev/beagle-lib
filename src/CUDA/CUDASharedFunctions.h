@@ -10,7 +10,7 @@
 #include <math.h>
 #include <cuda.h>
 
-#define DYNAMIC_SCALING
+//#define DYNAMIC_SCALING
 
 #define SCALING_REFRESH	0
 //#define ALWAYS_RESCALE
@@ -19,9 +19,9 @@
 
 #define LAZY_STORE
 
-#define DEBUG_FLOW
+//#define DEBUG_FLOW
 //#define DEBUG_GPU
-#define DEBUG_BEAGLE
+//#define DEBUG_BEAGLE
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION

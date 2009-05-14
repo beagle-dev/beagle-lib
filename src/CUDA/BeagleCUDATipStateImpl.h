@@ -225,6 +225,14 @@ extern "C" void nativeGPUPartialsPartialsPruningDynamicScaling(
 	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL *scalingFactors,
 	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
 
+extern "C" void nativeGPUStatesStatesPruningDynamicScaling(
+	INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL* scalingFactors,
+	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
+
+extern "C" void nativeGPUStatesPartialsPruningDynamicScaling(
+	INT* states1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL* scalingFactors,
+	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
+
 extern "C" void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScalingFactors,
 		int nodeCount, int patternCount);
 
