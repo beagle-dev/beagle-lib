@@ -16,6 +16,8 @@ extern "C" {
 
 void checkCUDAError(const char *msg);
 
+REAL *ones = NULL; // TODO Memory leak, need to free at some point.
+
 __global__ void kernelPartialsPartialsFixedScaling(REAL* partials1, REAL* partials2,
 		REAL* partials3, REAL* matrices1, REAL* matrices2, REAL* scalingFactors, int totalPatterns) {
 
@@ -366,9 +368,6 @@ __global__ void kernelPartialsPartialsSmallFixedScaling(REAL* partials1, REAL* p
 
 	int pattern = __umul24(blockIdx.x,PATTERN_BLOCK_SIZE*4) + patIdx*4 + pat; // read 4 patterns at a time, since 4 * 4 = 16
 
-
-
-
 //	int deltaPartialsByState = __umul24(pattern,PADDED_STATE_COUNT);
 	int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
 	int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
@@ -455,13 +454,18 @@ __global__ void kernelStatesStatesByPatternBlockCoherentSmall(int* states1, int*
 	__shared__ REAL sMatrix1[16];
 	__shared__ REAL sMatrix2[16];
 
-	__shared__ INT sStates1[PATTERN_BLOCK_SIZE*4];
-	__shared__ INT sStates2[PATTERN_BLOCK_SIZE*4];
-
-	if (patIdx < PATTERN_BLOCK_SIZE/4 && pattern < totalPatterns) {
-		sStates1[patIdx*16 + tx] = states1[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
-		sStates2[patIdx*16 + tx] = states2[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
-	}
+//	__shared__ INT sStates1[PATTERN_BLOCK_SIZE*4];
+//	__shared__ INT sStates2[PATTERN_BLOCK_SIZE*4];
+//
+//	if (pattern < totalPatterns) {
+//		if (patIdx < PATTERN_BLOCK_SIZE/4) {
+//			sStates1[patIdx*16 + tx] = states1[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
+//			sStates2[patIdx*16 + tx] = states2[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
+//		} else {
+//			sStates1[patIdx*16 + tx] = PADDED_STATE_COUNT;
+//			sStates2[patIdx*16 + tx] = PADDED_STATE_COUNT;
+//		}
+//	}
 
 	if (patIdx == 0 ) {
 		sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
@@ -470,17 +474,21 @@ __global__ void kernelStatesStatesByPatternBlockCoherentSmall(int* states1, int*
 
 	__syncthreads();
 
-	int state1 = sStates1[patIdx*4 + pat];
-	int state2 = sStates2[patIdx*4 + pat];
+	if (pattern < totalPatterns) {
+		int state1 = states1[pattern];
+		int state2 = states2[pattern];
+//		int state1 = sStates1[patIdx*4 + pat];
+//		int state2 = sStates2[patIdx*4 + pat];
 
-	if ( state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
-		partials3[u] = sMatrix1[state1*4 + state] *sMatrix2[state2*4+state];
-	} else if (state1 < PADDED_STATE_COUNT) {
-		partials3[u] = sMatrix1[state1*4 + state];
-	} else if (state2 < PADDED_STATE_COUNT) {
-		partials3[u] = sMatrix2[state2*4 + state];
-	} else {
-		partials3[u] = 1.0;
+		if ( state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
+			partials3[u] = sMatrix1[state1*4 + state] *sMatrix2[state2*4 + state];
+		} else if (state1 < PADDED_STATE_COUNT) {
+			partials3[u] = sMatrix1[state1*4 + state];
+		} else if (state2 < PADDED_STATE_COUNT) {
+			partials3[u] = sMatrix2[state2*4 + state];
+		} else {
+			partials3[u] = 1.0;
+		}
 	}
 }
 
@@ -520,16 +528,18 @@ __global__ void kernelStatesPartialsByPatternBlockCoherentSmall(int* states1, RE
 	__shared__ REAL sMatrix1[16];
 	__shared__ REAL sMatrix2[16];
 
-	__shared__ INT sStates1[PATTERN_BLOCK_SIZE*4];
+//	__shared__ INT sStates1[PATTERN_BLOCK_SIZE*4];
 	__shared__ REAL sPartials2[PATTERN_BLOCK_SIZE*4*4];
 
 	// copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
 	if (pattern < totalPatterns) {
 		sPartials2[patIdx*16 + tx] = partials2[y + tx];
-		if (patIdx < PATTERN_BLOCK_SIZE/4)
-			sStates1[patIdx*16 + tx] = states1[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
+//		if (patIdx < PATTERN_BLOCK_SIZE/4)
+//			sStates1[patIdx*16 + tx] = states1[blockIdx.x*PATTERN_BLOCK_SIZE*4 + patIdx*16 + tx];
 	} else {
 		sPartials2[patIdx*16 + tx] = 0;
+//		if (patIdx < PATTERN_BLOCK_SIZE/4)
+//			sStates1[patIdx*16 + tx] = PADDED_STATE_COUNT;
 	}
 
 	if (patIdx == 0 ) {
@@ -539,17 +549,16 @@ __global__ void kernelStatesPartialsByPatternBlockCoherentSmall(int* states1, RE
 
 	__syncthreads();
 
-	int state1 = sStates1[patIdx*4 + pat];
-	if (state1 < PADDED_STATE_COUNT)
-		sum1 = sMatrix1[state1*4 + state];
-	else
-		sum1 = 1.0;
-
-
-
 	if (pattern < totalPatterns) { // Remove padded threads!
+//		int state1 = sStates1[patIdx*4 + pat];
+		int state1 = states1[pattern];
+
+		if (state1 < PADDED_STATE_COUNT)
+			sum1 = sMatrix1[state1*4 + state];
+		else
+			sum1 = 1.0;
+
 		for(i=0; i<PADDED_STATE_COUNT; i++) {
-//			sum1 += sMatrix1[i*4 + state] * sPartials1[patIdx*16 + pat*4 + i];
 			sum2 += sMatrix2[i*4 + state] * sPartials2[patIdx*16 + pat*4 + i];
 		}
 		partials3[u] = sum1 * sum2;
@@ -719,7 +728,7 @@ __global__ void kernelStatesPartialsByPatternBlockCoherent(int* states1, REAL* p
 		}
 		__syncthreads();
 
-		// NOT DONE!!!
+		// NOT DONE!!! TODO TODO TODO
 
 		int j;
 		for(j=0; j<BLOCK_PEELING_SIZE; j++) {
@@ -735,58 +744,7 @@ __global__ void kernelStatesPartialsByPatternBlockCoherent(int* states1, REAL* p
 		partials3[u] = sum1 * sum2;
 }
 
-//__global__ void kernelStatesPartials(INT* states1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2) {
-//
-//	REAL sum = 0;
-//
-//	int i;
-//
-//	// blockIdx.y = matrix; blockIdx.x = pattern; threadIdx.x = state
-//	// blockDim.x = PADDED_STATE_COUNT; gridDim.y = matrixCount; gridDim.x = patternCount;
-//
-//	int deltaPartialsByState = blockIdx.x * blockDim.x;
-//	int deltaPartialsByMatrix = blockIdx.y * blockDim.x * gridDim.x;
-//
-////	int x = threadIdx.x * blockDim.x + blockIdx.y * blockDim.x * blockDim.x;
-//	int y = deltaPartialsByState + deltaPartialsByMatrix;
-//
-//	int matrixOffset = blockIdx.y * PADDED_STATE_COUNT * PADDED_STATE_COUNT +  threadIdx.x * PADDED_STATE_COUNT;
-//
-//	int u = threadIdx.x + deltaPartialsByState + deltaPartialsByMatrix;
-//
-//	int state1 = (int) states1[blockIdx.x]; // TODO Should cache in shared memory
-//
-//#ifdef KERNEL_PRINT_ENABLED_SP
-//	printf("thread #(%d,%d,%d): x = %d, y = %d, u = %d, state = %d, ",blockIdx.x,blockIdx.y,threadIdx.x,x,y,u,state1); // for debugging in emulation_mode
-//#endif
-//
-//
-//	if (state1 < PADDED_STATE_COUNT) { // < PADDED_STATE_COUNT
-//
-//		REAL value = matrices1[matrixOffset + state1*blockDim.x + threadIdx.x]; // TODO should cache value
-//
-//		for(i=0; i<PADDED_STATE_COUNT; i++) {
-//			sum += matrices2[matrixOffset + i] * partials2[y + i]; // TODO should block read
-//		}
-//
-//#ifdef KERNEL_PRINT_ENABLED_SP
-//		printf("sum = %1.2e, value = %1.2e\n",sum,value);
-//#endif
-//
-//		partials3[u] = sum * value;
-//
-//	} else { // Missing data
-//
-//		for(i=0; i<PADDED_STATE_COUNT; i++) {
-//			sum += matrices2[matrixOffset + i] * partials2[y + i];
-//		}
-//
-//		partials3[u] = sum;
-//	}
-//}
-
-
-__global__ void kernelStatesStatesByPatternBlockCoherent(INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2) {
+__global__ void kernelStatesStates(INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2) {
 
 	// blockIdx.y = matrix; blockIdx.x = pattern; threadIdx.x = state
 	// blockDim.x = PADDED_STATE_COUNT; gridDim.y = matrixCount; gridDim.x = patternCount;
@@ -878,6 +836,11 @@ void nativeGPUStatesStatesPruningDynamicScaling(
 		grid.x +=1;
 
 	kernelStatesStatesByPatternBlockCoherentSmall<<<grid, block>>>(states1, states2, partials3, matrices1, matrices2, patternCount);
+
+//	dim3 grid(patternCount, matrixCount);
+//	dim3 block(PADDED_STATE_COUNT,1);
+//
+//	kernelStatesStates<<<grid, block>>>(states1, states2, partials3, matrices1, matrices2);
 #else
 //	dim3 grid(patternCount/PATTERN_BLOCK_SIZE, matrixCount);
 //	if (patternCount % PATTERN_BLOCK_SIZE != 0)
@@ -886,12 +849,20 @@ void nativeGPUStatesStatesPruningDynamicScaling(
 //
 //	kernelStatesStatesByPatternBlockCoherent<<<grid, block>>>(states1, states2, partials3, matrices1, matrices2, patternCount);
 
-	// Defunct
 	dim3 grid(patternCount, matrixCount);
 	dim3 block(PADDED_STATE_COUNT,1);
 
 	kernelStatesStates<<<grid, block>>>(states1, states2, partials3, matrices1, matrices2);
 #endif
+
+	if (doRescaling) {
+		if (ones == NULL) {
+			ones = (REAL *)malloc(SIZE_REAL*patternCount);
+			for(int i=0; i<patternCount; i++)
+				ones[i] = 1.0;
+		}
+		cudaMemcpy(scalingFactors,ones,sizeof(REAL*)*patternCount, cudaMemcpyHostToDevice);
+	}
 
 #ifdef DEBUG
 	fprintf(stderr,"Completed GPU SS\n");
@@ -919,12 +890,14 @@ void nativeGPUStatesPartialsPruningDynamicScaling(
 	kernelStatesPartialsByPatternBlockCoherent<<<grid, block>>>(states1, partials2, partials3, matrices1, matrices2, patternCount);
 #endif
 
-
-// Defunct
-//	dim3 grid(patternCount,matrixCount);
-//	dim3 block(PADDED_STATE_COUNT,1);
-//
-//	kernelStatesPartials<<<grid, block>>>(states1, partials2, partials3, matrices1, matrices2);
+	if (doRescaling) {
+		if (ones == NULL) {
+			ones = (REAL *)malloc(SIZE_REAL*patternCount);
+			for(int i=0; i<patternCount; i++)
+				ones[i] = 1.0;
+		}
+		cudaMemcpy(scalingFactors,ones,sizeof(REAL*)*patternCount, cudaMemcpyHostToDevice);
+	}
 
 #ifdef DEBUG
 	fprintf(stderr,"Completed GPU SP\n");
