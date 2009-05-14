@@ -20,7 +20,6 @@ private:
 	int loaded;
 #endif
 
-//	int trueStateCount; // the "true" stateCount (without padding)
 	int nodeCount;
 	int patternCount;
 	int truePatternCount;
@@ -58,6 +57,7 @@ private:
 	REAL*** dMatrices;
 
 	REAL** hTmpPartials;
+	int** hTmpStates;
 
 	REAL*** dScalingFactors;
 	REAL*** dStoredScalingFactors;
@@ -98,6 +98,7 @@ private:
 	REAL *hCategoryCache;
 	REAL *hLogLikelihoodsCache;
 	REAL *hPartialsCache;
+	int  *hStatesCache;
 	REAL *hMatrixCache;
 //	REAL *hNodeCache;
 
@@ -172,10 +173,10 @@ private:
     void handleStoreRestoreQueue();
     void doRestoreState();
     void doStoreState();
-    void loadTipPartials();
+    void loadTipPartialsOrStates();
 
     void freeNativeMemory();
-    void freeTmpPartials();
+    void freeTmpPartialsOrStates();
 
     void initializeDevice(int deviceNumber,
 				          int inNodeCount,

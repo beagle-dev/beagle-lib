@@ -19,9 +19,9 @@
 
 #define LAZY_STORE
 
-//#define DEBUG_FLOW
+#define DEBUG_FLOW
 //#define DEBUG_GPU
-//#define DEBUG_BEAGLE
+#define DEBUG_BEAGLE
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
@@ -169,6 +169,8 @@ void printfVectorD(double *ptr, int length);
 void printfVectorF(float *ptr, int length);
 
 void printfVector(REAL *ptr, int length);
+
+void printfInt(int *ptr,int length);
 
 REAL sumCudaVector(REAL *dPtr, int length);
 

@@ -145,6 +145,14 @@ void printfVector(REAL* ptr, int length) {
 	fprintf(stderr," ]\n");
 }
 
+void printfInt(int* ptr, int length) {
+	fprintf(stderr,"[ %d",ptr[0]);
+	int i;
+	for (i = 1; i < length; i++)
+		fprintf(stderr," %d",ptr[i]);
+	fprintf(stderr," ]\n");
+}
+
 #ifdef __cplusplus
 }
 #endif
