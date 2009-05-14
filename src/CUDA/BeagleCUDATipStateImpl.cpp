@@ -106,7 +106,6 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
 	dStoredRootScalingFactors = allocateGPURealMemory(patternCount);
 #endif
 
-
 	for (i = 0; i < nodeCount; i++) {
 
 		if (i < taxaCount) { // For the tips
@@ -117,7 +116,6 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
 		} else {
 			dPartials[0][i] = allocateGPURealMemory(partialsSize);
 			dPartials[1][i] = allocateGPURealMemory(partialsSize);
-
 #ifdef DYNAMIC_SCALING
 			dScalingFactors[0][i] = allocateGPURealMemory(patternCount);
 			dScalingFactors[1][i] = allocateGPURealMemory(patternCount);
@@ -857,7 +855,7 @@ void BeagleCUDAImpl::calculatePartials(
 			printfCudaVector(partials2,partialsSize);
 		printfCudaVector(partials3,partialsSize);
 		fprintf(stderr,"\nnode index = %d\n",nodeIndex3);
-		if(die || nodeIndex3 == 20)
+//		if(die || nodeIndex3 == 20)
 			exit(-1);
 #endif
 
