@@ -164,6 +164,8 @@ void storeGPUIntMemoryArray(INT *toGPUPtr, INT *fromGPUPtr, int length);
 
 void printfCudaVector(REAL *dPtr, int length);
 
+void printfCudaInt(int *dPtr, int length);
+
 void printfVectorD(double *ptr, int length);
 
 void printfVectorF(float *ptr, int length);
