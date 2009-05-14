@@ -802,8 +802,10 @@ void BeagleCUDAImpl::calculatePartials(
 //				scalingFactors,
 //				patternCount, categoryCount, doRescaling);
 #else
-		fprintf(stderr,"Not yet implemented: no scaling tipStates");
-		exit(0);
+		if (tipStates1 || tipStates2) {
+			fprintf(stderr,"Not yet implemented: no scaling tipStates");
+			exit(0);
+		}
 
 		nativeGPUPartialsPartialsPruning(partials1, partials2, partials3,
 				matrices1, matrices2, patternCount,
@@ -813,9 +815,15 @@ void BeagleCUDAImpl::calculatePartials(
 		fprintf(stderr,"patternCount = %d\n",patternCount);
 		fprintf(stderr,"truePatternCount = %d\n",truePatternCount);
 		fprintf(stderr,"categoryCount  = %d\n",categoryCount);
-		fprintf(stderr,"partialSize = %d\n",partialsSize);//		printfCudaVector(partials1,partialsSize);
-		printfCudaVector(partials1,partialsSize);
-		printfCudaVector(partials2,partialsSize);
+		fprintf(stderr,"partialSize = %d\n",partialsSize);
+		if (tipStates1)
+			printfCudaInt(tipStates1,patternCount);
+		else
+			printfCudaVector(partials1,partialsSize);
+		if (tipStates2)
+			printfCudaInt(tipStates2,patternCount);
+		else
+			printfCudaVector(partials2,partialsSize);
 		printfCudaVector(partials3,partialsSize);
 //		exit(-1);
 #endif

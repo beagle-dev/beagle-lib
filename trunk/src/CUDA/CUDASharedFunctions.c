@@ -109,6 +109,13 @@ void printfCudaVector(REAL* dPtr, int length) {
 	free(hPtr);
 }
 
+void printfCudaInt(int* dPtr, int length) {
+	int* hPtr = (int *) malloc(sizeof(int) * length);
+	SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(int)*length, cudaMemcpyDeviceToHost),dPtr);
+	printfInt(hPtr,length);
+	free(hPtr);
+}
+
 REAL sumCudaVector(REAL *dPtr, int length) {
 
 	REAL* hPtr = (REAL *) malloc(sizeof(REAL) * length);
