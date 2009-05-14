@@ -48,6 +48,16 @@ CUFILES_CPP	:=	src/CUDA/CUDASharedFunctions.c	\
 				src/beagle.cpp \
 				java/JNI/beagle_BeagleJNIWrapper.cpp \
 				lib/BeagleCPUImpl.o	   
+		   		  
+CUFILES_TIP	:=	src/CUDA/CUDASharedFunctions.c	\
+				src/CUDA/Queue.cpp \
+				src/CUDA/CUDASharedFunctions_kernel.cu \
+				src/CUDA/BeagleCUDATipStateImpl.cpp \
+				src/CUDA/TransitionProbabilities_kernel.cu \
+				src/CUDA/Peeling_kernel.cu \
+				src/beagle.cpp \
+				java/JNI/beagle_BeagleJNIWrapper.cpp \
+				lib/BeagleCPUImpl.o			   		   
 		   		   
 OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 		         		       		      
@@ -112,6 +122,15 @@ cpp-debug-double: directories cpu
 		 -DDEBUG \
 		 -arch sm_13 -DDOUBLE_PRECISION \
 		 -o $(EXECUTABLE)  $(CUFILES_CPP) $(INCLUDES) $(LIB) $(DOLINK)
+		 
+cpp-tip: directories cpu
+	@echo "using device mode!"
+	nvcc -O4 -shared -DSTATE_COUNT=$(STATE_COUNT) \
+		 --compiler-options -fPIC \
+		 --compiler-options -funroll-loops \
+		 -DCUDA \
+		 -o $(OBJECT)  $(CUFILES_TIP) $(INCLUDES) $(LIB) $(DOLINK)
+	cp $(OBJECT) $(EXECUTABLE)		 
 		 		 	
 #emulation-double: directories
 #	@echo "using emulation mode!"
