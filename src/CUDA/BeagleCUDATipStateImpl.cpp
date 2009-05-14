@@ -779,6 +779,7 @@ void BeagleCUDAImpl::calculatePartials(
 					matrices1, matrices2,
 					scalingFactors,
 					patternCount, categoryCount, doRescaling);
+				die = 1;
 			}
 		} else {
 			if (tipStates2 != 0) {
@@ -787,6 +788,7 @@ void BeagleCUDAImpl::calculatePartials(
 					matrices2, matrices1,
 					scalingFactors,
 					patternCount, categoryCount, doRescaling);
+				die = 1;
 			} else {
 				nativeGPUPartialsPartialsPruningDynamicScaling(
 					partials1,partials2, partials3,
@@ -855,7 +857,7 @@ void BeagleCUDAImpl::calculatePartials(
 			printfCudaVector(partials2,partialsSize);
 		printfCudaVector(partials3,partialsSize);
 		fprintf(stderr,"\nnode index = %d\n",nodeIndex3);
-//		if(die || nodeIndex3 == 20)
+		if(die || nodeIndex3 == 64)
 			exit(-1);
 #endif
 
