@@ -336,6 +336,8 @@ void BeagleCUDAImpl::freeTmpPartialsOrStates() {
 
 	free(hTmpPartials);
 	free(hTmpStates);
+	free(hPartialsCache);
+	free(hStatesCache);
 }
 
 void BeagleCUDAImpl::freeNativeMemory() {
@@ -488,11 +490,14 @@ void BeagleCUDAImpl::setTipPartials(int tipIndex,
 }
 
 void BeagleCUDAImpl::loadTipPartialsOrStates() {
-	int i;
-	for (i = 0; i < taxaCount; i++) {
-		cudaMemcpy(dPartials[0][i],
-				hTmpPartials[i], SIZE_REAL
+
+	for (int i = 0; i < taxaCount; i++) {
+		if (hTmpStates[i] == 0)
+			cudaMemcpy(dPartials[0][i],hTmpPartials[i], SIZE_REAL
 						* partialsSize, cudaMemcpyHostToDevice);
+		else
+			cudaMemcpy(dStates[i],hTmpStates[i], SIZE_INT
+						* patternCount, cudaMemcpyHostToDevice);
 	}
 }
 
@@ -512,13 +517,9 @@ void BeagleCUDAImpl::setStateFrequencies(double* inFrequencies) {
 
 #ifdef PRE_LOAD
 	if (loaded == 0) {
-		fprintf(stderr,"BEFORE1\n");
 		initializeInstanceMemory();
-		fprintf(stderr,"BEFORE2\n");
 		loadTipPartialsOrStates();
-		fprintf(stderr,"BEFORE3\n");
 		freeTmpPartialsOrStates();
-		fprintf(stderr,"AFTER\n");
 		loaded = 1;
 	}
 #endif // PRE_LOAD
@@ -736,6 +737,8 @@ void BeagleCUDAImpl::calculatePartials(
 		doRescaling = rescale;
 #endif
 
+	int die = 0;
+
 	// Serial version
 	int op, x = 0, y = 0;
 	for (op = 0; op < count; op++) {
@@ -767,25 +770,25 @@ void BeagleCUDAImpl::calculatePartials(
 
 		if (tipStates1 != 0) {
 			if (tipStates2 != 0 ) {
-//				nativeGPUStatesStatesPruningDynamicScaling(
-//					tipStates1, tipStates2, partials3,
-//					matrices1, matrices2,
-//					scalingFactors,
-//					patternCount, categoryCount, doRescaling);
+				nativeGPUStatesStatesPruningDynamicScaling(
+					tipStates1, tipStates2, partials3,
+					matrices1, matrices2,
+					scalingFactors,
+					patternCount, categoryCount, doRescaling);
 			} else {
-//				nativeGPUStatesPartialsPruningDynamicScaling(
-//					tipStates1, partials2, partials3,
-//					matrices1, matrices2,
-//					scalingFactors,
-//					patternCount, categoryCount, doRescaling);
+				nativeGPUStatesPartialsPruningDynamicScaling(
+					tipStates1, partials2, partials3,
+					matrices1, matrices2,
+					scalingFactors,
+					patternCount, categoryCount, doRescaling);
 			}
 		} else {
 			if (tipStates2 != 0) {
-//				nativeGPUStatesPartialsPruningDynamicScaling(
-//					tipStates2, partials1, partials3,
-//					matrices2, matrices1,
-//					scalingFactors,
-//					patternCount, categoryCount, doRescaling);
+				nativeGPUStatesPartialsPruningDynamicScaling(
+					tipStates2, partials1, partials3,
+					matrices2, matrices1,
+					scalingFactors,
+					patternCount, categoryCount, doRescaling);
 			} else {
 				nativeGPUPartialsPartialsPruningDynamicScaling(
 					partials1,partials2, partials3,
@@ -801,14 +804,43 @@ void BeagleCUDAImpl::calculatePartials(
 //				scalingFactors,
 //				patternCount, categoryCount, doRescaling);
 #else
-		if (tipStates1 || tipStates2) {
-			fprintf(stderr,"Not yet implemented: no scaling tipStates");
-			exit(0);
+
+		if (tipStates1 != 0) {
+			if (tipStates2 != 0 ) {
+				nativeGPUStatesStatesPruningDynamicScaling(
+					tipStates1, tipStates2, partials3,
+					matrices1, matrices2,
+					0,
+					patternCount, categoryCount, 0);
+			} else {
+				nativeGPUStatesPartialsPruningDynamicScaling(
+					tipStates1, partials2, partials3,
+					matrices1, matrices2,
+					0,
+					patternCount, categoryCount, 0);
+				die = 1;
+			}
+		} else {
+			if (tipStates2 != 0) {
+				nativeGPUStatesPartialsPruningDynamicScaling(
+					tipStates2, partials1, partials3,
+					matrices2, matrices1,
+					0,
+					patternCount, categoryCount, 0);
+				die = 1;
+			} else {
+				nativeGPUPartialsPartialsPruning(
+					partials1,partials2, partials3,
+					matrices1,matrices2,
+					patternCount, categoryCount);
+			}
 		}
 
-		nativeGPUPartialsPartialsPruning(partials1, partials2, partials3,
-				matrices1, matrices2, patternCount,
-				categoryCount);
+//		nativeGPUPartialsPartialsPruning(partials1, partials2, partials3,
+//				matrices1, matrices2, patternCount,
+//				categoryCount);
+#endif // DYNAMIC_SCALING
+
 
 #ifdef DEBUG_BEAGLE
 		fprintf(stderr,"patternCount = %d\n",patternCount);
@@ -824,9 +856,10 @@ void BeagleCUDAImpl::calculatePartials(
 		else
 			printfCudaVector(partials2,partialsSize);
 		printfCudaVector(partials3,partialsSize);
-//		exit(-1);
+		fprintf(stderr,"\nnode index = %d\n",nodeIndex3);
+		if(die || nodeIndex3 == 20)
+			exit(-1);
 #endif
-#endif // DYNAMIC_SCALING
 
 	}
 
