@@ -807,26 +807,23 @@ void BeagleCUDAImpl::calculatePartials(
 
 		if (tipStates1 != 0) {
 			if (tipStates2 != 0 ) {
-				nativeGPUStatesStatesPruningDynamicScaling(
+				nativeGPUStatesStatesPruning(
 					tipStates1, tipStates2, partials3,
 					matrices1, matrices2,
-					0,
-					patternCount, categoryCount, 0);
+					patternCount, categoryCount);
 			} else {
-				nativeGPUStatesPartialsPruningDynamicScaling(
+				nativeGPUStatesPartialsPruning(
 					tipStates1, partials2, partials3,
 					matrices1, matrices2,
-					0,
-					patternCount, categoryCount, 0);
+					patternCount, categoryCount);
 				die = 1;
 			}
 		} else {
 			if (tipStates2 != 0) {
-				nativeGPUStatesPartialsPruningDynamicScaling(
+				nativeGPUStatesPartialsPruning(
 					tipStates2, partials1, partials3,
 					matrices2, matrices1,
-					0,
-					patternCount, categoryCount, 0);
+					patternCount, categoryCount);
 				die = 1;
 			} else {
 				nativeGPUPartialsPartialsPruning(
