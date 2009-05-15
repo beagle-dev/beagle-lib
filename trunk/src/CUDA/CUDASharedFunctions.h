@@ -12,11 +12,7 @@
 
 #define DYNAMIC_SCALING
 
-#define SCALING_REFRESH	0
-//#define ALWAYS_RESCALE
-
 #define PRE_LOAD
-
 #define LAZY_STORE
 
 //#define DEBUG_FLOW
@@ -25,13 +21,13 @@
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
-#define REAL		double
+	#define REAL		double
 #else
-#define REAL		float
+	#define REAL		float
 #endif
 
 #define SIZE_REAL	sizeof(REAL)
-#define INT		int
+#define INT			int
 #define SIZE_INT	sizeof(INT)
 
 /* Compiler definitions
@@ -101,7 +97,7 @@
 
 #if (PADDED_STATE_COUNT == 128)
 	#define PATTERN_BLOCK_SIZE	4
-	#define BLOCK_PEELING_SIZE	4
+	#define BLOCK_PEELING_SIZE	2 // seems small, but yields 100% occupancy
 	#define SLOW_REWEIGHING
 #endif
 
