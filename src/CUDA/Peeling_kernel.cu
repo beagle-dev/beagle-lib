@@ -841,7 +841,7 @@ __global__ void kernelStatesStatesByPatternBlockFixedScaling(int* states1, int* 
 void nativeGPURescalePartials(REAL* partials3, REAL* scalingFactors, int patternCount,
 							  int matrixCount, int fillWithOnes) {
 	// Rescale partials and save scaling factors
-#if (PADDED_STATE_COUNT == 4)
+//#if (PADDED_STATE_COUNT == 4) 
 	if (fillWithOnes != 0) {
 		if (ones == NULL) {
 			ones = (REAL *)malloc(SIZE_REAL*patternCount);
@@ -851,7 +851,7 @@ void nativeGPURescalePartials(REAL* partials3, REAL* scalingFactors, int pattern
 		cudaMemcpy(scalingFactors,ones,sizeof(REAL*)*patternCount, cudaMemcpyHostToDevice);
 		return;
 	}
-#endif
+//#endif
 
 #ifndef SLOW_REWEIGHING
 	dim3 grid2(patternCount,matrixCount/MATRIX_BLOCK_SIZE);
