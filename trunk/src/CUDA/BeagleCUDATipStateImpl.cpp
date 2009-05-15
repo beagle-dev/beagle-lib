@@ -419,7 +419,12 @@ void BeagleCUDAImpl::setTipStates(int tipIndex,
 	fprintf(stderr,"Entering setTipStates\n");
 #endif
 
-	memcpy(hStatesCache,inStates,SIZE_INT*truePatternCount);
+//	memcpy(hStatesCache,inStates,SIZE_INT*truePatternCount);
+	for(int i=0; i<truePatternCount; i++) {
+		hStatesCache[i] = inStates[i];
+		if (hStatesCache[i] >= STATE_COUNT)
+			hStatesCache[i] = PADDED_STATE_COUNT;
+	}
 	// Padded extra patterns
 	for(int i=0; i<paddedPatterns; i++)
 		hStatesCache[truePatternCount+i] = PADDED_STATE_COUNT;
@@ -852,9 +857,10 @@ void BeagleCUDAImpl::calculatePartials(
 			printfCudaInt(tipStates2,patternCount);
 		else
 			printfCudaVector(partials2,partialsSize);
+		fprintf(stderr,"node index = %d\n",nodeIndex3);
 		printfCudaVector(partials3,partialsSize);
-		fprintf(stderr,"\nnode index = %d\n",nodeIndex3);
-		if(die || nodeIndex3 == 64)
+
+		if(nodeIndex3 == 106)
 			exit(-1);
 #endif
 
