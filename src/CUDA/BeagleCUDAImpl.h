@@ -20,7 +20,6 @@ private:
 	int loaded;
 #endif
 
-//	int trueStateCount; // the "true" stateCount (without padding)
 	int nodeCount;
 	int patternCount;
 	int truePatternCount;
@@ -58,6 +57,7 @@ private:
 	REAL*** dMatrices;
 
 	REAL** hTmpPartials;
+	int** hTmpStates;
 
 	REAL*** dScalingFactors;
 	REAL*** dStoredScalingFactors;
@@ -98,6 +98,7 @@ private:
 	REAL *hCategoryCache;
 	REAL *hLogLikelihoodsCache;
 	REAL *hPartialsCache;
+	int  *hStatesCache;
 	REAL *hMatrixCache;
 //	REAL *hNodeCache;
 
@@ -172,10 +173,10 @@ private:
     void handleStoreRestoreQueue();
     void doRestoreState();
     void doStoreState();
-    void loadTipPartials();
+    void loadTipPartialsOrStates();
 
     void freeNativeMemory();
-    void freeTmpPartials();
+    void freeTmpPartialsOrStates();
 
     void initializeDevice(int deviceNumber,
 				          int inNodeCount,
@@ -217,11 +218,28 @@ extern "C" void nativeGPUPartialsPartialsPruning(
 	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2,
 	const unsigned int patternCount, const unsigned int matrixCount);
 
+extern "C" void nativeGPUStatesStatesPruning(
+	INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2,
+	const unsigned int patternCount, const unsigned int matrixCount);
+
+extern "C" void nativeGPUStatesPartialsPruning(
+	INT* states1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2,
+	const unsigned int patternCount, const unsigned int matrixCount);
+
+
 extern "C" void nativeGPUGetTransitionProbabilitiesSquare(REAL **dPtrQueue, REAL *dEvec,
 		REAL *dIevc, REAL *dEigenValues, REAL *distanceQueue, int totalMatrix);
 
 extern "C" void nativeGPUPartialsPartialsPruningDynamicScaling(
 	REAL* partials1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL *scalingFactors,
+	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
+
+extern "C" void nativeGPUStatesStatesPruningDynamicScaling(
+	INT* states1, INT* states2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL* scalingFactors,
+	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
+
+extern "C" void nativeGPUStatesPartialsPruningDynamicScaling(
+	INT* states1, REAL* partials2, REAL* partials3, REAL* matrices1, REAL* matrices2, REAL* scalingFactors,
 	const unsigned int patternCount, const unsigned int matrixCount, int doRescaling);
 
 extern "C" void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *dRootScalingFactors,
@@ -230,3 +248,6 @@ extern "C" void nativeGPUComputeRootDynamicScaling(REAL **dNodePtrQueue, REAL *d
 extern "C" void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL *dRootPartials, REAL *dCategoryProportions, REAL *dFrequencies,
 		REAL *dRootScalingFactors,
 		int patternCount, int matrixCount, int nodeCount);
+
+extern "C" void nativeGPURescalePartials(REAL *partials3,REAL *scalingFactors,
+		int patternCount, int matrixCount, int fillWithOnes);
