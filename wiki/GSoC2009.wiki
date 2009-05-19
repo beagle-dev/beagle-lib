@@ -40,6 +40,6 @@ As part of the Google Summer of Code 2009 program, Daniel Ayres will implement a
 
 === Convert beagle-lib CUDA implementation to CUDA Driver API ===
 
-Although the driver API is more complex, it will allow for much easier transition to OpenCL. And, since we intend to maintain both CUDA and OpenCL implementations of beagle-lib, it makes sense for them to be as similar as possible.
+Although the driver API is more complex, it will allow for much easier transition to OpenCL. And, since we intend to maintain both CUDA and OpenCL implementations of beagle-lib, it makes sense for these to be as similar as possible.
 
 == Documentation ==
