@@ -1,13 +1,21 @@
-#summary One-sentence summary of this page.
+#summary Home page for GSoC 2009 project on OpenCL implementation of beagle-lib.
 
 = Introduction =
 
-Add your content here.
+As part of the Google Summer of Code 2009 program, Daniel Ayres will implement an OpenCL version of beagle-lib.
 
+= Project Plan =
 
-= Details =
+== 05/23 - 05/30 ==
+* Describe additional interface necessary for GARLI
+* Begin porting of current begale-lib to CUDA driver API
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+= Deliverables =
+
+* OpenCL implementation of beagle-lib
+
+= Decision Discussion = 
+
+== Convert beagle-lib CUDA implementation to CUDA Driver API ==
+
+= Documentation =
