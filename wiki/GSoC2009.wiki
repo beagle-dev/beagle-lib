@@ -14,10 +14,13 @@ As part of the Google Summer of Code 2009 program, Daniel Ayres will implement a
 === 05/30 - 06/06 ===
 
  * Finish porting of current beagle-lib to CUDA driver API
+ * Begin work on describing additional interface necessary for GARLI
  * Begin work on OpenCL implementation
+
 
 === 06/06 - 06/13 ===
 
+ * Finish description of additional interface necessary for GARLI
  * Continue work on OpenCL implementation
 
 == Deliverables ==
@@ -25,6 +28,10 @@ As part of the Google Summer of Code 2009 program, Daniel Ayres will implement a
 === 06/06 ===
 
 * CUDA driver API port of beagle-lib
+
+=== 06/13 ===
+
+* GARLI interface description
 
 === 08/23 ===
  * OpenCL implementation of beagle-lib
