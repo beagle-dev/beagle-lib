@@ -27,11 +27,11 @@ As part of the Google Summer of Code 2009 program, Daniel Ayres will implement a
 
 === 06/06 ===
 
-* CUDA driver API port of beagle-lib
+ * CUDA driver API port of beagle-lib
 
 === 06/13 ===
 
-* GARLI interface description
+ * GARLI interface description
 
 === 08/23 ===
  * OpenCL implementation of beagle-lib
