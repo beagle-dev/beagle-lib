@@ -1,7 +1,7 @@
 SUBDIRS=CUDA CPU JNI
 
 
-pkglib_LTLIBRARIES=libbeagle.la libbeagle-jni.la
+lib_LTLIBRARIES=libbeagle.la libbeagle-jni.la
 libbeagle_la_SOURCES=beagle.cpp  
 libbeagle_la_LIBADD = CPU/libcpu.la CUDA/libcuda.la 
 libbeagle_la_CFLAGS = $(CUDA_CFLAGS)
