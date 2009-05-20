@@ -6,14 +6,14 @@
  * @author Andrew Rambaut
  *
  */
-
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-#include "BeagleCUDATipStateImpl.h"
+#include "BeagleCUDAImpl.h"
 #include "CUDASharedFunctions.h"
 
 #define MATRIX_SIZE     	PADDED_STATE_COUNT * PADDED_STATE_COUNT

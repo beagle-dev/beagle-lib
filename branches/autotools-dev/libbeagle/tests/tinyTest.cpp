@@ -6,6 +6,8 @@
  *  Copyright 2009 __MyCompanyName__. All rights reserved.
  *
  */
+#include "config.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

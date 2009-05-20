@@ -12,6 +12,7 @@
 #include <string.h>
 #include <math.h>
 
+#include "config.h"
 #include "BeagleCPUImpl.h"
 
 #define MATRIX_SIZE (STATE_COUNT + 1) * STATE_COUNT

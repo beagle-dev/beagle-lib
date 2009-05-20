@@ -7,9 +7,9 @@
  *
  */
 
-#include "BeagleImpl.h"
 #include "CUDASharedFunctions.h"
-#include "Queue.h"
+#include "libbeagle/CUDA/Queue.h"
+#include "libbeagle/BeagleImpl.h"
 
 class BeagleCUDAImpl : public BeagleImpl {
 private:
