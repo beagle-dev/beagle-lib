@@ -7,14 +7,14 @@
  *
  */
 #include "config.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-#include "BeagleCUDATipStateImpl.h"
-#include "CUDASharedFunctions.h"
+#include "libbeagle/CUDA/BeagleCUDATipStateImpl.h"
+#include "libbeagle/CUDA/CUDASharedFunctions.h"
 
 #define MATRIX_SIZE     	PADDED_STATE_COUNT * PADDED_STATE_COUNT
 #define EVAL_SIZE			PADDED_STATE_COUNT // Change to 2 * PADDED_STATE_COUNT for complex models

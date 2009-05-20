@@ -7,13 +7,13 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
 
 #include "config.h"
-#include "BeagleCPUImpl.h"
+#include "libbeagle/CPU/BeagleCPUImpl.h"
 
 #define MATRIX_SIZE (STATE_COUNT + 1) * STATE_COUNT
 #if (STATE_COUNT==4)

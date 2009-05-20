@@ -1,8 +1,8 @@
 # rules for building cuda files
 .cu.o:
-	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -I$(top_builddir)
+	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -I$(top_srcdir)
 .cu.lo:
-	$(top_builddir)/cudalt.py $@ $(NVCC) -I$(top_builddir) -c $(NVCCFLAGS) $<
+	$(top_srcdir)/cudalt.py $@ $(NVCC) -I$(top_srcdir) -c $(NVCCFLAGS) $<
 
 noinst_LTLIBRARIES=libcuda.la 
 
@@ -10,7 +10,8 @@ CCLD = g++
 
 libcuda_la_SOURCES = \
 CUDASharedFunctions_kernel.cu  TransitionProbabilities_kernel.cu Peeling_kernel.cu \
-BeagleCUDATipStateImpl.cpp  CUDASharedFunctions.c  Queue.cpp 
+BeagleCUDATipStateImpl.cpp  CUDASharedFunctions.c  Queue.cpp \
+BeagleCUDATipStateImpl.h  CUDASharedFunctions.h  Queue.h 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
 libcuda_la_LIBADD = $(CUDA_LIBS) 

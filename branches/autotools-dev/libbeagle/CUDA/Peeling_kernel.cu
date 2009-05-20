@@ -7,8 +7,8 @@
 /**************INCLUDES***********/
 #include <stdio.h>
 #include <cuda_runtime_api.h>
-#include "BeagleCUDATipStateImpl.h"
-#include "CUDASharedFunctions.h"
+#include "libbeagle/CUDA/BeagleCUDATipStateImpl.h"
+#include "libbeagle/CUDA/CUDASharedFunctions.h"
 
 /**************CODE***********/
 #ifdef __cplusplus

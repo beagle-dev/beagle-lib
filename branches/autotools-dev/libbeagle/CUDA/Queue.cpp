@@ -6,8 +6,8 @@
  *
  */
 
-#include <stdio.h>
-#include "Queue.h"
+#include <cstdio>
+#include "libbeagle/CUDA/Queue.h"
 
 void Queue::initQueue() {
 	first = 0;
