@@ -39,6 +39,9 @@ AC_SUBST(CUDA_CFLAGS)
 AC_SUBST(CUDA_LIBS)
 AC_SUBST(NVCC)
 
+AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$with_cuda/bin])
+AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
+
 AC_ARG_ENABLE([emu],
    [  --enable-emu    Turn on device emulation for CUDA],
    [case "${enableval}" in
@@ -48,7 +51,10 @@ AC_ARG_ENABLE([emu],
    esac],
    [EMULATION=false]
 )
-AC_DEFINE([CUDA],[1],[Defined if CUDA should be used])
+if( test ! x$NVCC = xno ) 
+then
+	AC_DEFINE([CUDA],[1],[Defined if CUDA should be used])
+fi
 
 # ------------------------------------------------------------------------------
 # Setup nvcc flags
@@ -92,3 +98,11 @@ AC_SUBST(JNI_EXTRA_LDFLAGS)
 # All done, create Makefiles
 #
 AC_OUTPUT(Makefile libbeagle/Makefile libbeagle/CUDA/Makefile libbeagle/CPU/Makefile libbeagle/JNI/Makefile)
+
+#
+# warn the user about missing functionality
+#
+if( test x$NVCC = xno ) then
+	AC_MSG_WARN([Nvidia CUDA nvcc compiler not found.  CUDA support will not be built.  Check the path to CUDA and specify --with-cuda=/path/to/cuda])
+fi
+
