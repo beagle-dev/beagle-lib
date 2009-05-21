@@ -5,9 +5,9 @@ import java.util.logging.Logger;
 public class GeneralBeagleImpl implements Beagle {
 
     public static final boolean DEBUG = false;
-    public static final boolean SCALING = true;
+    public static final boolean SCALING = false;
     public static final boolean DYNAMIC_SCALING = true;
-    
+
     private boolean doRescaling = true;
 
     protected final int stateCount;
@@ -46,9 +46,9 @@ public class GeneralBeagleImpl implements Beagle {
 
     protected double[][][] scalingFactors;
     protected double[] rootScalingFactors;
-    protected double[] storedRootScalingFactors;    
-	protected int[] currentScalingFactorsIndices;
-	protected int[] storedScalingFactorsIndices;
+    protected double[] storedRootScalingFactors;
+    protected int[] currentScalingFactorsIndices;
+    protected int[] storedScalingFactorsIndices;
 
     /**
      * Constructor
@@ -131,18 +131,18 @@ public class GeneralBeagleImpl implements Beagle {
 
         if (SCALING) {
             scalingFactors = new double[2][nodeCount][];
-            for (int i = tipCount; i < nodeCount; i++) { 
+            for (int i = tipCount; i < nodeCount; i++) {
                 scalingFactors[0][i] = new double[patternCount];
                 scalingFactors[1][i] = new double[patternCount];
             }
             rootScalingFactors = new double[patternCount];
             storedRootScalingFactors = new double[patternCount];
-            
+
             if (DYNAMIC_SCALING) {
-            	currentScalingFactorsIndices = new int[nodeCount];
-            	storedScalingFactorsIndices = new int[nodeCount];
-            	doRescaling = true;
-            }            
+                currentScalingFactorsIndices = new int[nodeCount];
+                storedScalingFactorsIndices = new int[nodeCount];
+                doRescaling = true;
+            }
         }
 
         matrixSize = (stateCount + 1) * stateCount;
@@ -271,9 +271,9 @@ public class GeneralBeagleImpl implements Beagle {
                         }
                         //	    if (DEBUG) System.err.println("1: matrices[][]["+n+"] = "+sum);
                         if (sum > 0)
-                        	matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
+                            matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = sum;
                         else
-                        	matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 0; // TODO Decision: set to -sum (as BEAST does)
+                            matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 0; // TODO Decision: set to -sum (as BEAST does)
                         n++;
                     }
                     matrices[currentMatricesIndices[nodeIndex]][nodeIndex][n] = 1.0;
@@ -291,15 +291,15 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale) {
 
-    	if (SCALING) {
-    		if (DYNAMIC_SCALING) {
-        		if (!doRescaling) // Forces rescaling on first computation
-        			doRescaling = rescale;
+        if (SCALING) {
+            if (DYNAMIC_SCALING) {
+                if (!doRescaling) // Forces rescaling on first computation
+                    doRescaling = rescale;
 //        		System.err.println("do dynamic = "+doRescaling);
 //        		System.exit(-1);
-    		}
-    	}
-    	
+            }
+        }
+
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
             int nodeIndex1 = operations[x];
@@ -329,15 +329,15 @@ public class GeneralBeagleImpl implements Beagle {
                 }
             }
 
-            if (SCALING) {   
-            	if (DYNAMIC_SCALING) {            		
-            		if (doRescaling) {
-            			currentScalingFactorsIndices[nodeIndex3] = 1 - currentScalingFactorsIndices[nodeIndex3];            		
-            			scalePartials(nodeIndex3,currentScalingFactorsIndices);  
-            		}
-            	} else {            
-            		scalePartials(nodeIndex3,currentPartialsIndices);
-            	}
+            if (SCALING) {
+                if (DYNAMIC_SCALING) {
+                    if (doRescaling) {
+                        currentScalingFactorsIndices[nodeIndex3] = 1 - currentScalingFactorsIndices[nodeIndex3];
+                        scalePartials(nodeIndex3,currentScalingFactorsIndices);
+                    }
+                } else {
+                    scalePartials(nodeIndex3,currentPartialsIndices);
+                }
             }
         }
     }
@@ -519,15 +519,15 @@ public class GeneralBeagleImpl implements Beagle {
 
 //            if (scaleFactor < 1E-40) {
 
-                v = u;
-                for (int k = 0; k < categoryCount; k++) {
-                    for (int j = 0; j < stateCount; j++) {
-                        partials[indices[nodeIndex]][nodeIndex][v] /= scaleFactor;
-                        v++;
-                    }
-                    v += (patternCount - 1) * stateCount;
+            v = u;
+            for (int k = 0; k < categoryCount; k++) {
+                for (int j = 0; j < stateCount; j++) {
+                    partials[indices[nodeIndex]][nodeIndex][v] /= scaleFactor;
+                    v++;
                 }
-                scalingFactors[indices[nodeIndex]][nodeIndex][i] = Math.log(scaleFactor);
+                v += (patternCount - 1) * stateCount;
+            }
+            scalingFactors[indices[nodeIndex]][nodeIndex][i] = Math.log(scaleFactor);
 
 //            } else {
 //                scalingFactors[indices[nodeIndex]][nodeIndex][i] = 0.0;
@@ -580,13 +580,14 @@ public class GeneralBeagleImpl implements Beagle {
             }
         }
 
-        if (SCALING) { 
-        	if (DYNAMIC_SCALING) {
-        		if (doRescaling)
-        			calculateRootScalingFactors(currentScalingFactorsIndices);
-        	} else {
-        		calculateRootScalingFactors(currentPartialsIndices);
-        	}
+        if (SCALING) {
+            if (DYNAMIC_SCALING) {
+                if (doRescaling) {
+                    calculateRootScalingFactors(currentScalingFactorsIndices);
+                }
+            } else {
+                calculateRootScalingFactors(currentPartialsIndices);
+            }
         }
 
         u = 0;
@@ -598,7 +599,13 @@ public class GeneralBeagleImpl implements Beagle {
                 sum += frequencies[i] * tmp[u];
                 u++;
             }
-            outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
+
+            if (SCALING) {
+                outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
+            } else {
+                outLogLikelihoods[k] = Math.log(sum);
+            }
+
             if (DEBUG) {
                 System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
             }
@@ -609,7 +616,7 @@ public class GeneralBeagleImpl implements Beagle {
     private void calculateRootScalingFactors(int[] indices) {
         for (int k = 0; k < patternCount; k++) {
             double logScalingFactor = 0.0;
-            for (int i = tipCount; i < nodeCount; i++) { 
+            for (int i = tipCount; i < nodeCount; i++) {
                 logScalingFactor += scalingFactors[indices[i]][i][k];
             }
             if (DEBUG) System.err.println("1:SF "+logScalingFactor+" for "+ k);
@@ -637,9 +644,10 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(currentPartialsIndices, 0, storedPartialsIndices, 0, nodeCount);
 
         if (SCALING) {
-        	if (DYNAMIC_SCALING)
-        		System.arraycopy(currentScalingFactorsIndices,0, storedScalingFactorsIndices,0,nodeCount);
-        	System.arraycopy(rootScalingFactors, 0, storedRootScalingFactors, 0, patternCount);
+            if (DYNAMIC_SCALING) {
+                System.arraycopy(currentScalingFactorsIndices,0, storedScalingFactorsIndices,0,nodeCount);
+            }
+            System.arraycopy(rootScalingFactors, 0, storedRootScalingFactors, 0, patternCount);
         }
     }
 
@@ -669,14 +677,14 @@ public class GeneralBeagleImpl implements Beagle {
         storedCategoryProportions = tmp1;
 
         if (SCALING) {
-        	if (DYNAMIC_SCALING) {
-        		int[] tmp2 = currentScalingFactorsIndices;
-        		currentScalingFactorsIndices = storedScalingFactorsIndices;
-        		storedScalingFactorsIndices = tmp2;
-        	}
-        	tmp1 = rootScalingFactors;
-        	rootScalingFactors = storedRootScalingFactors;
-        	storedRootScalingFactors = tmp1;
+            if (DYNAMIC_SCALING) {
+                int[] tmp2 = currentScalingFactorsIndices;
+                currentScalingFactorsIndices = storedScalingFactorsIndices;
+                storedScalingFactorsIndices = tmp2;
+            }
+            tmp1 = rootScalingFactors;
+            rootScalingFactors = storedRootScalingFactors;
+            storedRootScalingFactors = tmp1;
         }
 
         int[] tmp3 = currentMatricesIndices;

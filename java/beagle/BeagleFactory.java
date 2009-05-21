@@ -35,18 +35,23 @@ public class BeagleFactory {
 
     public static Beagle loadBeagleInstance(Map<String, Object> configuration) {
 
+        boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
+
         if (registry == null) {  // Lazy loading
             registry = new ArrayList<BeagleLoader>();  // List libraries in order of load-priority
             registry.add(new BeagleJNIWrapper.BeagleLoader());
         }
 
-        for(BeagleLoader loader: registry) {
+        if (!forceJava) {
+            for(BeagleLoader loader: registry) {
 
-            // Try prefered precision library
-            Beagle beagle = load(loader, configuration);
-            if (beagle != null)
-                return beagle;
+                // Try prefered precision library
+                Beagle beagle = load(loader, configuration);
+                if (beagle != null)
+                    return beagle;
+            }
         }
+
 
         // No libraries/processes available
 
