@@ -9,11 +9,11 @@ This project will implement an open-source C++ library to compute phylogenetic t
 The OpenCL library will be a continuation of the beagle-lib project hosted on this site.
 
 == Project goals ==
- * Implements the minimum interface to compute tree likelihoods for BEAST.
- * Implements additional interface elements for compatibility with other state-of-the-art phylogenetic software. Preliminarily these will be GARLI and MrBayes.
- * Achieves significant speedups over current CPU implementations.
- * Includes bindings for higher-level languages.
- * Is well-documented.
+ * Implements the minimum interface to compute tree likelihoods for BEAST
+ * Implements additional interface elements for compatibility with other state-of-the-art phylogenetic software. Preliminarily these will be GARLI and MrBayes
+ * Achieves significant speedups over current CPU implementations
+ * Includes bindings for higher-level languages
+ * Is well-documented
 
 == Project Plan ==
 
