@@ -10,7 +10,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 
 == Project goals ==
  * Implements the minimum interface to compute tree likelihoods for BEAST
- * Implements additional interface elements for compatibility with other state-of-the-art phylogenetic software. Preliminarily these will be GARLI and MrBayes
+ * Implements additional interface elements for compatibility with other state-of-the-art phylogenetic software. Preliminarily these will be GARLI and !MrBayes
  * Achieves significant speedups over current CPU implementations
  * Includes bindings for higher-level languages
  * Is well-documented
@@ -20,7 +20,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 === 05/23 - 05/30 ===
  * Work on presentation on OpenCL for library meeting on 5/29
  * Begin porting of current beagle-lib to CUDA driver API
-   * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code. 
+   * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, !TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code. 
    * Create new c files with CPU functions found in the .cu files above
    * Replace C for CUDA calls with Driver API calls
  * Discuss additional interface necessary for other phylogenetic software (as part of the likelihood API meeting at Maryland)
