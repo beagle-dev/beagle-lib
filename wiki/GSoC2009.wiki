@@ -17,6 +17,15 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 
 == Project Plan ==
 
+=== Preparation weeks ===
+ * Learned more about OpenCL
+ * Installed Snow Leopard and got familiarized with OpenCL examples
+ * Learned more about CUDA Driver API
+ * Tested autotools version of beagle-lib and documented issues on Google Code
+ * Cloned trunk of beagle-lib into opencl-dev branch
+ * Created project home page and documented current plan
+ * Created preliminary logo for beagle-lib
+
 === 05/23 - 05/30 ===
  * Work on presentation on OpenCL for library meeting on 5/29
  * Begin porting of current beagle-lib to CUDA driver API
