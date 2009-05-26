@@ -1,45 +1,60 @@
 #summary Home page for GSoC 2009 project on OpenCL implementation of beagle-lib.
 
-== Introduction ==
-
+== Overview ==
 As part of the Google Summer of Code 2009 program, Daniel Ayres will implement an OpenCL version of beagle-lib.
+
+=== Description ===
+This project will implement an open-source C++ library to compute phylogenetic tree likelihoods on the GPU, with the core loops in OpenCL. Currently in phylogenetic inference there is a strong demand for more computational speed and typically likelihood calculation is the main bottleneck. Moving to GPU acceleration is a natural step to address that issue, as significant speedups in likelihood calculation have been observed both in my work and in that of others. The library will make use of the OpenCL framework, an open standard for general-purpose computation on GPUs. This hardware-independent, GPU-accelerated implementation of a likelihood calculation library has the potential of benefiting several state-of-the-art evolutionary analysis packages.
+
+The OpenCL library will be a continuation of the beagle-lib project hosted on this site.
+
+== Project goals ==
+ * Implements the minimum interface to compute tree likelihoods for BEAST.
+ * Implements additional interface elements for compatibility with other state-of-the-art phylogenetic software. Preliminarily these will be GARLI and MrBayes.
+ * Achieves significant speedups over current CPU implementations.
+ * Includes bindings for higher-level languages.
+ * Is well-documented.
 
 == Project Plan ==
 
 === 05/23 - 05/30 ===
-
+ * Work on presentation on OpenCL for library meeting on 5/29
  * Begin porting of current beagle-lib to CUDA driver API
+   * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code. 
+   * Create new c files with CPU functions found in the .cu files above
+   * Replace C for CUDA calls with Driver API calls
  * Discuss additional interface necessary for other phylogenetic software (as part of the likelihood API meeting at Maryland)
+   * Write e-mail to Derrick Zwickl (developer of GARLI) describing in detail how current beagle interface compares to GARLI
 
 === 05/30 - 06/06 ===
-
  * Finish porting of current beagle-lib to CUDA driver API
+   * Continue converting C for CUDA calls to Driver API ones.
+   * Test modifications.
  * Begin work on describing additional interface necessary for GARLI
+   * Continue post-meeting communication with Derrick to define additional library functions necessary for ML in GARLI
  * Begin work on OpenCL implementation
-
+   * Convert CUDA Driver API host code to OpenCL 
 
 === 06/06 - 06/13 ===
-
+ * Work on autotools issues 
+   * Fix OS X compatibility issues [http://code.google.com/p/beagle-lib/issues/list]
  * Finish description of additional interface necessary for GARLI
+   * With this in place Derrick can start preparing GARLI for the library
  * Continue work on OpenCL implementation
+   * Convert CUDA GPU kernels to OpenCL
 
 == Deliverables ==
-
 === 06/06 ===
-
  * CUDA driver API port of beagle-lib
 
 === 06/13 ===
-
  * GARLI interface description
 
 === 08/23 ===
  * OpenCL implementation of beagle-lib
 
 == Decision Discussion ==
-
 === Convert beagle-lib CUDA implementation to CUDA Driver API ===
-
 Although the driver API is more complex, it will allow for much easier transition to OpenCL. And, since we intend to maintain both CUDA and OpenCL implementations of beagle-lib, it makes sense for these to be as similar as possible.
 
 == Documentation ==
