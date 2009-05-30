@@ -81,14 +81,14 @@ int BeagleCPUImpl::initialize(int bufferCount, int maxTipStateCount,
 		if (partials[i] == 0L)
 			throw std::bad_alloc();
 	}
-		
-		
+
+
 	std::vector<double> emptyMat(kMatrixSize);
 	transitionMatrices.assign(kMatrixCount, emptyMat);
 
 	fprintf(stderr, "done through here!\n");
-	
-	
+
+
 	////BEGIN edge Like Hack
 	TEMP_SCRATCH_PARTIAL = (double *) malloc(sizeof(double) * kPartialsSize);  /// used in our hack edgeLike func
 	partials.push_back(TEMP_SCRATCH_PARTIAL);
@@ -388,7 +388,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 	assert(secondDerivativeIndices == 0L);
 	assert(outFirstDerivatives == 0L);
 	assert(outSecondDerivatives == 0L);
-	
+
 	assert(count == 1);
 	int parIndex = parentBufferIndices[0];
 	int childIndex = childBufferIndices[0];
@@ -397,31 +397,37 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 		childIndex = parIndex;
 		parIndex = childBufferIndices[0];
 		}
-	
+
 	assert(parIndex >= kTipCount);
-	
+
 	memcpy(TEMP_SCRATCH_PARTIAL, partials[parIndex], sizeof(double) * kPartialsSize);
 	const double * fakeEdgeMat = &TEMP_IDENTITY_MATRIX[0];
 	const std::vector<double> & realMat = transitionMatrices[probabilityIndices[0]];
 	const double * edgeTransMat = &(realMat[0]);
-	
+
 	if (childIndex < kTipCount && tipStates[childIndex] ) {
 		updateStatesPartials(TEMP_SCRATCH_PARTIAL, tipStates[childIndex], edgeTransMat, partials[parIndex], fakeEdgeMat);
 	} else {
 		updatePartialsPartials(TEMP_SCRATCH_PARTIAL, partials[childIndex], edgeTransMat, partials[parIndex], fakeEdgeMat);
 	}
-	
-	
+
+
 	int c = partials.size() - 1;
 	return calculateRootLogLikelihoods(&c,  weights, stateFrequencies, 1, outLogLikelihoods);
 }
 
-BeagleImpl* BeagleCPUImplFactory::createImpl(int bufferCount, int tipCount,
-		int kStateCount, int patternCount, int eigenDecompositionCount,
-		int matrixCount) {
+BeagleImpl* BeagleCPUImplFactory::createImpl(
+                int tipCount,				/**< Number of tip data elements (input) */
+				int partialsBufferCount,	/**< Number of partials buffers to create (input) */
+				int compactBufferCount,		/**< Number of compact state representation buffers to create (input) */
+				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
+				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
+				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
+                ) {
 	BeagleImpl* impl = new BeagleCPUImpl();
 	try {
-		if (impl->initialize(bufferCount, tipCount, kStateCount, patternCount, eigenDecompositionCount, matrixCount))
+		if (impl->initialize(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount))
 			return impl;
 	}
 	catch(...)
