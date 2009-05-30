@@ -89,27 +89,30 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human);
 
 	int instance = createInstance(
-			    5,          // bufferCount
-				3,          // tipCount
-				4,          // stateCount
-				nPatterns,  // patternCount
-				1,          // eigenDecompositionCount
-				4,          // matrixCount (nodes-1)
-				null,       // resourceList
-				0,          // resourceCount
-				0,          // preferenceFlags
-				0          // requirementFlags
+			    3,				/**< Number of tip data elements (input) */
+				5,	            /**< Number of partials buffers to create (input) */
+				0,		        /**< Number of compact state representation buffers to create (input) */
+				4,				/**< Number of states in the continuous-time Markov chain (input) */
+				nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
+				1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+				4,		        /**< Number of rate matrix buffers (input) */
+				NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+				0,			    /**< Length of resourceList list (input) */
+				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				);
 
-    int error = initializeInstance(&1, 1, NULL);
+    int error = initializeInstance(instance, NULL);
 
 //	setTipStates(0, getStates(human));
 //	setTipStates(1, getStates(chimp));
 //	setTipStates(2, getStates(gorilla));
 
-	setPartials(&instance, 1, 0, getPartials(human));
-	setPartials(&instance, 1, 1, getPartials(chimp));
-	setPartials(&instance, 1, 2, getPartials(gorilla));
+	setPartials(instance, 0, getPartials(human));
+	setPartials(instance, 1, getPartials(chimp));
+	setPartials(instance, 2, getPartials(gorilla));
+
+    int stateCount = 4;
 
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
@@ -132,25 +135,24 @@ int main( int argc, const char* argv[] )
 	};
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 
-	double **evecP = (double **)malloc(sizeof(double*) * STATE_COUNT);
-	double **ivecP = (double **)malloc(sizeof(double*) * STATE_COUNT);
+	double **evecP = (double **)malloc(sizeof(double*) * stateCount);
+	double **ivecP = (double **)malloc(sizeof(double*) * stateCount);
 
-	for (int i = 0; i < STATE_COUNT; i++) {
-		evecP[i] = (double *)malloc(sizeof(double) * STATE_COUNT);
-		ivecP[i] = (double *)malloc(sizeof(double) * STATE_COUNT);
-		for (int j = 0; j < STATE_COUNT; j++) {
+	for (int i = 0; i < stateCount; i++) {
+		evecP[i] = (double *)malloc(sizeof(double) * stateCount);
+		ivecP[i] = (double *)malloc(sizeof(double) * stateCount);
+		for (int j = 0; j < stateCount; j++) {
 			evecP[i][j] = evec[i][j];
 			ivecP[i][j] = ivec[i][j];
 		}
 	}
 
-	setEigenDecomposition(&instance, 1, 0, evecP, ivecP, eval);
+	setEigenDecomposition(instance, 0, (const double **)evecP, (const double **)ivecP, (const double *)eval);
 
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double branchLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 
-	updateTransitionMatrices(&instance,     // instance
-	                         1,             // instanceCount
+	updateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices
 	                         NULL,          // firstDerivativeIndices
@@ -164,23 +166,19 @@ int main( int argc, const char* argv[] )
 	};
 	int rootIndex = 4;
 
-	updatePartials( &instance,     // instance
-	                1,             // instanceCount
-	                operations,    // eigenIndex
-	                nodeIndices,   // probabilityIndices
-	                NULL,          // firstDerivativeIndices
-	                NULL,          // secondDervativeIndices
-	                branchLengths, // edgeLengths
-	                4);
+	updatePartials( &instance,      // instance
+	                1,              // instanceCount
+	                operations,     // eigenIndex
+	                4,              // operationCount
+	                0);
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-	calculateRootLogLikelihoods(&instance,          // instance
-	                            1,                  // instanceCount
-	                            &rootIndex,         // bufferIndices
+	calculateRootLogLikelihoods(instance,           // instance
+	                            (const int *)&rootIndex,         // bufferIndices
+	                            (const double *)props,              // weights
+	                            (const double **)&freqs,             // stateFrequencies
 	                            1,                  // count
-	                            props,              // weights
-	                            &freqs,             // stateFrequencies
 	                            patternLogLik);     // outLogLikelihoods
 
 	double logL = 0.0;
