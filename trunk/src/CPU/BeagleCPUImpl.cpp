@@ -20,28 +20,12 @@
 #endif
 
 
-	
-	// possible nulls: firstDerivativeIndices, secondDerivativeIndices,
-	//                 outFirstDerivatives, outSecondDerivatives 
-	int calculateEdgeLogLikelihoods(
-								 const int* parentBufferIndices,
-								 const int* childBufferIndices,		                   
-								 const int* probabilityIndices,
-								 const int* firstDerivativeIndices,
-								 const int* secondDerivativeIndices,
-								 int count,
-								 const double* weights,
-								 const double** stateFrequencies,
-								 double* outLogLikelihoods,
-								 double* outFirstDerivatives,
-								 double* outSecondDerivatives);
-
 int BeagleCPUImpl::initialize(	int bufferCount,
 					int tipCount,
 					int stateCount,
 					int patternCount,
 					int eigenDecompositionCount,
-					int matrixCount);			
+					int matrixCount);
 
 {
 	kNodeCount = nodeCount;
@@ -137,7 +121,8 @@ void BeagleCPUImpl::setPartials(int bufferIndex, const double* inPartials)
 
 int BeagleCPUImpl::getPartials(int bufferIndex, double *outPartials)
 {
-assert(false);
+	memcpy(outPartials, partials[bufferIndex], sizeof(double)*kPartialsSize)
+	return NO_ERROR;
 }
 
 void BeagleCPUImpl::setTipStates(
@@ -180,7 +165,7 @@ void BeagleCPUImpl::setEigenDecomposition(
 }
 
 
-int BeagleCPUImpl::setTransitionMatrix(int matrixIndex, const double* inMatrix) 
+int BeagleCPUImpl::setTransitionMatrix(int matrixIndex, const double* inMatrix)
 {
 assert(false);
 }
@@ -545,7 +530,7 @@ void BeagleCPUImpl::calculateRootLogLikelihoods(
 	const int* bufferIndices,
 	int count,
 	const double* weights,
-	const double** stateFrequencies,		                     
+	const double** stateFrequencies,
 	double* outLogLikelihoods)
 {
 
@@ -600,7 +585,7 @@ void BeagleCPUImpl::calculateRootLogLikelihoods(
 
 
 int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
-								 const int* childBufferIndices,		                   
+								 const int* childBufferIndices,
 								 const int* probabilityIndices,
 								 const int* firstDerivativeIndices,
 								 const int* secondDerivativeIndices,
