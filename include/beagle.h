@@ -109,7 +109,8 @@ int initializeInstance(
 
 
 // finalize and dispose of memory allocation if needed
-int finalize(int *instance, int instanceCount);
+int finalize(
+		int instance);
 
 // set the partials for a given tip
 //
