@@ -55,7 +55,7 @@ int createInstance(
     for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();
 		factory != implFactory.end(); factory++) {
     	fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
-    	
+
     	BeagleImpl* beagle = (*factory)->createImpl(
     		bufferCount,
     		tipCount,
@@ -63,7 +63,7 @@ int createInstance(
     		patternCount,
     		eigenDecompositionCount,
     		matrixCount);
-    		
+
     	if (beagle != NULL) {
     		fprintf(stderr,"Success\n");
     		int instance = instanceCount;
@@ -80,10 +80,11 @@ int createInstance(
 }
 
 void initializeInstance(
-						int *instance, 
+						int *instance,
 						int instanceCount,
 						InstanceDetails* returnInfo)
 {
+	// TODO: Actual creation of instances should wait until here
 }
 
 void finalize(int *instance, int instanceCount)
@@ -100,17 +101,17 @@ int setPartials(
 					int bufferIndex,
 					const double* inPartials)
 {
-	for (int i = 0; i < instanceCount; i++) 
+	for (int i = 0; i < instanceCount; i++)
 	    instances[instance]->setTipPartials(bufferIndex, inPartials);
-	    
+
 	return 0;
 }
 
 int getPartials(int* instance, int bufferIndex, double *outPartials)
 {
-	for (int i = 0; i < instanceCount; i++) 
+	for (int i = 0; i < instanceCount; i++)
 	    instances[instance]->getPartials(bufferIndex, outPartials);
-	    
+
 	return 0;
 }
 
@@ -120,18 +121,9 @@ int setTipStates(
 				  int tipIndex,
 				  const int* inStates)
 {
-	for (int i = 0; i < instanceCount; i++) 
+	for (int i = 0; i < instanceCount; i++)
   		instances[instance]->setTipStates(tipIndex, inStates);
-	    
-	return 0;
-}
 
-int setStateFrequencies(int* instance,
-                         int instanceCount,
-                         const double* inStateFrequencies)
-{
- 	for (int i = 0; i < instanceCount; i++) 
-   		instances[instance]->setStateFrequencies(inStateFrequencies);
 	return 0;
 }
 
@@ -143,7 +135,7 @@ int setEigenDecomposition(
 						   const double** inInverseEigenVectors,
 						   const double* inEigenValues)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
   		instances[instance]->setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
 	return 0;
 }
@@ -152,7 +144,7 @@ int setTransitionMatrix(	int* instance,
                 			int matrixIndex,
                 			const double* inMatrix)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
   		instances[instance]->setTransitionMatrix(matrixIndex, inMatrix);
 	return 0;
 }
@@ -167,7 +159,7 @@ int updateTransitionMatrices(
                                             const double* edgeLengths,
                                             int count)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
   		instances[instance]->updateTransitionMatrices(eigenIndex, probabilityIndices, firstDerivativeIndices, secondDervativeIndices, edgeLengths, count);
 	return 0;
 }
@@ -175,11 +167,11 @@ int updateTransitionMatrices(
 int updatePartials(
                        int* instance,
                        int instanceCount,
-					   int* operations,					
+					   int* operations,
 					   int operationCount,
 					   int rescale)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
   		instances[instance]->calculatePartials(operations, operationCount, rescale);
 	return 0;
 }
@@ -190,10 +182,10 @@ int calculateRootLogLikelihoods(
 		                     const int* bufferIndices,
 		                     int count,
 		                     const double* weights,
-		                     const double** stateFrequencies,		                     
+		                     const double** stateFrequencies,
 			                 double* outLogLikelihoods)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
    		instances[instance]->calculateLogLikelihoods(bufferIndices, count, weights, stateFrequencies, outLogLikelihoods);
 	return 0;
 }
@@ -202,7 +194,7 @@ int calculateEdgeLogLikelihoods(
 							 int* instance,
 							 int instanceCount,
 		                     const int* parentBufferIndices,
-		                     const int* childBufferIndices,		                   
+		                     const int* childBufferIndices,
 		                     const int* probabilityIndices,
 		                     const int* firstDerivativeIndices,
 		                     const int* secondDerivativeIndices,
@@ -213,16 +205,16 @@ int calculateEdgeLogLikelihoods(
 			                 double* outFirstDerivatives,
 			                 double* outSecondDerivatives)
 {
- 	for (int i = 0; i < instanceCount; i++) 
+ 	for (int i = 0; i < instanceCount; i++)
    		instances[instance]->calculateEdgeLogLikelihoods(
    											parentBufferIndices,
    											childBufferIndices,
    											probabilityIndices,
    											firstDerivativeIndices,
    											secondDerivativeIndices,
-											count, 
-											weights, 
-											stateFrequencies, 
+											count,
+											weights,
+											stateFrequencies,
 											outLogLikelihoods,
 											outFirstDerivatives,
 											outSecondDerivatives);
