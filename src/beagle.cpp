@@ -89,10 +89,11 @@ int initializeInstance(
 	// TODO: Actual creation of instances should wait until here
 }
 
-void finalize(int instance)
+int finalize(int instance)
 {
     delete instances[instance];
    	instances[instance] = 0L;
+   	return NO_ERROR;
 }
 
 int setPartials(
