@@ -163,7 +163,7 @@ int main( int argc, const char* argv[] )
 	                         branchLengths, // edgeLengths
 	                         4);            // count
 
-	int operations[5 * 3] = {
+	int operations[5 * 2] = {
 		3, 0, 0, 1, 1,
 		4, 2, 2, 3, 3
 	};
@@ -172,7 +172,7 @@ int main( int argc, const char* argv[] )
 	updatePartials( &instance,      // instance
 	                1,              // instanceCount
 	                operations,     // eigenIndex
-	                4,              // operationCount
+	                2,              // operationCount
 	                0);
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
