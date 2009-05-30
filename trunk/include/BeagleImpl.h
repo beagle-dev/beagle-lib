@@ -11,9 +11,9 @@
 #define __beagle_impl__
 
 #ifdef DOUBLE_PRECISION
-	#define REAL	double
+#define REAL	double
 #else
-	#define REAL	float
+#define REAL	float
 #endif
 
 #define SUCCESS	1
@@ -22,65 +22,97 @@
 class BeagleImpl {
 public:
 	virtual int initialize(
-					int nodeCount,
-					int tipCount,
-					int stateCount,
-					int patternCount,
-					int categoryCount,
-					int matrixCount) = 0;
+			int bufferCount,
+			int tipCount,
+			int stateCount,
+			int patternCount,
+			int eigenDecompositionCount,
+			int matrixCount) = 0;
 
-	virtual void finalize() = 0;
+	virtual void setPartials(
+			int* instance,
+			int instanceCount,
+			int bufferIndex,
+			const double* inPartials) = 0;
 
-	virtual void setTipPartials(
-						int tipIndex,
-						double* inPartials) = 0;
+	virtual void getPartials(
+			int* instance,
+			int bufferIndex,
+			double *outPartials) = 0;
 
-	virtual void setTipStates(
-					  int tipIndex,
-					  int* inStates) = 0;
+	virtual int setTipStates(
+			int* instance,
+			int instanceCount,
+			int tipIndex,
+			const int* inStates) = 0;
 
-	virtual void setStateFrequencies(double* inStateFrequencies) = 0;
+	virtual int setStateFrequencies(
+			int* instance,
+			const double* inStateFrequencies) = 0;
 
-	virtual void setEigenDecomposition(
-							   int matrixIndex,
-							   double** inEigenVectors,
-							   double** inInverseEigenVectors,
-							   double* inEigenValues) = 0;
+	virtual int setEigenDecomposition(
+			int* instance,
+			int instanceCount,
+			int eigenIndex,
+			const double** inEigenVectors,
+			const double** inInverseEigenVectors,
+			const double* inEigenValues) = 0;
 
-	virtual void setCategoryRates(double* inCategoryRates) = 0;
+	virtual int setTransitionMatrix( int* instance,
+			int matrixIndex,
+			const double* inMatrix) = 0;
 
-	virtual void setCategoryProportions(double* inCategoryProportions) = 0;
+	virtual int updateTransitionMatrices(
+			int* instance,
+			int instanceCount,
+			int eigenIndex,
+			const int* probabilityIndices,
+			const int* firstDerivativeIndices,
+			const int* secondDervativeIndices,
+			const double* edgeLengths,
+			int count) = 0;
 
-	virtual void calculateProbabilityTransitionMatrices(
-												int* nodeIndices,
-												double* branchLengths,
-												int count) = 0;
+	virtual int updatePartials(
+			int* instance,
+			int instanceCount,
+			int* operations,
+			int operationCount,
+			int rescale) = 0;
 
-	virtual void calculatePartials(
-						   int* operations,
-						   int* dependencies,
-						   int count,
-						   int rescale) = 0;
+	virtual int calculateRootLogLikelihoods(
+			int* instance,
+			int instanceCount,
+			const int* bufferIndices,
+			int count,
+			const double* weights,
+			const double** stateFrequencies,
+			double* outLogLikelihoods) = 0;
 
-	virtual void calculateLogLikelihoods(
-								 int rootNodeIndex,
-								 double* outLogLikelihoods) = 0;
-
-	virtual void storeState() = 0;
-
-	virtual void restoreState() = 0;
-
+	virtual int calculateEdgeLogLikelihoods(
+			int* instance,
+			int instanceCount,
+			const int* parentBufferIndices,
+			const int* childBufferIndices,
+			const int* probabilityIndices,
+			const int* firstDerivativeIndices,
+			const int* secondDerivativeIndices,
+			int count,
+			const double* weights,
+			const double** stateFrequencies,
+			double* outLogLikelihoods,
+			double* outFirstDerivatives,
+			double* outSecondDerivatives) = 0;
 };
 
 class BeagleImplFactory {
-    public:
+public:
 	virtual BeagleImpl* createImpl(
-							int nodeCount,
-							int tipCount,
-							int stateCount,
-							int patternCount,
-							int categoryCount,
-							int matrixCount) = 0; // pure virtual
+			int bufferCount,
+			int tipCount,
+			int stateCount,
+			int patternCount,
+			int eigenDecompositionCount,
+			int matrixCount) = 0; // pure virtual
 
 	virtual const char* getName() = 0; // pure virtual
 };
