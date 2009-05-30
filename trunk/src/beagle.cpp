@@ -84,13 +84,14 @@ void initializeInstance(
 						int instanceCount,
 						InstanceDetails* returnInfo)
 {
-	// TODO: Actual creation of instances should wait until here
 }
 
 void finalize(int *instance, int instanceCount)
 {
-	for (int i = 0; i < instanceCount; i++) 
-	    instances[instance]->finalize();
+	for (int i = 0; i < instanceCount; i++) {
+	    delete instances[instance];
+    	instances[instance] = 0L;
+	}
 }
 
 int setPartials(
