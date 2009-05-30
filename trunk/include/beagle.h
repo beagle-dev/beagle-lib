@@ -197,26 +197,32 @@ int updatePartials(
 int calculateRootLogLikelihoods(
                              int instance, /**< Instance number (input) */
 		                     const int* bufferIndices, /**< List of partialsBuffer indices to integrate (input) */
-		                     const double* weights, /**< List of weights to apply t each partialsBuffer (input) */
-		                     const double** stateFrequencies,
-		                     int count,
-			                 double* outLogLikelihoods);
+		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
+		                     const double** stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
+															   * If list length is one, the same state frequencies are used
+															   * for each partialsBuffer
+															   */
+		                     int count, /*< Number of partialsBuffer to integrate (input) */
+			                 double* outLogLikelihoods); /**< Pointer to destination for resulting log likelihoods (output) */
 
 // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
 //                 outFirstDerivatives, outSecondDerivatives
 int calculateEdgeLogLikelihoods(
-							 int instance,
-		                     const int* parentBufferIndices,
-		                     const int* childBufferIndices,
-		                     const int* probabilityIndices,
-		                     const int* firstDerivativeIndices,
-		                     const int* secondDerivativeIndices,
-		                     const double* weights,
-		                     const double** stateFrequencies,
-		                     int count,
-		                     double* outLogLikelihoods,
-			                 double* outFirstDerivatives,
-			                 double* outSecondDerivatives);
+							 int instance, /**< Instance number (input) */
+		                     const int* parentBufferIndices, /**< List of indices of parent partialsBuffers (input) */
+		                     const int* childBufferIndices, /**< List of indices of child partialsBuffers (input) */
+		                     const int* probabilityIndices , /**< List indices of transition probability matrices for this edge (input) */
+		                     const int* firstDerivativeIndices, /**< List indices of first derivative matrices (input) */
+		                     const int* secondDerivativeIndices, /**< List indices of second derivative matrices (input) */
+		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
+		                     const double** stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
+															   * If list length is one, the same state frequencies are used
+															   * for each partialsBuffer
+															   */
+		                     int count, /**< Number of partialsBuffers (input) */
+		                     double* outLogLikelihoods, /**< Pointer to destination for resulting log likelihoods (output) */
+			                 double* outFirstDerivatives, /**< Pointer to destination for resulting first derivatives (output) */
+			                 double* outSecondDerivatives); /**< Pointer to destination for resulting second derivatives (output) */
 
 #endif // __beagle__
 
