@@ -91,6 +91,9 @@ void FourTaxonExample::init()
 				0,			// preferenceFlags
 				0			// requirementFlags		
 				);
+	
+	if (instance_handle < 0)
+		abort("createInstance returned a negative instance handle (and that's not good)");
 				
 	transition_matrix_index.resize(5);
 	transition_matrix_index.push_back(0);
@@ -224,9 +227,10 @@ void FourTaxonExample::run()
 		std::cerr << rep << ": lnL = " << calcLnL() << std::endl;
 		}
 		
-	//finalize(
-	//	&instance_handle,		// instance
-	//	1);						// instanceCount
+	int code = finalize(
+		instance_handle);		// instance
+	
+	std::cerr << "finalize returned " << code << std::endl;
 	}
 
 /*-----------------------------------------------------------------------------
