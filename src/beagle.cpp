@@ -32,16 +32,18 @@ ResourceList* getResourceList() {
 }
 
 int createInstance(
-				int bufferCount,
-				int tipCount,
-				int stateCount,
-				int patternCount,
-				int eigenDecompositionCount,
-				int matrixCount,
-				int* resourceList,
-				int resourceCount,
-				int preferenceFlags,
-				int requirementFlags )
+			    int tipCount,				/**< Number of tip data elements (input) */
+				int partialsBufferCount,	/**< Number of partials buffers to create (input) */
+				int compactBufferCount,		/**< Number of compact state representation buffers to create (input) */
+				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
+				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
+				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
+				int* resourceList,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+				int resourceCount,			/**< Length of resourceList list (input) */
+				int preferenceFlags,		/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				int requirementFlags		/**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+				)
 {
 	// Set-up a list of implementation factories in trial-order
 	if (implFactory.size() == 0) {
@@ -57,12 +59,12 @@ int createInstance(
     	fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
 
     	BeagleImpl* beagle = (*factory)->createImpl(
-    		bufferCount,
+    		partialsBufferCount,
     		tipCount,
     		stateCount,
     		patternCount,
-    		eigenDecompositionCount,
-    		matrixCount);
+    		eigenBufferCount,
+    		matrixBufferCount);
 
     	if (beagle != NULL) {
     		fprintf(stderr,"Success\n");
@@ -79,9 +81,8 @@ int createInstance(
     return GENERAL_ERROR;
 }
 
-void initializeInstance(
-						int *instance,
-						int instanceCount,
+int initializeInstance(
+						int instance,
 						InstanceDetails* returnInfo)
 {
 	// TODO: Actual creation of instances should wait until here
