@@ -9,15 +9,18 @@
 #ifndef __beagle__
 #define __beagle__
 
+enum BeagleReturnCodes {
+	NO_ERROR = 0
+};
 
 enum BeagleFlags {
 	DOUBLE	=1<<0,
 	SINGLE	=1<<1,
 	ASYNCH	=1<<2,
 	SYNCH	=1<<3,
-	
-	CPU		=1<<16, 
-	GPU		=1<<17, 
+
+	CPU		=1<<16,
+	GPU		=1<<17,
 	FPGA	=1<<18,
 	SSE		=1<<19,
 	CELL	=1<<20
@@ -64,14 +67,14 @@ int createInstance(
 				int* resourceList,
 				int resourceCount,
 				int preferenceFlags,
-				int requirementFlags		
+				int requirementFlags
 				);
 
-// initialization of instance,  returnInfo can be null				
+// initialization of instance,  returnInfo can be null
 int initializeInstance(
-						int *instance, 
+						int *instance,
 						int instanceCount,
-						InstanceDetails* returnInfo);			
+						InstanceDetails* returnInfo);
 
 // finalize and dispose of memory allocation if needed
 int finalize(int *instance, int instanceCount);
@@ -115,7 +118,7 @@ int setEigenDecomposition(
 int setTransitionMatrix(	int* instance,
                 			int matrixIndex,
                 			const double* inMatrix);
-                                                                                   
+
 
 // calculate a transition probability matrices for a given list of node. This will
 // calculate for all categories (and all matrices if more than one is being used).
@@ -131,7 +134,7 @@ int updateTransitionMatrices(
                                             const int* firstDerivativeIndices,
                                             const int* secondDervativeIndices,
                                             const double* edgeLengths,
-                                            int count);                                                   
+                                            int count);
 
 // calculate or queue for calculation partials using an array of operations
 //
@@ -142,7 +145,7 @@ int updateTransitionMatrices(
 int updatePartials(
                        int* instance,
                        int instanceCount,
-					   int* operations,					
+					   int* operations,
 					   int operationCount,
 					   int rescale);
 
@@ -156,16 +159,16 @@ int calculateRootLogLikelihoods(
 		                     const int* bufferIndices,
 		                     int count,
 		                     const double* weights,
-		                     const double** stateFrequencies,		                     
+		                     const double** stateFrequencies,
 			                 double* outLogLikelihoods);
 
 // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
-//                 outFirstDerivatives, outSecondDerivatives 
+//                 outFirstDerivatives, outSecondDerivatives
 int calculateEdgeLogLikelihoods(
 							 int* instance,
 							 int instanceCount,
 		                     const int* parentBufferIndices,
-		                     const int* childBufferIndices,		                   
+		                     const int* childBufferIndices,
 		                     const int* probabilityIndices,
 		                     const int* firstDerivativeIndices,
 		                     const int* secondDerivativeIndices,
