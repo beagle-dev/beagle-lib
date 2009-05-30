@@ -7,6 +7,15 @@
 typedef std::vector<int> CodedSequence;
 typedef std::vector<double> PartialVector;
 
+/*-----------------------------------------------------------------------------
+|	FourTaxonExample reads in DNA sequence data for four taxa and simply 
+|	recomputes the likelihood of the following unrooted tree numerous times:
+|	
+|	(1:0.01, 2:0.02, (3:0.03, 4:0.04):0.05)
+|	
+|	Future improvements:
+|	- estimate something
+*/
 class FourTaxonExample
 	{
 	public:

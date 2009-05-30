@@ -1,20 +1,10 @@
 #include "fourtaxon.hpp"
 using namespace std;
 
-/*--------------------------------------------------------------------------------------------------------------------------
-| 	Allocates a two dimensional array of doubles as one contiguous block of memory
-| 	the dimensions are f by s.  
-| 	the array is set up so that 
-| 	
-|	for(i = 0 ; i < f ; i++)
-|		for (j = 0 ; j < s ; j++)
-|			array[i][j];
-| 	
-|	would be the same order of access as: 
-| 
-|  	T *ptr = **array;
-|	for (i = 0 ; i < f*s*t ; i++)
-|		*ptr++;
+/*-----------------------------------------------------------------------------
+| 	Allocates a two-dimensional array of doubles as one contiguous block of 
+|	memory the dimensions are f by s. The array is set up so that each 
+|	successive row follows the previous row in memory.
 */
 double **NewTwoDArray(unsigned f , unsigned s)
 	{
@@ -26,8 +16,9 @@ double **NewTwoDArray(unsigned f , unsigned s)
 	return ptr;
 	}
 
-/*--------------------------------------------------------------------------------------------------------------------------
-| Delete a 2 Dimensional Array NewTwoDArray and set the ptr to NULL
+/*-----------------------------------------------------------------------------
+|	Delete a two-dimensional array (e.g. one created by NewTwoDArray) and set 
+|	ptr to NULL.
 */
 void DeleteTwoDArray (double ** & ptr)
 	{
@@ -39,22 +30,36 @@ void DeleteTwoDArray (double ** & ptr)
 		}
 	}
 
+/*-----------------------------------------------------------------------------
+|	Constructor simply calls init().
+*/
 FourTaxonExample::FourTaxonExample()
 	{
-	taxon_name.resize(4);
-	data.resize(4);
-	partial.resize(4);
 	init();
 	}
 	
-void FourTaxonExample::abort(std::string msg)
+/*-----------------------------------------------------------------------------
+|	This function is called if the program encounters an unrecoverable error.
+|	After issuing the supplied error message, the program exits, returning 1.
+*/
+void FourTaxonExample::abort(
+  std::string msg)	/**< is the error message to report to the user */
 	{
-	std::cerr << "Error in function " << msg << ". Aborting..." << std::endl;
+	std::cerr << msg << "\nAborting..." << std::endl;
+	std::exit(1);
 	}
 	
+/*-----------------------------------------------------------------------------
+|	The init() function sets up the beagle library and initializes all data
+|	members.
+*/
 void FourTaxonExample::init()
 	{
 	int code;
+	
+	taxon_name.resize(4);
+	data.resize(4);
+	partial.resize(4);
 	
 	// hard coded tree topology is (A,B,(C,D))
 	// where taxon order is A, B, C, D in the data file
@@ -74,12 +79,13 @@ void FourTaxonExample::init()
 	operations.push_back(3);	// right child transition matrix index
 	
 	instance_handle = createInstance(
-				7,			// bufferCount
 				4,			// tipCount
+				7,			// partialsBufferCount
+				0,			// compactBufferCount
 				4, 			// stateCount
 				nsites,		// patternCount
-				1,			// eigenDecompositionCount
-				5,			// matrixCount,
+				1,			// eigenBufferCount
+				5,			// matrixBufferCount,
 				NULL,		// resourceList
 				0,			// resourceCount
 				0,			// preferenceFlags
@@ -103,12 +109,11 @@ void FourTaxonExample::init()
 	for (unsigned i = 0; i < 4; ++i)
 		{
 		code = setPartials(
-						&instance_handle,			// instance
-						1,							// instanceCount
+						instance_handle,			// instance
 						i,							// bufferIndex
 						&partial[i][0]);			// inPartials
 		if (code != 0)
-			abort("init 1");
+			abort("setPartials encountered a problem");
 		}
 		
 	double evec[4][4] = {
@@ -138,8 +143,7 @@ void FourTaxonExample::init()
 	}
 		
 	code = setEigenDecomposition(
-			   &instance_handle,				// instance
-			   1,								// instanceCount,
+			   instance_handle,					// instance
 			   0,								// eigenIndex,
 			   (const double **)evecP,			// inEigenVectors,
 			   (const double **)ivecP,			// inInverseEigenVectors,
@@ -149,20 +153,16 @@ void FourTaxonExample::init()
 	DeleteTwoDArray(ivecP);
 			   
 	if (code != 0)
-		abort("init 2");
-		
-	unsigned nreps = 1000;
-	for (unsigned rep = 0; rep < nreps; ++rep)
-		{
-		std::cerr << rep << ": lnL = " << calcLnL() << std::endl;
-		}
+		abort("setEigenDecomposition encountered a problem");
 	}
 	
+/*-----------------------------------------------------------------------------
+|	
+*/
 double FourTaxonExample::calcLnL()
 	{
 	int code = updateTransitionMatrices(
-			0,								// instance,
-			1,								// instanceCount,
+			instance_handle,				// instance,
 			0,								// eigenIndex,
 			&transition_matrix_index[0],	// probabilityIndices,
 			NULL, 							// firstDerivativeIndices,
@@ -171,7 +171,7 @@ double FourTaxonExample::calcLnL()
 			5);								// count 
 			
 	if (code != 0)
-		abort("calcLnL 1");
+		abort("updateTransitionMatrices encountered a problem");
 		
 	code = updatePartials(
 		   &instance_handle,	// instance
@@ -181,7 +181,7 @@ double FourTaxonExample::calcLnL()
 		   0);					// rescale
 		   
 	if (code != 0)
-		abort("calcLnL 3");
+		abort("updatePartials encountered a problem");
 		
 	int parentBufferIndex = 4;
 	int childBufferIndex  = 5;
@@ -191,32 +191,47 @@ double FourTaxonExample::calcLnL()
 	double lnL = 0.0;
 	
 	code = calculateEdgeLogLikelihoods(
-		 &instance_handle,					// instance,
-		 1,									// instanceCount
+		 instance_handle,					// instance,
 		 &parentBufferIndex,				// parentBufferIndices
 		 &childBufferIndex,					// childBufferIndices		                   
 		 &transitionMatrixIndex,			// probabilityIndices
 		 NULL,								// firstDerivativeIndices
 		 NULL,								// secondDerivativeIndices
-		 1,									// count
 		 (const double*)&relativeRateProb,	// weights
 		 (const double**)&stateFreqs,		// stateFrequencies,
+		 1,									// count
 		 &lnL,								// outLogLikelihoods,
 		 NULL,								// outFirstDerivatives,
 		 NULL);								// outSecondDerivatives
 
 	if (code != 0)
-		abort("calcLnL 3");
+		abort("calculateEdgeLogLikelihoods encountered a problem");
 		
 	return lnL;
 	}
 
+/*-----------------------------------------------------------------------------
+|	
+*/
 void FourTaxonExample::run()
 	{
 	readData("example_data.txt");
-	writeData("example_data.check.txt");
+	//writeData("example_data.check.txt");
+
+	unsigned nreps = 1000;
+	for (unsigned rep = 0; rep < nreps; ++rep)
+		{
+		std::cerr << rep << ": lnL = " << calcLnL() << std::endl;
+		}
+		
+	finalize(
+		&instance_handle,		// instance
+		1);						// instanceCount
 	}
 
+/*-----------------------------------------------------------------------------
+|	
+*/
 void FourTaxonExample::readData(const std::string file_name)
 	{
 	std::string sequence;
@@ -276,6 +291,9 @@ void FourTaxonExample::readData(const std::string file_name)
 	inf.close();
 	}
 	
+/*-----------------------------------------------------------------------------
+|	
+*/
 void FourTaxonExample::writeData(const std::string file_name)
 	{
 	std::ofstream outf(file_name.c_str(), std::ios::out);
@@ -308,6 +326,9 @@ void FourTaxonExample::writeData(const std::string file_name)
 	outf.close();
 	}
 
+/*-----------------------------------------------------------------------------
+|	
+*/
 int main(int argc, char* argv[])
 	{
 	FourTaxonExample().run();

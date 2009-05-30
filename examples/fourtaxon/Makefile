@@ -9,5 +9,5 @@ fourtaxon: fourtaxon.o
 	
 clean:
 	rm -f *.o
-	rm fourtaxon
+	rm -f fourtaxon
 	
