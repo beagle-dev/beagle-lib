@@ -224,9 +224,9 @@ void FourTaxonExample::run()
 		std::cerr << rep << ": lnL = " << calcLnL() << std::endl;
 		}
 		
-	finalize(
-		&instance_handle,		// instance
-		1);						// instanceCount
+	//finalize(
+	//	&instance_handle,		// instance
+	//	1);						// instanceCount
 	}
 
 /*-----------------------------------------------------------------------------
