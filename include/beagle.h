@@ -9,6 +9,7 @@
 #ifndef __beagle__
 #define __beagle__
 
+
 enum BeagleFlags {
 	DOUBLE	=1<<0,
 	SINGLE	=1<<1,
@@ -20,12 +21,12 @@ enum BeagleFlags {
 	FPGA	=1<<18,
 	SSE		=1<<19,
 	CELL	=1<<20
-}
+};
 
 
 typedef struct {
-	int resourceNumber,
-	int flags,	
+	int resourceNumber;
+	int flags;
 } InstanceDetails;
 
 typedef struct {
@@ -63,7 +64,7 @@ int createInstance(
 				int* resourceList,
 				int resourceCount,
 				int preferenceFlags,
-				int requirementFlags,				
+				int requirementFlags		
 				);
 
 // initialization of instance,  returnInfo can be null				
@@ -185,4 +186,4 @@ int calculateEdgeLogLikelihoods(
 #endif // __beagle__
 
 
-queuing and asychronis (sp?) calls.
+
