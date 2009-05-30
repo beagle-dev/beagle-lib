@@ -101,7 +101,10 @@ int main( int argc, const char* argv[] )
 				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
 				0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				);
-
+    if (instance < 0) {
+	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
+	    exit(1);
+    }
     int error = initializeInstance(instance, NULL);
 
 //	setTipStates(0, getStates(human));
