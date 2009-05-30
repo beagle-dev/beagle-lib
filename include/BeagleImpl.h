@@ -16,9 +16,6 @@
 #define REAL	float
 #endif
 
-#define SUCCESS	1
-#define ERROR	0
-
 class BeagleImpl {
 public:
 	virtual ~BeagleImpl(){}
@@ -30,42 +27,29 @@ public:
 			int eigenDecompositionCount,
 			int matrixCount) = 0;
 
-	virtual void setPartials(
-			int* instance,
-			int instanceCount,
+	virtual int setPartials(
 			int bufferIndex,
 			const double* inPartials) = 0;
 
-	virtual void getPartials(
-			int* instance,
+	virtual int getPartials(
 			int bufferIndex,
 			double *outPartials) = 0;
 
 	virtual int setTipStates(
-			int* instance,
-			int instanceCount,
 			int tipIndex,
 			const int* inStates) = 0;
 
-	virtual int setStateFrequencies(
-			int* instance,
-			const double* inStateFrequencies) = 0;
-
 	virtual int setEigenDecomposition(
-			int* instance,
-			int instanceCount,
 			int eigenIndex,
 			const double** inEigenVectors,
 			const double** inInverseEigenVectors,
 			const double* inEigenValues) = 0;
 
-	virtual int setTransitionMatrix( int* instance,
+	virtual int setTransitionMatrix(
 			int matrixIndex,
 			const double* inMatrix) = 0;
 
 	virtual int updateTransitionMatrices(
-			int* instance,
-			int instanceCount,
 			int eigenIndex,
 			const int* probabilityIndices,
 			const int* firstDerivativeIndices,
@@ -74,32 +58,26 @@ public:
 			int count) = 0;
 
 	virtual int updatePartials(
-			int* instance,
-			int instanceCount,
 			int* operations,
 			int operationCount,
 			int rescale) = 0;
 
 	virtual int calculateRootLogLikelihoods(
-			int* instance,
-			int instanceCount,
 			const int* bufferIndices,
-			int count,
 			const double* weights,
 			const double** stateFrequencies,
+			int count,
 			double* outLogLikelihoods) = 0;
 
 	virtual int calculateEdgeLogLikelihoods(
-			int* instance,
-			int instanceCount,
 			const int* parentBufferIndices,
 			const int* childBufferIndices,
 			const int* probabilityIndices,
 			const int* firstDerivativeIndices,
 			const int* secondDerivativeIndices,
-			int count,
 			const double* weights,
 			const double** stateFrequencies,
+			int count,
 			double* outLogLikelihoods,
 			double* outFirstDerivatives,
 			double* outSecondDerivatives) = 0;
