@@ -9,44 +9,36 @@
 
 #include "BeagleImpl.h"
 
+#include <vector>
 
 class BeagleCPUImpl : public BeagleImpl {
+
 private:
-	int kNodeCount;
+	int kBufferCount;
 	int kTipCount;
 	int kPatternCount;
-	int kPartialsSize;
 	int kMatrixCount;
-	int kCategoryCount;
+	int kStateCount;
+
+	int kPartialsSize;
+	int kMatrixSize;
 	
 	double** cMatrices;
 	double** storedCMatrices;
 	double** eigenValues;
 	double** storedEigenValues;
 	
-	double* frequencies;
-	double* storedFrequencies;
-	double* categoryProportions;
-	double* storedCategoryProportions;
-	double* categoryRates;
-	double* storedCategoryRates;
+	std::vector<double> branchLengths;
+	std::vector<double> storedBranchLengths;
 	
-	double* branchLengths;
-	double* storedBranchLengths;
+	std::vector<double> integrationTmp;
 	
-	double* integrationTmp;
-	
-	double*** partials;
-	int** tipStates;
-	double*** matrices;
+	std::vector<double*> partials;
+	std::vector<int*> tipStates;
+	std::vector< std::vector<double> > transitionMatrices; // one for each matrixCount
 	
 	bool useTipPartials;
 	
-	int* currentMatricesIndices;
-	int* storedMatricesIndices;
-	int* currentPartialsIndices;
-	int* storedPartialsIndices;
-
 public:
 	virtual ~BeagleCPUImpl();
 	// initialization of instance,  returnInfo can be null				
