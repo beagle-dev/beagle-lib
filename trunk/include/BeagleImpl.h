@@ -93,7 +93,7 @@ public:
 				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
 				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
 				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
+				int matrixBufferCount		/**< Number of rate matrix buffers (input) */
             ) = 0; // pure virtual
 
 	virtual const char* getName() = 0; // pure virtual
