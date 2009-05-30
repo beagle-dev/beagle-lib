@@ -1,15 +1,27 @@
 /**
  * @file	beagle.h
  *
- * @brief This file documents the API as well as header for the Broad-platform Evolutionary Analysis General Likelihood Evaluator
+ * @brief This file documents the API as well as header for the
+ * Broad-platform Evolutionary Analysis General Likelihood Evaluator
  *
- * LONG COMMENTS HERE
+ * OVERVIEW
  *
- * OVERVIEW:
- *
- * KEY ELEMENTS:  INSTANCE, BUFFER, etc.
+ * DEFINITION OF KEY CONCEPTS: INSTANCE, BUFFER, etc.
  *
  * @author Likelihood API Working Group
+ *
+ * @author Daniel Ayres
+ * @author Adam Bazinet
+ * @author Peter Beerli
+ * @author Michael Cummings
+ * @author Mark Holder
+ * @author John Huelsenbeck
+ * @author Paul Lewis
+ * @author Michael Ott
+ * @author Andrew Rambaut
+ * @author Marc Suchard
+ * @author David Swofford
+ * @author Derrick Zwickl
  *
  */
 
@@ -18,8 +30,8 @@
 
 enum BeagleReturnCodes {
 	NO_ERROR = 0,
-	OUT_OF_MEMORY_ERROR = 1,
-	GENERAL_ERROR
+	GENERAL_ERROR = -1,
+	OUT_OF_MEMORY_ERROR = -2
 };
 
 enum BeagleFlags {
@@ -68,19 +80,13 @@ typedef struct {
 ResourceList* getResourceList();
 
 /**
- * Create a single instance
- * This can be called multiple times to create multiple data partition instances
- * each returning a unique identifier.
+ * @brief Create a single instance
  *
- * nodeCount the number of nodes in the tree
- * tipCount the number of tips in the tree
- * stateCount the number of states
- * patternCount the number of site patterns
+ * This function creates a single instance of the BEAGLE library and can be called
+ * multiple times to create multiple data partition instances each returning a unique
+ * identifier.
  *
- *
- *
- * @return the unique instance identifier (-1 if failed)
- *
+ * @return the unique instance identifier (<0 if failed, see BeagleReturnCodes)
  */
 int createInstance(
 			    int tipCount,				/**< Number of tip data elements (input) */
@@ -179,6 +185,7 @@ int updateTransitionMatrices(
  *                               child2Partials,
  *                               child2TransitionMatrix}
  *
+ * @return error code
  */
 int updatePartials(
                        int* instance, 		/**< List of instances for which to update partials buffers (input) */
@@ -190,8 +197,10 @@ int updatePartials(
 /**
  * @brief Calculate site log likelihoods at a root node
  *
- * This function integrates a list of partials with respect to a set of partials-weights and
+ * This function integrates a list of partials at a node with respect to a set of partials-weights and
  * state frequencies to return the log likelihoods for each site
+ *
+ * @return error code
  */
 int calculateRootLogLikelihoods(
                              int instance, /**< Instance number (input) */
@@ -204,8 +213,15 @@ int calculateRootLogLikelihoods(
 		                     int count, /*< Number of partialsBuffer to integrate (input) */
 			                 double* outLogLikelihoods); /**< Pointer to destination for resulting log likelihoods (output) */
 
-// possible nulls: firstDerivativeIndices, secondDerivativeIndices,
-//                 outFirstDerivatives, outSecondDerivatives
+/*
+ * @brief Calculate site log likelihoods and derivatives along an edge
+ *
+ * This function integrates at list of partials at a parent and child node with respect
+ * to a set of partials-weights and state frequencies to return the log likelihoods
+ * and first and second derivatives for each site
+ *
+ * @return error code
+ */
 int calculateEdgeLogLikelihoods(
 							 int instance, /**< Instance number (input) */
 		                     const int* parentBufferIndices, /**< List of indices of parent partialsBuffers (input) */
