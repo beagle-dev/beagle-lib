@@ -59,8 +59,9 @@ int createInstance(
     	fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
 
     	BeagleImpl* beagle = (*factory)->createImpl(
-    		partialsBufferCount,
     		tipCount,
+    		partialsBufferCount,
+    		compactBufferCount,
     		stateCount,
     		patternCount,
     		eigenBufferCount,
