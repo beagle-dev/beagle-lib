@@ -88,24 +88,34 @@ int main( int argc, const char* argv[] )
 {
 	int nPatterns = strlen(human);
 
-	int instance = initialize(5, 3, 4, nPatterns, 1, 1);
+	int instance = createInstance(
+			    5,          // bufferCount
+				3,          // tipCount
+				4,          // stateCount
+				nPatterns,  // patternCount
+				1,          // eigenDecompositionCount
+				4,          // matrixCount (nodes-1)
+				null,       // resourceList
+				0,          // resourceCount
+				0,          // preferenceFlags
+				0          // requirementFlags
+				);
+
+    int error = initializeInstance(&1, 1, NULL);
 
 //	setTipStates(0, getStates(human));
 //	setTipStates(1, getStates(chimp));
 //	setTipStates(2, getStates(gorilla));
 
-	setTipPartials(instance, 0, getPartials(human));
-	setTipPartials(instance, 1, getPartials(chimp));
-	setTipPartials(instance, 2, getPartials(gorilla));
+	setPartials(&instance, 1, 0, getPartials(human));
+	setPartials(&instance, 1, 1, getPartials(chimp));
+	setPartials(&instance, 1, 2, getPartials(gorilla));
 
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-	setStateFrequencies(instance, freqs);
 
 	double rates[1] = { 1.0 };
-	setCategoryRates(instance, rates);
 
 	double props[1] = { 1.0 };
-	setCategoryProportions(instance, props);
 
 	// an eigen decomposition for the JC69 model
 	double evec[4][4] = {
@@ -134,23 +144,44 @@ int main( int argc, const char* argv[] )
 		}
 	}
 
-	setEigenDecomposition(instance, 0, evecP, ivecP, eval);
+	setEigenDecomposition(&instance, 1, 0, evecP, ivecP, eval);
 
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double branchLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 
-	calculateProbabilityTransitionMatrices(instance, nodeIndices, branchLengths, 4);
+	updateTransitionMatrices(&instance,     // instance
+	                         1,             // instanceCount
+	                         0,             // eigenIndex
+	                         nodeIndices,   // probabilityIndices
+	                         NULL,          // firstDerivativeIndices
+	                         NULL,          // secondDervativeIndices
+	                         branchLengths, // edgeLengths
+	                         4);            // count
 
 	int operations[5 * 3] = {
-		0, 1, 3,
-		2, 3, 4
+		3, 0, 0, 1, 1,
+		4, 2, 2, 3, 3
 	};
+	int rootIndex = 4;
 
-	calculatePartials(instance, operations, NULL, 2, 0);
+	updatePartials( &instance,     // instance
+	                1,             // instanceCount
+	                operations,    // eigenIndex
+	                nodeIndices,   // probabilityIndices
+	                NULL,          // firstDerivativeIndices
+	                NULL,          // secondDervativeIndices
+	                branchLengths, // edgeLengths
+	                4);
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-	calculateLogLikelihoods(instance, 4, patternLogLik);
+	calculateRootLogLikelihoods(&instance,          // instance
+	                            1,                  // instanceCount
+	                            &rootIndex,         // bufferIndices
+	                            1,                  // count
+	                            props,              // weights
+	                            &freqs,             // stateFrequencies
+	                            patternLogLik);     // outLogLikelihoods
 
 	double logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
