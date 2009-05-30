@@ -21,7 +21,7 @@
 int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactBufferCount,
 		int stateCount, int patternCount, int eigenDecompositionCount,
 		int matrixCount) {
-	std::cerr << "in BeagleCPUImpl::initialize\n" ;
+	//std::cerr << "in BeagleCPUImpl::initialize\n" ;
 	kBufferCount = partialBufferCount + compactBufferCount;
 	kTipCount = tipCount;
 	assert(kBufferCount > kTipCount);
@@ -76,9 +76,6 @@ int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactB
 	partials.assign(kBufferCount, 0L);
 	tipStates.assign(kTipCount, 0L);
 
-	for (int i = 0; i < kTipCount; i++) {
-		tipStates[i] = (int *) malloc(sizeof(int) * kPatternCount);
-	}
 	for (int i = kTipCount; i < kBufferCount; i++) {
 		partials[i] = (double *) malloc(sizeof(double) * kPartialsSize);
 		if (partials[i] == 0L)
@@ -197,18 +194,19 @@ int BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
 
 	int x = 0;
 	for (int op = 0; op < count; op++) {
-		std::cerr << "op[0]= " << operations[0] << "\n";
+		/*std::cerr << "op[0]= " << operations[0] << "\n";
 		std::cerr << "op[1]= " << operations[1] << "\n";
 		std::cerr << "op[2]= " << operations[2] << "\n";
 		std::cerr << "op[3]= " << operations[3] << "\n";
 		std::cerr << "op[4]= " << operations[4] << "\n";
+		*/
 		const int parIndex = operations[op*5];
 		const int child1Index = operations[op*5 + 1];
 		const int child1TransMatIndex = operations[op*5 + 2];
 		const int child2Index = operations[op*5 + 3];
 		const int child2TransMatIndex = operations[op*5 + 4];
 
-		std::cerr << "parIndex " << operations[4] << "\n";
+		//std::cerr << "parIndex " << operations[4] << "\n";
 	
 		assert(parIndex < partials.size());
 		assert(parIndex >= tipStates.size());
@@ -259,6 +257,8 @@ void BeagleCPUImpl::updateStatesStates(	double * destP,
 
 		const int state1 = child1States[k];
 		const int state2 = child2States[k];
+		//std::cerr << "updateStatesStates s1 = " << state1 << '\n';
+		//std::cerr << "updateStatesStates s2 = " << state2 << '\n';
 		int w = 0;
 		for (int i = 0; i < kStateCount; i++) {
 			destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
@@ -279,6 +279,7 @@ void BeagleCPUImpl::updateStatesPartials(double * destP, const int * states1, co
 	for (int k = 0; k < kPatternCount; k++) {
 
 		int state1 = states1[k];
+		//std::cerr << "updateStatesPartials s1 = " << state1 << '\n';
 
 		int w = 0;
 
@@ -348,9 +349,6 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 	for (int k = 0; k < kPatternCount; k++)
 		outLogLikelihoods[k] = 0.0;
 		
-	std::cerr << "stateFrequencies = " << (long) stateFrequencies << '\n';
-	std::cerr << "stateFrequencies[0] = " << (long) stateFrequencies[0] << '\n';
-
 	for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
 		assert(subsetIndex < partials.size());
 		const int rootPartialIndex = bufferIndices[subsetIndex];
@@ -358,7 +356,6 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 		assert(rootPartials);
 		const double * frequencies = stateFrequencies[subsetIndex];
 		const double wt = weights[subsetIndex];
-		int u = 0;
 		int v = 0;
 		for (int k = 0; k < kPatternCount; k++) {
 
@@ -366,7 +363,6 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 			for (int i = 0; i < kStateCount; i++) {
 
 				sum += frequencies[i] * rootPartials[v];
-				u++;
 				v++;
 			}
 			outLogLikelihoods[k] += sum*wt;
