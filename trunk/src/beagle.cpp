@@ -173,8 +173,6 @@ int calculateRootLogLikelihoods(
 			                 double* outLogLikelihoods)
 {
 
-	std::cerr << "in beagle.cpp stateFrequencies = " << (long) stateFrequencies << '\n';
-	std::cerr << "in beagle.cpp stateFrequencies[0] = " << (long) stateFrequencies[0] << '\n';
 
     return instances[instance]->calculateRootLogLikelihoods(
                                             bufferIndices,

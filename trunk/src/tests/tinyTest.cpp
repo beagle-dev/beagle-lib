@@ -180,8 +180,6 @@ int main( int argc, const char* argv[] )
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
 	const double **f = (const double **) &freqs;
-	std::cerr << "in tinytest.cpp stateFrequencies = " << (long) f << '\n';
-	std::cerr << "in tinytest.cpp stateFrequencies[0] = " << (long) f[0] << '\n';
 
 	calculateRootLogLikelihoods(instance,           // instance
 	                            (const int *)&rootIndex,         // bufferIndices
@@ -192,6 +190,7 @@ int main( int argc, const char* argv[] )
 
 	double logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
+		std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
 		logL += patternLogLik[i];
 	}
 
