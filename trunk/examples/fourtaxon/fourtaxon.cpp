@@ -1,4 +1,4 @@
-#include "example.hpp"
+#include "fourtaxon.hpp"
 using namespace std;
 
 /*--------------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ void DeleteTwoDArray (double ** & ptr)
 		}
 	}
 
-GPUExample::GPUExample()
+FourTaxonExample::FourTaxonExample()
 	{
 	taxon_name.resize(4);
 	data.resize(4);
@@ -47,12 +47,12 @@ GPUExample::GPUExample()
 	init();
 	}
 	
-void GPUExample::abort(std::string msg)
+void FourTaxonExample::abort(std::string msg)
 	{
 	std::cerr << "Error in function " << msg << ". Aborting..." << std::endl;
 	}
 	
-void GPUExample::init()
+void FourTaxonExample::init()
 	{
 	int code;
 	
@@ -158,7 +158,7 @@ void GPUExample::init()
 		}
 	}
 	
-double GPUExample::calcLnL()
+double FourTaxonExample::calcLnL()
 	{
 	int code = updateTransitionMatrices(
 			0,								// instance,
@@ -211,13 +211,13 @@ double GPUExample::calcLnL()
 	return lnL;
 	}
 
-void GPUExample::run()
+void FourTaxonExample::run()
 	{
 	readData("example_data.txt");
 	writeData("example_data.check.txt");
 	}
 
-void GPUExample::readData(const std::string file_name)
+void FourTaxonExample::readData(const std::string file_name)
 	{
 	std::string sequence;
 	std::ifstream inf(file_name.c_str());
@@ -276,7 +276,7 @@ void GPUExample::readData(const std::string file_name)
 	inf.close();
 	}
 	
-void GPUExample::writeData(const std::string file_name)
+void FourTaxonExample::writeData(const std::string file_name)
 	{
 	std::ofstream outf(file_name.c_str(), std::ios::out);
 	outf << ntaxa << " " << nsites << std::endl;
@@ -310,6 +310,6 @@ void GPUExample::writeData(const std::string file_name)
 
 int main(int argc, char* argv[])
 	{
-	GPUExample().run();
+	FourTaxonExample().run();
 	}
 	
