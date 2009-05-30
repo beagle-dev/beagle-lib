@@ -22,17 +22,17 @@ private:
 
 	int kPartialsSize;
 	int kMatrixSize;
-	
+
 	double** cMatrices;
 	double** storedCMatrices;
 	double** eigenValues;
 	double** storedEigenValues;
-	
+
 	std::vector<double> branchLengths;
 	std::vector<double> storedBranchLengths;
-	
+
 	std::vector<double> integrationTmp;
-	
+
 	std::vector<double*> partials;
 	std::vector<int*> tipStates;
 	std::vector< std::vector<double> > transitionMatrices; // one for each matrixCount
@@ -40,13 +40,13 @@ private:
 
 public:
 	virtual ~BeagleCPUImpl();
-	// initialization of instance,  returnInfo can be null				
+	// initialization of instance,  returnInfo can be null
 	int initialize(	int bufferCount,
 					int tipCount,
 					int stateCount,
 					int patternCount,
 					int eigenDecompositionCount,
-					int matrixCount);			
+					int matrixCount);
 
 	// set the partials for a given tip
 	//
@@ -66,7 +66,7 @@ public:
 	//
 	// stateFrequencies an array containing the state frequencies
 	int setStateFrequencies(const double* inStateFrequencies);
-	
+
 	// sets the Eigen decomposition for a given matrix
 	//
 	// matrixIndex the matrix index to update
@@ -77,10 +77,10 @@ public:
 							  	const double** inEigenVectors,
 							  	const double** inInverseEigenVectors,
 						 		const double* inEigenValues);
-	
+
 	int setTransitionMatrix(int matrixIndex, const double* inMatrix);
-																					   
-	
+
+
 	// calculate a transition probability matrices for a given list of node. This will
 	// calculate for all categories (and all matrices if more than one is being used).
 	//
@@ -92,39 +92,39 @@ public:
 									const int* firstDerivativeIndices,
 									const int* secondDervativeIndices,
 									const double* edgeLengths,
-									int count);                                                   
-	
+									int count);
+
 	// calculate or queue for calculation partials using an array of operations
 	//
 	// operations an array of triplets of indices: the two source partials and the destination
 	// dependencies an array of indices specify which operations are dependent on which (optional)
 	// count the number of operations
 	// rescale indicate if partials should be rescaled during peeling
-	int updatePartials(	int* operations,					
+	int updatePartials(	int* operations,
 					   int operationCount,
 					   int rescale);
-	
+
 	// calculate the site log likelihoods at a particular node
 	//
 	// rootNodeIndex the index of the root
 	// outLogLikelihoods an array into which the site log likelihoods will be put
 	int calculateRootLogLikelihoods(const int* bufferIndices,
-									int count,
 									const double* weights,
-									const double** stateFrequencies,		                     
+									const double** stateFrequencies,
+									int count,
 									double* outLogLikelihoods);
-	
+
 	// possible nulls: firstDerivativeIndices, secondDerivativeIndices,
-	//                 outFirstDerivatives, outSecondDerivatives 
+	//                 outFirstDerivatives, outSecondDerivatives
 	int calculateEdgeLogLikelihoods(
 								 const int* parentBufferIndices,
-								 const int* childBufferIndices,		                   
+								 const int* childBufferIndices,
 								 const int* probabilityIndices,
 								 const int* firstDerivativeIndices,
 								 const int* secondDerivativeIndices,
-								 int count,
 								 const double* weights,
 								 const double** stateFrequencies,
+								 int count,
 								 double* outLogLikelihoods,
 								 double* outFirstDerivatives,
 								 double* outSecondDerivatives);
