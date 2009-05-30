@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
 #include <string.h>
 #include <math.h>
 
@@ -20,6 +21,7 @@
 int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactBufferCount,
 		int stateCount, int patternCount, int eigenDecompositionCount,
 		int matrixCount) {
+	std::cerr << "in BeagleCPUImpl::initialize\n" ;
 	kBufferCount = partialBufferCount + compactBufferCount;
 	kTipCount = tipCount;
 	assert(kBufferCount > kTipCount);
@@ -427,11 +429,12 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(
                 ) {
 	BeagleImpl* impl = new BeagleCPUImpl();
 	try {
-		if (impl->initialize(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount))
+		if (impl->initialize(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount) == 0)
 			return impl;
 	}
 	catch(...)
 	{
+		std::cerr << "exception in initialize\n";
 		delete impl;
 		throw;
 	}

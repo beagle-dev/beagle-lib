@@ -13,7 +13,7 @@ OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 
 
 default :
-	g++ -o tinytest -O3 -fast $(OPTIONS) \
+	g++ -o tinytest -O3 -fast $(OPTIONS) $(CXX_FLAGS)	 \
 		-D STATE_COUNT=$(STATE_COUNT) \
 		-Iinclude/ \
 		src/beagle.cpp \
