@@ -14,16 +14,11 @@
 
 #include "BeagleCPUImpl.h"
 
-#define MATRIX_SIZE (STATE_COUNT + 1) * STATE_COUNT
 
-#if (STATE_COUNT==4)
-#	define IS_NUCLEOTIDES
-#endif
 
 int BeagleCPUImpl::initialize(int bufferCount, int maxTipStateCount,
 		int stateCount, int patternCount, int eigenDecompositionCount,
 		int matrixCount) {
-
 	kBufferCount = bufferCount;
 	kTipCount = maxTipStateCount;
 	assert(bufferCount > kTipCount);
@@ -76,7 +71,6 @@ int BeagleCPUImpl::initialize(int bufferCount, int maxTipStateCount,
 
 	partials.assign(kBufferCount, 0L);
 	tipStates.assign(kTipCount, 0L);
-	useTipPartials = false;
 
 	for (int i = 0; i < kTipCount; i++) {
 		tipStates[i] = (int *) malloc(sizeof(int) * kPatternCount);
@@ -98,10 +92,10 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 	// free all that stuff...
 }
 
-void BeagleCPUImpl::setPartials(int bufferIndex, const double* inPartials) {
+int BeagleCPUImpl::setPartials(int bufferIndex, const double* inPartials) {
 	assert(partials[bufferIndex] == 0L);
 	partials[bufferIndex] = (double *) malloc(sizeof(double) * kPartialsSize);
-	if (partials[i] == 0L)
+	if (partials[bufferIndex] == 0L)
 		return OUT_OF_MEMORY_ERROR;
 	memcpy(partials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
 	return NO_ERROR;
@@ -124,7 +118,6 @@ int BeagleCPUImpl::setTipStates(int tipIndex, const int* inStates) {
 int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
 		const double** inEigenVectors, const double** inInverseEigenVectors,
 		const double* inEigenValues) {
-
 	int l = 0;
 	for (int i = 0; i < stateCount; i++) {
 		eigenValues[eigenIndex][i] = inEigenValues[i];
@@ -188,171 +181,75 @@ void BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
 
 	int x = 0;
 	for (int op = 0; op < count; op++) {
-		int nodeIndex1 = operations[x];
-		x++;
-		int nodeIndex2 = operations[x];
-		x++;
-		int nodeIndex3 = operations[x];
-		x++;
-		currentPartialsIndices[nodeIndex3] = 1
-				- currentPartialsIndices[nodeIndex3];
-
-		if (useTipPartials) {
-			updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-		} else {
-			if (nodeIndex1 < kTipCount) {
-				if (nodeIndex2 < kTipCount) {
-					updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
-				} else {
-					updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-				}
+		const int parIndex = operations[x++];
+		const int child1Index = operations[x++];
+		const int child1TransMatIndex = operations[x++];
+		const int child1Index = operations[x++];
+		const int child1TransMatIndex = operations[x++];
+		
+		assert(parIndex < partials.size());
+		assert(parIndex >= tipStates.size());
+		assert(child1Index < partials.size());
+		assert(child2Index < partials.size());
+		assert(child1TransMatIndex < transitionMatrices.size());
+		assert(child2TransMatIndex < transitionMatrices.size());
+		
+		const double * child1TransMat = transitionMatrices[child1TransMatIndex];
+		assert(child1TransMat);
+		const double * child2TransMat = transitionMatrices[child2TransMatIndex];
+		assert(child2TransMat);
+		double * destPartial = partials[parIndex];
+		assert(destPartial);
+		
+		if (child1Index < kTipCount) {
+			if (child2Index < kTipCount) {
+				updateStatesStates(destPartial, tipStates[child1Index], child1TransMat, tipStates[child2Index], child2TransMat);
 			} else {
-				if (nodeIndex2 < kTipCount) {
-					updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
-				} else {
-					updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-				}
+				updateStatesPartials(destPartial, tipStates[child1Index], child1TransMat, partials[child2Index], child2TransMat);
+			}
+		} else {
+			if (nodeIndex2 < kTipCount) {
+				updateStatesPartials(destPartial, tipStates[child2Index], child2TransMat, partials[child1Index], child1TransMat);
+			} else {
+				updatePartialsPartials(destPartial, partials[child1Index], child1TransMat, partials[child2Index], child2TransMat);
 			}
 		}
 	}
 }
 
+
+
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
-void BeagleCPUImpl::updateStatesStates(int nodeIndex1, int nodeIndex2,
-		int nodeIndex3) {
-	double* matrices1 =
-			matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	double* matrices2 =
-			matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
+void BeagleCPUImpl::updateStatesStates(	double * destP, 
+										const int * child1States,
+										const double *child1TransMat,
+										const int * child2States,
+										const double *child2TransMat)
+{
 
-	int* states1 = tipStates[nodeIndex1];
-	int* states2 = tipStates[nodeIndex2];
-
-	double* partials3 =
-			partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-
-#ifdef IS_NUCLEOTIDES
 
 	int v = 0;
-	for (int l = 0; l < kCategoryCount; l++) {
+	for (int k = 0; k < kPatternCount; k++) {
 
-		for (int k = 0; k < kPatternCount; k++) {
-
-			int state1 = states1[k];
-			int state2 = states2[k];
-
-			int w = l * MATRIX_SIZE;
-
-			partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-			v++; w += (stateCount + 1);
-			partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-			v++; w += (stateCount + 1);
-			partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-			v++; w += (stateCount + 1);
-			partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-			v++; w += (stateCount + 1);
-
+		const int state0 = child0States[k];
+		const int state2 = child2States[k];
+		int w = 0;
+		for (int i = 0; i < stateCount; i++) {
+			destP[v] = child0TransMat[w + state0] * child2TransMat[w + state2];
+			v++;
+			w += (stateCount + 1);
 		}
+
 	}
-
-#else
-
-	int v = 0;
-	for (int l = 0; l < kCategoryCount; l++) {
-
-		for (int k = 0; k < kPatternCount; k++) {
-
-			int state1 = states1[k];
-			int state2 = states2[k];
-
-			int w = l * kMatrixSize;
-
-			for (int i = 0; i < stateCount; i++) {
-
-				partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-
-				v++;
-				w += (stateCount + 1);
-			}
-
-		}
-	}
-#endif
 }
 
 /*
  * Calculates partial likelihoods at a node when one child has states and one has partials.
  */
-void BeagleCPUImpl::updateStatesPartials(int nodeIndex1, int nodeIndex2,
-		int nodeIndex3) {
-	double* matrices1 =
-			matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	double* matrices2 =
-			matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
-
-	int* states1 = tipStates[nodeIndex1];
-	double* partials2 =
-			partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
-
-	double* partials3 =
-			partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-
-#ifdef IS_NUCLEOTIDES
-
-	int u = 0;
-	int v = 0;
-
-	for (int l = 0; l < kCategoryCount; l++) {
-		for (int k = 0; k < kPatternCount; k++) {
-
-			int state1 = states1[k];
-
-			int w = l * MATRIX_SIZE;
-
-			partials3[u] = matrices1[w + state1];
-
-			double sum = matrices2[w] * partials2[v]; w++;
-			sum += matrices2[w] * partials2[v + 1]; w++;
-			sum += matrices2[w] * partials2[v + 2]; w++;
-			sum += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] *= sum; u++;
-
-			partials3[u] = matrices1[w + state1];
-
-			sum = matrices2[w] * partials2[v]; w++;
-			sum += matrices2[w] * partials2[v + 1]; w++;
-			sum += matrices2[w] * partials2[v + 2]; w++;
-			sum += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] *= sum; u++;
-
-			partials3[u] = matrices1[w + state1];
-
-			sum = matrices2[w] * partials2[v]; w++;
-			sum += matrices2[w] * partials2[v + 1]; w++;
-			sum += matrices2[w] * partials2[v + 2]; w++;
-			sum += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] *= sum; u++;
-
-			partials3[u] = matrices1[w + state1];
-
-			sum = matrices2[w] * partials2[v]; w++;
-			sum += matrices2[w] * partials2[v + 1]; w++;
-			sum += matrices2[w] * partials2[v + 2]; w++;
-			sum += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] *= sum; u++;
-
-			v += 4;
-
-		}
-	}
-
-#else
+void BeagleCPUImpl::updateStatesPartials(double * destP, const int * states1, const double *matrices1, const double * partials2, const double *matrices2)
+{
 	int u = 0;
 	int v = 0;
 
@@ -376,190 +273,102 @@ void BeagleCPUImpl::updateStatesPartials(int nodeIndex1, int nodeIndex2,
 				// increment for the extra column at the end
 				w++;
 
-				partials3[u] = tmp * sum;
+				destP[u] = tmp * sum;
 				u++;
 			}
 
 			v += stateCount;
 		}
 	}
-#endif
+
 }
 
-void BeagleCPUImpl::updatePartialsPartials(int nodeIndex1, int nodeIndex2,
-		int nodeIndex3) {
-	double* matrices1 =
-			matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-	double* matrices2 =
-			matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
-
-	double* partials1 =
-			partials[currentPartialsIndices[nodeIndex1]][nodeIndex1];
-	double* partials2 =
-			partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
-
-	double* partials3 =
-			partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-
-	/* fprintf(stdout, "*** operation %d: %d, %d -> %d\n", op, nodeIndex1, nodeIndex2, nodeIndex3); */
-
+void BeagleCPUImpl::updatePartialsPartials(double * destP, const double * partials1, const double *matrices1, const double * partials2, const double *matrices2)
+{
 	double sum1, sum2;
 
-#ifdef IS_NUCLEOTIDES
+
 
 	int u = 0;
 	int v = 0;
 
-	for (int l = 0; l < kCategoryCount; l++) {
-		for (int k = 0; k < kPatternCount; k++) {
-
-			int w = l * MATRIX_SIZE;
-
-			sum1 = matrices1[w] * partials1[v];
-			sum2 = matrices2[w] * partials2[v]; w++;
-			sum1 += matrices1[w] * partials1[v + 1];
-			sum2 += matrices2[w] * partials2[v + 1]; w++;
-			sum1 += matrices1[w] * partials1[v + 2];
-			sum2 += matrices2[w] * partials2[v + 2]; w++;
-			sum1 += matrices1[w] * partials1[v + 3];
-			sum2 += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] = sum1 * sum2; u++;
-
-			sum1 = matrices1[w] * partials1[v];
-			sum2 = matrices2[w] * partials2[v]; w++;
-			sum1 += matrices1[w] * partials1[v + 1];
-			sum2 += matrices2[w] * partials2[v + 1]; w++;
-			sum1 += matrices1[w] * partials1[v + 2];
-			sum2 += matrices2[w] * partials2[v + 2]; w++;
-			sum1 += matrices1[w] * partials1[v + 3];
-			sum2 += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] = sum1 * sum2; u++;
-
-			sum1 = matrices1[w] * partials1[v];
-			sum2 = matrices2[w] * partials2[v]; w++;
-			sum1 += matrices1[w] * partials1[v + 1];
-			sum2 += matrices2[w] * partials2[v + 1]; w++;
-			sum1 += matrices1[w] * partials1[v + 2];
-			sum2 += matrices2[w] * partials2[v + 2]; w++;
-			sum1 += matrices1[w] * partials1[v + 3];
-			sum2 += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] = sum1 * sum2; u++;
-
-			sum1 = matrices1[w] * partials1[v];
-			sum2 = matrices2[w] * partials2[v]; w++;
-			sum1 += matrices1[w] * partials1[v + 1];
-			sum2 += matrices2[w] * partials2[v + 1]; w++;
-			sum1 += matrices1[w] * partials1[v + 2];
-			sum2 += matrices2[w] * partials2[v + 2]; w++;
-			sum1 += matrices1[w] * partials1[v + 3];
-			sum2 += matrices2[w] * partials2[v + 3]; w++;
-			w++; // increment for the extra column at the end
-			partials3[u] = sum1 * sum2; u++;
-
-			v += 4;
-
-		}
-	}
-
-#else
-
-	int u = 0;
-	int v = 0;
-
-	for (int l = 0; l < kCategoryCount; l++) {
-
-		for (int k = 0; k < kPatternCount; k++) {
-
-			int w = l * kMatrixSize;
-
-			for (int i = 0; i < stateCount; i++) {
-
-				sum1 = sum2 = 0.0;
-
-				for (int j = 0; j < stateCount; j++) {
-					sum1 += matrices1[w] * partials1[v + j];
-					sum2 += matrices2[w] * partials2[v + j];
-					w++;
-				}
-
-				// increment for the extra column at the end
-				w++;
-
-				partials3[u] = sum1 * sum2;
-
-				u++;
-			}
-			v += stateCount;
-		}
-	}
-
-#endif
-}
-
-void BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
-		int count, const double* weights, const double** stateFrequencies,
-		double* outLogLikelihoods) {
-
-	double* rootPartials =
-			partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
-	//    printArray("rootPartials", rootPartials, kPatternCount * stateCount);
-	//    printArray("frequencies", frequencies, stateCount);
-	//    printArray("categoryProportions", categoryProportions, kCategoryCount);
-
-	int u = 0;
-	int v = 0;
 	for (int k = 0; k < kPatternCount; k++) {
+
+		int w = 0;
 
 		for (int i = 0; i < stateCount; i++) {
 
-			integrationTmp[u] = rootPartials[v] * categoryProportions[0];
+			sum1 = sum2 = 0.0;
+
+			for (int j = 0; j < stateCount; j++) {
+				sum1 += matrices1[w] * partials1[v + j];
+				sum2 += matrices2[w] * partials2[v + j];
+				w++;
+			}
+
+			// increment for the extra column at the end
+			w++;
+
+			destP[u] = sum1 * sum2;
+
 			u++;
-			v++;
 		}
+		v += stateCount;
 	}
 
-	for (int l = 1; l < kCategoryCount; l++) {
-		u = 0;
+}
 
+int BeagleCPUImpl::calculateRootLogLikelihoods(
+	const int* bufferIndices,
+	int count,
+	const double* weights,
+	const double** stateFrequencies,
+	double* outLogLikelihoods)
+{
+	// this shouldn't be set to 0 here (we should do it in the loop)
+	for (int k = 0; k < kPatternCount; k++)
+		outLogLikelihoods[k] = 0.0;
+
+	for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+		assert(subsetIndex < partials.size());
+		const int rootPartialIndex = bufferIndices[subsetIndex];
+		const double * rootPartials = partials[rootPartialIndex];
+		assert(rootPartials);
+		const double * frequencies = stateFrequencies[weights];
+		const double wt = weights[subsetIndex];
+		int u = 0;
+		int v = 0;
 		for (int k = 0; k < kPatternCount; k++) {
-
+	
+			double sum = 0.0;
 			for (int i = 0; i < stateCount; i++) {
-
-				integrationTmp[u] += rootPartials[v] * categoryProportions[l];
+	
+				sum += frequencies[i] * rootPartials[v];
 				u++;
 				v++;
 			}
+			outLogLikelihoods[k] += sum*wt;
 		}
 	}
 
-	//    printArray("integrationTmp", integrationTmp, kPatternCount * stateCount);
-
-	u = 0;
-	for (int k = 0; k < kPatternCount; k++) {
-
-		double sum = 0.0;
-		for (int i = 0; i < stateCount; i++) {
-
-			sum += frequencies[i] * integrationTmp[u];
-			u++;
-		}
-		outLogLikelihoods[k] = log(sum);
-	}
-
-	//    printArray("outLogLikelihoods", outLogLikelihoods, kPatternCount);
+	// this shouldn't be set to 0 here (we should do it in the loop)
+	for (int k = 0; k < kPatternCount; k++)
+		outLogLikelihoods[k] = log(outLogLikelihoods[k]);
 }
 
 int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
-		const int* childBufferIndices, const int* probabilityIndices,
-		const int* firstDerivativeIndices, const int* secondDerivativeIndices,
-		int count, const double* weights, const double** stateFrequencies,
-		double* outLogLikelihoods, double* outFirstDerivatives,
-		double* outSecondDerivatives) {
+								 const int* childBufferIndices,
+								 const int* probabilityIndices,
+								 const int* firstDerivativeIndices,
+								 const int* secondDerivativeIndices,
+								 int count,
+								 const double* weights,
+								 const double** stateFrequencies,
+								 double* outLogLikelihoods,
+								 double* outFirstDerivatives,
+								 double* outSecondDerivatives)
+{
 	assert(0);
-	//not implemented, yet
 }
 
 BeagleImpl* BeagleCPUImplFactory::createImpl(int bufferCount, int tipCount,

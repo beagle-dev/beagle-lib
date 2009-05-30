@@ -36,9 +36,8 @@ private:
 	std::vector<double*> partials;
 	std::vector<int*> tipStates;
 	std::vector< std::vector<double> > transitionMatrices; // one for each matrixCount
-	
-	bool useTipPartials;
-	
+
+
 public:
 	virtual ~BeagleCPUImpl();
 	// initialization of instance,  returnInfo can be null				
@@ -132,9 +131,9 @@ public:
 
 	private:
 
-    void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3);
-    void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
-    void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3);
+    void updateStatesStates(double * destP, const int * child0States, const double *child0TransMat, const int * child1States, const double *child1TransMat);
+    void updateStatesPartials(double * destP, const int * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
+    void updatePartialsPartials(double * destP, const double * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
 
 
 };
