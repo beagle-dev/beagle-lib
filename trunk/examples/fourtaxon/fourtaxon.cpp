@@ -218,7 +218,7 @@ double FourTaxonExample::calcLnL()
 */
 void FourTaxonExample::run()
 	{
-	readData("example_data.txt");
+	readData("fourtaxon.dat");
 	//writeData("example_data.check.txt");
 
 	unsigned nreps = 1000;
@@ -240,6 +240,8 @@ void FourTaxonExample::readData(const std::string file_name)
 	{
 	std::string sequence;
 	std::ifstream inf(file_name.c_str());
+	if(!inf.good())
+		abort("problem reading datafile");
 	inf >> ntaxa >> nsites;
 	for (unsigned i = 0; i < ntaxa; ++i)
 		{
