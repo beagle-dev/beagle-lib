@@ -19,6 +19,7 @@ private:
 	int kPatternCount;
 	int kMatrixCount;
 	int kStateCount;
+	int kEigenDecompCount;
 
 	int kPartialsSize;
 	int kMatrixSize;

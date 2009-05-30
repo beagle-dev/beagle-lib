@@ -13,6 +13,7 @@
 #include <math.h>
 #include <list>
 #include <vector>
+#include <iostream> 
 
 #include "beagle.h"
 #include "BeagleImpl.h"
@@ -171,6 +172,10 @@ int calculateRootLogLikelihoods(
 		                     int count,
 			                 double* outLogLikelihoods)
 {
+
+	std::cerr << "in beagle.cpp stateFrequencies = " << (long) stateFrequencies << '\n';
+	std::cerr << "in beagle.cpp stateFrequencies[0] = " << (long) stateFrequencies[0] << '\n';
+
     return instances[instance]->calculateRootLogLikelihoods(
                                             bufferIndices,
                                             weights,
