@@ -7,10 +7,10 @@
 typedef std::vector<int> CodedSequence;
 typedef std::vector<double> PartialVector;
 
-class GPUExample
+class FourTaxonExample
 	{
 	public:
-		GPUExample();
+		FourTaxonExample();
 		void abort(std::string msg);
 		void init();
 		void run();
