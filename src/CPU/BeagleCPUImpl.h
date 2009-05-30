@@ -44,8 +44,9 @@ private:
 public:
 	virtual ~BeagleCPUImpl();
 	// initialization of instance,  returnInfo can be null
-	int initialize(	int bufferCount,
-					int tipCount,
+	int initialize(	int tipCount,
+					int partialBufferCount,
+					int compactBufferCount,
 					int stateCount,
 					int patternCount,
 					int eigenDecompositionCount,
@@ -150,7 +151,7 @@ class BeagleCPUImplFactory : public BeagleImplFactory {
 				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
 				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
 				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
+				int matrixBufferCount		/**< Number of rate matrix buffers (input) */
 				);
 
     	virtual const char* getName();
