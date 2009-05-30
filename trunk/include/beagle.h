@@ -103,6 +103,7 @@ int setTipStates(
 // stateFrequencies an array containing the state frequencies
 int setStateFrequencies(
                          int* instance,
+                         int instanceCount,
                          const double* inStateFrequencies);
 
 // sets the Eigen decomposition for a given matrix
