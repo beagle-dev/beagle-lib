@@ -7,7 +7,7 @@
  *
  * OVERVIEW:
  *
- * KEY ELEMENTS:  INSTANCE, BUFFERS, etc.
+ * KEY ELEMENTS:  INSTANCE, BUFFER, etc.
  *
  * @author Likelihood API Working Group
  *
@@ -111,21 +111,23 @@ int finalize(int *instance, int instanceCount);
 int setPartials(
                     int instance,				/**< Instance number in which to set a partialsBuffer (input) */
              		int bufferIndex,			/**< Index of destination partialsBuffer (input) */
-					const double* inPartials);	/**< Partials values to set (input) */
+					const double* inPartials);	/**< Pointer to partials values to set (input) */
 
 int getPartials(
-		int instance,	/**< Instance number from which to get */
-		int bufferIndex,
-		double *outPartials);
+		int instance,			/**< Instance number from which to get partialsBuffer (input) */
+		int bufferIndex, 		/**< Index of source partialsBuffer (input) */
+		double *outPartials		/**< Pointer to which to receive partialsBuffer (output) */
+		);
 
 // set the states for a given tip
 //
 // tipIndex the index of the tip
 // inStates the array of states: 0 to stateCount - 1, missing = stateCount
 int setTipStates(
-                  int instance,
-				  int tipIndex,
-				  const int* inStates);
+                  int instance,			/**< Instance number (input) */
+				  int tipIndex,			/**< Index of destination compressedBuffer (input) */
+				  const int* inStates); /**< Pointer to compressed states (input) */
+
 
 
 // sets the Eigen decomposition for a given matrix
@@ -135,11 +137,11 @@ int setTipStates(
 // inverseEigenVectors an array containing the inverse Eigen Vectors
 // eigenValues an array containing the Eigen Values
 int setEigenDecomposition(
-                           int instance,
-						   int eigenIndex,
-						   const double** inEigenVectors,
-						   const double** inInverseEigenVectors,
-						   const double* inEigenValues);
+                           int instance,							/**< Instance number (input) */
+						   int eigenIndex,							/**< Index of eigen-decomposition buffer (input) */
+						   const double** inEigenVectors, 			/**< 2D matrix of eigen-vectors (input) */
+						   const double** inInverseEigenVectors,	/**< 2D matrix of inverse-eigen-vectors (input) */
+						   const double* inEigenValues); 			/**< 2D vector of eigenvalues*/
 
 int setTransitionMatrix(	int instance,
                 			int matrixIndex,
@@ -153,13 +155,13 @@ int setTransitionMatrix(	int instance,
 // edgeLengths an array of expected lengths in substitutions per site
 // count the number of elements in the above arrays
 int updateTransitionMatrices(
-                                            int instance,
-                                            int eigenIndex,
-                                            const int* probabilityIndices,
-                                            const int* firstDerivativeIndices,
-                                            const int* secondDervativeIndices,
-                                            const double* edgeLengths,
-                                            int count);
+                                            int instance,	/**< Instance number (input) */
+                                            int eigenIndex,	/**<  Index of eigen-decomposition buffer (input) */
+                                            const int* probabilityIndices, /**<  List of indices of transition probability matrices to update (input) */
+                                            const int* firstDerivativeIndices, /**< List of indices of first derivative matrices to update (input, NULL implies no calculation) */
+                                            const int* secondDervativeIndices, /**< List of indices of second derivative matrices to update (input, NULL implies no calculation) */
+                                            const double* edgeLengths, /**< List of edge lengths with which to perform calculations (input) */
+                                            int count); /**< Length of lists */
 
 // calculate or queue for calculation partials using an array of operations
 //
@@ -172,30 +174,31 @@ int updateTransitionMatrices(
  *
  * LONG DESCRIPTION
  *
- * Format of operations list: {destinationPartialsIndex,
- *                             child1PartialsIndex
- *                             child1TransitionMatrixIndex,
- *                             child2PartialsIndex,
- *                             child2TransitionMatrixIndex}
+ * Operations list is a list of 5-tuple integer indices, with one 5-tuple per operation.
+ * Format of 5-tuple operation: {destinationPartials,
+ *                               child1Partials,
+ *                               child1TransitionMatrix,
+ *                               child2Partials,
+ *                               child2TransitionMatrix}
  *
  */
 int updatePartials(
-                       int* instance,
-                       int instanceCount,
-					   int* operations,
-					   int operationCount,
-					   int rescale);
+                       int* instance, 		/**< List of instances for which to update partials buffers (input) */
+                       int instanceCount, 	/**< Length of instance list (input) */
+					   int* operations, 	/**< List of 5-tuples specifying operations (input) */
+					   int operationCount, 	/**< Number of operations (input) */
+					   int rescale); 		/**< Specify whether (=1) or not (=0) to recalculate scaling factors */
 
 // calculate the site log likelihoods at a particular node
 //
 // rootNodeIndex the index of the root
 // outLogLikelihoods an array into which the site log likelihoods will be put
 int calculateRootLogLikelihoods(
-                             int instance,
-		                     const int* bufferIndices,
-		                     int count,
-		                     const double* weights,
+                             int instance, /**< Instance number (input) */
+		                     const int* bufferIndices, /**< List of partialsBuffer indices to integrate (input) */
+		                     const double* weights, /**< List of weights to apply t each partialsBuffer (input) */
 		                     const double** stateFrequencies,
+		                     int count,
 			                 double* outLogLikelihoods);
 
 // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
@@ -207,9 +210,9 @@ int calculateEdgeLogLikelihoods(
 		                     const int* probabilityIndices,
 		                     const int* firstDerivativeIndices,
 		                     const int* secondDerivativeIndices,
-		                     int count,
 		                     const double* weights,
 		                     const double** stateFrequencies,
+		                     int count,
 		                     double* outLogLikelihoods,
 			                 double* outFirstDerivatives,
 			                 double* outSecondDerivatives);
