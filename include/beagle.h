@@ -10,7 +10,8 @@
 #define __beagle__
 
 enum BeagleReturnCodes {
-	NO_ERROR = 0
+	NO_ERROR = 0,
+	OUT_OF_MEMORY_ERROR;
 };
 
 enum BeagleFlags {
