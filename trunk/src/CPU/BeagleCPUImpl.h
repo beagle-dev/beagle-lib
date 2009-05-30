@@ -37,7 +37,10 @@ private:
 	std::vector<int*> tipStates;
 	std::vector< std::vector<double> > transitionMatrices; // one for each matrixCount
 
-
+	////BEGIN edge Like Hack
+	double * TEMP_SCRATCH_PARTIAL;
+	std::vector<double> TEMP_IDENTITY_MATRIX;
+	////END edge Like Hack
 public:
 	virtual ~BeagleCPUImpl();
 	// initialization of instance,  returnInfo can be null

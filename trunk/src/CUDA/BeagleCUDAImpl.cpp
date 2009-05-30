@@ -1,3 +1,4 @@
+#if 0
 /*
  *  BeagleCUDAImpl.cpp
  *  BEAGLE
@@ -1152,3 +1153,6 @@ BeagleImpl*  BeagleCUDAImplFactory::createImpl(
 const char* BeagleCUDAImplFactory::getName() {
 	return "CUDA";
 }
+
+
+#endif
