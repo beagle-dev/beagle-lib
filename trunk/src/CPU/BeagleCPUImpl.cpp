@@ -26,13 +26,12 @@ int BeagleCPUImpl::initialize(	int bufferCount,
 					int stateCount,
 					int patternCount,
 					int eigenDecompositionCount,
-					int matrixCount);
-
+					int matrixCount)
 {
 	
 	kBufferCount = bufferCount;
-	kTipCount = tipCount;
-	assert(bufferCount > tipCount);
+	kTipCount = maxTipStateCount;
+	assert(bufferCount > kTipCount);
 	kStateCount = stateCount;
 	kPatternCount = patternCount;
 	kMatrixCount = matrixCount;
@@ -69,27 +68,31 @@ int BeagleCPUImpl::initialize(	int bufferCount,
 			throw std::bad_alloc();
 	}
 
-	branchLengths.resize(kNodeCount);
-	storedBranchLengths.resize(kNodeCount);
+	branchLengths.resize(kMatrixCount);
+	storedBranchLengths.resize(kMatrixCount);
 
 	// a temporary array used in calculating log likelihoods
 	integrationTmp.resize(patternCount * stateCount);
 
-	kPartialsSize = kPatternCount * stateCount * kCategoryCount;
+	kPartialsSize = kPatternCount * stateCount;
 
 	partials.assign(kBufferCount, 0L);
 	tipStates.assign(kTipCount, 0L);
     useTipPartials = false;
 
-	for (int i = kTipCount; i < kNodeCount; i++) {
+	for (int i = 0; i < kTipCount; i++) {
+		tipStates[i] = (int *)malloc(sizeof(int) * kPatternCount);
+	}
+	for (int i = kTipCount; i < kBufferCount; i++) {
 		partials[i] = (double *)malloc(sizeof(double) * kPartialsSize);
 		if (partials[i] == 0L)
 			throw std::bad_alloc();
 	}
 
 
+
 	std::vector<double> emptyMat(kMatrixSize);
-	std::vector<double> matrixCount(kMatrixCount, emptyMat);
+	transitionMatrices.assign(kMatrixCount, emptyMat);
 	
 	fprintf(stderr,"done through here!\n");
 	return SUCCESS;
@@ -102,14 +105,12 @@ BeagleCPUImpl::~BeagleCPUImpl()
 
 void BeagleCPUImpl::setPartials(int bufferIndex, const double* inPartials)
 {
-	partials[0][tipIndex] = (double *)malloc(sizeof(double) * kPartialsSize);
-	int k = 0;
-	for (int i = 0; i < kCategoryCount; i++) {
-		// set the partials identically for each matrix
-		memcpy(partials[0][tipIndex] + k, inPartials, sizeof(double) * kPatternCount * stateCount);
-		k += kPatternCount * stateCount;
-	}
-    useTipPartials = true;
+	assert(partials[bufferIndex] == 0L);
+	partials[bufferIndex] = (double *)malloc(sizeof(double) * kPartialsSize);
+	if (partials[i] == 0L)
+		return OUT_OF_MEMORY_ERROR;
+	memcpy(partials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
+	return NO_ERROR;
 }
 
 
