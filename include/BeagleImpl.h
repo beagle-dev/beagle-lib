@@ -20,12 +20,13 @@ class BeagleImpl {
 public:
 	virtual ~BeagleImpl(){}
 	virtual int initialize(
-			int bufferCount,
-			int tipCount,
-			int stateCount,
-			int patternCount,
-			int eigenDecompositionCount,
-			int matrixCount) = 0;
+			    int tipCount,
+				int partialsBufferCount,
+				int compactBufferCount,
+				int stateCount,
+				int patternCount,
+				int eigenBufferCount,
+				int matrixBufferCount) = 0;
 
 	virtual int setPartials(
 			int bufferIndex,
