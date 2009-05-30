@@ -28,6 +28,7 @@ int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactB
 	kStateCount = stateCount;
 	kPatternCount = patternCount;
 	kMatrixCount = matrixCount;
+	kEigenDecompCount = eigenDecompositionCount;
 
 	kMatrixSize = (1 + stateCount) * stateCount;
 
@@ -188,10 +189,6 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
 			transitionMat[n] = 1.0;
 			n++;
 		}
-		if (kMatrixCount > 1) {
-			eigenIndex++;
-		}
-
 	}
 	return NO_ERROR;
 }
@@ -200,12 +197,19 @@ int BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
 
 	int x = 0;
 	for (int op = 0; op < count; op++) {
-		const int parIndex = operations[x++];
-		const int child1Index = operations[x++];
-		const int child1TransMatIndex = operations[x++];
-		const int child2Index = operations[x++];
-		const int child2TransMatIndex = operations[x++];
+		std::cerr << "op[0]= " << operations[0] << "\n";
+		std::cerr << "op[1]= " << operations[1] << "\n";
+		std::cerr << "op[2]= " << operations[2] << "\n";
+		std::cerr << "op[3]= " << operations[3] << "\n";
+		std::cerr << "op[4]= " << operations[4] << "\n";
+		const int parIndex = operations[op*5];
+		const int child1Index = operations[op*5 + 1];
+		const int child1TransMatIndex = operations[op*5 + 2];
+		const int child2Index = operations[op*5 + 3];
+		const int child2TransMatIndex = operations[op*5 + 4];
 
+		std::cerr << "parIndex " << operations[4] << "\n";
+	
 		assert(parIndex < partials.size());
 		assert(parIndex >= tipStates.size());
 		assert(child1Index < partials.size());
@@ -343,6 +347,9 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 	// this shouldn't be set to 0 here (we should do it in the loop)
 	for (int k = 0; k < kPatternCount; k++)
 		outLogLikelihoods[k] = 0.0;
+		
+	std::cerr << "stateFrequencies = " << (long) stateFrequencies << '\n';
+	std::cerr << "stateFrequencies[0] = " << (long) stateFrequencies[0] << '\n';
 
 	for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
 		assert(subsetIndex < partials.size());

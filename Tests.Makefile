@@ -7,13 +7,14 @@ STATE_COUNT = 4
 ############
 
 
-OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
+#OPTIONS		:= -O0 -fast  -funroll-loops -ffast-math -fstrict-aliasing
 
 ############################################################
 
 
+
 default :
-	g++ -o tinytest -O3 -fast $(OPTIONS) $(CXX_FLAGS)	 \
+	g++ -o tinytest $(OPTIONS) $(CXX_FLAGS)	 \
 		-D STATE_COUNT=$(STATE_COUNT) \
 		-Iinclude/ \
 		src/beagle.cpp \

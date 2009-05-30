@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <iostream>
 
 #include "beagle.h"
 
@@ -117,8 +118,8 @@ int main( int argc, const char* argv[] )
 
     int stateCount = 4;
 
-	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-
+//	double **freqs = {{ 0.25, 0.25, 0.25, 0.25 }};
+	double *freqs = (double *)malloc(sizeof(double) * stateCount);
 	double rates[1] = { 1.0 };
 
 	double props[1] = { 1.0 };
@@ -142,6 +143,7 @@ int main( int argc, const char* argv[] )
 	double **ivecP = (double **)malloc(sizeof(double*) * stateCount);
 
 	for (int i = 0; i < stateCount; i++) {
+		freqs[i] = 0.25;
 		evecP[i] = (double *)malloc(sizeof(double) * stateCount);
 		ivecP[i] = (double *)malloc(sizeof(double) * stateCount);
 		for (int j = 0; j < stateCount; j++) {
@@ -177,10 +179,14 @@ int main( int argc, const char* argv[] )
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
+	const double **f = (const double **) &freqs;
+	std::cerr << "in tinytest.cpp stateFrequencies = " << (long) f << '\n';
+	std::cerr << "in tinytest.cpp stateFrequencies[0] = " << (long) f[0] << '\n';
+
 	calculateRootLogLikelihoods(instance,           // instance
 	                            (const int *)&rootIndex,         // bufferIndices
 	                            (const double *)props,              // weights
-	                            (const double **)&freqs,             // stateFrequencies
+	                            (const double **)f,             // stateFrequencies
 	                            1,                  // count
 	                            patternLogLik);     // outLogLikelihoods
 
