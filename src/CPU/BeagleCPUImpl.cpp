@@ -20,64 +20,6 @@
 #endif
 
 
-
-	// set the states for a given tip
-	//
-	// tipIndex the index of the tip
-	// inStates the array of states: 0 to stateCount - 1, missing = stateCount
-	int setTipStates(int tipIndex, const int* inStates);
-
-	// set the vector of state frequencies
-	//
-	// stateFrequencies an array containing the state frequencies
-	int setStateFrequencies(int* instance, const double* inStateFrequencies);
-	
-	// sets the Eigen decomposition for a given matrix
-	//
-	// matrixIndex the matrix index to update
-	// eigenVectors an array containing the Eigen Vectors
-	// inverseEigenVectors an array containing the inverse Eigen Vectors
-	// eigenValues an array containing the Eigen Values
-	int setEigenDecomposition(	int eigenIndex,
-							  	const double** inEigenVectors,
-							  	const double** inInverseEigenVectors,
-						 		const double* inEigenValues);
-	
-	int setTransitionMatrix(int matrixIndex, const double* inMatrix);
-																					   
-	
-	// calculate a transition probability matrices for a given list of node. This will
-	// calculate for all categories (and all matrices if more than one is being used).
-	//
-	// nodeIndices an array of node indices that require transition probability matrices
-	// edgeLengths an array of expected lengths in substitutions per site
-	// count the number of elements in the above arrays
-	int updateTransitionMatrices(	int eigenIndex,
-									const int* probabilityIndices,
-									const int* firstDerivativeIndices,
-									const int* secondDervativeIndices,
-									const double* edgeLengths,
-									int count);                                                   
-	
-	// calculate or queue for calculation partials using an array of operations
-	//
-	// operations an array of triplets of indices: the two source partials and the destination
-	// dependencies an array of indices specify which operations are dependent on which (optional)
-	// count the number of operations
-	// rescale indicate if partials should be rescaled during peeling
-	int updatePartials(	int* operations,					
-					   int operationCount,
-					   int rescale);
-	
-	// calculate the site log likelihoods at a particular node
-	//
-	// rootNodeIndex the index of the root
-	// outLogLikelihoods an array into which the site log likelihoods will be put
-	int calculateRootLogLikelihoods(const int* bufferIndices,
-									int count,
-									const double* weights,
-									const double** stateFrequencies,		                     
-									double* outLogLikelihoods);
 	
 	// possible nulls: firstDerivativeIndices, secondDerivativeIndices,
 	//                 outFirstDerivatives, outSecondDerivatives 
@@ -200,7 +142,7 @@ assert(false);
 
 void BeagleCPUImpl::setTipStates(
 				  int tipIndex,
-				  int* inStates)
+				  const int* inStates)
 {
     tipStates[tipIndex] = (int *)malloc(sizeof(int) * kPatternCount * kCategoryCount);
 	int k = 0;
@@ -212,16 +154,16 @@ void BeagleCPUImpl::setTipStates(
 	}
 }
 
-void BeagleCPUImpl::setStateFrequencies(double* inStateFrequencies)
+void BeagleCPUImpl::setStateFrequencies(const double* inStateFrequencies)
 {
 	memcpy(frequencies, inStateFrequencies, sizeof(double) * STATE_COUNT);
 }
 
 void BeagleCPUImpl::setEigenDecomposition(
-						   int matrixIndex,
-						   double** inEigenVectors,
-						   double** inInverseEigenVectors,
-						   double* inEigenValues)
+						   int eigenIndex,
+						   const double** inEigenVectors,
+						   const double** inInverseEigenVectors,
+						   const double* inEigenValues)
 {
 
 	int l =0;
@@ -237,19 +179,19 @@ void BeagleCPUImpl::setEigenDecomposition(
 	}
 }
 
-void BeagleCPUImpl::setCategoryRates(double* inCategoryRates)
+
+int BeagleCPUImpl::setTransitionMatrix(int matrixIndex, const double* inMatrix) 
 {
-	memcpy(categoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
+assert(false);
 }
 
-void BeagleCPUImpl::setCategoryProportions(double* inCategoryProportions)
-{
-	memcpy(categoryProportions, inCategoryProportions, sizeof(double) * kCategoryCount);
-}
 
-void BeagleCPUImpl::calculateProbabilityTransitionMatrices(
-                                            int* nodeIndices,
-                                            double* branchLengths,
+void BeagleCPUImpl::updateTransitionMatrices(
+											int eigenIndex,
+											const int* probabilityIndices,
+											const int* firstDerivativeIndices,
+											const int* secondDervativeIndices,
+											const double* edgeLengths,
                                             int count)
 {
 	static double tmp[STATE_COUNT];
@@ -293,9 +235,8 @@ void BeagleCPUImpl::calculateProbabilityTransitionMatrices(
 
 }
 
-void BeagleCPUImpl::calculatePartials(
+void BeagleCPUImpl::updatePartials(
 					   int* operations,
-					   int* dependencies,
 					   int count,
 					   int rescale)
 {
@@ -600,9 +541,12 @@ void BeagleCPUImpl::updatePartialsPartials(int nodeIndex1, int nodeIndex2, int n
 #endif
 }
 
-void BeagleCPUImpl::calculateLogLikelihoods(
-							 int rootNodeIndex,
-							 double* outLogLikelihoods)
+void BeagleCPUImpl::calculateRootLogLikelihoods(
+	const int* bufferIndices,
+	int count,
+	const double* weights,
+	const double** stateFrequencies,		                     
+	double* outLogLikelihoods)
 {
 
 	double* rootPartials = partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
@@ -654,58 +598,19 @@ void BeagleCPUImpl::calculateLogLikelihoods(
 //    printArray("outLogLikelihoods", outLogLikelihoods, kPatternCount);
 }
 
-// store the current state of all partials and matrices
-void BeagleCPUImpl::storeState()
+
+int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
+								 const int* childBufferIndices,		                   
+								 const int* probabilityIndices,
+								 const int* firstDerivativeIndices,
+								 const int* secondDerivativeIndices,
+								 int count,
+								 const double* weights,
+								 const double** stateFrequencies,
+								 double* outLogLikelihoods,
+								 double* outFirstDerivatives,
+								 double* outSecondDerivatives)
 {
-	for (int i = 0; i < kMatrixCount; i++) {
-		memcpy(storedCMatrices[i], cMatrices[i], sizeof(double) * STATE_COUNT * STATE_COUNT * STATE_COUNT);
-		memcpy(storedEigenValues[i], eigenValues[i], sizeof(double) * STATE_COUNT);
-	}
-
-	memcpy(storedFrequencies, frequencies, sizeof(double) * STATE_COUNT);
-	memcpy(storedCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
-	memcpy(storedCategoryProportions, categoryProportions, sizeof(double) * kCategoryCount);
-	memcpy(storedBranchLengths, branchLengths, sizeof(double) * kNodeCount);
-
-	memcpy(storedMatricesIndices, currentMatricesIndices, sizeof(int) * kNodeCount);
-	memcpy(storedPartialsIndices, currentPartialsIndices, sizeof(int) * kNodeCount);
-}
-
-// restore the stored state after a rejected move
-void BeagleCPUImpl::restoreState()
-{
-	// Rather than copying the stored stuff back, just swap the pointers...
-	double** tmp = cMatrices;
-	cMatrices = storedCMatrices;
-	storedCMatrices = tmp;
-
-	tmp = eigenValues;
-	eigenValues = storedEigenValues;
-	storedEigenValues = tmp;
-
-	double *tmp1 = frequencies;
-	frequencies = storedFrequencies;
-	storedFrequencies = tmp1;
-
-	tmp1 = categoryRates;
-	categoryRates = storedCategoryRates;
-	storedCategoryRates = tmp1;
-
-	tmp1 = categoryProportions;
-	categoryProportions = storedCategoryProportions;
-	storedCategoryProportions = tmp1;
-
-	tmp1 = branchLengths;
-	branchLengths = storedBranchLengths;
-	storedBranchLengths = tmp1;
-
-	int* tmp2 = currentMatricesIndices;
-	currentMatricesIndices = storedMatricesIndices;
-	storedMatricesIndices = tmp2;
-
-	tmp2 = currentPartialsIndices;
-	currentPartialsIndices = storedPartialsIndices;
-	storedPartialsIndices = tmp2;
 }
 
 BeagleImpl*  BeagleCPUImplFactory::createImpl(
