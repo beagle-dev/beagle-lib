@@ -21,6 +21,7 @@
 
 class BeagleImpl {
 public:
+	virtual ~BeagleImpl(){}
 	virtual int initialize(
 			int bufferCount,
 			int tipCount,

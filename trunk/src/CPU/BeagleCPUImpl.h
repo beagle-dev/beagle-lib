@@ -74,7 +74,7 @@ public:
 	// set the vector of state frequencies
 	//
 	// stateFrequencies an array containing the state frequencies
-	int setStateFrequencies(int* instance, const double* inStateFrequencies);
+	int setStateFrequencies(const double* inStateFrequencies);
 	
 	// sets the Eigen decomposition for a given matrix
 	//
