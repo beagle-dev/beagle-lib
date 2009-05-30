@@ -164,16 +164,13 @@ int updateTransitionMatrices(
                                             const double* edgeLengths, /**< List of edge lengths with which to perform calculations (input) */
                                             int count); /**< Length of lists */
 
-// calculate or queue for calculation partials using an array of operations
-//
-// operations an array of triplets of indices: the two source partials and the destination
-// dependencies an array of indices specify which operations are dependent on which (optional)
-// count the number of operations
-// rescale indicate if partials should be rescaled during peeling
 /**
- * @brief Update or enqueue to update partialsBuffer
+ * @brief Calculate or queue for calculation partials using a list of operations
  *
- * LONG DESCRIPTION
+ * This function either calculates or queues for calculation a list partials. Implementations
+ * supporting SYCH may queue these calculations while other implementations perform these
+ * operations immediately.  Implementations supporting GPU may perform all operations in the list
+ * simultaneously.
  *
  * Operations list is a list of 5-tuple integer indices, with one 5-tuple per operation.
  * Format of 5-tuple operation: {destinationPartials,
@@ -190,10 +187,12 @@ int updatePartials(
 					   int operationCount, 	/**< Number of operations (input) */
 					   int rescale); 		/**< Specify whether (=1) or not (=0) to recalculate scaling factors */
 
-// calculate the site log likelihoods at a particular node
-//
-// rootNodeIndex the index of the root
-// outLogLikelihoods an array into which the site log likelihoods will be put
+/**
+ * @brief Calculate site log likelihoods at a root node
+ *
+ * This function integrates a list of partials with respect to a set of partials-weights and
+ * state frequencies to return the log likelihoods for each site
+ */
 int calculateRootLogLikelihoods(
                              int instance, /**< Instance number (input) */
 		                     const int* bufferIndices, /**< List of partialsBuffer indices to integrate (input) */
