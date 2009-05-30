@@ -1,5 +1,5 @@
 CPP 		= g++
-CPP_FLAGS 	= -g -O3 -I. -I../../include
+CPP_FLAGS 	= -g -O0 -I. -I../../include
 LD_FLAGS	= -L../../lib/
 
 .cpp.o:
