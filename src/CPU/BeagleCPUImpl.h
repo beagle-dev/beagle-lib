@@ -144,12 +144,14 @@ public:
 class BeagleCPUImplFactory : public BeagleImplFactory {
     public:
     	virtual BeagleImpl* createImpl(
-								int bufferCount,
-								int tipCount,
-								int stateCount,
-								int patternCount,
-								int eigenDecompositionCount,
-								int matrixCount);
+			    int tipCount,				/**< Number of tip data elements (input) */
+				int partialsBufferCount,	/**< Number of partials buffers to create (input) */
+				int compactBufferCount,		/**< Number of compact state representation buffers to create (input) */
+				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
+				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
+				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
+				);
 
     	virtual const char* getName();
 };
