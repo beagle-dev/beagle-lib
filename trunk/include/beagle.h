@@ -28,46 +28,62 @@
 #ifndef __beagle__
 #define __beagle__
 
+/**
+ * @anchor BEAGLE_RETURN_CODES
+ *
+ * @brief Error return codes
+ *
+ * This enumerates all possible BEAGLE return codes.  Error codes are always negative.
+ */
 enum BeagleReturnCodes {
 	NO_ERROR = 0,
 	GENERAL_ERROR = -1,
 	OUT_OF_MEMORY_ERROR = -2
 };
 
+/**
+ * @anchor BEAGLE_FLAGS
+ *
+ * @brief Hardware and implementation capability flags
+ *
+ * This enumerates all possible hardware and implementation capability flags.
+ * Each capability is a bit in a 'long'
+ */
 enum BeagleFlags {
-	DOUBLE	=1<<0, /**< Request/require double precision computation */
-	SINGLE	=1<<1, /**< same */
-	ASYNCH	=1<<2,
-	SYNCH	=1<<3,
-	CPU		=1<<16,
-	GPU		=1<<17,
-	FPGA	=1<<18,
-	SSE		=1<<19,
-	CELL	=1<<20
+	DOUBLE	=1<<0,	/**< Request/require double precision computation */
+	SINGLE	=1<<1,	/**< Request/require single precision computation */
+	ASYNCH	=1<<2,	/**< Request/require asynchronous computation */
+	SYNCH	=1<<3,	/**< Request/require synchronous computation */
+	CPU		=1<<16,	/**< Request/require CPU */
+	GPU		=1<<17,	/**< Request/require GPU */
+	FPGA	=1<<18,	/**< Request/require FPGA */
+	SSE		=1<<19, /**< Request/require SSE */
+	CELL	=1<<20	/**< Request/require Cell */
 };
 
-
 /**
- * @brief Structure includes information about a specific instance
- *
- * LONG DESCRIPTION
- *
+ * @brief Information about a specific instance
  */
 typedef struct {
 	int resourceNumber; /**< Resource upon which instance is running */
 	int flags; 			/**< Bit-flags that characterize this instance's resource */
 } InstanceDetails;
 
+/**
+ * @brief Description of a hardware resource
+ */
 typedef struct {
-	char* name;
-	long flag;
+	char* name; /**< Name of resource as a NULL-terminated character string */
+	long flag; /**< Bit-flag capabilities on resource */
 } Resource;
 
+/**
+ * @brief List of hardware resources
+ */
 typedef struct {
-	Resource* list;
-	int length;
+	Resource* list; /**< Pointer list of resources */
+	int length; /**< Length of list */
 } ResourceList;
-
 
 /**
  * @brief
@@ -76,7 +92,6 @@ typedef struct {
  *
  * @return A list of resources available to the library as a ResourceList array
  */
-// returns a list of computing resources
 ResourceList* getResourceList();
 
 /**
@@ -86,7 +101,7 @@ ResourceList* getResourceList();
  * multiple times to create multiple data partition instances each returning a unique
  * identifier.
  *
- * @return the unique instance identifier (<0 if failed, see BeagleReturnCodes)
+ * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES "BeagleReturnCodes")
  */
 int createInstance(
 			    int tipCount,				/**< Number of tip data elements (input) */
@@ -102,48 +117,74 @@ int createInstance(
 				int requirementFlags		/**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				);
 
-// initialization of instance,  returnInfo can be null
+/**
+ * @brief Initialize the instance
+ *
+ * This function initializes the instance by selecting the hardware upon this instance will run,
+ * allocating memory and populating this memory of values that may have been set.
+ *
+ * @returns Information about the implementation and hardware on which this instance will run
+ */
 int initializeInstance(
 						int instance,		/**< Instance number to initialize (input) */
-						InstanceDetails* returnInfo);
+						InstanceDetails* returnInfo); /**< Pointer to return hardware details */
 
-
-// finalize and dispose of memory allocation if needed
+/**
+ * @brief Finalize this instance
+ *
+ * This function finalizes the instance by releasing allocated memory
+ *
+ * @return error code
+ */
 int finalize(
-		int instance);
+		int instance); /**< Instance number */
 
-// set the partials for a given tip
-//
-// tipIndex the index of the tip
-// inPartials the array of partials, stateCount x patternCount
+/**
+ * @brief Set an instance partials buffer
+ *
+ * This function copies an array of partials into an instance buffer.
+ *
+ * @return error code
+ */
 int setPartials(
                     int instance,				/**< Instance number in which to set a partialsBuffer (input) */
              		int bufferIndex,			/**< Index of destination partialsBuffer (input) */
 					const double* inPartials);	/**< Pointer to partials values to set (input) */
 
+/**
+ * @brief Get partials from an instance buffer
+ *
+ * This function copies an instance buffer into the array outPartials
+ *
+ * @return error code
+ */
 int getPartials(
 		int instance,			/**< Instance number from which to get partialsBuffer (input) */
 		int bufferIndex, 		/**< Index of source partialsBuffer (input) */
 		double *outPartials		/**< Pointer to which to receive partialsBuffer (output) */
 		);
 
-// set the states for a given tip
-//
-// tipIndex the index of the tip
-// inStates the array of states: 0 to stateCount - 1, missing = stateCount
+/**
+ * @brief Set the compressed state representation for tip node
+ *
+ * This function copies a compressed state representation into a instance buffer.
+ * Compressed state representation is an array of states: 0 to stateCiunt - 1 (missing = stateCount)
+ *
+ * @return error code
+ */
 int setTipStates(
                   int instance,			/**< Instance number (input) */
 				  int tipIndex,			/**< Index of destination compressedBuffer (input) */
 				  const int* inStates); /**< Pointer to compressed states (input) */
 
-
-
-// sets the Eigen decomposition for a given matrix
-//
-// matrixIndex the matrix index to update
-// eigenVectors an array containing the Eigen Vectors
-// inverseEigenVectors an array containing the inverse Eigen Vectors
-// eigenValues an array containing the Eigen Values
+/**
+ * @brief Set an eigen-decomposition buffer
+ *
+ * This function copies an eigen-decomposition into a instance buffer.
+ *
+ * DISCUSSION POINT: Should we transfer 2D matrices in flatten formed,
+ * consistent with setTransitionMatrix()?
+ */
 int setEigenDecomposition(
                            int instance,							/**< Instance number (input) */
 						   int eigenIndex,							/**< Index of eigen-decomposition buffer (input) */
@@ -151,17 +192,23 @@ int setEigenDecomposition(
 						   const double** inInverseEigenVectors,	/**< 2D matrix of inverse-eigen-vectors (input) */
 						   const double* inEigenValues); 			/**< 2D vector of eigenvalues*/
 
-int setTransitionMatrix(	int instance,
-                			int matrixIndex,
-                			const double* inMatrix);
+/**
+ * @brief Set a finite-time transition probability matrix
+ *
+ * This function copies a finite-time transition probability matrix into a matrix buffer.
+ */
+int setTransitionMatrix(	int instance,				/**< Instance number (input)  */
+                			int matrixIndex,			/**< Index of matrix buffer (input) */
+                			const double* inMatrix);	/**< Pointer to source transition probability matrix (input) */
 
-
-// calculate a transition probability matrices for a given list of node. This will
-// calculate for all categories (and all matrices if more than one is being used).
-//
-// nodeIndices an array of node indices that require transition probability matrices
-// edgeLengths an array of expected lengths in substitutions per site
-// count the number of elements in the above arrays
+/**
+ * @brief Calculate a list of transition probability matrices
+ *
+ * This function calculates a list of transition probabilities matrices and their first and
+ * second derivatives (if requested).
+ *
+ * @return error code
+ */
 int updateTransitionMatrices(
                                             int instance,	/**< Instance number (input) */
                                             int eigenIndex,	/**<  Index of eigen-decomposition buffer (input) */
