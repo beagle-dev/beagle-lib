@@ -36,8 +36,10 @@ CUFILES	:= ./src/CUDA/CUDASharedFunctions.c	\
 		   ./src/CUDA/CUDASharedFunctions_kernel.cu \
 		   ./src/CUDA/beagleCUDA.c \
 		   ./src/CUDA/TransitionProbabilities_kernel.cu \
-		   ./src/CUDA/Peeling_kernel.cu \
-		   ./java/JNI/beagle_BeagleJNIWrapper.c
+		   ./src/CUDA/Peeling_kernel.cu 
+
+
+#		   ./java/JNI/beagle_BeagleJNIWrapper.c
 		   
 CUFILES_CPP	:=	src/CUDA/CUDASharedFunctions.c	\
 				src/CUDA/Queue.cpp \
@@ -46,8 +48,10 @@ CUFILES_CPP	:=	src/CUDA/CUDASharedFunctions.c	\
 				src/CUDA/TransitionProbabilities_kernel.cu \
 				src/CUDA/Peeling_kernel.cu \
 				src/beagle.cpp \
-				java/JNI/beagle_BeagleJNIWrapper.cpp \
 				lib/BeagleCPUImpl.o	   
+
+
+#				java/JNI/beagle_BeagleJNIWrapper.cpp \
 		   		  
 CUFILES_TIP	:=	src/CUDA/CUDASharedFunctions.c	\
 				src/CUDA/Queue.cpp \
@@ -56,8 +60,10 @@ CUFILES_TIP	:=	src/CUDA/CUDASharedFunctions.c	\
 				src/CUDA/TransitionProbabilities_kernel.cu \
 				src/CUDA/Peeling_kernel.cu \
 				src/beagle.cpp \
-				java/JNI/beagle_BeagleJNIWrapper.cpp \
 				lib/BeagleCPUImpl.o			   		   
+
+
+#				java/JNI/beagle_BeagleJNIWrapper.cpp \
 		   		   
 OPTIONS		:= -funroll-loops -ffast-math -fstrict-aliasing
 		         		       		      
