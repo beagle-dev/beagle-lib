@@ -11,7 +11,7 @@
 
 enum BeagleReturnCodes {
 	NO_ERROR = 0,
-	OUT_OF_MEMORY_ERROR;
+	OUT_OF_MEMORY_ERROR
 };
 
 enum BeagleFlags {
