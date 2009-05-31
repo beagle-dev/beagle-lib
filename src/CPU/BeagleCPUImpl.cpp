@@ -121,9 +121,6 @@ int BeagleCPUImpl::setPartials(int bufferIndex, const double* inPartials) {
 	if (partials[bufferIndex] == 0L)
 		return OUT_OF_MEMORY_ERROR;
 	memcpy(partials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
-	std::cout << kPartialsSize << "blah" << std::endl;
-	for(int i=0;i<kPartialsSize;i++)
-		std::cout << partials[bufferIndex][i] << "\t" << i << std::endl;
 	return NO_ERROR;
 }
 
