@@ -26,6 +26,7 @@ class FourTaxonExample
 		void initBeagleLib();
 		void readData();
 		void writeData();
+		void updateBrlen(unsigned brlen_index);
 		double calcLnL();
 		
 	private:
@@ -33,6 +34,9 @@ class FourTaxonExample
 		std::string					data_file_name;
 		const unsigned 				ntaxa;
 		unsigned 					nsites;
+		double						delta;
+		double						mu;
+		unsigned					seed;
 		std::vector<std::string>	taxon_name;
 		std::vector<CodedSequence> 	data;
 		std::vector<PartialVector> 	partial;

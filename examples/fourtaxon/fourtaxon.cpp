@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <fstream>
 #include <numeric>	// needed for accumulate algorithm
+#include <cmath>
 #include "fourtaxon.hpp"
 
 /*-----------------------------------------------------------------------------
@@ -33,11 +34,43 @@ void DeleteTwoDArray (double ** & ptr)
 		}
 	}
 
+unsigned rnseed = 1;
+	
+/*-----------------------------------------------------------------------------
+|	A uniform random number generator. Should initialize global variable
+|	`rnseed' to something before calling this function.
+*/
+double uniform()
+	{
+#	define MASK32BITS 0x00000000FFFFFFFFL
+#	define A 				397204094			// multiplier
+#	define M				2147483647			// modulus = 2^31 - 1
+#	define MASK_SIGN_BIT	0x80000000
+#	define MASK_31_BITS	0x7FFFFFFF
+	
+	unsigned	x, y;
+	uint64_t	w;
+	
+	w = (uint64_t)A * rnseed;
+	x = (unsigned)(w & MASK32BITS);
+	y = (unsigned)(w >> 32);
+	
+	y = (y << 1) | (x >> 31);		// isolate high-order 31 bits
+	x &= MASK_31_BITS;				// isolate low-order 31 bits
+	x += y;							// x'(i + 1) unless overflows
+	if (x & MASK_SIGN_BIT) 			// overflow check
+		x -= M;						// deal with overflow
+
+	rnseed = x;
+
+	return (1.0 / (M-2)) * (rnseed - 1);
+	}	
+
 /*-----------------------------------------------------------------------------
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : ntaxa(4), niters(0), nsites(0), instance_handle(-1)
+  : ntaxa(4), niters(0), nsites(0), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
 	{
 	}
 	
@@ -222,6 +255,46 @@ double FourTaxonExample::calcLnL()
 		
 	return std::accumulate(lnL.begin(), lnL.end(), 0.0);
 	}
+	
+/*-----------------------------------------------------------------------------
+|	Updates a single branch length using a simple sliding-window Metropolis-
+|	Hastings proposal. A window of width `delta' is centered over the current
+|	branch length (x0) and the proposed new branch length is chosen from a
+|	uniform(x0 - delta/2, x0 + delta/2) distribution.
+*/
+void FourTaxonExample::updateBrlen(
+  unsigned brlen_index)		/**< is the index of the branch length to update */
+	{
+	// current state is x0
+	double x0 = brlens[brlen_index];
+	
+	// proposed new state is x
+	double x = x0 - delta/2.0 + delta*uniform();
+	
+	// reflect back into valid range if necessary
+	if (x < 0.0)
+		x = -x;
+		
+	// branch length prior is exponential with mean mu
+	// (note: leaving out log(mu) because it will cancel anyway)
+	double log_prior_before = -x0/mu;
+	double log_prior_after  = -x/mu;
+	
+	// compute log-likelihood before and after move
+	// (not being particularly efficient here because we are testing the beagle library
+	// so the more calls to calcLnL the better)
+	double log_like_before = calcLnL();
+	brlens[brlen_index] = x;
+	double log_like_after = calcLnL();
+	
+	double log_accept_ratio = log_prior_after + log_like_after - log_prior_before - log_like_before;
+	double u = log(uniform());
+	if (u > log_accept_ratio)
+		{
+		// proposed new branch length rejected, restore original branch length
+		brlens[brlen_index] = x0;
+		}
+	}	
 
 /*-----------------------------------------------------------------------------
 |	Reads in the data file (which must be named fourtaxon.dat and must contain
@@ -230,6 +303,7 @@ double FourTaxonExample::calcLnL()
 */
 void FourTaxonExample::run()
 	{
+	::rnseed = seed;
 	readData();
 	initBeagleLib();
 	writeData();
@@ -237,11 +311,15 @@ void FourTaxonExample::run()
 	std::cout.setf(std::ios::showpoint);
 	std::cout.setf(std::ios::floatfield, std::ios::fixed);
 
-	std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::endl;
+	std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length" << std::endl;
 	for (unsigned rep = 1; rep <= niters; ++rep)
 		{
+		for (unsigned b = 0; b < 5; ++b)
+			updateBrlen(b);
 		std::cout << std::setw(12) << rep;
-		std::cout << std::setw(24) << std::setprecision(5) << calcLnL() << std::endl;
+		std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
+		std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
+		std::cout << std::endl;
 		}
 		
 	int code = finalize(
