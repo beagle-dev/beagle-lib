@@ -1,4 +1,5 @@
 #include "fourtaxon.hpp"
+#include <algorithm>
 using namespace std;
 
 /*-----------------------------------------------------------------------------
@@ -35,7 +36,7 @@ void DeleteTwoDArray (double ** & ptr)
 */
 FourTaxonExample::FourTaxonExample()
 	{
-	init();
+	//init();
 	}
 	
 /*-----------------------------------------------------------------------------
@@ -56,12 +57,9 @@ void FourTaxonExample::abort(
 void FourTaxonExample::init()
 	{
 	int code;
-	
-	taxon_name.resize(4);
-	data.resize(4);
 	partial.resize(4);
 	
-	// hard coded tree topology is (A,B,(C,D))
+	// hard coded tree topology is (A,B,(C,D))	
 	// where taxon order is A, B, C, D in the data file
 	// Assume nodes 0..3 are the tip node indices
 	// Assume node 4 is ancestor of A,B (0,1)
@@ -77,6 +75,8 @@ void FourTaxonExample::init()
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
 	operations.push_back(3);	// right child transition matrix index
+	
+	cout << "nsites\t" << nsites << endl;
 	
 	instance_handle = createInstance(
 				4,			// tipCount
@@ -96,18 +96,13 @@ void FourTaxonExample::init()
 		abort("createInstance returned a negative instance handle (and that's not good)");
 				
 	transition_matrix_index.resize(5);
-	transition_matrix_index.push_back(0);
-	transition_matrix_index.push_back(1);
-	transition_matrix_index.push_back(2);
-	transition_matrix_index.push_back(3);
-	transition_matrix_index.push_back(4);
-	
 	brlens.resize(5);
-	brlens.push_back(0.01);
-	brlens.push_back(0.02);
-	brlens.push_back(0.03);
-	brlens.push_back(0.04);
-	brlens.push_back(0.05);
+	for (unsigned brIndex = 0; brIndex < 5; ++brIndex)
+		{
+		transition_matrix_index[brIndex] = brIndex;
+		brlens[brIndex] = 0.01 + ((float)brIndex)/100.0;
+		}
+   
 	
 	for (unsigned i = 0; i < 4; ++i)
 		{
@@ -118,7 +113,6 @@ void FourTaxonExample::init()
 		if (code != 0)
 			abort("setPartials encountered a problem");
 		}
-		
 	double evec[4][4] = {
 		{ 1.0,  2.0,  0.0,  0.5},
 		{ 1.0,  -2.0,  0.5,  0.0},
@@ -190,8 +184,12 @@ double FourTaxonExample::calcLnL()
 	int childBufferIndex  = 5;
 	int transitionMatrixIndex  = 4;
 	double relativeRateProb  = 1.0;
-	double stateFreqs[] = {0.25, 0.25, 0.25, 0.25};
-	double lnL = 0.0;
+	//double stateFreqs[] = {0.25, 0.25, 0.25, 0.25};
+	double ** stateFreqs = NewTwoDArray(1,4);
+	for (int i=0;i<4;i++)
+		stateFreqs[0][i] = 0.25;
+
+	vector<double> lnL(nsites);
 	
 	code = calculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
@@ -201,16 +199,23 @@ double FourTaxonExample::calcLnL()
 		 NULL,								// firstDerivativeIndices
 		 NULL,								// secondDerivativeIndices
 		 (const double*)&relativeRateProb,	// weights
-		 (const double**)&stateFreqs,		// stateFrequencies,
+		 (const double**)stateFreqs,		// stateFrequencies,
 		 1,									// count
-		 &lnL,								// outLogLikelihoods,
+		 &lnL[0],								// outLogLikelihoods,
 		 NULL,								// outFirstDerivatives,
 		 NULL);								// outSecondDerivatives
 
 	if (code != 0)
 		abort("calculateEdgeLogLikelihoods encountered a problem");
 		
-	return lnL;
+	//return std::accumulate(lnL.begin(),lnL.end(),0.0);
+	double tot=0.0;
+	for(int i=0;i<nsites;i++){
+//		std::cout << lnL[i] << std::endl;
+		tot += lnL[i];
+		}
+	return tot;
+//	return lnL;
 	}
 
 /*-----------------------------------------------------------------------------
@@ -219,9 +224,10 @@ double FourTaxonExample::calcLnL()
 void FourTaxonExample::run()
 	{
 	readData("fourtaxon.dat");
+	init();
 	//writeData("example_data.check.txt");
 
-	unsigned nreps = 1000;
+	unsigned nreps = 1;
 	for (unsigned rep = 0; rep < nreps; ++rep)
 		{
 		std::cerr << rep << ": lnL = " << calcLnL() << std::endl;
@@ -238,11 +244,16 @@ void FourTaxonExample::run()
 */
 void FourTaxonExample::readData(const std::string file_name)
 	{
+	std::cerr << "opening " << file_name.c_str() << " ..." << std::endl;
 	std::string sequence;
 	std::ifstream inf(file_name.c_str());
 	if(!inf.good())
 		abort("problem reading datafile");
 	inf >> ntaxa >> nsites;
+	cout << "ntaxa\t" << ntaxa << "\tnsites\t" << nsites << endl;
+	taxon_name.resize(ntaxa);
+	data.resize(ntaxa);
+	partial.resize(ntaxa);
 	for (unsigned i = 0; i < ntaxa; ++i)
 		{
 		inf >> taxon_name[i];
@@ -337,6 +348,7 @@ void FourTaxonExample::writeData(const std::string file_name)
 */
 int main(int argc, char* argv[])
 	{
-	FourTaxonExample().run();
+	FourTaxonExample fte;
+	fte.run();
 	}
 	
