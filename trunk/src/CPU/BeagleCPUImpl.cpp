@@ -16,7 +16,11 @@
 #include "beagle.h"
 #include "BeagleCPUImpl.h"
 
-const bool DEBUGGING_OUTPUT = false;
+#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
+	const bool DEBUGGING_OUTPUT = true;
+#else
+	const bool DEBUGGING_OUTPUT = false;
+#endif
 
 int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactBufferCount,
 		int stateCount, int patternCount, int eigenDecompositionCount,
