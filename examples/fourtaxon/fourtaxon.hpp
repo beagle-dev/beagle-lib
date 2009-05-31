@@ -1,7 +1,5 @@
 #include <vector>
 #include <string>
-#include <iostream>
-#include <fstream>
 #include "beagle.h"
 
 typedef std::vector<int> CodedSequence;
@@ -20,17 +18,20 @@ class FourTaxonExample
 	{
 	public:
 		FourTaxonExample();
-		void abort(std::string msg);
-		void init();
+		void interpretCommandLineParameters(int argc, char* argv[]);
 		void run();
 		
 	private:
-		void readData(const std::string file_name);
-		void writeData(const std::string file_name);
+		void abort(std::string msg);
+		void initBeagleLib();
+		void readData();
+		void writeData();
 		double calcLnL();
 		
 	private:
-		unsigned 					ntaxa;
+		unsigned 					niters;
+		std::string					data_file_name;
+		const unsigned 				ntaxa;
 		unsigned 					nsites;
 		std::vector<std::string>	taxon_name;
 		std::vector<CodedSequence> 	data;
