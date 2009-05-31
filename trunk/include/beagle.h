@@ -38,7 +38,10 @@
 enum BeagleReturnCodes {
 	NO_ERROR = 0,
 	GENERAL_ERROR = -1,
-	OUT_OF_MEMORY_ERROR = -2
+	OUT_OF_MEMORY_ERROR = -2,
+	UNIDENTIFIED_EXCEPTION_ERROR = -3,
+	UNINITIALIZED_INSTANCE_ERROR = -4, /**< the instance index is out of range, or the instance has not been created */
+	OUT_OF_RANGE_ERROR = -5 /** one of the indices specfied exceeded the range of the array */
 };
 
 /**
@@ -222,7 +225,7 @@ int updateTransitionMatrices(
  * @brief Calculate or queue for calculation partials using a list of operations
  *
  * This function either calculates or queues for calculation a list partials. Implementations
- * supporting SYCH may queue these calculations while other implementations perform these
+ * supporting SYNCH may queue these calculations while other implementations perform these
  * operations immediately.  Implementations supporting GPU may perform all operations in the list
  * simultaneously.
  *
