@@ -14,34 +14,44 @@
 class BeagleCPUImpl : public BeagleImpl {
 
 private:
-	int kBufferCount;
-	int kTipCount;
-	int kPatternCount;
-	int kMatrixCount;
-	int kStateCount;
-	int kEigenDecompCount;
+	int kBufferCount; /// after initialize this will be partials.size() (we don't really need this field)
+	int kTipCount; /// after initialize this will be tipStates.size() (we don't really need this field, but it is handy)
+	int kPatternCount; /// the number of data patterns in each partial and tipStates element
+	int kMatrixCount; /// the number of transition matrices to alloc and store
+	int kStateCount; /// the number of states
+	int kEigenDecompCount; /// the number of eigen solutions to alloc and store
 
-	int kPartialsSize;
-	int kMatrixSize;
+	int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount 
+	int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
 
-	double** cMatrices;
-	double** storedCMatrices;
+	//@ the following eigen-calculation-related fields should be changed to vectors
+	//		of vectors
+	// each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
+	//	from the eigenVector matrix and inverse eigen vector matrix. Storing these
+	//	temps saves time in the updateTransitionMatrices()
+	double** cMatrices; 
+	// each element of eigenValues is a kStateCount array of eigenvalues
 	double** eigenValues;
-	double** storedEigenValues;
 
-	std::vector<double> branchLengths;
-	std::vector<double> storedBranchLengths;
-
-	std::vector<double> integrationTmp;
-
+	//@ the size of these pointers are known at alloc-time, so the partials and
+	//		tipStates field should be switched to vectors of vectors (to make 
+	//		memory management less error prone	
 	std::vector<double*> partials;
 	std::vector<int*> tipStates;
-	std::vector< std::vector<double> > transitionMatrices; // one for each matrixCount
 
-	////BEGIN edge Like Hack
+	// There will be kMatrixCount transitionMatrices.
+	// Each kStateCount x (kStateCount+1) matrix that is flattened 
+	//	into a single array
+	std::vector< std::vector<double> > transitionMatrices; 
+
+	////@@@
+	//BEGIN edge Like Hack  These two temporaries are used to turn the calculateEdgeLogLikelihoods
+	//	function into an inefficient call to calculateRootLogLikelihoods
+	//	this should go away!!!
 	double * TEMP_SCRATCH_PARTIAL;
 	std::vector<double> TEMP_IDENTITY_MATRIX;
 	////END edge Like Hack
+	////@@@
 public:
 	virtual ~BeagleCPUImpl();
 	// initialization of instance,  returnInfo can be null
@@ -134,11 +144,11 @@ public:
 								 double* outFirstDerivatives,
 								 double* outSecondDerivatives);
 
-	private:
+private:
 
-    void updateStatesStates(double * destP, const int * child0States, const double *child0TransMat, const int * child1States, const double *child1TransMat);
-    void updateStatesPartials(double * destP, const int * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
-    void updatePartialsPartials(double * destP, const double * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
+    void calcStatesStates(double * destP, const int * child0States, const double *child0TransMat, const int * child1States, const double *child1TransMat);
+    void calcStatesPartials(double * destP, const int * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
+    void calcPartialsPartials(double * destP, const double * child0States, const double *child0TransMat, const double * child1Partials, const double *child1TransMat);
 
 
 };
