@@ -18,120 +18,136 @@ public class BeagleJNIWrapper implements Beagle {
     public static final String LIBRARY_NAME = "BEAGLE";
 
     private int instance;
-    private final int stateCount;
 
-    public BeagleJNIWrapper(int stateCount) {
-        this.stateCount = stateCount;
-    }
+    public void initialize(int tipCount,
+                            int partialsBufferCount,
+                            int compactBufferCount,
+                            int stateCount,
+                            int patternCount,
+                            int eigenBufferCount,
+                            int matrixBufferCount,
+                            final int[] resourceList,
+                            int resourceCount,
+                            int preferenceFlags,
+                            int requirementFlags) {
 
-    public boolean canHandleTipPartials() {
-        return true;
-    }
-
-    public boolean canHandleTipStates() {
-        return true;
-    }
-
-    public boolean canHandleDynamicRescaling() {
-        return true;
-    }
-
-    public void initialize(int nodeCount, int tipCount, int patternCount, int categoryCount, int matrixCount) {
-        instance = initialize(nodeCount, tipCount, stateCount, patternCount, categoryCount, matrixCount);
+        // create instance and store instance handle
+        instance = createInstance(tipCount,
+                partialsBufferCount, compactBufferCount,
+                stateCount, patternCount, eigenBufferCount, matrixBufferCount,
+                resourceList, resourceCount, preferenceFlags, requirementFlags);
     }
 
     public void finalize() throws Throwable {
         finalize(instance);
     }
 
-    public void setTipPartials(int tipIndex, double[] partials) {
-        setTipPartials(instance, tipIndex, partials);
+    public void setPartials(int bufferIndex, final double[] partials) {
+        setPartials(instance, bufferIndex, partials);
     }
 
-    public void setTipStates(int tipIndex, int[] states) {
+    public void setTipStates(int tipIndex, final int[] states) {
         setTipStates(instance, tipIndex, states);
     }
 
-    public void setStateFrequencies(double[] stateFrequencies) {
-        setStateFrequencies(instance, stateFrequencies);
+    public void setEigenDecomposition(int eigenIndex,
+                                      final double[][] eigenVectors,
+                                      final double[][] inverseEigenValues,
+                                      final double[] eigenValues) {
+        setEigenDecomposition(instance, eigenIndex, eigenVectors, inverseEigenValues, eigenValues);
     }
 
-    public void setEigenDecomposition(int matrixIndex, double[][] eigenVectors, double[][] inverseEigenValues, double[] eigenValues) {
-        setEigenDecomposition(instance, matrixIndex, eigenVectors, inverseEigenValues, eigenValues);
+    public void setTransitionMatrix(int matrixIndex, final double[] inMatrix) {
+        setTransitionMatrix(instance, matrixIndex, inMatrix);
     }
 
-    public void setCategoryRates(double[] categoryRates) {
-        setCategoryRates(instance, categoryRates);
+
+    public void updateTransitionMatrices(int eigenIndex,
+                                         final int[] probabilityIndices,
+                                         final int[] firstDerivativeIndices,
+                                         final int[] secondDervativeIndices,
+                                         final double[] edgeLengths,
+                                         int count) {
+        updateTransitionMatrices(instance,
+                eigenIndex, probabilityIndices,
+                firstDerivativeIndices, secondDervativeIndices,
+                edgeLengths, count);
     }
 
-    public void setCategoryProportions(double[] categoryProportions) {
-        setCategoryProportions(instance, categoryProportions);
+    public void updatePartials(final int[] operations, int operationCount, boolean rescale) {
+        int[] instances = { instance };
+        updatePartials(instances, instances.length, operations, operationCount, rescale ? 1 : 0);
     }
 
-    public void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count) {
-        calculateProbabilityTransitionMatrices(instance, nodeIndices, branchLengths, count);
+    public void calculateRootLogLikelihoods(final int[] bufferIndices,
+                                            final double[] weights,
+                                            final double[][] stateFrequencies,
+                                            double[] outLogLikelihoods) {
+        calculateRootLogLikelihoods(instance, bufferIndices, weights, stateFrequencies, bufferIndices.length, outLogLikelihoods);
     }
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale) {
-        calculatePartials(instance, operations, dependencies, operationCount, rescale);
-    }
+//    public native ResourceList* getResourceList();
+//
+//    public native int initializeInstance(
+//						int instance,
+//						InstanceDetails* returnInfo);
 
-    public void calculateLogLikelihoods(int rootNodeIndex, double[] outLogLikelihoods) {
-        calculateLogLikelihoods(instance, rootNodeIndex, outLogLikelihoods);
-    }
+    public native int createInstance(int tipCount,
+                                     int partialsBufferCount,
+                                     int compactBufferCount,
+                                     int stateCount,
+                                     int patternCount,
+                                     int eigenBufferCount,
+                                     int matrixBufferCount,
+                                     final int[] resourceList,
+                                     int resourceCount,
+                                     int preferenceFlags,
+                                     int requirementFlags);
 
-    public void storeState() {
-        storeState(instance);
-    }
+    public native int initialize(int instance);
+    
+    public native int finalize(int instance);
 
-    public void restoreState() {
-        restoreState(instance);
-    }
+    public native int setPartials(int instance, int bufferIndex, final double[] inPartials);
 
-    public native int initialize(
-            int nodeCount,
-            int tipCount,
-            int stateCount,
-            int patternCount,
-            int categoryCount,
-            int matrixCount);
+    public native int getPartials(int instance, int bufferIndex, final double[] outPartials);
 
-    public native void finalize(int instance);
+    public native void setTipStates(int instance, int tipIndex, final int[] inStates);
 
-    public native void setTipPartials(int instance, int tipIndex, double[] partials);
+    public native void setEigenDecomposition(int instance,
+                                             int eigenIndex,
+                                             final double[][] eigenVectors,
+                                             final double[][] inverseEigenValues,
+                                             final double[] eigenValues);
 
-    public native void setTipStates(int instance, int tipIndex, int[] states);
+    public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
 
-    public native void setStateFrequencies(int instance, double[] stateFrequencies);
+    public native int updateTransitionMatrices(int instance, int eigenIndex,
+                                               final int[] probabilityIndices,
+                                               final int[] firstDerivativeIndices,
+                                               final int[] secondDervativeIndices,
+                                               final double[] edgeLengths,
+                                               int count);
 
-    public native void setEigenDecomposition(
-            int instance,
-            int matrixIndex,
-            double[][] eigenVectors,
-            double[][] inverseEigenValues,
-            double[] eigenValues);
+    public native int updatePartials(final int[] instance,
+                                     int instanceCount,
+                                     final int[] operations,
+                                     int operationCount,
+                                     int rescale);
 
-    public native void setCategoryRates(int instance, double[] categoryRates);
-
-    public native void setCategoryProportions(int instance, double[] categoryProportions);
-
-    public native void calculateProbabilityTransitionMatrices(int instance, int[] nodeIndices, double[] branchLengths, int count);
-
-    public native void calculatePartials(int instance, int[] operations, int[] dependencies, int operationCount, boolean rescale);
-
-    public native void calculateLogLikelihoods(int instance, int rootNodeIndex, double[] outLogLikelihoods);
-
-    public native void storeState(int instance);
-
-    public native void restoreState(int instance);
+    public native int calculateRootLogLikelihoods(int instance,
+                                                  final int[] bufferIndices,
+                                                  final double[] weights,
+                                                  final double[][] stateFrequencies,
+                                                  int count,
+                                                  double[] outLogLikelihoods);
 
     /* Library loading routines */
 
     public static class BeagleLoader implements BeagleFactory.BeagleLoader {
 
         public String getLibraryName(Map<String, Object> configuration) {
-            int stateCount = (Integer)configuration.get(BeagleFactory.STATE_COUNT);
-            return LIBRARY_NAME + "-" + stateCount;
+            return LIBRARY_NAME;
         }
 
         public Beagle createInstance(Map<String, Object> configuration) {
@@ -141,10 +157,8 @@ public class BeagleJNIWrapper implements Beagle {
             } catch (UnsatisfiedLinkError e) {
                 return null;
             }
-            
-            int stateCount = (Integer)configuration.get(BeagleFactory.STATE_COUNT);
 
-            return new BeagleJNIWrapper(stateCount);
+            return new BeagleJNIWrapper();
         }
     }
 }

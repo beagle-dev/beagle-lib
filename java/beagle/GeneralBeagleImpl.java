@@ -60,25 +60,17 @@ public class GeneralBeagleImpl implements Beagle {
         Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
     }
 
-    public boolean canHandleTipPartials() {
-        return true;
-    }
-
-    public boolean canHandleTipStates() {
-        return true;
-    }
-
-    public boolean canHandleDynamicRescaling() {
-        return true;
-    }
-
-
-    public void initialize(
-            int nodeCount,
-            int tipCount,
-            int patternCount,
-            int categoryCount,
-            int matrixCount) {
+    public void initialize(final int tipCount, 
+                           final int partialsBufferCount,
+                           final int compactBufferCount,
+                           final int stateCount,
+                           final int patternCount,
+                           final int eigenBufferCount,
+                           final int matrixBufferCount,
+                           final int[] resourceList,
+                           final int resourceCount,
+                           final int preferenceFlags,
+                           final int requirementFlags) {
 
         this.nodeCount = nodeCount;
         if (nodeCount < 3) {
@@ -178,6 +170,9 @@ public class GeneralBeagleImpl implements Beagle {
         storedMatricesIndices = null;
     }
 
+    public void setPartials(final int bufferIndex, final double[] partials) {
+    }
+
 
     /**
      * Sets partials for a tip
@@ -226,6 +221,18 @@ public class GeneralBeagleImpl implements Beagle {
             }
         }
         System.arraycopy(eigenValues, 0, this.eigenValues[matrixIndex], 0, eigenValues.length);
+    }
+
+    public void setTransitionMatrix(final int matrixIndex, final double[] inMatrix) {
+    }
+
+    public void updateTransitionMatrices(final int eigenIndex, final int[] probabilityIndices, final int[] firstDerivativeIndices, final int[] secondDervativeIndices, final double[] edgeLengths, final int count) {
+    }
+
+    public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
+    }
+
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[][] stateFrequencies, final double[] outLogLikelihoods) {
     }
 
     public void setCategoryRates(double[] categoryRates) {

@@ -15,44 +15,43 @@ package beagle;
 
 public interface Beagle {
 
-    boolean canHandleTipPartials();
-
-    boolean canHandleTipStates();
-
-    boolean canHandleDynamicRescaling();
-
-    public void initialize(
-								  int nodeCount,
-								  int tipCount,
-								  int patternCount,
-								  int categoryCount,
-								  int matrixCount);
+    public void initialize(int tipCount,
+                           int partialsBufferCount,
+                           int compactBufferCount,
+                           int stateCount,
+                           int patternCount,
+                           int eigenBufferCount,
+                           int matrixBufferCount,
+                           final int[] resourceList,
+                           int resourceCount,
+                           int preferenceFlags,
+                           int requirementFlags);
 
     public void finalize() throws Throwable;
 
-    public void setTipPartials(int tipIndex, double[] partials);
+    public void setPartials(int bufferIndex, final double[] partials);
 
-    public void setTipStates(int tipIndex, int[] states);
+    public void setTipStates(int tipIndex, final int[] states);
 
-	public void setStateFrequencies(double[] stateFrequencies);
+    public void setEigenDecomposition(int eigenIndex,
+                                      final double[][] eigenVectors,
+                                      final double[][] inverseEigenValues,
+                                      final double[] eigenValues);
 
-    public void setEigenDecomposition(
-											 int matrixIndex,
-											 double[][] eigenVectors,
-											 double[][] inverseEigenValues,
-											 double[] eigenValues);
+    public void setTransitionMatrix(int matrixIndex, final double[] inMatrix);
 
-    public void setCategoryRates(double[] categoryRates);
 
-    public void setCategoryProportions(double[] categoryProportions);
+    public void updateTransitionMatrices(int eigenIndex,
+                                         final int[] probabilityIndices,
+                                         final int[] firstDerivativeIndices,
+                                         final int[] secondDervativeIndices,
+                                         final double[] edgeLengths,
+                                         int count);
 
-    public void calculateProbabilityTransitionMatrices(int[] nodeIndices, double[] branchLengths, int count);
+    public void updatePartials(final int[] operations, int operationCount, boolean rescale);
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale);
-
-    public void calculateLogLikelihoods(int rootNodeIndex, double[] outLogLikelihoods);
-
-    public void storeState();
-
-    public void restoreState();
+    public void calculateRootLogLikelihoods(final int[] bufferIndices,
+                                            final double[] weights,
+                                            final double[][] stateFrequencies,
+                                            double[] outLogLikelihoods);
 }

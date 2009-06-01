@@ -7,26 +7,29 @@
 #include "beagle.h"
 #include "beagle_BeagleJNIWrapper.h"
 
-// Some temporary arrays used to convert floating point types
-double** Evec;
-double** Ievc;
-
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    initialize
  * Signature: (IIIIIII)I
  */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initialize
-	(JNIEnv *env, jobject obj, jint nodeCount, jint tipCount, jint stateCount, jint patternCount, jint categoryCount, jint matrixCount)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
+	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount, jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
 {
-	jint instance = initialize(nodeCount, tipCount, stateCount, patternCount, categoryCount, matrixCount);
+    jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
 
-	Evec = (double**)malloc(sizeof(double*) * STATE_COUNT);
-	Ievc = (double**)malloc(sizeof(double*) * STATE_COUNT);
-	for (int i = 0; i < STATE_COUNT; i++) {
-	    Evec[i] = (double*)malloc(sizeof(double) * STATE_COUNT);
-	    Ievc[i] = (double*)malloc(sizeof(double) * STATE_COUNT);
-	}
+	jint instance = createInstance(tipCount,
+	                                partialsBufferCount,
+	                                compactBufferCount,
+	                                stateCount,
+	                                patternCount,
+	                                eigenBufferCount,
+	                                matrixBufferCount,
+	                                (int *)resourceList,
+	                                resourceCount,
+	                                preferenceFlags,
+	                                requirementFlags);
+
+    env->ReleaseIntArrayElements(inResourceList, resourceList, JNI_ABORT);
 
     return instance;
 }
@@ -34,34 +37,43 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initialize
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    finalize
- * Signature: (I)V
+ * Signature: (I)I
  */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_finalize
-	(JNIEnv *env, jobject obj, jint instance)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
+  (JNIEnv *env, jobject obj, jint instance)
 {
-	for (int i = 0; i < STATE_COUNT; i++) {
-	    free(Evec[i]);
-	    free(Ievc[i]);
-	}
-	free(Evec);
-	free(Ievc);
-
 	finalize(instance);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    setTipPartials
- * Signature: (II[D)V
+ * Method:    setPartials
+ * Signature: (II[D)I
  */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
-	(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jdoubleArray inTipPartials)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
+  (JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jdoubleArray inPartials)
 {
-    jdouble *tipPartials = env->GetDoubleArrayElements(inTipPartials, NULL);
+    jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
 
-	setTipPartials(instance, tipIndex, (double *)tipPartials);
+	setPartials(instance, bufferIndex, (double *)partials);
 
-    env->ReleaseDoubleArrayElements(inTipPartials, tipPartials, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getPartials
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
+  (JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jdoubleArray outPartials)
+{
+    jdouble *partials = env->GetDoubleArrayElements(outPartials, NULL);
+
+	getPartials(instance, bufferIndex, (double *)partials);
+
+    // not using JNI_ABORT flag here because we want the values to be copied back...
+    env->ReleaseDoubleArrayElements(outPartials, partials, 0);
 }
 
 /*
@@ -70,7 +82,7 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
  * Signature: (II[I)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
-	(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
+  (JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
 {
     jint *tipStates = env->GetIntArrayElements(inTipStates, NULL);
 
@@ -81,141 +93,98 @@ JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    setStateFrequencies
- * Signature: (I[D)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
-	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inStateFrequencies)
-{
-    jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
-
-	setStateFrequencies(instance, (double *)stateFrequencies);
-
-    env->ReleaseDoubleArrayElements(inStateFrequencies, stateFrequencies, JNI_ABORT);
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
  * Method:    setEigenDecomposition
- * Signature: (II[[D[[D[D)V
+ * Signature: (II[D[D[D)V
  */
 JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
-(JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jobjectArray inEigenVectors, jobjectArray inInvEigenVectors, jdoubleArray inEigenValues)
+(JNIEnv *env, jobject obj, jint instance, jint eigenIndex, jdoubleArray inEigenVectors, jdoubleArray inInvEigenVectors, jdoubleArray inEigenValues)
 {
-
-	for (int i = 0; i < STATE_COUNT; i++) {
-		jdoubleArray row1 = (jdoubleArray)env->GetObjectArrayElement(inEigenVectors, i);
-        env->GetDoubleArrayRegion(row1, 0, STATE_COUNT, Evec[i]);
-
-		jdoubleArray row2 = (jdoubleArray)env->GetObjectArrayElement(inInvEigenVectors, i);
-        env->GetDoubleArrayRegion(row2, 0, STATE_COUNT, Ievc[i]);
-	}
-
+    jdouble *eigenVectors = env->GetDoubleArrayElements(inEigenVectors, NULL);
+    jdouble *invEigenVectors = env->GetDoubleArrayElements(inInvEigenVectors, NULL);
     jdouble *eigenValues = env->GetDoubleArrayElements(inEigenValues, NULL);
 
-	setEigenDecomposition(instance, matrixIndex, Evec, Ievc, (double *)eigenValues);
+	setEigenDecomposition(instance, eigenIndex, (double *)eigenVectors, (double *)invEigenVectors, (double *)eigenValues);
 
     env->ReleaseDoubleArrayElements(inEigenValues, eigenValues, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inInvEigenVectors, invEigenVectors, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inEigenVectors, eigenVectors, JNI_ABORT);
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setTransitionMatrix
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
+  (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray inMatrix)
+{
+    jdouble *matrix = env->GetDoubleArrayElements(inMatrix, NULL);
+
+	setTransitionMatrix(instance, matrixIndex, (double *)matrix);
+
+    env->ReleaseDoubleArrayElements(inMatrix, matrix, JNI_ABORT);
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    updateTransitionMatrices
+ * Signature: (II[I[I[I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
+  (JNIEnv *env, jobject obj, jint instance, jint eigenIndex, jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDervativeIndices, jdoubleArray inEdgeLengths, jint count)
+{
+    jint *probabilityIndices = env->GetIntArrayElements(inProbabilityIndices, NULL);
+    jint *firstDerivativeIndices = env->GetIntArrayElements(inFirstDerivativeIndices, NULL);
+    jint *secondDervativeIndices = env->GetIntArrayElements(inSecondDervativeIndices, NULL);
+    jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
+
+	updateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDervativeIndices, (double *)edgeLengths, count);
+
+    env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
+    env->ReleaseIntArrayElements(inSecondDervativeIndices, secondDervativeIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    setCategoryRates
- * Signature: (I[D)V
+ * Method:    updatePartials
+ * Signature: ([II[III)I
  */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
-	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inCategoryRates)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
+  (JNIEnv *env, jobject obj, jintArray inInstances, jint instanceCount, jintArray inOperations, jint operationCount, jint rescale)
 {
-    jdouble *categoryRates = env->GetDoubleArrayElements(inCategoryRates, NULL);
-
-	setCategoryRates(instance, (double *)categoryRates);
-
-    env->ReleaseDoubleArrayElements(inCategoryRates, categoryRates, JNI_ABORT);
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    setCategoryProportions
- * Signature: (I[D)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_setCategoryProportions
-	(JNIEnv *env, jobject obj, jint instance, jdoubleArray inCategoryProportions)
-{
-    jdouble *categoryProportions = env->GetDoubleArrayElements(inCategoryProportions, NULL);
-
-	setCategoryProportions(instance, (double *)categoryProportions);
-
-    env->ReleaseDoubleArrayElements(inCategoryProportions, categoryProportions, JNI_ABORT);
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    calculateProbabilityTransitionMatrices
- * Signature: (I[I[DI)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateProbabilityTransitionMatrices
-	(JNIEnv *env, jobject obj, jint instance, jintArray inNodeIndices, jdoubleArray inBranchLengths, jint count)
-{
-    jint *nodeIndices = env->GetIntArrayElements(inNodeIndices, NULL);
-    jdouble *branchLengths = env->GetDoubleArrayElements(inBranchLengths, NULL);
-
-	calculateProbabilityTransitionMatrices(instance, (int *)nodeIndices, (double *)branchLengths, count);
-
-    env->ReleaseDoubleArrayElements(inBranchLengths, branchLengths, JNI_ABORT);
-    env->ReleaseIntArrayElements(inNodeIndices, nodeIndices, JNI_ABORT);
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    calculatePartials
- * Signature: (I[I[IIB)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculatePartials
-	(JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jintArray inDependencies, jint count, jboolean rescale)
-{
+    jint *instances = env->GetIntArrayElements(inInstances, NULL);
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
-    jint *dependencies = env->GetIntArrayElements(inDependencies, NULL);
 
-	calculatePartials(instance, (int *)operations, (int *)dependencies, count, 0);
+	updatePartials((int *)instances, instanceCount, (int *)operations, operationCount, rescale);
 
-    env->ReleaseIntArrayElements(inDependencies, dependencies, JNI_ABORT);
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+    env->ReleaseIntArrayElements(inInstances, instances, JNI_ABORT);
 }
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    calculateLogLikelihoods
- * Signature: (II[D)V
+ * Method:    calculateRootLogLikelihoods
+ * Signature: (I[I[D[DI[D)I
  */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_calculateLogLikelihoods
-	(JNIEnv *env, jobject obj, jint instance, jint rootNodeIndex, jdoubleArray outLogLikelihoods)
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jdoubleArray inWeights, jdoubleArray inStateFrequencies, jint count, jdoubleArray outLogLikelihoods)
 {
+    jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
+    jdouble *weights = env->GetDoubleArrayElements(inWeights, NULL);
+    jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
     jdouble *logLikelihoods = env->GetDoubleArrayElements(outLogLikelihoods, NULL);
 
-	calculateLogLikelihoods(instance, rootNodeIndex, logLikelihoods);
+	calculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights, (double *)stateFrequencies, count, (double *)logLikelihoods);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outLogLikelihoods, logLikelihoods, 0);
+
+    env->ReleaseDoubleArrayElements(inStateFrequencies, stateFrequencies, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inWeights, weights, JNI_ABORT);
+    env->ReleaseIntArrayElements(inBufferIndices, bufferIndices, JNI_ABORT);
 }
 
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    storeState
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_storeState
-	(JNIEnv *env, jobject obj, jint instance)
-{
-	storeState(instance);
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    restoreState
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_beagle_BeagleJNIWrapper_restoreState
-	(JNIEnv *env, jobject obj, jint instance)
-{
-	restoreState(instance);
-}
