@@ -191,9 +191,9 @@ int setTipStates(
 int setEigenDecomposition(
                            int instance,							/**< Instance number (input) */
 						   int eigenIndex,							/**< Index of eigen-decomposition buffer (input) */
-						   const double** inEigenVectors, 			/**< 2D matrix of eigen-vectors (input) */
-						   const double** inInverseEigenVectors,	/**< 2D matrix of inverse-eigen-vectors (input) */
-						   const double* inEigenValues); 			/**< 2D vector of eigenvalues*/
+						   const double* inEigenVectors, 			/**< Flattened matrix (stateCount x stateCount) of eigen-vectors (input) */
+						   const double* inInverseEigenVectors,	    /**< Flattened matrix (stateCount x stateCount) of inverse-eigen-vectors (input) */
+						   const double* inEigenValues); 			/**< Vector of eigenvalues*/
 
 /**
  * @brief Set a finite-time transition probability matrix
@@ -257,9 +257,8 @@ int calculateRootLogLikelihoods(
                              int instance, /**< Instance number (input) */
 		                     const int* bufferIndices, /**< List of partialsBuffer indices to integrate (input) */
 		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
-		                     const double** stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
-															   * If list length is one, the same state frequencies are used
-															   * for each partialsBuffer
+		                     const double* stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
+															   * There should be one set for each of parentBufferIndices
 															   */
 		                     int count, /*< Number of partialsBuffer to integrate (input) */
 			                 double* outLogLikelihoods); /**< Pointer to destination for resulting log likelihoods (output) */
@@ -281,9 +280,8 @@ int calculateEdgeLogLikelihoods(
 		                     const int* firstDerivativeIndices, /**< List indices of first derivative matrices (input) */
 		                     const int* secondDerivativeIndices, /**< List indices of second derivative matrices (input) */
 		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
-		                     const double** stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
-															   * If list length is one, the same state frequencies are used
-															   * for each partialsBuffer
+		                     const double* stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
+															   * There should be one set for each of parentBufferIndices
 															   */
 		                     int count, /**< Number of partialsBuffers (input) */
 		                     double* outLogLikelihoods, /**< Pointer to destination for resulting log likelihoods (output) */

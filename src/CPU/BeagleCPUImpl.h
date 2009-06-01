@@ -21,7 +21,7 @@ private:
 	int kStateCount; /// the number of states
 	int kEigenDecompCount; /// the number of eigen solutions to alloc and store
 
-	int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount 
+	int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
 	int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
 
 	//@ the following eigen-calculation-related fields should be changed to vectors
@@ -29,20 +29,20 @@ private:
 	// each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
 	//	from the eigenVector matrix and inverse eigen vector matrix. Storing these
 	//	temps saves time in the updateTransitionMatrices()
-	double** cMatrices; 
+	double** cMatrices;
 	// each element of eigenValues is a kStateCount array of eigenvalues
 	double** eigenValues;
 
 	//@ the size of these pointers are known at alloc-time, so the partials and
-	//		tipStates field should be switched to vectors of vectors (to make 
-	//		memory management less error prone	
+	//		tipStates field should be switched to vectors of vectors (to make
+	//		memory management less error prone
 	std::vector<double*> partials;
 	std::vector<int*> tipStates;
 
 	// There will be kMatrixCount transitionMatrices.
-	// Each kStateCount x (kStateCount+1) matrix that is flattened 
+	// Each kStateCount x (kStateCount+1) matrix that is flattened
 	//	into a single array
-	std::vector< std::vector<double> > transitionMatrices; 
+	std::vector< std::vector<double> > transitionMatrices;
 
 	////@@@
 	//BEGIN edge Like Hack  These two temporaries are used to turn the calculateEdgeLogLikelihoods
@@ -89,8 +89,8 @@ public:
 	// inverseEigenVectors an array containing the inverse Eigen Vectors
 	// eigenValues an array containing the Eigen Values
 	int setEigenDecomposition(	int eigenIndex,
-							  	const double** inEigenVectors,
-							  	const double** inInverseEigenVectors,
+							  	const double* inEigenVectors,
+							  	const double* inInverseEigenVectors,
 						 		const double* inEigenValues);
 
 	int setTransitionMatrix(int matrixIndex, const double* inMatrix);
@@ -125,7 +125,7 @@ public:
 	// outLogLikelihoods an array into which the site log likelihoods will be put
 	int calculateRootLogLikelihoods(const int* bufferIndices,
 									const double* weights,
-									const double** stateFrequencies,
+									const double* stateFrequencies,
 									int count,
 									double* outLogLikelihoods);
 
@@ -138,7 +138,7 @@ public:
 								 const int* firstDerivativeIndices,
 								 const int* secondDerivativeIndices,
 								 const double* weights,
-								 const double** stateFrequencies,
+								 const double* stateFrequencies,
 								 int count,
 								 double* outLogLikelihoods,
 								 double* outFirstDerivatives,

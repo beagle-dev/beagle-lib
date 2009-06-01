@@ -14,7 +14,7 @@
 #include <stdexcept>          // for std exception hierarchy
 #include <list>
 #include <vector>
-#include <iostream> 
+#include <iostream>
 
 #include "beagle.h"
 #include "BeagleImpl.h"
@@ -66,12 +66,12 @@ int createInstance(
 	#endif
 			implFactory.push_back(new BeagleCPUImplFactory());
 		}
-	
+
 		// Try each implementation
 		for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();
 			factory != implFactory.end(); factory++) {
 			fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
-	
+
 			BeagleImpl* beagle = (*factory)->createImpl(
 				tipCount,
 				partialsBufferCount,
@@ -80,7 +80,7 @@ int createInstance(
 				patternCount,
 				eigenBufferCount,
 				matrixBufferCount);
-	
+
 			if (beagle != NULL) {
 				fprintf(stderr,"Success\n");
 				int instance = instances.size();
@@ -89,7 +89,7 @@ int createInstance(
 			}
 			fprintf(stderr,"Failed\n");
 		}
-	
+
 		// No implementations found or appropriate
 		return GENERAL_ERROR;
 	}
@@ -210,8 +210,8 @@ int setTipStates(
 int setEigenDecomposition(
                            int instance,
 						   int eigenIndex,
-						   const double** inEigenVectors,
-						   const double** inInverseEigenVectors,
+						   const double* inEigenVectors,
+						   const double* inInverseEigenVectors,
 						   const double* inEigenValues)
 {
 	try {
@@ -316,7 +316,7 @@ int calculateRootLogLikelihoods(
                              int instance,
 		                     const int* bufferIndices,
 		                     const double* weights,
-		                     const double** stateFrequencies,
+		                     const double* stateFrequencies,
 		                     int count,
 			                 double* outLogLikelihoods)
 {
@@ -353,7 +353,7 @@ int calculateEdgeLogLikelihoods(
 		                     const int* firstDerivativeIndices,
 		                     const int* secondDerivativeIndices,
 		                     const double* weights,
-		                     const double** stateFrequencies,
+		                     const double* stateFrequencies,
 		                     int count,
 		                     double* outLogLikelihoods,
 			                 double* outFirstDerivatives,
