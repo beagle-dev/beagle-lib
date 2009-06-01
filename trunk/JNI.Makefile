@@ -2,9 +2,7 @@
 # command-line: make STATE_COUNT=<#> mac/linux
 #
 
-STATE_COUNT = 4
-
-OUTNAME		:= BEAGLE-$(STATE_COUNT)
+OUTNAME		:= BEAGLE
 
 ############
 
@@ -34,25 +32,23 @@ mac :
 		-framework JavaVM -arch $(ARCH) \
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
-	    -DSTATE_COUNT=$(STATE_COUNT) \
 	    -DDOUBLE_PRECISION \
  		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
-	 
+
 	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib \
 		$(OPTIONS) \
 		-framework JavaVM -arch $(ARCH2) \
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
-	    -DSTATE_COUNT=$(STATE_COUNT) \
 	    -DDOUBLE_PRECISION \
  		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
-	 
+
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
 				$(DEST)/lib$(OUTNAME).$(ARCH2).jnilib \
 	     -output $(DEST)/lib$(OUTNAME).jnilib
-	     
-#	rm $(DEST)/lib$(OUTNAME).$(ARCH).jnilib $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib 
+
+#	rm $(DEST)/lib$(OUTNAME).$(ARCH).jnilib $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib
 
 linux :
 	gcc -c -O4 $(OPTIONS) $(LINUX_INCLUDES) -c $(INNAME) -std=c99 -DSTATE_COUNT=$(STATE_COUNT) \
