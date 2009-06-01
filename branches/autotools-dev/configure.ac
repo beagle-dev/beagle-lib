@@ -1,11 +1,58 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libbeagle, 0.1.0, msuchard@ucla.edu)
-AC_CONFIG_AUX_DIR(config)
+
+dnl -----------------------------------------------
+dnl Package name and version number (user defined)
+dnl -----------------------------------------------
+
+GENERIC_LIBRARY_NAME=libbeagle
+
+#release versioning
+GENERIC_MAJOR_VERSION=1
+GENERIC_MINOR_VERSION=0
+GENERIC_MICRO_VERSION=0
+
+#API version (often = GENERIC_MAJOR_VERSION.GENERIC_MINOR_VERSION)
+GENERIC_API_VERSION=1.0
+AC_SUBST(GENERIC_API_VERSION)
+
+#shared library versioning
+GENERIC_LIBRARY_VERSION=0:0:0
+#                       | | |
+#                +------+ | +---+
+#                |        |     |
+#             current:revision:age
+#                |        |     |
+#                |        |     +- increment if interfaces have been added
+#                |        |        set to zero if interfaces have been removed
+#                                  or changed
+#                |        +- increment if source code has changed
+#                |           set to zero if current is incremented
+#                +- increment if interfaces have been added, removed or changed
+
+dnl --------------------------------
+dnl Package name and version number
+dnl --------------------------------
+
+AC_SUBST(GENERIC_LIBRARY_VERSION)
+
+PACKAGE=$GENERIC_LIBRARY_NAME
+AC_SUBST(GENERIC_LIBRARY_NAME)
+
+GENERIC_VERSION=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION.$GENERIC_MICRO_VERSION
+GENERIC_RELEASE=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION
+AC_SUBST(GENERIC_RELEASE)
+AC_SUBST(GENERIC_VERSION)
+
+VERSION=$GENERIC_VERSION
+
+
+AC_CONFIG_AUX_DIR(.config)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR(libbeagle/beagle.cpp)
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE($PACKAGE, $VERSION, no-define)
 
 AC_PROG_CC
 AC_PROG_CXX
@@ -29,18 +76,19 @@ if test -n "$with_cuda"
 then
    CUDA_CFLAGS="-I$with_cuda/include"
    CUDA_LIBS="-L$with_cuda/lib -lcuda -lcudart"
-   NVCC="$with_cuda/bin/nvcc"
+   CUDAPATH="$with_cuda"
 else
    CUDA_CFLAGS="-I/usr/local/cuda/include"
    CUDA_LIBS="-L/usr/local/cuda/lib -lcuda -lcudart"
-   NVCC="nvcc"
+   CUDAPATH="/usr/local/cuda"
 fi
+
+AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$CUDAPATH/bin])
+AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
+
 AC_SUBST(CUDA_CFLAGS)
 AC_SUBST(CUDA_LIBS)
 AC_SUBST(NVCC)
-
-AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$with_cuda/bin])
-AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
 
 AC_ARG_ENABLE([emu],
    [  --enable-emu    Turn on device emulation for CUDA],
@@ -97,7 +145,7 @@ AC_SUBST(JNI_EXTRA_LDFLAGS)
 #
 # All done, create Makefiles
 #
-AC_OUTPUT(Makefile libbeagle/Makefile libbeagle/CUDA/Makefile libbeagle/CPU/Makefile libbeagle/JNI/Makefile)
+AC_OUTPUT(Makefile beagle-1.0.pc libbeagle/Makefile libbeagle/CUDA/Makefile libbeagle/CPU/Makefile libbeagle/JNI/Makefile)
 
 #
 # warn the user about missing functionality
