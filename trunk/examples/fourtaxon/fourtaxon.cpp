@@ -6,8 +6,8 @@
 #include "fourtaxon.hpp"
 
 /*-----------------------------------------------------------------------------
-| 	Allocates a two-dimensional array of doubles as one contiguous block of 
-|	memory the dimensions are f by s. The array is set up so that each 
+| 	Allocates a two-dimensional array of doubles as one contiguous block of
+|	memory the dimensions are f by s. The array is set up so that each
 |	successive row follows the previous row in memory.
 */
 double **NewTwoDArray(unsigned f , unsigned s)
@@ -21,7 +21,7 @@ double **NewTwoDArray(unsigned f , unsigned s)
 	}
 
 /*-----------------------------------------------------------------------------
-|	Delete a two-dimensional array (e.g. one created by NewTwoDArray) and set 
+|	Delete a two-dimensional array (e.g. one created by NewTwoDArray) and set
 |	ptr to NULL.
 */
 void DeleteTwoDArray (double ** & ptr)
@@ -35,7 +35,7 @@ void DeleteTwoDArray (double ** & ptr)
 	}
 
 unsigned rnseed = 1;
-	
+
 /*-----------------------------------------------------------------------------
 |	A uniform random number generator. Should initialize global variable
 |	`rnseed' to something before calling this function.
@@ -47,14 +47,14 @@ double uniform()
 #	define M				2147483647			// modulus = 2^31 - 1
 #	define MASK_SIGN_BIT	0x80000000
 #	define MASK_31_BITS	0x7FFFFFFF
-	
+
 	unsigned	x, y;
 	uint64_t	w;
-	
+
 	w = (uint64_t)A * rnseed;
 	x = (unsigned)(w & MASK32BITS);
 	y = (unsigned)(w >> 32);
-	
+
 	y = (y << 1) | (x >> 31);		// isolate high-order 31 bits
 	x &= MASK_31_BITS;				// isolate low-order 31 bits
 	x += y;							// x'(i + 1) unless overflows
@@ -64,7 +64,7 @@ double uniform()
 	rnseed = x;
 
 	return (1.0 / (M-2)) * (rnseed - 1);
-	}	
+	}
 
 /*-----------------------------------------------------------------------------
 |	Constructor simply calls init().
@@ -73,7 +73,7 @@ FourTaxonExample::FourTaxonExample()
   : ntaxa(4), niters(0), nsites(0), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
 	{
 	}
-	
+
 /*-----------------------------------------------------------------------------
 |	This function is called if the program encounters an unrecoverable error.
 |	After issuing the supplied error message, the program exits, returning 1.
@@ -84,7 +84,7 @@ void FourTaxonExample::abort(
 	std::cerr << msg << "\nAborting..." << std::endl;
 	std::exit(1);
 	}
-	
+
 /*-----------------------------------------------------------------------------
 |	This function sets up the beagle library and initializes all data members.
 */
@@ -92,8 +92,8 @@ void FourTaxonExample::initBeagleLib()
 	{
 	int code;
 	partial.resize(4);
-	
-	// hard coded tree topology is (A,B,(C,D))	
+
+	// hard coded tree topology is (A,B,(C,D))
 	// where taxon order is A, B, C, D in the data file
 	// Assume nodes 0..3 are the tip node indices
 	// Assume node 4 is ancestor of A,B (0,1)
@@ -103,13 +103,13 @@ void FourTaxonExample::initBeagleLib()
 	operations.push_back(0);	// left child transition matrix index
 	operations.push_back(1);	// right child partial index
 	operations.push_back(1);	// right child transition matrix index
-	
+
 	operations.push_back(5);	// destination (to be calculated)
 	operations.push_back(2);	// left child partial index
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
 	operations.push_back(3);	// right child transition matrix index
-		
+
 	instance_handle = createInstance(
 				4,			// tipCount
 				7,			// partialsBufferCount
@@ -121,12 +121,12 @@ void FourTaxonExample::initBeagleLib()
 				NULL,		// resourceList
 				0,			// resourceCount
 				0,			// preferenceFlags
-				0			// requirementFlags		
+				0			// requirementFlags
 				);
-	
+
 	if (instance_handle < 0)
 		abort("createInstance returned a negative instance handle (and that's not good)");
-				
+
 	transition_matrix_index.resize(5);
 	transition_matrix_index[0] = 0;
 	transition_matrix_index[1] = 1;
@@ -140,7 +140,7 @@ void FourTaxonExample::initBeagleLib()
 	brlens[2] = 0.03;
 	brlens[3] = 0.04;
 	brlens[4] = 0.05;
-	
+
 	for (unsigned i = 0; i < 4; ++i)
 		{
 		code = setPartials(
@@ -150,53 +150,39 @@ void FourTaxonExample::initBeagleLib()
 		if (code != 0)
 			abort("setPartials encountered a problem");
 		}
-		
+
 	// JC69 model eigenvector matrix
-	double evec[4][4] = {
-		{ 1.0,  2.0,  0.0,  0.5},
-		{ 1.0,  -2.0,  0.5,  0.0},
-		{ 1.0,  2.0, 0.0,  -0.5},
-		{ 1.0,  -2.0,  -0.5,  0.0}
+	double evec[4 * 4] = {
+		 1.0,  2.0,  0.0,  0.5,
+		 1.0,  -2.0,  0.5,  0.0,
+		 1.0,  2.0, 0.0,  -0.5,
+		 1.0,  -2.0,  -0.5,  0.0
 	};
-	
+
 	// JC69 model inverse eigenvector matrix
-	double ivec[4][4] = {
-		{ 0.25,  0.25,  0.25,  0.25},
-		{ 0.125,  -0.125,  0.125,  -0.125},
-		{ 0.0,  1.0,  0.0,  -1.0},
-		{ 1.0,  0.0,  -1.0,  0.0}
+	double ivec[4 * 4] = {
+		 0.25,  0.25,  0.25,  0.25,
+		 0.125,  -0.125,  0.125,  -0.125,
+		 0.0,  1.0,  0.0,  -1.0,
+		 1.0,  0.0,  -1.0,  0.0
 	};
-	
+
 	// JC69 model eigenvalues
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
-	
-	// Creating of temporary two-dimensional matrices is necessary because library expects double **
-	double ** evecP = NewTwoDArray(4,4);
-	double ** ivecP = NewTwoDArray(4,4);
 
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			evecP[i][j] = evec[i][j];
-			ivecP[i][j] = ivec[i][j];
-		}
-	}
-		
 	code = setEigenDecomposition(
 			   instance_handle,					// instance
 			   0,								// eigenIndex,
-			   (const double **)evecP,			// inEigenVectors,
-			   (const double **)ivecP,			// inInverseEigenVectors,
+			   (const double *)evec,			// inEigenVectors,
+			   (const double *)ivec,			// inInverseEigenVectors,
 			   eval);							// inEigenValues
-	
-	DeleteTwoDArray(evecP);
-	DeleteTwoDArray(ivecP);
-			   
+
 	if (code != 0)
 		abort("setEigenDecomposition encountered a problem");
 	}
-	
+
 /*-----------------------------------------------------------------------------
-|	Calculates the log likelihood by calling the beagle functions 
+|	Calculates the log likelihood by calling the beagle functions
 |	updateTransitionMatrices, updatePartials and calculateEdgeLogLikelihoods.
 */
 double FourTaxonExample::calcLnL()
@@ -208,54 +194,50 @@ double FourTaxonExample::calcLnL()
 			NULL, 							// firstDerivativeIndices,
 			NULL,							// secondDervativeIndices,
 			&brlens[0],						// edgeLengths,
-			5);								// count 
-			
+			5);								// count
+
 	if (code != 0)
 		abort("updateTransitionMatrices encountered a problem");
-		
+
 	code = updatePartials(
 		   &instance_handle,	// instance
 		   1,					// instanceCount
-		   &operations[0],		// operations				
+		   &operations[0],		// operations
 		   2,					// operationCount
 		   0);					// rescale
-		   
+
 	if (code != 0)
 		abort("updatePartials encountered a problem");
-		
+
 	int parentBufferIndex = 4;
 	int childBufferIndex  = 5;
 	int transitionMatrixIndex  = 4;
 	double relativeRateProb  = 1.0;
 
-	double ** stateFreqs = NewTwoDArray(1,4);
-	for (int i=0;i<4;i++)
-		stateFreqs[0][i] = 0.25;
+	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
 	std::vector<double> lnL(nsites);
-	
+
 	code = calculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
 		 &parentBufferIndex,				// parentBufferIndices
-		 &childBufferIndex,					// childBufferIndices		                   
+		 &childBufferIndex,					// childBufferIndices
 		 &transitionMatrixIndex,			// probabilityIndices
 		 NULL,								// firstDerivativeIndices
 		 NULL,								// secondDerivativeIndices
 		 (const double*)&relativeRateProb,	// weights
-		 (const double**)stateFreqs,		// stateFrequencies,
+		 (const double*)stateFreqs,		// stateFrequencies,
 		 1,									// count
 		 &lnL[0],								// outLogLikelihoods,
 		 NULL,								// outFirstDerivatives,
 		 NULL);								// outSecondDerivatives
 
-	DeleteTwoDArray(stateFreqs);
-
 	if (code != 0)
 		abort("calculateEdgeLogLikelihoods encountered a problem");
-		
+
 	return std::accumulate(lnL.begin(), lnL.end(), 0.0);
 	}
-	
+
 /*-----------------------------------------------------------------------------
 |	Updates a single branch length using a simple sliding-window Metropolis-
 |	Hastings proposal. A window of width `delta' is centered over the current
@@ -267,26 +249,26 @@ void FourTaxonExample::updateBrlen(
 	{
 	// current state is x0
 	double x0 = brlens[brlen_index];
-	
+
 	// proposed new state is x
 	double x = x0 - delta/2.0 + delta*uniform();
-	
+
 	// reflect back into valid range if necessary
 	if (x < 0.0)
 		x = -x;
-		
+
 	// branch length prior is exponential with mean mu
 	// (note: leaving out log(mu) because it will cancel anyway)
 	double log_prior_before = -x0/mu;
 	double log_prior_after  = -x/mu;
-	
+
 	// compute log-likelihood before and after move
 	// (not being particularly efficient here because we are testing the beagle library
 	// so the more calls to calcLnL the better)
 	double log_like_before = calcLnL();
 	brlens[brlen_index] = x;
 	double log_like_after = calcLnL();
-	
+
 	double log_accept_ratio = log_prior_after + log_like_after - log_prior_before - log_like_before;
 	double u = log(uniform());
 	if (u > log_accept_ratio)
@@ -294,7 +276,7 @@ void FourTaxonExample::updateBrlen(
 		// proposed new branch length rejected, restore original branch length
 		brlens[brlen_index] = x0;
 		}
-	}	
+	}
 
 /*-----------------------------------------------------------------------------
 |	Reads in the data file (which must be named fourtaxon.dat and must contain
@@ -307,7 +289,7 @@ void FourTaxonExample::run()
 	readData();
 	initBeagleLib();
 	writeData();
-	
+
 	std::cout.setf(std::ios::showpoint);
 	std::cout.setf(std::ios::floatfield, std::ios::fixed);
 
@@ -321,21 +303,21 @@ void FourTaxonExample::run()
 		std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
 		std::cout << std::endl;
 		}
-		
+
 	int code = finalize(
 		instance_handle);		// instance
-		
+
 	if (code != 0)
 		abort("finalize encountered a problem");
 	}
 
 /*-----------------------------------------------------------------------------
 |	Reads the data file the name of which is supplied. This function expects
-|	the data to be in pseufoPHYLIP format: ntaxa followed by nsites on first 
-|	line, then name and sequence data (separated by whitespace) for each 
+|	the data to be in pseufoPHYLIP format: ntaxa followed by nsites on first
+|	line, then name and sequence data (separated by whitespace) for each
 |	taxon on subsequent lines. Converts the DNA states A, C, G, and T to int
 |	codes 0, 1, 2 and 3, respectively, storing these in the `data' data member.
-|	Also calculates the partials for the tip nodes, which are stored in the 
+|	Also calculates the partials for the tip nodes, which are stored in the
 |	`partial' data member.
 */
 void FourTaxonExample::readData()
@@ -401,9 +383,9 @@ void FourTaxonExample::readData()
 		}
 	inf.close();
 	}
-	
+
 /*-----------------------------------------------------------------------------
-|	This function spits out the data as a nexus formatted data file with a 
+|	This function spits out the data as a nexus formatted data file with a
 |	paup block that can be used to check the starting likelihood in PAUP*.
 */
 void FourTaxonExample::writeData()
@@ -453,7 +435,7 @@ void FourTaxonExample::writeData()
 	outf << "end;\n";
 	outf.close();
 	}
-	
+
 /*-----------------------------------------------------------------------------
 |	Reads command line arguments and interprets them as follows:
 |>
@@ -476,18 +458,18 @@ void FourTaxonExample::interpretCommandLineParameters(
 		niters = (unsigned)atoi(argv[1]);
 	if (niters < 1)
 		abort("invalid number of iterations supplied on the command line");
-	
+
 	// see if the user specified a data file name on the command line
 	// and, if so, replace the default value of data_file_name
 	data_file_name = "fourtaxon.dat";
 	if (argc > 2)
 		data_file_name = std::string(argv[2]);
 	}
-	
+
 /*-----------------------------------------------------------------------------
-|	Constructs a FourTaxonExample object, calls its 
+|	Constructs a FourTaxonExample object, calls its
 |	interpretCommandLineParameters to (optionally) change the number of
-|	iterations and data file name, and then calls the run() function to 
+|	iterations and data file name, and then calls the run() function to
 |	initialize the beagle library and start the analysis.
 */
 int main(
@@ -498,4 +480,4 @@ int main(
 	fourtax.interpretCommandLineParameters(argc, argv);
 	fourtax.run();
 	}
-	
+

@@ -42,8 +42,8 @@ public:
 
 	virtual int setEigenDecomposition(
 			int eigenIndex,
-			const double** inEigenVectors,
-			const double** inInverseEigenVectors,
+			const double* inEigenVectors,
+			const double* inInverseEigenVectors,
 			const double* inEigenValues) = 0;
 
 	virtual int setTransitionMatrix(
@@ -66,7 +66,7 @@ public:
 	virtual int calculateRootLogLikelihoods(
 			const int* bufferIndices,
 			const double* weights,
-			const double** stateFrequencies,
+			const double* stateFrequencies,
 			int count,
 			double* outLogLikelihoods) = 0;
 
@@ -77,7 +77,7 @@ public:
 			const int* firstDerivativeIndices,
 			const int* secondDerivativeIndices,
 			const double* weights,
-			const double** stateFrequencies,
+			const double* stateFrequencies,
 			int count,
 			double* outLogLikelihoods,
 			double* outFirstDerivatives,

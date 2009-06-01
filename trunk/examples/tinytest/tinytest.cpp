@@ -87,8 +87,10 @@ double* getPartials(char *sequence) {
 
 int main( int argc, const char* argv[] )
 {
+    // get the number of site patterns
 	int nPatterns = strlen(human);
 
+    // create an instance of the BEAGLE library
 	int instance = createInstance(
 			    3,				/**< Number of tip data elements (input) */
 				5,	            /**< Number of partials buffers to create (input) */
@@ -106,87 +108,85 @@ int main( int argc, const char* argv[] )
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
     }
+
+    // initialize the instance
     int error = initializeInstance(instance, NULL);
 
-//	setTipStates(0, getStates(human));
-//	setTipStates(1, getStates(chimp));
-//	setTipStates(2, getStates(gorilla));
+//	setTipStates(instance, 0, getStates(human));
+//	setTipStates(instance, 1, getStates(chimp));
+//	setTipStates(instance, 2, getStates(gorilla));
 
+    // set the sequences for each tip using partial likelihood arrays
 	setPartials(instance, 0, getPartials(human));
 	setPartials(instance, 1, getPartials(chimp));
 	setPartials(instance, 2, getPartials(gorilla));
 
+    // is nucleotides...
     int stateCount = 4;
 
-//	double **freqs = {{ 0.25, 0.25, 0.25, 0.25 }};
-	double *freqs = (double *)malloc(sizeof(double) * stateCount);
-	double rates[1] = { 1.0 };
+    // create base frequency array
+	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
-	double props[1] = { 1.0 };
+    // create an array containing site category weights
+	const double weights[1] = { 1.0 };
 
 	// an eigen decomposition for the JC69 model
-	double evec[4][4] = {
-		{ 1.0,  2.0,  0.0,  0.5},
-		{ 1.0,  -2.0,  0.5,  0.0},
-		{ 1.0,  2.0, 0.0,  -0.5},
-		{ 1.0,  -2.0,  -0.5,  0.0}
+	double evec[4 * 4] = {
+		 1.0,  2.0,  0.0,  0.5,
+		 1.0,  -2.0,  0.5,  0.0,
+		 1.0,  2.0, 0.0,  -0.5,
+		 1.0,  -2.0,  -0.5,  0.0
 	};
-	double ivec[4][4] = {
-		{ 0.25,  0.25,  0.25,  0.25},
-		{ 0.125,  -0.125,  0.125,  -0.125},
-		{ 0.0,  1.0,  0.0,  -1.0},
-		{ 1.0,  0.0,  -1.0,  0.0}
+
+	double ivec[4 * 4] = {
+		 0.25,  0.25,  0.25,  0.25,
+		 0.125,  -0.125,  0.125,  -0.125,
+		 0.0,  1.0,  0.0,  -1.0,
+		 1.0,  0.0,  -1.0,  0.0
 	};
+
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 
-	double **evecP = (double **)malloc(sizeof(double*) * stateCount);
-	double **ivecP = (double **)malloc(sizeof(double*) * stateCount);
+    // set the Eigen decomposition
+	setEigenDecomposition(instance, 0, evec, ivec, eval);
 
-	for (int i = 0; i < stateCount; i++) {
-		freqs[i] = 0.25;
-		evecP[i] = (double *)malloc(sizeof(double) * stateCount);
-		ivecP[i] = (double *)malloc(sizeof(double) * stateCount);
-		for (int j = 0; j < stateCount; j++) {
-			evecP[i][j] = evec[i][j];
-			ivecP[i][j] = ivec[i][j];
-		}
-	}
-
-	setEigenDecomposition(instance, 0, (const double **)evecP, (const double **)ivecP, (const double *)eval);
-
+    // a list of indices and edge lengths
 	int nodeIndices[4] = { 0, 1, 2, 3 };
-	double branchLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
+	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 
+    // tell BEAGLE to populate the transition matrices for the above edge lengthss
 	updateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices
 	                         NULL,          // firstDerivativeIndices
 	                         NULL,          // secondDervativeIndices
-	                         branchLengths, // edgeLengths
+	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
+    // create a list of partial likelihood update operations
+    // the order is [dest, source1, matrix1, source2, matrix2]
 	int operations[5 * 2] = {
 		3, 0, 0, 1, 1,
 		4, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
 
+    // update the partials
 	updatePartials( &instance,      // instance
 	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                2,              // operationCount
-	                0);
+	                0);             // rescale ? 0 = no
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-	const double **f = (const double **) &freqs;
-
-	calculateRootLogLikelihoods(instance,           // instance
-	                            (const int *)&rootIndex,         // bufferIndices
-	                            (const double *)props,              // weights
-	                            (const double **)f,             // stateFrequencies
-	                            1,                  // count
-	                            patternLogLik);     // outLogLikelihoods
+    // calculate the site likelihoods at the root node
+	calculateRootLogLikelihoods(instance,               // instance
+	                            (const int *)&rootIndex,// bufferIndices
+	                            weights,                // weights
+	                            freqs,                 // stateFrequencies
+	                            1,                      // count
+	                            patternLogLik);         // outLogLikelihoods
 
 	double logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {

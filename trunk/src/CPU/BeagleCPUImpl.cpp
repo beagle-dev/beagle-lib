@@ -12,29 +12,29 @@
 ///@TODO: reimplement calculateEdgeLogLikelihoods()
 ///@TODO: get rid of malloc (use vectors to make sure that memory is freed)
 ///@TODO: wrap partials, eigen calcs, and transition matrices in a small structs
-//		so that we can flag them. This would this would be helpful for 
+//		so that we can flag them. This would this would be helpful for
 //		implementing:
-//			1. an error-checking version that double-checks (to the extent 
-//				possible) that the client is using the API correctly.  This would 
-//				ideally be a  conditional compilation variant (so that we do 
+//			1. an error-checking version that double-checks (to the extent
+//				possible) that the client is using the API correctly.  This would
+//				ideally be a  conditional compilation variant (so that we do
 //				not normally incur runtime penalties, but can enable it to help
 //				find bugs).
-//			2. a multithreading impl that checks dependencies before queuing 
+//			2. a multithreading impl that checks dependencies before queuing
 //				partials.
 
 ///@API-ISSUE: adding an resizePartialBufferArray(int newPartialBufferCount) method
-//		would be trivial for this impl, and would be easier for clients that want 
+//		would be trivial for this impl, and would be easier for clients that want
 //		to cache partial like calculations for a indeterminate number of trees.
-///@API-ISSUE: adding a 
+///@API-ISSUE: adding a
 //	void waitForPartials(int* instance;
 // 					int instanceCount;
 // 					int* parentPartialIndex;
 // 					int partialCount;
-// 					); 
+// 					);
 //	method that blocks until the partials are valid would be important for
 //	clients (such as GARLI) that deal with big trees by overwriting some temporaries.
 ///@API-ISSUE: Swapping temporaries (we decided not to implement the following idea
-//	but MTH did want to record it for posterity). We could add following 
+//	but MTH did want to record it for posterity). We could add following
 //	calls:
 ////////////////////////////////////////////////////////////////////////////////
 //	BeagleReturnCodes swapEigens(int instance, int *firstInd, int *secondInd, int count);
@@ -48,7 +48,7 @@
 //			multiple entries to updatePartials.
 //	These seem too nitty gritty and low-level, but they also make it easy to
 //		write a wrapper geared toward MCMC (during a move, cache the old data
-//		in an unused array, after a rejection swap back to the cached copy) 
+//		in an unused array, after a rejection swap back to the cached copy)
 
 
 
@@ -117,7 +117,7 @@ int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactB
 	std::vector<double> emptyMat(kMatrixSize);
 	transitionMatrices.assign(kMatrixCount, emptyMat);
 
-	
+
 
 	////BEGIN edge Like Hack
 	TEMP_SCRATCH_PARTIAL = (double *) malloc(sizeof(double) * kPartialsSize);  /// used in our hack edgeLike func
@@ -130,7 +130,7 @@ int BeagleCPUImpl::initialize(int tipCount, int partialBufferCount, int compactB
 		// 	kStateCount is the cell below if we  weren't padding
 		//	kStateCount + 1 is the cell below, if we  weren't padding
 		//	kStateCount + 2 is the cell below and to the right. (this keeps us on the diag.)
-		el += kStateCount + 2; 
+		el += kStateCount + 2;
 		}
 	////END edge Like Hack
 
@@ -167,16 +167,18 @@ int BeagleCPUImpl::setTipStates(int tipIndex, const int* inStates) {
 }
 
 int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
-		const double** inEigenVectors, const double** inInverseEigenVectors,
+		const double* inEigenVectors,
+		const double* inInverseEigenVectors,
 		const double* inEigenValues) {
+
 	int l = 0;
 	for (int i = 0; i < kStateCount; i++) {
-		eigenValues[eigenIndex][i] = inEigenValues[i];
+		    eigenValues[eigenIndex][i] = inEigenValues[i];
 
 		for (int j = 0; j < kStateCount; j++) {
 			for (int k = 0; k < kStateCount; k++) {
-				cMatrices[eigenIndex][l] = inEigenVectors[i][k]
-						* inInverseEigenVectors[k][j];
+				cMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
+						* inInverseEigenVectors[(k * kStateCount) + j];
 				l++;
 			}
 		}
@@ -221,8 +223,8 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
 			transitionMat[n] = 1.0;
 			n++;
 		}
-		
-		
+
+
 		if (DEBUGGING_OUTPUT) {
 			printf("transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
 			for ( int w = 0; w < 20; ++w)
@@ -250,7 +252,7 @@ int BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
 		const int child1TransMatIndex = operations[op*5 + 2];
 		const int child2Index = operations[op*5 + 3];
 		const int child2TransMatIndex = operations[op*5 + 4];
-	
+
 		assert(parIndex < partials.size());
 		assert(parIndex >= tipStates.size());
 		assert(child1Index < partials.size());
@@ -390,25 +392,23 @@ void BeagleCPUImpl::calcPartialsPartials(double * destP, const double * partials
 int BeagleCPUImpl::calculateRootLogLikelihoods(
 	const int* bufferIndices,
 	const double* weights,
-	const double** stateFrequencies,
+	const double* stateFrequencies,
 	int count,
 	double* outLogLikelihoods)
 {
-	if (count == 1) { 
+	if (count == 1) {
 		// We treat this as a special case so that we don't have convoluted logic
 		//	at the end of the loop over patterns
 		const int rootPartialIndex = bufferIndices[0];
 		const double * rootPartials = partials[rootPartialIndex];
 		assert(rootPartials);
-		const double * frequencies = stateFrequencies[0];
-		assert(frequencies);
 		const double wt = weights[0];
 		assert(wt >= 0.0);
 		int v = 0;
 		for (int k = 0; k < kPatternCount; k++) {
 			double sum = 0.0;
 			for (int i = 0; i < kStateCount; i++) {
-				sum += frequencies[i] * rootPartials[v];
+				sum += stateFrequencies[i] * rootPartials[v];
 				v++;
 			}
 			outLogLikelihoods[k] = log(sum*wt);
@@ -416,8 +416,8 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 	}
 	else
 		{
-		// Here we do the 3 similar operations:  
-		// 		1. to set the lnL to the contribution of the first subset, 
+		// Here we do the 3 similar operations:
+		// 		1. to set the lnL to the contribution of the first subset,
 		//		2. to add the lnL for other subsets up to the penultimate
 		//		3. to add the final subset and take the lnL
 		//	This form of the calc would not work when count == 1 because
@@ -429,7 +429,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 			const int rootPartialIndex = bufferIndices[subsetIndex];
 			const double * rootPartials = partials[rootPartialIndex];
 			assert(rootPartials);
-			const double * frequencies = stateFrequencies[subsetIndex];
+			const double * frequencies = stateFrequencies + (subsetIndex * kStateCount);
 			const double wt = weights[subsetIndex];
 			assert(wt >= 0.0);
 			int v = 0;
@@ -443,12 +443,12 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(
 					outLogLikelihoods[k] = sum*wt;
 				else if (subsetIndex == count - 1)
 					outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum*wt); // add and take the log
-				else 
+				else
 					outLogLikelihoods[k] += sum*wt;
 			}
 		}
 	}
-	
+
 	return NO_ERROR;
 }
 
@@ -458,7 +458,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 								 const int* firstDerivativeIndices,
 								 const int* secondDerivativeIndices,
 								 const double* weights,
-								 const double** stateFrequencies,
+								 const double* stateFrequencies,
 								 int count,
 								 double* outLogLikelihoods,
 								 double* outFirstDerivatives,
@@ -486,13 +486,13 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 	const double * fakeEdgeMat = &TEMP_IDENTITY_MATRIX[0];
 	const std::vector<double> & realMat = transitionMatrices[probabilityIndices[0]];
 	const double * edgeTransMat = &(realMat[0]);
-	
+
 	if (DEBUGGING_OUTPUT) {
 		for ( int w = 0; w < 20; ++w)
 			printf("edgeTransMat[%d] = %.5f\n", w, edgeTransMat[w]);
 	}
 
-	
+
 
 	if (childIndex < kTipCount && tipStates[childIndex] ) {
 		calcStatesPartials(TEMP_SCRATCH_PARTIAL, tipStates[childIndex], edgeTransMat, partials[parIndex], fakeEdgeMat);
