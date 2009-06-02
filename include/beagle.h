@@ -69,7 +69,7 @@ enum BeagleFlags {
  */
 typedef struct {
 	int resourceNumber; /**< Resource upon which instance is running */
-	int flags; 			/**< Bit-flags that characterize this instance's resource */
+	long flags; 			/**< Bit-flags that characterize the activate capabilities of the resource for this instance */
 } InstanceDetails;
 
 /**
@@ -77,7 +77,7 @@ typedef struct {
  */
 typedef struct {
 	char* name; /**< Name of resource as a NULL-terminated character string */
-	long flag; /**< Bit-flag capabilities on resource */
+	long flags; /**< Bit-flags of capabilities on resource */
 } Resource;
 
 /**
@@ -116,8 +116,8 @@ int createInstance(
 				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
 				int* resourceList,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				int resourceCount,			/**< Length of resourceList list (input) */
-				int preferenceFlags,		/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				int requirementFlags		/**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+				long preferenceFlags,		/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				long requirementFlags		/**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				);
 
 /**
