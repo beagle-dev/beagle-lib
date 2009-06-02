@@ -239,11 +239,28 @@ int updateTransitionMatrices(
  * @return error code
  */
 int updatePartials(
-                       int* instance, 		/**< List of instances for which to update partials buffers (input) */
+                       const int* instance, /**< List of instances for which to update partials buffers (input) */
                        int instanceCount, 	/**< Length of instance list (input) */
-					   int* operations, 	/**< List of 5-tuples specifying operations (input) */
+					   constint* operations,/**< List of 5-tuples specifying operations (input) */
 					   int operationCount, 	/**< Number of operations (input) */
 					   int rescale); 		/**< Specify whether (=1) or not (=0) to recalculate scaling factors */
+
+/**
+* @brief Block until all calculations that write to the specified partials have completed.
+*
+* This function is optional and only has to be called by clients that "recycle" partials.
+*
+* If used, this function must be called after an updatePartials call and must refer to
+*  indices of "destinationPartials" that were used in a previous updatePartials
+*  call.  The library will block until those partials have been calculated.
+*
+* @return error code
+*/
+int waitForPartials(
+                      const int* instance,            /**< List of instances for which to update partials buffers (input) */
+                      int instanceCount,              /**< Length of instance list (input) */
+                      const int* destinationPartials, /**< List of the indices of destinationPartials that must be calculated before the function returns */
+                      int destinationPartialsCount);  /**< Number of destinationPartials (input) */
 
 /**
  * @brief Calculate site log likelihoods at a root node
