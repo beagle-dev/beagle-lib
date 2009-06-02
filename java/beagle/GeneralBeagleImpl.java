@@ -210,12 +210,12 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(stateFrequencies, 0, frequencies, 0, frequencies.length);
     }
 
-    public void setEigenDecomposition(int matrixIndex, double[][] eigenVectors, double[][] inverseEigenValues, double[] eigenValues) {
+    public void setEigenDecomposition(int matrixIndex, double[] eigenVectors, double[] inverseEigenValues, double[] eigenValues) {
         int l =0;
         for (int i = 0; i < stateCount; i++) {
             for (int j = 0; j < stateCount; j++) {
                 for (int k = 0; k < stateCount; k++) {
-                    cMatrices[matrixIndex][l] = eigenVectors[i][k] * inverseEigenValues[k][j];
+                    cMatrices[matrixIndex][l] = eigenVectors[(i * stateCount) + k] * inverseEigenValues[(k * stateCount) + j];
                     l++;
                 }
             }
@@ -232,7 +232,7 @@ public class GeneralBeagleImpl implements Beagle {
     public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
     }
 
-    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[][] stateFrequencies, final double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final double[] outLogLikelihoods) {
     }
 
     public void setCategoryRates(double[] categoryRates) {
@@ -296,7 +296,7 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void calculatePartials(int[] operations, int[] dependencies, int operationCount, boolean rescale) {
+    public void calculatePartials(int[] operations, int operationCount, boolean rescale) {
 
         if (SCALING) {
             if (DYNAMIC_SCALING) {
