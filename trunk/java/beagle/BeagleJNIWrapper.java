@@ -51,8 +51,8 @@ public class BeagleJNIWrapper implements Beagle {
     }
 
     public void setEigenDecomposition(int eigenIndex,
-                                      final double[][] eigenVectors,
-                                      final double[][] inverseEigenValues,
+                                      final double[] eigenVectors,
+                                      final double[] inverseEigenValues,
                                       final double[] eigenValues) {
         setEigenDecomposition(instance, eigenIndex, eigenVectors, inverseEigenValues, eigenValues);
     }
@@ -81,7 +81,7 @@ public class BeagleJNIWrapper implements Beagle {
 
     public void calculateRootLogLikelihoods(final int[] bufferIndices,
                                             final double[] weights,
-                                            final double[][] stateFrequencies,
+                                            final double[] stateFrequencies,
                                             double[] outLogLikelihoods) {
         calculateRootLogLikelihoods(instance, bufferIndices, weights, stateFrequencies, bufferIndices.length, outLogLikelihoods);
     }
@@ -116,8 +116,8 @@ public class BeagleJNIWrapper implements Beagle {
 
     public native void setEigenDecomposition(int instance,
                                              int eigenIndex,
-                                             final double[][] eigenVectors,
-                                             final double[][] inverseEigenValues,
+                                             final double[] eigenVectors,
+                                             final double[] inverseEigenValues,
                                              final double[] eigenValues);
 
     public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
@@ -138,7 +138,7 @@ public class BeagleJNIWrapper implements Beagle {
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
                                                   final double[] weights,
-                                                  final double[][] stateFrequencies,
+                                                  final double[] stateFrequencies,
                                                   int count,
                                                   double[] outLogLikelihoods);
 

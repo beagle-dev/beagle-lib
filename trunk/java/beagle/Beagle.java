@@ -34,8 +34,8 @@ public interface Beagle {
     public void setTipStates(int tipIndex, final int[] states);
 
     public void setEigenDecomposition(int eigenIndex,
-                                      final double[][] eigenVectors,
-                                      final double[][] inverseEigenValues,
+                                      final double[] eigenVectors,
+                                      final double[] inverseEigenValues,
                                       final double[] eigenValues);
 
     public void setTransitionMatrix(int matrixIndex, final double[] inMatrix);
@@ -52,6 +52,6 @@ public interface Beagle {
 
     public void calculateRootLogLikelihoods(final int[] bufferIndices,
                                             final double[] weights,
-                                            final double[][] stateFrequencies,
+                                            final double[] stateFrequencies,
                                             double[] outLogLikelihoods);
 }
