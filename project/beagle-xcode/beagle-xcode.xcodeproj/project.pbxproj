@@ -11,9 +11,9 @@
 		643430E50FD2CE1200AFC69E /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 		643430E60FD2CE1500AFC69E /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		643430FC0FD2CE7B00AFC69E /* fourtaxon.dat in CopyFiles */ = {isa = PBXBuildFile; fileRef = 64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */; };
+		64BA0A5B0FD46C2200E5EA7A /* tinytest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */; };
 		64F21C770FD2C10300678D0B /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		64F21C780FD2C10300678D0B /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
-		64F21C790FD2C10300678D0B /* tinyTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C470FD2B74900678D0B /* tinyTest.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -31,6 +31,10 @@
 
 /* Begin PBXFileReference section */
 		643430DE0FD2CD0400AFC69E /* fourTaxonXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_BEAST.xml"; sourceTree = DEVELOPER_DIR; };
+		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_paup.nex"; sourceTree = DEVELOPER_DIR; };
+		64BA0A520FD46BCF00E5EA7A /* Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; name = Makefile; path = "projects/beagle-lib/examples/tinytest/Makefile"; sourceTree = DEVELOPER_DIR; };
+		64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = "projects/beagle-lib/examples/tinytest/tinytest.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = "projects/beagle-lib/src/beagle.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
@@ -45,14 +49,12 @@
 		64F21C430FD2B74900678D0B /* Queue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = Queue.cpp; path = "projects/beagle-lib/src/CUDA/Queue.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C440FD2B74900678D0B /* Queue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Queue.h; path = "projects/beagle-lib/src/CUDA/Queue.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C450FD2B74900678D0B /* TransitionProbabilities_kernel.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = TransitionProbabilities_kernel.cu; path = "projects/beagle-lib/src/CUDA/TransitionProbabilities_kernel.cu"; sourceTree = DEVELOPER_DIR; };
-		64F21C470FD2B74900678D0B /* tinyTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinyTest.cpp; path = "projects/beagle-lib/src/tests/tinyTest.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = "projects/beagle-lib/include/beagle.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = "projects/beagle-lib/include/BeagleImpl.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.dat"; sourceTree = DEVELOPER_DIR; };
 		64F21C4F0FD2B7B500678D0B /* fourtaxon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = fourtaxon.hpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.hpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C500FD2B7B500678D0B /* Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; name = Makefile; path = "projects/beagle-lib/examples/fourtaxon/Makefile"; sourceTree = DEVELOPER_DIR; };
-		64F21C520FD2B83200678D0B /* Tests.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Tests.Makefile; path = "projects/beagle-lib/Tests.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64F21C530FD2B83200678D0B /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = "projects/beagle-lib/CUDA.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64F21C720FD2C0BA00678D0B /* tinyTestXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -87,13 +89,24 @@
 			name = "beagle-xcode";
 			sourceTree = "<group>";
 		};
+		64BA0A4F0FD46BCF00E5EA7A /* tinytest */ = {
+			isa = PBXGroup;
+			children = (
+				64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */,
+				64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */,
+				64BA0A520FD46BCF00E5EA7A /* Makefile */,
+				64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */,
+			);
+			name = tinytest;
+			path = "projects/beagle-lib/examples/tinytest";
+			sourceTree = DEVELOPER_DIR;
+		};
 		64F21C350FD2B74900678D0B /* src */ = {
 			isa = PBXGroup;
 			children = (
 				64F21C360FD2B74900678D0B /* beagle.cpp */,
 				64F21C370FD2B74900678D0B /* CPU */,
 				64F21C3A0FD2B74900678D0B /* CUDA */,
-				64F21C460FD2B74900678D0B /* tests */,
 			);
 			name = src;
 			path = "projects/beagle-lib/src";
@@ -128,15 +141,6 @@
 			path = "projects/beagle-lib/src/CUDA";
 			sourceTree = DEVELOPER_DIR;
 		};
-		64F21C460FD2B74900678D0B /* tests */ = {
-			isa = PBXGroup;
-			children = (
-				64F21C470FD2B74900678D0B /* tinyTest.cpp */,
-			);
-			name = tests;
-			path = "projects/beagle-lib/src/tests";
-			sourceTree = DEVELOPER_DIR;
-		};
 		64F21C480FD2B76300678D0B /* include */ = {
 			isa = PBXGroup;
 			children = (
@@ -150,6 +154,7 @@
 		64F21C4B0FD2B7B400678D0B /* examples */ = {
 			isa = PBXGroup;
 			children = (
+				64BA0A4F0FD46BCF00E5EA7A /* tinytest */,
 				64F21C4C0FD2B7B400678D0B /* fourtaxon */,
 			);
 			name = examples;
@@ -171,7 +176,6 @@
 		64F21C540FD2B83600678D0B /* makefiles */ = {
 			isa = PBXGroup;
 			children = (
-				64F21C520FD2B83200678D0B /* Tests.Makefile */,
 				64F21C530FD2B83200678D0B /* CUDA.Makefile */,
 			);
 			name = makefiles;
@@ -256,9 +260,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				64BA0A5B0FD46C2200E5EA7A /* tinytest.cpp in Sources */,
 				64F21C770FD2C10300678D0B /* beagle.cpp in Sources */,
 				64F21C780FD2C10300678D0B /* BeagleCPUImpl.cpp in Sources */,
-				64F21C790FD2C10300678D0B /* tinyTest.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
