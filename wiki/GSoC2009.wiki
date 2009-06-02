@@ -27,37 +27,40 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Created preliminary logo for beagle-lib
 
 === 05/23 - 05/30 ===
- * Work on presentation on OpenCL for library meeting on 5/29
- * Begin porting of current beagle-lib to CUDA driver API
-   * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, !TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code. 
-   * Create new c files with CPU functions found in the .cu files above
-   * Replace C for CUDA calls with Driver API calls
- * Discuss additional interface necessary for other phylogenetic software (as part of the likelihood API meeting at Maryland)
-   * Write e-mail to Derrick Zwickl (developer of GARLI) describing in detail how current beagle interface compares to GARLI
+ * Participated in a workgroup with the developers of the top phylogenetic and population genetic software today. This group had the purpose of defining a new API for beagle which would allow it to be used by these programs.
+ * Gave presentation on GPU programming model for CUDA and OpenCL for the group. Also presented on previous work done on likelihood calculation on GPUs. 
+ * Together with workgroup participants, defined a new interface for the beagle library. (specifically beagle.h was modified)
+ * Together with workgroup participants, updated the reference CPU implementation to match the new API. (among others BeagleCPUImpl.cpp was modified)
+ * Set up Xcode project for the library and test cases to ease debugging process.
 
 === 05/30 - 06/06 ===
+ * Adapt CUDA implemention to comply with new API  (requires modifying source files in src/CUDA)
+
+ (the following depends on progress of the above)
+ * Begin porting of  beagle-lib to CUDA driver API
+  * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code.
+  * Create new c files by extracting the host-side functions found in the .cu files above
+
+=== 06/06 - 06/13 ===
  * Finish porting of current beagle-lib to CUDA driver API
    * Continue converting C for CUDA calls to Driver API ones.
    * Test modifications.
- * Begin work on describing additional interface necessary for GARLI
-   * Continue post-meeting communication with Derrick to define additional library functions necessary for ML in GARLI
  * Begin work on OpenCL implementation
    * Convert CUDA Driver API host code to OpenCL 
 
-=== 06/06 - 06/13 ===
+=== 06/13 - 06/20 ===
  * Work on autotools issues 
    * Fix OS X compatibility issues [http://code.google.com/p/beagle-lib/issues/list]
- * Finish description of additional interface necessary for GARLI
-   * With this in place Derrick can start preparing GARLI for the library
  * Continue work on OpenCL implementation
    * Convert CUDA GPU kernels to OpenCL
 
 == Deliverables ==
-=== 06/06 ===
- * CUDA driver API port of beagle-lib
 
-=== 06/13 ===
- * GARLI interface description
+=== 05/30 ===
+ * new API defined
+
+=== 06/20 ===
+ * CUDA driver API port of beagle-lib
 
 === 08/23 ===
  * OpenCL implementation of beagle-lib
