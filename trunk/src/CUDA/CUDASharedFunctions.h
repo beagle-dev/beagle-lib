@@ -176,12 +176,6 @@ int checkZeros(REAL* dPtr, int length);
 
 void loadTipPartials(int instance);
 
-void doStore(int instance);
-
-void doRestore(int instance);
-
-void handleStoreRestoreQueue(int instance);
-
 #ifdef __cplusplus
 }
 #endif

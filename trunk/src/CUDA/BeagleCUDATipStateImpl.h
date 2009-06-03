@@ -6,7 +6,7 @@
  * @author Andrew Rambaut
  *
  */
-#if 0
+
 #include "BeagleImpl.h"
 #include "CUDASharedFunctions.h"
 #include "Queue.h"
@@ -252,6 +252,3 @@ extern "C" void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL *dResult, REAL 
 extern "C" void nativeGPURescalePartials(REAL *partials3,REAL *scalingFactors,
 		int patternCount, int matrixCount, int fillWithOnes);
 		
-#else
-#warning "beaglecudatipstateimpl.h"
-#endif
