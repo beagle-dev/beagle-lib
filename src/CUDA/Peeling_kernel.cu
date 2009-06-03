@@ -7,7 +7,7 @@
 /**************INCLUDES***********/
 #include <stdio.h>
 #include <cuda_runtime_api.h>
-#include "BeagleCUDATipStateImpl.h"
+#include "BeagleCUDAImpl.h"
 #include "CUDASharedFunctions.h"
 
 /**************CODE***********/
