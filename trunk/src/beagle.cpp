@@ -281,9 +281,9 @@ int updateTransitionMatrices(
 }
 
 int updatePartials(
-                       int* instanceList,
+                       const int* instanceList,
                        int instanceCount,
-					   int* operations,
+					   const int* operations,
 					   int operationCount,
 					   int rescale)
 {
@@ -295,6 +295,37 @@ int updatePartials(
 				return UNINITIALIZED_INSTANCE_ERROR;
 
 			int err = beagleInstance->updatePartials(operations, operationCount, rescale);
+			if (err != NO_ERROR) {
+				error_code = err;
+			}
+		}
+		return error_code;
+	}
+	catch (std::bad_alloc &) {
+		return OUT_OF_MEMORY_ERROR;
+	}
+	catch (std::out_of_range &) {
+		return OUT_OF_RANGE_ERROR;
+	}
+	catch (...) {
+		return UNIDENTIFIED_EXCEPTION_ERROR;
+	}
+}
+
+int waitForPartials(
+					const int* instanceList,
+					int instanceCount,
+					const int* destinationPartials,
+					int destinationPartialsCount)
+{
+	try {
+		int error_code = NO_ERROR;
+		for (int i = 0; i < instanceCount; i++) {
+			BeagleImpl * beagleInstance = getBeagleInstance(instanceList[i]);
+			if (beagleInstance == NULL)
+				return UNINITIALIZED_INSTANCE_ERROR;
+			
+			int err = beagleInstance->waitForPartials(destinationPartials, destinationPartialsCount);
 			if (err != NO_ERROR) {
 				error_code = err;
 			}

@@ -59,10 +59,14 @@ public:
 			int count) = 0;
 
 	virtual int updatePartials(
-			int* operations,
+			const int* operations,
 			int operationCount,
 			int rescale) = 0;
 
+	virtual int waitForPartials(
+			const int* destinationPartials,
+			int destinationPartialsCount) = 0;
+	
 	virtual int calculateRootLogLikelihoods(
 			const int* bufferIndices,
 			const double* weights,
