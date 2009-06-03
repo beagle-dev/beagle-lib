@@ -115,10 +115,26 @@ public:
 	// dependencies an array of indices specify which operations are dependent on which (optional)
 	// count the number of operations
 	// rescale indicate if partials should be rescaled during peeling
-	int updatePartials(	int* operations,
+	int updatePartials(const int* operations,
 					   int operationCount,
 					   int rescale);
-
+	
+	// Block until all calculations that write to the specified partials have completed.
+	//
+	// This function is optional and only has to be called by clients that "recycle" partials.
+	//
+	// If used, this function must be called after an updatePartials call and must refer to
+	//  indices of "destinationPartials" that were used in a previous updatePartials
+	// call.  The library will block until those partials have been calculated.
+	//
+	// destinationPartials - List of the indices of destinationPartials that must be calculated before the function returns
+	// destinationPartialsCount - Number of destinationPartials (input)
+	//
+	// return error code
+	int waitForPartials(const int* destinationPartials,
+						int destinationPartialsCount);
+	
+	
 	// calculate the site log likelihoods at a particular node
 	//
 	// rootNodeIndex the index of the root

@@ -236,7 +236,7 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
 	return NO_ERROR;
 }
 
-int BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
+int BeagleCPUImpl::updatePartials(const int* operations, int count, int rescale) {
 
 	int x = 0;
 	for (int op = 0; op < count; op++) {
@@ -281,6 +281,12 @@ int BeagleCPUImpl::updatePartials(int* operations, int count, int rescale) {
 			}
 		}
 	}
+	return NO_ERROR;
+}
+
+
+int BeagleCPUImpl::waitForPartials(const int* destinationPartials, int destinationPartialsCount)
+{
 	return NO_ERROR;
 }
 

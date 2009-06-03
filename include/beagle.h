@@ -241,7 +241,7 @@ int updateTransitionMatrices(
 int updatePartials(
                        const int* instance, /**< List of instances for which to update partials buffers (input) */
                        int instanceCount, 	/**< Length of instance list (input) */
-					   constint* operations,/**< List of 5-tuples specifying operations (input) */
+					   const int* operations,/**< List of 5-tuples specifying operations (input) */
 					   int operationCount, 	/**< Number of operations (input) */
 					   int rescale); 		/**< Specify whether (=1) or not (=0) to recalculate scaling factors */
 
