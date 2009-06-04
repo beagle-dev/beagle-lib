@@ -19,12 +19,13 @@ private:
 	int loaded;
 #endif
 	
+	int kStateCount;
+	
 	int nodeCount;
 	int patternCount;
 	int truePatternCount;
 	int partialsSize;
 	int matrixSize;
-	int categoryCount;
 	int matrixCount;
 	int taxaCount;
 	
@@ -36,21 +37,10 @@ private:
 	//	REAL* dCMatrix;
 	//	REAL* dStoredMatrix;
 	REAL* dEigenValues;
-	REAL* dStoredEigenValues;
 	REAL* dEvec;
-	REAL* dStoredEvec;
 	REAL* dIevc;
-	REAL* dStoredIevc;
 	
-	REAL* dFrequencies;
-	REAL* dStoredFrequencies;
-	REAL* dCategoryProportions;
-	REAL* dStoredCategoryProportions;
-	//	REAL* dCategoryRates;
-	//	REAL* dStoredCategoryRates;
-	
-	REAL* hCategoryRates;
-	REAL *hStoredCategoryRates;
+	REAL* dFrequencies;	
 	
 	REAL* dIntegrationTmp;
 	
@@ -61,26 +51,19 @@ private:
 	int** hTmpStates;
 	
 	REAL*** dScalingFactors;
-	REAL*** dStoredScalingFactors;
 	REAL *dRootScalingFactors;
-	REAL *dStoredRootScalingFactors;
 	
 	int** dStates;
 	
-	int* hCurrentMatricesIndices;
-	int* hStoredMatricesIndices;
-	int* hCurrentPartialsIndices;
-	int* hStoredPartialsIndices;
+	int* hMatricesIndices;
+	int* hPartialsIndices;
 	
 #ifdef DYNAMIC_SCALING
-	int *hCurrentScalingFactorsIndices;
-	int *hStoredScalingFactorsIndices;
+	int *hScalingFactorsIndices;
 #endif
 	
-	int* dCurrentMatricesIndices;
-	int* dStoredMatricesIndices;
-	int* dCurrentPartialsIndices;
-	int* dStoredPartialsIndices;
+	int* dMatricesIndices;
+	int* dPartialsIndices;
 	
 	int* dNodeIndices;
 	int* hNodeIndices;
@@ -96,7 +79,6 @@ private:
 	REAL** dPtrQueue;
 	
 	REAL *hFrequenciesCache;
-	REAL *hCategoryCache;
 	REAL *hLogLikelihoodsCache;
 	REAL *hPartialsCache;
 	int  *hStatesCache;
@@ -104,8 +86,6 @@ private:
 	//	REAL *hNodeCache;
 	
 	int doRescaling;
-	int doStore;
-	int doRestore;
 		
 	int sinceRescaling;
 	int storedDoRescaling;

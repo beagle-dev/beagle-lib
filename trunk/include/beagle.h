@@ -182,7 +182,7 @@ int getPartials(int instance,       /**< Instance number from which to get parti
  * @brief Set the compressed state representation for tip node
  *
  * This function copies a compressed state representation into a instance buffer.
- * Compressed state representation is an array of states: 0 to stateCiunt - 1 (missing = stateCount)
+ * Compressed state representation is an array of states: 0 to stateCount - 1 (missing = stateCount)
  *
  * @return error code
  */
