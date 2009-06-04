@@ -4,12 +4,11 @@
  *
  * @author Marc Suchard
  * @author Andrew Rambaut
- *
+ * @author Daniel Ayres
  */
 
 #include "BeagleImpl.h"
 #include "CUDASharedFunctions.h"
-#include "Queue.h"
 
 class BeagleCUDAImpl : public BeagleImpl {
 private:
@@ -107,12 +106,7 @@ private:
 	int doRescaling;
 	int doStore;
 	int doRestore;
-	
-#ifdef LAZY_STORE
-	//	queue doStoreRestoreQueue;
-	Queue doStoreRestoreQueue;
-#endif
-	
+		
 	int sinceRescaling;
 	int storedDoRescaling;
 	int storedSinceRescaling;

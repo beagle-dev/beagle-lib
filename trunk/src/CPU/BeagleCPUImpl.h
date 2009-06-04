@@ -4,7 +4,7 @@
  *
  * @author Andrew Rambaut
  * @author Marc Suchard
- *
+ * @author Daniel Ayres
  */
 
 #include "BeagleImpl.h"

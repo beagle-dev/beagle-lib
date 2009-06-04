@@ -4,7 +4,7 @@
  *
  * @author Andrew Rambaut
  * @author Marc Suchard
- *
+ * @author Daniel Ayres
  */
 
 #include <cstdio>
@@ -110,6 +110,7 @@ int initializeInstance(
 {
 	try {
 		// TODO: Actual creation of instances should wait until here
+		return NO_ERROR;
 	}
 	catch (std::bad_alloc &) {
 		return OUT_OF_MEMORY_ERROR;

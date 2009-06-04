@@ -13,7 +13,6 @@
 #define DYNAMIC_SCALING
 
 #define PRE_LOAD
-#define LAZY_STORE
 
 //#define DEBUG_FLOW
 //#define DEBUG_GPU
@@ -37,18 +36,21 @@
  * PADDED_STATE_COUNT - # of total states after augmentation
  * 					    *should* be a multiple of 16
  *
- * PATTERN_BLOCK_SIZE - # of patterns to pack onto each thread-block in pruning ( x 4 for PADDED_STATE_COUNT==4)
+ * PATTERN_BLOCK_SIZE - # of patterns to pack onto each thread-block in pruning
+ *							( x 4 for PADDED_STATE_COUNT==4)
  * 						PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT <= 512
  *
- * MATRIX_BLOCK_SIZE  - # of matrices to pack onto each thread-block in integrating likelihood and store in dynamic weighting;
+ * MATRIX_BLOCK_SIZE  - # of matrices to pack onto each thread-block in integrating
+ *						  likelihood and store in dynamic weighting;
  * 					    MATRIX_BLOCK_SIZE * PADDED_STATE_COUNT <= 512
- * 					  - TODO Currently matrixCount must be < MATRIX_BLOCK_SIZE, fix!
+ * 					  - TODO: Currently matrixCount must be < MATRIX_BLOCK_SIZE, fix!
  *
  * BLOCK_PEELING_SIZE - # of the states to pre-fetch in inner-sum in pruning;
  * 						BLOCK_PEELING_SIZE <= PATTERN_BLOCK_SIZE and
  * 						*must* be a divisor of PADDED_STATE_COUNT
  *
- * SMALLEST_POWER_OF_TWO - Smallest power of 2 greater than or equal to PADDED_STATE_COUNT (if not already a power of 2)
+ * SMALLEST_POWER_OF_TWO - Smallest power of 2 greater than or equal to PADDED_STATE_COUNT
+ *    (if not already a power of 2)
  *
  */
 

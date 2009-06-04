@@ -87,6 +87,9 @@ double* getPartials(char *sequence) {
 
 int main( int argc, const char* argv[] )
 {
+    // is nucleotides...
+    int stateCount = 4;
+	
     // get the number of site patterns
 	int nPatterns = strlen(human);
 
@@ -95,7 +98,7 @@ int main( int argc, const char* argv[] )
 			    3,				/**< Number of tip data elements (input) */
 				5,	            /**< Number of partials buffers to create (input) */
 				0,		        /**< Number of compact state representation buffers to create (input) */
-				4,				/**< Number of states in the continuous-time Markov chain (input) */
+				stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
 				nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
 				1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
 				4,		        /**< Number of rate matrix buffers (input) */
@@ -111,6 +114,11 @@ int main( int argc, const char* argv[] )
 
     // initialize the instance
     int error = initializeInstance(instance, NULL);
+	
+    if (error < 0) {
+	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
+	    exit(1);
+    }
 
 //	setTipStates(instance, 0, getStates(human));
 //	setTipStates(instance, 1, getStates(chimp));
@@ -120,10 +128,7 @@ int main( int argc, const char* argv[] )
 	setPartials(instance, 0, getPartials(human));
 	setPartials(instance, 1, getPartials(chimp));
 	setPartials(instance, 2, getPartials(gorilla));
-
-    // is nucleotides...
-    int stateCount = 4;
-
+	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
