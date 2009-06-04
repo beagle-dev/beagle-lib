@@ -120,8 +120,8 @@ void FourTaxonExample::initBeagleLib()
 				5,			// matrixBufferCount,
 				NULL,		// resourceList
 				0,			// resourceCount
-				0,			// preferenceFlags
-				0			// requirementFlags
+				0L,			// preferenceFlags
+				0L			// requirementFlags
 				);
 
 	if (instance_handle < 0)
