@@ -131,8 +131,6 @@ public:
 	int setTipStates(int tipIndex,
 					 const int* inStates);
 	
-	int setStateFrequencies(const double* inStateFrequencies);
-	
 	int setEigenDecomposition(int eigenIndex,
 							  const double* inEigenVectors,
 							  const double* inInverseEigenVectors,

@@ -40,8 +40,10 @@ enum BeagleReturnCodes {
 	GENERAL_ERROR = -1,
 	OUT_OF_MEMORY_ERROR = -2,
 	UNIDENTIFIED_EXCEPTION_ERROR = -3,
-	UNINITIALIZED_INSTANCE_ERROR = -4, /**< the instance index is out of range, or the instance has not been created */
-	OUT_OF_RANGE_ERROR = -5 /**< one of the indices specfied exceeded the range of the array */
+	UNINITIALIZED_INSTANCE_ERROR = -4,	/**< the instance index is out of range,
+										  *  or the instance has not been created */
+	OUT_OF_RANGE_ERROR = -5				/**< one of the indices specfied exceeded the range of the
+										  *  array */
 };
 
 /**
@@ -69,7 +71,8 @@ enum BeagleFlags {
  */
 typedef struct {
 	int resourceNumber; /**< Resource upon which instance is running */
-	long flags; 			/**< Bit-flags that characterize the activate capabilities of the resource for this instance */
+	long flags; 		/**< Bit-flags that characterize the activate
+						  *  capabilities of the resource for this instance */
 } InstanceDetails;
 
 /**
@@ -85,7 +88,7 @@ typedef struct {
  */
 typedef struct {
 	Resource* list; /**< Pointer list of resources */
-	int length; /**< Length of list */
+	int length;		/**< Length of list */
 } ResourceList;
 
 /**
@@ -104,21 +107,28 @@ ResourceList* getResourceList();
  * multiple times to create multiple data partition instances each returning a unique
  * identifier.
  *
- * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES "BeagleReturnCodes")
+ * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
+ * "BeagleReturnCodes")
  */
-int createInstance(
-			    int tipCount,				/**< Number of tip data elements (input) */
-				int partialsBufferCount,	/**< Number of partials buffers to create (input) */
-				int compactBufferCount,		/**< Number of compact state representation buffers to create (input) */
-				int stateCount,				/**< Number of states in the continuous-time Markov chain (input) */
-				int patternCount,			/**< Number of site patterns to be handled by the instance (input) */
-				int eigenBufferCount,		/**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-				int matrixBufferCount,		/**< Number of rate matrix buffers (input) */
-				int* resourceList,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-				int resourceCount,			/**< Length of resourceList list (input) */
-				long preferenceFlags,		/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				long requirementFlags		/**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-				);
+int createInstance(int tipCount,			/**< Number of tip data elements (input) */
+				   int partialsBufferCount,	/**< Number of partials buffers to create (input) */
+				   int compactBufferCount,	/**< Number of compact state representation buffers to
+											  *  create (input) */
+				   int stateCount,			/**< Number of states in the continuous-time Markov
+											  *  chain (input) */
+				   int patternCount,		/**< Number of site patterns to be handled by the
+											  *  instance (input) */
+				   int eigenBufferCount,	/**< Number of rate matrix eigen-decomposition buffers
+											  *  to allocate (input) */
+				   int matrixBufferCount,	/**< Number of rate matrix buffers (input) */
+				   int* resourceList,		/**< List of potential resource on which this instance
+											  *  is allowed (input, NULL implies no restriction */
+				   int resourceCount,		/**< Length of resourceList list (input) */
+				   long preferenceFlags,	/**< Bit-flags indicating preferred implementation
+											  *  charactertistics, see BeagleFlags (input) */
+				   long requirementFlags	/**< Bit-flags indicating required implementation
+											  *  characteristics, see BeagleFlags (input) */
+				   );
 
 /**
  * @brief Initialize the instance
@@ -128,9 +138,9 @@ int createInstance(
  *
  * @returns Information about the implementation and hardware on which this instance will run
  */
-int initializeInstance(
-						int instance,		/**< Instance number to initialize (input) */
-						InstanceDetails* returnInfo); /**< Pointer to return hardware details */
+int initializeInstance(int instance,				/**< Instance number to initialize (input) */
+					   InstanceDetails* returnInfo	/**< Pointer to return hardware details */
+					   );
 
 /**
  * @brief Finalize this instance
@@ -139,8 +149,8 @@ int initializeInstance(
  *
  * @return error code
  */
-int finalize(
-		int instance); /**< Instance number */
+int finalize(int instance	/**< Instance number */
+			 );
 
 /**
  * @brief Set an instance partials buffer
@@ -149,10 +159,11 @@ int finalize(
  *
  * @return error code
  */
-int setPartials(
-                    int instance,				/**< Instance number in which to set a partialsBuffer (input) */
-             		int bufferIndex,			/**< Index of destination partialsBuffer (input) */
-					const double* inPartials);	/**< Pointer to partials values to set (input) */
+int setPartials(int instance,				/**< Instance number in which to set a partialsBuffer
+											  *  (input) */
+             	int bufferIndex,			/**< Index of destination partialsBuffer (input) */
+				const double* inPartials	/**< Pointer to partials values to set (input) */
+				);
 
 /**
  * @brief Get partials from an instance buffer
@@ -161,11 +172,11 @@ int setPartials(
  *
  * @return error code
  */
-int getPartials(
-		int instance,			/**< Instance number from which to get partialsBuffer (input) */
-		int bufferIndex, 		/**< Index of source partialsBuffer (input) */
-		double *outPartials		/**< Pointer to which to receive partialsBuffer (output) */
-		);
+int getPartials(int instance,		/**< Instance number from which to get partialsBuffer
+									  *  (input) */
+				int bufferIndex, 	/**< Index of source partialsBuffer (input) */
+				double *outPartials	/**< Pointer to which to receive partialsBuffer (output) */
+				);
 
 /**
  * @brief Set the compressed state representation for tip node
@@ -175,10 +186,10 @@ int getPartials(
  *
  * @return error code
  */
-int setTipStates(
-                  int instance,			/**< Instance number (input) */
-				  int tipIndex,			/**< Index of destination compressedBuffer (input) */
-				  const int* inStates); /**< Pointer to compressed states (input) */
+int setTipStates(int instance,			/**< Instance number (input) */
+				 int tipIndex,			/**< Index of destination compressedBuffer (input) */
+				 const int* inStates	/**< Pointer to compressed states (input) */
+				 );
 
 /**
  * @brief Set an eigen-decomposition buffer
@@ -187,22 +198,33 @@ int setTipStates(
  *
  * DISCUSSION POINT: Should we transfer 2D matrices in flatten formed,
  * consistent with setTransitionMatrix()?
+ * 
+ * @return error code
  */
-int setEigenDecomposition(
-                           int instance,							/**< Instance number (input) */
-						   int eigenIndex,							/**< Index of eigen-decomposition buffer (input) */
-						   const double* inEigenVectors, 			/**< Flattened matrix (stateCount x stateCount) of eigen-vectors (input) */
-						   const double* inInverseEigenVectors,	    /**< Flattened matrix (stateCount x stateCount) of inverse-eigen-vectors (input) */
-						   const double* inEigenValues); 			/**< Vector of eigenvalues*/
+int setEigenDecomposition(int instance,							/**< Instance number (input) */
+						  int eigenIndex,						/**< Index of eigen-decomposition
+																  *  buffer (input) */
+						  const double* inEigenVectors,			/**< Flattened matrix (stateCount x
+																  *  stateCount) of eigen-vectors
+																  *  (input) */
+						  const double* inInverseEigenVectors,	/**< Flattened matrix (stateCount x
+																  *  stateCount) of inverse-eigen-
+																  *  vectors (input) */
+						  const double* inEigenValues			/**< Vector of eigenvalues*/
+						  );
 
 /**
  * @brief Set a finite-time transition probability matrix
  *
  * This function copies a finite-time transition probability matrix into a matrix buffer.
+ *
+ * @return error code
  */
-int setTransitionMatrix(	int instance,				/**< Instance number (input)  */
-                			int matrixIndex,			/**< Index of matrix buffer (input) */
-                			const double* inMatrix);	/**< Pointer to source transition probability matrix (input) */
+int setTransitionMatrix(int instance,			/**< Instance number (input)  */
+                		int matrixIndex,		/**< Index of matrix buffer (input) */
+                		const double* inMatrix	/**< Pointer to source transition
+												  *  probability matrix (input) */
+						);
 
 /**
  * @brief Calculate a list of transition probability matrices
@@ -212,14 +234,25 @@ int setTransitionMatrix(	int instance,				/**< Instance number (input)  */
  *
  * @return error code
  */
-int updateTransitionMatrices(
-                                            int instance,	/**< Instance number (input) */
-                                            int eigenIndex,	/**<  Index of eigen-decomposition buffer (input) */
-                                            const int* probabilityIndices, /**<  List of indices of transition probability matrices to update (input) */
-                                            const int* firstDerivativeIndices, /**< List of indices of first derivative matrices to update (input, NULL implies no calculation) */
-                                            const int* secondDervativeIndices, /**< List of indices of second derivative matrices to update (input, NULL implies no calculation) */
-                                            const double* edgeLengths, /**< List of edge lengths with which to perform calculations (input) */
-                                            int count); /**< Length of lists */
+int updateTransitionMatrices(int instance,						/**< Instance number (input) */
+							 int eigenIndex,					/**< Index of eigen-decomposition
+																  *  buffer (input) */
+							 const int* probabilityIndices,		/**< List of indices of transition
+																  *  probability matrices to update
+																  *  (input) */
+							 const int* firstDerivativeIndices, /**< List of indices of first
+																  *  derivative matrices to update
+																  *  (input, NULL implies no
+																  *  calculation) */
+							 const int* secondDervativeIndices, /**< List of indices of second
+																  *  derivative matrices to update
+																  *  (input, NULL implies no
+																  *  calculation) */
+							 const double* edgeLengths,			/**< List of edge lengths with which
+																  *  to perform calculations
+																  *  (input) */
+							 int count							/**< Length of lists */
+							 );
 
 /**
  * @brief Calculate or queue for calculation partials using a list of operations
@@ -238,12 +271,14 @@ int updateTransitionMatrices(
  *
  * @return error code
  */
-int updatePartials(
-                       const int* instance, /**< List of instances for which to update partials buffers (input) */
-                       int instanceCount, 	/**< Length of instance list (input) */
-					   const int* operations,/**< List of 5-tuples specifying operations (input) */
-					   int operationCount, 	/**< Number of operations (input) */
-					   int rescale); 		/**< Specify whether (=1) or not (=0) to recalculate scaling factors */
+int updatePartials(const int* instance,		/**< List of instances for which to update partials
+											  *  buffers (input) */
+				   int instanceCount,		/**< Length of instance list (input) */
+				   const int* operations,	/**< List of 5-tuples specifying operations (input) */
+				   int operationCount,		/**< Number of operations (input) */
+				   int rescale				/**< Specify whether (=1) or not (=0) to recalculate
+											  *  scaling factors */
+				   );
 
 /**
 * @brief Block until all calculations that write to the specified partials have completed.
@@ -251,34 +286,43 @@ int updatePartials(
 * This function is optional and only has to be called by clients that "recycle" partials.
 *
 * If used, this function must be called after an updatePartials call and must refer to
-*  indices of "destinationPartials" that were used in a previous updatePartials
-*  call.  The library will block until those partials have been calculated.
+* indices of "destinationPartials" that were used in a previous updatePartials
+* call.  The library will block until those partials have been calculated.
 *
 * @return error code
 */
-int waitForPartials(
-                      const int* instance,            /**< List of instances for which to update partials buffers (input) */
-                      int instanceCount,              /**< Length of instance list (input) */
-                      const int* destinationPartials, /**< List of the indices of destinationPartials that must be calculated before the function returns */
-                      int destinationPartialsCount);  /**< Number of destinationPartials (input) */
+int waitForPartials(const int* instance,			/**< List of instances for which to update
+													  *  partials buffers (input) */
+					int instanceCount,				/**< Length of instance list (input) */
+					const int* destinationPartials, /**< List of the indices of destinationPartials
+													  *  that must be calculated before the function
+													  *  returns */
+					int destinationPartialsCount	/**< Number of destinationPartials (input) */
+					);
 
 /**
  * @brief Calculate site log likelihoods at a root node
  *
- * This function integrates a list of partials at a node with respect to a set of partials-weights and
- * state frequencies to return the log likelihoods for each site
+ * This function integrates a list of partials at a node with respect to a set of partials-weights
+ * and state frequencies to return the log likelihoods for each site
  *
  * @return error code
  */
-int calculateRootLogLikelihoods(
-                             int instance, /**< Instance number (input) */
-		                     const int* bufferIndices, /**< List of partialsBuffer indices to integrate (input) */
-		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
-		                     const double* stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
-															   * There should be one set for each of parentBufferIndices
-															   */
-		                     int count, /*< Number of partialsBuffer to integrate (input) */
-			                 double* outLogLikelihoods); /**< Pointer to destination for resulting log likelihoods (output) */
+int calculateRootLogLikelihoods(int instance,					/**< Instance number (input) */
+								const int* bufferIndices,		/**< List of partialsBuffer
+																  *  indices to integrate (input) */
+								const double* weights,			/**< List of weights to apply to
+																  *  each partialsBuffer (input) */
+								const double* stateFrequencies,	/**< List of state frequencies for
+																  *  each partialsBuffer (input).
+																  *  There should be one set for
+																  *  each of parentBufferIndices */
+								int count,						/*< Number of partialsBuffer to
+																  *  integrate (input) */
+								double* outLogLikelihoods		/**< Pointer to destination for
+																  *  resulting log likelihoods
+																  *  (output) */
+								);
 
 /*
  * @brief Calculate site log likelihoods and derivatives along an edge
@@ -289,23 +333,39 @@ int calculateRootLogLikelihoods(
  *
  * @return error code
  */
-int calculateEdgeLogLikelihoods(
-							 int instance, /**< Instance number (input) */
-		                     const int* parentBufferIndices, /**< List of indices of parent partialsBuffers (input) */
-		                     const int* childBufferIndices, /**< List of indices of child partialsBuffers (input) */
-		                     const int* probabilityIndices , /**< List indices of transition probability matrices for this edge (input) */
-		                     const int* firstDerivativeIndices, /**< List indices of first derivative matrices (input) */
-		                     const int* secondDerivativeIndices, /**< List indices of second derivative matrices (input) */
-		                     const double* weights, /**< List of weights to apply to each partialsBuffer (input) */
-		                     const double* stateFrequencies, /**< List of state frequencies for each partialsBuffer (input)
-															   * There should be one set for each of parentBufferIndices
-															   */
-		                     int count, /**< Number of partialsBuffers (input) */
-		                     double* outLogLikelihoods, /**< Pointer to destination for resulting log likelihoods (output) */
-			                 double* outFirstDerivatives, /**< Pointer to destination for resulting first derivatives (output) */
-			                 double* outSecondDerivatives); /**< Pointer to destination for resulting second derivatives (output) */
+int calculateEdgeLogLikelihoods(int instance,						/**< Instance number (input) */
+								const int* parentBufferIndices,		/**< List of indices of parent
+																	  *  partialsBuffers (input) */
+								const int* childBufferIndices,		/**< List of indices of child
+																	  *  partialsBuffers (input) */
+								const int* probabilityIndices ,		/**< List indices of transition
+																	  *  probability matrices for
+																	  *  this edge (input) */
+								const int* firstDerivativeIndices,	/**< List indices of first
+																	  *  derivative matrices
+																	  *  (input) */
+								const int* secondDerivativeIndices,	/**< List indices of second
+																	  *  derivative matrices
+																	  *  (input) */
+								const double* weights,				/**< List of weights to apply to
+																	  *  each partialsBuffer
+																	  *  (input) */
+								const double* stateFrequencies,		/**< List of state frequencies
+																	  *  for each partialsBuffer
+																	  *  (input).  There should be
+																	  *  one set for each of
+																	  *  parentBufferIndices */
+								int count,							/**< Number of partialsBuffers
+																	  *  (input) */
+								double* outLogLikelihoods,			/**< Pointer to destination for
+																	  *  resulting log likelihoods
+																	  *  (output) */
+								double* outFirstDerivatives,		/**< Pointer to destination for
+																	  *  resulting first derivatives
+																	  *  (output) */
+								double* outSecondDerivatives		/**< Pointer to destination for
+																	  *  resulting second
+																	  *  derivatives (output) */
+								);
 
 #endif // __beagle__
-
-
-

@@ -152,43 +152,6 @@ int BeagleCUDAImpl::setTipStates(int tipIndex,
 	return NO_ERROR;
 }
 
-int BeagleCUDAImpl::setStateFrequencies(const double* inFrequencies) {
-	
-#ifdef DEBUG_FLOW
-	fprintf(stderr,"Entering updateRootFreqencies\n");
-#endif
-	
-	//	int instance = INSTANCE;
-	
-#ifdef DEBUG_BEAGLE
-	printfVectorD(inFrequencies,PADDED_STATE_COUNT);
-#endif
-	
-#ifdef PRE_LOAD
-	if (loaded == 0) {
-		initializeInstanceMemory();
-		loadTipPartialsOrStates();
-		freeTmpPartialsOrStates();
-		loaded = 1;
-	}
-#endif // PRE_LOAD
-	
-#ifdef DOUBLE_PRECISION
-	memcpy(hFrequenciesCache,inFrequencies,STATE_COUNT*SIZE_REAL);
-#else
-	MEMCPY(hFrequenciesCache,inFrequencies,STATE_COUNT,REAL);
-#endif
-	
-	cudaMemcpy(dFrequencies,hFrequenciesCache,
-			   SIZE_REAL*PADDED_STATE_COUNT,cudaMemcpyHostToDevice);
-	
-#ifdef DEBUG_FLOW
-	fprintf(stderr,"Exiting updateRootFrequencies\n");
-#endif
-	
-	return NO_ERROR;
-}
-
 int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 										  const double* inEigenVectors,
 										  const double* inInverseEigenVectors,
@@ -271,11 +234,11 @@ int BeagleCUDAImpl::setTransitionMatrix(int matrixIndex,
 }
 
 int BeagleCUDAImpl::updateTransitionMatrices(int eigenIndex,
-											  const int* probabilityIndices,
-											  const int* firstDerivativeIndices,
-											  const int* secondDervativeIndices,
-											  const double* edgeLengths,
-											  int count) {
+											 const int* probabilityIndices,
+											 const int* firstDerivativeIndices,
+											 const int* secondDervativeIndices,
+											 const double* edgeLengths,
+											 int count) {
 #ifdef DEBUG_FLOW
 	fprintf(stderr,"Entering updateMatrices\n");
 #endif
@@ -983,6 +946,10 @@ void BeagleCUDAImpl::getGPUInfo(int iDevice, char *name, int *memory, int *speed
 	*speed = deviceProp.clockRate;
 	strcpy(name, deviceProp.name);
 }
+
+
+///////////////////////////////////////////////////////////////////////////////
+// BeagleCUDAImplFactory public methods
 
 BeagleImpl*  BeagleCUDAImplFactory::createImpl(int tipCount,
 											   int partialsBufferCount,

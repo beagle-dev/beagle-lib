@@ -68,6 +68,12 @@
 	const bool DEBUGGING_OUTPUT = false;
 #endif
 
+BeagleCPUImpl::~BeagleCPUImpl() {
+	// free all that stuff...
+	// If you delet partials, make sure not to delete the last element
+	// which is TEMP_SCRATCH_PARTIAL twice.
+}
+
 int BeagleCPUImpl::initialize(int tipCount,
 							  int partialBufferCount,
 							  int compactBufferCount,
@@ -138,12 +144,6 @@ int BeagleCPUImpl::initialize(int tipCount,
 	////END edge Like Hack
 
 	return NO_ERROR;
-}
-
-BeagleCPUImpl::~BeagleCPUImpl() {
-	// free all that stuff...
-	// If you delet partials, make sure not to delete the last element
-	// which is TEMP_SCRATCH_PARTIAL twice.
 }
 
 int BeagleCPUImpl::setPartials(int bufferIndex,
@@ -316,94 +316,6 @@ int BeagleCPUImpl::waitForPartials(const int* destinationPartials,
 }
 
 
-
-/*
- * Calculates partial likelihoods at a node when both children have states.
- */
-void BeagleCPUImpl::calcStatesStates(double * destP,
-									 const int * child1States,
-									 const double *child1TransMat,
-									 const int * child2States,
-									 const double *child2TransMat) {
-	int v = 0;
-	for (int k = 0; k < kPatternCount; k++) {
-		const int state1 = child1States[k];
-		const int state2 = child2States[k];
-		if (DEBUGGING_OUTPUT) {
-			std::cerr << "calcStatesStates s1 = " << state1 << '\n';
-			std::cerr << "calcStatesStates s2 = " << state2 << '\n';
-		}
-		int w = 0;
-		for (int i = 0; i < kStateCount; i++) {
-			destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
-			v++;
-			w += (kStateCount + 1);
-		}
-	}
-}
-
-/*
- * Calculates partial likelihoods at a node when one child has states and one has partials.
- */
-void BeagleCPUImpl::calcStatesPartials(double * destP,
-									   const int * states1,
-									   const double *matrices1,
-									   const double * partials2,
-									   const double *matrices2) {
-	int u = 0;
-	int v = 0;
-	for (int k = 0; k < kPatternCount; k++) {
-		int state1 = states1[k];
-		//std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
-		int w = 0;
-		for (int i = 0; i < kStateCount; i++) {
-			double tmp = matrices1[w + state1];
-			double sum = 0.0;
-			for (int j = 0; j < kStateCount; j++) {
-				sum += matrices2[w] * partials2[v + j];
-				w++;
-			}
-			// increment for the extra column at the end
-			w++;
-			destP[u] = tmp * sum;
-			u++;
-		}
-		v += kStateCount;
-	}
-}
-
-void BeagleCPUImpl::calcPartialsPartials(double * destP,
-										 const double * partials1,
-										 const double *matrices1,
-										 const double * partials2,
-										 const double *matrices2) {
-	double sum1, sum2;
-	int u = 0;
-	int v = 0;
-	for (int k = 0; k < kPatternCount; k++) {
-		int w = 0;
-		for (int i = 0; i < kStateCount; i++) {
-			sum1 = sum2 = 0.0;
-			for (int j = 0; j < kStateCount; j++) {
-				sum1 += matrices1[w] * partials1[v + j];
-				sum2 += matrices2[w] * partials2[v + j];
-				if (DEBUGGING_OUTPUT) {
-					if (k == 0)
-						printf("mat1[%d] = %.5f\n", w, matrices1[w]);
-					if (k == 1)
-						printf("mat2[%d] = %.5f\n", w, matrices2[w]);
-				}
-				w++;
-			}
-			// increment for the extra column at the end
-			w++;
-			destP[u] = sum1 * sum2;
-			u++;
-		}
-		v += kStateCount;
-	}
-}
-
 int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 											   const double* weights,
 											   const double* stateFrequencies,
@@ -524,6 +436,101 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 									   1,
 									   outLogLikelihoods);
 }
+
+
+///////////////////////////////////////////////////////////////////////////////
+// private methods
+
+/*
+ * Calculates partial likelihoods at a node when both children have states.
+ */
+void BeagleCPUImpl::calcStatesStates(double * destP,
+									 const int * child1States,
+									 const double *child1TransMat,
+									 const int * child2States,
+									 const double *child2TransMat) {
+	int v = 0;
+	for (int k = 0; k < kPatternCount; k++) {
+		const int state1 = child1States[k];
+		const int state2 = child2States[k];
+		if (DEBUGGING_OUTPUT) {
+			std::cerr << "calcStatesStates s1 = " << state1 << '\n';
+			std::cerr << "calcStatesStates s2 = " << state2 << '\n';
+		}
+		int w = 0;
+		for (int i = 0; i < kStateCount; i++) {
+			destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+			v++;
+			w += (kStateCount + 1);
+		}
+	}
+}
+
+/*
+ * Calculates partial likelihoods at a node when one child has states and one has partials.
+ */
+void BeagleCPUImpl::calcStatesPartials(double * destP,
+									   const int * states1,
+									   const double *matrices1,
+									   const double * partials2,
+									   const double *matrices2) {
+	int u = 0;
+	int v = 0;
+	for (int k = 0; k < kPatternCount; k++) {
+		int state1 = states1[k];
+		//std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
+		int w = 0;
+		for (int i = 0; i < kStateCount; i++) {
+			double tmp = matrices1[w + state1];
+			double sum = 0.0;
+			for (int j = 0; j < kStateCount; j++) {
+				sum += matrices2[w] * partials2[v + j];
+				w++;
+			}
+			// increment for the extra column at the end
+			w++;
+			destP[u] = tmp * sum;
+			u++;
+		}
+		v += kStateCount;
+	}
+}
+
+void BeagleCPUImpl::calcPartialsPartials(double * destP,
+										 const double * partials1,
+										 const double *matrices1,
+										 const double * partials2,
+										 const double *matrices2) {
+	double sum1, sum2;
+	int u = 0;
+	int v = 0;
+	for (int k = 0; k < kPatternCount; k++) {
+		int w = 0;
+		for (int i = 0; i < kStateCount; i++) {
+			sum1 = sum2 = 0.0;
+			for (int j = 0; j < kStateCount; j++) {
+				sum1 += matrices1[w] * partials1[v + j];
+				sum2 += matrices2[w] * partials2[v + j];
+				if (DEBUGGING_OUTPUT) {
+					if (k == 0)
+						printf("mat1[%d] = %.5f\n", w, matrices1[w]);
+					if (k == 1)
+						printf("mat2[%d] = %.5f\n", w, matrices2[w]);
+				}
+				w++;
+			}
+			// increment for the extra column at the end
+			w++;
+			destP[u] = sum1 * sum2;
+			u++;
+		}
+		v += kStateCount;
+	}
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// BeagleCPUImplFactory public methods
 
 BeagleImpl* BeagleCPUImplFactory::createImpl(
                 int tipCount,	
