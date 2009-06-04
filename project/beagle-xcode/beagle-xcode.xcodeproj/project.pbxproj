@@ -13,7 +13,6 @@
 		643430FC0FD2CE7B00AFC69E /* fourtaxon.dat in CopyFiles */ = {isa = PBXBuildFile; fileRef = 64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */; };
 		649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */; };
 		649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */; };
-		649E82570FD6FB150044891D /* Queue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C430FD2B74900678D0B /* Queue.cpp */; };
 		649E825E0FD6FC580044891D /* CUDASharedFunctions_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions_kernel.cu */; };
 		649E825F0FD6FC580044891D /* TransitionProbabilities_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionProbabilities_kernel.cu */; };
 		649E82600FD6FC580044891D /* Peeling_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* Peeling_kernel.cu */; };
@@ -53,12 +52,8 @@
 		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCUDAImpl.cpp; path = "projects/beagle-lib/src/CUDA/BeagleCUDAImpl.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C3C0FD2B74900678D0B /* BeagleCUDAImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCUDAImpl.h; path = "projects/beagle-lib/src/CUDA/BeagleCUDAImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C3D0FD2B74900678D0B /* BeagleCUDATipStateImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCUDATipStateImpl.cpp; path = "projects/beagle-lib/src/CUDA/BeagleCUDATipStateImpl.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C3E0FD2B74900678D0B /* BeagleCUDATipStateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCUDATipStateImpl.h; path = "projects/beagle-lib/src/CUDA/BeagleCUDATipStateImpl.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = CUDASharedFunctions.c; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.c"; sourceTree = DEVELOPER_DIR; };
 		64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CUDASharedFunctions.h; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C430FD2B74900678D0B /* Queue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = Queue.cpp; path = "projects/beagle-lib/src/CUDA/Queue.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C440FD2B74900678D0B /* Queue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Queue.h; path = "projects/beagle-lib/src/CUDA/Queue.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = "projects/beagle-lib/include/beagle.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = "projects/beagle-lib/include/BeagleImpl.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.cpp"; sourceTree = DEVELOPER_DIR; };
@@ -112,10 +107,6 @@
 				64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */,
 				64F21C3C0FD2B74900678D0B /* BeagleCUDAImpl.h */,
 				64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */,
-				64F21C3E0FD2B74900678D0B /* BeagleCUDATipStateImpl.h */,
-				64F21C3D0FD2B74900678D0B /* BeagleCUDATipStateImpl.cpp */,
-				64F21C440FD2B74900678D0B /* Queue.h */,
-				64F21C430FD2B74900678D0B /* Queue.cpp */,
 				64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */,
 				64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */,
 				649E825B0FD6FC580044891D /* CUDASharedFunctions_kernel.cu */,
@@ -240,7 +231,6 @@
 				649E82630FD6FCA40044891D /* beagle.cpp in Sources */,
 				649E82640FD6FCA90044891D /* BeagleCPUImpl.cpp in Sources */,
 				649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */,
-				649E82570FD6FB150044891D /* Queue.cpp in Sources */,
 				649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */,
 				649E825E0FD6FC580044891D /* CUDASharedFunctions_kernel.cu in Sources */,
 				649E825F0FD6FC580044891D /* TransitionProbabilities_kernel.cu in Sources */,
