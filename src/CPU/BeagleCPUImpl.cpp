@@ -70,7 +70,7 @@
 
 BeagleCPUImpl::~BeagleCPUImpl() {
 	// free all that stuff...
-	// If you delet partials, make sure not to delete the last element
+	// If you delete partials, make sure not to delete the last element
 	// which is TEMP_SCRATCH_PARTIAL twice.
 }
 
