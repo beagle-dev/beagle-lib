@@ -41,7 +41,7 @@ enum BeagleReturnCodes {
 	OUT_OF_MEMORY_ERROR = -2,
 	UNIDENTIFIED_EXCEPTION_ERROR = -3,
 	UNINITIALIZED_INSTANCE_ERROR = -4, /**< the instance index is out of range, or the instance has not been created */
-	OUT_OF_RANGE_ERROR = -5 /** one of the indices specfied exceeded the range of the array */
+	OUT_OF_RANGE_ERROR = -5 /**< one of the indices specfied exceeded the range of the array */
 };
 
 /**
