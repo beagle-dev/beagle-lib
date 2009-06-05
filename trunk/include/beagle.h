@@ -175,7 +175,7 @@ int setPartials(int instance,               /**< Instance number in which to set
 int getPartials(int instance,       /**< Instance number from which to get partialsBuffer
                                       *  (input) */
                 int bufferIndex,    /**< Index of source partialsBuffer (input) */
-                double *outPartials /**< Pointer to which to receive partialsBuffer (output) */
+                double* outPartials /**< Pointer to which to receive partialsBuffer (output) */
                 );
 
 /**
