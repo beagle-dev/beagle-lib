@@ -195,9 +195,6 @@ int setTipStates(int instance,          /**< Instance number (input) */
  * @brief Set an eigen-decomposition buffer
  *
  * This function copies an eigen-decomposition into a instance buffer.
- *
- * DISCUSSION POINT: Should we transfer 2D matrices in flatten formed,
- * consistent with setTransitionMatrix()?
  * 
  * @return error code
  */
@@ -210,7 +207,7 @@ int setEigenDecomposition(int instance,                         /**< Instance nu
                           const double* inInverseEigenVectors,  /**< Flattened matrix (stateCount x
                                                                   *  stateCount) of inverse-eigen-
                                                                   *  vectors (input) */
-                          const double* inEigenValues           /**< Vector of eigenvalues*/
+                          const double* inEigenValues           /**< Vector of eigenvalues */
                           );
 
 /**

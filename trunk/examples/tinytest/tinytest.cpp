@@ -159,7 +159,7 @@ int main( int argc, const char* argv[] )
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 
-    // tell BEAGLE to populate the transition matrices for the above edge lengthss
+    // tell BEAGLE to populate the transition matrices for the above edge lengths
 	updateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices

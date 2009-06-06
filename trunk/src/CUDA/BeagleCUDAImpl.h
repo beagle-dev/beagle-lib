@@ -149,17 +149,7 @@ public:
                                     double* outSecondDerivatives);
     
 private:
-    void updateStatesStates(int nodeIndex1,
-                            int nodeIndex2,
-                            int nodeIndex3);
-    
-    void updateStatesPartials(int nodeIndex1,
-                              int nodeIndex2,
-                              int nodeIndex3);
-    
-    void updatePartialsPartials(int nodeIndex1,
-                                int nodeIndex2,
-                                int nodeIndex3);
+    void checkNativeMemory(void* ptr);
     
     void loadTipPartialsOrStates();
     
