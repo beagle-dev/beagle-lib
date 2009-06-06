@@ -1,6 +1,7 @@
 /*
- *  BeagleCUDAImpl.h
- *  BEAGLE
+ * @file BeagleCUDAImpl.h
+ * 
+ * @brief CUDA implementation header
  *
  * @author Marc Suchard
  * @author Andrew Rambaut
@@ -13,26 +14,27 @@
 class BeagleCUDAImpl : public BeagleImpl {
 private:
     
-    int device;
+    int kDevice;
     
 #ifdef PRE_LOAD
     int loaded;
 #endif
     
+    int kTipCount;
+    int kBufferCount;
     int kStateCount;
-    
-    int nodeCount;
-    int patternCount;
-    int truePatternCount;
-    int partialsSize;
-    int matrixSize;
-    int matrixCount;
-    int taxaCount;
-    
-    int paddedStates;   // # of states to pad so that "true" + padded states
-                        // = PADDED_STATE_COUNT (a multiple of 16, except for DNA models)
-    int paddedPatterns; // # of patterns to pad so that (patternCount + paddedPatterns)
-                        // * PADDED_STATE_COUNT is a multiple of 16
+    int kPatternCount;
+    int kEigenDecompCount;
+    int kMatrixCount;
+ 
+    int kTruePatternCount;
+	int kTrueStateCount;
+    int kPaddedPatternCount;    // # of patterns to pad so that (patternCount + paddedPatterns)
+                                //   * PADDED_STATE_COUNT is a multiple of 16
+
+    int kPartialsSize;
+    int kMatrixSize;
+    int kEigenValuesSize;
     
     REAL* dEigenValues;
     REAL* dEvec;
@@ -92,7 +94,7 @@ public:
     virtual ~BeagleCUDAImpl();
     
     int initialize(int tipCount,
-                   int partialBufferCount,
+                   int partialsBufferCount,
                    int compactBufferCount,
                    int stateCount,
                    int patternCount,
@@ -131,8 +133,8 @@ public:
                         int destinationPartialsCount);
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
-                                    const double* weights,
-                                    const double* stateFrequencies,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -141,8 +143,8 @@ public:
                                     const int* probabilityIndices,
                                     const int* firstDerivativeIndices,
                                     const int* secondDerivativeIndices,
-                                    const double* weights,
-                                    const double* stateFrequencies,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
@@ -175,10 +177,16 @@ private:
                     char* name,
                     int* memory,
                     int* speed);
-    
+
+/**
+  * @brief Transposes a square matrix in place
+  */
     void transposeSquareMatrix(REAL* mat,
                                int size);
     
+/**
+ * @brief Computes the device memory requirements
+ */    
     long memoryRequirement(int taxaCount,
                            int stateCount);
     

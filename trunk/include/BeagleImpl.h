@@ -59,8 +59,8 @@ public:
                                 int destinationPartialsCount) = 0;
     
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
-                                            const double* weights,
-                                            const double* stateFrequencies,
+                                            const double* inWeights,
+                                            const double* inStateFrequencies,
                                             int count,
                                             double* outLogLikelihoods) = 0;
     
@@ -69,8 +69,8 @@ public:
                                             const int* probabilityIndices,
                                             const int* firstDerivativeIndices,
                                             const int* secondDerivativeIndices,
-                                            const double* weights,
-                                            const double* stateFrequencies,
+                                            const double* inWeights,
+                                            const double* inStateFrequencies,
                                             int count,
                                             double* outLogLikelihoods,
                                             double* outFirstDerivatives,

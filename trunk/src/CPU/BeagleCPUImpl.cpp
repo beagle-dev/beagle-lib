@@ -22,7 +22,7 @@
 //          2. a multithreading impl that checks dependencies before queuing
 //              partials.
 
-///@API-ISSUE: adding an resizePartialBufferArray(int newPartialBufferCount) method
+///@API-ISSUE: adding an resizePartialsBufferArray(int newPartialsBufferCount) method
 //      would be trivial for this impl, and would be easier for clients that want
 //      to cache partial like calculations for a indeterminate number of trees.
 ///@API-ISSUE: adding a
@@ -75,7 +75,7 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 }
 
 int BeagleCPUImpl::initialize(int tipCount,
-                              int partialBufferCount,
+                              int partialsBufferCount,
                               int compactBufferCount,
                               int stateCount,
                               int patternCount,
@@ -84,7 +84,7 @@ int BeagleCPUImpl::initialize(int tipCount,
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
     
-    kBufferCount = partialBufferCount + compactBufferCount;
+    kBufferCount = partialsBufferCount + compactBufferCount;
     kTipCount = tipCount;
     assert(kBufferCount > kTipCount);
     kStateCount = stateCount;
@@ -305,8 +305,8 @@ int BeagleCPUImpl::waitForPartials(const int* destinationPartials,
 
 
 int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
-                                               const double* weights,
-                                               const double* stateFrequencies,
+                                               const double* inWeights,
+                                               const double* inStateFrequencies,
                                                int count,
                                                double* outLogLikelihoods) {
     if (count == 1) {
@@ -315,13 +315,13 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         const int rootPartialIndex = bufferIndices[0];
         const double * rootPartials = partials[rootPartialIndex];
         assert(rootPartials);
-        const double wt = weights[0];
+        const double wt = inWeights[0];
         assert(wt >= 0.0);
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             double sum = 0.0;
             for (int i = 0; i < kStateCount; i++) {
-                sum += stateFrequencies[i] * rootPartials[v];
+                sum += inStateFrequencies[i] * rootPartials[v];
                 v++;
             }
             outLogLikelihoods[k] = log(sum * wt);
@@ -340,8 +340,8 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             const int rootPartialIndex = bufferIndices[subsetIndex];
             const double * rootPartials = partials[rootPartialIndex];
             assert(rootPartials);
-            const double * frequencies = stateFrequencies + (subsetIndex * kStateCount);
-            const double wt = weights[subsetIndex];
+            const double * frequencies = inStateFrequencies + (subsetIndex * kStateCount);
+            const double wt = inWeights[subsetIndex];
             assert(wt >= 0.0);
             int v = 0;
             for (int k = 0; k < kPatternCount; k++) {
@@ -369,8 +369,8 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                const int* probabilityIndices,
                                                const int* firstDerivativeIndices,
                                                const int* secondDerivativeIndices,
-                                               const double* weights,
-                                               const double* stateFrequencies,
+                                               const double* inSeights,
+                                               const double* inStateFrequencies,
                                                int count,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
@@ -412,7 +412,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     int c = partials.size() - 1;
     assert(partials[c] == TEMP_SCRATCH_PARTIAL);
     
-    return calculateRootLogLikelihoods(&c, weights, stateFrequencies, 1, outLogLikelihoods);
+    return calculateRootLogLikelihoods(&c, inSeights, inStateFrequencies, 1, outLogLikelihoods);
 }
 
 
