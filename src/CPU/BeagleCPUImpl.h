@@ -60,7 +60,7 @@ public:
     
     // initialization of instance,  returnInfo can be null
     int initialize(int tipCount,
-                   int partialBufferCount,
+                   int partialsBufferCount,
                    int compactBufferCount,
                    int stateCount,
                    int patternCount,
@@ -142,8 +142,8 @@ public:
     // rootNodeIndex the index of the root
     // outLogLikelihoods an array into which the site log likelihoods will be put
     int calculateRootLogLikelihoods(const int* bufferIndices,
-                                    const double* weights,
-                                    const double* stateFrequencies,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
                                     int count,
                                     double* outLogLikelihoods);
 
@@ -154,8 +154,8 @@ public:
                                     const int* probabilityIndices,
                                     const int* firstDerivativeIndices,
                                     const int* secondDerivativeIndices,
-                                    const double* weights,
-                                    const double* stateFrequencies,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
