@@ -91,6 +91,13 @@ typedef struct {
     int length;     /**< Length of list */
 } ResourceList;
 
+/* using C calling conventions so that C programs can successfully link the beagle library
+ * (brace is closed at the end of this file) 
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief
  *
@@ -364,5 +371,12 @@ int calculateEdgeLogLikelihoods(int instance,                       /**< Instanc
                                                                       *  resulting second
                                                                       *  derivatives (output) */
                                 );
+
+/* using C calling conventions so that C programs can successfully link the beagle library
+ * (closing brace)
+ */
+#ifdef __cplusplus
+}
+#endif
 
 #endif // __beagle__
