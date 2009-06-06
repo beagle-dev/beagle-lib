@@ -10,8 +10,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <exception>          // for exception, bad_exception
-#include <stdexcept>          // for std exception hierarchy
+#include <exception>    // for exception, bad_exception
+#include <stdexcept>    // for std exception hierarchy
 #include <list>
 #include <vector>
 #include <iostream>
@@ -25,14 +25,13 @@
 #include "CPU/BeagleCPUImpl.h"
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
-std::vector<BeagleImpl *> instances;
+std::vector<BeagleImpl*> instances;
 
 /// returns an initialized instance or NULL if the index refers to an invalid instance
-BeagleImpl * getBeagleInstance(int instanceIndex);
+BeagleImpl* getBeagleInstance(int instanceIndex);
 
 
-BeagleImpl * getBeagleInstance(int instanceIndex)
-{
+BeagleImpl* getBeagleInstance(int instanceIndex) {
     if (instanceIndex > instances.size())
         return NULL;
     return instances[instanceIndex];
@@ -44,50 +43,43 @@ ResourceList* getResourceList() {
     return NULL;
 }
 
-int createInstance(
-                int tipCount,               /**< Number of tip data elements (input) */
-                int partialsBufferCount,    /**< Number of partials buffers to create (input) */
-                int compactBufferCount,     /**< Number of compact state representation buffers to create (input) */
-                int stateCount,             /**< Number of states in the continuous-time Markov chain (input) */
-                int patternCount,           /**< Number of site patterns to be handled by the instance (input) */
-                int eigenBufferCount,       /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                int matrixBufferCount,      /**< Number of rate matrix buffers (input) */
-                int* resourceList,          /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-                int resourceCount,          /**< Length of resourceList list (input) */
-                long preferenceFlags,       /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                long requirementFlags       /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-                )
-{
+int createInstance(int tipCount,
+                   int partialsBufferCount,
+                   int compactBufferCount,
+                   int stateCount,
+                   int patternCount,
+                   int eigenBufferCount,
+                   int matrixBufferCount,
+                   int* resourceList,
+                   int resourceCount,
+                   long preferenceFlags,
+                   long requirementFlags) {
     try {
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
-    #ifdef CUDA
+#ifdef CUDA
             implFactory.push_back(new BeagleCUDAImplFactory());
-    #endif
+#endif
             implFactory.push_back(new BeagleCPUImplFactory());
         }
 
         // Try each implementation
         for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
-            fprintf(stderr,"BEAGLE bootstrap: %s - ",(*factory)->getName());
+            fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
 
-            BeagleImpl* beagle = (*factory)->createImpl(
-                tipCount,
-                partialsBufferCount,
-                compactBufferCount,
-                stateCount,
-                patternCount,
-                eigenBufferCount,
-                matrixBufferCount);
+            BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
+                                                        compactBufferCount, stateCount,
+                                                        patternCount, eigenBufferCount,
+                                                        matrixBufferCount);
 
             if (beagle != NULL) {
-                fprintf(stderr,"Success\n");
+                fprintf(stderr, "Success\n");
                 int instance = instances.size();
                 instances.push_back(beagle);
                 return instance;
             }
-            fprintf(stderr,"Failed\n");
+            fprintf(stderr, "Failed\n");
         }
 
         // No implementations found or appropriate
@@ -104,10 +96,8 @@ int createInstance(
     }
 }
 
-int initializeInstance(
-                        int instance,
-                        InstanceDetails* returnInfo)
-{
+int initializeInstance(int instance,
+                       InstanceDetails* returnInfo) {
     try {
         // TODO: Actual creation of instances should wait until here
         return NO_ERROR;
@@ -123,10 +113,9 @@ int initializeInstance(
     }
 }
 
-int finalize(int instance)
-{
+int finalize(int instance) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         delete beagleInstance;
@@ -144,13 +133,11 @@ int finalize(int instance)
     }
 }
 
-int setPartials(
-                    int instance,
-                    int bufferIndex,
-                    const double* inPartials)
-{
+int setPartials(int instance,
+                int bufferIndex,
+                const double* inPartials) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->setPartials(bufferIndex, inPartials);
@@ -166,10 +153,9 @@ int setPartials(
     }
 }
 
-int getPartials(int instance, int bufferIndex, double *outPartials)
-{
+int getPartials(int instance, int bufferIndex, double* outPartials) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->getPartials(bufferIndex, outPartials);
@@ -185,13 +171,11 @@ int getPartials(int instance, int bufferIndex, double *outPartials)
     }
 }
 
-int setTipStates(
-                  int instance,
-                  int tipIndex,
-                  const int* inStates)
-{
+int setTipStates(int instance,
+                 int tipIndex,
+                 const int* inStates) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -208,19 +192,18 @@ int setTipStates(
     }
 }
 
-int setEigenDecomposition(
-                           int instance,
-                           int eigenIndex,
-                           const double* inEigenVectors,
-                           const double* inInverseEigenVectors,
-                           const double* inEigenValues)
-{
+int setEigenDecomposition(int instance,
+                          int eigenIndex,
+                          const double* inEigenVectors,
+                          const double* inInverseEigenVectors,
+                          const double* inEigenValues) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
-        return beagleInstance->setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
+        return beagleInstance->setEigenDecomposition(eigenIndex, inEigenVectors,
+                                                     inInverseEigenVectors, inEigenValues);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -233,12 +216,11 @@ int setEigenDecomposition(
     }
 }
 
-int setTransitionMatrix(    int instance,
-                            int matrixIndex,
-                            const double* inMatrix)
-{
+int setTransitionMatrix(int instance,
+                        int matrixIndex,
+                        const double* inMatrix) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -255,20 +237,20 @@ int setTransitionMatrix(    int instance,
     }
 }
 
-int updateTransitionMatrices(
-                              int instance,
-                              int eigenIndex,
-                              const int* probabilityIndices,
-                              const int* firstDerivativeIndices,
-                              const int* secondDervativeIndices,
-                              const double* edgeLengths,
-                              int count)
-{
+int updateTransitionMatrices(int instance,
+                             int eigenIndex,
+                             const int* probabilityIndices,
+                             const int* firstDerivativeIndices,
+                             const int* secondDervativeIndices,
+                             const double* edgeLengths,
+                             int count) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
-        return beagleInstance->updateTransitionMatrices(eigenIndex, probabilityIndices, firstDerivativeIndices, secondDervativeIndices, edgeLengths, count);
+        return beagleInstance->updateTransitionMatrices(eigenIndex, probabilityIndices,
+                                                        firstDerivativeIndices,
+                                                        secondDervativeIndices, edgeLengths, count);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -281,17 +263,15 @@ int updateTransitionMatrices(
     }
 }
 
-int updatePartials(
-                       const int* instanceList,
-                       int instanceCount,
-                       const int* operations,
-                       int operationCount,
-                       int rescale)
-{
+int updatePartials(const int* instanceList,
+                   int instanceCount,
+                   const int* operations,
+                   int operationCount,
+                   int rescale) {
     try {
         int error_code = NO_ERROR;
         for (int i = 0; i < instanceCount; i++) {
-            BeagleImpl * beagleInstance = getBeagleInstance(instanceList[i]);
+            BeagleImpl* beagleInstance = getBeagleInstance(instanceList[i]);
             if (beagleInstance == NULL)
                 return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -313,20 +293,19 @@ int updatePartials(
     }
 }
 
-int waitForPartials(
-                    const int* instanceList,
+int waitForPartials(const int* instanceList,
                     int instanceCount,
                     const int* destinationPartials,
-                    int destinationPartialsCount)
-{
+                    int destinationPartialsCount) {
     try {
         int error_code = NO_ERROR;
         for (int i = 0; i < instanceCount; i++) {
-            BeagleImpl * beagleInstance = getBeagleInstance(instanceList[i]);
+            BeagleImpl* beagleInstance = getBeagleInstance(instanceList[i]);
             if (beagleInstance == NULL)
                 return UNINITIALIZED_INSTANCE_ERROR;
             
-            int err = beagleInstance->waitForPartials(destinationPartials, destinationPartialsCount);
+            int err = beagleInstance->waitForPartials(destinationPartials,
+                                                      destinationPartialsCount);
             if (err != NO_ERROR) {
                 error_code = err;
             }
@@ -344,25 +323,19 @@ int waitForPartials(
     }
 }
 
-int calculateRootLogLikelihoods(
-                             int instance,
-                             const int* bufferIndices,
-                             const double* weights,
-                             const double* stateFrequencies,
-                             int count,
-                             double* outLogLikelihoods)
-{
+int calculateRootLogLikelihoods(int instance,
+                                const int* bufferIndices,
+                                const double* weights,
+                                const double* stateFrequencies,
+                                int count,
+                                double* outLogLikelihoods) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
-        return beagleInstance->calculateRootLogLikelihoods(
-                                            bufferIndices,
-                                            weights,
-                                            stateFrequencies,
-                                            count,
-                                            outLogLikelihoods);
+        return beagleInstance->calculateRootLogLikelihoods(bufferIndices, weights, stateFrequencies,
+                                                           count, outLogLikelihoods);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -377,37 +350,30 @@ int calculateRootLogLikelihoods(
 
 }
 
-int calculateEdgeLogLikelihoods(
-                             int instance,
-                             const int* parentBufferIndices,
-                             const int* childBufferIndices,
-                             const int* probabilityIndices,
-                             const int* firstDerivativeIndices,
-                             const int* secondDerivativeIndices,
-                             const double* weights,
-                             const double* stateFrequencies,
-                             int count,
-                             double* outLogLikelihoods,
-                             double* outFirstDerivatives,
-                             double* outSecondDerivatives)
-{
+int calculateEdgeLogLikelihoods(int instance,
+                                const int* parentBufferIndices,
+                                const int* childBufferIndices,
+                                const int* probabilityIndices,
+                                const int* firstDerivativeIndices,
+                                const int* secondDerivativeIndices,
+                                const double* weights,
+                                const double* stateFrequencies,
+                                int count,
+                                double* outLogLikelihoods,
+                                double* outFirstDerivatives,
+                                double* outSecondDerivatives) {
     try {
-        BeagleImpl * beagleInstance = getBeagleInstance(instance);
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
-        return beagleInstance->calculateEdgeLogLikelihoods(
-                                            parentBufferIndices,
-                                            childBufferIndices,
-                                            probabilityIndices,
-                                            firstDerivativeIndices,
-                                            secondDerivativeIndices,
-                                            weights,
-                                            stateFrequencies,
-                                            count,
-                                            outLogLikelihoods,
-                                            outFirstDerivatives,
-                                            outSecondDerivatives);
+        return beagleInstance->calculateEdgeLogLikelihoods(parentBufferIndices, childBufferIndices,
+                                                           probabilityIndices,
+                                                           firstDerivativeIndices,
+                                                           secondDerivativeIndices, weights,
+                                                           stateFrequencies, count,
+                                                           outLogLikelihoods, outFirstDerivatives,
+                                                           outSecondDerivatives);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;

@@ -510,14 +510,13 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
-BeagleImpl* BeagleCPUImplFactory::createImpl(
-                int tipCount,   
-                int partialsBufferCount,
-                int compactBufferCount,
-                int stateCount,
-                int patternCount,
-                int eigenBufferCount,
-                int matrixBufferCount) {
+BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,   
+                                             int partialsBufferCount,
+                                             int compactBufferCount,
+                                             int stateCount,
+                                             int patternCount,
+                                             int eigenBufferCount,
+                                             int matrixBufferCount) {
     BeagleImpl* impl = new BeagleCPUImpl();
 
     try {
