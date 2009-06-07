@@ -15,33 +15,37 @@ class BeagleCUDAImpl : public BeagleImpl {
 private:
     
     int kDevice;
-    
-#ifdef PRE_LOAD
-    int loaded;
-#endif
+    int kDeviceMemoryAllocated;
     
     int kTipCount;
-    int kBufferCount;
+    int kPartialsBufferCount;
+    int kCompactBufferCount;
     int kStateCount;
     int kPatternCount;
     int kEigenDecompCount;
     int kMatrixCount;
  
-    int kTruePatternCount;
-	int kTrueStateCount;
-    int kPaddedPatternCount;    // # of patterns to pad so that (patternCount + paddedPatterns)
-                                //   * PADDED_STATE_COUNT is a multiple of 16
+    int kBufferCount;
+    
+    int kPaddedStateCount;
+    int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
+                                //   * kPaddedStateCount is a multiple of 16
 
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
     
+    int kDoRescaling;
+
+    int kLastCompactBufferIndex;
+    int kLastPartialsBufferIndex;
+    
     REAL* dEigenValues;
     REAL* dEvec;
     REAL* dIevc;
     
+    REAL* dWeights;
     REAL* dFrequencies; 
-    
     REAL* dIntegrationTmp;
     
     REAL*** dPartials;
@@ -55,22 +59,10 @@ private:
     
     int** dStates;
     
-    int* hMatricesIndices;
-    int* hPartialsIndices;
+    int** dCompactBuffers;
+    REAL** dPartialsBuffers;
     
-#ifdef DYNAMIC_SCALING
-    int *hScalingFactorsIndices;
-#endif
-    
-    int* dMatricesIndices;
-    int* dPartialsIndices;
-    
-    int* dNodeIndices;
-    int* hNodeIndices;
-    int* hDependencies;
     REAL* dBranchLengths;
-    
-    REAL* dExtraCache;
     
     REAL* hDistanceQueue;
     REAL* dDistanceQueue;
@@ -78,17 +70,12 @@ private:
     REAL** hPtrQueue;
     REAL** dPtrQueue;
     
+    REAL* hWeightsCache;
     REAL* hFrequenciesCache;
     REAL* hLogLikelihoodsCache;
     REAL* hPartialsCache;
     int* hStatesCache;
     REAL* hMatrixCache;
-    
-    int doRescaling;
-        
-    int sinceRescaling;
-    int storedDoRescaling;
-    int storedSinceRescaling;
     
 public:
     virtual ~BeagleCUDAImpl();
@@ -153,10 +140,10 @@ public:
 private:
     void checkNativeMemory(void* ptr);
     
-    void loadTipPartialsOrStates();
+    void loadTipPartialsAndStates();
     
     void freeNativeMemory();
-    void freeTmpPartialsOrStates();
+    void freeTmpPartialsAndStates();
     
     void initializeDevice(int deviceNumber,
                           int inTipCount,

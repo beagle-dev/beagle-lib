@@ -13,8 +13,6 @@
 
 #define DYNAMIC_SCALING
 
-#define PRE_LOAD
-
 //#define DEBUG_FLOW
 //#define DEBUG_GPU
 //#define DEBUG_BEAGLE
@@ -128,19 +126,17 @@
 
 #define MULTIPLY_BLOCK_SIZE 16
 
-#define SAFE_CUDA(call,ptr) cudaError_t error = call; \
-                            if( error != 0 ) { \
-                                fprintf(stderr,"Error %s\n", cudaGetErrorString(error)); \
-                                fprintf(stderr,"Ptr = %d\n",ptr); \
-                                exit(-1); \
-                            }
+#define SAFE_CUDA(call, ptr)    { cudaError_t error = call; \
+                                    if( error != 0 ) { \
+                                        fprintf(stderr, "Error %s\n", cudaGetErrorString(error)); \
+                                        fprintf(stderr, "Ptr = %d\n", ptr); \
+                                        exit(-1); \
+                                    } }
 
-#define MEMCPY(to,from,length,toType)   { \
-                                            int m; \
-                                            for(m=0; m<length; m++) { \
-                                                to[m] = (toType) from[m]; \
-                                            } \
-                                        }
+#define MEMCPY(to, from, length, toType)    { int m; \
+                                                for(m = 0; m < length; m++) { \
+                                                    to[m] = (toType) from[m]; \
+                                                } }
 
 #ifdef __cplusplus
 extern "C" {
