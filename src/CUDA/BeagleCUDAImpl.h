@@ -25,6 +25,7 @@ private:
     int kEigenDecompCount;
     int kMatrixCount;
  
+    int kTipPartialsBufferCount;
     int kBufferCount;
     
     int kPaddedStateCount;
@@ -38,7 +39,7 @@ private:
     int kDoRescaling;
 
     int kLastCompactBufferIndex;
-    int kLastPartialsBufferIndex;
+    int kLastTipPartialsBufferIndex;
     
     REAL* dEigenValues;
     REAL* dEvec;
@@ -60,7 +61,7 @@ private:
     int** dStates;
     
     int** dCompactBuffers;
-    REAL** dPartialsBuffers;
+    REAL** dTipPartialsBuffers;
     
     REAL* dBranchLengths;
     

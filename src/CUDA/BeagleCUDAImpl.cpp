@@ -76,6 +76,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
     kPatternCount = inPatternCount;
     kMatrixCount = inMatrixCount;
     
+    kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
     
     if (kStateCount <= 4)
@@ -129,7 +130,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
     kDoRescaling = 1;
     
     kLastCompactBufferIndex = -1;
-    kLastPartialsBufferIndex = -1;
+    kLastTipPartialsBufferIndex = -1;
     
     initializeInstanceMemory();
     
@@ -161,20 +162,20 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
     dStates = (int **) calloc(sizeof(int*), kBufferCount); 
     
     dCompactBuffers = (int **) malloc(sizeof(int*) * kCompactBufferCount); 
-    dPartialsBuffers = (REAL**) malloc(sizeof(REAL*) * kPartialsBufferCount);
+    dTipPartialsBuffers = (REAL**) malloc(sizeof(REAL*) * kTipPartialsBufferCount);
     
 #ifdef DYNAMIC_SCALING
     dScalingFactors = (REAL***) malloc(sizeof(REAL**) * 2);
     dScalingFactors[0] = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
     dRootScalingFactors = allocateGPURealMemory(kPaddedPatternCount);
 #endif
-    
+
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
-            if (i < kCompactBufferCount) // If not compact
+            if (i < kCompactBufferCount)
                 dCompactBuffers[i] = allocateGPUIntMemory(kPaddedPatternCount);
-            else
-                dPartialsBuffers[i] = allocateGPURealMemory(kPartialsSize);
+            if (i < kTipPartialsBufferCount)
+                dTipPartialsBuffers[i] = allocateGPURealMemory(kPartialsSize);
         } else {
             dPartials[0][i] = allocateGPURealMemory(kPartialsSize);
 #ifdef DYNAMIC_SCALING
@@ -183,8 +184,8 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
         }
     }
     
-    kLastCompactBufferIndex = 0;
-    kLastPartialsBufferIndex = 0;
+    kLastCompactBufferIndex = kCompactBufferCount - 1;
+    kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
     
     dMatrices = (REAL***) malloc(sizeof(REAL**) * 2);
     dMatrices[0] = (REAL**) malloc(sizeof(REAL*) * kMatrixCount);
@@ -229,8 +230,8 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
     }
     
     if (kDeviceMemoryAllocated) {
-        assert(kLastPartialsBufferIndex >= 0 && kLastPartialsBufferIndex < kPartialsBufferCount);
-        dPartials[0][bufferIndex] = dPartialsBuffers[kLastPartialsBufferIndex++];
+        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < kPartialsBufferCount);
+        dPartials[0][bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
         // Copy to CUDA device
         SAFE_CUDA(cudaMemcpy(dPartials[0][bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
                              cudaMemcpyHostToDevice),
@@ -262,23 +263,21 @@ int BeagleCUDAImpl::setTipStates(int tipIndex,
     fprintf(stderr, "Entering setTipStates\n");
 #endif
     
-    for(int i = 0; i < kPatternCount; i++) {
-        hStatesCache[i] = inStates[i];
-        if (hStatesCache[i] >= kStateCount)
-            hStatesCache[i] = kPaddedStateCount;
-    }
+    for(int i = 0; i < kPatternCount; i++)
+        hStatesCache[i] = (inStates[i] < kStateCount ? inStates[i] : kPaddedStateCount);
+    
     // Padded extra patterns
     for(int i = kPatternCount; i < kPaddedPatternCount; i++)
         hStatesCache[i] = kPaddedStateCount;
     
     if (kDeviceMemoryAllocated) {
         assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex++];
+        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
         // Copy to CUDA device
         SAFE_CUDA(cudaMemcpy(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount,
                              cudaMemcpyHostToDevice),
                   dStates[tipIndex]);
-    } else{
+    } else {
         hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
         checkNativeMemory(hTmpStates[tipIndex]);
         memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
@@ -662,8 +661,8 @@ void BeagleCUDAImpl::freeNativeMemory() {
         if (i < kTipCount) {
             if (i < kCompactBufferCount)
                 freeGPUMemory(dCompactBuffers[i]);
-            else
-                freeGPUMemory(dPartialsBuffers[i]);
+            if (i < kTipPartialsBufferCount)
+                freeGPUMemory(dTipPartialsBuffers[i]);
         } else {
             freeGPUMemory(dPartials[0][i]);
 #ifdef DYNAMIC_SCALING
@@ -698,7 +697,7 @@ void BeagleCUDAImpl::freeNativeMemory() {
     free(dStates);
     
     free(dCompactBuffers);
-    free(dPartialsBuffers);
+    free(dTipPartialsBuffers);
     
     freeGPUMemory(dBranchLengths);
     
