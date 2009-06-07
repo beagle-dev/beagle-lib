@@ -201,14 +201,14 @@ int getPartials(int instance,
                 double* outPartials);
 
 /**
- * @brief Set the compressed state representation for tip node
+ * @brief Set the compact state representation for tip node
  *
- * This function copies a compressed state representation into a instance buffer.
- * Compressed state representation is an array of states: 0 to stateCount - 1 (missing = stateCount)
+ * This function copies a compact state representation into a instance buffer.
+ * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount)
  *
  * @param instance  Instance number (input)
- * @param tipIndex  Index of destination compressedBuffer (input)
- * @param inStates  Pointer to compressed states (input) 
+ * @param tipIndex  Index of destination compactBuffer (input)
+ * @param inStates  Pointer to compact states (input) 
  *
  * @return error code
  */
