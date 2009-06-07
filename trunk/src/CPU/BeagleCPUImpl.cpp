@@ -58,6 +58,7 @@
 #include <iostream>
 #include <string.h>
 #include <math.h>
+#include <assert.h> 
 
 #include "beagle.h"
 #include "BeagleCPUImpl.h"
