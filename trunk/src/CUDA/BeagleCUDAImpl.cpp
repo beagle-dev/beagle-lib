@@ -225,13 +225,15 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
 #else
         MEMCPY(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
 #endif
-        tmpRealPartialsOffset += kStateCount;
+        tmpRealPartialsOffset += kPaddedStateCount;
         inPartialsOffset += kStateCount;
     }
     
     if (kDeviceMemoryAllocated) {
-        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < kPartialsBufferCount);
-        dPartials[0][bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        if (bufferIndex < kTipCount) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < kPartialsBufferCount);
+            dPartials[0][bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        }
         // Copy to CUDA device
         SAFE_CUDA(cudaMemcpy(dPartials[0][bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
                              cudaMemcpyHostToDevice),
