@@ -12,20 +12,20 @@
 #include <vector>
 
 class BeagleCPUImpl : public BeagleImpl {
-
+    
 private:
     int kBufferCount; /// after initialize this will be partials.size()
-                      ///   (we don't really need this field)
+    ///   (we don't really need this field)
     int kTipCount; /// after initialize this will be tipStates.size()
-                   ///   (we don't really need this field, but it is handy)
+    ///   (we don't really need this field, but it is handy)
     int kPatternCount; /// the number of data patterns in each partial and tipStates element
     int kMatrixCount; /// the number of transition matrices to alloc and store
     int kStateCount; /// the number of states
     int kEigenDecompCount; /// the number of eigen solutions to alloc and store
-
+    
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
-
+    
     //@ the following eigen-calculation-related fields should be changed to vectors
     //      of vectors
     // each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
@@ -34,26 +34,17 @@ private:
     double** cMatrices;
     // each element of eigenValues is a kStateCount array of eigenvalues
     double** eigenValues;
-
+    
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     std::vector<double*> partials;
     std::vector<int*> tipStates;
-
+    
     // There will be kMatrixCount transitionMatrices.
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     std::vector< std::vector<double> > transitionMatrices;
-
-    ////@@@
-    //BEGIN edge Like Hack  These two temporaries are used to turn the calculateEdgeLogLikelihoods
-    //  function into an inefficient call to calculateRootLogLikelihoods
-    //  this should go away!!!
-    double * TEMP_SCRATCH_PARTIAL;
-    std::vector<double> TEMP_IDENTITY_MATRIX;
-    ////END edge Like Hack
-    ////@@@
     
 public:
     virtual ~BeagleCPUImpl();
@@ -66,7 +57,7 @@ public:
                        int patternCount,
                        int eigenDecompositionCount,
                        int matrixCount);
-
+    
     // initialization of instance,  returnInfo can be null
     int initializeInstance(InstanceDetails* returnInfo);
     
@@ -76,17 +67,17 @@ public:
     // inPartials the array of partials, stateCount x patternCount
     int setPartials(int bufferIndex,
                     const double* inPartials);
-
+    
     int getPartials(int bufferIndex,
                     double* outPartials);
-
+    
     // set the states for a given tip
     //
     // tipIndex the index of the tip
     // inStates the array of states: 0 to stateCount - 1, missing = stateCount
     int setTipStates(int tipIndex,
                      const int* inStates);
-
+    
     // sets the Eigen decomposition for a given matrix
     //
     // matrixIndex the matrix index to update
@@ -97,10 +88,10 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
-
+    
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
-
+    
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //
@@ -113,7 +104,7 @@ public:
                                  const int* secondDervativeIndices,
                                  const double* edgeLengths,
                                  int count);
-
+    
     // calculate or queue for calculation partials using an array of operations
     //
     // operations an array of triplets of indices: the two source partials and the destination
@@ -149,7 +140,7 @@ public:
                                     const double* inStateFrequencies,
                                     int count,
                                     double* outLogLikelihoods);
-
+    
     // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
     //                 outFirstDerivatives, outSecondDerivatives
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
@@ -163,7 +154,7 @@ public:
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
-
+    
 private:
     void calcStatesStates(double * destP,
                           const int * child0States,
@@ -185,14 +176,14 @@ private:
 };
 
 class BeagleCPUImplFactory : public BeagleImplFactory {
-    public:
-        virtual BeagleImpl* createImpl(int tipCount,
-                                       int partialsBufferCount,
-                                       int compactBufferCount,
-                                       int stateCount,
-                                       int patternCount,
-                                       int eigenBufferCount,
-                                       int matrixBufferCount);
-
-        virtual const char* getName();
+public:
+    virtual BeagleImpl* createImpl(int tipCount,
+                                   int partialsBufferCount,
+                                   int compactBufferCount,
+                                   int stateCount,
+                                   int patternCount,
+                                   int eigenBufferCount,
+                                   int matrixBufferCount);
+    
+    virtual const char* getName();
 };
