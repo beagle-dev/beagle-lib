@@ -241,13 +241,13 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
 
 int BeagleCUDAImpl::getPartials(int bufferIndex,
                                 double* inPartials) {
-    //TODO: implement getPartials
+    // TODO: implement getPartials
     assert (false);
 }
 
 int BeagleCUDAImpl::setTipStates(int tipIndex,
                                  const int* inStates) {
-    //TODO: test setTipStates
+    // TODO: test setTipStates
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering setTipStates\n");
@@ -354,7 +354,7 @@ int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 
 int BeagleCUDAImpl::setTransitionMatrix(int matrixIndex,
                                         const double* inMatrix) {
-    //TODO: implement setTransitionMatrix
+    // TODO: implement setTransitionMatrix
     assert(false);
 }
 
@@ -584,7 +584,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         exit(-1);
 #endif
     } else {
-        // TODO: implement calculate root lnL for multiple count
+        // TODO: implement calculate root lnL for count > 1
         assert(false);
     }
 
