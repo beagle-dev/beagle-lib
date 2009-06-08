@@ -93,7 +93,6 @@ int BeagleCUDAImpl::createInstance(int tipCount,
     
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
-    // TODO: change to 2 * kPaddedStateCount for complex models (?)
     kEigenValuesSize = kPaddedStateCount;
     
     // TODO: only allocate if necessary on the fly
@@ -136,10 +135,8 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     dIntegrationTmp = allocateGPURealMemory(kPaddedPatternCount);
     
-    dPartials = (REAL***) malloc(sizeof(REAL**) * 2);
-    
     // Fill with 0s so 'free' does not choke if unallocated
-    dPartials[0] = (REAL**) calloc(sizeof(REAL*), kBufferCount);
+    dPartials = (REAL**) calloc(sizeof(REAL*), kBufferCount);
     
     // Internal nodes have 0s so partials are used
     dStates = (int **) calloc(sizeof(int*), kBufferCount); 
@@ -148,8 +145,7 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     dTipPartialsBuffers = (REAL**) malloc(sizeof(REAL*) * kTipPartialsBufferCount);
     
 #ifdef DYNAMIC_SCALING
-    dScalingFactors = (REAL***) malloc(sizeof(REAL**) * 2);
-    dScalingFactors[0] = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
+    dScalingFactors = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
     dRootScalingFactors = allocateGPURealMemory(kPaddedPatternCount);
 #endif
     
@@ -160,9 +156,9 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
             if (i < kTipPartialsBufferCount)
                 dTipPartialsBuffers[i] = allocateGPURealMemory(kPartialsSize);
         } else {
-            dPartials[0][i] = allocateGPURealMemory(kPartialsSize);
+            dPartials[i] = allocateGPURealMemory(kPartialsSize);
 #ifdef DYNAMIC_SCALING
-            dScalingFactors[0][i] = allocateGPURealMemory(kPaddedPatternCount);
+            dScalingFactors[i] = allocateGPURealMemory(kPaddedPatternCount);
 #endif
         }
     }
@@ -170,11 +166,10 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     kLastCompactBufferIndex = kCompactBufferCount - 1;
     kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
     
-    dMatrices = (REAL***) malloc(sizeof(REAL**) * 2);
-    dMatrices[0] = (REAL**) malloc(sizeof(REAL*) * kMatrixCount);
+    dMatrices = (REAL**) malloc(sizeof(REAL*) * kMatrixCount);
     
     for (int i = 0; i < kMatrixCount; i++) {
-        dMatrices[0][i] = allocateGPURealMemory(kMatrixSize);
+        dMatrices[i] = allocateGPURealMemory(kMatrixSize);
     }
     
     // No execution has more no kBufferCount events
@@ -225,12 +220,12 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
         if (bufferIndex < kTipCount) {
             assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
                    kTipPartialsBufferCount);
-            dPartials[0][bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
         }
         // Copy to CUDA device
-        SAFE_CUDA(cudaMemcpy(dPartials[0][bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
+        SAFE_CUDA(cudaMemcpy(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
                              cudaMemcpyHostToDevice),
-                  dPartials[0][bufferIndex]);
+                  dPartials[bufferIndex]);
     } else {
         hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
         checkNativeMemory(hTmpTipPartials[bufferIndex]);
@@ -376,7 +371,7 @@ int BeagleCUDAImpl::updateTransitionMatrices(int eigenIndex,
     // TODO: calculate derivatives
     
     for (int i = 0; i < count; i++) {
-        hPtrQueue[i] = dMatrices[0][probabilityIndices[i]];
+        hPtrQueue[i] = dMatrices[probabilityIndices[i]];
         hDistanceQueue[i] = (REAL) edgeLengths[i];
     }
 
@@ -423,19 +418,19 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
         const int child2Index = operations[op * 5 + 3];
         const int child2TransMatIndex = operations[op * 5 + 4];
         
-        REAL* matrices1 = dMatrices[0][child1TransMatIndex];
-        REAL* matrices2 = dMatrices[0][child2TransMatIndex];
+        REAL* matrices1 = dMatrices[child1TransMatIndex];
+        REAL* matrices2 = dMatrices[child2TransMatIndex];
         
-        REAL* partials1 = dPartials[0][child1Index];
-        REAL* partials2 = dPartials[0][child2Index];
+        REAL* partials1 = dPartials[child1Index];
+        REAL* partials2 = dPartials[child2Index];
         
-        REAL* partials3 = dPartials[0][parIndex];
+        REAL* partials3 = dPartials[parIndex];
         
         int* tipStates1 = dStates[child1Index];
         int* tipStates2 = dStates[child2Index];
         
 #ifdef DYNAMIC_SCALING
-        REAL* scalingFactors = dScalingFactors[0][parIndex];
+        REAL* scalingFactors = dScalingFactors[parIndex];
         
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
@@ -534,7 +529,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         REAL* tmpStateFrequencies = hFrequenciesCache;
                 
 #ifdef DOUBLE_PRECISION
-        // TODO: fix const assigned no non-const
+        // TODO: fix const assigned to non-const
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
 #else
@@ -553,7 +548,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             int n;
             int length = kBufferCount - kTipCount;
             for(n = 0; n < length; n++)
-                hPtrQueue[n] = dScalingFactors[0][n + kTipCount];
+                hPtrQueue[n] = dScalingFactors[n + kTipCount];
             
             cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * length, cudaMemcpyHostToDevice);
             
@@ -564,12 +559,12 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         
         kDoRescaling = 0;
         
-        nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[0][rootNodeIndex],
+        nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
                                                     dRootScalingFactors, kPaddedPatternCount,
                                                     count, kBufferCount);
 #else
-        nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartials[0][rootNodeIndex],
+        nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
                                       dWeights, dFrequencies, kPaddedPatternCount,
                                       count);
 #endif // DYNAMIC_SCALING
@@ -616,6 +611,8 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
     assert(false);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// private methods
 
 void BeagleCUDAImpl::checkNativeMemory(void* ptr) {
     if (ptr == NULL) {
@@ -646,15 +643,15 @@ void BeagleCUDAImpl::freeMemory() {
             if (i < kTipPartialsBufferCount)
                 freeGPUMemory(dTipPartialsBuffers[i]);
         } else {
-            freeGPUMemory(dPartials[0][i]);
+            freeGPUMemory(dPartials[i]);
 #ifdef DYNAMIC_SCALING
-            freeGPUMemory(dScalingFactors[0][i]);
+            freeGPUMemory(dScalingFactors[i]);
 #endif
         }
     }
     
     for (int i = 0; i < kMatrixCount; i++)
-        freeGPUMemory(dMatrices[0][i]);
+        freeGPUMemory(dMatrices[i]);
     
     freeGPUMemory(dEigenValues);
     freeGPUMemory(dEvec);
@@ -664,14 +661,11 @@ void BeagleCUDAImpl::freeMemory() {
     freeGPUMemory(dFrequencies);
     freeGPUMemory(dIntegrationTmp);
     
-    free(dPartials[0]);
     free(dPartials);
 
-    free(dMatrices[0]);
     free(dMatrices);
     
 #ifdef DYNAMIC_SCALING
-    free(dScalingFactors[0]);
     free(dScalingFactors);
     freeGPUMemory(dRootScalingFactors);
 #endif
@@ -713,8 +707,8 @@ void BeagleCUDAImpl::loadTipPartialsAndStates() {
         if (hTmpTipPartials[i] != 0) {
             assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < 
                    kTipPartialsBufferCount);
-            dPartials[0][i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
-            cudaMemcpy(dPartials[0][i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize,
+            dPartials[i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+            cudaMemcpy(dPartials[i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize,
                        cudaMemcpyHostToDevice);
         } else if (hTmpStates[i] != 0) {
             assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);

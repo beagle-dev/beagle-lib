@@ -49,13 +49,13 @@ private:
     REAL* dFrequencies; 
     REAL* dIntegrationTmp;
     
-    REAL*** dPartials;
-    REAL*** dMatrices;
+    REAL** dPartials;
+    REAL** dMatrices;
     
     REAL** hTmpTipPartials;
     int** hTmpStates;
     
-    REAL*** dScalingFactors;
+    REAL** dScalingFactors;
     REAL* dRootScalingFactors;
     
     int** dStates;
