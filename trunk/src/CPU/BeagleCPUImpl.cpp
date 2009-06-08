@@ -75,13 +75,13 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // which is TEMP_SCRATCH_PARTIAL twice.
 }
 
-int BeagleCPUImpl::initialize(int tipCount,
-                              int partialsBufferCount,
-                              int compactBufferCount,
-                              int stateCount,
-                              int patternCount,
-                              int eigenDecompositionCount,
-                              int matrixCount) {
+int BeagleCPUImpl::createInstance(int tipCount,
+                                  int partialsBufferCount,
+                                  int compactBufferCount,
+                                  int stateCount,
+                                  int patternCount,
+                                  int eigenDecompositionCount,
+                                  int matrixCount) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
     
@@ -144,6 +144,10 @@ int BeagleCPUImpl::initialize(int tipCount,
         }
     ////END edge Like Hack
 
+    return NO_ERROR;
+}
+
+int BeagleCPUImpl:: initializeInstance(InstanceDetails* returnInfo) {
     return NO_ERROR;
 }
 
@@ -521,8 +525,8 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,
     BeagleImpl* impl = new BeagleCPUImpl();
 
     try {
-        if (impl->initialize(tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                             patternCount, eigenBufferCount, matrixBufferCount) == 0)
+        if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+                                 patternCount, eigenBufferCount, matrixBufferCount) == 0)
             return impl;
     }
     catch(...) {
