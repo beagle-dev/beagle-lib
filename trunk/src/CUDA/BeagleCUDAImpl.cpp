@@ -22,16 +22,16 @@
 int currentDevice = -1;
 
 BeagleCUDAImpl::~BeagleCUDAImpl() {
-    //freeNativeMemory();
+    freeMemory();
 }
 
-int BeagleCUDAImpl::initialize(int tipCount,
-                               int partialsBufferCount,
-                               int compactBufferCount,
-                               int stateCount,
-                               int patternCount,
-                               int eigenDecompositionCount,
-                               int matrixCount) {
+int BeagleCUDAImpl::createInstance(int tipCount,
+                                   int partialsBufferCount,
+                                   int compactBufferCount,
+                                   int stateCount,
+                                   int patternCount,
+                                   int eigenDecompositionCount,
+                                   int matrixCount) {
     
     // TODO: Determine if CUDA device satisfies memory requirements.
     
@@ -48,33 +48,15 @@ int BeagleCUDAImpl::initialize(int tipCount,
     
     printGPUInfo(currentDevice);
     
-    initializeDevice(currentDevice, tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                     patternCount, eigenDecompositionCount, matrixCount);
+    kDevice = currentDevice;
     
-    return NO_ERROR;
-}
-
-void BeagleCUDAImpl::initializeDevice(int deviceNumber,
-                                      int inTipCount,
-                                      int inPartialsBufferCount,
-                                      int inCompactBufferCount,
-                                      int inStateCount,
-                                      int inPatternCount,
-                                      int inEigenDecompositionCount,
-                                      int inMatrixCount) {
-    
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering initialize\n");
-#endif
-
-    kDevice = deviceNumber;
-    
-    kTipCount = inTipCount;
-    kPartialsBufferCount = inPartialsBufferCount;
-    kCompactBufferCount = inCompactBufferCount;
-    kStateCount = inStateCount;
-    kPatternCount = inPatternCount;
-    kMatrixCount = inMatrixCount;
+    kTipCount = tipCount;
+    kPartialsBufferCount = partialsBufferCount;
+    kCompactBufferCount = compactBufferCount;
+    kStateCount = stateCount;
+    kPatternCount = patternCount;
+    kEigenDecompCount = eigenDecompositionCount;
+    kMatrixCount = matrixCount;
     
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
@@ -102,7 +84,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
         paddedPatterns = 0;
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
-
+    
 #ifdef DEBUG
     fprintf(stderr, "Padding patterns for 4-state model:\n");
     fprintf(stderr, "\ttruePatternCount = %d\n\tpaddedPatterns = %d\n", kPatternCount,
@@ -124,7 +106,7 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
 #endif
     
-    hTmpPartials = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
+    hTmpTipPartials = (REAL**) calloc(sizeof(REAL*), kTipCount);
     hTmpStates = (int**) calloc(sizeof(int*), kTipCount);
     
     kDoRescaling = 1;
@@ -132,14 +114,15 @@ void BeagleCUDAImpl::initializeDevice(int deviceNumber,
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
     
-    initializeInstanceMemory();
-    
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting initialize\n");
-#endif
+    return NO_ERROR;
 }
 
-void BeagleCUDAImpl::initializeInstanceMemory() {
+int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Entering initialize\n");
+#endif
+
     cudaSetDevice(kDevice);
     
     dEvec = allocateGPURealMemory(kMatrixSize);
@@ -169,7 +152,7 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
     dScalingFactors[0] = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
     dRootScalingFactors = allocateGPURealMemory(kPaddedPatternCount);
 #endif
-
+    
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
@@ -207,7 +190,16 @@ void BeagleCUDAImpl::initializeInstanceMemory() {
     
     checkNativeMemory(hPtrQueue);
     
+    loadTipPartialsAndStates();
+    freeTmpTipPartialsAndStates();
+    
     kDeviceMemoryAllocated = 1;
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting initialize\n");
+#endif
+    
+    return NO_ERROR;
 }
 
 int BeagleCUDAImpl::setPartials(int bufferIndex,
@@ -231,7 +223,8 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
     
     if (kDeviceMemoryAllocated) {
         if (bufferIndex < kTipCount) {
-            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < kPartialsBufferCount);
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                   kTipPartialsBufferCount);
             dPartials[0][bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
         }
         // Copy to CUDA device
@@ -239,9 +232,9 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
                              cudaMemcpyHostToDevice),
                   dPartials[0][bufferIndex]);
     } else {
-        hTmpPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
-        checkNativeMemory(hTmpPartials[bufferIndex]);
-        memcpy(hTmpPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+        hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
+        checkNativeMemory(hTmpTipPartials[bufferIndex]);
+        memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     }
     
 #ifdef DEBUG_FLOW
@@ -645,20 +638,7 @@ long BeagleCUDAImpl::memoryRequirement(int kTipCount,
     assert(false);
 }
 
-void BeagleCUDAImpl::freeTmpPartialsAndStates() {
-    for (int i = 0; i < kTipCount; i++)
-        free(hTmpStates[i]);
-    
-    for (int i = 0; i < kBufferCount; i++)
-        free(hTmpPartials[i]);
-    
-    free(hTmpPartials);
-    free(hTmpStates);
-    free(hPartialsCache);
-    free(hStatesCache);
-}
-
-void BeagleCUDAImpl::freeNativeMemory() {
+void BeagleCUDAImpl::freeMemory() {
     for (int i = 0; i < kBufferCount; i++) {
         if (i < kTipCount) {
             if (i < kCompactBufferCount)
@@ -716,14 +696,32 @@ void BeagleCUDAImpl::freeNativeMemory() {
     free(hLogLikelihoodsCache);
 }
 
+void BeagleCUDAImpl::freeTmpTipPartialsAndStates() {
+    for (int i = 0; i < kTipCount; i++) {
+        if (hTmpTipPartials[i] != 0)
+            free(hTmpTipPartials[i]);
+        else if (hTmpStates[i] != 0)
+            free(hTmpStates[i]);
+    }
+    
+    free(hTmpTipPartials);
+    free(hTmpStates);
+}
+
 void BeagleCUDAImpl::loadTipPartialsAndStates() {    
     for (int i = 0; i < kTipCount; i++) {
-        if (hTmpStates[i] == 0)
-            cudaMemcpy(dPartials[0][i], hTmpPartials[i], SIZE_REAL * kPartialsSize,
+        if (hTmpTipPartials[i] != 0) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < 
+                   kTipPartialsBufferCount);
+            dPartials[0][i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+            cudaMemcpy(dPartials[0][i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize,
                        cudaMemcpyHostToDevice);
-        else
+        } else if (hTmpStates[i] != 0) {
+            assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
+            dStates[i] = dCompactBuffers[kLastCompactBufferIndex--];
             cudaMemcpy(dStates[i], hTmpStates[i], SIZE_INT * kPaddedPatternCount,
                        cudaMemcpyHostToDevice);
+        }
     }
 }
 
@@ -795,8 +793,8 @@ BeagleImpl*  BeagleCUDAImplFactory::createImpl(int tipCount,
                                                int matrixBufferCount) {
     BeagleImpl* impl = new BeagleCUDAImpl();
     try {
-        if (impl->initialize(tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                             patternCount, eigenBufferCount, matrixBufferCount) == 0)
+        if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+                                 patternCount, eigenBufferCount, matrixBufferCount) == 0)
             return impl;
     }
     catch(...)

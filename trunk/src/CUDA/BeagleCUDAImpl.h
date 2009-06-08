@@ -52,7 +52,7 @@ private:
     REAL*** dPartials;
     REAL*** dMatrices;
     
-    REAL** hTmpPartials;
+    REAL** hTmpTipPartials;
     int** hTmpStates;
     
     REAL*** dScalingFactors;
@@ -81,13 +81,15 @@ private:
 public:
     virtual ~BeagleCUDAImpl();
     
-    int initialize(int tipCount,
-                   int partialsBufferCount,
-                   int compactBufferCount,
-                   int stateCount,
-                   int patternCount,
-                   int eigenDecompositionCount,
-                   int matrixCount);
+    int createInstance(int tipCount,
+                       int partialsBufferCount,
+                       int compactBufferCount,
+                       int stateCount,
+                       int patternCount,
+                       int eigenDecompositionCount,
+                       int matrixCount);
+    
+    int initializeInstance(InstanceDetails* retunInfo);
     
     int setPartials(int bufferIndex,
                     const double* inPartials);
@@ -143,8 +145,8 @@ private:
     
     void loadTipPartialsAndStates();
     
-    void freeNativeMemory();
-    void freeTmpPartialsAndStates();
+    void freeMemory();
+    void freeTmpTipPartialsAndStates();
     
     void initializeDevice(int deviceNumber,
                           int inTipCount,

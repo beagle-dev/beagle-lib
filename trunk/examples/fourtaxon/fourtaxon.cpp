@@ -126,6 +126,11 @@ void FourTaxonExample::initBeagleLib()
 
 	if (instance_handle < 0)
 		abort("createInstance returned a negative instance handle (and that's not good)");
+        
+    code = initializeInstance(instance_handle, NULL);    
+    if (code != 0) {
+			abort("initializeInstance encountered a problem");
+    }
 
 	transition_matrix_index.resize(5);
 	transition_matrix_index[0] = 0;

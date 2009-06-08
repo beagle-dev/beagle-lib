@@ -122,7 +122,7 @@ ResourceList* getResourceList();
  * @param eigenBufferCount      Number of rate matrix eigen-decomposition buffers to allocate
  *                               (input)
  * @param matrixBufferCount     Number of rate matrix buffers (input)
- * @param resourceList          List of potential resource on which this instance is allowed
+ * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
  * @param preferenceFlags       Bit-flags indicating preferred implementation charactertistics,

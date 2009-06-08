@@ -58,15 +58,18 @@ private:
 public:
     virtual ~BeagleCPUImpl();
     
-    // initialization of instance,  returnInfo can be null
-    int initialize(int tipCount,
-                   int partialsBufferCount,
-                   int compactBufferCount,
-                   int stateCount,
-                   int patternCount,
-                   int eigenDecompositionCount,
-                   int matrixCount);
+    // creation of instance
+    int createInstance(int tipCount,
+                       int partialsBufferCount,
+                       int compactBufferCount,
+                       int stateCount,
+                       int patternCount,
+                       int eigenDecompositionCount,
+                       int matrixCount);
 
+    // initialization of instance,  returnInfo can be null
+    int initializeInstance(InstanceDetails* returnInfo);
+    
     // set the partials for a given tip
     //
     // tipIndex the index of the tip
