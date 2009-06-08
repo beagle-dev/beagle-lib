@@ -10,6 +10,8 @@
 #ifndef __beagle_impl__
 #define __beagle_impl__
 
+#include "beagle.h"
+
 #ifdef DOUBLE_PRECISION
 #define REAL    double
 #else
@@ -19,13 +21,16 @@
 class BeagleImpl {
 public:
     virtual ~BeagleImpl(){}
-    virtual int initialize(int tipCount,
-                           int partialsBufferCount,
-                           int compactBufferCount,
-                           int stateCount,
-                           int patternCount,
-                           int eigenBufferCount,
-                           int matrixBufferCount) = 0;
+    
+    virtual int createInstance(int tipCount,
+                               int partialsBufferCount,
+                               int compactBufferCount,
+                               int stateCount,
+                               int patternCount,
+                               int eigenBufferCount,
+                               int matrixBufferCount) = 0;
+    
+    virtual int initializeInstance(InstanceDetails* returnInfo) = 0;
     
     virtual int setPartials(int bufferIndex,
                             const double* inPartials) = 0;

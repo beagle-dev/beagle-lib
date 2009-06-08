@@ -201,6 +201,6 @@ int main( int argc, const char* argv[] )
 
 	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
 
-
+    finalize(instance);
 
 }

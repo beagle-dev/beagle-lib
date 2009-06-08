@@ -99,8 +99,10 @@ int createInstance(int tipCount,
 int initializeInstance(int instance,
                        InstanceDetails* returnInfo) {
     try {
-        // TODO: Actual creation of instances should wait until here
-        return NO_ERROR;
+        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        return beagleInstance->initializeInstance(returnInfo);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
