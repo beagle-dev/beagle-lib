@@ -314,55 +314,33 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inStateFrequencies,
                                                int count,
                                                double* outLogLikelihoods) {
-    if (count == 1) {
-        // We treat this as a special case so that we don't have convoluted logic
-        //  at the end of the loop over patterns
-        const int rootPartialIndex = bufferIndices[0];
+
+    // Here we do the 3 similar operations:
+    //      1. to set the lnL to the contribution of the first subset,
+    //      2. to add the lnL for other subsets up to the penultimate
+    //      3. to take the lnL of the final subset
+    for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex) {
+        assert(subsetIndex < partials.size());
+        const int rootPartialIndex = bufferIndices[subsetIndex];
         const double * rootPartials = partials[rootPartialIndex];
         assert(rootPartials);
-        const double wt = inWeights[0];
+        const double * frequencies = inStateFrequencies + (subsetIndex * kStateCount);
+        const double wt = inWeights[subsetIndex];
         assert(wt >= 0.0);
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             double sum = 0.0;
             for (int i = 0; i < kStateCount; i++) {
-                sum += inStateFrequencies[i] * rootPartials[v];
+                sum += frequencies[i] * rootPartials[v];
                 v++;
             }
-            outLogLikelihoods[k] = log(sum * wt);
-        }
-    } else {
-        // Here we do the 3 similar operations:
-        //      1. to set the lnL to the contribution of the first subset,
-        //      2. to add the lnL for other subsets up to the penultimate
-        //      3. to add the final subset and take the lnL
-        //  This form of the calc would not work when count == 1 because
-        //      we need operation 1 and 3 in the preceding list.  This is not
-        //      a problem, though as we deal with count == 1 in the previous
-        //      branch.
-        for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex) {
-            assert(subsetIndex < partials.size());
-            const int rootPartialIndex = bufferIndices[subsetIndex];
-            const double * rootPartials = partials[rootPartialIndex];
-            assert(rootPartials);
-            const double * frequencies = inStateFrequencies + (subsetIndex * kStateCount);
-            const double wt = inWeights[subsetIndex];
-            assert(wt >= 0.0);
-            int v = 0;
-            for (int k = 0; k < kPatternCount; k++) {
-                double sum = 0.0;
-                for (int i = 0; i < kStateCount; i++) {
-                    sum += frequencies[i] * rootPartials[v];
-                    v++;
-                }
-                if (subsetIndex == 0)
-                    outLogLikelihoods[k] = sum * wt;
-                else if (subsetIndex == count - 1)
-                     // add and take the log
-                    outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum * wt);
-                else
-                    outLogLikelihoods[k] += sum * wt;
-            }
+            if (subsetIndex == 0)
+                outLogLikelihoods[k] = sum * wt;
+            else
+                outLogLikelihoods[k] += sum * wt;
+            
+            if (subsetIndex == count - 1)
+                outLogLikelihoods[k] = log(outLogLikelihoods[k]);   // take the log
         }
     }
 

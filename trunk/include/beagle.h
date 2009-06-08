@@ -355,7 +355,7 @@ int calculateRootLogLikelihoods(int instance,
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
  *
- * This function integrates at list of partials at a parent and child node with respect
+ * This function integrates a list of partials at a parent and child node with respect
  * to a set of partials-weights and state frequencies to return the log likelihoods
  * and first and second derivatives for each site
  *
