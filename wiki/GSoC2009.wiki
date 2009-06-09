@@ -34,7 +34,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Set up Xcode project for the library and test cases to ease debugging process.
 
 === 05/30 - 06/06 ===
- * Adapted CUDA implementation to comply with most new API functions in beagle.h
+ * Re-write of CUDA implementation to comply with most new API functions in beagle.h
   * missing all but setTransitionMatrix, calculateEdgeLogLikelihoods
   * works with tinyTest
  * Cleaned up CUDA and CPU code significantly and fixed several bugs
