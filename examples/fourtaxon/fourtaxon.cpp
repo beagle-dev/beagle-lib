@@ -3,6 +3,7 @@
 #include <fstream>
 #include <numeric>	// needed for accumulate algorithm
 #include <cmath>
+#include <cstdlib>
 #include "fourtaxon.hpp"
 
 /*-----------------------------------------------------------------------------
