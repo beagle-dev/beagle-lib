@@ -13,13 +13,21 @@
 		643430FC0FD2CE7B00AFC69E /* fourtaxon.dat in CopyFiles */ = {isa = PBXBuildFile; fileRef = 64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */; };
 		649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */; };
 		649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */; };
-		649E825E0FD6FC580044891D /* CUDASharedFunctions_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions_kernel.cu */; };
-		649E825F0FD6FC580044891D /* TransitionProbabilities_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionProbabilities_kernel.cu */; };
-		649E82600FD6FC580044891D /* Peeling_kernel.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* Peeling_kernel.cu */; };
+		649E825E0FD6FC580044891D /* CUDASharedFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */; };
+		649E825F0FD6FC580044891D /* TransitionFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionFunctions.cu */; };
+		649E82600FD6FC580044891D /* PeelingFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* PeelingFunctions.cu */; };
 		649E82620FD6FCA00044891D /* tinytest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */; };
 		649E82630FD6FCA40044891D /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		649E82640FD6FCA90044891D /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 		64BA0A5B0FD46C2200E5EA7A /* tinytest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */; };
+		64E4BB230FE17A8200F7C631 /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
+		64E4BB240FE17A8200F7C631 /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
+		64E4BB250FE17A8200F7C631 /* BeagleCUDAImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */; };
+		64E4BB260FE17A8200F7C631 /* CUDASharedFunctions.c in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */; };
+		64E4BB270FE17A8200F7C631 /* CUDASharedFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */; };
+		64E4BB280FE17A8200F7C631 /* TransitionFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionFunctions.cu */; };
+		64E4BB290FE17A8200F7C631 /* PeelingFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* PeelingFunctions.cu */; };
+		64E4BB330FE17AF300F7C631 /* fourtaxon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */; };
 		64F21C770FD2C10300678D0B /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		64F21C780FD2C10300678D0B /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 /* End PBXBuildFile section */
@@ -39,14 +47,17 @@
 
 /* Begin PBXFileReference section */
 		643430DE0FD2CD0400AFC69E /* fourTaxonXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingKernels.cu; path = "projects/beagle-lib/src/CUDA/PeelingKernels.cu"; sourceTree = DEVELOPER_DIR; };
+		6439E9FC0FE1C34300AD5C7B /* TransitionKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionKernels.cu; path = "projects/beagle-lib/src/CUDA/TransitionKernels.cu"; sourceTree = DEVELOPER_DIR; };
 		649E824E0FD6FAEC0044891D /* tinyTestGPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestGPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		649E825B0FD6FC580044891D /* CUDASharedFunctions_kernel.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = CUDASharedFunctions_kernel.cu; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions_kernel.cu"; sourceTree = DEVELOPER_DIR; };
-		649E825C0FD6FC580044891D /* TransitionProbabilities_kernel.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionProbabilities_kernel.cu; path = "projects/beagle-lib/src/CUDA/TransitionProbabilities_kernel.cu"; sourceTree = DEVELOPER_DIR; };
-		649E825D0FD6FC580044891D /* Peeling_kernel.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = Peeling_kernel.cu; path = "projects/beagle-lib/src/CUDA/Peeling_kernel.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = CUDASharedFunctions.cu; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825C0FD6FC580044891D /* TransitionFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionFunctions.cu; path = "projects/beagle-lib/src/CUDA/TransitionFunctions.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825D0FD6FC580044891D /* PeelingFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingFunctions.cu; path = "projects/beagle-lib/src/CUDA/PeelingFunctions.cu"; sourceTree = DEVELOPER_DIR; };
 		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = "projects/beagle-lib/CUDA.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_BEAST.xml"; sourceTree = DEVELOPER_DIR; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_paup.nex"; sourceTree = DEVELOPER_DIR; };
 		64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = "projects/beagle-lib/examples/tinytest/tinytest.cpp"; sourceTree = DEVELOPER_DIR; wrapsLines = 0; };
+		64E4BB2E0FE17A8200F7C631 /* fourTaxonGPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonGPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = "projects/beagle-lib/src/beagle.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
@@ -71,6 +82,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		649E824C0FD6FAEC0044891D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64E4BB2A0FE17A8200F7C631 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -109,9 +127,11 @@
 				64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */,
 				64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */,
 				64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */,
-				649E825B0FD6FC580044891D /* CUDASharedFunctions_kernel.cu */,
-				649E825D0FD6FC580044891D /* Peeling_kernel.cu */,
-				649E825C0FD6FC580044891D /* TransitionProbabilities_kernel.cu */,
+				649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */,
+				649E825D0FD6FC580044891D /* PeelingFunctions.cu */,
+				6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */,
+				649E825C0FD6FC580044891D /* TransitionFunctions.cu */,
+				6439E9FC0FE1C34300AD5C7B /* TransitionKernels.cu */,
 				64F21C4F0FD2B7B500678D0B /* fourtaxon.hpp */,
 				64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */,
 				64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */,
@@ -136,6 +156,7 @@
 				64F21C720FD2C0BA00678D0B /* tinyTestXcode */,
 				643430DE0FD2CD0400AFC69E /* fourTaxonXcode */,
 				649E824E0FD6FAEC0044891D /* tinyTestGPUXcode */,
+				64E4BB2E0FE17A8200F7C631 /* fourTaxonGPUXcode */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -176,6 +197,22 @@
 			productReference = 649E824E0FD6FAEC0044891D /* tinyTestGPUXcode */;
 			productType = "com.apple.product-type.tool";
 		};
+		64E4BB200FE17A8200F7C631 /* fourTaxonGPUXcode */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64E4BB2B0FE17A8200F7C631 /* Build configuration list for PBXNativeTarget "fourTaxonGPUXcode" */;
+			buildPhases = (
+				64E4BB210FE17A8200F7C631 /* Sources */,
+				64E4BB2A0FE17A8200F7C631 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = fourTaxonGPUXcode;
+			productName = tinyTestGPUXcode;
+			productReference = 64E4BB2E0FE17A8200F7C631 /* fourTaxonGPUXcode */;
+			productType = "com.apple.product-type.tool";
+		};
 		64F21C710FD2C0BA00678D0B /* tinyTestXcode */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 64F21C760FD2C0D800678D0B /* Build configuration list for PBXNativeTarget "tinyTestXcode" */;
@@ -208,6 +245,7 @@
 				64F21C710FD2C0BA00678D0B /* tinyTestXcode */,
 				643430DD0FD2CD0400AFC69E /* fourTaxonXcode */,
 				649E824D0FD6FAEC0044891D /* tinyTestGPUXcode */,
+				64E4BB200FE17A8200F7C631 /* fourTaxonGPUXcode */,
 			);
 		};
 /* End PBXProject section */
@@ -232,9 +270,24 @@
 				649E82640FD6FCA90044891D /* BeagleCPUImpl.cpp in Sources */,
 				649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */,
 				649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */,
-				649E825E0FD6FC580044891D /* CUDASharedFunctions_kernel.cu in Sources */,
-				649E825F0FD6FC580044891D /* TransitionProbabilities_kernel.cu in Sources */,
-				649E82600FD6FC580044891D /* Peeling_kernel.cu in Sources */,
+				649E825E0FD6FC580044891D /* CUDASharedFunctions.cu in Sources */,
+				649E825F0FD6FC580044891D /* TransitionFunctions.cu in Sources */,
+				649E82600FD6FC580044891D /* PeelingFunctions.cu in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64E4BB210FE17A8200F7C631 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64E4BB330FE17AF300F7C631 /* fourtaxon.cpp in Sources */,
+				64E4BB230FE17A8200F7C631 /* beagle.cpp in Sources */,
+				64E4BB240FE17A8200F7C631 /* BeagleCPUImpl.cpp in Sources */,
+				64E4BB250FE17A8200F7C631 /* BeagleCUDAImpl.cpp in Sources */,
+				64E4BB260FE17A8200F7C631 /* CUDASharedFunctions.c in Sources */,
+				64E4BB270FE17A8200F7C631 /* CUDASharedFunctions.cu in Sources */,
+				64E4BB280FE17A8200F7C631 /* TransitionFunctions.cu in Sources */,
+				64E4BB290FE17A8200F7C631 /* PeelingFunctions.cu in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -350,6 +403,51 @@
 			};
 			name = Release;
 		};
+		64E4BB2C0FE17A8200F7C631 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
+				HEADER_SEARCH_PATHS = (
+					../../include,
+					/usr/local/cuda/include,
+				);
+				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = (
+					"-lcuda",
+					"-lcudart",
+				);
+				PREBINDING = NO;
+				PRODUCT_NAME = fourTaxonGPUXcode;
+			};
+			name = Debug;
+		};
+		64E4BB2D0FE17A8200F7C631 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				INSTALL_PATH = /usr/local/bin;
+				PREBINDING = NO;
+				PRODUCT_NAME = fourTaxonGPUXcode;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
 		64F21C740FD2C0BA00678D0B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -407,6 +505,15 @@
 			buildConfigurations = (
 				649E82500FD6FAED0044891D /* Debug */,
 				649E82510FD6FAED0044891D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64E4BB2B0FE17A8200F7C631 /* Build configuration list for PBXNativeTarget "fourTaxonGPUXcode" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64E4BB2C0FE17A8200F7C631 /* Debug */,
+				64E4BB2D0FE17A8200F7C631 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
