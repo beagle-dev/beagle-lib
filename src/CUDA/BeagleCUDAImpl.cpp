@@ -607,7 +607,11 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                 double* outLogLikelihoods,
                                                 double* outFirstDerivatives,
                                                 double* outSecondDerivatives) {
-    // TODO: implement calculateEdgeLogLikelihoods
+    // TODO: implement calculateEdgeLnL on GPU
+    // TODO: implement calculateEdgeLnL for count > 1
+    // TODO: implement calculateEdgeLnL when child is of tipStates kind
+    // TODO: implement derivatives for calculateEdgeLnL
+    
     assert(false);
 }
 

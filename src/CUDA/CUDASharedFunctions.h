@@ -11,11 +11,11 @@
 #include <math.h>
 #include <cuda.h>
 
-#define DYNAMIC_SCALING
-
 //#define DEBUG_FLOW
 //#define DEBUG_GPU
 //#define DEBUG_BEAGLE
+
+#define DYNAMIC_SCALING
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
@@ -69,7 +69,7 @@
     #define PADDED_STATE_COUNT  128
 #else
 #if (STATE_COUNT <= 192) // else if
-    #define PADDED_STATE_COUNT 192
+    #define PADDED_STATE_COUNT  192
 #endif
 #endif
 #endif
@@ -88,7 +88,7 @@
 
 #if (PADDED_STATE_COUNT == 64)
     #ifdef DOUBLE_PRECISION
-        #define PATTERN_BLOCK_SIZE      8
+        #define PATTERN_BLOCK_SIZE  8
         #define BLOCK_PEELING_SIZE  4
     #else
         #define PATTERN_BLOCK_SIZE  8
@@ -154,25 +154,37 @@ void checkCUDAError(const char* msg);
 
 void freeGPUMemory(void* ptr);
 
-void storeGPURealMemoryArray(REAL* toGPUPtr, REAL* fromGPUPtr, int length);
+void storeGPURealMemoryArray(REAL* toGPUPtr,
+                             REAL* fromGPUPtr,
+                             int length);
 
-void storeGPUIntMemoryArray(INT* toGPUPtr, INT* fromGPUPtr, int length);
+void storeGPUIntMemoryArray(INT* toGPUPtr,
+                            INT* fromGPUPtr,
+                            int length);
 
-void printfCudaVector(REAL* dPtr, int length);
+void printfCudaVector(REAL* dPtr,
+                      int length);
 
-void printfCudaInt(int* dPtr, int length);
+void printfCudaInt(int* dPtr,
+                   int length);
 
-void printfVectorD(double* ptr, int length);
+void printfVectorD(double* ptr,
+                   int length);
 
-void printfVectorF(float* ptr, int length);
+void printfVectorF(float* ptr,
+                   int length);
 
-void printfVector(REAL* ptr, int length);
+void printfVector(REAL* ptr,
+                  int length);
 
-void printfInt(int* ptr,int length);
+void printfInt(int* ptr,
+               int length);
 
-REAL sumCudaVector(REAL* dPtr, int length);
+REAL sumCudaVector(REAL* dPtr,
+                   int length);
 
-int checkZeros(REAL* dPtr, int length);
+int checkZeros(REAL* dPtr,
+               int length);
 
 void loadTipPartials(int instance);
 
@@ -180,6 +192,4 @@ void loadTipPartials(int instance);
 }
 #endif
 
-
 #endif // __CUDASharedFunctions
-
