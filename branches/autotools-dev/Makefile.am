@@ -4,6 +4,7 @@ autogen.sh \
 cudalt.py \
 build.xml \
 BEAGLE.iml \
+doxygen.cfg \
 java/beagle/BeagleFactory.java \
 java/beagle/BeagleInfo.java \
 java/beagle/Beagle.java \
@@ -14,5 +15,8 @@ java/beagle/GeneralBeagleImpl.java
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = beagle-1.0.pc
- 
+
+# DOXYGEN SUPPORT
+include $(top_srcdir)/aminclude.am
+
 SUBDIRS = libbeagle

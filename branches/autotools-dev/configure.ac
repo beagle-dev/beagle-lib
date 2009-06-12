@@ -142,14 +142,30 @@ case $host_os in
 esac 
 AC_SUBST(JNI_EXTRA_LDFLAGS)
 
-#
+
+# ------------------------------------------------------------------------------
+# Doxygen support 
+# ------------------------------------------------------------------------------
+
+DX_HTML_FEATURE(ON)
+DX_CHM_FEATURE(OFF)
+DX_CHI_FEATURE(OFF)
+DX_MAN_FEATURE(OFF)
+DX_RTF_FEATURE(OFF)
+DX_XML_FEATURE(OFF)
+DX_PDF_FEATURE(OFF)
+DX_PS_FEATURE(OFF)
+
+DX_INIT_DOXYGEN([$PACKAGE_NAME],[doxygen.cfg],[doc])
+
+# ------------------------------------------------------------------------------
 # All done, create Makefiles
-#
+# ------------------------------------------------------------------------------
 AC_OUTPUT(Makefile beagle-1.0.pc libbeagle/Makefile libbeagle/CUDA/Makefile libbeagle/CPU/Makefile libbeagle/JNI/Makefile)
 
-#
+# ------------------------------------------------------------------------------
 # warn the user about missing functionality
-#
+# ------------------------------------------------------------------------------
 if( test x$NVCC = xno ) then
 	AC_MSG_WARN([Nvidia CUDA nvcc compiler not found.  CUDA support will not be built.  Check the path to CUDA and specify --with-cuda=/path/to/cuda])
 fi
