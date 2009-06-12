@@ -200,7 +200,7 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
 int BeagleCUDAImpl::setPartials(int bufferIndex,
                                 const double* inPartials) {
 #ifdef DEBUG_FLOW
-    fprintf(stderr,"Entering setTipPartials\n");
+    fprintf(stderr, "Entering setTipPartials\n");
 #endif
     
     const double* inPartialsOffset = inPartials;
@@ -224,8 +224,7 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
         }
         // Copy to CUDA device
         SAFE_CUDA(cudaMemcpy(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
-                             cudaMemcpyHostToDevice),
-                  dPartials[bufferIndex]);
+                             cudaMemcpyHostToDevice), dPartials[bufferIndex]);
     } else {
         hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
         checkNativeMemory(hTmpTipPartials[bufferIndex]);
@@ -233,7 +232,7 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
     }
     
 #ifdef DEBUG_FLOW
-    fprintf(stderr,"Exiting setTipPartials\n");
+    fprintf(stderr, "Exiting setTipPartials\n");
 #endif
     
     return NO_ERROR;
@@ -265,8 +264,7 @@ int BeagleCUDAImpl::setTipStates(int tipIndex,
         dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
         // Copy to CUDA device
         SAFE_CUDA(cudaMemcpy(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount,
-                             cudaMemcpyHostToDevice),
-                  dStates[tipIndex]);
+                             cudaMemcpyHostToDevice), dStates[tipIndex]);
     } else {
         hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
         checkNativeMemory(hTmpStates[tipIndex]);
@@ -608,11 +606,65 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                 double* outFirstDerivatives,
                                                 double* outSecondDerivatives) {
     // TODO: implement calculateEdgeLnL on GPU
-    // TODO: implement calculateEdgeLnL for count > 1
     // TODO: implement calculateEdgeLnL when child is of tipStates kind
     // TODO: implement derivatives for calculateEdgeLnL
+
     
-    assert(false);
+    if (count == 1) { 
+        
+#ifdef DEBUG_FLOW
+        fprintf(stderr, "Entering calculateEdgeLogLikelihoods\n");
+#endif
+        
+        REAL* tmpWeights = hWeightsCache;
+        REAL* tmpStateFrequencies = hFrequenciesCache;
+        
+#ifdef DOUBLE_PRECISION
+        // TODO: fix const assigned to non-const
+        tmpWeights = inWeights;
+        tmpStateFrequencies = inStateFrequencies;
+#else
+        MEMCPY(hWeightsCache, inWeights, count, REAL);
+        MEMCPY(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+#endif        
+        cudaMemcpy(dWeights, tmpWeights, SIZE_REAL * count, cudaMemcpyHostToDevice);
+        cudaMemcpy(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount,
+                   cudaMemcpyHostToDevice);
+        
+#ifdef DYNAMIC_SCALING
+        // TODO: implement calculateEdgLnL with dynamic scaling
+        assert(false);
+#else
+        nativeGPUEdgeLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
+                                 dWeights, dFrequencies, kPaddedPatternCount,
+                                 count);
+#endif // DYNAMIC_SCALING
+        
+#ifdef DOUBLE_PRECISION
+        cudaMemcpy(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount,
+                   cudaMemcpyDeviceToHost);
+#else
+        cudaMemcpy(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount,
+                   cudaMemcpyDeviceToHost);
+        MEMCPY(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+#endif
+        
+#ifdef DEBUG
+        printf("edgeLogLike = ");
+        printfVectorD(outLogLikelihoods, kPatternCount);
+        exit(-1);
+#endif
+    } else {
+        // TODO: implement calculateEdgeLnL for count > 1
+        assert(false);
+    }
+    
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting calculateEdgeLogLikelihoods\n");
+#endif
+    
+    return NO_ERROR;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

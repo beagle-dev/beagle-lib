@@ -24,13 +24,13 @@ void nativeGPUGetTransitionProbabilitiesSquare(REAL** dPtrQueue,
                                                REAL* distanceQueue,
                                                int totalMatrix) {
 #ifdef DEBUG
-    fprintf(stderr,"Starting GPU TP\n");
+    fprintf(stderr, "Starting GPU TP\n");
     cudaThreadSynchronize();
     checkCUDAError("TP kernel pre-invocation");
 #endif
 
     dim3 block(MULTIPLY_BLOCK_SIZE, MULTIPLY_BLOCK_SIZE);
-    dim3 grid(PADDED_STATE_COUNT/MULTIPLY_BLOCK_SIZE, PADDED_STATE_COUNT/MULTIPLY_BLOCK_SIZE);
+    dim3 grid(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE, PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE);
     if (PADDED_STATE_COUNT % MULTIPLY_BLOCK_SIZE != 0) {
         grid.x += 1;
         grid.y += 1;
@@ -42,7 +42,7 @@ void nativeGPUGetTransitionProbabilitiesSquare(REAL** dPtrQueue,
                                   PADDED_STATE_COUNT, PADDED_STATE_COUNT, totalMatrix);
 
 #ifdef DEBUG
-    fprintf(stderr,"Ending GPU TP\n");
+    fprintf(stderr, "Ending GPU TP\n");
     cudaThreadSynchronize();
     checkCUDAError("TP kernel invocation");
 #endif
