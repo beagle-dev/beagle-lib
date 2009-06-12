@@ -27,7 +27,7 @@ REAL* allocateGPURealMemory(int length) {
     }
 
 #ifdef DEBUG
-    fprintf(stderr, "Allocated %d to %d.\n", data, (data +length));
+    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
     fprintf(stderr, "Leaving ANMA\n");
 #endif
 
@@ -47,7 +47,7 @@ INT* allocateGPUIntMemory(int length) {
     }
 
 #ifdef DEBUG
-    fprintf(stderr, "Allocated %d to %d.\n", data, (data+length));
+    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
     fprintf(stderr, "Leaving ANMA\n");
 #endif
 
