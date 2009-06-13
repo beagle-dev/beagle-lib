@@ -2,8 +2,6 @@
  * @author Marc Suchard
  * @author Daniel Ayres
  */
-#ifndef _Included_PeelingFunctions
-#define _Included_PeelingFunctions
 
 /**************INCLUDES***********/
 #include <stdio.h>
@@ -498,6 +496,5 @@ void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dResult,
 
 #ifdef __cplusplus
 }
-#endif
 #endif
 //

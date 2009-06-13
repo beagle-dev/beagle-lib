@@ -53,6 +53,16 @@ INT* allocateGPUIntMemory(int length) {
 
     return data;
 }
+    
+void checkCUDAError(const char *msg)
+{
+    cudaError_t err = cudaGetLastError();
+    if( cudaSuccess != err)
+    {
+        fprintf(stderr, "Cuda error: %s: %s.\n", msg, cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+}
 
 void freeGPUMemory(void* ptr) {
 #ifdef DEBUG
@@ -82,24 +92,6 @@ void storeGPUIntMemoryArray(INT* toGPUPtr,
               toGPUPtr);
 }
 
-int checkZeros(REAL* dPtr,
-               int length) {
-    REAL* hPtr = (REAL*) malloc(sizeof(REAL) * length);
-    SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(REAL) * length, cudaMemcpyDeviceToHost), dPtr);
-    int i;
-    REAL min = 1e+37f;
-    REAL max = 0.0f;
-    for (i = 0; i < length; i++) {
-        if (hPtr[i] > 0 && hPtr[i] < min)
-            min = hPtr[i];
-        if (hPtr[i] > 0 && hPtr[i] > max)
-            max = hPtr[i];
-    }
-    printf("min = %1.2e, max = %1.2e\n", min, max);
-    free(hPtr);
-    return 0;
-}
-
 void printfCudaVector(REAL* dPtr,
                       int length) {
     REAL* hPtr = (REAL*) malloc(sizeof(REAL) * length);
@@ -118,18 +110,6 @@ void printfCudaInt(int* dPtr,
     SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(int) * length, cudaMemcpyDeviceToHost), dPtr);
     printfInt(hPtr, length);
     free(hPtr);
-}
-
-REAL sumCudaVector(REAL* dPtr,
-                   int length) {
-    REAL* hPtr = (REAL*) malloc(sizeof(REAL) * length);
-    SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(REAL) * length, cudaMemcpyDeviceToHost), dPtr);
-    REAL sum = 0;
-    int i;
-    for (i = 0; i < length; i++)
-        sum += hPtr[i];
-    free(hPtr);
-    return sum;
 }
 
 void printfVectorD(double* ptr,
@@ -172,6 +152,48 @@ void printfInt(int* ptr,
     for (i = 1; i < length; i++)
         fprintf(stderr, " %d", ptr[i]);
     fprintf(stderr, " ]\n");
+}
+    
+REAL sumCudaVector(REAL* dPtr,
+                   int length) {
+    REAL* hPtr = (REAL*) malloc(sizeof(REAL) * length);
+    SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(REAL) * length, cudaMemcpyDeviceToHost), dPtr);
+    REAL sum = 0;
+    int i;
+    for (i = 0; i < length; i++)
+        sum += hPtr[i];
+    free(hPtr);
+    return sum;
+}
+
+int checkZeros(REAL* dPtr,
+               int length) {
+    REAL* hPtr = (REAL*) malloc(sizeof(REAL) * length);
+    SAFE_CUDA(cudaMemcpy(hPtr, dPtr, sizeof(REAL) * length, cudaMemcpyDeviceToHost), dPtr);
+    int i;
+    REAL min = 1e+37f;
+    REAL max = 0.0f;
+    for (i = 0; i < length; i++) {
+        if (hPtr[i] > 0 && hPtr[i] < min)
+            min = hPtr[i];
+        if (hPtr[i] > 0 && hPtr[i] > max)
+            max = hPtr[i];
+    }
+    printf("min = %1.2e, max = %1.2e\n", min, max);
+    free(hPtr);
+    return 0;
+}
+    
+void getGPUInfo(int iDevice,
+                char* name,
+                int* memory,
+                int* speed) {
+    struct cudaDeviceProp deviceProp;
+    memset(&deviceProp, 0, sizeof(deviceProp));
+    cudaGetDeviceProperties(&deviceProp, iDevice);
+    *memory = deviceProp.totalGlobalMem;
+    *speed = deviceProp.clockRate;
+    strcpy(name, deviceProp.name);
 }
 
 #ifdef __cplusplus

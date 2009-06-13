@@ -1,8 +1,6 @@
 /*
  * @author Marc Suchard
  */
-#ifndef _Included_TransitioFunctions
-#define _Included_TransitionFunctions
 
 /**************INCLUDES***********/
 #include <stdio.h>
@@ -51,5 +49,3 @@ void nativeGPUGetTransitionProbabilitiesSquare(REAL** dPtrQueue,
 #ifdef __cplusplus
 }
 #endif
-#endif
-

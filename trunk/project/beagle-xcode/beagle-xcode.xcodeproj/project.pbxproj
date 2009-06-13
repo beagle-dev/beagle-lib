@@ -13,7 +13,6 @@
 		643430FC0FD2CE7B00AFC69E /* fourtaxon.dat in CopyFiles */ = {isa = PBXBuildFile; fileRef = 64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */; };
 		649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */; };
 		649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */; };
-		649E825E0FD6FC580044891D /* CUDASharedFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */; };
 		649E825F0FD6FC580044891D /* TransitionFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionFunctions.cu */; };
 		649E82600FD6FC580044891D /* PeelingFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* PeelingFunctions.cu */; };
 		649E82620FD6FCA00044891D /* tinytest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */; };
@@ -24,7 +23,6 @@
 		64E4BB240FE17A8200F7C631 /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 		64E4BB250FE17A8200F7C631 /* BeagleCUDAImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */; };
 		64E4BB260FE17A8200F7C631 /* CUDASharedFunctions.c in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */; };
-		64E4BB270FE17A8200F7C631 /* CUDASharedFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */; };
 		64E4BB280FE17A8200F7C631 /* TransitionFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionFunctions.cu */; };
 		64E4BB290FE17A8200F7C631 /* PeelingFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* PeelingFunctions.cu */; };
 		64E4BB330FE17AF300F7C631 /* fourtaxon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */; };
@@ -50,7 +48,6 @@
 		6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingKernels.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/PeelingKernels.cu"; sourceTree = DEVELOPER_DIR; };
 		6439E9FC0FE1C34300AD5C7B /* TransitionKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionKernels.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/TransitionKernels.cu"; sourceTree = DEVELOPER_DIR; };
 		649E824E0FD6FAEC0044891D /* tinyTestGPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestGPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = CUDASharedFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/CUDASharedFunctions.cu"; sourceTree = DEVELOPER_DIR; };
 		649E825C0FD6FC580044891D /* TransitionFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/TransitionFunctions.cu"; sourceTree = DEVELOPER_DIR; };
 		649E825D0FD6FC580044891D /* PeelingFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/PeelingFunctions.cu"; sourceTree = DEVELOPER_DIR; };
 		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = "projects/beagle-lib/CUDA.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
@@ -127,7 +124,6 @@
 				64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */,
 				64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */,
 				64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */,
-				649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */,
 				649E825D0FD6FC580044891D /* PeelingFunctions.cu */,
 				6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */,
 				649E825C0FD6FC580044891D /* TransitionFunctions.cu */,
@@ -270,7 +266,6 @@
 				649E82640FD6FCA90044891D /* BeagleCPUImpl.cpp in Sources */,
 				649E82520FD6FB150044891D /* BeagleCUDAImpl.cpp in Sources */,
 				649E82540FD6FB150044891D /* CUDASharedFunctions.c in Sources */,
-				649E825E0FD6FC580044891D /* CUDASharedFunctions.cu in Sources */,
 				649E825F0FD6FC580044891D /* TransitionFunctions.cu in Sources */,
 				649E82600FD6FC580044891D /* PeelingFunctions.cu in Sources */,
 			);
@@ -285,7 +280,6 @@
 				64E4BB240FE17A8200F7C631 /* BeagleCPUImpl.cpp in Sources */,
 				64E4BB250FE17A8200F7C631 /* BeagleCUDAImpl.cpp in Sources */,
 				64E4BB260FE17A8200F7C631 /* CUDASharedFunctions.c in Sources */,
-				64E4BB270FE17A8200F7C631 /* CUDASharedFunctions.cu in Sources */,
 				64E4BB280FE17A8200F7C631 /* TransitionFunctions.cu in Sources */,
 				64E4BB290FE17A8200F7C631 /* PeelingFunctions.cu in Sources */,
 			);
