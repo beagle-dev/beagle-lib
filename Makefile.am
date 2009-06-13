@@ -11,7 +11,10 @@ java/beagle/Beagle.java \
 java/beagle/BeagleJNIWrapper.java \
 java/beagle/DependencyAwareBeagleImpl.java \
 java/beagle/FourStateBeagleImpl.java \
-java/beagle/GeneralBeagleImpl.java
+java/beagle/GeneralBeagleImpl.java \
+project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj \
+JNI.Makefile \
+CUDA.Makefile 
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = beagle-lib-1.0.pc
