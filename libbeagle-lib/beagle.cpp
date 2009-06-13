@@ -62,7 +62,7 @@ int createInstance(int tipCount,
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
 #ifdef CUDA
-            implFactory.push_back(new beagle::BeagleCUDAImplFactory());
+            implFactory.push_back(new beagle::cuda::BeagleCUDAImplFactory());
 #endif
             implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }
