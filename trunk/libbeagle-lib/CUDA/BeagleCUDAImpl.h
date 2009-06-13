@@ -11,6 +11,9 @@
 #include "libbeagle-lib/BeagleImpl.h"
 #include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
+namespace beagle {
+namespace cuda {
+
 class BeagleCUDAImpl : public BeagleImpl {
 private:
     
@@ -195,6 +198,9 @@ public:
 
     virtual const char* getName();
 };
+
+}	// namespace cuda
+}	// namespace beagle
 
 // Kernel links
 extern "C" {

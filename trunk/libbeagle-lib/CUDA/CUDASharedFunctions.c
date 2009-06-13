@@ -7,7 +7,7 @@
 #include <string.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-#include "CUDASharedFunctions.h"
+#include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
 #ifdef __cplusplus
 extern "C" {

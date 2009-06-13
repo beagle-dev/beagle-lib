@@ -21,6 +21,9 @@
 #include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
 #include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
+using namespace beagle;
+using namespace beagle::cuda;
+
 int currentDevice = -1;
 
 BeagleCUDAImpl::~BeagleCUDAImpl() {
