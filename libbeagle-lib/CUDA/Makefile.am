@@ -10,7 +10,8 @@ if BUILDCUDA
 noinst_LTLIBRARIES=libcuda.la 
 libcuda_la_SOURCES = \
 BeagleCUDAImpl.cpp  CUDASharedFunctions.c   CUDASharedFunctions.h  PeelingFunctions.cu  TransitionFunctions.cu \
-BeagleCUDAImpl.h    CUDASharedFunctions.cu       
+BeagleCUDAImpl.h    
+#CUDASharedFunctions.cu       
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
