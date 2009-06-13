@@ -47,26 +47,26 @@
 
 /* Begin PBXFileReference section */
 		643430DE0FD2CD0400AFC69E /* fourTaxonXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingKernels.cu; path = "projects/beagle-lib/src/CUDA/PeelingKernels.cu"; sourceTree = DEVELOPER_DIR; };
-		6439E9FC0FE1C34300AD5C7B /* TransitionKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionKernels.cu; path = "projects/beagle-lib/src/CUDA/TransitionKernels.cu"; sourceTree = DEVELOPER_DIR; };
+		6439E9D30FE1BFF300AD5C7B /* PeelingKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingKernels.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/PeelingKernels.cu"; sourceTree = DEVELOPER_DIR; };
+		6439E9FC0FE1C34300AD5C7B /* TransitionKernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionKernels.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/TransitionKernels.cu"; sourceTree = DEVELOPER_DIR; };
 		649E824E0FD6FAEC0044891D /* tinyTestGPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestGPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = CUDASharedFunctions.cu; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.cu"; sourceTree = DEVELOPER_DIR; };
-		649E825C0FD6FC580044891D /* TransitionFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionFunctions.cu; path = "projects/beagle-lib/src/CUDA/TransitionFunctions.cu"; sourceTree = DEVELOPER_DIR; };
-		649E825D0FD6FC580044891D /* PeelingFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingFunctions.cu; path = "projects/beagle-lib/src/CUDA/PeelingFunctions.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825B0FD6FC580044891D /* CUDASharedFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = CUDASharedFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/CUDASharedFunctions.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825C0FD6FC580044891D /* TransitionFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = TransitionFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/TransitionFunctions.cu"; sourceTree = DEVELOPER_DIR; };
+		649E825D0FD6FC580044891D /* PeelingFunctions.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = PeelingFunctions.cu; path = "projects/beagle-lib/libbeagle-lib/CUDA/PeelingFunctions.cu"; sourceTree = DEVELOPER_DIR; };
 		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = "projects/beagle-lib/CUDA.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_BEAST.xml"; sourceTree = DEVELOPER_DIR; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_paup.nex"; sourceTree = DEVELOPER_DIR; };
 		64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = "projects/beagle-lib/examples/tinytest/tinytest.cpp"; sourceTree = DEVELOPER_DIR; };
 		64E4BB2E0FE17A8200F7C631 /* fourTaxonGPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonGPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = "projects/beagle-lib/src/beagle.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/src/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCUDAImpl.cpp; path = "projects/beagle-lib/src/CUDA/BeagleCUDAImpl.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C3C0FD2B74900678D0B /* BeagleCUDAImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCUDAImpl.h; path = "projects/beagle-lib/src/CUDA/BeagleCUDAImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = CUDASharedFunctions.c; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.c"; sourceTree = DEVELOPER_DIR; };
-		64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CUDASharedFunctions.h; path = "projects/beagle-lib/src/CUDA/CUDASharedFunctions.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = "projects/beagle-lib/include/beagle.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = "projects/beagle-lib/include/BeagleImpl.h"; sourceTree = DEVELOPER_DIR; };
+		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = "projects/beagle-lib/libbeagle-lib/beagle.cpp"; sourceTree = DEVELOPER_DIR; };
+		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = "projects/beagle-lib/libbeagle-lib/CPU/BeagleCPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
+		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/libbeagle-lib/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
+		64F21C3B0FD2B74900678D0B /* BeagleCUDAImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCUDAImpl.cpp; path = "projects/beagle-lib/libbeagle-lib/CUDA/BeagleCUDAImpl.cpp"; sourceTree = DEVELOPER_DIR; };
+		64F21C3C0FD2B74900678D0B /* BeagleCUDAImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCUDAImpl.h; path = "projects/beagle-lib/libbeagle-lib/CUDA/BeagleCUDAImpl.h"; sourceTree = DEVELOPER_DIR; };
+		64F21C3F0FD2B74900678D0B /* CUDASharedFunctions.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = CUDASharedFunctions.c; path = "projects/beagle-lib/libbeagle-lib/CUDA/CUDASharedFunctions.c"; sourceTree = DEVELOPER_DIR; };
+		64F21C400FD2B74900678D0B /* CUDASharedFunctions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CUDASharedFunctions.h; path = "projects/beagle-lib/libbeagle-lib/CUDA/CUDASharedFunctions.h"; sourceTree = DEVELOPER_DIR; };
+		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = "projects/beagle-lib/libbeagle-lib/beagle.h"; sourceTree = DEVELOPER_DIR; };
+		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = "projects/beagle-lib/libbeagle-lib/BeagleImpl.h"; sourceTree = DEVELOPER_DIR; };
 		64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.cpp"; sourceTree = DEVELOPER_DIR; };
 		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.dat"; sourceTree = DEVELOPER_DIR; };
 		64F21C4F0FD2B7B500678D0B /* fourtaxon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = fourtaxon.hpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.hpp"; sourceTree = DEVELOPER_DIR; };
@@ -340,6 +340,7 @@
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonXcode;
+				USER_HEADER_SEARCH_PATHS = ../../;
 			};
 			name = Debug;
 		};
@@ -354,6 +355,7 @@
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonXcode;
+				USER_HEADER_SEARCH_PATHS = ../../;
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -368,12 +370,9 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					CUDA,
-					"STATE_COUNT=4",
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
 				HEADER_SEARCH_PATHS = (
-					../../include,
+					../../,
 					/usr/local/cuda/include,
 				);
 				INSTALL_PATH = /usr/local/bin;
@@ -384,6 +383,7 @@
 				);
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestGPUXcode;
+				USER_HEADER_SEARCH_PATHS = "";
 			};
 			name = Debug;
 		};
@@ -392,13 +392,24 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
 				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = (
+					"-lcuda",
+					"-lcudart",
+				);
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestGPUXcode;
+				USER_HEADER_SEARCH_PATHS = "";
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -413,19 +424,16 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					CUDA,
-					"STATE_COUNT=4",
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
 				HEADER_SEARCH_PATHS = (
-					../../include,
+					../../,
 					/usr/local/cuda/include,
 				);
 				INSTALL_PATH = /usr/local/bin;
 				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
 				OTHER_LDFLAGS = (
-					"-lcuda",
 					"-lcudart",
+					"-lcuda",
 				);
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonGPUXcode;
@@ -437,11 +445,21 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
 				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = (
+					"-lcudart",
+					"-lcuda",
+				);
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonGPUXcode;
 				ZERO_LINK = NO;
@@ -458,9 +476,11 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestXcode;
+				USER_HEADER_SEARCH_PATHS = ../../;
 			};
 			name = Debug;
 		};
@@ -475,6 +495,7 @@
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestXcode;
+				USER_HEADER_SEARCH_PATHS = ../../;
 				ZERO_LINK = NO;
 			};
 			name = Release;
