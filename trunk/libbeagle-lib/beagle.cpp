@@ -5,6 +5,7 @@
  * @author Andrew Rambaut
  * @author Marc Suchard
  * @author Daniel Ayres
+ * @author Aaron Darling
  */
 
 #include <cstdio>
@@ -16,18 +17,19 @@
 #include <vector>
 #include <iostream>
 
-#include "beagle.h"
-#include "BeagleImpl.h"
+#include "libbeagle-lib/beagle.h"
+#include "libbeagle-lib/BeagleImpl.h"
 
 #ifdef CUDA
-    #include "CUDA/BeagleCUDAImpl.h"
+    #include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
 #endif
-#include "CPU/BeagleCPUImpl.h"
+#include "libbeagle-lib/CPU/BeagleCPUImpl.h"
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
-std::vector<BeagleImpl*> instances;
+std::vector<beagle::BeagleImpl*> instances;
 
 /// returns an initialized instance or NULL if the index refers to an invalid instance
+namespace beagle {
 BeagleImpl* getBeagleInstance(int instanceIndex);
 
 
@@ -37,7 +39,9 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
     return instances[instanceIndex];
 }
 
-std::list<BeagleImplFactory*> implFactory;
+}	// end namespace beagle
+
+std::list<beagle::BeagleImplFactory*> implFactory;
 
 ResourceList* getResourceList() {
     return NULL;
@@ -58,17 +62,17 @@ int createInstance(int tipCount,
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
 #ifdef CUDA
-            implFactory.push_back(new BeagleCUDAImplFactory());
+            implFactory.push_back(new beagle::BeagleCUDAImplFactory());
 #endif
-            implFactory.push_back(new BeagleCPUImplFactory());
+            implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }
 
         // Try each implementation
-        for(std::list<BeagleImplFactory*>::iterator factory = implFactory.begin();
+        for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
             fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
 
-            BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
+            beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                         compactBufferCount, stateCount,
                                                         patternCount, eigenBufferCount,
                                                         matrixBufferCount);
@@ -99,7 +103,7 @@ int createInstance(int tipCount,
 int initializeInstance(int instance,
                        InstanceDetails* returnInfo) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->initializeInstance(returnInfo);
@@ -117,7 +121,7 @@ int initializeInstance(int instance,
 
 int finalize(int instance) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         delete beagleInstance;
@@ -139,7 +143,7 @@ int setPartials(int instance,
                 int bufferIndex,
                 const double* inPartials) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->setPartials(bufferIndex, inPartials);
@@ -157,7 +161,7 @@ int setPartials(int instance,
 
 int getPartials(int instance, int bufferIndex, double* outPartials) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->getPartials(bufferIndex, outPartials);
@@ -177,7 +181,7 @@ int setTipStates(int instance,
                  int tipIndex,
                  const int* inStates) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -200,7 +204,7 @@ int setEigenDecomposition(int instance,
                           const double* inInverseEigenVectors,
                           const double* inEigenValues) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -222,7 +226,7 @@ int setTransitionMatrix(int instance,
                         int matrixIndex,
                         const double* inMatrix) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -247,7 +251,7 @@ int updateTransitionMatrices(int instance,
                              const double* edgeLengths,
                              int count) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->updateTransitionMatrices(eigenIndex, probabilityIndices,
@@ -273,7 +277,7 @@ int updatePartials(const int* instanceList,
     try {
         int error_code = NO_ERROR;
         for (int i = 0; i < instanceCount; i++) {
-            BeagleImpl* beagleInstance = getBeagleInstance(instanceList[i]);
+            beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instanceList[i]);
             if (beagleInstance == NULL)
                 return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -302,7 +306,7 @@ int waitForPartials(const int* instanceList,
     try {
         int error_code = NO_ERROR;
         for (int i = 0; i < instanceCount; i++) {
-            BeagleImpl* beagleInstance = getBeagleInstance(instanceList[i]);
+            beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instanceList[i]);
             if (beagleInstance == NULL)
                 return UNINITIALIZED_INSTANCE_ERROR;
             
@@ -332,7 +336,7 @@ int calculateRootLogLikelihoods(int instance,
                                 int count,
                                 double* outLogLikelihoods) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
@@ -365,7 +369,7 @@ int calculateEdgeLogLikelihoods(int instance,
                                 double* outFirstDerivatives,
                                 double* outSecondDerivatives) {
     try {
-        BeagleImpl* beagleInstance = getBeagleInstance(instance);
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
 
