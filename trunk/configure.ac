@@ -161,7 +161,7 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 # ------------------------------------------------------------------------------
 # All done, create Makefiles
 # ------------------------------------------------------------------------------
-AC_OUTPUT(Makefile beagle-lib-1.0.pc libbeagle-lib/Makefile libbeagle-lib/CUDA/Makefile libbeagle-lib/CPU/Makefile libbeagle-lib/JNI/Makefile)
+AC_OUTPUT(Makefile beagle-lib-1.0.pc libbeagle-lib/Makefile libbeagle-lib/CUDA/Makefile libbeagle-lib/CPU/Makefile libbeagle-lib/JNI/Makefile examples/Makefile examples/tinytest/Makefile examples/fourtaxon/Makefile)
 
 # ------------------------------------------------------------------------------
 # warn the user about missing functionality
