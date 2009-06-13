@@ -22,4 +22,4 @@ pkgconfig_DATA = beagle-lib-1.0.pc
 # DOXYGEN SUPPORT
 include $(top_srcdir)/aminclude.am
 
-SUBDIRS = libbeagle-lib
+SUBDIRS = libbeagle-lib examples

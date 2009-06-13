@@ -1,0 +1,4 @@
+SUBDIRS=tinytest fourtaxon
+
+
+
