@@ -142,10 +142,6 @@
 extern "C" {
 #endif
 
-int initCUDAContext();
-
-int migrateContext(CUcontext context);
-
 REAL* allocateGPURealMemory(int length);
 
 INT * allocateGPUIntMemory(int length);
@@ -185,8 +181,11 @@ REAL sumCudaVector(REAL* dPtr,
 
 int checkZeros(REAL* dPtr,
                int length);
-
-void loadTipPartials(int instance);
+    
+void getGPUInfo(int iDevice,
+                char* name,
+                int* memory,
+                int* speed);
 
 #ifdef __cplusplus
 }

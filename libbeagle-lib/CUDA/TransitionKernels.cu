@@ -1,7 +1,7 @@
 /*
  * @author Marc Suchard
  */
-#ifndef _Included_TransitioKernels
+#ifndef _Included_TransitionKernels
 #define _Included_TransitionKernels
 
 __global__ void matrixMulADB(REAL** listC,
