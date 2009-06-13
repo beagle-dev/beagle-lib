@@ -23,11 +23,11 @@ endif
 library_includedir=$(includedir)/$(GENERIC_LIBRARY_NAME)-$(GENERIC_API_VERSION)/$(GENERIC_LIBRARY_NAME)
 library_include_HEADERS = beagle.h
 
-check_PROGRAMS = tinyTest
-tinyTest_SOURCES = tests/tinyTest.cpp
-tinyTest_LDADD = libbeagle-lib.la
+#check_PROGRAMS = tinyTest
+#tinyTest_SOURCES = tests/tinyTest.cpp
+#tinyTest_LDADD = libbeagle-lib.la
 
-TESTS = tinyTest
+#TESTS = tinyTest
 
 
 INCLUDES = -I$(top_builddir)
