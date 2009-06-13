@@ -8,8 +8,8 @@
 /**************INCLUDES***********/
 #include <stdio.h>
 #include <cuda_runtime_api.h>
-#include "BeagleCUDAImpl.h"
-#include "CUDASharedFunctions.h"
+#include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
+#include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
 #include "PeelingKernels.cu"
 

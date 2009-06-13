@@ -6,18 +6,20 @@
  * @author Marc Suchard
  * @author Andrew Rambaut
  * @author Daniel Ayres
+ * @author Aaron Darling
  */
-
-#include <stdio.h>
-#include <stdlib.h>
+#include "libbeagle-lib/config.h"
+#include <cstdio>
+#include <cstdlib>
+#include <cassert>
 #include <iostream>
-#include <string.h>
+#include <cstring>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-#include "beagle.h"
-#include "BeagleCUDAImpl.h"
-#include "CUDASharedFunctions.h"
+#include "libbeagle-lib/beagle.h"
+#include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
+#include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
 int currentDevice = -1;
 

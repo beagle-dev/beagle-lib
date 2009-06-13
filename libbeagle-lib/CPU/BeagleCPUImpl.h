@@ -7,9 +7,12 @@
  * @author Daniel Ayres
  */
 
-#include "BeagleImpl.h"
+#include "libbeagle-lib/BeagleImpl.h"
 
 #include <vector>
+
+namespace beagle {
+namespace cpu {
 
 class BeagleCPUImpl : public BeagleImpl {
     
@@ -187,3 +190,7 @@ public:
     
     virtual const char* getName();
 };
+
+}	// namespace cpu
+}	// namespace beagle
+

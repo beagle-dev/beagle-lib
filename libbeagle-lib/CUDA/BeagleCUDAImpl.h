@@ -8,8 +8,8 @@
  * @author Daniel Ayres
  */
 
-#include "BeagleImpl.h"
-#include "CUDASharedFunctions.h"
+#include "libbeagle-lib/BeagleImpl.h"
+#include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
 
 class BeagleCUDAImpl : public BeagleImpl {
 private:

@@ -10,13 +10,15 @@
 #ifndef __beagle_impl__
 #define __beagle_impl__
 
-#include "beagle.h"
+#include "libbeagle-lib/beagle.h"
 
 #ifdef DOUBLE_PRECISION
 #define REAL    double
 #else
 #define REAL    float
 #endif
+
+namespace beagle {
 
 class BeagleImpl {
 public:
@@ -94,5 +96,7 @@ public:
     
     virtual const char* getName() = 0; // pure virtual
 };
+
+} // end namespace beagle
 
 #endif // __beagle_impl__

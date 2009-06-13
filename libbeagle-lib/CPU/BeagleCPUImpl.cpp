@@ -53,15 +53,18 @@
 
 
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
-#include <string.h>
-#include <math.h>
-#include <assert.h> 
+#include <cstring>
+#include <cmath>
+#include <cassert> 
 
-#include "beagle.h"
-#include "BeagleCPUImpl.h"
+#include "libbeagle-lib/beagle.h"
+#include "libbeagle-lib/CPU/BeagleCPUImpl.h"
+
+using namespace beagle;
+using namespace beagle::cpu;
 
 #if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
 const bool DEBUGGING_OUTPUT = true;
