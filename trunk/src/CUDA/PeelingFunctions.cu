@@ -1,5 +1,6 @@
 /*
  * @author Marc Suchard
+ * @author Daniel Ayres
  */
 #ifndef _Included_PeelingFunctions
 #define _Included_PeelingFunctions
@@ -425,24 +426,72 @@ void nativeGPUIntegrateLikelihoods(REAL* dResult,
 
 }
 
-void nativeGPUEdgeLikelihoods(REAL* dResult,
-                              REAL* dRootPartials,
-                              REAL* dCategoryProportions,
-                              REAL* dFrequencies,
-                              int patternCount,
-                              int matrixCount) {
+void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dResult,
+                                              REAL* dPartialsTmp,
+                                              REAL* dParentPartials,
+                                              REAL* dChildParials,
+                                              REAL* dTransMatrix,
+                                              REAL* dWeights,
+                                              REAL* dFrequencies,
+                                              int patternCount,
+                                              int count) {
 #ifdef DEBUG
-    fprintf(stderr,"Entering nGPUEdgeLnL\n");
+    fprintf(stderr,"Entering nGPUPartialsPartialsEdgeLnL\n");
+#endif
+
+#if (PADDED_STATE_COUNT == 4)
+    dim3 block(16, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
+    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
+        grid.x += 1;
+
+    kernelPartialsPartialsGPUEdgeLikelihoodsSmall<<<grid, block>>>(dResult, dPartialsTmp,
+                                                                   dParentPartials,
+                                                                   dChildParials, dTransMatrix,
+                                                                   dWeights, 
+                                                                   dFrequencies, patternCount, 
+                                                                   count);
+#else
+    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
+    if (patternCount % PATTERN_BLOCK_SIZE != 0)
+        grid.x += 1;
+    // TODO: implement kernelPartialsPartialsGPUEdgeLikelihoods
+
+#endif
+
+    block = dim3(PADDED_STATE_COUNT);
+    grid = dim3(patternCount);
+
+    kernelGPUIntegrateLikelihoods<<<grid, block>>>(dResult, dPartialsTmp, dWeights,
+                                                   dFrequencies, count);
+
+#ifdef DEBUG
+    fprintf(stderr, "nGPUPartialsPartialsEdgeLnL\n");
+#endif
+
+}
+
+void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dResult,
+                                            REAL* dPartialsTmp,
+                                            REAL* dParentPartials,
+                                            INT* dChildStates,
+                                            REAL* dTransMatrix,
+                                            REAL* dWeights,
+                                            REAL* dFrequencies,
+                                            int patternCount,
+                                            int count) {
+#ifdef DEBUG
+    fprintf(stderr,"Entering nGPUStatesPartialsEdgeLnL\n");
 #endif
 
     dim3 grid(patternCount);
     dim3 block(PADDED_STATE_COUNT);
 
-    kernelGPUEdgeLikelihoods<<<grid, block>>>(dResult, dRootPartials, dCategoryProportions,
-                                              dFrequencies, matrixCount);
+    // TODO: implement nativeGPUStatesPartialsEdgeLikelihoods
 
 #ifdef DEBUG
-    fprintf(stderr, "Exiting nGPUEdgeLnL\n");
+    fprintf(stderr, "nGPUStatesPartialsEdgeLnL\n");
 #endif
 
 }

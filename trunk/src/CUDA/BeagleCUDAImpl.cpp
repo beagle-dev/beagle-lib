@@ -134,6 +134,7 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     dFrequencies = allocateGPURealMemory(kPaddedStateCount);
     
     dIntegrationTmp = allocateGPURealMemory(kPaddedPatternCount);
+    dPartialsTmp = allocateGPURealMemory(kPartialsSize);
     
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (REAL**) calloc(sizeof(REAL*), kBufferCount);
@@ -406,8 +407,6 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
         kDoRescaling = rescale;
 #endif
     
-    int die = 0;
-    
     // Serial version
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * 5];
@@ -441,7 +440,6 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
                                                              matrices1, matrices2, scalingFactors,
                                                              kPaddedPatternCount, categoryCount,
                                                              kDoRescaling);
-                die = 1;
             }
         } else {
             if (tipStates2 != 0) {
@@ -449,7 +447,6 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
                                                              matrices2, matrices1, scalingFactors,
                                                              kPaddedPatternCount, categoryCount,
                                                              kDoRescaling);
-                die = 1;
             } else {
                 nativeGPUPartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                matrices1, matrices2, scalingFactors,
@@ -465,13 +462,11 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
             } else {
                 nativeGPUStatesPartialsPruning(tipStates1, partials2, partials3, matrices1,
                                                matrices2, kPaddedPatternCount, categoryCount);
-                die = 1;
             }
         } else {
             if (tipStates2 != 0) {
                 nativeGPUStatesPartialsPruning(tipStates2, partials1, partials3, matrices2,
                                                matrices1, kPaddedPatternCount, categoryCount);
-                die = 1;
             } else {
                 nativeGPUPartialsPartialsPruning(partials1, partials2, partials3, matrices1,
                                                  matrices2, kPaddedPatternCount, categoryCount);
@@ -606,9 +601,6 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                 double* outFirstDerivatives,
                                                 double* outSecondDerivatives) {
     // TODO: implement calculateEdgeLnL on GPU
-    // TODO: implement calculateEdgeLnL when child is of tipStates kind
-    // TODO: implement derivatives for calculateEdgeLnL
-
     
     if (count == 1) { 
         
@@ -631,13 +623,40 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         cudaMemcpy(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount,
                    cudaMemcpyHostToDevice);
         
+        const int parIndex = parentBufferIndices[0];
+        const int childIndex = childBufferIndices[0];
+        const int probIndex = probabilityIndices[0];
+        
+        // TODO: implement derivatives for calculateEdgeLnL
+//        const int firstDerivIndex = firstDerivativeIndices[0];
+//        const int secondDerivIndex = secondDerivativeIndices[0];
+        
+        REAL* partialsParent = dPartials[parIndex];
+        REAL* partialsChild = dPartials[childIndex];        
+        int* statesChild = dStates[childIndex];
+        REAL* transMatrix = dMatrices[probIndex];
+//        REAL* firstDerivMatrix = 0L;
+//        REAL* secondDerivMatrix = 0L;
+        
 #ifdef DYNAMIC_SCALING
         // TODO: implement calculateEdgLnL with dynamic scaling
         assert(false);
 #else
-        nativeGPUEdgeLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
-                                 dWeights, dFrequencies, kPaddedPatternCount,
-                                 count);
+        if (statesChild != 0) {
+            // TODO: implement calculateEdgeLnL when child is of tipStates kind
+            assert(false);
+            nativeGPUStatesPartialsEdgeLikelihoods(dIntegrationTmp, dPartialsTmp,
+                                                   partialsParent, statesChild,
+                                                   transMatrix,
+                                                   dWeights, dFrequencies, kPaddedPatternCount,
+                                                   count);
+        } else {
+            nativeGPUPartialsPartialsEdgeLikelihoods(dIntegrationTmp, dPartialsTmp,
+                                                     partialsParent, partialsChild,
+                                                     transMatrix, dWeights, dFrequencies,
+                                                     kPaddedPatternCount, count);
+        }
+
 #endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION

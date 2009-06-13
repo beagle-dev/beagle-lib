@@ -48,6 +48,7 @@ private:
     REAL* dWeights;
     REAL* dFrequencies; 
     REAL* dIntegrationTmp;
+    REAL* dPartialsTmp;
     
     REAL** dPartials;
     REAL** dMatrices;
@@ -284,12 +285,25 @@ extern "C" {
                                        REAL* dFrequencies,
                                        int patternCount,
                                        int matrixCount);
+
+    void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dResult,
+                                                  REAL* dPartialsTmp,
+                                                  REAL* dParentPartials,
+                                                  REAL* dChildParials,
+                                                  REAL* dTransMatrix,
+                                                  REAL* dWeights,
+                                                  REAL* dFrequencies,
+                                                  int patternCount,
+                                                  int count);
     
-    void nativeGPUEdgeLikelihoods(REAL* dResult,
-                                  REAL* dRootPartials,
-                                  REAL* dCategoryProportions,
-                                  REAL* dFrequencies,
-                                  int patternCount,
-                                  int matrixCount);
+    void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dResult,
+                                                REAL* dPartialsTmp,
+                                                REAL* dParentPartials,
+                                                INT* dChildStates,
+                                                REAL* dTransMatrix,
+                                                REAL* dWeights,
+                                                REAL* dFrequencies,
+                                                int patternCount,
+                                                int count);
 } // extern "C"
 

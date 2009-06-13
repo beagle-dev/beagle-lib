@@ -1,5 +1,6 @@
 /*
  * @author Marc Suchard
+ * @author Daniel Ayres
  */
 #ifndef _Included_PeelingKernels
 #define _Included_PeelingKernels
@@ -877,7 +878,7 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
 __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
                                               REAL* dRootPartials,
                                               REAL* dCategoryProportions,
-                                              REAL *dFrequencies,
+                                              REAL* dFrequencies,
                                               int matrixCount) {
     int state   = threadIdx.x;
     int pattern = blockIdx.x;
@@ -902,7 +903,7 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
     __syncthreads();
 
     int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;;
+    int delta = patternCount * PADDED_STATE_COUNT;
 
     for(int r = 0; r < matrixCount; r++) {
         sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
@@ -928,14 +929,80 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
         dResult[pattern] = log(sum[state]);
 }
 
+#if (PADDED_STATE_COUNT == 4)
+__global__ void kernelPartialsPartialsGPUEdgeLikelihoodsSmall(REAL* dResult,
+                                                              REAL* dPartialsTmp,
+                                                              REAL* dParentPartials,
+                                                              REAL* dChildParials,
+                                                              REAL* dTransMatrix,
+                                                              REAL* dWeights,
+                                                              REAL* dFrequencies,
+                                                              int patternCount,
+                                                              int count) {
+    
+    REAL sum1 = 0;
+//    REAL sum2 = 0;
+    int i;
 
-__global__ void kernelGPUEdgeLikelihoods(REAL* dResult,
-                                         REAL* dRootPartials,
-                                         REAL* dCategoryProportions,
-                                         REAL *dFrequencies,
-                                         int matrixCount) {
-    // TODO: implement calcEdgeLnL on GPU
+    int tx = threadIdx.x;
+    int state = tx % 4;
+    int pat = tx / 4;
+    int patIdx = threadIdx.y;
+    int matrix = blockIdx.y;
+    int totalPatterns = patternCount; // gridDim.x;
+
+    // read 4 patterns at a time, since 4 * 4 = 16 
+    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
+
+//  int deltaPartialsByState = __umul24(pattern, PADDED_STATE_COUNT);
+    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, totalPatterns));
+
+    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
+
+    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+//    REAL* matrix2 = matrices2 + x2;
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+//    __shared__ REAL sMatrix2[16];
+
+    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx * 16 + tx] = dParentPartials[y + tx]; // All coalesced memory reads
+        sPartials2[patIdx * 16 + tx] = dChildParials[y + tx];
+    } else {
+        sPartials1[patIdx * 16 + tx] = 0;
+        sPartials2[patIdx * 16 + tx] = 0;
+    }
+
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+//        sMatrix2[tx] = matrix2[tx];
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) { // Remove padded threads!
+        for(i = 0; i < PADDED_STATE_COUNT; i++) {
+            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+//            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        }
+        dPartialsTmp[u] = sum1 *  sPartials2[patIdx * 16 + pat * 4 + state];
+    }    
+
 }
-
+#endif // PADDED_STATE_COUNT == 4
 
 #endif
