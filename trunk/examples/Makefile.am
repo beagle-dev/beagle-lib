@@ -1,4 +1,4 @@
-SUBDIRS=tinytest fourtaxon
+SUBDIRS=genomictest tinytest fourtaxon
 
 
 
