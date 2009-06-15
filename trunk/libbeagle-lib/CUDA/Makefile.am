@@ -22,5 +22,5 @@ libcuda_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
         $(CFLAGS) $(libcuda_la_LDFLAGS) $(LDFLAGS) -o $@
 endif
 
-INCLUDES = -I$(top_builddir)
+INCLUDES = -I$(top_builddir) -I$(top_srcdir)
 
