@@ -9,5 +9,4 @@ libcpu_la_CXXFLAGS = $(CUDA_CFLAGS)
 libcpu_la_LIBADD = $(CUDA_LIBS) 
 endif
 
-INCLUDES = -I$(top_builddir)
-
+INCLUDES = -I$(top_builddir) -I$(top_srcdir)

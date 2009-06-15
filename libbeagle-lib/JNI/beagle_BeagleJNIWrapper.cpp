@@ -1,11 +1,11 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
 #include <jni.h>
 
-#include "beagle.h"
-#include "beagle_BeagleJNIWrapper.h"
+#include "libbeagle-lib/beagle.h"
+#include "libbeagle-lib/JNI/beagle_BeagleJNIWrapper.h"
 
 /*
  * Class:     beagle_BeagleJNIWrapper
