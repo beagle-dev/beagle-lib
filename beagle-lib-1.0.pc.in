@@ -7,5 +7,5 @@ Name: beagle-lib
 Description: A library to calculate phylogenetic likelihoods.
 Requires:
 Version: @VERSION@
-Libs: -L${libdir} -lbeagle-lib-1.0
-Cflags: -I${includedir}/libbeagle-lib-1.0 
+Libs: -L${libdir} -lbeagle-lib @CUDA_LIBS@
+Cflags: -I${includedir}/libbeagle-lib-1.0 @CUDA_CFLAGS@
