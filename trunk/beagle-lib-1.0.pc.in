@@ -8,4 +8,4 @@ Description: A library to calculate phylogenetic likelihoods.
 Requires:
 Version: @VERSION@
 Libs: -L${libdir} -lbeagle-lib-1.0
-Cflags: -I${includedir}/beagle-lib-1.0 -I${libdir}/beagle-lib-1.0/include
+Cflags: -I${includedir}/libbeagle-lib-1.0 
