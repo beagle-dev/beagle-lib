@@ -8,7 +8,10 @@
  * @author Daniel Ayres
  * @author Aaron Darling
  */
+#ifdef HAVE_CONFIG_H
 #include "libbeagle-lib/config.h"
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>

@@ -50,8 +50,9 @@
 //      write a wrapper geared toward MCMC (during a move, cache the old data
 //      in an unused array, after a rejection swap back to the cached copy)
 
-
-
+#ifdef HAVE_CONFIG_H
+#include "libbeagle-lib/config.h"
+#endif
 
 #include <cstdio>
 #include <cstdlib>
