@@ -40,21 +40,27 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Cleaned up CUDA and CPU code significantly and fixed several bugs
 
 === 06/06 - 06/13 ===
- * Continue to implement new functionality in CUDA implementation related to new API, most importantly calcEdgeLogLikelhood
- * Begin porting of  beagle-lib to CUDA driver API
-  * Split .cu files (CUDASharedFunctions_kernel.cu, Peeling_kernel.cu, TransitionProbabilities_kernel.cu) so that GPU kernels are not mixed with with CPU code.
-  * Create new c files by extracting the host-side functions found in the .cu files above
+ * Created new kernel to calculate edge likelihoods on GPU (calculateEdgeLogLikelihoods)
+ * Continued to implement other additional functionality in CUDA implementation to match new API
+  * fourTaxon example now works on GPU
+ * Restructured project so that GPU kernels are not mixed with CUDA code that is run on the host (new files are PeelingFunctions.cu/PeelingKernels.cu and TransitionFunctions.cu/TransitionKernels.cu)
+ * Functions in CUDASharedFunctions.cu adapted and moved to CUDASharedFunctions.c thus no longer require nvcc compiler
+ * Worked on autotools issues 
+   * Fixed OS X compatibility issues [http://code.google.com/p/beagle-lib/issues/list]
 
 === 06/13 - 06/20 ===
- * Finish porting of current beagle-lib to CUDA driver API
-   * Continue converting C for CUDA calls to Driver API ones.
-   * Test modifications.
+ * Continue to implement functionality in CUDA implementation related to new API
+   * Dynamic scaling, StatesPartials, and non-nucleotide implementations for calculateEdgeLogLikelihoods
+   * Implement setTransitionMatrix
+ * Begin porting of current beagle-lib to CUDA driver API
+   * Convert C for CUDA calls to Driver API ones
+   * Test modifications
+
+=== 06/20 - 06/27 ===
  * Begin work on OpenCL implementation
    * Convert CUDA Driver API host code to OpenCL 
 
-=== 06/20 - 06/27 ===
- * Work on autotools issues 
-   * Fix OS X compatibility issues [http://code.google.com/p/beagle-lib/issues/list]
+== 06/27 - 07/04 ===
  * Continue work on OpenCL implementation
    * Convert CUDA GPU kernels to OpenCL
 
