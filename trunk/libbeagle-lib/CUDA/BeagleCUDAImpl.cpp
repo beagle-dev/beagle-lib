@@ -553,7 +553,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             
             cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * length, cudaMemcpyHostToDevice);
             
-            // Computer scaling factors at the root
+            // Compute scaling factors at the root
             nativeGPUComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
                                                kPaddedPatternCount);
         }
@@ -563,7 +563,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
                                                     dRootScalingFactors, kPaddedPatternCount,
-                                                    count, kBufferCount);
+                                                    count);
 #else
         nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
                                       dWeights, dFrequencies, kPaddedPatternCount,
@@ -647,23 +647,65 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 //        REAL* secondDerivMatrix = 0L;
         
 #ifdef DYNAMIC_SCALING
-        // TODO: implement calculateEdgLnL with dynamic scaling
-        assert(false);
+        // TODO: fix calculateEdgLnL with dynamic scaling
+        
+//        REAL* scalingFactors = dScalingFactors[parIndex];
+//        
+//        if (statesChild != 0) {
+//            nativeGPUStatesPartialsEdgeLikelihoodsDynamicScaling(dPartialsTmp, partialsParent,
+//                                                                 statesChild, transMatrix,
+//                                                                 scalingFactors,
+//                                                                 kPaddedPatternCount, count,
+//                                                                 kDoRescaling);
+//        } else {
+//            nativeGPUPartialsPartialsEdgeLikelihoodsDynamicScaling(dPartialsTmp, partialsParent,
+//                                                                   partialsChild, transMatrix,
+//                                                                   scalingFactors,
+//                                                                   kPaddedPatternCount, count,
+//                                                                   kDoRescaling);
+//        }
+        
+        if (statesChild != 0) {
+            nativeGPUStatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                   transMatrix, kPaddedPatternCount, count);
+        } else {
+            nativeGPUPartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                     transMatrix, kPaddedPatternCount, count);
+        }
+        
+        if (kDoRescaling) {
+            // Construct node-list for scalingFactors
+            int n;
+            int length = kBufferCount - kTipCount;
+            for(n = 0; n < length; n++)
+                hPtrQueue[n] = dScalingFactors[n + kTipCount];
+            
+            cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * length, cudaMemcpyHostToDevice);
+            
+            // TODO: how to compute only relevant scaling factors?
+            
+            // Compute scaling factors at the root
+            nativeGPUComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
+                                               kPaddedPatternCount);
+        }
+        
+        kDoRescaling = 0;
+        
+        nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
+                                                    dFrequencies, dRootScalingFactors,
+                                                    kPaddedPatternCount, count);
 #else
         if (statesChild != 0) {
-            // TODO: implement calculateEdgeLnL when child is of tipStates kind
-            assert(false);
-            nativeGPUStatesPartialsEdgeLikelihoods(dIntegrationTmp, dPartialsTmp,
-                                                   partialsParent, statesChild,
-                                                   transMatrix,
-                                                   dWeights, dFrequencies, kPaddedPatternCount,
-                                                   count);
+            // TODO: test calculateEdgeLnL when child is of tipStates kind
+            nativeGPUStatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                   transMatrix, kPaddedPatternCount, count);
         } else {
-            nativeGPUPartialsPartialsEdgeLikelihoods(dIntegrationTmp, dPartialsTmp,
-                                                     partialsParent, partialsChild,
-                                                     transMatrix, dWeights, dFrequencies,
-                                                     kPaddedPatternCount, count);
+            nativeGPUPartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                     transMatrix, kPaddedPatternCount, count);
         }
+        
+        nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
+                                      kPaddedPatternCount, count);
 
 #endif // DYNAMIC_SCALING
         
