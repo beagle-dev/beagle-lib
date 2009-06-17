@@ -649,22 +649,6 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 #ifdef DYNAMIC_SCALING
         // TODO: fix calculateEdgLnL with dynamic scaling
         
-//        REAL* scalingFactors = dScalingFactors[parIndex];
-//        
-//        if (statesChild != 0) {
-//            nativeGPUStatesPartialsEdgeLikelihoodsDynamicScaling(dPartialsTmp, partialsParent,
-//                                                                 statesChild, transMatrix,
-//                                                                 scalingFactors,
-//                                                                 kPaddedPatternCount, count,
-//                                                                 kDoRescaling);
-//        } else {
-//            nativeGPUPartialsPartialsEdgeLikelihoodsDynamicScaling(dPartialsTmp, partialsParent,
-//                                                                   partialsChild, transMatrix,
-//                                                                   scalingFactors,
-//                                                                   kPaddedPatternCount, count,
-//                                                                   kDoRescaling);
-//        }
-        
         if (statesChild != 0) {
             nativeGPUStatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
                                                    transMatrix, kPaddedPatternCount, count);

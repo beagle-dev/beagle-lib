@@ -228,6 +228,86 @@ void nativeGPUIntegrateLikelihoodsDynamicScaling(REAL* dResult,
 #endif
 }
 
+
+void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
+                                              REAL* dParentPartials,
+                                              REAL* dChildParials,
+                                              REAL* dTransMatrix,
+                                              int patternCount,
+                                              int count) {
+#ifdef DEBUG
+    fprintf(stderr,"Entering nGPUPartialsPartialsEdgeLnL\n");
+#endif
+
+#if (PADDED_STATE_COUNT == 4)
+    dim3 block(16, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
+    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
+        grid.x += 1;
+
+    kernelPartialsPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp,
+                                                                dParentPartials,
+                                                                dChildParials, dTransMatrix,
+                                                                patternCount);
+#else
+    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
+    if (patternCount % PATTERN_BLOCK_SIZE != 0)
+        grid.x += 1;
+    // TODO: test kernelPartialsPartialsEdgeLikelihoods
+    kernelPartialsPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp,
+                                                           dParentPartials,
+                                                           dChildParials, dTransMatrix,
+                                                           patternCount);
+#endif
+
+#ifdef DEBUG
+    fprintf(stderr, "nGPUPartialsPartialsEdgeLnL\n");
+#endif
+
+}
+
+void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
+                                            REAL* dParentPartials,
+                                            INT* dChildStates,
+                                            REAL* dTransMatrix,
+                                            int patternCount,
+                                            int count) {
+#ifdef DEBUG
+    fprintf(stderr,"Entering nGPUStatesPartialsEdgeLnL\n");
+#endif
+
+    // TODO: test nativeGPUStatesPartialsEdgeLikelihoods
+    
+#if (PADDED_STATE_COUNT == 4)
+    dim3 block(16, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
+    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
+        grid.x += 1;
+
+    kernelStatesPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp,
+                                                              dParentPartials,
+                                                              dChildStates, dTransMatrix,
+                                                              patternCount);
+#else
+    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
+    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
+    if (patternCount % PATTERN_BLOCK_SIZE != 0)
+        grid.x += 1;
+
+    kernelStatesPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp,
+                                                         dParentPartials,
+                                                         dChildStates, dTransMatrix,
+                                                         patternCount);
+
+#endif
+
+#ifdef DEBUG
+    fprintf(stderr, "nGPUStatesPartialsEdgeLnL\n");
+#endif
+
+}
+
 void nativeGPUComputeRootDynamicScaling(REAL** dNodePtrQueue,
                                         REAL* dRootScalingFactors,
                                         int nodeCount,
@@ -239,127 +319,6 @@ void nativeGPUComputeRootDynamicScaling(REAL** dNodePtrQueue,
 
     kernelGPUComputeRootDynamicScaling<<<grid, block>>>(dNodePtrQueue, dRootScalingFactors,
                                                         nodeCount, patternCount);
-}
-
-void nativeGPUPartialsPartialsEdgeLikelihoodsDynamicScaling(REAL* dPartialsTmp,
-                                                            REAL* dParentPartials,
-                                                            REAL* dChildParials,
-                                                            REAL* dTransMatrix,
-                                                            REAL* scalingFactors,
-                                                            int patternCount,
-                                                            int count,
-                                                            int doRescaling) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering nGPUPartialsPartialsEdgeLnLDynamicScaling\n");
-#endif
-
-#if (PADDED_STATE_COUNT == 4)
-    dim3 block(16, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
-    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
-        grid.x += 1;
-#else
-    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
-    if (patternCount % PATTERN_BLOCK_SIZE != 0)
-        grid.x += 1;
-#endif
-
-
-    if (doRescaling) {
-#if (PADDED_STATE_COUNT == 4)
-
-        kernelPartialsPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp, dParentPartials,
-                                                                    dChildParials, dTransMatrix,
-                                                                    patternCount);
-#else
-        // TODO: test kernelPartialsPartialsEdgeLikelihoodsDynamicScaling
-        kernelPartialsPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp, dParentPartials,
-                                                               dChildParials, dTransMatrix,
-                                                               patternCount);
-#endif
-    } else {
-#if (PADDED_STATE_COUNT == 4)
-        kernelPartialsPartialsEdgeLikelihoodsSmallFixedScaling<<<grid, block>>>(dPartialsTmp,
-                                                                                dParentPartials,
-                                                                                dChildParials,
-                                                                                dTransMatrix,
-                                                                                scalingFactors,
-                                                                                patternCount);
-#else
-        kernelPartialsPartialsEdgeLikelihoodsFixedScaling<<<grid, block>>>(dPartialsTmp,
-                                                                           dParentPartials,
-                                                                           dChildParials,
-                                                                           dTransMatrix,
-                                                                           scalingFactors,
-                                                                           patternCount);
-#endif    
-    }
-    
-#ifdef DEBUG
-    fprintf(stderr, "nGPUPartialsPartialsEdgeLnLDynamicScaling\n");
-#endif
-
-}
-
-void nativeGPUStatesPartialsEdgeLikelihoodsDynamicScaling(REAL* dPartialsTmp,
-                                                          REAL* dParentPartials,
-                                                          INT* dChildStates,
-                                                          REAL* dTransMatrix,
-                                                          REAL* scalingFactors,
-                                                          int patternCount,
-                                                          int count,
-                                                          int doRescaling) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering nGPUStatesPartialsEdgeLnLDynamicScaling\n");
-#endif
-
-    // TODO: test nativeGPUStatesPartialsEdgeLikelihoodsDynamicScaling
-
-#if (PADDED_STATE_COUNT == 4)
-    dim3 block(16, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
-    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
-        grid.x += 1;
-#else
-    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
-    if (patternCount % PATTERN_BLOCK_SIZE != 0)
-        grid.x += 1;
-#endif
-
-
-    if (doRescaling) {
-#if (PADDED_STATE_COUNT == 4)
-
-        kernelStatesPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp, dParentPartials,
-                                                                  dChildStates, dTransMatrix,
-                                                                  patternCount);
-#else
-        kernelStatesPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp, dParentPartials,
-                                                             dChildStates, dTransMatrix,
-                                                             patternCount);
-#endif
-    } else {
-#if (PADDED_STATE_COUNT == 4)
-        kernelStatesPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp, dParentPartials,
-                                                                  dChildStates, dTransMatrix,
-                                                                  patternCount);
-#else
-        kernelStatesPartialsEdgeLikelihoodsFixedScaling<<<grid, block>>>(dPartialsTmp,
-                                                                         dParentPartials,
-                                                                         dChildStates,
-                                                                         dTransMatrix,
-                                                                         scalingFactors,
-                                                                         patternCount);
-#endif    
-    }
-
-
-#ifdef DEBUG
-    fprintf(stderr, "nGPUStatesPartialsEdgeLnLDynamicScaling\n");
-#endif
-
 }
 
 void nativeGPURescalePartials(REAL* partials3,
@@ -540,85 +499,6 @@ void nativeGPUIntegrateLikelihoods(REAL* dResult,
 
 #ifdef DEBUG
     fprintf(stderr, "Exiting IL\n");
-#endif
-
-}
-
-void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
-                                              REAL* dParentPartials,
-                                              REAL* dChildParials,
-                                              REAL* dTransMatrix,
-                                              int patternCount,
-                                              int count) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering nGPUPartialsPartialsEdgeLnL\n");
-#endif
-
-#if (PADDED_STATE_COUNT == 4)
-    dim3 block(16, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
-    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
-        grid.x += 1;
-
-    kernelPartialsPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp,
-                                                                dParentPartials,
-                                                                dChildParials, dTransMatrix,
-                                                                patternCount);
-#else
-    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
-    if (patternCount % PATTERN_BLOCK_SIZE != 0)
-        grid.x += 1;
-    // TODO: test kernelPartialsPartialsEdgeLikelihoods
-    kernelPartialsPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp,
-                                                           dParentPartials,
-                                                           dChildParials, dTransMatrix,
-                                                           patternCount);
-#endif
-
-#ifdef DEBUG
-    fprintf(stderr, "nGPUPartialsPartialsEdgeLnL\n");
-#endif
-
-}
-
-void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
-                                            REAL* dParentPartials,
-                                            INT* dChildStates,
-                                            REAL* dTransMatrix,
-                                            int patternCount,
-                                            int count) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering nGPUStatesPartialsEdgeLnL\n");
-#endif
-
-    // TODO: test nativeGPUStatesPartialsEdgeLikelihoods
-    
-#if (PADDED_STATE_COUNT == 4)
-    dim3 block(16, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / (PATTERN_BLOCK_SIZE * 4), count);
-    if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
-        grid.x += 1;
-
-    kernelStatesPartialsEdgeLikelihoodsSmall<<<grid, block>>>(dPartialsTmp,
-                                                              dParentPartials,
-                                                              dChildStates, dTransMatrix,
-                                                              patternCount);
-#else
-    dim3 block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    dim3 grid(patternCount / PATTERN_BLOCK_SIZE, count);
-    if (patternCount % PATTERN_BLOCK_SIZE != 0)
-        grid.x += 1;
-
-    kernelStatesPartialsEdgeLikelihoods<<<grid, block>>>(dPartialsTmp,
-                                                         dParentPartials,
-                                                         dChildStates, dTransMatrix,
-                                                         patternCount);
-
-#endif
-
-#ifdef DEBUG
-    fprintf(stderr, "nGPUStatesPartialsEdgeLnL\n");
 #endif
 
 }

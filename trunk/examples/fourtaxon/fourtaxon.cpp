@@ -113,7 +113,7 @@ void FourTaxonExample::initBeagleLib()
 
 	instance_handle = createInstance(
 				4,			// tipCount
-				7,			// partialsBufferCount
+				6,			// partialsBufferCount
 				0,			// compactBufferCount
 				4, 			// stateCount
 				nsites,		// patternCount
