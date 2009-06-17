@@ -8,6 +8,10 @@
 #ifndef __CUDASharedFunctions__
 #define __CUDASharedFunctions__
 
+#ifdef HAVE_CONFIG_H
+#include "libbeagle-lib/config.h"
+#endif
+
 #include <math.h>
 #include <cuda.h>
 
