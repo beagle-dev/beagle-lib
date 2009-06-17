@@ -7,6 +7,10 @@
  * @author Daniel Ayres
  */
 
+#ifdef HAVE_CONFIG_H
+#include "libbeagle-lib/config.h"
+#endif
+
 #include "libbeagle-lib/BeagleImpl.h"
 
 #include <vector>

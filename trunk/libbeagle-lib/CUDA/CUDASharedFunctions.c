@@ -2,6 +2,10 @@
  * @author Marc Suchard
  */
 
+#ifdef HAVE_CONFIG_H
+#include "libbeagle-lib/config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

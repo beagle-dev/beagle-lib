@@ -1,8 +1,8 @@
 # rules for building cuda files
 .cu.o:
-	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -I$(top_srcdir)
+	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -DHAVE_CONFIG_H -I$(top_srcdir)
 .cu.lo:
-	$(top_srcdir)/cudalt.py $@ $(NVCC) -I$(top_srcdir) -c $(NVCCFLAGS) $<
+	$(top_srcdir)/cudalt.py $@ $(NVCC) -I$(top_srcdir) -c $(NVCCFLAGS) -DHAVE_CONFIG_H $<
 
 CCLD = g++
 

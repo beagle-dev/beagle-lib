@@ -3,6 +3,10 @@
  */
 
 /**************INCLUDES***********/
+#ifdef HAVE_CONFIG_H
+#include "libbeagle-lib/config.h"
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <cuda_runtime_api.h>
