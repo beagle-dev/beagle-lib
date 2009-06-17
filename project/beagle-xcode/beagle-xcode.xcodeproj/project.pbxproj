@@ -26,6 +26,7 @@
 		64E4BB280FE17A8200F7C631 /* TransitionFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825C0FD6FC580044891D /* TransitionFunctions.cu */; };
 		64E4BB290FE17A8200F7C631 /* PeelingFunctions.cu in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* PeelingFunctions.cu */; };
 		64E4BB330FE17AF300F7C631 /* fourtaxon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */; };
+		64EC48690FE867EE006841E3 /* fourtaxon.dat in CopyFiles */ = {isa = PBXBuildFile; fileRef = 64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */; };
 		64F21C770FD2C10300678D0B /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		64F21C780FD2C10300678D0B /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 /* End PBXBuildFile section */
@@ -38,6 +39,16 @@
 			dstSubfolderSpec = 16;
 			files = (
 				643430FC0FD2CE7B00AFC69E /* fourtaxon.dat in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64EC48820FE86804006841E3 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				64EC48690FE867EE006841E3 /* fourtaxon.dat in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +210,7 @@
 			buildPhases = (
 				64E4BB210FE17A8200F7C631 /* Sources */,
 				64E4BB2A0FE17A8200F7C631 /* Frameworks */,
+				64EC48820FE86804006841E3 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -364,7 +376,10 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
 				HEADER_SEARCH_PATHS = (
 					../../,
 					/usr/local/cuda/include,
@@ -390,13 +405,17 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
 				HEADER_SEARCH_PATHS = (
 					../../,
 					/usr/local/cuda/include,
 				);
 				INSTALL_PATH = /usr/local/bin;
 				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"-lcuda",
 					"-lcudart",
@@ -418,7 +437,10 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
 				HEADER_SEARCH_PATHS = (
 					../../,
 					/usr/local/cuda/include,
@@ -443,13 +465,17 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = CUDA;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
 				HEADER_SEARCH_PATHS = (
 					../../,
 					/usr/local/cuda/include,
 				);
 				INSTALL_PATH = /usr/local/bin;
 				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
 					"-lcudart",
 					"-lcuda",

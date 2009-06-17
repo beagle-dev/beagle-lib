@@ -247,13 +247,30 @@ extern "C" {
                                                      REAL* dFrequencies,
                                                      REAL* dRootScalingFactors,
                                                      int patternCount,
-                                                     int matrixCount,
-                                                     int nodeCount);
+                                                     int matrixCount);
     
     void nativeGPUComputeRootDynamicScaling(REAL** dNodePtrQueue,
                                             REAL* dRootScalingFactors,
                                             int nodeCount,
                                             int patternCount);
+    
+    void nativeGPUPartialsPartialsEdgeLikelihoodsDynamicScaling(REAL* dPartialsTmp,
+                                                                REAL* dParentPartials,
+                                                                REAL* dChildParials,
+                                                                REAL* dTransMatrix,
+                                                                REAL* scalingFactors,
+                                                                int patternCount,
+                                                                int count,
+                                                                int doRescaling);
+    
+    void nativeGPUStatesPartialsEdgeLikelihoodsDynamicScaling(REAL* dPartialsTmp,
+                                                              REAL* dParentPartials,
+                                                              INT* dChildStates,
+                                                              REAL* dTransMatrix,
+                                                              REAL* scalingFactors,
+                                                              int patternCount,
+                                                              int count,
+                                                              int doRescaling);
     
     void nativeGPURescalePartials(REAL* partials3,
                                   REAL* scalingFactors,
@@ -292,23 +309,17 @@ extern "C" {
                                        int patternCount,
                                        int matrixCount);
 
-    void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dResult,
-                                                  REAL* dPartialsTmp,
+    void nativeGPUPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
                                                   REAL* dParentPartials,
                                                   REAL* dChildParials,
                                                   REAL* dTransMatrix,
-                                                  REAL* dWeights,
-                                                  REAL* dFrequencies,
                                                   int patternCount,
                                                   int count);
     
-    void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dResult,
-                                                REAL* dPartialsTmp,
+    void nativeGPUStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
                                                 REAL* dParentPartials,
                                                 INT* dChildStates,
                                                 REAL* dTransMatrix,
-                                                REAL* dWeights,
-                                                REAL* dFrequencies,
                                                 int patternCount,
                                                 int count);
 } // extern "C"
