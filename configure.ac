@@ -71,24 +71,29 @@ AC_DEFINE([STATE_COUNT],[4],[Define the number of character states in use])
 # Setup CUDA paths
 # ------------------------------------------------------------------------------
 AC_ARG_WITH([cuda],
-   [  --with-cuda=PATH        prefix where cuda is installed [default=auto]])
-if test -n "$with_cuda"
+   [AS_HELP_STRING([--with-cuda=PATH],[prefix where cuda is installed @<:@default=auto@:>@])],
+   [],
+   [with_cuda=auto])
+
+NVCC=no
+CUDA_CFLAGS=
+CUDA_LIBS=
+
+if test "x$with_cuda" != "xno"
 then
-   CUDA_CFLAGS="-I$with_cuda/include"
-   CUDA_LIBS="-L$with_cuda/lib -lcuda -lcudart"
-   CUDAPATH="$with_cuda"
-else
-   CUDA_CFLAGS="-I/usr/local/cuda/include"
-   CUDA_LIBS="-L/usr/local/cuda/lib -lcuda -lcudart"
-   CUDAPATH="/usr/local/cuda"
-fi
+   if test "x$with_cuda" != "xauto"
+   then
+      CUDA_CFLAGS="-I$with_cuda/include"
+      CUDA_LIBS="-L$with_cuda/lib -lcuda -lcudart"
+      CUDAPATH="$with_cuda"
+   else
+      CUDA_CFLAGS="-I/usr/local/cuda/include"
+      CUDA_LIBS="-L/usr/local/cuda/lib -lcuda -lcudart"
+      CUDAPATH="/usr/local/cuda"
+   fi
 
-AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$CUDAPATH/bin])
-AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
+   AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$CUDAPATH/bin])
 
-AC_SUBST(CUDA_CFLAGS)
-AC_SUBST(CUDA_LIBS)
-AC_SUBST(NVCC)
 
 AC_ARG_ENABLE([emu],
    [  --enable-emu    Turn on device emulation for CUDA],
@@ -99,6 +104,14 @@ AC_ARG_ENABLE([emu],
    esac],
    [EMULATION=false]
 )
+
+fi
+
+AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
+AC_SUBST(CUDA_CFLAGS)
+AC_SUBST(CUDA_LIBS)
+AC_SUBST(NVCC)
+
 if( test ! x$NVCC = xno ) 
 then
 	AC_DEFINE([CUDA],[1],[Defined if CUDA should be used])
