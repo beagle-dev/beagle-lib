@@ -1,8 +1,11 @@
+
+INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
+
 # rules for building cuda files
 .cu.o:
-	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -DHAVE_CONFIG_H -I$(top_srcdir)
+	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
 .cu.lo:
-	$(top_srcdir)/cudalt.py $@ $(NVCC) -I$(top_srcdir) -c $(NVCCFLAGS) -DHAVE_CONFIG_H $<
+	$(top_srcdir)/cudalt.py $@ $(NVCC) $(INCLUDES) -c $(NVCCFLAGS) -DHAVE_CONFIG_H $<
 
 CCLD = g++
 
@@ -21,6 +24,4 @@ libcuda_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
         $(LIBTOOLFLAGS) --mode=link $(CCLD) $(libcuda_la_CFLAGS) \
         $(CFLAGS) $(libcuda_la_LDFLAGS) $(LDFLAGS) -o $@
 endif
-
-INCLUDES = -I$(top_builddir) -I$(top_srcdir)
 
