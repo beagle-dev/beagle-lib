@@ -49,14 +49,17 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
    * Fixed OS X compatibility issues [http://code.google.com/p/beagle-lib/issues/list]
 
 === 06/13 - 06/20 ===
- * Continue to implement functionality in CUDA implementation related to new API
-   * Dynamic scaling, StatesPartials, and non-nucleotide implementations for calculateEdgeLogLikelihoods
-   * Implement setTransitionMatrix
- * Begin porting of current beagle-lib to CUDA driver API
-   * Convert C for CUDA calls to Driver API ones
-   * Test modifications
+ * Implemented additional functionality in CUDA implementation related to new calculateEdgeLogLikelihoods
+   * Dynamic scaling
+   * StatesPartials
+   * non-nucleotide state models
+* Visited mentor Aaron Darling at UC Davis
+ * Gave talk to Eisen lab at Davis about BEAGLE and summer of code project
 
 === 06/20 - 06/27 ===
+* Begin porting of current beagle-lib to CUDA driver API
+   * Convert C for CUDA calls to Driver API ones
+   * Test modifications
  * Begin work on OpenCL implementation
    * Convert CUDA Driver API host code to OpenCL 
 
