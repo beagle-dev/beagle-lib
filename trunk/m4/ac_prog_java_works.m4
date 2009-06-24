@@ -117,7 +117,7 @@ if test x$ac_cv_prog_uudecode_base64 != xyes; then
           AC_MSG_ERROR(The Java compiler $JAVAC failed (see config.log, check the CLASSPATH?))
         fi
 fi
-if AC_TRY_COMMAND($JAVA $JAVAFLAGS $TEST) >/dev/null 2>&1; then
+if AC_TRY_COMMAND($JAVA $JAVAFLAGS -cp . $TEST) >/dev/null 2>&1; then
   ac_cv_prog_java_works=yes
 else
   echo "configure: failed program was:" >&AC_FD_CC
