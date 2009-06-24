@@ -67,9 +67,9 @@
 AC_DEFUN([AC_PROG_JAVAC],[
 AC_REQUIRE([AC_EXEEXT])dnl
 if test "x$JAVAPREFIX" = x; then
-        test "x$JAVAC" = x && AC_CHECK_PROGS(JAVAC, jikes$EXEEXT javac$EXEEXT "gcj$EXEEXT -C" guavac$EXEEXT )
+        test "x$JAVAC" = x && AC_CHECK_PROGS(JAVAC, javac$EXEEXT jikes$EXEEXT "gcj$EXEEXT -C" guavac$EXEEXT )
 else
-        test "x$JAVAC" = x && AC_CHECK_PROGS(JAVAC, jikes$EXEEXT javac$EXEEXT "gcj$EXEEXT -C" guavac$EXEEXT, $JAVAPREFIX)
+        test "x$JAVAC" = x && AC_CHECK_PROGS(JAVAC, javac$EXEEXT jikes$EXEEXT "gcj$EXEEXT -C" guavac$EXEEXT, $JAVAPREFIX)
 fi
 test "x$JAVAC" = x && AC_MSG_ERROR([no acceptable Java compiler found in \$PATH])
 AC_PROG_JAVAC_WORKS
