@@ -53,8 +53,8 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
    * Dynamic scaling
    * StatesPartials
    * non-nucleotide state models
-* Visited mentor Aaron Darling at UC Davis
- * Gave talk to Eisen lab at Davis about BEAGLE and summer of code project
+ * Visited mentor Aaron Darling at UC Davis
+   * Gave talk to Eisen lab at Davis about BEAGLE and summer of code project
 
 == 06/20 - 06/27 ==
  * Implemented additional functions specified in new API
@@ -69,7 +69,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
    * modified CUDA calls in BeagleCUDAImpl.cpp and CUDASharedFunctions.c
 
 == 06/27 - 07/04 ===
-* Continue porting to CUDA driver API
+ * Continue porting to CUDA driver API
    * modify CUDA calls in PeelingFunctions.cu and TransitionFunctions.cu
  * Begin work on OpenCL implementation
    * Convert CUDA Driver API host code to OpenCL 
