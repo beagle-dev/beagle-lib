@@ -56,16 +56,31 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 * Visited mentor Aaron Darling at UC Davis
  * Gave talk to Eisen lab at Davis about BEAGLE and summer of code project
 
-=== 06/20 - 06/27 ===
-* Begin porting of current beagle-lib to CUDA driver API
-   * Convert C for CUDA calls to Driver API ones
-   * Test modifications
+== 06/20 - 06/27 ==
+ * Implemented additional functions specified in new API
+   * getPartials
+   * setTransitionMatrix
+ * Addressed rescaling issues with changes to API
+   * additional scaling parameters for calculateRootLogLikelihoods and calculateEdgeLogLikelihoods
+   * modified operation list in updatePartials
+   * additional parameter categoryCount in createInstance
+   * additional function setCategoryRates
+ * Started porting to CUDA driver API
+   * modified CUDA calls in BeagleCUDAImpl.cpp and CUDASharedFunctions.c
+
+== 06/27 - 07/04 ===
+* Continue porting to CUDA driver API
+   * modify CUDA calls in PeelingFunctions.cu and TransitionFunctions.cu
  * Begin work on OpenCL implementation
    * Convert CUDA Driver API host code to OpenCL 
 
-== 06/27 - 07/04 ===
+== 07/04 - 07/11 ==
  * Continue work on OpenCL implementation
    * Convert CUDA GPU kernels to OpenCL
+
+== 07/11 - 07/18 ==
+ * Finish work on initial OpenCL implementation
+ * Implement derivative kernels
 
 == Deliverables ==
 
