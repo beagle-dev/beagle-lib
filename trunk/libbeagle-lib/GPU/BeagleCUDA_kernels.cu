@@ -2,8 +2,8 @@
  * @author Marc Suchard
  * @author Daniel Ayres
  */
-#ifndef _Included_PeelingKernels
-#define _Included_PeelingKernels
+
+#include "libbeagle-lib/GPU/GPUImplDefs.h"
 
 #define DETERMINE_INDICES() \
     int state = threadIdx.x; \
@@ -15,6 +15,119 @@
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; \
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; \
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+
+extern "C" {
+
+__global__ void kernelMatrixMulADB(REAL** listC,
+                                   REAL* A,
+                                   REAL* D,
+                                   REAL* B,
+                                   REAL* distanceQueue,
+                                   int length,
+                                   int wB,
+                                   int totalMatrix) {
+
+    __shared__ REAL* C;
+    __shared__ REAL distance;
+
+    int wMatrix = blockIdx.x % totalMatrix;
+
+    // Block index
+    int bx = blockIdx.x / totalMatrix;
+    int by = blockIdx.y;
+
+    // Thread index
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int BLOCKS = gridDim.y;
+
+    if (tx == 0 && ty == 0) {
+        C = listC[wMatrix]; // Non-coalescent read
+        distance = distanceQueue[wMatrix]; // Non-coalescent read
+    }
+
+    __syncthreads();
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
+
+    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
+
+    for (int i = 0; i < BLOCKS - 1; i++) {
+
+        if (ty == 0)
+            Ds[tx] = exp(D[d + tx] * distance);
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        __syncthreads();
+
+        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
+            Csub += As[ty][k] * Ds[k] * Bs[k][tx];
+
+        __syncthreads();
+
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;
+    }
+
+    // Last block is too long
+    if (tx < EDGE && ty < EDGE) {
+        if (ty == 0)
+            Ds[tx] = exp(D[d + tx] * distance);
+
+#ifndef KERNEL_PRINT_ENABLED
+        __syncthreads();
+#endif
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+
+        if (ty == 0)
+            Ds[tx] = 0;
+
+        As[ty][tx] = 0;
+        Bs[ty][tx] = 0;
+    }
+
+    __syncthreads();
+
+    for (int k = 0; k < EDGE; k++)
+        Csub += As[ty][k] * Ds[k] * Bs[k][tx];
+
+    __syncthreads();
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+        if (Csub < 0)
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = 0;
+        else
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = Csub;
+    }
+}
 
 __global__ void kernelPartialsPartialsByPatternBlockCoherent(REAL* partials1,
                                                              REAL* partials2,
@@ -913,12 +1026,12 @@ __global__ void kernelStatesPartialsEdgeLikelihoodsSmall(REAL* dPartialsTmp,
 
 #endif // PADDED_STATE_COUNT == 4
 
-__global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL* dResult,
+__global__ void kernelIntegrateLikelihoodsDynamicScaling(REAL* dResult,
                                                             REAL* dRootPartials,
-                                                            REAL *dCategoryProportions,
+                                                            REAL *dWeights,
                                                             REAL *dFrequencies,
                                                             REAL *dRootScalingFactors,
-                                                            int matrixCount) {
+                                                            int count) {
     int state   = threadIdx.x;
     int pattern = blockIdx.x;
     int patternCount = gridDim.x;
@@ -933,10 +1046,10 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL* dResult,
     stateFreq[state] = dFrequencies[state];
     sum[state] = 0;
 
-    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {
+    for(int matrixEdge = 0; matrixEdge < count; matrixEdge += PADDED_STATE_COUNT) {
         int x = matrixEdge + state;
-        if (x < matrixCount)
-            matrixProp[x] = dCategoryProportions[x];
+        if (x < count)
+            matrixProp[x] = dWeights[x];
     }
 
     __syncthreads();
@@ -944,7 +1057,7 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL* dResult,
     int u = state + pattern * PADDED_STATE_COUNT;
     int delta = patternCount * PADDED_STATE_COUNT;;
 
-    for(int r = 0; r < matrixCount; r++) {
+    for(int r = 0; r < count; r++) {
         sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
     }
 
@@ -968,7 +1081,7 @@ __global__ void kernelGPUIntegrateLikelihoodsDynamicScaling(REAL* dResult,
         dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
 }
 
-__global__ void kernelGPUComputeRootDynamicScaling(REAL** dNodePtrQueue,
+__global__ void kernelComputeRootDynamicScaling(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -1110,11 +1223,11 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
 
 }
 
-__global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
+__global__ void kernelIntegrateLikelihoods(REAL* dResult,
                                               REAL* dRootPartials,
-                                              REAL* dCategoryProportions,
+                                              REAL* dWeights,
                                               REAL* dFrequencies,
-                                              int matrixCount) {
+                                              int count) {
     int state   = threadIdx.x;
     int pattern = blockIdx.x;
     int patternCount = gridDim.x;
@@ -1129,10 +1242,10 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
     stateFreq[state] = dFrequencies[state];
     sum[state] = 0;
 
-    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {
+    for(int matrixEdge = 0; matrixEdge < count; matrixEdge += PADDED_STATE_COUNT) {
         int x = matrixEdge + state;
-        if (x < matrixCount)
-            matrixProp[x] = dCategoryProportions[x];
+        if (x < count)
+            matrixProp[x] = dWeights[x];
     }
 
     __syncthreads();
@@ -1140,7 +1253,7 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
     int u = state + pattern * PADDED_STATE_COUNT;
     int delta = patternCount * PADDED_STATE_COUNT;
 
-    for(int r = 0; r < matrixCount; r++) {
+    for(int r = 0; r < count; r++) {
         sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
     }
 
@@ -1164,4 +1277,4 @@ __global__ void kernelGPUIntegrateLikelihoods(REAL* dResult,
         dResult[pattern] = log(sum[state]);
 }
 
-#endif
+} // extern "C"

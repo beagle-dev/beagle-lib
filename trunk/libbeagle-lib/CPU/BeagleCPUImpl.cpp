@@ -9,7 +9,6 @@
  */
 
 ///@TODO: deal with underflow
-///@TODO: reimplement calculateEdgeLogLikelihoods()
 ///@TODO: get rid of malloc (use vectors to make sure that memory is freed)
 ///@TODO: wrap partials, eigen calcs, and transition matrices in a small structs
 //      so that we can flag them. This would this would be helpful for
