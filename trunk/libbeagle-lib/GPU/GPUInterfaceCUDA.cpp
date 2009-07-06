@@ -58,8 +58,10 @@ void GPUInterface::SetDevice(int deviceNumber) {
     SAFE_CUDA(cuDeviceGet(&cudaDevice, deviceNumber));
     
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
+
+    SAFE_CUDA(cuModuleLoadData(&cudaModule, KERNELS_STRING)); 
     
-    SAFE_CUDA(cuModuleLoad(&cudaModule, KERNELS_FILE)); 
+    //SAFE_CUDA(cuModuleLoad(&cudaModule, KERNELS_FILE)); 
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
 }
