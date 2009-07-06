@@ -380,9 +380,11 @@
 			files = (
 			);
 			inputPaths = (
+				"$PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.cu",
 			);
 			name = "Generate CUDA_kernels.h";
 			outputPaths = (
+				"$PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
