@@ -2,18 +2,17 @@
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 # rules for building cuda files
-.cu.o:
-	$(NVCC) -o $@ -c $< $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
-.cu.lo:
-	$(top_srcdir)/cudalt.py $@ $(NVCC) $(INCLUDES) -c $(NVCCFLAGS) -DHAVE_CONFIG_H $<
+.cu.cubin:
+	$(NVCC) -o $@ -cubin $< $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
 
 CCLD = g++
 
 if BUILDCUDA
 noinst_LTLIBRARIES= libcuda.la 
 libcuda_la_SOURCES = \
-BeagleCUDAImpl.cpp  CUDASharedFunctions.c   CUDASharedFunctions.h  PeelingFunctions.cu \
-TransitionFunctions.cu  BeagleCUDAImpl.h
+BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
+GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp  KernelLauncher.h \
+BeagleCUDA_kernels.cu
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
