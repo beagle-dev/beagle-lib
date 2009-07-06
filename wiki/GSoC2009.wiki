@@ -68,19 +68,25 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Started porting to CUDA driver API
    * modified CUDA calls in BeagleCUDAImpl.cpp and CUDASharedFunctions.c
 
-== 06/27 - 07/04 ===
- * Continue porting to CUDA driver API
-   * modify CUDA calls in PeelingFunctions.cu and TransitionFunctions.cu
- * Begin work on OpenCL implementation
-   * Convert CUDA Driver API host code to OpenCL 
+== 06/27 - 07/05 ===
+ * Converted from CUDA runtime API to driver API
+ * Significant restructuring of CUDA implementation (now called GPU implementation)
+   * New classes GPUInterface and KernelLauncher
+   * Moved all CUDA specific code to a lower level. This is in preparation for OpenCL version and will allow the two GPU versions to share all code except for minor kernel modifications and the GPUInterface implementation
 
-== 07/04 - 07/11 ==
+== 07/06 - 07/12 ==
+ * Implement previously proposed rescaling related API changes
+ * Implement derivative kernels for updateTransitionMatrices and calculateEdgeLogLikelihoods
+
+== 07/13 - 07/19 ==
+ * Complete draft of CUDA implementation with near full support of proposed API
+ * Begin work on OpenCL version
+   * Create OpenCL implementation of GPUInterface
+
+== 07/20 - 07/26 ==
  * Continue work on OpenCL implementation
-   * Convert CUDA GPU kernels to OpenCL
-
-== 07/11 - 07/18 ==
- * Finish work on initial OpenCL implementation
- * Implement derivative kernels
+   * Convert kernels to OpenCL
+   * Test OpenCL version
 
 == Deliverables ==
 
