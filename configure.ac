@@ -84,11 +84,11 @@ then
    if test "x$with_cuda" != "xauto"
    then
       CUDA_CFLAGS="-I$with_cuda/include"
-      CUDA_LIBS="-L$with_cuda/lib -lcuda -lcudart"
+      CUDA_LIBS="-L$with_cuda/lib -lcuda"
       CUDAPATH="$with_cuda"
    else
       CUDA_CFLAGS="-I/usr/local/cuda/include"
-      CUDA_LIBS="-L/usr/local/cuda/lib -lcuda -lcudart"
+      CUDA_LIBS="-L/usr/local/cuda/lib -lcuda"
       CUDAPATH="/usr/local/cuda"
    fi
 
@@ -177,7 +177,7 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([beagle-lib-1.0.pc])
 AC_CONFIG_FILES([libbeagle-lib/Makefile])
-AC_CONFIG_FILES([libbeagle-lib/CUDA/Makefile])
+AC_CONFIG_FILES([libbeagle-lib/GPU/Makefile])
 AC_CONFIG_FILES([libbeagle-lib/CPU/Makefile])
 AC_CONFIG_FILES([libbeagle-lib/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile examples/tinytest/Makefile])

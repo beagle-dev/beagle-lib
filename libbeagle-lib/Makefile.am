@@ -1,4 +1,4 @@
-SUBDIRS=CUDA CPU JNI
+SUBDIRS=GPU CPU JNI
 
 lib_LTLIBRARIES=libbeagle-lib.la libbeagle-jni.la
 libbeagle_lib_la_SOURCES=beagle.cpp BeagleImpl.h 
@@ -6,7 +6,7 @@ libbeagle_lib_la_LIBADD = CPU/libcpu.la
 if BUILDCUDA
 libbeagle_lib_la_CFLAGS = $(CUDA_CFLAGS)
 libbeagle_lib_la_CXXFLAGS = $(CUDA_CFLAGS)
-libbeagle_lib_la_LIBADD += CUDA/libcuda.la 
+libbeagle_lib_la_LIBADD += GPU/libcuda.la 
 endif
 libbeagle_lib_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
@@ -16,7 +16,7 @@ libbeagle_jni_la_LIBADD = JNI/libjni.la
 if BUILDCUDA
 libbeagle_jni_la_CFLAGS = $(CUDA_CFLAGS)
 libbeagle_jni_la_CXXFLAGS = $(CUDA_CFLAGS)
-libbeagle_jni_la_LIBADD += CUDA/libcuda.la 
+libbeagle_jni_la_LIBADD += GPU/libcuda.la 
 endif
 
 
