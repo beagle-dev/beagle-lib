@@ -5,15 +5,12 @@
  * @author Daniel Ayres
  */
 
-#ifndef __CUDASharedFunctions__
-#define __CUDASharedFunctions__
+#ifndef __GPUImplDefs__
+#define __GPUImplDefs__
 
 #ifdef HAVE_CONFIG_H
 #include "libbeagle-lib/config.h"
 #endif
-
-#include <math.h>
-#include <cuda.h>
 
 //#define DEBUG_FLOW
 //#define DEBUG_GPU
@@ -130,69 +127,23 @@
 
 #define MULTIPLY_BLOCK_SIZE 16
 
-#define SAFE_CUDA(call, ptr)    { cudaError_t error = call; \
-                                    if( error != 0 ) { \
-                                        fprintf(stderr, "Error %s\n", cudaGetErrorString(error)); \
-                                        fprintf(stderr, "Ptr = %d\n", ptr); \
-                                        exit(-1); \
-                                    } }
-
-#define MEMCPY(to, from, length, toType)    { int m; \
+#define MEMCNV(to, from, length, toType)    { \
+                                                int m; \
                                                 for(m = 0; m < length; m++) { \
                                                     to[m] = (toType) from[m]; \
-                                                } }
+                                                } \
+                                            }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct Dim3Int Dim3Int;
 
-REAL* allocateGPURealMemory(int length);
+struct Dim3Int
+{
+    unsigned int x, y, z;
+#if defined(__cplusplus)
+    Dim3Int(unsigned int x = 1,
+            unsigned int y = 1,
+            unsigned int z = 1) : x(x), y(y), z(z) {}
+#endif /* __cplusplus */
+};
 
-INT * allocateGPUIntMemory(int length);
-
-void checkCUDAError(const char* msg);
-
-void freeGPUMemory(void* ptr);
-
-void storeGPURealMemoryArray(REAL* toGPUPtr,
-                             REAL* fromGPUPtr,
-                             int length);
-
-void storeGPUIntMemoryArray(INT* toGPUPtr,
-                            INT* fromGPUPtr,
-                            int length);
-
-void printfCudaVector(REAL* dPtr,
-                      int length);
-
-void printfCudaInt(int* dPtr,
-                   int length);
-
-void printfVectorD(double* ptr,
-                   int length);
-
-void printfVectorF(float* ptr,
-                   int length);
-
-void printfVector(REAL* ptr,
-                  int length);
-
-void printfInt(int* ptr,
-               int length);
-
-REAL sumCudaVector(REAL* dPtr,
-                   int length);
-
-int checkZeros(REAL* dPtr,
-               int length);
-    
-void getGPUInfo(int iDevice,
-                char* name,
-                int* memory,
-                int* speed);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif // __CUDASharedFunctions
+#endif // __GPUImplDefs__

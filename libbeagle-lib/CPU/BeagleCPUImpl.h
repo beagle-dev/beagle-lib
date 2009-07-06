@@ -7,6 +7,9 @@
  * @author Daniel Ayres
  */
 
+#ifndef __BeagleCPUImpl__
+#define __BeagleCPUImpl__
+
 #ifdef HAVE_CONFIG_H
 #include "libbeagle-lib/config.h"
 #endif
@@ -198,3 +201,4 @@ public:
 }	// namespace cpu
 }	// namespace beagle
 
+#endif // __BeagleCPUImpl__

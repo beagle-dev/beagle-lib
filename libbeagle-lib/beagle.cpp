@@ -23,8 +23,8 @@
 #include "libbeagle-lib/beagle.h"
 #include "libbeagle-lib/BeagleImpl.h"
 
-#ifdef CUDA
-    #include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
+#if defined(CUDA) || defined(OPENCL)
+    #include "libbeagle-lib/GPU/BeagleGPUImpl.h"
 #endif
 #include "libbeagle-lib/CPU/BeagleCPUImpl.h"
 
@@ -64,8 +64,8 @@ int createInstance(int tipCount,
     try {
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
-#ifdef CUDA
-            implFactory.push_back(new beagle::cuda::BeagleCUDAImplFactory());
+#if defined(CUDA) || defined(OPENCL)
+            implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
 #endif
             implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }

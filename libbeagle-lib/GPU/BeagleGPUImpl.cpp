@@ -1,6 +1,6 @@
 
 /*
- *  BeagleCUDAImpl.cpp
+ *  BeagleGPUImpl.cpp
  *  BEAGLE
  *
  * @author Marc Suchard
@@ -17,23 +17,47 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
-#include <cuda_runtime_api.h>
-#include <cuda.h>
 
 #include "libbeagle-lib/beagle.h"
-#include "libbeagle-lib/CUDA/BeagleCUDAImpl.h"
-#include "libbeagle-lib/CUDA/CUDASharedFunctions.h"
+#include "libbeagle-lib/GPU/GPUImplDefs.h"
+#include "libbeagle-lib/GPU/BeagleGPUImpl.h"
+#include "libbeagle-lib/GPU/GPUImplHelper.h"
+#include "libbeagle-lib/GPU/KernelLauncher.h"
+#include "libbeagle-lib/GPU/GPUInterface.h"
 
 using namespace beagle;
-using namespace beagle::cuda;
+using namespace beagle::gpu;
 
 int currentDevice = -1;
 
-BeagleCUDAImpl::~BeagleCUDAImpl() {
-    freeMemory();
+BeagleGPUImpl::~BeagleGPUImpl() {
+    
+    // free memory
+    delete kernels;
+    delete gpu;
+    
+    free(dPartials);
+    free(dTipPartialsBuffers);
+    free(dStates);
+    free(dCompactBuffers);
+    free(dMatrices);
+    
+#ifdef DYNAMIC_SCALING
+    free(dScalingFactors);
+#endif
+    
+    free(hDistanceQueue);
+    free(hPtrQueue);
+    
+    free(hWeightsCache);
+    free(hFrequenciesCache);
+    free(hPartialsCache);
+    free(hStatesCache);
+    free(hMatrixCache);
+    free(hLogLikelihoodsCache);
 }
 
-int BeagleCUDAImpl::createInstance(int tipCount,
+int BeagleGPUImpl::createInstance(int tipCount,
                                    int partialsBufferCount,
                                    int compactBufferCount,
                                    int stateCount,
@@ -41,22 +65,28 @@ int BeagleCUDAImpl::createInstance(int tipCount,
                                    int eigenDecompositionCount,
                                    int matrixCount) {
     
-    // TODO: Determine if CUDA device satisfies memory requirements.
-    
-    int numDevices = getGPUDeviceCount();
+    // TODO: Determine if GPU device satisfies memory requirements.
+
+    gpu = new GPUInterface();
+
+    int numDevices = 0;
+    numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
-        fprintf(stderr, "No GPU devices found");
+        fprintf(stderr, "Error: No GPU devices\n");
         return GENERAL_ERROR;
     }
-    
-    // Static load balancing; each instance gets added to the next available device
+
     currentDevice++;
     if (currentDevice == numDevices)
         currentDevice = 0;
     
-    printGPUInfo(currentDevice);
-    
     kDevice = currentDevice;
+    
+    gpu->SetDevice(kDevice);
+    
+    kernels = new KernelLauncher(gpu);
+    
+    gpu->PrintInfo();
     
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
@@ -124,50 +154,51 @@ int BeagleCUDAImpl::createInstance(int tipCount,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
+int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
+    
+    // TODO: compute device memory requirements
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering initialize\n");
 #endif
-
-    cudaSetDevice(kDevice);
     
-    dEvec = allocateGPURealMemory(kMatrixSize);
-    dIevc = allocateGPURealMemory(kMatrixSize);
     
-    dEigenValues = allocateGPURealMemory(kEigenValuesSize);
+    dEvec = gpu->AllocateRealMemory(kMatrixSize);
+    dIevc = gpu->AllocateRealMemory(kMatrixSize);
     
-    dWeights = allocateGPURealMemory(kBufferCount);
+    dEigenValues = gpu->AllocateRealMemory(kEigenValuesSize);
     
-    dFrequencies = allocateGPURealMemory(kPaddedStateCount);
+    dWeights = gpu->AllocateRealMemory(kBufferCount);
     
-    dIntegrationTmp = allocateGPURealMemory(kPaddedPatternCount);
-    dPartialsTmp = allocateGPURealMemory(kPartialsSize);
+    dFrequencies = gpu->AllocateRealMemory(kPaddedStateCount);
+    
+    dIntegrationTmp = gpu->AllocateRealMemory(kPaddedPatternCount);
+    dPartialsTmp = gpu->AllocateRealMemory(kPartialsSize);
     
     // Fill with 0s so 'free' does not choke if unallocated
-    dPartials = (REAL**) calloc(sizeof(REAL*), kBufferCount);
+    dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount);
     
     // Internal nodes have 0s so partials are used
-    dStates = (int **) calloc(sizeof(int*), kBufferCount); 
+    dStates = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount); 
     
-    dCompactBuffers = (int **) malloc(sizeof(int*) * kCompactBufferCount); 
-    dTipPartialsBuffers = (REAL**) malloc(sizeof(REAL*) * kTipPartialsBufferCount);
+    dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 
+    dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
 #ifdef DYNAMIC_SCALING
-    dScalingFactors = (REAL**) malloc(sizeof(REAL*) * kBufferCount);
-    dRootScalingFactors = allocateGPURealMemory(kPaddedPatternCount);
+    dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kBufferCount);
+    dRootScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
 #endif
     
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
-                dCompactBuffers[i] = allocateGPUIntMemory(kPaddedPatternCount);
+                dCompactBuffers[i] = gpu->AllocateIntMemory(kPaddedPatternCount);
             if (i < kTipPartialsBufferCount)
-                dTipPartialsBuffers[i] = allocateGPURealMemory(kPartialsSize);
+                dTipPartialsBuffers[i] = gpu->AllocateRealMemory(kPartialsSize);
         } else {
-            dPartials[i] = allocateGPURealMemory(kPartialsSize);
+            dPartials[i] = gpu->AllocateRealMemory(kPartialsSize);
 #ifdef DYNAMIC_SCALING
-            dScalingFactors[i] = allocateGPURealMemory(kPaddedPatternCount);
+            dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
 #endif
         }
     }
@@ -175,27 +206,48 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     kLastCompactBufferIndex = kCompactBufferCount - 1;
     kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
     
-    dMatrices = (REAL**) malloc(sizeof(REAL*) * kMatrixCount);
+    dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     
     for (int i = 0; i < kMatrixCount; i++) {
-        dMatrices[i] = allocateGPURealMemory(kMatrixSize);
+        dMatrices[i] = gpu->AllocateRealMemory(kMatrixSize);
     }
     
     // No execution has more no kBufferCount events
-    dBranchLengths = allocateGPURealMemory(kBufferCount);
+    dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
     
-    dDistanceQueue = allocateGPURealMemory(kMatrixCount);
+    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount);
     hDistanceQueue = (REAL*) malloc(sizeof(REAL) * kMatrixCount);
     
-    checkNativeMemory(hDistanceQueue);
+    checkHostMemory(hDistanceQueue);
+
+    dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount);
+    hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     
-    SAFE_CUDA(cudaMalloc((void**) &dPtrQueue, sizeof(REAL*) * kMatrixCount), dPtrQueue);
-    hPtrQueue = (REAL**) malloc(sizeof(REAL*) * kMatrixCount);
+    checkHostMemory(hPtrQueue);
     
-    checkNativeMemory(hPtrQueue);
+    // loadTipPartialsAndStates
+    for (int i = 0; i < kTipCount; i++) {
+        if (hTmpTipPartials[i] != 0) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < 
+                   kTipPartialsBufferCount);
+            dPartials[i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+            gpu->MemcpyHostToDevice(dPartials[i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize);
+        } else if (hTmpStates[i] != 0) {
+            assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
+            dStates[i] = dCompactBuffers[kLastCompactBufferIndex--];
+            gpu->MemcpyHostToDevice(dStates[i], hTmpStates[i], SIZE_INT * kPaddedPatternCount);
+        }
+    }
     
-    loadTipPartialsAndStates();
-    freeTmpTipPartialsAndStates();
+    // freeTmpTipPartialsAndStates
+    for (int i = 0; i < kTipCount; i++) {
+        if (hTmpTipPartials[i] != 0)
+            free(hTmpTipPartials[i]);
+        else if (hTmpStates[i] != 0)
+            free(hTmpStates[i]);
+    }
+    free(hTmpTipPartials);
+    free(hTmpStates);
     
     kDeviceMemoryAllocated = 1;
     
@@ -206,10 +258,10 @@ int BeagleCUDAImpl::initializeInstance(InstanceDetails* returnInfo) {
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::setPartials(int bufferIndex,
+int BeagleGPUImpl::setPartials(int bufferIndex,
                                 const double* inPartials) {
 #ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setTipPartials\n");
+    fprintf(stderr, "Entering setPartials\n");
 #endif
     
     const double* inPartialsOffset = inPartials;
@@ -219,7 +271,7 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
 #ifdef DOUBLE_PRECISION
         memcpy(tmpRealPartialsOffset, inPartialsOffset, SIZE_REAL * kStateCount);
 #else
-        MEMCPY(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
+        MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
 #endif
         tmpRealPartialsOffset += kPaddedStateCount;
         inPartialsOffset += kStateCount;
@@ -231,29 +283,56 @@ int BeagleCUDAImpl::setPartials(int bufferIndex,
                    kTipPartialsBufferCount);
             dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
         }
-        // Copy to CUDA device
-        SAFE_CUDA(cudaMemcpy(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize,
-                             cudaMemcpyHostToDevice), dPartials[bufferIndex]);
+        // Copy to GPU device
+        gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     } else {
         hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
-        checkNativeMemory(hTmpTipPartials[bufferIndex]);
+        checkHostMemory(hTmpTipPartials[bufferIndex]);
         memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     }
     
 #ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setTipPartials\n");
+    fprintf(stderr, "Exiting setPartials\n");
 #endif
     
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::getPartials(int bufferIndex,
-                                double* inPartials) {
-    // TODO: implement getPartials
-    assert (false);
+int BeagleGPUImpl::getPartials(int bufferIndex,
+                                double* outPartials) {
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Entering getPartials\n");
+#endif
+    
+    // TODO: test getPartials
+
+    if (kDeviceMemoryAllocated) {
+        gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], SIZE_REAL * kPartialsSize);
+    } else {
+        memcpy(hPartialsCache, hTmpTipPartials[bufferIndex], SIZE_REAL * kPartialsSize);
+    }
+    
+    double* outPartialsOffset = outPartials;
+    REAL* tmpRealPartialsOffset = hPartialsCache;
+    
+    for (int i = 0; i < kPatternCount; i++) {
+#ifdef DOUBLE_PRECISION
+        memcpy(outPartialsOffset, tmpRealPartialsOffset, SIZE_REAL * kStateCount);
+#else
+        MEMCNV(outPartialsOffset, tmpRealPartialsOffset, kStateCount, double);
+#endif
+        tmpRealPartialsOffset += kPaddedStateCount;
+        outPartialsOffset += kStateCount;
+    }
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting getPartials\n");
+#endif
+    
+    return NO_ERROR;
 }
 
-int BeagleCUDAImpl::setTipStates(int tipIndex,
+int BeagleGPUImpl::setTipStates(int tipIndex,
                                  const int* inStates) {
     // TODO: test setTipStates
     
@@ -271,15 +350,14 @@ int BeagleCUDAImpl::setTipStates(int tipIndex,
     if (kDeviceMemoryAllocated) {
         assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
         dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
-        // Copy to CUDA device
-        SAFE_CUDA(cudaMemcpy(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount,
-                             cudaMemcpyHostToDevice), dStates[tipIndex]);
+        // Copy to GPU device
+        gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     } else {
         hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
-        checkNativeMemory(hTmpStates[tipIndex]);
+        checkHostMemory(hTmpStates[tipIndex]);
         memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     }
-    
+
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Exiting setTipStates\n");
 #endif
@@ -287,7 +365,7 @@ int BeagleCUDAImpl::setTipStates(int tipIndex,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
+int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
                                           const double* inEigenVectors,
                                           const double* inInverseEigenVectors,
                                           const double* inEigenValues) {
@@ -310,8 +388,8 @@ int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
         memcpy(tmpIevc, inInverseEigenVectors + i * kStateCount, SIZE_REAL * kStateCount);
         memcpy(tmpEvec, inEigenVectors + i * kStateCount, SIZE_REAL * kStateCount);
 #else
-        MEMCPY(tmpIevc, (inInverseEigenVectors + i * kStateCount), kStateCount, REAL);
-        MEMCPY(tmpEvec, (inEigenVectors + i * kStateCount), kStateCount, REAL);
+        MEMCNV(tmpIevc, (inInverseEigenVectors + i * kStateCount), kStateCount, REAL);
+        MEMCNV(tmpEvec, (inEigenVectors + i * kStateCount), kStateCount, REAL);
 #endif
         tmpIevc += kPaddedStateCount;
         tmpEvec += kPaddedStateCount;
@@ -326,7 +404,7 @@ int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 #ifdef DOUBLE_PRECISION
     memcpy(Eval, inEigenValues, SIZE_REAL * STATE_COUNT);
 #else
-    MEMCPY(Eval, inEigenValues, STATE_COUNT, REAL);
+    MEMCNV(Eval, inEigenValues, STATE_COUNT, REAL);
 #endif
     
 #ifdef DEBUG_BEAGLE
@@ -341,15 +419,15 @@ int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
 #endif
 #endif
     
-    // Copy to CUDA device
-    cudaMemcpy(dIevc, Ievc, SIZE_REAL * kMatrixSize, cudaMemcpyHostToDevice);
-    cudaMemcpy(dEvec, Evec, SIZE_REAL * kMatrixSize, cudaMemcpyHostToDevice);
-    cudaMemcpy(dEigenValues, Eval, SIZE_REAL * kPaddedStateCount, cudaMemcpyHostToDevice);
+    // Copy to GPU device
+    gpu->MemcpyHostToDevice(dIevc, Ievc, SIZE_REAL * kMatrixSize);
+    gpu->MemcpyHostToDevice(dEvec, Evec, SIZE_REAL * kMatrixSize);
+    gpu->MemcpyHostToDevice(dEigenValues, Eval, SIZE_REAL * kPaddedStateCount);
     
 #ifdef DEBUG_BEAGLE
-    printfCudaVector(dEigenValues, kPaddedStateCount);
-    printfCudaVector(dEvec, kMatrixSize);
-    printfCudaVector(dIevc, kPaddedStateCount * kPaddedStateCount);
+    gpu->PrintfDeviceVector(dEigenValues, kPaddedStateCount);
+    gpu->PrintfDeviceVector(dEvec, kMatrixSize);
+    gpu->PrintfDeviceVector(dIevc, kPaddedStateCount * kPaddedStateCount);
 #endif
     
 #ifdef DEBUG_FLOW
@@ -359,13 +437,38 @@ int BeagleCUDAImpl::setEigenDecomposition(int matrixIndex,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::setTransitionMatrix(int matrixIndex,
+int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
                                         const double* inMatrix) {
-    // TODO: implement setTransitionMatrix
-    assert(false);
+    // TODO: test setTransitionMatrix
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Entering setTransitionMatrix\n");
+#endif
+    
+    const double* inMatrixOffset = inMatrix;
+    REAL* tmpRealMatrixOffset = hMatrixCache;
+    
+    for (int i = 0; i < kStateCount; i++) {
+#ifdef DOUBLE_PRECISION
+        memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
+#else
+        MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
+#endif
+        tmpRealMatrixOffset += kPaddedStateCount;
+        inMatrixOffset += kStateCount;
+    }
+
+    // Copy to GPU device
+    gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache, SIZE_REAL * kMatrixSize);
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting setTransitionMatrix\n");
+#endif
+    
+    return NO_ERROR;
 }
 
-int BeagleCUDAImpl::updateTransitionMatrices(int eigenIndex,
+int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                              const int* probabilityIndices,
                                              const int* firstDerivativeIndices,
                                              const int* secondDervativeIndices,
@@ -375,22 +478,22 @@ int BeagleCUDAImpl::updateTransitionMatrices(int eigenIndex,
     fprintf(stderr,"Entering updateMatrices\n");
 #endif
     
-    // TODO: calculate derivatives
+    // TODO: implement calculation of derivatives
     
     for (int i = 0; i < count; i++) {
         hPtrQueue[i] = dMatrices[probabilityIndices[i]];
         hDistanceQueue[i] = (REAL) edgeLengths[i];
     }
 
-    cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * count, cudaMemcpyHostToDevice);
-    cudaMemcpy(dDistanceQueue, hDistanceQueue, SIZE_REAL * count, cudaMemcpyHostToDevice);
+    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * count);
+    gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * count);
 
     // Set-up and call GPU kernel
-    nativeGPUGetTransitionProbabilitiesSquare(dPtrQueue, dEvec, dIevc, dEigenValues, dDistanceQueue,
+    kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec, dIevc, dEigenValues, dDistanceQueue,
                                               count);
-    
+
 #ifdef DEBUG_BEAGLE
-    printfCudaVector(hPtrQueue[0], kMatrixSize);
+    gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize);
 #endif
     
 #ifdef DEBUG_FLOW
@@ -400,11 +503,9 @@ int BeagleCUDAImpl::updateTransitionMatrices(int eigenIndex,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::updatePartials(const int* operations,
+int BeagleGPUImpl::updatePartials(const int* operations,
                                    int operationCount,
                                    int rescale) {
-    // TODO: remove this categoryCount hack
-    int categoryCount = 1;
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering updatePartials\n");
@@ -423,61 +524,57 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
         const int child2Index = operations[op * 5 + 3];
         const int child2TransMatIndex = operations[op * 5 + 4];
         
-        REAL* matrices1 = dMatrices[child1TransMatIndex];
-        REAL* matrices2 = dMatrices[child2TransMatIndex];
+        GPUPtr matrices1 = dMatrices[child1TransMatIndex];
+        GPUPtr matrices2 = dMatrices[child2TransMatIndex];
         
-        REAL* partials1 = dPartials[child1Index];
-        REAL* partials2 = dPartials[child2Index];
+        GPUPtr partials1 = dPartials[child1Index];
+        GPUPtr partials2 = dPartials[child2Index];
         
-        REAL* partials3 = dPartials[parIndex];
+        GPUPtr partials3 = dPartials[parIndex];
         
-        int* tipStates1 = dStates[child1Index];
-        int* tipStates2 = dStates[child2Index];
+        GPUPtr tipStates1 = dStates[child1Index];
+        GPUPtr tipStates2 = dStates[child2Index];
         
 #ifdef DYNAMIC_SCALING
-        REAL* scalingFactors = dScalingFactors[parIndex];
+        GPUPtr scalingFactors = dScalingFactors[parIndex];
         
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
-                nativeGPUStatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
+                kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
                                                            matrices1, matrices2, scalingFactors,
-                                                           kPaddedPatternCount, categoryCount,
-                                                           kDoRescaling);
+                                                           kPaddedPatternCount, kDoRescaling);
             } else {
-                nativeGPUStatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
+                kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
                                                              matrices1, matrices2, scalingFactors,
-                                                             kPaddedPatternCount, categoryCount,
-                                                             kDoRescaling);
+                                                             kPaddedPatternCount, kDoRescaling);
             }
         } else {
             if (tipStates2 != 0) {
-                nativeGPUStatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
+                kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
                                                              matrices2, matrices1, scalingFactors,
-                                                             kPaddedPatternCount, categoryCount,
-                                                             kDoRescaling);
+                                                             kPaddedPatternCount, kDoRescaling);
             } else {
-                nativeGPUPartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
+                kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                matrices1, matrices2, scalingFactors,
-                                                               kPaddedPatternCount, categoryCount,
-                                                               kDoRescaling);
+                                                               kPaddedPatternCount, kDoRescaling);
             }
         }
 #else
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
-                nativeGPUStatesStatesPruning(tipStates1, tipStates2, partials3, matrices1,
-                                             matrices2, kPaddedPatternCount, categoryCount);
+                kernels->StatesStatesPruning(tipStates1, tipStates2, partials3, matrices1,
+                                             matrices2, kPaddedPatternCount);
             } else {
-                nativeGPUStatesPartialsPruning(tipStates1, partials2, partials3, matrices1,
-                                               matrices2, kPaddedPatternCount, categoryCount);
+                kernels->StatesPartialsPruning(tipStates1, partials2, partials3, matrices1,
+                                               matrices2, kPaddedPatternCount);
             }
         } else {
             if (tipStates2 != 0) {
-                nativeGPUStatesPartialsPruning(tipStates2, partials1, partials3, matrices2,
-                                               matrices1, kPaddedPatternCount, categoryCount);
+                kernels->StatesPartialsPruning(tipStates2, partials1, partials3, matrices2,
+                                               matrices1, kPaddedPatternCount);
             } else {
-                nativeGPUPartialsPartialsPruning(partials1, partials2, partials3, matrices1,
-                                                 matrices2, kPaddedPatternCount, categoryCount);
+                kernels->PartialsPartialsPruning(partials1, partials2, partials3, matrices1,
+                                                 matrices2, kPaddedPatternCount);
             }
         }
 #endif // DYNAMIC_SCALING
@@ -488,15 +585,15 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
         fprintf(stderr, "categoryCount  = %d\n", categoryCount);
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
         if (tipStates1)
-            printfCudaInt(tipStates1, kPaddedPatternCount);
+            gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
         else
-            printfCudaVector(partials1, kPartialsSize);
+            gpu->PrintfDeviceVector(partials1, kPartialsSize);
         if (tipStates2)
-            printfCudaInt(tipStates2, kPaddedPatternCount);
+            gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
         else
-            printfCudaVector(partials2, kPartialsSize);
+            gpu->PrintfDeviceVector(partials2, kPartialsSize);
         fprintf(stderr, "node index = %d\n", parIndex);
-        printfCudaVector(partials3, kPartialsSize);
+        gpu->PrintfDeviceVector(partials3, kPartialsSize);
         
         if(parIndex == 106)
             exit(-1);
@@ -510,12 +607,12 @@ int BeagleCUDAImpl::updatePartials(const int* operations,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::waitForPartials(const int* destinationPartials,
+int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
                                     int destinationPartialsCount) {
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
+int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                 const double* inWeights,
                                                 const double* inStateFrequencies,
                                                 int count,
@@ -530,16 +627,14 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         REAL* tmpStateFrequencies = hFrequenciesCache;
                 
 #ifdef DOUBLE_PRECISION
-        // TODO: fix const assigned to non-const
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
 #else
-        MEMCPY(hWeightsCache, inWeights, count, REAL);
-        MEMCPY(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+        MEMCNV(hWeightsCache, inWeights, count, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
 #endif        
-        cudaMemcpy(dWeights, tmpWeights, SIZE_REAL * count, cudaMemcpyHostToDevice);
-        cudaMemcpy(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount,
-                   cudaMemcpyHostToDevice);
+        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
 
         const int rootNodeIndex = bufferIndices[0];
         
@@ -551,32 +646,30 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             for(n = 0; n < length; n++)
                 hPtrQueue[n] = dScalingFactors[n + kTipCount];
             
-            cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * length, cudaMemcpyHostToDevice);
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
             
             // Compute scaling factors at the root
-            nativeGPUComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
+            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
                                                kPaddedPatternCount);
         }
         
         kDoRescaling = 0;
         
-        nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
+        kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
                                                     dRootScalingFactors, kPaddedPatternCount,
                                                     count);
 #else
-        nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
+        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
                                       dWeights, dFrequencies, kPaddedPatternCount,
                                       count);
 #endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
-        cudaMemcpy(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount,
-                   cudaMemcpyDeviceToHost);
+        gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
 #else
-        cudaMemcpy(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount,
-                   cudaMemcpyDeviceToHost);
-        MEMCPY(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+        MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
 #endif
         
 #ifdef DEBUG
@@ -597,7 +690,7 @@ int BeagleCUDAImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
-int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
+int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                 const int* childBufferIndices,
                                                 const int* probabilityIndices,
                                                 const int* firstDerivativeIndices,
@@ -608,7 +701,6 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                 double* outLogLikelihoods,
                                                 double* outFirstDerivatives,
                                                 double* outSecondDerivatives) {
-    // TODO: implement calculateEdgeLnL on GPU
     
     if (count == 1) { 
         
@@ -620,16 +712,14 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         REAL* tmpStateFrequencies = hFrequenciesCache;
         
 #ifdef DOUBLE_PRECISION
-        // TODO: fix const assigned to non-const
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
 #else
-        MEMCPY(hWeightsCache, inWeights, count, REAL);
-        MEMCPY(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+        MEMCNV(hWeightsCache, inWeights, count, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
 #endif        
-        cudaMemcpy(dWeights, tmpWeights, SIZE_REAL * count, cudaMemcpyHostToDevice);
-        cudaMemcpy(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount,
-                   cudaMemcpyHostToDevice);
+        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
         
         const int parIndex = parentBufferIndices[0];
         const int childIndex = childBufferIndices[0];
@@ -639,10 +729,10 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 //        const int firstDerivIndex = firstDerivativeIndices[0];
 //        const int secondDerivIndex = secondDerivativeIndices[0];
         
-        REAL* partialsParent = dPartials[parIndex];
-        REAL* partialsChild = dPartials[childIndex];        
-        int* statesChild = dStates[childIndex];
-        REAL* transMatrix = dMatrices[probIndex];
+        GPUPtr partialsParent = dPartials[parIndex];
+        GPUPtr partialsChild = dPartials[childIndex];        
+        GPUPtr statesChild = dStates[childIndex];
+        GPUPtr transMatrix = dMatrices[probIndex];
 //        REAL* firstDerivMatrix = 0L;
 //        REAL* secondDerivMatrix = 0L;
         
@@ -650,11 +740,11 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         // TODO: fix calculateEdgLnL with dynamic scaling
         
         if (statesChild != 0) {
-            nativeGPUStatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount, count);
+            kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                   transMatrix, kPaddedPatternCount);
         } else {
-            nativeGPUPartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount, count);
+            kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                     transMatrix, kPaddedPatternCount);
         }
         
         if (kDoRescaling) {
@@ -664,42 +754,40 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             for(n = 0; n < length; n++)
                 hPtrQueue[n] = dScalingFactors[n + kTipCount];
             
-            cudaMemcpy(dPtrQueue, hPtrQueue, sizeof(REAL*) * length, cudaMemcpyHostToDevice);
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
             
             // TODO: how to compute only relevant scaling factors?
             
             // Compute scaling factors at the root
-            nativeGPUComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
+            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
                                                kPaddedPatternCount);
         }
         
         kDoRescaling = 0;
         
-        nativeGPUIntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
+        kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
                                                     dFrequencies, dRootScalingFactors,
                                                     kPaddedPatternCount, count);
 #else
         if (statesChild != 0) {
             // TODO: test calculateEdgeLnL when child is of tipStates kind
-            nativeGPUStatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount, count);
+            kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                   transMatrix, kPaddedPatternCount);
         } else {
-            nativeGPUPartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount, count);
+            kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                     transMatrix, kPaddedPatternCount);
         }
         
-        nativeGPUIntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
+        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
                                       kPaddedPatternCount, count);
 
 #endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
-        cudaMemcpy(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount,
-                   cudaMemcpyDeviceToHost);
+        gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
 #else
-        cudaMemcpy(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount,
-                   cudaMemcpyDeviceToHost);
-        MEMCPY(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+        MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
 #endif
         
 #ifdef DEBUG
@@ -721,180 +809,16 @@ int BeagleCUDAImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// private methods
+// BeagleGPUImplFactory public methods
 
-void BeagleCUDAImpl::checkNativeMemory(void* ptr) {
-    if (ptr == NULL) {
-        fprintf(stderr, "Unable to allocate some memory!\n");
-        exit(-1);
-    }
-}
-
-long BeagleCUDAImpl::memoryRequirement(int kTipCount,
-                                       int stateCount) {
-// TODO: compute device memory requirements
-    
-    // Evec, storedEvec
-    // Ivec, storedIevc
-    // EigenValues, storeEigenValues
-    // Frequencies, storedFrequencies
-    // categoryProportions, storedCategoryProportions
-    // integrationTmp (kPaddedPatternCount)
-    
-    assert(false);
-}
-
-void BeagleCUDAImpl::freeMemory() {
-    for (int i = 0; i < kBufferCount; i++) {
-        if (i < kTipCount) {
-            if (i < kCompactBufferCount)
-                freeGPUMemory(dCompactBuffers[i]);
-            if (i < kTipPartialsBufferCount)
-                freeGPUMemory(dTipPartialsBuffers[i]);
-        } else {
-            freeGPUMemory(dPartials[i]);
-#ifdef DYNAMIC_SCALING
-            freeGPUMemory(dScalingFactors[i]);
-#endif
-        }
-    }
-    
-    for (int i = 0; i < kMatrixCount; i++)
-        freeGPUMemory(dMatrices[i]);
-    
-    freeGPUMemory(dEigenValues);
-    freeGPUMemory(dEvec);
-    freeGPUMemory(dIevc);
-    
-    freeGPUMemory(dWeights);
-    freeGPUMemory(dFrequencies);
-    freeGPUMemory(dIntegrationTmp);
-    
-    free(dPartials);
-
-    free(dMatrices);
-    
-#ifdef DYNAMIC_SCALING
-    free(dScalingFactors);
-    freeGPUMemory(dRootScalingFactors);
-#endif
-    
-    free(dStates);
-    
-    free(dCompactBuffers);
-    free(dTipPartialsBuffers);
-    
-    freeGPUMemory(dBranchLengths);
-    
-    free(hDistanceQueue);
-    free(hPtrQueue);
-    freeGPUMemory(dDistanceQueue);
-    freeGPUMemory(dPtrQueue);
-    
-    free(hWeightsCache);
-    free(hFrequenciesCache);
-    free(hPartialsCache);
-    free(hStatesCache);
-    free(hMatrixCache);
-    free(hLogLikelihoodsCache);
-}
-
-void BeagleCUDAImpl::freeTmpTipPartialsAndStates() {
-    for (int i = 0; i < kTipCount; i++) {
-        if (hTmpTipPartials[i] != 0)
-            free(hTmpTipPartials[i]);
-        else if (hTmpStates[i] != 0)
-            free(hTmpStates[i]);
-    }
-    
-    free(hTmpTipPartials);
-    free(hTmpStates);
-}
-
-void BeagleCUDAImpl::loadTipPartialsAndStates() {    
-    for (int i = 0; i < kTipCount; i++) {
-        if (hTmpTipPartials[i] != 0) {
-            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < 
-                   kTipPartialsBufferCount);
-            dPartials[i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
-            cudaMemcpy(dPartials[i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize,
-                       cudaMemcpyHostToDevice);
-        } else if (hTmpStates[i] != 0) {
-            assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-            dStates[i] = dCompactBuffers[kLastCompactBufferIndex--];
-            cudaMemcpy(dStates[i], hTmpStates[i], SIZE_INT * kPaddedPatternCount,
-                       cudaMemcpyHostToDevice);
-        }
-    }
-}
-
-void BeagleCUDAImpl::transposeSquareMatrix(REAL* mat,
-                                           int size) {
-    for (int i = 0; i < size - 1; i++) {
-        for (int j = i + 1; j < size; j++) {
-            REAL tmp = mat[i * size + j];
-            mat[i * size + j] = mat[j * size + i];
-            mat[j * size + i] = tmp;
-        }
-    }
-}
-
-int BeagleCUDAImpl::getGPUDeviceCount() {
-    int cDevices;
-    CUresult status;
-    status = cuInit(0);
-    if (CUDA_SUCCESS != status)
-        return 0;
-    status = cuDeviceGetCount(&cDevices);
-    if (CUDA_SUCCESS != status)
-        return 0;
-    if (cDevices == 0) {
-        return 0;
-    }
-    return cDevices;
-}
-
-void BeagleCUDAImpl::printGPUInfo(int device) {
-    
-    fprintf(stderr, "GPU Device Information:");
-    
-    char name[256];
-    int totalGlobalMemory = 0;
-    int clockSpeed = 0;
-    
-    // New CUDA functions in cutil.h do not work in JNI files
-    getGPUInfo(device, name, &totalGlobalMemory, &clockSpeed);
-    fprintf(stderr, "\nDevice #%d: %s\n", (device + 1), name);
-    double mem = totalGlobalMemory / 1024.0 / 1024.0;
-    double clo = clockSpeed / 1000000.0;
-    fprintf(stderr, "\tGlobal Memory (MB) : %1.2f\n", mem);
-    fprintf(stderr, "\tClock Speed (Ghz)  : %1.2f\n", clo);
-}
-
-void BeagleCUDAImpl::getGPUInfo(int iDevice,
-                                char* name,
-                                int* memory,
-                                int* speed) {
-    cudaDeviceProp deviceProp;
-    memset(&deviceProp, 0, sizeof(deviceProp));
-    cudaGetDeviceProperties(&deviceProp, iDevice);
-    *memory = deviceProp.totalGlobalMem;
-    *speed = deviceProp.clockRate;
-    strcpy(name, deviceProp.name);
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-// BeagleCUDAImplFactory public methods
-
-BeagleImpl*  BeagleCUDAImplFactory::createImpl(int tipCount,
+BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                                int partialsBufferCount,
                                                int compactBufferCount,
                                                int stateCount,
                                                int patternCount,
                                                int eigenBufferCount,
                                                int matrixBufferCount) {
-    BeagleImpl* impl = new BeagleCUDAImpl();
+    BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount) == 0)
@@ -909,6 +833,6 @@ BeagleImpl*  BeagleCUDAImplFactory::createImpl(int tipCount,
     return NULL;
 }
 
-const char* BeagleCUDAImplFactory::getName() {
-    return "CUDA";
+const char* BeagleGPUImplFactory::getName() {
+    return "GPU";
 }

@@ -12,13 +12,12 @@
 
 int ntaxa = 29;
 int nsites = 100000;
-// is nucleotides...
-int stateCount = 4;
+
 
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
-	double *partials = (double*)malloc(sizeof(double) * nsites * stateCount);
+	double *partials = (double*) malloc(sizeof(double) * nsites * stateCount);
 	for( int i=0; i<nsites*stateCount; i+=stateCount )
 	{
 		int s = rand()%stateCount;
@@ -28,8 +27,11 @@ double* getRandomTipPartials( int nsites, int stateCount )
 }
 
 
-double runBeagle(ResourceList* resources)
+void runBeagle(ResourceList* resources)
 {
+    // is nucleotides...
+    int stateCount = 4;
+    
 	int* rl = NULL;
 	int rll = 0;
 	if(resources!=NULL){

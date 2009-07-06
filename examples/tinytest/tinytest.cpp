@@ -19,7 +19,7 @@ char *gorilla = "AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTA
 
 int* getStates(char *sequence) {
 	int n = strlen(sequence);
-	int *states = (int*)malloc(sizeof(int) * n);
+	int *states = (int*) malloc(sizeof(int) * n);
 
 	for (int i = 0; i < n; i++) {
 		switch (sequence[i]) {
