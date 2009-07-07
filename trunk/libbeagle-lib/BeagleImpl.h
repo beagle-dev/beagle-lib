@@ -68,6 +68,8 @@ public:
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const double* inWeights,
                                             const double* inStateFrequencies,
+                                            const int* scalingFactorsIndices,
+                                            int* scalingFactorsCount,
                                             int count,
                                             double* outLogLikelihoods) = 0;
     
@@ -78,6 +80,8 @@ public:
                                             const int* secondDerivativeIndices,
                                             const double* inWeights,
                                             const double* inStateFrequencies,
+                                            const int* scalingFactorsIndices,
+                                            int* scalingFactorsCount,
                                             int count,
                                             double* outLogLikelihoods,
                                             double* outFirstDerivatives,

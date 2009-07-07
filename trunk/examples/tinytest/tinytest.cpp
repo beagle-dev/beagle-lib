@@ -169,10 +169,10 @@ int main( int argc, const char* argv[] )
 	                         4);            // count
 
     // create a list of partial likelihood update operations
-    // the order is [dest, source1, matrix1, source2, matrix2]
-	int operations[5 * 2] = {
-		3, 0, 0, 1, 1,
-		4, 2, 2, 3, 3
+    // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+	int operations[6 * 2] = {
+		3, 3, 0, 0, 1, 1,
+		4, 4, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
 
@@ -184,12 +184,17 @@ int main( int argc, const char* argv[] )
 	                0);             // rescale ? 0 = no
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
+    
+    int scalingFactorsIndices[2] = {3, 4}; // internal nodes
+    int scalingFactorsCount = 2;
 
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                 // stateFrequencies
+                                scalingFactorsIndices,
+                                &scalingFactorsCount,
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
 

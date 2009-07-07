@@ -141,6 +141,8 @@ public:
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
+                                    const int* scalingFactorsIndices,
+                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -151,6 +153,8 @@ public:
                                     const int* secondDerivativeIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
+                                    const int* scalingFactorsIndices,
+                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,

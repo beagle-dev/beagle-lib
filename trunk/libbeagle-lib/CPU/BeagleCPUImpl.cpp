@@ -134,7 +134,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
     return NO_ERROR;
 }
 
-int BeagleCPUImpl:: initializeInstance(InstanceDetails* returnInfo) {
+int BeagleCPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     return NO_ERROR;
 }
 
@@ -246,12 +246,14 @@ int BeagleCPUImpl::updatePartials(const int* operations,
             std::cerr << "op[2]= " << operations[2] << "\n";
             std::cerr << "op[3]= " << operations[3] << "\n";
             std::cerr << "op[4]= " << operations[4] << "\n";
+            std::cerr << "op[5]= " << operations[5] << "\n";
         }
-        const int parIndex = operations[op * 5];
-        const int child1Index = operations[op * 5 + 1];
-        const int child1TransMatIndex = operations[op * 5 + 2];
-        const int child2Index = operations[op * 5 + 3];
-        const int child2TransMatIndex = operations[op * 5 + 4];
+        const int parIndex = operations[op * 6];
+//      const int scalingIndex = operations[op * 6 + 1];
+        const int child1Index = operations[op * 6 + 2];
+        const int child1TransMatIndex = operations[op * 6 + 3];
+        const int child2Index = operations[op * 6 + 4];
+        const int child2TransMatIndex = operations[op * 6 + 5];
         
         assert(parIndex < partials.size());
         assert(parIndex >= tipStates.size());
@@ -299,6 +301,8 @@ int BeagleCPUImpl::waitForPartials(const int* destinationPartials,
 int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
+                                               const int* scalingFactorsIndices,
+                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
     
@@ -341,6 +345,8 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                const int* secondDerivativeIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
+                                               const int* scalingFactorsIndices,
+                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,

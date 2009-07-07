@@ -286,8 +286,9 @@ int updateTransitionMatrices(int instance,
  * operations immediately.  Implementations supporting GPU may perform all operations in the list
  * simultaneously.
  *
- * Operations list is a list of 5-tuple integer indices, with one 5-tuple per operation.
- * Format of 5-tuple operation: {destinationPartials,
+ * Operations list is a list of 6-tuple integer indices, with one 6-tuple per operation.
+ * Format of 6-tuple operation: {destinationPartials,
+ *                               destinationScalingFactors, (this index must be > tipCount)
  *                               child1Partials,
  *                               child1TransitionMatrix,
  *                               child2Partials,
@@ -295,7 +296,7 @@ int updateTransitionMatrices(int instance,
  *
  * @param instance          List of instances for which to update partials buffers (input)
  * @param instanceCount     Length of instance list (input)
- * @param operations        List of 5-tuples specifying operations (input)
+ * @param operations        List of 6-tuples specifying operations (input)
  * @param operationCount    Number of operations (input)
  * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors 
  *
@@ -340,6 +341,9 @@ int waitForPartials(const int* instance,
  * @param inWeights             List of weights to apply to each partialsBuffer (input)
  * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
  *                               should be one set for each of parentBufferIndices
+ * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There
+ *                               should be one set for each of parentBufferIndices
+ * @param scalingFactorsCount   List of scalingFactorsIndices sizes for each partialsBuffer (input)
  * @param count                 Number of partialsBuffer to integrate (input)
  * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output) 
  *
@@ -349,6 +353,8 @@ int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
+                                const int* scalingFactorsIndices,
+                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods);
 
@@ -369,6 +375,10 @@ int calculateRootLogLikelihoods(int instance,
  * @param inWeights                 List of weights to apply to each partialsBuffer (input)
  * @param inStateFrequencies        List of state frequencies for each partialsBuffer (input). There
  *                                   should be one set for each of parentBufferIndices
+ * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
+ *                                   should be one set for each of parentBufferIndices
+ * @param scalingFactorsCount       List of scalingFactorsIndices sizes for each partialsBuffer
+ *                                   (input)
  * @param count                     Number of partialsBuffers (input)
  * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
  * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
@@ -384,6 +394,8 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const int* secondDerivativeIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
+                                const int* scalingFactorsIndices,
+                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,

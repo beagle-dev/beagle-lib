@@ -113,14 +113,18 @@ void runBeagle(ResourceList* resources)
 	                         ntaxa*2-2);            // count
 
     // create a list of partial likelihood update operations
-    // the order is [dest, source1, matrix1, source2, matrix2]
-	int* operations = new int[(ntaxa-1)*5];
+    // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+	int* operations = new int[(ntaxa-1)*6];
+    int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
-		operations[5*i+0] = ntaxa+i;
-		operations[5*i+1] = i*2;
-		operations[5*i+2] = i*2;
-		operations[5*i+3] = i*2+1;
-		operations[5*i+4] = i*2+1;
+		operations[6*i+0] = ntaxa+i;
+        operations[6*i+1] = ntaxa+i;
+		operations[6*i+2] = i*2;
+		operations[6*i+3] = i*2;
+		operations[6*i+4] = i*2+1;
+		operations[6*i+5] = i*2+1;
+        
+        scalingFactorsIndices[i] = ntaxa+i;
 	}	
 
 	int rootIndex = ntaxa*2-2;
@@ -137,12 +141,17 @@ void runBeagle(ResourceList* resources)
 	                1);             // rescale ? 0 = no
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nsites);
+    
+
+    int scalingFactorsCount = ntaxa-1;
 
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                 // stateFrequencies
+                                scalingFactorsIndices,
+                                &scalingFactorsCount,
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
 
