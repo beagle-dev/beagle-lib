@@ -336,6 +336,8 @@ int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* weights,
                                 const double* stateFrequencies,
+                                const int* scalingFactorsIndices,
+                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods) {
     try {
@@ -344,7 +346,9 @@ int calculateRootLogLikelihoods(int instance,
             return UNINITIALIZED_INSTANCE_ERROR;
 
         return beagleInstance->calculateRootLogLikelihoods(bufferIndices, weights, stateFrequencies,
-                                                           count, outLogLikelihoods);
+                                                           scalingFactorsIndices,
+                                                           scalingFactorsCount, count,
+                                                           outLogLikelihoods);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -367,6 +371,8 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const int* secondDerivativeIndices,
                                 const double* weights,
                                 const double* stateFrequencies,
+                                const int* scalingFactorsIndices,
+                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
@@ -380,7 +386,8 @@ int calculateEdgeLogLikelihoods(int instance,
                                                            probabilityIndices,
                                                            firstDerivativeIndices,
                                                            secondDerivativeIndices, weights,
-                                                           stateFrequencies, count,
+                                                           stateFrequencies, scalingFactorsIndices,
+                                                           scalingFactorsCount, count,
                                                            outLogLikelihoods, outFirstDerivatives,
                                                            outSecondDerivatives);
     }

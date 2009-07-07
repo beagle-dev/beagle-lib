@@ -58,24 +58,24 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 }
 
 int BeagleGPUImpl::createInstance(int tipCount,
-                                   int partialsBufferCount,
-                                   int compactBufferCount,
-                                   int stateCount,
-                                   int patternCount,
-                                   int eigenDecompositionCount,
-                                   int matrixCount) {
+                                  int partialsBufferCount,
+                                  int compactBufferCount,
+                                  int stateCount,
+                                  int patternCount,
+                                  int eigenDecompositionCount,
+                                  int matrixCount) {
     
     // TODO: Determine if GPU device satisfies memory requirements.
-
+    
     gpu = new GPUInterface();
-
+    
     int numDevices = 0;
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
         fprintf(stderr, "Error: No GPU devices\n");
         return GENERAL_ERROR;
     }
-
+    
     currentDevice++;
     if (currentDevice == numDevices)
         currentDevice = 0;
@@ -219,7 +219,7 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     hDistanceQueue = (REAL*) malloc(sizeof(REAL) * kMatrixCount);
     
     checkHostMemory(hDistanceQueue);
-
+    
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount);
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     
@@ -259,7 +259,7 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
 }
 
 int BeagleGPUImpl::setPartials(int bufferIndex,
-                                const double* inPartials) {
+                               const double* inPartials) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering setPartials\n");
 #endif
@@ -299,13 +299,13 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
 }
 
 int BeagleGPUImpl::getPartials(int bufferIndex,
-                                double* outPartials) {
+                               double* outPartials) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering getPartials\n");
 #endif
     
     // TODO: test getPartials
-
+    
     if (kDeviceMemoryAllocated) {
         gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], SIZE_REAL * kPartialsSize);
     } else {
@@ -333,7 +333,7 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
 }
 
 int BeagleGPUImpl::setTipStates(int tipIndex,
-                                 const int* inStates) {
+                                const int* inStates) {
     // TODO: test setTipStates
     
 #ifdef DEBUG_FLOW
@@ -357,7 +357,7 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
         checkHostMemory(hTmpStates[tipIndex]);
         memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     }
-
+    
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Exiting setTipStates\n");
 #endif
@@ -366,9 +366,9 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
 }
 
 int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
-                                          const double* inEigenVectors,
-                                          const double* inInverseEigenVectors,
-                                          const double* inEigenValues) {
+                                         const double* inEigenVectors,
+                                         const double* inInverseEigenVectors,
+                                         const double* inEigenValues) {
     
 #ifdef DEBUG_FLOW
     fprintf(stderr,"Entering updateEigenDecomposition\n");
@@ -438,7 +438,7 @@ int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
 }
 
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
-                                        const double* inMatrix) {
+                                       const double* inMatrix) {
     // TODO: test setTransitionMatrix
     
 #ifdef DEBUG_FLOW
@@ -457,7 +457,7 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
         tmpRealMatrixOffset += kPaddedStateCount;
         inMatrixOffset += kStateCount;
     }
-
+    
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache, SIZE_REAL * kMatrixSize);
     
@@ -469,11 +469,11 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
 }
 
 int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
-                                             const int* probabilityIndices,
-                                             const int* firstDerivativeIndices,
-                                             const int* secondDervativeIndices,
-                                             const double* edgeLengths,
-                                             int count) {
+                                            const int* probabilityIndices,
+                                            const int* firstDerivativeIndices,
+                                            const int* secondDervativeIndices,
+                                            const double* edgeLengths,
+                                            int count) {
 #ifdef DEBUG_FLOW
     fprintf(stderr,"Entering updateMatrices\n");
 #endif
@@ -484,14 +484,14 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
         hPtrQueue[i] = dMatrices[probabilityIndices[i]];
         hDistanceQueue[i] = (REAL) edgeLengths[i];
     }
-
+    
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * count);
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * count);
-
+    
     // Set-up and call GPU kernel
     kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec, dIevc, dEigenValues, dDistanceQueue,
                                               count);
-
+    
 #ifdef DEBUG_BEAGLE
     gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize);
 #endif
@@ -504,8 +504,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
 }
 
 int BeagleGPUImpl::updatePartials(const int* operations,
-                                   int operationCount,
-                                   int rescale) {
+                                  int operationCount,
+                                  int rescale) {
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering updatePartials\n");
@@ -518,11 +518,12 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     
     // Serial version
     for (int op = 0; op < operationCount; op++) {
-        const int parIndex = operations[op * 5];
-        const int child1Index = operations[op * 5 + 1];
-        const int child1TransMatIndex = operations[op * 5 + 2];
-        const int child2Index = operations[op * 5 + 3];
-        const int child2TransMatIndex = operations[op * 5 + 4];
+        const int parIndex = operations[op * 6];
+        const int scalingIndex = operations[op * 6 + 1];
+        const int child1Index = operations[op * 6 + 2];
+        const int child1TransMatIndex = operations[op * 6 + 3];
+        const int child2Index = operations[op * 6 + 4];
+        const int child2TransMatIndex = operations[op * 6 + 5];
         
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -536,7 +537,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         GPUPtr tipStates2 = dStates[child2Index];
         
 #ifdef DYNAMIC_SCALING
-        GPUPtr scalingFactors = dScalingFactors[parIndex];
+        GPUPtr scalingFactors = dScalingFactors[scalingIndex];
         
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
@@ -608,24 +609,26 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 }
 
 int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
-                                    int destinationPartialsCount) {
+                                   int destinationPartialsCount) {
     return NO_ERROR;
 }
 
 int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
-                                                const double* inWeights,
-                                                const double* inStateFrequencies,
-                                                int count,
-                                                double* outLogLikelihoods) {
+                                               const double* inWeights,
+                                               const double* inStateFrequencies,
+                                               const int* scalingFactorsIndices,
+                                               int* scalingFactorsCount,
+                                               int count,
+                                               double* outLogLikelihoods) {
     if (count == 1) { 
-
+        
 #ifdef DEBUG_FLOW
         fprintf(stderr, "Entering calculateLogLikelihoods\n");
 #endif
         
         REAL* tmpWeights = hWeightsCache;
         REAL* tmpStateFrequencies = hFrequenciesCache;
-                
+        
 #ifdef DOUBLE_PRECISION
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
@@ -635,16 +638,15 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count);
         gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
-
+        
         const int rootNodeIndex = bufferIndices[0];
         
 #ifdef DYNAMIC_SCALING
         if (kDoRescaling) {
             // Construct node-list for scalingFactors
-            int n;
-            int length = kBufferCount - kTipCount;
-            for(n = 0; n < length; n++)
-                hPtrQueue[n] = dScalingFactors[n + kTipCount];
+            int length = scalingFactorsCount[0];
+            for(int n = 0; n < length; n++)
+                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
             
             gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
             
@@ -681,7 +683,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         // TODO: implement calculate root lnL for count > 1
         assert(false);
     }
-
+    
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Exiting calculateLogLikelihoods\n");
@@ -691,16 +693,18 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 }
 
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
-                                                const int* childBufferIndices,
-                                                const int* probabilityIndices,
-                                                const int* firstDerivativeIndices,
-                                                const int* secondDerivativeIndices,
-                                                const double* inWeights,
-                                                const double* inStateFrequencies,
-                                                int count,
-                                                double* outLogLikelihoods,
-                                                double* outFirstDerivatives,
-                                                double* outSecondDerivatives) {
+                                               const int* childBufferIndices,
+                                               const int* probabilityIndices,
+                                               const int* firstDerivativeIndices,
+                                               const int* secondDerivativeIndices,
+                                               const double* inWeights,
+                                               const double* inStateFrequencies,
+                                               const int* scalingFactorsIndices,
+                                               int* scalingFactorsCount,
+                                               int count,
+                                               double* outLogLikelihoods,
+                                               double* outFirstDerivatives,
+                                               double* outSecondDerivatives) {
     
     if (count == 1) { 
         
@@ -726,15 +730,15 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         const int probIndex = probabilityIndices[0];
         
         // TODO: implement derivatives for calculateEdgeLnL
-//        const int firstDerivIndex = firstDerivativeIndices[0];
-//        const int secondDerivIndex = secondDerivativeIndices[0];
+        //        const int firstDerivIndex = firstDerivativeIndices[0];
+        //        const int secondDerivIndex = secondDerivativeIndices[0];
         
         GPUPtr partialsParent = dPartials[parIndex];
         GPUPtr partialsChild = dPartials[childIndex];        
         GPUPtr statesChild = dStates[childIndex];
         GPUPtr transMatrix = dMatrices[probIndex];
-//        REAL* firstDerivMatrix = 0L;
-//        REAL* secondDerivMatrix = 0L;
+        //        REAL* firstDerivMatrix = 0L;
+        //        REAL* secondDerivMatrix = 0L;
         
 #ifdef DYNAMIC_SCALING
         // TODO: fix calculateEdgLnL with dynamic scaling
@@ -749,16 +753,13 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         
         if (kDoRescaling) {
             // Construct node-list for scalingFactors
-            int n;
-            int length = kBufferCount - kTipCount;
-            for(n = 0; n < length; n++)
-                hPtrQueue[n] = dScalingFactors[n + kTipCount];
-            
+            int length = scalingFactorsCount[0];
+            for(int n = 0; n < length; n++)
+                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
+                        
             gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
             
-            // TODO: how to compute only relevant scaling factors?
-            
-            // Compute scaling factors at the root
+            // Accumulate scaling factors
             kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
                                                kPaddedPatternCount);
         }
@@ -780,7 +781,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         
         kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
                                       kPaddedPatternCount, count);
-
+        
 #endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
@@ -812,12 +813,12 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 // BeagleGPUImplFactory public methods
 
 BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
-                                               int partialsBufferCount,
-                                               int compactBufferCount,
-                                               int stateCount,
-                                               int patternCount,
-                                               int eigenBufferCount,
-                                               int matrixBufferCount) {
+                                              int partialsBufferCount,
+                                              int compactBufferCount,
+                                              int stateCount,
+                                              int patternCount,
+                                              int eigenBufferCount,
+                                              int matrixBufferCount) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
