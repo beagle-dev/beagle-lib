@@ -75,15 +75,23 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
    * Moved all CUDA specific code to a lower level. This is in preparation for OpenCL version and will allow the two GPU versions to share all code except for minor kernel modifications and the GPUInterface implementation
 
 == 07/06 - 07/12 ==
- * Implement previously proposed rescaling related API changes
- * Implement derivative kernels for updateTransitionMatrices and calculateEdgeLogLikelihoods
+ * Modified API, CPU and GPU implementations and examples to reflect rescaling related changes 1 and 2 from http://bit.ly/1zhHKb
+ * Modified API, implemented change 3 from http://bit.ly/1zhHKb to CPU version, GPU version is a work in progress
+ * Switched to PTX kernel compilation, this results in slightly longer GPU initialization times but allows for performance gains from future driver improvements. See http://bit.ly/3Ra0qk
+ * Fixed autotools compilation issues, see http://bit.ly/12MaGe
+ * Updated Xcode project to reflect PTX change. Requires modified CUDA plugin available at http://bit.ly/14wAQJ 
+ * Fixed JNI wrapper to reflect modified API
 
 == 07/13 - 07/19 ==
+ * Complete work on rate categories implementation on GPU version
+ * Work on derivative calculation kernels
+
+== 07/20 - 07/26 ==
  * Complete draft of CUDA implementation with near full support of proposed API
  * Begin work on OpenCL version
    * Create OpenCL implementation of GPUInterface
 
-== 07/20 - 07/26 ==
+== 07/27 - 08/02 ==
  * Continue work on OpenCL implementation
    * Convert kernels to OpenCL
    * Test OpenCL version
