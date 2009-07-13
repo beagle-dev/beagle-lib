@@ -32,6 +32,7 @@ private:
     int kMatrixCount; /// the number of transition matrices to alloc and store
     int kStateCount; /// the number of states
     int kEigenDecompCount; /// the number of eigen solutions to alloc and store
+    int kCategoryCount;
     
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
@@ -44,6 +45,8 @@ private:
     double** cMatrices;
     // each element of eigenValues is a kStateCount array of eigenvalues
     double** eigenValues;
+    
+    double* categoryRates;
     
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
@@ -66,7 +69,8 @@ public:
                        int stateCount,
                        int patternCount,
                        int eigenDecompositionCount,
-                       int matrixCount);
+                       int matrixCount,
+                       int categoryCount);
     
     // initialization of instance,  returnInfo can be null
     int initializeInstance(InstanceDetails* returnInfo);
@@ -98,6 +102,11 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
+    
+    // set the vector of category rates
+    //
+    // categoryRates an array containing categoryCount rate scalers
+    int setCategoryRates(const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
@@ -197,7 +206,8 @@ public:
                                    int stateCount,
                                    int patternCount,
                                    int eigenBufferCount,
-                                   int matrixBufferCount);
+                                   int matrixBufferCount,
+                                   int categoryCount);
     
     virtual const char* getName();
 };

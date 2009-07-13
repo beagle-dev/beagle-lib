@@ -28,8 +28,6 @@ private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
     
-    int kDevice;
-    
     int kDeviceMemoryAllocated;
     
     int kTipCount;
@@ -39,6 +37,7 @@ private:
     int kPatternCount;
     int kEigenDecompCount;
     int kMatrixCount;
+    int kCategoryCount;
  
     int kTipPartialsBufferCount;
     int kBufferCount;
@@ -65,6 +64,8 @@ private:
     GPUPtr dIntegrationTmp;
     GPUPtr dPartialsTmp;
     
+	REAL* hCategoryRates;
+    
     GPUPtr* dPartials;
     GPUPtr* dMatrices;
     
@@ -89,6 +90,7 @@ private:
     
     REAL* hWeightsCache;
     REAL* hFrequenciesCache;
+    REAL* hCategoryCache;
     REAL* hLogLikelihoodsCache;
     REAL* hPartialsCache;
     int* hStatesCache;
@@ -103,7 +105,8 @@ public:
                        int stateCount,
                        int patternCount,
                        int eigenDecompositionCount,
-                       int matrixCount);
+                       int matrixCount,
+                       int categoryCount);
     
     int initializeInstance(InstanceDetails* retunInfo);
     
@@ -120,6 +123,8 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
+    
+    int setCategoryRates(const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
@@ -169,7 +174,8 @@ public:
                                    int stateCount,
                                    int patternCount,
                                    int eigenBufferCount,
-                                   int matrixBufferCount);
+                                   int matrixBufferCount,
+                                   int categoryCount);
 
     virtual const char* getName();
 };

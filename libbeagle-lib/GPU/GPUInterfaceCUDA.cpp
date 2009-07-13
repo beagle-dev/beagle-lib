@@ -23,7 +23,8 @@
 #define SAFE_CUDA(call) { \
                             CUresult error = call; \
                             if(error != CUDA_SUCCESS) { \
-                                fprintf(stderr, "CUDA error %d\n", error); \
+                                fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n", \
+                                        GetCUDAErrorDescription(error), __FILE__, __LINE__); \
                                 exit(-1); \
                             } \
                         }
@@ -85,14 +86,22 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     
     SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
     
-    int offsetSize = sizeof(int);
+    int offset = 0;
     va_list parameters;
     va_start(parameters, totalParameterCount);  
-    for(int i = 0; i < totalParameterCount; i++)
-        SAFE_CUDA(cuParamSeti(deviceFunction, offsetSize * i, va_arg(parameters, unsigned int)));
+    for(int i = 0; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+        
+         // adjust offset alignment requirements
+        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+
+        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
+        
+        offset += sizeof(param);
+    }
     va_end(parameters);
     
-    SAFE_CUDA(cuParamSetSize(deviceFunction, offsetSize * totalParameterCount));
+    SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
     
     SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
     
@@ -219,3 +228,53 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     
     free(hPtr);
 }
+
+char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
+    
+    char* errorDesc;
+    
+    // from cuda.h
+    switch(errorCode) {
+        case CUDA_SUCCESS: errorDesc = "No errors"; break;
+        case CUDA_ERROR_INVALID_VALUE: errorDesc = "Invalid value"; break;
+        case CUDA_ERROR_OUT_OF_MEMORY: errorDesc = "Out of memory"; break;
+        case CUDA_ERROR_NOT_INITIALIZED: errorDesc = "Driver not initialized"; break;
+        case CUDA_ERROR_DEINITIALIZED: errorDesc = "Driver deinitialized"; break;
+            
+        case CUDA_ERROR_NO_DEVICE: errorDesc = "No CUDA-capable device available"; break;
+        case CUDA_ERROR_INVALID_DEVICE: errorDesc = "Invalid device"; break;
+            
+        case CUDA_ERROR_INVALID_IMAGE: errorDesc = "Invalid kernel image"; break;
+        case CUDA_ERROR_INVALID_CONTEXT: errorDesc = "Invalid context"; break;
+        case CUDA_ERROR_CONTEXT_ALREADY_CURRENT: errorDesc = "Context already current"; break;
+        case CUDA_ERROR_MAP_FAILED: errorDesc = "Map failed"; break;
+        case CUDA_ERROR_UNMAP_FAILED: errorDesc = "Unmap failed"; break;
+        case CUDA_ERROR_ARRAY_IS_MAPPED: errorDesc = "Array is mapped"; break;
+        case CUDA_ERROR_ALREADY_MAPPED: errorDesc = "Already mapped"; break;
+        case CUDA_ERROR_NO_BINARY_FOR_GPU: errorDesc = "No binary for GPU"; break;
+        case CUDA_ERROR_ALREADY_ACQUIRED: errorDesc = "Already acquired"; break;
+        case CUDA_ERROR_NOT_MAPPED: errorDesc = "Not mapped"; break;
+            
+        case CUDA_ERROR_INVALID_SOURCE: errorDesc = "Invalid source"; break;
+        case CUDA_ERROR_FILE_NOT_FOUND: errorDesc = "File not found"; break;
+            
+        case CUDA_ERROR_INVALID_HANDLE: errorDesc = "Invalid handle"; break;
+            
+        case CUDA_ERROR_NOT_FOUND: errorDesc = "Not found"; break;
+            
+        case CUDA_ERROR_NOT_READY: errorDesc = "CUDA not ready"; break;
+            
+        case CUDA_ERROR_LAUNCH_FAILED: errorDesc = "Launch failed"; break;
+        case CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES: errorDesc = "Launch exceeded resources"; break;
+        case CUDA_ERROR_LAUNCH_TIMEOUT: errorDesc = "Launch exceeded timeout"; break;
+        case CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING: errorDesc =
+            "Launch with incompatible texturing"; break;
+            
+        case CUDA_ERROR_UNKNOWN: errorDesc = "Unknown error"; break;
+            
+        default: errorDesc = "Unknown error";
+    }
+    
+    return errorDesc;
+}
+

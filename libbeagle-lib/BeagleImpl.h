@@ -30,7 +30,8 @@ public:
                                int stateCount,
                                int patternCount,
                                int eigenBufferCount,
-                               int matrixBufferCount) = 0;
+                               int matrixBufferCount,
+                               int categoryCount) = 0;
     
     virtual int initializeInstance(InstanceDetails* returnInfo) = 0;
     
@@ -47,6 +48,8 @@ public:
                                       const double* inEigenVectors,
                                       const double* inInverseEigenVectors,
                                       const double* inEigenValues) = 0;
+    
+    virtual int setCategoryRates(const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix) = 0;
@@ -96,7 +99,8 @@ public:
                                    int stateCount,
                                    int patternCount,
                                    int eigenBufferCount,
-                                   int matrixBufferCount) = 0; // pure virtual
+                                   int matrixBufferCount,
+                                   int categoryCount) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
 };

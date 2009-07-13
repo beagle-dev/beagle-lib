@@ -122,6 +122,7 @@ ResourceList* getResourceList();
  * @param eigenBufferCount      Number of rate matrix eigen-decomposition buffers to allocate
  *                               (input)
  * @param matrixBufferCount     Number of rate matrix buffers (input)
+ * @param categoryCount         Number of rate categories (input)
  * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
@@ -140,6 +141,7 @@ int createInstance(int tipCount,
                    int patternCount,
                    int eigenBufferCount,
                    int matrixBufferCount,
+                   int categoryCount,
                    int* resourceList,
                    int resourceCount,
                    long preferenceFlags,
@@ -203,7 +205,7 @@ int getPartials(int instance,
 /**
  * @brief Set the compact state representation for tip node
  *
- * This function copies a compact state representation into a instance buffer.
+ * This function copies a compact state representation into an instance buffer.
  * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount)
  *
  * @param instance  Instance number (input)
@@ -219,7 +221,7 @@ int setTipStates(int instance,
 /**
  * @brief Set an eigen-decomposition buffer
  *
- * This function copies an eigen-decomposition into a instance buffer.
+ * This function copies an eigen-decomposition into an instance buffer.
  *
  * @param instance              Instance number (input)
  * @param eigenIndex            Index of eigen-decomposition buffer (input)
@@ -235,6 +237,19 @@ int setEigenDecomposition(int instance,
                           const double* inEigenVectors,
                           const double* inInverseEigenVectors,
                           const double* inEigenValues);
+    
+/**
+ * @brief Set category rates
+ *
+ * This function sets the vector of category rates for an instance.
+ *
+ * @param instance              Instance number (input)
+ * @param inCategoryRates       Array containing categoryCount rate scalers (input)
+ * 
+ * @return error code
+ */
+int setCategoryRates(int instance,
+                     const double* inCategoryRates);
 
 /**
  * @brief Set a finite-time transition probability matrix
@@ -338,7 +353,9 @@ int waitForPartials(const int* instance,
  *
  * @param instance              Instance number (input)
  * @param bufferIndices         List of partialsBuffer indices to integrate (input)
- * @param inWeights             List of weights to apply to each partialsBuffer (input)
+ * @param inWeights             List of weights to apply to each partialsBuffer (input). There
+ *                               should be one categoryCount sized set for each of
+ *                               parentBufferIndices
  * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
  *                               should be one set for each of parentBufferIndices
  * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There

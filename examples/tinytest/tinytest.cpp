@@ -102,6 +102,7 @@ int main( int argc, const char* argv[] )
 				nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
 				1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
 				4,		        /**< Number of rate matrix buffers (input) */
+                1,              /**< Number of rate categories (input) */
 				NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				0,			    /**< Length of resourceList list (input) */
 				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
@@ -128,6 +129,9 @@ int main( int argc, const char* argv[] )
 	setPartials(instance, 0, getPartials(human));
 	setPartials(instance, 1, getPartials(chimp));
 	setPartials(instance, 2, getPartials(gorilla));
+    
+	double rates[1] = { 1.0 };
+	setCategoryRates(instance, rates);
 	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };

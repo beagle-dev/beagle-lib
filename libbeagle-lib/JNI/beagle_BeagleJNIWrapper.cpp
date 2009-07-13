@@ -13,7 +13,7 @@
  * Signature: (IIIIIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
-	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount, jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
+	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount, jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint categoryCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
 {
     jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
 
@@ -24,6 +24,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 	                                patternCount,
 	                                eigenBufferCount,
 	                                matrixBufferCount,
+                                    categoryCount,
 	                                (int *)resourceList,
 	                                resourceCount,
 	                                preferenceFlags,
@@ -171,14 +172,16 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
  * Signature: (I[I[D[DI[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
-  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jdoubleArray inWeights, jdoubleArray inStateFrequencies, jint count, jdoubleArray outLogLikelihoods)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jdoubleArray inWeights, jdoubleArray inStateFrequencies, jintArray inScalingIndices, jintArray inScalingCount, jint count, jdoubleArray outLogLikelihoods)
 {
     jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
     jdouble *weights = env->GetDoubleArrayElements(inWeights, NULL);
     jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
+    jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
+    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
     jdouble *logLikelihoods = env->GetDoubleArrayElements(outLogLikelihoods, NULL);
 
-	calculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights, (double *)stateFrequencies, count, (double *)logLikelihoods);
+	calculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights, (double *)stateFrequencies, (int *)scalingIndices, (int *)scalingCount, count, (double *)logLikelihoods);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outLogLikelihoods, logLikelihoods, 0);

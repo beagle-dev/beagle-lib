@@ -27,6 +27,7 @@ private:
     CUdevice cudaDevice;
     CUcontext cudaContext;
     CUmodule cudaModule;
+    char* GetCUDAErrorDescription(int errorCode);
 #endif
 public:
     GPUInterface();
