@@ -84,7 +84,8 @@ int BeagleCPUImpl::createInstance(int tipCount,
                                   int stateCount,
                                   int patternCount,
                                   int eigenDecompositionCount,
-                                  int matrixCount) {
+                                  int matrixCount,
+                                  int categoryCount) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
     
@@ -95,8 +96,9 @@ int BeagleCPUImpl::createInstance(int tipCount,
     kPatternCount = patternCount;
     kMatrixCount = matrixCount;
     kEigenDecompCount = eigenDecompositionCount;
+	kCategoryCount = categoryCount;
     
-    kMatrixSize = (1 + stateCount) * stateCount;
+    kMatrixSize = (1 + kStateCount) * kStateCount;
     
     cMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
     if (cMatrices == 0L)
@@ -107,17 +109,18 @@ int BeagleCPUImpl::createInstance(int tipCount,
         throw std::bad_alloc();
     
     for (int i = 0; i < eigenDecompositionCount; i++) {
-        cMatrices[i] = (double*) malloc(sizeof(double) * stateCount * stateCount * stateCount);
+        cMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
         if (cMatrices[i] == 0L)
             throw std::bad_alloc();
         
-        eigenValues[i] = (double*) malloc(sizeof(double) * stateCount);
+        eigenValues[i] = (double*) malloc(sizeof(double) * kStateCount);
         if (eigenValues[i] == 0L)
             throw std::bad_alloc();
     }
     
+	categoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
     
-    kPartialsSize = kPatternCount * stateCount;
+    kPartialsSize = kPatternCount * kStateCount * kCategoryCount;
     
     partials.assign(kBufferCount, 0L);
     tipStates.assign(kTipCount, 0L);
@@ -128,7 +131,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
             throw std::bad_alloc();
     }
     
-    std::vector<double> emptyMat(kMatrixSize);
+    std::vector<double> emptyMat(kMatrixSize * kCategoryCount);
     transitionMatrices.assign(kMatrixCount, emptyMat);
     
     return NO_ERROR;
@@ -159,9 +162,12 @@ int BeagleCPUImpl::getPartials(int bufferIndex,
 int BeagleCPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
     tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
-    for (int i = 0; i < kPatternCount; i++) {
-        tipStates[tipIndex][i] = (inStates[i] < kStateCount ? inStates[i]
-                                  : kStateCount);
+    int k= 0;
+    for (int i = 0; i < kCategoryCount; i++) {
+        for (int j = 0; j < kPatternCount; j++) {
+            tipStates[tipIndex][k] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
+            k++;
+        }        
     }
     
     return NO_ERROR;
@@ -177,7 +183,7 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
         for (int j = 0; j < kStateCount; j++) {
             for (int k = 0; k < kStateCount; k++) {
                 cMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
-                * inInverseEigenVectors[(k * kStateCount) + j];
+                        * inInverseEigenVectors[(k * kStateCount) + j];
                 l++;
             }
         }
@@ -186,9 +192,17 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
     return NO_ERROR;
 }
 
+int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
+    // TODO: test CPU setCategoryRates
+	memcpy(categoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
+    return NO_ERROR;
+}
+
 int BeagleCPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
-    assert(false);
+    // TODO: test CPU setTransitionMatrix
+    memcpy(&(transitionMatrices[matrixIndex][0]), inMatrix, sizeof(double) * kMatrixSize);
+    return NO_ERROR;
 }
 
 int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
@@ -203,27 +217,29 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
     for (int u = 0; u < count; u++) {
         std::vector<double> & transitionMat = transitionMatrices[probabilityIndices[u]];
         int n = 0;
-        
-        for (int i = 0; i < kStateCount; i++) {
-            tmp[i] = exp(eigenValues[eigenIndex][i] * edgeLengths[u]);
-        }
-        
-        int m = 0;
-        for (int i = 0; i < kStateCount; i++) {
-            for (int j = 0; j < kStateCount; j++) {
-                double sum = 0.0;
-                for (int k = 0; k < kStateCount; k++) {
-                    sum += cMatrices[eigenIndex][m] * tmp[k];
-                    m++;
+        for (int l = 0; l < kCategoryCount; l++) {
+            
+            for (int i = 0; i < kStateCount; i++) {
+                tmp[i] = exp(eigenValues[eigenIndex][i] * edgeLengths[u] * categoryRates[l]);
+            }
+            
+            int m = 0;
+            for (int i = 0; i < kStateCount; i++) {
+                for (int j = 0; j < kStateCount; j++) {
+                    double sum = 0.0;
+                    for (int k = 0; k < kStateCount; k++) {
+                        sum += cMatrices[eigenIndex][m] * tmp[k];
+                        m++;
+                    }
+                    if (sum > 0)
+                        transitionMat[n] = sum;
+                    else
+                        transitionMat[n] = 0;
+                    n++;
                 }
-                if (sum > 0)
-                    transitionMat[n] = sum;
-                else
-                    transitionMat[n] = 0;
+                transitionMat[n] = 1.0;
                 n++;
             }
-            transitionMat[n] = 1.0;
-            n++;
         }
         
         if (DEBUGGING_OUTPUT) {
@@ -313,26 +329,27 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex) {
         assert(subsetIndex < partials.size());
         const int rootPartialIndex = bufferIndices[subsetIndex];
-        const double * rootPartials = partials[rootPartialIndex];
+        const double* rootPartials = partials[rootPartialIndex];
         assert(rootPartials);
-        const double * frequencies = inStateFrequencies + (subsetIndex * kStateCount);
-        const double wt = inWeights[subsetIndex];
-        assert(wt >= 0.0);
+        const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
+        const double* wt = inWeights + (subsetIndex * kCategoryCount);
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             double sum = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                sum += frequencies[i] * rootPartials[v];
-                v++;
+            for (int l = 0; l < kCategoryCount; l++) {
+                for (int i = 0; i < kStateCount; i++) {
+                    sum += frequencies[i] * rootPartials[v];
+                    v++;
+                }
+                if (subsetIndex == 0 && l == 0)
+                    outLogLikelihoods[k] = sum * wt[l];
+                else
+                    outLogLikelihoods[k] += sum * wt[l];
+                if (subsetIndex == count - 1)
+                    outLogLikelihoods[k] = log(outLogLikelihoods[k]);   // take the log
             }
-            if (subsetIndex == 0)
-                outLogLikelihoods[k] = sum * wt;
-            else
-                outLogLikelihoods[k] += sum * wt;
-            
-            if (subsetIndex == count - 1)
-                outLogLikelihoods[k] = log(outLogLikelihoods[k]);   // take the log
         }
+        
     }
     
     return NO_ERROR;
@@ -370,39 +387,49 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     
     const double* partialsParent = partials[parIndex];
     const std::vector<double> transMatrix = transitionMatrices[probIndex];
-    const double wt = inWeights[0];    
-    assert(wt >= 0.0);
+    const double* wt = inWeights;    
     
     if (childIndex < kTipCount && tipStates[childIndex]) {
         const int* statesChild = tipStates[childIndex];
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             int stateChild = statesChild[k];
-            double sumI = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                int w = i * kStateCount + 1; // add one for the extra column at the end
-                sumI += inStateFrequencies[i] * partialsParent[v + i] * transMatrix[w + stateChild];
+            double sumK = 0.0;
+            for (int l = 0; l < kCategoryCount; l++) {
+                for (int i = 0; i < kStateCount; i++) {
+                    int w = l * kCategoryCount + i * kStateCount + 1;
+                    sumK += inStateFrequencies[i] * partialsParent[v + i] * transMatrix[w +
+                                                                                        stateChild];
+                }
+                if (l == 0)
+                    outLogLikelihoods[k] = log(sumK * wt[l]);
+                else
+                    outLogLikelihoods[k] += log(sumK * wt[l]);
+                v += kStateCount;
             }
-            outLogLikelihoods[k] = log(sumI * wt);
-            v += kStateCount;
         }
     } else {
         const double* partialsChild = partials[childIndex];
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             int w = 0;
-            double sumI = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                double sumJ = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sumJ += transMatrix[w] * partialsChild[v + j];
-                    w++;
+            double sumK = 0.0;
+            for (int l = 0; l < kCategoryCount; l++) {
+                for (int i = 0; i < kStateCount; i++) {
+                    double sumI = 0.0;
+                    for (int j = 0; j < kStateCount; j++) {
+                        sumI += transMatrix[w] * partialsChild[v + j];
+                        w++;
+                    }
+                    w++;    // increment for the extra column at the end
+                    sumK += inStateFrequencies[i] * partialsParent[v + i] * sumI;
                 }
-                w++;    // increment for the extra column at the end
-                sumI += inStateFrequencies[i] * partialsParent[v + i] * sumJ;
+                if (l == 0)
+                    outLogLikelihoods[k] = log(sumK * wt[l]);
+                else
+                    outLogLikelihoods[k] += log(sumK * wt[l]);
+                v += kStateCount;
             }
-            outLogLikelihoods[k] = log(sumI * wt);
-            v += kStateCount;
         }
     }
     
@@ -421,18 +448,20 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
                                      const int* child2States,
                                      const double*child2TransMat) {
     int v = 0;
-    for (int k = 0; k < kPatternCount; k++) {
-        const int state1 = child1States[k];
-        const int state2 = child2States[k];
-        if (DEBUGGING_OUTPUT) {
-            std::cerr << "calcStatesStates s1 = " << state1 << '\n';
-            std::cerr << "calcStatesStates s2 = " << state2 << '\n';
-        }
-        int w = 0;
-        for (int i = 0; i < kStateCount; i++) {
-            destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
-            v++;
-            w += (kStateCount + 1);
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            const int state1 = child1States[k];
+            const int state2 = child2States[k];
+            if (DEBUGGING_OUTPUT) {
+                std::cerr << "calcStatesStates s1 = " << state1 << '\n';
+                std::cerr << "calcStatesStates s2 = " << state2 << '\n';
+            }
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+                v++;
+                w += (kStateCount + 1);
+            }
         }
     }
 }
@@ -447,23 +476,25 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
                                        const double* matrices2) {
     int u = 0;
     int v = 0;
-    for (int k = 0; k < kPatternCount; k++) {
-        int state1 = states1[k];
-        //std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
-        int w = 0;
-        for (int i = 0; i < kStateCount; i++) {
-            double tmp = matrices1[w + state1];
-            double sum = 0.0;
-            for (int j = 0; j < kStateCount; j++) {
-                sum += matrices2[w] * partials2[v + j];
+	for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            int state1 = states1[k];
+            //std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                double tmp = matrices1[w + state1];
+                double sum = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sum += matrices2[w] * partials2[v + j];
+                    w++;
+                }
+                // increment for the extra column at the end
                 w++;
+                destP[u] = tmp * sum;
+                u++;
             }
-            // increment for the extra column at the end
-            w++;
-            destP[u] = tmp * sum;
-            u++;
+            v += kStateCount;
         }
-        v += kStateCount;
     }
 }
 
@@ -475,27 +506,29 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
     double sum1, sum2;
     int u = 0;
     int v = 0;
-    for (int k = 0; k < kPatternCount; k++) {
-        int w = 0;
-        for (int i = 0; i < kStateCount; i++) {
-            sum1 = sum2 = 0.0;
-            for (int j = 0; j < kStateCount; j++) {
-                sum1 += matrices1[w] * partials1[v + j];
-                sum2 += matrices2[w] * partials2[v + j];
-                if (DEBUGGING_OUTPUT) {
-                    if (k == 0)
-                        printf("mat1[%d] = %.5f\n", w, matrices1[w]);
-                    if (k == 1)
-                        printf("mat2[%d] = %.5f\n", w, matrices2[w]);
+	for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                sum1 = sum2 = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sum1 += matrices1[w] * partials1[v + j];
+                    sum2 += matrices2[w] * partials2[v + j];
+                    if (DEBUGGING_OUTPUT) {
+                        if (k == 0)
+                            printf("mat1[%d] = %.5f\n", w, matrices1[w]);
+                        if (k == 1)
+                            printf("mat2[%d] = %.5f\n", w, matrices2[w]);
+                    }
+                    w++;
                 }
+                // increment for the extra column at the end
                 w++;
+                destP[u] = sum1 * sum2;
+                u++;
             }
-            // increment for the extra column at the end
-            w++;
-            destP[u] = sum1 * sum2;
-            u++;
+            v += kStateCount;
         }
-        v += kStateCount;
     }
 }
 
@@ -509,12 +542,14 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,
                                              int stateCount,
                                              int patternCount,
                                              int eigenBufferCount,
-                                             int matrixBufferCount) {
+                                             int matrixBufferCount,
+                                             int categoryCount) {
     BeagleImpl* impl = new BeagleCPUImpl();
     
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                                 patternCount, eigenBufferCount, matrixBufferCount) == 0)
+                                 patternCount, eigenBufferCount, matrixBufferCount,
+                                 categoryCount) == 0)
             return impl;
     }
     catch(...) {

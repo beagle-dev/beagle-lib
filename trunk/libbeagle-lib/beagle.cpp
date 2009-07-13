@@ -57,6 +57,7 @@ int createInstance(int tipCount,
                    int patternCount,
                    int eigenBufferCount,
                    int matrixBufferCount,
+                   int categoryCount,
                    int* resourceList,
                    int resourceCount,
                    long preferenceFlags,
@@ -78,7 +79,7 @@ int createInstance(int tipCount,
             beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                         compactBufferCount, stateCount,
                                                         patternCount, eigenBufferCount,
-                                                        matrixBufferCount);
+                                                        matrixBufferCount, categoryCount);
 
             if (beagle != NULL) {
                 fprintf(stderr, "Success\n");
@@ -213,6 +214,26 @@ int setEigenDecomposition(int instance,
 
         return beagleInstance->setEigenDecomposition(eigenIndex, inEigenVectors,
                                                      inInverseEigenVectors, inEigenValues);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
+int setCategoryRates(int instance,
+                     const double* inCategoryRates) {
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        
+        return beagleInstance->setCategoryRates(inCategoryRates);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;

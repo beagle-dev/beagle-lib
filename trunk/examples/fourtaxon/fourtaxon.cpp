@@ -121,6 +121,7 @@ void FourTaxonExample::initBeagleLib()
 				nsites,		// patternCount
 				1,			// eigenBufferCount
 				5,			// matrixBufferCount,
+                1,          // categoryCount
 				NULL,		// resourceList
 				0,			// resourceCount
 				0L,			// preferenceFlags
@@ -158,6 +159,9 @@ void FourTaxonExample::initBeagleLib()
 		if (code != 0)
 			abort("setPartials encountered a problem");
 		}
+        
+    double rates[1] = { 1.0 };
+    setCategoryRates(instance_handle, rates);
 
 	// JC69 model eigenvector matrix
 	double evec[4 * 4] = {

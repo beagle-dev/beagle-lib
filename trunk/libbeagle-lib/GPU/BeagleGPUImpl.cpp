@@ -63,30 +63,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int stateCount,
                                   int patternCount,
                                   int eigenDecompositionCount,
-                                  int matrixCount) {
+                                  int matrixCount,
+                                  int categoryCount) {
     
     // TODO: Determine if GPU device satisfies memory requirements.
-    
-    gpu = new GPUInterface();
-    
-    int numDevices = 0;
-    numDevices = gpu->GetDeviceCount();
-    if (numDevices == 0) {
-        fprintf(stderr, "Error: No GPU devices\n");
-        return GENERAL_ERROR;
-    }
-    
-    currentDevice++;
-    if (currentDevice == numDevices)
-        currentDevice = 0;
-    
-    kDevice = currentDevice;
-    
-    gpu->SetDevice(kDevice);
-    
-    kernels = new KernelLauncher(gpu);
-    
-    gpu->PrintInfo();
     
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
@@ -140,6 +120,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
     hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
 #ifndef DOUBLE_PRECISION
+	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
 #endif
     
@@ -161,6 +142,25 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering initialize\n");
 #endif
+    
+    gpu = new GPUInterface();
+    
+    int numDevices = 0;
+    numDevices = gpu->GetDeviceCount();
+    if (numDevices == 0) {
+        fprintf(stderr, "Error: No GPU devices\n");
+        return GENERAL_ERROR;
+    }
+    
+    currentDevice++;
+    if (currentDevice == numDevices)
+        currentDevice = 0;
+    
+    gpu->SetDevice(currentDevice);
+    
+    kernels = new KernelLauncher(gpu);
+    
+    gpu->PrintInfo();
     
     
     dEvec = gpu->AllocateRealMemory(kMatrixSize);
@@ -216,14 +216,15 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
     
     dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount);
-    hDistanceQueue = (REAL*) malloc(sizeof(REAL) * kMatrixCount);
-    
+    hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount);
     checkHostMemory(hDistanceQueue);
     
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount);
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
-    
     checkHostMemory(hPtrQueue);
+    
+	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
+    checkHostMemory(hCategoryRates);
     
     // loadTipPartialsAndStates
     for (int i = 0; i < kTipCount; i++) {
@@ -434,6 +435,11 @@ int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
     fprintf(stderr, "Exiting updateEigenDecomposition\n");
 #endif
     
+    return NO_ERROR;
+}
+
+int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
+    // TODO: implement setCategoryRates
     return NO_ERROR;
 }
 
@@ -818,11 +824,13 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               int stateCount,
                                               int patternCount,
                                               int eigenBufferCount,
-                                              int matrixBufferCount) {
+                                              int matrixBufferCount,
+                                              int categoryCount) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                                 patternCount, eigenBufferCount, matrixBufferCount) == 0)
+                                 patternCount, eigenBufferCount, matrixBufferCount,
+                                 categoryCount) == 0)
             return impl;
     }
     catch(...)
