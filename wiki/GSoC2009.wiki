@@ -83,15 +83,25 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Fixed JNI wrapper to reflect modified API
 
 == 07/13 - 07/19 ==
- * Complete work on rate categories implementation on GPU version
- * Work on derivative calculation kernels
+ * Continued work on rate categories reimplementation on GPU version
+  * Previous implementation presented some issues when mixing with new API definitions for matrixCount
+ * Initial work on derivative calculation kernels
+  * Started with kernels I developed for GARLI but are largely unoptimized
+  * Exploring breaking complex kernel into smaller ones
+ * Considered using the experimental OpenCL C++ bindings (http://www.khronos.org/registry/cl/) as a replacement for current CUDA/OpenCL GPUInterface
+  * Decided against it; added complexity, less flexibility and little benefit. Might be useful as a separate project though
+
 
 == 07/20 - 07/26 ==
+ * Complete work on rate categories implementation on GPU version
+ * Continue work on derivative calculation kernels
+
+== 07/27 - 08/02 ==
  * Complete draft of CUDA implementation with near full support of proposed API
  * Begin work on OpenCL version
    * Create OpenCL implementation of GPUInterface
 
-== 07/27 - 08/02 ==
+== 08/03 - 08/09 ==
  * Continue work on OpenCL implementation
    * Convert kernels to OpenCL
    * Test OpenCL version
