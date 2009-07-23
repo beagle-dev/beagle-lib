@@ -8,10 +8,9 @@
 #include "libbeagle-lib/config.h"
 #endif
 
+#include <cstdlib>
 #include <iostream>
-
-#include <math.h>
-
+#include <cmath>
 #include "libbeagle-lib/GPU/GPUImplDefs.h"
 
 void checkHostMemory(void* ptr) {

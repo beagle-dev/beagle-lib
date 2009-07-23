@@ -69,7 +69,7 @@ void GPUInterface::Synchronize() {
     SAFE_CUPP(cuCtxSynchronize());
 }
 
-GPUFunction GPUInterface::GetFunction(char* functionName) {
+GPUFunction GPUInterface::GetFunction(const char* functionName) {
     GPUFunction cudaFunction; 
     
     SAFE_CUPP(cuModuleGetFunction(&cudaFunction, cudaModule, functionName));
@@ -229,9 +229,9 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     free(hPtr);
 }
 
-char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
+const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
     
-    char* errorDesc;
+    const char* errorDesc;
     
     // from cuda.h
     switch(errorCode) {

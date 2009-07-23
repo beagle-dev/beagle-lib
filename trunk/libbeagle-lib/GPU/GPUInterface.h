@@ -27,7 +27,7 @@ private:
     CUdevice cudaDevice;
     CUcontext cudaContext;
     CUmodule cudaModule;
-    char* GetCUDAErrorDescription(int errorCode);
+    const char* GetCUDAErrorDescription(int errorCode);
 #endif
 public:
     GPUInterface();
@@ -40,7 +40,7 @@ public:
     
     void Synchronize();
     
-    GPUFunction GetFunction(char* functionName);
+    GPUFunction GetFunction(const char* functionName);
     
     void LaunchKernelIntParams(GPUFunction deviceFunction,
                                Dim3Int block,
