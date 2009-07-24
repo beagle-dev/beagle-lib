@@ -10,11 +10,11 @@
 #define __KernelLauncher__
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
-#include "libbeagle-lib/GPU/GPUInterface.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUInterface.h"
 
 class KernelLauncher {
 private:

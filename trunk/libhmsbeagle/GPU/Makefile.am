@@ -15,11 +15,13 @@ CLEANFILES = BeagleCUDA_Kernels.h
 
 # rules for building cuda files
 BeagleCUDA_Kernels.h: Makefile
-	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx BeagleCUDA_kernels.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
-	echo "// auto-generated header file with CUDA kernels PTX code" > BeagleCUDA_kernels.h
-	echo "#define KERNELS_STRING \"\\" >> BeagleCUDA_kernels.h
-	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
-	echo "\"" >> BeagleCUDA_kernels.h
+	$(NVCC) -o $(abs_builddir)/BeagleCUDA_kernels.ptx -ptx BeagleCUDA_kernels.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
+	echo "// auto-generated header file with CUDA kernels PTX code" > $(abs_builddir)/BeagleCUDA_kernels.h
+	echo "#define KERNELS_STRING \"\\" >> $(abs_builddir)/BeagleCUDA_kernels.h
+	cat $(abs_builddir)/BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(abs_builddir)/BeagleCUDA_kernels.h
+	echo "\"" >> $(abs_builddir)/BeagleCUDA_kernels.h
+
+EXTRA_DIST = BeagleCUDA_kernels.cu
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)

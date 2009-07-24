@@ -3,9 +3,9 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: beagle-lib
+Name: hmsbeagle
 Description: A library to calculate phylogenetic likelihoods.
 Requires:
 Version: @VERSION@
-Libs: -L${libdir} -lbeagle-lib @CUDA_LIBS@
-Cflags: -I${includedir}/libbeagle-lib-1.0 @CUDA_CFLAGS@
+Libs: -L${libdir} -lhmsbeagle @CUDA_LIBS@
+Cflags: -I${includedir}/libhmsbeagle-1.0 @CUDA_CFLAGS@

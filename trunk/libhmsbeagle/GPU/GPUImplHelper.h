@@ -10,10 +10,10 @@
 #define __GPUImplHelper__
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
 
 void checkHostMemory(void* ptr);
 

@@ -50,7 +50,7 @@
 //      in an unused array, after a rejection swap back to the cached copy)
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdio>
@@ -60,8 +60,8 @@
 #include <cmath>
 #include <cassert> 
 
-#include "libbeagle-lib/beagle.h"
-#include "libbeagle-lib/CPU/BeagleCPUImpl.h"
+#include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
 using namespace beagle;
 using namespace beagle::cpu;

@@ -12,13 +12,13 @@
 #define __BeagleGPUImpl__
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
-#include "libbeagle-lib/BeagleImpl.h"
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
-#include "libbeagle-lib/GPU/GPUInterface.h"
-#include "libbeagle-lib/GPU/KernelLauncher.h"
+#include "libhmsbeagle/BeagleImpl.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUInterface.h"
+#include "libhmsbeagle/GPU/KernelLauncher.h"
 
 namespace beagle {
 namespace gpu {

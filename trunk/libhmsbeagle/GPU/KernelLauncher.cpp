@@ -5,14 +5,14 @@
 
 /**************INCLUDES***********/
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdio>
 #include <cstdlib>
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
-#include "libbeagle-lib/GPU/KernelLauncher.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/KernelLauncher.h"
 
 /**************CODE***********/
 

@@ -8,7 +8,7 @@
  * @author Aaron Darling
  */
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdio>
@@ -20,13 +20,13 @@
 #include <vector>
 #include <iostream>
 
-#include "libbeagle-lib/beagle.h"
-#include "libbeagle-lib/BeagleImpl.h"
+#include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/BeagleImpl.h"
 
 #if defined(CUDA) || defined(OPENCL)
-    #include "libbeagle-lib/GPU/BeagleGPUImpl.h"
+    #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
 #endif
-#include "libbeagle-lib/CPU/BeagleCPUImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
 std::vector<beagle::BeagleImpl*> instances;

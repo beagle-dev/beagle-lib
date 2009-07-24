@@ -9,14 +9,14 @@
 #define __GPUInterface__
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
 
 #ifdef CUDA
     #include <cuda.h>
-    #include "libbeagle-lib/GPU/BeagleCUDA_kernels.h"
+    #include "libhmsbeagle/GPU/BeagleCUDA_kernels.h"
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
 #endif

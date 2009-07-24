@@ -4,7 +4,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdio>
@@ -15,9 +15,9 @@
 
 #include <cuda.h>
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
-#include "libbeagle-lib/GPU/GPUImplHelper.h"
-#include "libbeagle-lib/GPU/GPUInterface.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUImplHelper.h"
+#include "libhmsbeagle/GPU/GPUInterface.h"
 
 // TODO: print cuda error message instead of code
 #define SAFE_CUDA(call) { \
