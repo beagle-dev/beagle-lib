@@ -1,6 +1,6 @@
 check_PROGRAMS = fourtaxon
 fourtaxon_SOURCES = fourtaxon.cpp fourtaxon.hpp
-fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la
+fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la @CUDA_LIBS@
 
 check_SCRIPTS = fourtaxonrun.sh
 fourtaxonrun.sh:
