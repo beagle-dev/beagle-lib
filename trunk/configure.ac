@@ -80,15 +80,18 @@ AC_ARG_WITH([cuda],
 
 NVCC=no
 CUDA_CFLAGS=
+CUDA_LIBS=
 
 if test "x$with_cuda" != "xno"
 then
    if test "x$with_cuda" != "xauto"
    then
       CUDA_CFLAGS="-I$with_cuda/include"
+      CUDA_LIBS="-L$with_cuda/lib -lcuda"
       CUDAPATH="$with_cuda"
    else
       CUDA_CFLAGS="-I/usr/local/cuda/include"
+      CUDA_LIBS="-L/usr/local/cuda/lib -lcuda"
       CUDAPATH="/usr/local/cuda"
    fi
 
@@ -109,6 +112,7 @@ fi
 
 AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
 AC_SUBST(CUDA_CFLAGS)
+AC_SUBST(CUDA_LIBS)
 AC_SUBST(NVCC)
 
 if( test ! x$NVCC = xno ) 

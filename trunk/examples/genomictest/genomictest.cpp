@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <sys/time.h>
-#include "libbeagle-lib/beagle.h"
+#include "libhmsbeagle/beagle.h"
 
 int ntaxa = 29;
 int nsites = 100000;
