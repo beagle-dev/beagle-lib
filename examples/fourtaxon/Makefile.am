@@ -1,6 +1,6 @@
 check_PROGRAMS = fourtaxon
 fourtaxon_SOURCES = fourtaxon.cpp fourtaxon.hpp
-fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libbeagle-lib.la
+fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la
 
 check_SCRIPTS = fourtaxonrun.sh
 fourtaxonrun.sh:
