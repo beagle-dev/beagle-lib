@@ -9,6 +9,7 @@ libcuda_la_SOURCES = BeagleCUDA_Kernels.h \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp  KernelLauncher.h 
 
+nodist_libcuda_la_SOURCES = BeagleCUDA_Kernels.h
 BUILT_SOURCES = BeagleCUDA_Kernels.h
 CLEANFILES = BeagleCUDA_Kernels.h
 
@@ -22,7 +23,6 @@ BeagleCUDA_Kernels.h: Makefile
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
-libcuda_la_LIBADD = $(CUDA_LIBS) 
 libcuda_la_LDFLAGS = 
 
 libcuda_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
