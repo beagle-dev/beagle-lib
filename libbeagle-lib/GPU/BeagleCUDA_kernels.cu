@@ -1278,3 +1278,4 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
 }
 
 } // extern "C"
+
