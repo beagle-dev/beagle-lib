@@ -9,7 +9,7 @@
  * @author Aaron Darling
  */
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdio>
@@ -18,12 +18,12 @@
 #include <iostream>
 #include <cstring>
 
-#include "libbeagle-lib/beagle.h"
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
-#include "libbeagle-lib/GPU/BeagleGPUImpl.h"
-#include "libbeagle-lib/GPU/GPUImplHelper.h"
-#include "libbeagle-lib/GPU/KernelLauncher.h"
-#include "libbeagle-lib/GPU/GPUInterface.h"
+#include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/BeagleGPUImpl.h"
+#include "libhmsbeagle/GPU/GPUImplHelper.h"
+#include "libhmsbeagle/GPU/KernelLauncher.h"
+#include "libhmsbeagle/GPU/GPUInterface.h"
 
 using namespace beagle;
 using namespace beagle::gpu;

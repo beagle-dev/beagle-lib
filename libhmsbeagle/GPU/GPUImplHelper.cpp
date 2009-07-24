@@ -5,13 +5,13 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 #include <cstdlib>
 #include <iostream>
 #include <cmath>
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
 
 void checkHostMemory(void* ptr) {
     if (ptr == NULL) {

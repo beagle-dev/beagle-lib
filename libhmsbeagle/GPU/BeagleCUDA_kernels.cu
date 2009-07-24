@@ -3,7 +3,7 @@
  * @author Daniel Ayres
  */
 
-#include "libbeagle-lib/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/GPUImplDefs.h"
 
 #define DETERMINE_INDICES() \
     int state = threadIdx.x; \

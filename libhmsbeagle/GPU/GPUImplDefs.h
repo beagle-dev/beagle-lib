@@ -9,7 +9,7 @@
 #define __GPUImplDefs__
 
 #ifdef HAVE_CONFIG_H
-#include "libbeagle-lib/config.h"
+#include "libhmsbeagle/config.h"
 #endif
 
 //#define DEBUG_FLOW

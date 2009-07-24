@@ -10,7 +10,7 @@
 #ifndef __beagle_impl__
 #define __beagle_impl__
 
-#include "libbeagle-lib/beagle.h"
+#include "libhmsbeagle/beagle.h"
 
 #ifdef DOUBLE_PRECISION
 #define REAL    double

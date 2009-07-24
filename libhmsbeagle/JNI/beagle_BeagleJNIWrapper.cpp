@@ -4,8 +4,8 @@
 #include <cmath>
 #include <jni.h>
 
-#include "libbeagle-lib/beagle.h"
-#include "libbeagle-lib/JNI/beagle_BeagleJNIWrapper.h"
+#include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h"
 
 /*
  * Class:     beagle_BeagleJNIWrapper

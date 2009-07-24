@@ -1,12 +1,12 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libbeagle-lib, 1.0.0, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
 dnl -----------------------------------------------
 
-GENERIC_LIBRARY_NAME=libbeagle-lib
+GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
 GENERIC_MAJOR_VERSION=1
@@ -50,7 +50,7 @@ VERSION=$GENERIC_VERSION
 
 AC_CONFIG_AUX_DIR(.config)
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRCDIR(libbeagle-lib/beagle.cpp)
+AC_CONFIG_SRCDIR(libhmsbeagle/beagle.cpp)
 
 AM_INIT_AUTOMAKE($PACKAGE, $VERSION, no-define)
 
@@ -61,7 +61,7 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 AM_PROG_LIBTOOL
 
-AM_CONFIG_HEADER(libbeagle-lib/config.h)
+AM_CONFIG_HEADER(libhmsbeagle/config.h)
 
 # needed to support old automake versions
 AC_SUBST(abs_top_builddir)
@@ -174,11 +174,11 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 # All done, create Makefiles
 # ------------------------------------------------------------------------------
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([beagle-lib-1.0.pc])
-AC_CONFIG_FILES([libbeagle-lib/Makefile])
-AC_CONFIG_FILES([libbeagle-lib/GPU/Makefile])
-AC_CONFIG_FILES([libbeagle-lib/CPU/Makefile])
-AC_CONFIG_FILES([libbeagle-lib/JNI/Makefile])
+AC_CONFIG_FILES([hmsbeagle-1.0.pc])
+AC_CONFIG_FILES([libhmsbeagle/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile examples/tinytest/Makefile])
 AC_CONFIG_FILES([examples/fourtaxon/Makefile])
 AC_CONFIG_FILES([examples/genomictest/Makefile])

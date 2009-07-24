@@ -14,6 +14,7 @@
  * @author Adam Bazinet
  * @author Peter Beerli
  * @author Michael Cummings
+ * @author Aaron Darling
  * @author Mark Holder
  * @author John Huelsenbeck
  * @author Paul Lewis
