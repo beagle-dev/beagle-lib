@@ -1,8 +1,6 @@
 
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
-CCLD = g++
-
 if BUILDCUDA
 noinst_LTLIBRARIES= libcuda.la 
 libcuda_la_SOURCES = BeagleCUDA_Kernels.h \
@@ -25,10 +23,6 @@ EXTRA_DIST = BeagleCUDA_kernels.cu
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
-libcuda_la_LDFLAGS = 
 
-libcuda_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-        $(LIBTOOLFLAGS) --mode=link $(CCLD) $(libcuda_la_CFLAGS) \
-        $(CFLAGS) $(libcuda_la_LDFLAGS) $(LDFLAGS) -o $@
 endif
 
