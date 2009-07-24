@@ -8,7 +8,8 @@
 #include "libbeagle-lib/config.h"
 #endif
 
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 #include "libbeagle-lib/GPU/GPUImplDefs.h"
 #include "libbeagle-lib/GPU/KernelLauncher.h"
