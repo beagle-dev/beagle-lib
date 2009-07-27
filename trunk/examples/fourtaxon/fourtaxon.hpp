@@ -1,6 +1,6 @@
 #include <vector>
 #include <string>
-#include "libbeagle-lib/beagle.h"
+#include "libhmsbeagle/beagle.h"
 
 typedef std::vector<int> CodedSequence;
 typedef std::vector<double> PartialVector;

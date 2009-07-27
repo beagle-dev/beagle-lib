@@ -380,15 +380,15 @@
 			files = (
 			);
 			inputPaths = (
-				"$PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.cu",
+				$PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.cu,
 			);
 			name = "Generate CUDA_kernels.h";
 			outputPaths = (
-				"$PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h",
+				$PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"// auto-generated header file with CUDA kernels binary code\" > $PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> $PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h\n\ncat $OBJECT_FILE_DIR_normal/$CURRENT_ARCH/BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> $PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h\n\necho \"\\\"\" >> $PROJECT_DIR/../../libbeagle-lib/GPU/BeagleCUDA_kernels.h\n";
+			shellScript = "echo \"// auto-generated header file with CUDA kernels binary code\" > $PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> $PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h\n\ncat $OBJECT_FILE_DIR_normal/$CURRENT_ARCH/BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> $PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h\n\necho \"\\\"\" >> $PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
