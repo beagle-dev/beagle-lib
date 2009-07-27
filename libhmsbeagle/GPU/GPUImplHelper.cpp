@@ -48,7 +48,7 @@ void printfVectorF(float* ptr,
         fprintf(stderr, " %1.5e", ptr[i]);
     fprintf(stderr, " ]\n");
     for(i = 0; i < length; i++) {
-        if(isnan(ptr[i])) {
+        if(ptr[i] != ptr[i]) {
             fprintf(stderr, "NaN found!\n");
             exit(0);
         }
