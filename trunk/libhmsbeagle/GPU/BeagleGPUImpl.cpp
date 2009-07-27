@@ -109,7 +109,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
             paddedPatterns);
 #endif // DEBUG
     
-    kPartialsSize = kPaddedPatternCount * kPaddedStateCount;
+    kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
     kEigenValuesSize = kPaddedStateCount;
     
