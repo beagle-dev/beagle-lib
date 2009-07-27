@@ -201,7 +201,8 @@ int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
 int BeagleCPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
     // TODO: test CPU setTransitionMatrix
-    memcpy(&(transitionMatrices[matrixIndex][0]), inMatrix, sizeof(double) * kMatrixSize);
+    memcpy(&(transitionMatrices[matrixIndex][0]), inMatrix,
+           sizeof(double) * kMatrixSize * kCategoryCount);
     return NO_ERROR;
 }
 
