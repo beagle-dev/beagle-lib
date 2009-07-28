@@ -19,7 +19,6 @@
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 
-// TODO: print cuda error message instead of code
 #define SAFE_CUDA(call) { \
                             CUresult error = call; \
                             if(error != CUDA_SUCCESS) { \
@@ -190,7 +189,7 @@ void GPUInterface::PrintInfo() {
     char name[100];
     unsigned int totalGlobalMemory = 0;
     int clockSpeed = 0;
-    int mpCount;
+    int mpCount = 0;
     
     SAFE_CUDA(cuDeviceGetName(name, 100, cudaDevice));
     SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, cudaDevice));
