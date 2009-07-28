@@ -130,6 +130,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr matrices2,
                                                            GPUPtr scalingFactors,
                                                            const unsigned int patternCount,
+                                                           const unsigned int categoryCount,
                                                            int doRescaling) {
 #ifdef DEBUG
     fprintf(stderr, "Entering GPU PP\n");
@@ -138,12 +139,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
 #endif    
@@ -165,7 +166,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         gpu->Synchronize();
         
         // Rescale partials and save scaling factors
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, 0);
+        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 0);
         
     } else {
         
@@ -199,15 +200,16 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                                          GPUPtr matrices2,
                                                          GPUPtr scalingFactors,
                                                          const unsigned int patternCount,
+                                                         const unsigned int categoryCount,
                                                          int doRescaling) {
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
 #endif
@@ -229,7 +231,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         gpu->Synchronize();
         
         // Rescale partials and save scaling factors
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, 1);
+        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
     } else {
         
         // Compute partials with known rescalings
@@ -263,15 +265,16 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                                        GPUPtr matrices2,
                                                        GPUPtr scalingFactors,
                                                        const unsigned int patternCount,
+                                                       const unsigned int categoryCount,
                                                        int doRescaling) {
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
 #endif
@@ -293,7 +296,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         // If PADDED_STATE_COUNT == 4, just with ones.
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, 1);
+        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
         
     } else {
         
@@ -325,7 +328,7 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                                         GPUPtr dFrequencies,
                                                         GPUPtr dRootScalingFactors,
                                                         int patternCount,
-                                                        int count) {
+                                                        int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr, "Entering IL\n");
 #endif
@@ -338,7 +341,7 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                block, grid,
                                parameterCount,
                                dResult, dRootPartials, dWeights, dFrequencies, dRootScalingFactors,
-                               count);    
+                               categoryCount);    
 #ifdef DEBUG
     fprintf(stderr, "Exiting IL\n");
 #endif
@@ -349,21 +352,22 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                                      GPUPtr dParentPartials,
                                                      GPUPtr dChildParials,
                                                      GPUPtr dTransMatrix,
-                                                     int patternCount) {
+                                                     int patternCount,
+                                                     int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr,"Entering nGPUPartialsPartialsEdgeLnL\n");
 #endif
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
     
     GPUFunction fHandle = fPartialsPartialsEdgeLikelihoodsSmall;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
     
@@ -388,7 +392,8 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                                    GPUPtr dParentPartials,
                                                    GPUPtr dChildStates,
                                                    GPUPtr dTransMatrix,
-                                                   int patternCount) {
+                                                   int patternCount,
+                                                   int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr,"Entering nGPUStatesPartialsEdgeLnL\n");
 #endif
@@ -397,14 +402,14 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
     
     GPUFunction fHandle = fStatesPartialsEdgeLikelihoodsSmall;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
     
@@ -443,10 +448,8 @@ void KernelLauncher::ComputeRootDynamicScaling(GPUPtr dNodePtrQueue,
 void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr scalingFactors,
                                      int patternCount,
+                                     int categoryCount,
                                      int fillWithOnes) {
-    
-    // TODO: remove matrixCount hack
-    int matrixCount = 1;
     
     // Rescale partials and save scaling factors
     //#if (PADDED_STATE_COUNT == 4) 
@@ -462,8 +465,8 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     //#endif
     
 #ifndef SLOW_REWEIGHING
-    Dim3Int grid(patternCount, matrixCount / MATRIX_BLOCK_SIZE);
-    if (matrixCount % MATRIX_BLOCK_SIZE != 0)
+    Dim3Int grid(patternCount, categoryCount / MATRIX_BLOCK_SIZE);
+    if (categoryCount % MATRIX_BLOCK_SIZE != 0)
         grid.y += 1;
     if (grid.y > 1) {
         fprintf(stderr, "Not yet implemented! Try slow reweighing.\n");
@@ -484,7 +487,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     gpu->LaunchKernelIntParams(fHandle,
                                block, grid,
                                parameterCount,
-                               partials3, scalingFactors, matrixCount);
+                               partials3, scalingFactors, categoryCount);
 }
 
 void KernelLauncher::PartialsPartialsPruning(GPUPtr partials1,
@@ -492,7 +495,8 @@ void KernelLauncher::PartialsPartialsPruning(GPUPtr partials1,
                                              GPUPtr partials3,
                                              GPUPtr matrices1,
                                              GPUPtr matrices2,
-                                             const unsigned int patternCount) {
+                                             const unsigned int patternCount,
+                                             const unsigned int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr, "Entering GPU PP\n");
     gpu->Synchronize();
@@ -500,14 +504,14 @@ void KernelLauncher::PartialsPartialsPruning(GPUPtr partials1,
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
     
     GPUFunction fHandle = fPartialsPartialsByPatternBlockCoherentSmall;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
 
@@ -531,7 +535,8 @@ void KernelLauncher::StatesPartialsPruning(GPUPtr states1,
                                            GPUPtr partials3,
                                            GPUPtr matrices1,
                                            GPUPtr matrices2,
-                                           const unsigned int patternCount) {
+                                           const unsigned int patternCount,
+                                           const unsigned int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr, "Entering GPU PP\n");
     gpu->Synchronize();
@@ -540,14 +545,14 @@ void KernelLauncher::StatesPartialsPruning(GPUPtr states1,
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
     
     GPUFunction fHandle = fStatesPartialsByPatternBlockCoherentSmall;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
     
@@ -572,7 +577,8 @@ void KernelLauncher::StatesStatesPruning(GPUPtr states1,
                                          GPUPtr partials3,
                                          GPUPtr matrices1,
                                          GPUPtr matrices2,
-                                         const unsigned int patternCount) {
+                                         const unsigned int patternCount,
+                                         const unsigned int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr, "Entering GPU PP\n");
     gpu->Synchronize();
@@ -581,14 +587,14 @@ void KernelLauncher::StatesStatesPruning(GPUPtr states1,
     
 #if (PADDED_STATE_COUNT == 4)
     Dim3Int block(16, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4));
+    Dim3Int grid(patternCount / (PATTERN_BLOCK_SIZE * 4), categoryCount);
     if (patternCount % (PATTERN_BLOCK_SIZE * 4) != 0)
         grid.x += 1;
     
     GPUFunction fHandle = fStatesStatesByPatternBlockCoherentSmall;
 #else
     Dim3Int block(PADDED_STATE_COUNT, PATTERN_BLOCK_SIZE);
-    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE, categoryCount);
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
     
@@ -613,7 +619,7 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
                                           GPUPtr dWeights,
                                           GPUPtr dFrequencies,
                                           int patternCount,
-                                          int count) {
+                                          int categoryCount) {
 #ifdef DEBUG
     fprintf(stderr,"Entering IL\n");
 #endif
@@ -625,7 +631,7 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
     gpu->LaunchKernelIntParams(fIntegrateLikelihoods,
                                block, grid,
                                parameterCount,
-                               dResult, dRootPartials, dWeights, dFrequencies, count);
+                               dResult, dRootPartials, dWeights, dFrequencies, categoryCount);
     
 #ifdef DEBUG
     fprintf(stderr, "Exiting IL\n");
