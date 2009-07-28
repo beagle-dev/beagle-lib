@@ -64,6 +64,7 @@ public:
                                                GPUPtr matrices2,
                                                GPUPtr scalingFactors,
                                                const unsigned int patternCount,
+                                               const unsigned int categoryCount,
                                                int doRescaling);
     
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
@@ -73,6 +74,7 @@ public:
                                              GPUPtr matrices2,
                                              GPUPtr scalingFactors,
                                              const unsigned int patternCount,
+                                             const unsigned int categoryCount,
                                              int doRescaling);
     
     void StatesStatesPruningDynamicScaling(GPUPtr states1,
@@ -82,6 +84,7 @@ public:
                                            GPUPtr matrices2,
                                            GPUPtr scalingFactors,
                                            const unsigned int patternCount,
+                                           const unsigned int categoryCount,
                                            int doRescaling);
     
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
@@ -90,19 +93,21 @@ public:
                                             GPUPtr dFrequencies,
                                             GPUPtr dRootScalingFactors,
                                             int patternCount,
-                                            int count);
+                                            int categoryCount);
     
     void PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                          GPUPtr dParentPartials,
                                          GPUPtr dChildParials,
                                          GPUPtr dTransMatrix,
-                                         int patternCount);
+                                         int patternCount,
+                                         int categoryCount);
     
     void StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                        GPUPtr dParentPartials,
                                        GPUPtr dChildStates,
                                        GPUPtr dTransMatrix,
-                                       int patternCount);
+                                       int patternCount,
+                                       int categoryCount);
     
     void ComputeRootDynamicScaling(GPUPtr dNodePtrQueue,
                                    GPUPtr dRootScalingFactors,
@@ -112,6 +117,7 @@ public:
     void RescalePartials(GPUPtr partials3,
                          GPUPtr scalingFactors,
                          int patternCount,
+                         int categoryCount,
                          int fillWithOnes);
     
     void PartialsPartialsPruning(GPUPtr partials1,
@@ -119,27 +125,30 @@ public:
                                  GPUPtr partials3,
                                  GPUPtr matrices1,
                                  GPUPtr matrices2,
-                                 const unsigned int patternCount);
+                                 const unsigned int patternCount,
+                                 const unsigned int categoryCount);
     
     void StatesPartialsPruning(GPUPtr states1,
                                GPUPtr partials2,
                                GPUPtr partials3,
                                GPUPtr matrices1,
                                GPUPtr matrices2,
-                               const unsigned int patternCount);
+                               const unsigned int patternCount,
+                               const unsigned int categoryCount);
     
     void StatesStatesPruning(GPUPtr states1,
                              GPUPtr states2,
                              GPUPtr partials3,
                              GPUPtr matrices1,
                              GPUPtr matrices2,
-                             const unsigned int patternCount);
+                             const unsigned int patternCount,
+                             const unsigned int categoryCount);
     
     void IntegrateLikelihoods(GPUPtr dResult,
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,
                               GPUPtr dFrequencies,
                               int patternCount,
-                              int count);
+                              int categoryCount);
 };
 #endif // __KernelLauncher__

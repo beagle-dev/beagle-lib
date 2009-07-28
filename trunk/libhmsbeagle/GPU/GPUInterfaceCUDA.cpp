@@ -132,7 +132,7 @@ GPUPtr GPUInterface::AllocateRealMemory(int length) {
 #endif
 
     GPUPtr data;
-    
+
     SAFE_CUPP(cuMemAlloc(&data, SIZE_REAL * length));
 
 #ifdef DEBUG

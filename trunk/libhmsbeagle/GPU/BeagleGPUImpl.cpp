@@ -75,6 +75,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kPatternCount = patternCount;
     kEigenDecompCount = eigenDecompositionCount;
     kMatrixCount = matrixCount;
+    kCategoryCount = categoryCount;
     
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
@@ -209,7 +210,7 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     
     for (int i = 0; i < kMatrixCount; i++) {
-        dMatrices[i] = gpu->AllocateRealMemory(kMatrixSize);
+        dMatrices[i] = gpu->AllocateRealMemory(kMatrixSize * kCategoryCount);
     }
     
     // No execution has more no kBufferCount events
@@ -277,6 +278,12 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
         tmpRealPartialsOffset += kPaddedStateCount;
         inPartialsOffset += kStateCount;
     }
+    
+    // TODO: should we allow setting of partials accross all categories?
+    int partialsLength = kPaddedPatternCount * kPaddedStateCount;
+	for (int i = 1; i < kCategoryCount; i++) {
+		memcpy(hPartialsCache + i * partialsLength, hPartialsCache, partialsLength * SIZE_REAL);
+	}
     
     if (kDeviceMemoryAllocated) {
         if (bufferIndex < kTipCount) {
@@ -439,7 +446,24 @@ int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
 }
 
 int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
-    // TODO: implement setCategoryRates
+    // TODO: test setCategoryRates
+#ifdef DEBUG_FLOW
+	fprintf(stderr, "Entering updateCategoryRates\n");
+#endif
+
+#ifdef DOUBLE_PRECISION
+	double* categoryRates = inCategoryRates;
+#else
+	REAL* categoryRates = hCategoryCache;
+	MEMCNV(categoryRates, inCategoryRates, kCategoryCount, REAL);
+#endif
+    
+	memcpy(hCategoryRates, categoryRates, SIZE_REAL * kCategoryCount);
+    
+#ifdef DEBUG_FLOW
+	fprintf(stderr, "Exiting updateCategoryRates\n");
+#endif
+    
     return NO_ERROR;
 }
 
@@ -463,9 +487,13 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
         tmpRealMatrixOffset += kPaddedStateCount;
         inMatrixOffset += kStateCount;
     }
-    
+        
     // Copy to GPU device
-    gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache, SIZE_REAL * kMatrixSize);
+    // TODO: should we allow setting of transition matrices accross all categories?
+	for (int i = 0; i < kCategoryCount; i++) {
+        gpu->MemcpyHostToDevice(dMatrices[matrixIndex] + i * kMatrixSize, hMatrixCache,
+                                SIZE_REAL * kMatrixSize);
+    }
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Exiting setTransitionMatrix\n");
@@ -486,17 +514,21 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     
     // TODO: implement calculation of derivatives
     
-    for (int i = 0; i < count; i++) {
-        hPtrQueue[i] = dMatrices[probabilityIndices[i]];
-        hDistanceQueue[i] = (REAL) edgeLengths[i];
+    int totalCount = 0;
+    for (int i = 0; i < count; i++) {        
+		for (int j = 0; j < kCategoryCount; j++) {
+            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + j * kMatrixSize;
+            hDistanceQueue[totalCount] = (REAL) edgeLengths[i] * hCategoryRates[j];
+            totalCount++;
+        }
     }
     
-    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * count);
-    gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * count);
+    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * totalCount);
+    gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
     
     // Set-up and call GPU kernel
     kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec, dIevc, dEigenValues, dDistanceQueue,
-                                              count);
+                                              totalCount);
     
 #ifdef DEBUG_BEAGLE
     gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize);
@@ -549,39 +581,43 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             if (tipStates2 != 0 ) {
                 kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
                                                            matrices1, matrices2, scalingFactors,
-                                                           kPaddedPatternCount, kDoRescaling);
+                                                           kPaddedPatternCount, kCategoryCount,
+                                                           kDoRescaling);
             } else {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
                                                              matrices1, matrices2, scalingFactors,
-                                                             kPaddedPatternCount, kDoRescaling);
+                                                             kPaddedPatternCount, kCategoryCount,
+                                                             kDoRescaling);
             }
         } else {
             if (tipStates2 != 0) {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
                                                              matrices2, matrices1, scalingFactors,
-                                                             kPaddedPatternCount, kDoRescaling);
+                                                             kPaddedPatternCount, kCategoryCount,
+                                                             kDoRescaling);
             } else {
                 kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                matrices1, matrices2, scalingFactors,
-                                                               kPaddedPatternCount, kDoRescaling);
+                                                               kPaddedPatternCount, kCategoryCount,
+                                                               kDoRescaling);
             }
         }
 #else
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
                 kernels->StatesStatesPruning(tipStates1, tipStates2, partials3, matrices1,
-                                             matrices2, kPaddedPatternCount);
+                                             matrices2, kPaddedPatternCount, kCategoryCount);
             } else {
                 kernels->StatesPartialsPruning(tipStates1, partials2, partials3, matrices1,
-                                               matrices2, kPaddedPatternCount);
+                                               matrices2, kPaddedPatternCount, kCategoryCount);
             }
         } else {
             if (tipStates2 != 0) {
                 kernels->StatesPartialsPruning(tipStates2, partials1, partials3, matrices2,
-                                               matrices1, kPaddedPatternCount);
+                                               matrices1, kPaddedPatternCount, kCategoryCount);
             } else {
                 kernels->PartialsPartialsPruning(partials1, partials2, partials3, matrices1,
-                                                 matrices2, kPaddedPatternCount);
+                                                 matrices2, kPaddedPatternCount, kCategoryCount);
             }
         }
 #endif // DYNAMIC_SCALING
@@ -589,7 +625,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 #ifdef DEBUG_BEAGLE
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
         fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
-        fprintf(stderr, "categoryCount  = %d\n", categoryCount);
+        fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
         if (tipStates1)
             gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
@@ -666,11 +702,10 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
                                                     dRootScalingFactors, kPaddedPatternCount,
-                                                    count);
+                                                    kCategoryCount);
 #else
-        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
-                                      dWeights, dFrequencies, kPaddedPatternCount,
-                                      count);
+        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
+                                      dFrequencies, kPaddedPatternCount, kCategoryCount);
 #endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
@@ -751,10 +786,12 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         
         if (statesChild != 0) {
             kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount);
+                                                   transMatrix, kPaddedPatternCount,
+                                                   kCategoryCount);
         } else {
             kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount);
+                                                     transMatrix, kPaddedPatternCount,
+                                                     kCategoryCount);
         }
         
         if (kDoRescaling) {
@@ -774,19 +811,21 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
                                                     dFrequencies, dRootScalingFactors,
-                                                    kPaddedPatternCount, count);
+                                                    kPaddedPatternCount, kCategoryCount);
 #else
         if (statesChild != 0) {
             // TODO: test calculateEdgeLnL when child is of tipStates kind
             kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount);
+                                                   transMatrix, kPaddedPatternCount,
+                                                   kCategoryCount);
         } else {
             kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount);
+                                                     transMatrix, kPaddedPatternCount,
+                                                     kCategoryCount);
         }
         
         kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
-                                      kPaddedPatternCount, count);
+                                      kPaddedPatternCount, kCategoryCount);
         
 #endif // DYNAMIC_SCALING
         

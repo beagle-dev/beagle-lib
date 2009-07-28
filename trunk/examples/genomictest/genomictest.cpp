@@ -11,7 +11,7 @@
 #include "libhmsbeagle/beagle.h"
 
 int ntaxa = 29;
-int nsites = 100000;
+int nsites = 60000;
 
 
 
