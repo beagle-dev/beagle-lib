@@ -19,6 +19,13 @@
     #include "libhmsbeagle/GPU/BeagleCUDA_kernels.h"
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
+#else
+#ifdef OPENCL
+    #include <OpenCL/opencl.h>
+    #define MAX_CL_DEVICES 10
+    typedef int GPUPtr;
+    typedef int GPUFunction;
+#endif
 #endif
 
 class GPUInterface {
@@ -28,6 +35,15 @@ private:
     CUcontext cudaContext;
     CUmodule cudaModule;
     const char* GetCUDAErrorDescription(int errorCode);
+#else
+#ifdef OPENCL
+    cl_device_id clDeviceId;             // compute device id 
+    cl_context clContext;                // compute context
+    cl_command_queue clCommands;         // compute command queue
+    cl_program clProgram;                // compute program
+    cl_kernel clKernel;                  // compute kernel
+    const char* GetCLErrorDescription(int errorCode);
+#endif
 #endif
 public:
     GPUInterface();
