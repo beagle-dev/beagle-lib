@@ -93,11 +93,15 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 
 
 == 07/20 - 07/26 ==
- * Complete work on rate categories implementation on GPU version
- * Continue work on derivative calculation kernels
+ * Completed work on rate categories implementation on GPU version
+  * Modified BeagleGPUImpl, KernelLauncher, BeagleCUDA_kernels
+ * Fixed compilation issues so that CUDA version works under Snow Leopard
+   * Modifications to makefiles still have to be merged and conditionally activated
+ * Fixed minor issues with conversion to libhmsbeagle
+ * Minor updates to Xcode project
 
 == 07/27 - 08/02 ==
- * Complete draft of CUDA implementation with near full support of proposed API
+ * Continue work on derivative calculation on GPU
  * Begin work on OpenCL version
    * Create OpenCL implementation of GPUInterface
 
