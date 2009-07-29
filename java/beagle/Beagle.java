@@ -84,6 +84,15 @@ public interface Beagle {
             final double[] inEigenValues);
 
     /**
+     * Set category rates
+     *
+     * This function sets the vector of category rates for an instance.
+     *
+     * @param inCategoryRates       Array containing categoryCount rate scalers (input)
+     */
+    void setCategoryRates(final double[] inCategoryRates);
+
+    /**
      * Set a finite-time transition probability matrix
      *
      * This function copies a finite-time transition probability matrix into a matrix buffer.
@@ -123,16 +132,18 @@ public interface Beagle {
      * operations immediately.  Implementations supporting GPU may perform all operations in the list
      * simultaneously.
      *
-     * Operations list is a list of 5-tuple integer indices, with one 5-tuple per operation.
-     * Format of 5-tuple operation: {destinationPartials,
+     * Operations list is a list of 6-tuple integer indices, with one 6-tuple per operation.
+     * Format of 6-tuple operation: {destinationPartials,
+     *                               destinationScalingFactors, (this index must be > tipCount)
      *                               child1Partials,
      *                               child1TransitionMatrix,
      *                               child2Partials,
      *                               child2TransitionMatrix}
      *
-     * @param operations        List of 5-tuples specifying operations (input)
+     * @param operations        List of 6-tuples specifying operations (input)
      * @param operationCount    Number of operations (input)
      * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors
+     *
      */
     void updatePartials(
             final int[] operations,
@@ -145,16 +156,23 @@ public interface Beagle {
      * This function integrates a list of partials at a node with respect to a set of partials-weights and
      * state frequencies to return the log likelihoods for each site
      *
-     * @param bufferIndices     List of partialsBuffer indices to integrate (input)
-     * @param weights           List of weights to apply to each partialsBuffer (input)
-     * @param stateFrequencies  List of state frequencies for each partialsBuffer (input)
-    There should be one set for each of parentBufferIndices
-     * @param outLogLikelihoods Pointer to destination for resulting log likelihoods (output)
+     * @param bufferIndices         List of partialsBuffer indices to integrate (input)
+     * @param weights             List of weights to apply to each partialsBuffer (input). There
+     *                               should be one categoryCount sized set for each of
+     *                               parentBufferIndices
+     * @param stateFrequencies    List of state frequencies for each partialsBuffer (input). There
+     *                               should be one set for each of parentBufferIndices
+     * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There
+     *                               should be one set for each of parentBufferIndices
+     * @param scalingFactorsCount   List of scalingFactorsIndices sizes for each partialsBuffer (input)
+     * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
      */
     void calculateRootLogLikelihoods(
             final int[] bufferIndices,
             final double[] weights,
             final double[] stateFrequencies,
+            final int[] scalingFactorsIndices,
+            final int[] scalingFactorsCount,
             final double[] outLogLikelihoods);
 
     /*

@@ -4,10 +4,10 @@ import java.util.logging.Logger;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class DependencyAwareBeagleImpl extends DefaultBeagleImpl {
+public class DependencyAwareBeagleImpl extends GeneralBeagleImpl {
 
-    public DependencyAwareBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount) {
-        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount);
+    public DependencyAwareBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount) {
+        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount, categoryCount);
     }
 
 //    private int[] dependencyCounts;

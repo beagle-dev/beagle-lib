@@ -25,9 +25,11 @@ public class BeagleJNIImpl implements Beagle {
                          int patternCount,
                          int eigenBufferCount,
                          int matrixBufferCount,
+                         int categoryCount,
                          final int[] resourceList,
                          int preferenceFlags,
                          int requirementFlags) {
+
         this.instance = BeagleJNIWrapper.INSTANCE.createInstance(
                 tipCount,
                 partialsBufferCount,
@@ -36,10 +38,12 @@ public class BeagleJNIImpl implements Beagle {
                 patternCount,
                 eigenBufferCount,
                 matrixBufferCount,
+                categoryCount,
                 resourceList,
                 resourceList.length,
                 preferenceFlags,
                 requirementFlags);
+        
         BeagleJNIWrapper.INSTANCE.initialize(instance);
     }
 
@@ -66,6 +70,9 @@ public class BeagleJNIImpl implements Beagle {
         BeagleJNIWrapper.INSTANCE.setEigenDecomposition(instance, eigenIndex, eigenVectors, inverseEigenValues, eigenValues);
     }
 
+    public void setCategoryRates(double[] inCategoryRates) {
+    }
+
     public void setTransitionMatrix(int matrixIndex, final double[] inMatrix) {
         BeagleJNIWrapper.INSTANCE.setTransitionMatrix(instance, matrixIndex, inMatrix);
     }
@@ -88,7 +95,7 @@ public class BeagleJNIImpl implements Beagle {
         BeagleJNIWrapper.INSTANCE.updatePartials(instances, instances.length, operations, operationCount, rescale ? 1 : 0);
     }
 
-    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods) {
         BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, weights, stateFrequencies, bufferIndices.length, outLogLikelihoods);
     }
 
