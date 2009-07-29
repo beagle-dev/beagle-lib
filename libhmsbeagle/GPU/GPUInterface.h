@@ -22,6 +22,7 @@
 #else
 #ifdef OPENCL
     #include <OpenCL/opencl.h>
+    #include "libhmsbeagle/GPU/BeagleOpenCL_kernels.h"
     #define MAX_CL_DEVICES 10
     typedef int GPUPtr;
     typedef int GPUFunction;
@@ -39,9 +40,8 @@ private:
 #ifdef OPENCL
     cl_device_id clDeviceId;             // compute device id 
     cl_context clContext;                // compute context
-    cl_command_queue clCommands;         // compute command queue
+    cl_command_queue clCommandQueue;     // compute command queue
     cl_program clProgram;                // compute program
-    cl_kernel clKernel;                  // compute kernel
     const char* GetCLErrorDescription(int errorCode);
 #endif
 #endif
