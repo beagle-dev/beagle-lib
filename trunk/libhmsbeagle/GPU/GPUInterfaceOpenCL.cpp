@@ -26,35 +26,23 @@
                             } \
                         }
 
-GPUInterface::GPUInterface() {
-    // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
-//    SAFE_CUDA(cuInit(0));
-//    
-//    cudaDevice = NULL;
-//    cudaContext = NULL;
-//    cudaModule = NULL;
-    
+GPUInterface::GPUInterface() {    
     clDeviceId = NULL;
     clContext = NULL;
-    clCommands = NULL;
+    clCommandQueue = NULL;
     clProgram = NULL;
-    
 }
 
 GPUInterface::~GPUInterface() {
-//    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-//    SAFE_CUDA(cuCtxDetach(cudaContext));
+    
+    // TODO: cleanup mem objects, kernels
     
     clReleaseProgram(clProgram);
-    clReleaseCommandQueue(clCommands);
+    clReleaseCommandQueue(clCommandQueue);
     clReleaseContext(clContext);
 }
 
-int GPUInterface::GetDeviceCount() {
-//    int numDevices = 0;
-//    SAFE_CUDA(cuDeviceGetCount(&numDevices));
-//    return numDevices;
-    
+int GPUInterface::GetDeviceCount() {    
     cl_uint numDevices = 0;
     
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, MAX_CL_DEVICES, NULL,
@@ -63,21 +51,48 @@ int GPUInterface::GetDeviceCount() {
 }
 
 void GPUInterface::SetDevice(int deviceNumber) {
-//    SAFE_CUDA(cuDeviceGet(&cudaDevice, deviceNumber));
-//    
-//    SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
-//    
-//    SAFE_CUDA(cuModuleLoadData(&cudaModule, KERNELS_STRING)); 
-//    
-//    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
-    
-    cl_uint numDevices = 0;
+    cl_uint numDevices;
     cl_device_id  deviceIds[MAX_CL_DEVICES];
     
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, MAX_CL_DEVICES, deviceIds,
                            &numDevices));
     
     clDeviceId = deviceIds[deviceNumber];
+    
+    int err;
+    
+    clContext = clCreateContext(NULL, 1, &clDeviceId, NULL, NULL, &err);
+    SAFE_CL(err);
+    
+    clCommandQueue = clCreateCommandQueue(clContext, clDeviceId, 0, &err);
+    SAFE_CL(err);
+    
+    const char* KernelSource = KERNELS_STRING;
+    
+    clProgram = clCreateProgramWithSource(clContext, 1, (const char **) & KernelSource,
+                                          NULL, &err);
+    SAFE_CL(err);
+    if (!clProgram) {
+        fprintf(stderr, "OpenCL error: Failed to create kernels\n");
+        exit(-1);
+    }
+    
+    err = clBuildProgram(clProgram, 0, NULL, OPENCL_BUILD_OPTIONS, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        size_t len;
+        char buffer[2048];
+        
+        fprintf(stderr, "OpenCL error: Failed to build kernels\n");
+        
+        clGetProgramBuildInfo(clProgram, clDeviceId, CL_PROGRAM_BUILD_LOG,
+                              sizeof(buffer), buffer, &len);
+        
+        fprintf(stderr, "%s\n", buffer);
+        
+        exit(-1);
+    }
+    
+    SAFE_CL(clUnloadCompiler());
 }
 
 void GPUInterface::Synchronize() {
