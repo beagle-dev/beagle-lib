@@ -149,14 +149,12 @@ public interface Beagle {
      * @param weights           List of weights to apply to each partialsBuffer (input)
      * @param stateFrequencies  List of state frequencies for each partialsBuffer (input)
     There should be one set for each of parentBufferIndices
-     * @param count             Number of partialsBuffer to integrate (input)
      * @param outLogLikelihoods Pointer to destination for resulting log likelihoods (output)
      */
     void calculateRootLogLikelihoods(
             final int[] bufferIndices,
             final double[] weights,
             final double[] stateFrequencies,
-            int count,
             final double[] outLogLikelihoods);
 
     /*

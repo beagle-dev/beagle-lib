@@ -39,7 +39,7 @@ public class DefaultBeagleImpl implements Beagle {
     public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
     }
 
-    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final int count, final double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final double[] outLogLikelihoods) {
     }
 
     int tipCount;
