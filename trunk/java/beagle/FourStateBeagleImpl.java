@@ -2,12 +2,12 @@ package beagle;
 
 import java.util.logging.Logger;
 
-public class FourStateBeagleImpl extends DefaultBeagleImpl {
+public class FourStateBeagleImpl extends GeneralBeagleImpl {
 
     public static final boolean DEBUG = false;
 
-    public FourStateBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount) {
-        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount);
+    public FourStateBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount) {
+        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount, categoryCount);
     }
 
 //    /**
