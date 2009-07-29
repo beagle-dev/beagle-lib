@@ -27,64 +27,64 @@
                         }
 
 GPUInterface::GPUInterface() {    
-    clDeviceId = NULL;
-    clContext = NULL;
-    clCommandQueue = NULL;
-    clProgram = NULL;
+    openClDeviceId = NULL;
+    openClContext = NULL;
+    openClCommandQueue = NULL;
+    openClProgram = NULL;
+    openClNumDevices = NULL;
 }
 
 GPUInterface::~GPUInterface() {
     
     // TODO: cleanup mem objects, kernels
     
-    clReleaseProgram(clProgram);
-    clReleaseCommandQueue(clCommandQueue);
-    clReleaseContext(clContext);
+    SAFE_CL(clReleaseProgram(openClProgram));
+    SAFE_CL(clReleaseCommandQueue(openClCommandQueue));
+    SAFE_CL(clReleaseContext(openClContext));
 }
 
-int GPUInterface::GetDeviceCount() {    
-    cl_uint numDevices = 0;
+int GPUInterface::GetDeviceCount() {        
+    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, NULL, NULL,
+                           &openClNumDevices));
     
-    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, MAX_CL_DEVICES, NULL,
-                           &numDevices));
-    return numDevices;
+    return openClNumDevices;
 }
 
 void GPUInterface::SetDevice(int deviceNumber) {
-    cl_uint numDevices;
-    cl_device_id  deviceIds[MAX_CL_DEVICES];
+    cl_device_id  deviceIds[openClNumDevices];
     
-    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, MAX_CL_DEVICES, deviceIds,
-                           &numDevices));
+    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,
+                           NULL));
     
-    clDeviceId = deviceIds[deviceNumber];
+    openClDeviceId = deviceIds[deviceNumber];
     
     int err;
     
-    clContext = clCreateContext(NULL, 1, &clDeviceId, NULL, NULL, &err);
+    openClContext = clCreateContext(NULL, 1, &openClDeviceId, NULL, NULL, &err);
     SAFE_CL(err);
     
-    clCommandQueue = clCreateCommandQueue(clContext, clDeviceId, 0, &err);
+    openClCommandQueue = clCreateCommandQueue(openClContext, openClDeviceId, 0, &err);
     SAFE_CL(err);
     
-    const char* KernelSource = KERNELS_STRING;
+    const char* kernelsString = KERNELS_STRING;
     
-    clProgram = clCreateProgramWithSource(clContext, 1, (const char **) & KernelSource,
-                                          NULL, &err);
+    openClProgram = clCreateProgramWithSource(openClContext, 1,
+                                              (const char**) &kernelsString, NULL,
+                                              &err);
     SAFE_CL(err);
-    if (!clProgram) {
+    if (!openClProgram) {
         fprintf(stderr, "OpenCL error: Failed to create kernels\n");
         exit(-1);
     }
     
-    err = clBuildProgram(clProgram, 0, NULL, OPENCL_BUILD_OPTIONS, NULL, NULL);
+    err = clBuildProgram(openClProgram, 0, NULL, OPENCL_BUILD_OPTIONS, NULL, NULL);
     if (err != CL_SUCCESS) {
         size_t len;
         char buffer[2048];
         
         fprintf(stderr, "OpenCL error: Failed to build kernels\n");
         
-        clGetProgramBuildInfo(clProgram, clDeviceId, CL_PROGRAM_BUILD_LOG,
+        clGetProgramBuildInfo(openClProgram, openClDeviceId, CL_PROGRAM_BUILD_LOG,
                               sizeof(buffer), buffer, &len);
         
         fprintf(stderr, "%s\n", buffer);
@@ -96,124 +96,102 @@ void GPUInterface::SetDevice(int deviceNumber) {
 }
 
 void GPUInterface::Synchronize() {
-//    SAFE_CUPP(cuCtxSynchronize());
+    SAFE_CL(clFinish(openClCommandQueue));
 }
 
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
-//    GPUFunction cudaFunction; 
-//    
-//    SAFE_CUPP(cuModuleGetFunction(&cudaFunction, cudaModule, functionName));
-//    
-//    return cudaFunction;
+    GPUFunction openClFunction;
+    
+    int err;
+    openClFunction = clCreateKernel(openClProgram, functionName, &err);
+    SAFE_CL(err);
+    if (!openClFunction) {
+        printf("OpenCL error: Failed to create compute kernel %s\n", functionName);
+        exit(-1);
+    }
+    
+    return openClFunction;
 }
 
 void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
                                          int totalParameterCount,
-                                         ...) { // unsigned int parameters
-//    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-//    
-//    SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
-//    
-//    int offset = 0;
-//    va_list parameters;
-//    va_start(parameters, totalParameterCount);  
-//    for(int i = 0; i < totalParameterCount; i++) {
-//        unsigned int param = va_arg(parameters, unsigned int);
-//        
-//        // adjust offset alignment requirements
-//        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
-//        
-//        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
-//        
-//        offset += sizeof(param);
-//    }
-//    va_end(parameters);
-//    
-//    SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
-//    
-//    SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
-//    
-//    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+                                         ...) { // unsigned int parameters    
+    va_list parameters;
+    va_start(parameters, totalParameterCount);  
+    for(int i = 0; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+                
+        SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(unsigned int), &param));
+    }
+    va_end(parameters);
+    
+    size_t blockArray[3];
+    blockArray[0] = block.x;
+    blockArray[1] = block.y;
+    blockArray[2] = block.z;
+    
+    size_t gridArray[3];
+    gridArray[0] = grid.x;
+    gridArray[1] = grid.y;
+    gridArray[2] = grid.z;
+    
+    SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 3, NULL,
+                                   gridArray, blockArray, 0, NULL, NULL));
 }
 
 
 GPUPtr GPUInterface::AllocateMemory(int memSize) {
-//#ifdef DEBUG
-//    fprintf(stderr,"Entering ANMA\n");
-//#endif
-//    
-//    GPUPtr data;
-//    
-//    SAFE_CUPP(cuMemAlloc(&data, memSize));
-//    
-//#ifdef DEBUG
-//    fprintf(stderr, "Allocated %d to %d.\n", data, (data + memSize));
-//    fprintf(stderr, "Leaving ANMA\n");
-//#endif
-//    
-//    return data;
+    GPUPtr data;
+    
+    int err;
+    data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, memSize, NULL, &err);
+    SAFE_CL(err);
+    
+    return data;
 }
 
-GPUPtr GPUInterface::AllocateRealMemory(int length) {
-//#ifdef DEBUG
-//    fprintf(stderr,"Entering ANMA-Real\n");
-//#endif
-//    
-//    GPUPtr data;
-//    
-//    SAFE_CUPP(cuMemAlloc(&data, SIZE_REAL * length));
-//    
-//#ifdef DEBUG
-//    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
-//    fprintf(stderr, "Leaving ANMA\n");
-//#endif
-//    
-//    return data;
+GPUPtr GPUInterface::AllocateRealMemory(int length) {    
+    GPUPtr data;
+
+    int err;
+    data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, SIZE_REAL * length, NULL,
+                          &err);
+    SAFE_CL(err);
+    
+    return data;
 }
 
-GPUPtr GPUInterface::AllocateIntMemory(int length) {
-//#ifdef DEBUG
-//    fprintf(stderr, "Entering ANMA-Int\n");
-//#endif
-//    
-//    GPUPtr data;
-//    
-//    SAFE_CUPP(cuMemAlloc(&data, SIZE_INT * length));
-//    
-//#ifdef DEBUG
-//    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
-//    fprintf(stderr, "Leaving ANMA\n");
-//#endif
-//    
-//    return data;
+GPUPtr GPUInterface::AllocateIntMemory(int length) {    
+    GPUPtr data;
+    
+    int err;
+    data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, SIZE_INT * length, NULL,
+                          &err);
+    SAFE_CL(err);
+        
+    return data;
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
-                                      int memSize) {
-//    SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
+                                      int memSize) {    
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueue, dest, CL_TRUE, 0, memSize, src, 0,
+                                 NULL, NULL));
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       const GPUPtr src,
                                       int memSize) {
-//    SAFE_CUPP(cuMemcpyDtoH(dest, src, memSize));
+    SAFE_CL(clEnqueueReadBuffer(openClCommandQueue, src, CL_TRUE, 0, memSize, dest, 0,
+                                NULL, NULL));
 }
 
 void GPUInterface::FreeMemory(GPUPtr dPtr) {
-//#ifdef DEBUG
-//    fprintf(stderr, "Entering FNMA\n");
-//#endif
-//    
-//    SAFE_CUPP(cuMemFree(dPtr));
-//    
-//#ifdef DEBUG
-//    fprintf(stderr,"Leaving FNMA\n");
-//#endif
+    SAFE_CL(clReleaseMemObject(dPtr));
 }
-//
+
 void GPUInterface::PrintInfo() {        
     fprintf(stderr, "GPU Device Information:");
     
@@ -223,13 +201,13 @@ void GPUInterface::PrintInfo() {
     unsigned int mpCount = 0;
     
     
-    SAFE_CL(clGetDeviceInfo(clDeviceId, CL_DEVICE_NAME, sizeof(char) * 100, name,
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_NAME, sizeof(char) * 100, name,
                             NULL));
-    SAFE_CL(clGetDeviceInfo(clDeviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong),
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong),
                             &totalGlobalMemory, NULL));
-    SAFE_CL(clGetDeviceInfo(clDeviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint),
-                            &clockSpeed, NULL));
-    SAFE_CL(clGetDeviceInfo(clDeviceId, CL_DEVICE_MAX_COMPUTE_UNITS,
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY,
+                            sizeof(cl_uint), &clockSpeed, NULL));
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(unsigned int), &mpCount, NULL));
     
     fprintf(stderr, "\nDevice: %s\n", name);
@@ -241,28 +219,28 @@ void GPUInterface::PrintInfo() {
 
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
                                       int length) {
-//    REAL* hPtr = (REAL*) malloc(SIZE_REAL * length);
-//    
-//    MemcpyDeviceToHost(hPtr, dPtr, SIZE_REAL * length);
-//    
-//#ifdef DOUBLE_PRECISION
-//    printfVectorD(hPtr, length);
-//#else
-//    printfVectorF(hPtr,length);
-//#endif
-//    
-//    free(hPtr);
+    REAL* hPtr = (REAL*) malloc(SIZE_REAL * length);
+    
+    MemcpyDeviceToHost(hPtr, dPtr, SIZE_REAL * length);
+    
+#ifdef DOUBLE_PRECISION
+    printfVectorD(hPtr, length);
+#else
+    printfVectorF(hPtr,length);
+#endif
+    
+    free(hPtr);
 }
-//
+
 void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
                                    int length) {    
-//    int* hPtr = (int*) malloc(SIZE_INT * length);
-//    
-//    MemcpyDeviceToHost(hPtr, dPtr, SIZE_INT * length);
-//    
-//    printfInt(hPtr, length);
-//    
-//    free(hPtr);
+    int* hPtr = (int*) malloc(SIZE_INT * length);
+    
+    MemcpyDeviceToHost(hPtr, dPtr, SIZE_INT * length);
+    
+    printfInt(hPtr, length);
+    
+    free(hPtr);
 }
 
 const char* GPUInterface::GetCLErrorDescription(int errorCode) {
