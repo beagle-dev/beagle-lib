@@ -88,7 +88,7 @@ public class BeagleJNIImpl implements Beagle {
         BeagleJNIWrapper.INSTANCE.updatePartials(instances, instances.length, operations, operationCount, rescale ? 1 : 0);
     }
 
-    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final int count, final double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final double[] outLogLikelihoods) {
         BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, weights, stateFrequencies, bufferIndices.length, outLogLikelihoods);
     }
 
