@@ -60,7 +60,7 @@ public class GeneralBeagleImpl implements Beagle {
         Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
     }
 
-    public void initialize(final int tipCount, 
+    public void initialize(final int tipCount,
                            final int partialsBufferCount,
                            final int compactBufferCount,
                            final int stateCount,
@@ -151,9 +151,7 @@ public class GeneralBeagleImpl implements Beagle {
     /**
      * cleans up and deallocates arrays.
      */
-    public void finalize() throws Throwable  {
-        super.finalize();
-
+    public void finalize() {
         nodeCount = 0;
         patternCount = 0;
         matrixCount = 0;
@@ -173,6 +171,10 @@ public class GeneralBeagleImpl implements Beagle {
     public void setPartials(final int bufferIndex, final double[] partials) {
     }
 
+    public void getPartials(final int bufferIndex, final double[] partials) {
+    }
+
+
 
     /**
      * Sets partials for a tip
@@ -187,6 +189,7 @@ public class GeneralBeagleImpl implements Beagle {
 
         useTipPartials = true;
     }
+
 
     /**
      * Sets partials for a tip - these are numbered from 0 and remain
@@ -230,6 +233,9 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
+    }
+
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final int count, final double[] outLogLikelihoods) {
     }
 
     public void calculateRootLogLikelihoods(final int[] bufferIndices, final double[] weights, final double[] stateFrequencies, final double[] outLogLikelihoods) {
