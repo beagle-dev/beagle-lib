@@ -14,6 +14,7 @@ CLEANFILES = BeagleCUDA_Kernels.h
 # rules for building cuda files
 BeagleCUDA_Kernels.h: Makefile
 	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx $(srcdir)/BeagleCUDA_kernels.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
+#	$(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx $(srcdir)/BeagleCUDA_kernels.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
 	echo "// auto-generated header file with CUDA kernels PTX code" > BeagleCUDA_kernels.h
 	echo "#define KERNELS_STRING \"\\" >> BeagleCUDA_kernels.h
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
