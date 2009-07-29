@@ -52,7 +52,15 @@ public class BeagleFactory {
 
         if (stateCount == 4) {
 //            return new DependencyAwareBeagleImpl();
-            return new FourStateBeagleImpl();
+            return new FourStateBeagleImpl(
+                    tipCount,
+                    partialsBufferCount,
+                    compactBufferCount,
+                    stateCount,
+                    patternCount,
+                    eigenBufferCount,
+                    matrixBufferCount
+            );
         }
         return new DefaultBeagleImpl(tipCount,
                     partialsBufferCount,
