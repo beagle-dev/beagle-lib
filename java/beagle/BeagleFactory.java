@@ -31,7 +31,7 @@ public class BeagleFactory {
                 System.err.println("BEAGLE library loaded");
 
             } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library");
+                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
             }
         }
 
