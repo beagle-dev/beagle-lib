@@ -5,8 +5,6 @@
 
 package beagle;
 
-import java.util.Map;
-
 /*
  * BeagleJNIjava
  *
@@ -47,7 +45,8 @@ public class BeagleJNIImpl implements Beagle {
         BeagleJNIWrapper.INSTANCE.initialize(instance);
     }
 
-    public void finalize() {
+    public void finalize() throws Throwable {
+        super.finalize();
         BeagleJNIWrapper.INSTANCE.finalize(instance);
     }
 

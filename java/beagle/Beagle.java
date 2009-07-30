@@ -28,7 +28,7 @@ public interface Beagle {
      *
      * This function finalizes the instance by releasing allocated memory
      */
-    void finalize();
+    void finalize() throws Throwable;
 
     /**
      * Set an instance partials buffer
