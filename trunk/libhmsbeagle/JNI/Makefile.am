@@ -6,7 +6,7 @@ libjni_la_LDFLAGS =
 if BUILDCUDA
 libjni_la_CFLAGS = $(CUDA_CFLAGS)
 libjni_la_CXXFLAGS = $(CUDA_CFLAGS)
-libjni_la_LIBADD = $(CUDA_LIBS) 
+libjni_la_LIBADD = $(CUDA_LIBS) -lhmsbeagle
 endif
 
 INCLUDES = -I$(top_builddir) -I$(top_srcdir)
