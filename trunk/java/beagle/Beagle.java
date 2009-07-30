@@ -175,7 +175,7 @@ public interface Beagle {
             final int[] scalingFactorsCount,
             final double[] outLogLikelihoods);
 
-    /*
+   /**
     * Calculate site log likelihoods and derivatives along an edge
     *
     * This function integrates at list of partials at a parent and child node with respect
@@ -190,22 +190,23 @@ public interface Beagle {
     * @param weights                   List of weights to apply to each partialsBuffer (input)
     * @param stateFrequencies          List of state frequencies for each partialsBuffer (input)
     *                                      There should be one set for each of parentBufferIndices
-    * @param count                     Number of partialsBuffers (input)
+    * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
+    *                                      There should be one set for each of parentBufferIndices
+    * @param scalingFactorsCount       List of scalingFactorsIndices sizes for each partialsBuffer (input)
     * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
     * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
     * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output)
     */
-//    void calculateEdgeLogLikelihoods(
-//            final int[] parentBufferIndices,
-//            final int[] childBufferIndices,
-//            final int[] probabilityIndices,
-//            final int[] firstDerivativeIndices,
-//            final int[] secondDerivativeIndices,
-//            final double[] weights,
-//            final double[] stateFrequencies,
-//            int count,
-//            final double[] outLogLikelihoods,
-//            final double[] outFirstDerivatives,
-//            final double[] outSecondDerivatives);
-
+    public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
+                                            final int[] childBufferIndices,
+                                            final int[] probabilityIndices,
+                                            final int[] firstDerivativeIndices,
+                                            final int[] secondDerivativeIndices,
+                                            final double[] weights,
+                                            final double[] stateFrequencies,
+                                            final int[] scalingFactorsIndices,
+                                            final int[] scalingFactorsCount,
+                                            final double[] outLogLikelihoods,
+                                            final double[] outFirstDerivatives,
+                                            final double[] outSecondDerivatives);
 }

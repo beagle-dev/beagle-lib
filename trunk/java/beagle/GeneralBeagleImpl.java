@@ -480,6 +480,9 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
+        throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");        
+    }
 
 
 //    private void calculateRootScalingFactors(int[] indices) {

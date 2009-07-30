@@ -15,7 +15,7 @@ import java.util.Map;
  */
 
 public class BeagleJNIWrapper {
-    public static final String LIBRARY_NAME = "BEAGLE";
+    public static final String LIBRARY_NAME = "hmsbeagle-jni";
 
     /**
      * private constructor to enforce singleton instance
@@ -23,12 +23,7 @@ public class BeagleJNIWrapper {
     private BeagleJNIWrapper() {
     }
 
-
-    //    public native ResourceList* getResourceList();
-//
-//    public native int initializeInstance(
-//						int instance,
-//						InstanceDetails* returnInfo);
+    public native ResourceDetails[] getResourceList();
 
     public native int createInstance(
             int tipCount,
@@ -44,7 +39,9 @@ public class BeagleJNIWrapper {
             int preferenceFlags,
             int requirementFlags);
 
-    public native int initialize(int instance);
+    public native int initializeInstance(
+						int instance,
+						InstanceDetails[] returnInfo);
 
     public native int finalize(int instance);
 
@@ -52,13 +49,15 @@ public class BeagleJNIWrapper {
 
     public native int getPartials(int instance, int bufferIndex, final double[] outPartials);
 
-    public native void setTipStates(int instance, int tipIndex, final int[] inStates);
+    public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
-    public native void setEigenDecomposition(int instance,
+    public native int setEigenDecomposition(int instance,
                                              int eigenIndex,
                                              final double[] eigenVectors,
                                              final double[] inverseEigenValues,
                                              final double[] eigenValues);
+
+    public native int setCategoryRates(int instance, double[] inCategoryRates);
 
     public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
 
@@ -75,21 +74,38 @@ public class BeagleJNIWrapper {
                                      int operationCount,
                                      int rescale);
 
+    public native int waitForPartials(final int[] instance,
+                                     int instanceCount,
+                                     final int[] destinationPartials,
+                                     int destinationPartialsCount);
+
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
-                                                  final double[] weights,
-                                                  final double[] stateFrequencies,
+                                                  final double[] inWeights,
+                                                  final double[] inStateFrequencies,
+                                                  final int[] scalingFactorsIndices,
+                                                  final int[] scalingFactorsCount,
                                                   int count,
-                                                  double[] outLogLikelihoods);
+                                                  final double[] outLogLikelihoods);
 
+    public native int calculateEdgeLogLikelihoods(int instance,
+                                    final int[] parentBufferIndices,
+                                    final int[] childBufferIndices,
+                                    final int[] probabilityIndices,
+                                    final int[] firstDerivativeIndices,
+                                    final int[] secondDerivativeIndices,
+                                    final double[] inWeights,
+                                    final double[] inStateFrequencies,
+                                    final int[] scalingFactorsIndices,
+                                    final int[] scalingFactorsCount,
+                                    int count,
+                                    final double[] outLogLikelihoods,
+                                    final double[] outFirstDerivatives,
+                                    final double[] outSecondDerivatives);
     /* Library loading routines */
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
-        try {
-            System.loadLibrary(LIBRARY_NAME);
-        } catch (UnsatisfiedLinkError e) {
-            throw new UnsatisfiedLinkError("Failed to load BEAGLE library:" + e.getMessage());
-        }
+        System.loadLibrary(LIBRARY_NAME);
         INSTANCE = new BeagleJNIWrapper();
     }
 
