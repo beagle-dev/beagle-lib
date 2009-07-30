@@ -79,7 +79,7 @@ public class GeneralBeagleImpl implements Beagle {
 
         tipStates = new int[compactBufferCount][];
         partials = new double[partialsBufferCount][];
-        for (int i = 0; i < partialsBufferCount; i++) {
+        for (int i = tipCount; i < partialsBufferCount; i++) {
             partials[i] = new double[partialsSize];
         }
 
@@ -107,6 +107,8 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public void setPartials(final int bufferIndex, final double[] partials) {
+        assert(this.partials[bufferIndex] == null);
+        this.partials[bufferIndex] = new double[partialsSize];
         System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
     }
 
@@ -122,6 +124,7 @@ public class GeneralBeagleImpl implements Beagle {
      * @param states   an array of patternCount state indices
      */
     public void setTipStates(int tipIndex, int[] states) {
+        assert(this.tipStates[tipIndex] == null);
         tipStates[tipIndex] = new int[patternCount * categoryCount];
         int k = 0;
         for (int i = 0; i < categoryCount; i++) {
@@ -244,14 +247,14 @@ public class GeneralBeagleImpl implements Beagle {
             if (compactBufferCount == 0) {
                 updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
             } else {
-                if (tipStates[bufferIndex1] != null) {
-                    if (tipStates[bufferIndex2] != null) {
+                if (bufferIndex1 < tipCount && tipStates[bufferIndex1] != null) {
+                    if (bufferIndex2 < tipCount && tipStates[bufferIndex2] != null) {
                         updateStatesStates(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
                     } else {
                         updateStatesPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
                     }
                 } else {
-                    if (tipStates[bufferIndex2] != null) {
+                    if (bufferIndex2 < tipCount && tipStates[bufferIndex2] != null) {
                         updateStatesPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
                     } else {
                         updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
@@ -412,39 +415,39 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods) {
-        // @todo I have a feeling this could be done in a single set of nested loops.
 
-        for (int bufferIndex : bufferIndices) {
-            double[] rootPartials = partials[bufferIndex];
+        assert(bufferIndices.length == 0); // @todo implement integration across multiple subtrees
 
-            double[] tmp = new double[patternCount * stateCount];
+        double[] rootPartials = partials[bufferIndices[0]];
 
-            int u = 0;
-            int v = 0;
+        double[] tmp = new double[patternCount * stateCount];
+
+        int u = 0;
+        int v = 0;
+        for (int k = 0; k < patternCount; k++) {
+
+            for (int i = 0; i < stateCount; i++) {
+
+                tmp[u] = rootPartials[v] * weights[0];
+                u++;
+                v++;
+            }
+        }
+
+
+        for (int l = 1; l < categoryCount; l++) {
+            u = 0;
+
             for (int k = 0; k < patternCount; k++) {
 
                 for (int i = 0; i < stateCount; i++) {
 
-                    tmp[u] = rootPartials[v] * weights[0];
+                    tmp[u] += rootPartials[v] * weights[l];
                     u++;
                     v++;
                 }
             }
-
-
-            for (int l = 1; l < categoryCount; l++) {
-                u = 0;
-
-                for (int k = 0; k < patternCount; k++) {
-
-                    for (int i = 0; i < stateCount; i++) {
-
-                        tmp[u] += rootPartials[v] * weights[l];
-                        u++;
-                        v++;
-                    }
-                }
-            }
+        }
 
 //        if (SCALING) {
 //            if (DYNAMIC_SCALING) {
@@ -456,32 +459,31 @@ public class GeneralBeagleImpl implements Beagle {
 //            }
 //        }
 
-            u = 0;
-            for (int k = 0; k < patternCount; k++) {
+        u = 0;
+        for (int k = 0; k < patternCount; k++) {
 
-                double sum = 0.0;
-                for (int i = 0; i < stateCount; i++) {
+            double sum = 0.0;
+            for (int i = 0; i < stateCount; i++) {
 
-                    sum += stateFrequencies[i] * tmp[u];
-                    u++;
-                }
-
-                if (SCALING) {
-//                    outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
-                } else {
-                    outLogLikelihoods[k] = Math.log(sum);
-                }
-
-                if (DEBUG) {
-                    System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
-                }
+                sum += stateFrequencies[i] * tmp[u];
+                u++;
             }
-//        if (DEBUG) System.exit(-1);
+
+            if (SCALING) {
+//                    outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
+            } else {
+                outLogLikelihoods[k] = Math.log(sum);
+            }
+
+            if (DEBUG) {
+                System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
+            }
         }
+//        if (DEBUG) System.exit(-1);
     }
 
     public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
-        throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");        
+        throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
     }
 
 
