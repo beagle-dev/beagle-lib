@@ -1,5 +1,4 @@
 #
-# command-line: make STATE_COUNT=<#> mac/linux
 #
 
 OUTNAME		:= BEAGLE
