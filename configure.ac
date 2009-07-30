@@ -136,6 +136,22 @@ fi
 AC_SUBST(NVCCFLAGS)
 
 
+# ------------------------------------------------------------------------------
+# Setup Mac multi-architecture flags
+#
+# TODO: Automatically determine MacOS10.x.sdk directory
+# ------------------------------------------------------------------------------
+case $host_os in
+*darwin*)
+  CXXFLAGS+=" -arch i386 -arch x86_64"
+  CFLAGS+=" -arch i386 -arch x86_64"
+  LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.5.sdk"
+  AC_SUBST(CXXFLAGS)
+  AC_SUBST(CFLAGS)
+  AC_SUBST(LDFLAGS)
+  AM_INIT_AUTOMAKE(no-dependencies)
+esac
+
 
 # ------------------------------------------------------------------------------
 # Setup Java

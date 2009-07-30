@@ -11,7 +11,7 @@ endif
 libhmsbeagle_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
 libhmsbeagle_jni_la_SOURCES = beagle.cpp BeagleImpl.h
-libhmsbeagle_jni_la_LDFLAGS = -module -avoid-version $(JNI_EXTRA_LDFLAGS)
+libhmsbeagle_jni_la_LDFLAGS = -module -avoid-version $(JNI_EXTRA_LDFLAGS) -lhmsbeagle
 libhmsbeagle_jni_la_LIBADD = JNI/libjni.la
 if BUILDCUDA
 libhmsbeagle_jni_la_CFLAGS = $(CUDA_CFLAGS)
