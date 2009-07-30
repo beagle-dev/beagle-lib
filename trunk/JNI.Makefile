@@ -10,7 +10,7 @@ MAC_JAVA_HOME	:= /Library/Java/Home
 #LINUX_JAVA_HOME	:= /usr/java/j2sdk1.4.1_01
 LINUX_JAVA_HOME	:= /usr/java/jdk1.6.0_07
 
-MAC_INCLUDES	+= -I$(MAC_JAVA_HOME)/include -Iinclude/ -Isrc/CPU
+MAC_INCLUDES	+= -I$(MAC_JAVA_HOME)/include -I.
 LINUX_INCLUDES	+= -I$(LINUX_JAVA_HOME)/include -I$(LINUX_JAVA_HOME)/include/linux -Iinclude/
 
 DEST	:= lib
@@ -33,7 +33,7 @@ mac :
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
 	    -DDOUBLE_PRECISION \
- 		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
+ 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
 
 	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib \
 		$(OPTIONS) \
@@ -41,7 +41,7 @@ mac :
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
 	    -DDOUBLE_PRECISION \
- 		src/beagle.cpp src/CPU/BeagleCPUImpl.cpp java/JNI/beagle_BeagleJNIWrapper.cpp
+ 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
 
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
