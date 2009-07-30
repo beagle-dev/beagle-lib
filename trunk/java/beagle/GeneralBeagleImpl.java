@@ -8,8 +8,6 @@ public class GeneralBeagleImpl implements Beagle {
     public static final boolean SCALING = false;
     public static final boolean DYNAMIC_SCALING = true;
 
-    private boolean doRescaling = true;
-
     protected final int tipCount;
     protected final int partialsBufferCount;
     protected final int compactBufferCount;
@@ -25,8 +23,6 @@ public class GeneralBeagleImpl implements Beagle {
     protected double[][] cMatrices;
     protected double[][] eigenValues;
 
-    protected double[] frequencies;
-    protected double[] categoryProportions;
     protected double[] categoryRates;
 
     protected double[][] partials;
@@ -46,13 +42,13 @@ public class GeneralBeagleImpl implements Beagle {
      * @param stateCount number of states
      */
     public GeneralBeagleImpl(final int tipCount,
-                           final int partialsBufferCount,
-                           final int compactBufferCount,
-                           final int stateCount,
-                           final int patternCount,
-                           final int eigenBufferCount,
-                           final int matrixBufferCount,
-                           final int categoryCount) {
+                             final int partialsBufferCount,
+                             final int compactBufferCount,
+                             final int stateCount,
+                             final int patternCount,
+                             final int eigenBufferCount,
+                             final int matrixBufferCount,
+                             final int categoryCount) {
 
         this.tipCount = tipCount;
         this.partialsBufferCount = partialsBufferCount;
@@ -77,17 +73,13 @@ public class GeneralBeagleImpl implements Beagle {
 
         eigenValues = new double[eigenBufferCount][stateCount];
 
-        frequencies = new double[stateCount];
-
         categoryRates = new double[categoryCount];
-
-        categoryProportions = new double[categoryCount];
 
         partialsSize = patternCount * stateCount * categoryCount;
 
-        tipStates = new int[tipCount][];
+        tipStates = new int[compactBufferCount][];
         partials = new double[partialsBufferCount][];
-        for (int i = tipCount; i < partialsBufferCount; i++) {
+        for (int i = 0; i < partialsBufferCount; i++) {
             partials[i] = new double[partialsSize];
         }
 
@@ -110,18 +102,8 @@ public class GeneralBeagleImpl implements Beagle {
         matrices = new double[matrixBufferCount][categoryCount * matrixSize];
     }
 
-    /**
-     * cleans up and deallocates arrays.
-     */
-    public void finalize() {
-        partials = null;
-        tipStates = null;
-        matrices = null;
-//        scalingFactors = null;
-//        rootScalingFactors = null;
-//        storedRootScalingFactors = null;
-//        currentMatricesIndices = null;
-//        storedMatricesIndices = null;
+    public void finalize() throws Throwable {
+        super.finalize();
     }
 
     public void setPartials(final int bufferIndex, final double[] partials) {
@@ -218,6 +200,27 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    /**
+     * Calculate or queue for calculation partials using a list of operations
+     *
+     * This function either calculates or queues for calculation a list partials. Implementations
+     * supporting SYNCH may queue these calculations while other implementations perform these
+     * operations immediately.  Implementations supporting GPU may perform all operations in the list
+     * simultaneously.
+     *
+     * Operations list is a list of 6-tuple integer indices, with one 6-tuple per operation.
+     * Format of 6-tuple operation: {destinationPartials,
+     *                               destinationScalingFactors, (this index must be > tipCount)
+     *                               child1Partials,
+     *                               child1TransitionMatrix,
+     *                               child2Partials,
+     *                               child2TransitionMatrix}
+     *
+     * @param operations        List of 6-tuples specifying operations (input)
+     * @param operationCount    Number of operations (input)
+     * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors
+     *
+     */
     public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
 //        if (SCALING) {
 //            if (DYNAMIC_SCALING) {
@@ -230,39 +233,40 @@ public class GeneralBeagleImpl implements Beagle {
 
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
-            int nodeIndex1 = operations[x];
-            x++;
-            int nodeIndex2 = operations[x];
-            x++;
-            int nodeIndex3 = operations[x];
-            x++;
+            int bufferIndex3 = operations[x];
+            int bufferIndex1 = operations[x + 2];
+            int matrixIndex1 = operations[x + 3];
+            int bufferIndex2 = operations[x + 4];
+            int matrixIndex2 = operations[x + 5];
 
-//            if (useTipPartials) {
-//                updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-//            } else {
-//                if (nodeIndex1 < tipCount) {
-//                    if (nodeIndex2 < tipCount) {
-//                        updateStatesStates(nodeIndex1, nodeIndex2, nodeIndex3);
-//                    } else {
-//                        updateStatesPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-//                    }
-//                } else {
-//                    if (nodeIndex2 < tipCount) {
-//                        updateStatesPartials(nodeIndex2, nodeIndex1, nodeIndex3);
-//                    } else {
-//                        updatePartialsPartials(nodeIndex1, nodeIndex2, nodeIndex3);
-//                    }
-//                }
-//            }
-//
+            x += 6;
+
+            if (compactBufferCount == 0) {
+                updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+            } else {
+                if (tipStates[bufferIndex1] != null) {
+                    if (tipStates[bufferIndex2] != null) {
+                        updateStatesStates(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+                    } else {
+                        updateStatesPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+                    }
+                } else {
+                    if (tipStates[bufferIndex2] != null) {
+                        updateStatesPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+                    } else {
+                        updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+                    }
+                }
+            }
+
 //            if (SCALING) {
 //                if (DYNAMIC_SCALING) {
 //                    if (doRescaling) {
-//                        currentScalingFactorsIndices[nodeIndex3] = 1 - currentScalingFactorsIndices[nodeIndex3];
-//                        scalePartials(nodeIndex3,currentScalingFactorsIndices);
+//                        currentScalingFactorsIndices[bufferIndex2] = 1 - currentScalingFactorsIndices[bufferIndex2];
+//                        scalePartials(bufferIndex2,currentScalingFactorsIndices);
 //                    }
 //                } else {
-//                    scalePartials(nodeIndex3,currentPartialsIndices);
+//                    scalePartials(bufferIndex2,currentPartialsIndices);
 //                }
 //            }
         }
@@ -271,210 +275,209 @@ public class GeneralBeagleImpl implements Beagle {
     /**
      * Calculates partial likelihoods at a node when both children have states.
      */
-    protected void updateStatesStates(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updateStatesStates(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
     {
-//        double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-//        double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
-//
-//        int[] states1 = tipStates[nodeIndex1];
-//        int[] states2 = tipStates[nodeIndex2];
-//
-//        double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-//
-//        int v = 0;
-//
-//        for (int l = 0; l < categoryCount; l++) {
-//
-//            for (int k = 0; k < patternCount; k++) {
-//
-//                int state1 = states1[k];
-//                int state2 = states2[k];
-//
-//                int w = l * matrixSize;
-//
-//                for (int i = 0; i < stateCount; i++) {
-//
-//                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
-//
-//                    v++;
-//                    w += (stateCount + 1);
-//                }
-//
-//            }
-//        }
+        double[] matrices1 = matrices[matrixIndex1];
+        double[] matrices2 = matrices[matrixIndex2];
+
+        int[] states1 = tipStates[bufferIndex1];
+        int[] states2 = tipStates[bufferIndex2];
+
+        double[] partials3 = partials[bufferIndex3];
+
+        int v = 0;
+
+        for (int l = 0; l < categoryCount; l++) {
+
+            for (int k = 0; k < patternCount; k++) {
+
+                int state1 = states1[k];
+                int state2 = states2[k];
+
+                int w = l * matrixSize;
+
+                for (int i = 0; i < stateCount; i++) {
+
+                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
+
+                    v++;
+                    w += (stateCount + 1);
+                }
+
+            }
+        }
     }
 
     /**
      * Calculates partial likelihoods at a node when one child has states and one has partials.
-     * @param nodeIndex1
-     * @param nodeIndex2
-     * @param nodeIndex3
      */
-    protected void updateStatesPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updateStatesPartials(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
     {
-//        double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-//        double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
-//
-//        int[] states1 = tipStates[nodeIndex1];
-//        double[] partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
-//
-//        double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-//
-//        double sum, tmp;
-//
-//        int u = 0;
-//        int v = 0;
-//
-//        for (int l = 0; l < categoryCount; l++) {
-//
-//            for (int k = 0; k < patternCount; k++) {
-//
-//                int state1 = states1[k];
-//
-//                int w = l * matrixSize;
-//
-//                for (int i = 0; i < stateCount; i++) {
-//
-//                    tmp = matrices1[w + state1];
-//
-//                    sum = 0.0;
-//                    for (int j = 0; j < stateCount; j++) {
-//                        sum += matrices2[w] * partials2[v + j];
-//                        w++;
-//                    }
-//
-//                    // increment for the extra column at the end
-//                    w++;
-//
-//                    partials3[u] = tmp * sum;
-//                    u++;
-//                }
-//
-//                v += stateCount;
-//            }
-//        }
+        double[] matrices1 = matrices[matrixIndex1];
+        double[] matrices2 = matrices[matrixIndex2];
+
+        int[] states1 = tipStates[bufferIndex1];
+        double[] partials2 = partials[bufferIndex2];
+
+        double[] partials3 = partials[bufferIndex3];
+
+        double sum, tmp;
+
+        int u = 0;
+        int v = 0;
+
+        for (int l = 0; l < categoryCount; l++) {
+
+            for (int k = 0; k < patternCount; k++) {
+
+                int state1 = states1[k];
+
+                int w = l * matrixSize;
+
+                for (int i = 0; i < stateCount; i++) {
+
+                    tmp = matrices1[w + state1];
+
+                    sum = 0.0;
+                    for (int j = 0; j < stateCount; j++) {
+                        sum += matrices2[w] * partials2[v + j];
+                        w++;
+                    }
+
+                    // increment for the extra column at the end
+                    w++;
+
+                    partials3[u] = tmp * sum;
+                    u++;
+                }
+
+                v += stateCount;
+            }
+        }
     }
 
-    protected void updatePartialsPartials(int nodeIndex1, int nodeIndex2, int nodeIndex3)
+    protected void updatePartialsPartials(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
     {
-//        double[] matrices1 = matrices[currentMatricesIndices[nodeIndex1]][nodeIndex1];
-//        double[] matrices2 = matrices[currentMatricesIndices[nodeIndex2]][nodeIndex2];
-//
-//        double[] partials1 = partials[currentPartialsIndices[nodeIndex1]][nodeIndex1];
-//        double[] partials2 = partials[currentPartialsIndices[nodeIndex2]][nodeIndex2];
-//
-//        double[] partials3 = partials[currentPartialsIndices[nodeIndex3]][nodeIndex3];
-//
-//        double sum1, sum2;
-//
-//        int u = 0;
-//        int v = 0;
-//
-//        for (int l = 0; l < categoryCount; l++) {
-//
-//            for (int k = 0; k < patternCount; k++) {
-//
-//                int w = l * matrixSize;
-//
-//                for (int i = 0; i < stateCount; i++) {
-//
-//                    sum1 = sum2 = 0.0;
-//
-//                    for (int j = 0; j < stateCount; j++) {
-//                        sum1 += matrices1[w] * partials1[v + j];
-//                        sum2 += matrices2[w] * partials2[v + j];
-//
-//                        w++;
-//                    }
-//
-//                    // increment for the extra column at the end
-//                    w++;
-//
-//                    partials3[u] = sum1 * sum2;
-//                    u++;
-//                }
-//                v += stateCount;
-//
-//            }
-//
-//            if (DEBUG) {
-////    	    	System.err.println("1:PP node = "+nodeIndex3);
-////    	    	for(int p=0; p<partials3.length; p++) {
-////    	    		System.err.println("1:PP\t"+partials3[p]);
-////    	    	}
+        double[] matrices1 = matrices[matrixIndex1];
+        double[] matrices2 = matrices[matrixIndex2];
+
+        double[] partials1 = partials[bufferIndex1];
+        double[] partials2 = partials[bufferIndex2];
+
+        double[] partials3 = partials[bufferIndex3];
+
+        double sum1, sum2;
+
+        int u = 0;
+        int v = 0;
+
+        for (int l = 0; l < categoryCount; l++) {
+
+            for (int k = 0; k < patternCount; k++) {
+
+                int w = l * matrixSize;
+
+                for (int i = 0; i < stateCount; i++) {
+
+                    sum1 = sum2 = 0.0;
+
+                    for (int j = 0; j < stateCount; j++) {
+                        sum1 += matrices1[w] * partials1[v + j];
+                        sum2 += matrices2[w] * partials2[v + j];
+
+                        w++;
+                    }
+
+                    // increment for the extra column at the end
+                    w++;
+
+                    partials3[u] = sum1 * sum2;
+                    u++;
+                }
+                v += stateCount;
+
+            }
+
+            if (DEBUG) {
+//    	    	System.err.println("1:PP node = "+nodeIndex3);
+//    	    	for(int p=0; p<partials3.length; p++) {
+//    	    		System.err.println("1:PP\t"+partials3[p]);
+//    	    	}
 //                System.err.println("node = "+nodeIndex3);
-////                System.err.println(new dr.math.matrixAlgebra.Vector(partials3));
-////                System.err.println(new dr.math.matrixAlgebra.Vector(scalingFactors[currentPartialsIndices[nodeIndex3]][nodeIndex3]));
-//                //System.exit(-1);
-//            }
-//        }
+//                System.err.println(new dr.math.matrixAlgebra.Vector(partials3));
+//                System.err.println(new dr.math.matrixAlgebra.Vector(scalingFactors[currentPartialsIndices[nodeIndex3]][nodeIndex3]));
+                //System.exit(-1);
+            }
+        }
     }
 
     public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods) {
         // @todo I have a feeling this could be done in a single set of nested loops.
 
-//        double[] rootPartials = partials[currentPartialsIndices[rootNodeIndex]][rootNodeIndex];
-//
-//        double[] tmp = new double[patternCount * stateCount];
-//
-//        int u = 0;
-//        int v = 0;
-//        for (int k = 0; k < patternCount; k++) {
-//
-//            for (int i = 0; i < stateCount; i++) {
-//
-//                tmp[u] = rootPartials[v] * categoryProportions[0];
-//                u++;
-//                v++;
-//            }
-//        }
-//
-//
-//        for (int l = 1; l < categoryCount; l++) {
-//            u = 0;
-//
-//            for (int k = 0; k < patternCount; k++) {
-//
-//                for (int i = 0; i < stateCount; i++) {
-//
-//                    tmp[u] += rootPartials[v] * categoryProportions[l];
-//                    u++;
-//                    v++;
+        for (int bufferIndex : bufferIndices) {
+            double[] rootPartials = partials[bufferIndex];
+
+            double[] tmp = new double[patternCount * stateCount];
+
+            int u = 0;
+            int v = 0;
+            for (int k = 0; k < patternCount; k++) {
+
+                for (int i = 0; i < stateCount; i++) {
+
+                    tmp[u] = rootPartials[v] * weights[0];
+                    u++;
+                    v++;
+                }
+            }
+
+
+            for (int l = 1; l < categoryCount; l++) {
+                u = 0;
+
+                for (int k = 0; k < patternCount; k++) {
+
+                    for (int i = 0; i < stateCount; i++) {
+
+                        tmp[u] += rootPartials[v] * weights[l];
+                        u++;
+                        v++;
+                    }
+                }
+            }
+
+//        if (SCALING) {
+//            if (DYNAMIC_SCALING) {
+//                if (doRescaling) {
+//                    calculateRootScalingFactors(currentScalingFactorsIndices);
 //                }
-//            }
-//        }
-//
-////        if (SCALING) {
-////            if (DYNAMIC_SCALING) {
-////                if (doRescaling) {
-////                    calculateRootScalingFactors(currentScalingFactorsIndices);
-////                }
-////            } else {
-////                calculateRootScalingFactors(currentPartialsIndices);
-////            }
-////        }
-//
-//        u = 0;
-//        for (int k = 0; k < patternCount; k++) {
-//
-//            double sum = 0.0;
-//            for (int i = 0; i < stateCount; i++) {
-//
-//                sum += frequencies[i] * tmp[u];
-//                u++;
-//            }
-//
-//            if (SCALING) {
-//                outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
 //            } else {
-//                outLogLikelihoods[k] = Math.log(sum);
-//            }
-//
-//            if (DEBUG) {
-//                System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
+//                calculateRootScalingFactors(currentPartialsIndices);
 //            }
 //        }
+
+            u = 0;
+            for (int k = 0; k < patternCount; k++) {
+
+                double sum = 0.0;
+                for (int i = 0; i < stateCount; i++) {
+
+                    sum += stateFrequencies[i] * tmp[u];
+                    u++;
+                }
+
+                if (SCALING) {
+//                    outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
+                } else {
+                    outLogLikelihoods[k] = Math.log(sum);
+                }
+
+                if (DEBUG) {
+                    System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
+                }
+            }
 //        if (DEBUG) System.exit(-1);
+        }
     }
 
 
