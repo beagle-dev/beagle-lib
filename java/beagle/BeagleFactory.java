@@ -45,8 +45,8 @@ public class BeagleFactory {
                     eigenBufferCount,
                     matrixBufferCount,
                     categoryCount,
-                    null,
-                    0,
+                    new int[] { 0 },
+                    1,
                     0
             );
         }
@@ -252,7 +252,7 @@ public class BeagleFactory {
 
         double logL = 0.0;
         for (int i = 0; i < nPatterns; i++) {
-            System.out.println("site lnL[" + i + "] = " + patternLogLik[i]);
+//            System.out.println("site lnL[" + i + "] = " + patternLogLik[i]);
             logL += patternLogLik[i];
         }
 
