@@ -255,7 +255,7 @@ public class GeneralBeagleImpl implements Beagle {
                     }
                 } else {
                     if (bufferIndex2 < tipCount && tipStates[bufferIndex2] != null) {
-                        updateStatesPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
+                        updateStatesPartials(bufferIndex2, matrixIndex2, bufferIndex1, matrixIndex1, bufferIndex3);
                     } else {
                         updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
                     }
