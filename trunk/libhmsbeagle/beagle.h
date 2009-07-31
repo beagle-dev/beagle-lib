@@ -176,7 +176,10 @@ int finalize(int instance);
 /**
  * @brief Set an instance partials buffer
  *
- * This function copies an array of partials into an instance buffer.
+ * This function copies an array of partials into an instance buffer. The inPartials array should
+ * be stateCount * patternCount * categoryCount in length. For most applications this will be used
+ * to set the partial likelihoods for the observed states. In such cases, the partials should be
+ * copied categoryCount times.
  *
  * @param instance      Instance number in which to set a partialsBuffer (input)
  * @param bufferIndex   Index of destination partialsBuffer (input)
@@ -191,7 +194,8 @@ int setPartials(int instance,
 /**
  * @brief Get partials from an instance buffer
  *
- * This function copies an instance buffer into the array outPartials
+ * This function copies an instance buffer into the array outPartials. The outPartials array should
+ * be stateCount * patternCount * categoryCount in length.
  *
  * @param instance      Instance number from which to get partialsBuffer (input)
  * @param bufferIndex   Index of source partialsBuffer (input)
@@ -207,7 +211,9 @@ int getPartials(int instance,
  * @brief Set the compact state representation for tip node
  *
  * This function copies a compact state representation into an instance buffer.
- * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount)
+ * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount).
+ * The inStates array should be patternCount in length (replication across categoryCount is not
+ * required).
  *
  * @param instance  Instance number (input)
  * @param tipIndex  Index of destination compactBuffer (input)
@@ -253,21 +259,6 @@ int setCategoryRates(int instance,
                      const double* inCategoryRates);
 
 /**
- * @brief Set a finite-time transition probability matrix
- *
- * This function copies a finite-time transition probability matrix into a matrix buffer.
- *
- * @param instance      Instance number (input)
- * @param matrixIndex   Index of matrix buffer (input)
- * @param inMatrix      Pointer to source transition probability matrix (input) 
- *
- * @return error code
- */
-int setTransitionMatrix(int instance,
-                        int matrixIndex,
-                        const double* inMatrix);
-
-/**
  * @brief Calculate a list of transition probability matrices
  *
  * This function calculates a list of transition probabilities matrices and their first and
@@ -293,6 +284,24 @@ int updateTransitionMatrices(int instance,
                              const int* secondDervativeIndices,
                              const double* edgeLengths,
                              int count);
+
+/**
+ * @brief Set a finite-time transition probability matrix
+ *
+ * This function copies a finite-time transition probability matrix into a matrix buffer. This function
+ * is used when the application wishes to explicitly set the transition probability matrix rather than
+ * using the setEigenDecomposition and updateTransitionMatrices functions. The inMatrix array should be
+ * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ *
+ * @param instance      Instance number (input)
+ * @param matrixIndex   Index of matrix buffer (input)
+ * @param inMatrix      Pointer to source transition probability matrix (input)
+ *
+ * @return error code
+ */
+int setTransitionMatrix(int instance,
+                        int matrixIndex,
+                        const double* inMatrix);
 
 /**
  * @brief Calculate or queue for calculation partials using a list of operations
