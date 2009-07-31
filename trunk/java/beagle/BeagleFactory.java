@@ -51,18 +51,19 @@ public class BeagleFactory {
             );
         }
 
-//        if (stateCount == 4) {
-////            return new DependencyAwareBeagleImpl();
-//            return new FourStateBeagleImpl(
-//                    tipCount,
-//                    partialsBufferCount,
-//                    compactBufferCount,
-//                    stateCount,
-//                    patternCount,
-//                    eigenBufferCount,
-//                    matrixBufferCount
-//            );
-//        }
+        if (stateCount == 4) {
+//            return new DependencyAwareBeagleImpl();
+            return new FourStateBeagleImpl(
+                    tipCount,
+                    partialsBufferCount,
+                    compactBufferCount,
+                    patternCount,
+                    eigenBufferCount,
+                    matrixBufferCount,
+                    categoryCount
+            );
+        }
+
         return new GeneralBeagleImpl(tipCount,
                 partialsBufferCount,
                 compactBufferCount,
@@ -159,7 +160,7 @@ public class BeagleFactory {
         Beagle instance = loadBeagleInstance(
                     3,				/**< Number of tip data elements (input) */
                     5,	            /**< Number of partials buffers to create (input) */
-                    0,		        /**< Number of compact state representation buffers to create (input) */
+                    3,		        /**< Number of compact state representation buffers to create (input) */
                     stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                     nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                     1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
@@ -171,14 +172,14 @@ public class BeagleFactory {
             System.exit(1);
         }
 
-//	setTipStates(instance, 0, getStates(human));
-//	setTipStates(instance, 1, getStates(chimp));
-//	setTipStates(instance, 2, getStates(gorilla));
+        instance.setTipStates(0, getStates(human));
+        instance.setTipStates(1, getStates(chimp));
+        instance.setTipStates(2, getStates(gorilla));
 
         // set the sequences for each tip using partial likelihood arrays
-        instance.setPartials(0, getPartials(human));
-        instance.setPartials(1, getPartials(chimp));
-        instance.setPartials(2, getPartials(gorilla));
+//        instance.setPartials(0, getPartials(human));
+//        instance.setPartials(1, getPartials(chimp));
+//        instance.setPartials(2, getPartials(gorilla));
 
         final double[] rates = { 1.0 };
         instance.setCategoryRates(rates);
