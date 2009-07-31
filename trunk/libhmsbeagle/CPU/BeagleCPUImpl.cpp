@@ -134,6 +134,8 @@ int BeagleCPUImpl::createInstance(int tipCount,
     std::vector<double> emptyMat(kMatrixSize * kCategoryCount);
     transitionMatrices.assign(kMatrixCount, emptyMat);
     
+	integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+    
     return NO_ERROR;
 }
 
@@ -322,36 +324,97 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
-    
-    // Here we do the 3 similar operations:
-    //      1. to set the lnL to the contribution of the first subset,
-    //      2. to add the lnL for other subsets up to the penultimate
-    //      3. to take the lnL of the final subset
-    for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex) {
-        assert(subsetIndex < partials.size());
-        const int rootPartialIndex = bufferIndices[subsetIndex];
+
+    if (count == 1) {
+        // We treat this as a special case so that we don't have convoluted logic
+        //      at the end of the loop over patterns
+        const int rootPartialIndex = bufferIndices[0];
         const double* rootPartials = partials[rootPartialIndex];
         assert(rootPartials);
-        const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
-        const double* wt = inWeights + (subsetIndex * kCategoryCount);
+        const double* wt = inWeights;
+        int u = 0;
         int v = 0;
-        for (int k = 0; k < kPatternCount; k++) {
-            double sum = 0.0;
-            for (int l = 0; l < kCategoryCount; l++) {
-                for (int i = 0; i < kStateCount; i++) {
-                    sum += frequencies[i] * rootPartials[v];
-                    v++;
-                }
-                if (subsetIndex == 0 && l == 0)
-                    outLogLikelihoods[k] = sum * wt[l];
-                else
-                    outLogLikelihoods[k] += sum * wt[l];
-                if (subsetIndex == count - 1)
-                    outLogLikelihoods[k] = log(outLogLikelihoods[k]);   // take the log
+        for (int k = 0; k < kPatternCount; k++) {        
+            for (int i = 0; i < kStateCount; i++) {
+                integrationTmp[u] = rootPartials[v] * wt[0];
+                u++;
+                v++;
             }
         }
-        
+        for (int l = 1; l < kCategoryCount; l++) {
+            u = 0;
+            for (int k = 0; k < kPatternCount; k++) {
+                for (int i = 0; i < kStateCount; i++) {
+                    integrationTmp[u] += rootPartials[v] * wt[l];
+                    u++;
+                    v++;
+                }
+            }
+        }
+        u = 0;
+        for (int k = 0; k < kPatternCount; k++) {
+            double sum = 0.0;
+            for (int i = 0; i < kStateCount; i++) {
+                sum += inStateFrequencies[i] * integrationTmp[u];
+                u++;
+            }
+            outLogLikelihoods[k] = log(sum);   // take the log
+        }
     }
+    else
+    {
+        // Here we do the 3 similar operations:
+        //              1. to set the lnL to the contribution of the first subset,
+        //              2. to add the lnL for other subsets up to the penultimate
+        //              3. to add the final subset and take the lnL
+        //      This form of the calc would not work when count == 1 because
+        //              we need operation 1 and 3 in the preceding list.  This is not
+        //              a problem, though as we deal with count == 1 in the previous
+        //              branch.
+        for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+            assert(subsetIndex < partials.size());
+            const int rootPartialIndex = bufferIndices[subsetIndex];
+            const double* rootPartials = partials[rootPartialIndex];
+            assert(rootPartials);
+            const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
+            const double* wt = inWeights + subsetIndex * kCategoryCount;
+            int u = 0;
+            int v = 0;
+            for (int k = 0; k < kPatternCount; k++) {        
+                for (int i = 0; i < kStateCount; i++) {
+                    integrationTmp[u] = rootPartials[v] * wt[0];
+                    u++;
+                    v++;
+                }
+            }
+            for (int l = 1; l < kCategoryCount; l++) {
+                u = 0;
+                for (int k = 0; k < kPatternCount; k++) {
+                    for (int i = 0; i < kStateCount; i++) {
+                        integrationTmp[u] += rootPartials[v] * wt[l];
+                        u++;
+                        v++;
+                    }
+                }
+            }
+            u = 0;
+            for (int k = 0; k < kPatternCount; k++) {
+                double sum = 0.0;
+                for (int i = 0; i < kStateCount; i++) {
+                    sum += frequencies[i] * integrationTmp[u];
+                    u++;
+                }
+                if (subsetIndex == 0)
+                    outLogLikelihoods[k] = sum;
+                else if (subsetIndex == count - 1)
+                    outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum);
+                else
+                    outLogLikelihoods[k] += sum;
+            }
+        }
+    }
+    
+
     
     return NO_ERROR;
 }
@@ -372,6 +435,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     // TODO: implement calculateEdgeLnL for count > 1
     // TODO: test calculateEdgeLnL when child is of tipStates kind
     // TODO: implement derivatives for calculateEdgeLnL
+    // TODO: implement rate categories for calculateEdgeLnL
     
     assert(firstDerivativeIndices == 0L);
     assert(secondDerivativeIndices == 0L);
@@ -388,7 +452,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     
     const double* partialsParent = partials[parIndex];
     const std::vector<double> transMatrix = transitionMatrices[probIndex];
-    const double* wt = inWeights;    
+    const double wt = inWeights[0];    
     
     if (childIndex < kTipCount && tipStates[childIndex]) {
         const int* statesChild = tipStates[childIndex];
@@ -396,18 +460,13 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
         for (int k = 0; k < kPatternCount; k++) {
             int stateChild = statesChild[k];
             double sumK = 0.0;
-            for (int l = 0; l < kCategoryCount; l++) {
-                for (int i = 0; i < kStateCount; i++) {
-                    int w = l * kCategoryCount + i * kStateCount + 1;
-                    sumK += inStateFrequencies[i] * partialsParent[v + i] * transMatrix[w +
-                                                                                        stateChild];
-                }
-                if (l == 0)
-                    outLogLikelihoods[k] = log(sumK * wt[l]);
-                else
-                    outLogLikelihoods[k] += log(sumK * wt[l]);
-                v += kStateCount;
+            for (int i = 0; i < kStateCount; i++) {
+                int w = i * kStateCount + 1;
+                sumK += inStateFrequencies[i] * partialsParent[v + i] * transMatrix[w +
+                                                                                    stateChild];
             }
+            outLogLikelihoods[k] = log(sumK * wt);
+            v += kStateCount;
         }
     } else {
         const double* partialsChild = partials[childIndex];
@@ -415,22 +474,17 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
         for (int k = 0; k < kPatternCount; k++) {
             int w = 0;
             double sumK = 0.0;
-            for (int l = 0; l < kCategoryCount; l++) {
-                for (int i = 0; i < kStateCount; i++) {
-                    double sumI = 0.0;
-                    for (int j = 0; j < kStateCount; j++) {
-                        sumI += transMatrix[w] * partialsChild[v + j];
-                        w++;
-                    }
-                    w++;    // increment for the extra column at the end
-                    sumK += inStateFrequencies[i] * partialsParent[v + i] * sumI;
+            for (int i = 0; i < kStateCount; i++) {
+                double sumI = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sumI += transMatrix[w] * partialsChild[v + j];
+                    w++;
                 }
-                if (l == 0)
-                    outLogLikelihoods[k] = log(sumK * wt[l]);
-                else
-                    outLogLikelihoods[k] += log(sumK * wt[l]);
-                v += kStateCount;
+                w++;    // increment for the extra column at the end
+                sumK += inStateFrequencies[i] * partialsParent[v + i] * sumI;
             }
+            outLogLikelihoods[k] = log(sumK * wt);
+            v += kStateCount;
         }
     }
     
