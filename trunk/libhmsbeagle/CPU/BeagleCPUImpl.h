@@ -59,6 +59,8 @@ private:
     //  into a single array
     std::vector< std::vector<double> > transitionMatrices;
     
+    double* integrationTmp;
+    
 public:
     virtual ~BeagleCPUImpl();
     
