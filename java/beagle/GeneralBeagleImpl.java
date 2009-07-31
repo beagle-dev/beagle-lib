@@ -107,9 +107,12 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public void setPartials(final int bufferIndex, final double[] partials) {
-        assert(this.partials[bufferIndex] == null);
-        this.partials[bufferIndex] = new double[partialsSize];
-        System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
+        if (this.partials[bufferIndex] == null) {
+            this.partials[bufferIndex] = new double[partialsSize];
+        }
+        for (int i = 0; i < categoryCount; i++) {
+            System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
+        }
     }
 
     public void getPartials(final int bufferIndex, final double[] partials) {
