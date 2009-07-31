@@ -163,7 +163,7 @@ int BeagleCPUImpl::getPartials(int bufferIndex,
 
 int BeagleCPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
-    tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
+    tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount * kCategoryCount);
     int k= 0;
     for (int i = 0; i < kCategoryCount; i++) {
         for (int j = 0; j < kPatternCount; j++) {
