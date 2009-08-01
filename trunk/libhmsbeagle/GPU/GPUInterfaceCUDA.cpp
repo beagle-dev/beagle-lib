@@ -197,7 +197,7 @@ void GPUInterface::PrintInfo() {
     SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, cudaDevice));
     
     fprintf(stderr, "\nDevice #%d: %s\n", cudaDevice, name);
-    fprintf(stderr, "\tGlobal Memory (MB) : %1.2f\n", totalGlobalMemory / 1024.0 / 1024.0);
+    fprintf(stderr, "\tGlobal Memory (MB) : %d\n", int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5));
     fprintf(stderr, "\tClock Speed (Ghz)  : %1.2f\n", clockSpeed / 1000000.0);
     fprintf(stderr, "\tNumber of Cores    : %d\n", 8 * mpCount);
 }

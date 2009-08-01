@@ -16,7 +16,7 @@
 //#define DEBUG_FLOW
 //#define DEBUG_BEAGLE
 
-#define DYNAMIC_SCALING
+//#define DYNAMIC_SCALING
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION

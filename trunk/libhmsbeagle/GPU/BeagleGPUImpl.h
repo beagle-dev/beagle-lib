@@ -55,9 +55,9 @@ private:
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
     
-    GPUPtr dEigenValues;
-    GPUPtr dEvec;
-    GPUPtr dIevc;
+    GPUPtr* dEigenValues;
+    GPUPtr* dEvec;
+    GPUPtr* dIevc;
     
     GPUPtr dWeights;
     GPUPtr dFrequencies; 
