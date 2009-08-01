@@ -23,7 +23,7 @@ namespace cpu {
 
 class BeagleCPUImpl : public BeagleImpl {
     
-private:
+protected:
     int kBufferCount; /// after initialize this will be partials.size()
     ///   (we don't really need this field)
     int kTipCount; /// after initialize this will be tipStates.size()

@@ -32,7 +32,7 @@ mac :
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
 	    -DDOUBLE_PRECISION \
- 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
+ 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/CPU/BeagleCPU4StateImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
 
 	g++ -o $(DEST)/lib$(OUTNAME).$(ARCH2).jnilib \
 		$(OPTIONS) \
@@ -40,7 +40,7 @@ mac :
 	    -$(MAC_LINK) \
 	    $(MAC_INCLUDES) \
 	    -DDOUBLE_PRECISION \
- 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
+ 		libhmsbeagle/beagle.cpp libhmsbeagle/CPU/BeagleCPUImpl.cpp libhmsbeagle/CPU/BeagleCPU4StateImpl.cpp libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
 
 
 	lipo -create $(DEST)/lib$(OUTNAME).$(ARCH).jnilib \
