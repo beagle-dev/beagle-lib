@@ -463,7 +463,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\nrm BeagleCUDA_kernels.ptx\nrm BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels binary code\" > BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx ./BeagleCUDA_kernels.cu -O3 -use_fast_math -I$PROJECT_DIR/../.. -DCUDA -DSTATE_COUNT=4\n\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\nexit 0";
+			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels binary code\" > BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx ./BeagleCUDA_kernels.cu -O3 -use_fast_math -I$PROJECT_DIR/../.. -DCUDA -DSTATE_COUNT=4\n\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\nexit 0";
 			showEnvVarsInLog = 0;
 		};
 		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */ = {
