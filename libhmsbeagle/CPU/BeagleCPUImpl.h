@@ -180,20 +180,20 @@ public:
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
     
-private:
-    void calcStatesStates(double * destP,
+protected:
+    virtual void calcStatesStates(double * destP,
                           const int * child0States,
                           const double *child0TransMat,
                           const int * child1States,
                           const double *child1TransMat);
     
-    void calcStatesPartials(double * destP,
+    virtual void calcStatesPartials(double * destP,
                             const int * child0States,
                             const double *child0TransMat,
                             const double * child1Partials,
                             const double *child1TransMat);
     
-    void calcPartialsPartials(double * destP,
+    virtual void calcPartialsPartials(double * destP,
                               const double * child0States,
                               const double *child0TransMat,
                               const double * child1Partials,
