@@ -68,6 +68,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     // TODO: Determine if GPU device satisfies memory requirements.
     
+    // TODO: add support for eigenDecompositionCount > 1
+    
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
     kCompactBufferCount = compactBufferCount;
@@ -157,6 +159,7 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     if (currentDevice == numDevices)
         currentDevice = 0;
     
+    // TODO: recompiling kernels for every instance, probably not ideal
     gpu->SetDevice(currentDevice);
     
     kernels = new KernelLauncher(gpu);
@@ -220,8 +223,10 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount);
     checkHostMemory(hDistanceQueue);
     
-    dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount);
-    hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
+    
+    // TODO: won't work if kMatrixCount * kCategoryCount < kPartialsBufferCount
+    dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount * kCategoryCount);
+    hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount * kCategoryCount);
     checkHostMemory(hPtrQueue);
     
 	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
@@ -268,22 +273,17 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
     
     const double* inPartialsOffset = inPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
-    
-    for (int i = 0; i < kPatternCount; i++) {
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int i = 0; i < kPatternCount; i++) {
 #ifdef DOUBLE_PRECISION
-        memcpy(tmpRealPartialsOffset, inPartialsOffset, SIZE_REAL * kStateCount);
+            memcpy(tmpRealPartialsOffset, inPartialsOffset, SIZE_REAL * kStateCount);
 #else
-        MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
+            MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
 #endif
-        tmpRealPartialsOffset += kPaddedStateCount;
-        inPartialsOffset += kStateCount;
+            tmpRealPartialsOffset += kPaddedStateCount;
+            inPartialsOffset += kStateCount;
+        }
     }
-    
-    // TODO: should we allow setting of partials accross all categories?
-    int partialsLength = kPaddedPatternCount * kPaddedStateCount;
-	for (int i = 1; i < kCategoryCount; i++) {
-		memcpy(hPartialsCache + i * partialsLength, hPartialsCache, partialsLength * SIZE_REAL);
-	}
     
     if (kDeviceMemoryAllocated) {
         if (bufferIndex < kTipCount) {
@@ -478,22 +478,21 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
     const double* inMatrixOffset = inMatrix;
     REAL* tmpRealMatrixOffset = hMatrixCache;
     
-    for (int i = 0; i < kStateCount; i++) {
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int i = 0; i < kStateCount; i++) {
 #ifdef DOUBLE_PRECISION
-        memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
+            memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
 #else
-        MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
+            MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
 #endif
-        tmpRealMatrixOffset += kPaddedStateCount;
-        inMatrixOffset += kStateCount;
+            tmpRealMatrixOffset += kPaddedStateCount;
+            inMatrixOffset += kStateCount;
+        }
     }
         
     // Copy to GPU device
-    // TODO: should we allow setting of transition matrices accross all categories?
-	for (int i = 0; i < kCategoryCount; i++) {
-        gpu->MemcpyHostToDevice(dMatrices[matrixIndex] + i * kMatrixSize, hMatrixCache,
-                                SIZE_REAL * kMatrixSize);
-    }
+    gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache,
+                            SIZE_REAL * kMatrixSize * kCategoryCount);
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Exiting setTransitionMatrix\n");
@@ -517,13 +516,13 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
-            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + j * kMatrixSize;
-            hDistanceQueue[totalCount] = (REAL) edgeLengths[i] * hCategoryRates[j];
+            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * SIZE_REAL);
+            hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
             totalCount++;
         }
     }
     
-    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * totalCount);
+    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount);
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
     
     // Set-up and call GPU kernel
@@ -531,7 +530,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                               totalCount);
     
 #ifdef DEBUG_BEAGLE
-    gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize);
+    gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize * kCategoryCount);
 #endif
     
 #ifdef DEBUG_FLOW
@@ -637,9 +636,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             gpu->PrintfDeviceVector(partials2, kPartialsSize);
         fprintf(stderr, "node index = %d\n", parIndex);
         gpu->PrintfDeviceVector(partials3, kPartialsSize);
-        
-        if(parIndex == 106)
-            exit(-1);
 #endif
     }
     
@@ -675,11 +671,12 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
 #else
-        MEMCNV(hWeightsCache, inWeights, count, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+        MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
 #endif        
-        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
+        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
+                                * kCategoryCount);
         
         const int rootNodeIndex = bufferIndices[0];
         
@@ -760,11 +757,12 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         tmpWeights = inWeights;
         tmpStateFrequencies = inStateFrequencies;
 #else
-        MEMCNV(hWeightsCache, inWeights, count, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+        MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
 #endif        
-        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
+        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies,
+                                SIZE_REAL * kPaddedStateCount * kCategoryCount);
         
         const int parIndex = parentBufferIndices[0];
         const int childIndex = childBufferIndices[0];

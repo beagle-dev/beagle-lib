@@ -44,8 +44,8 @@ GPUInterface::GPUInterface() {
 }
 
 GPUInterface::~GPUInterface() {
-    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-    SAFE_CUDA(cuCtxDetach(cudaContext));
+//    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+//    SAFE_CUDA(cuCtxDetach(cudaContext));
 }
 
 int GPUInterface::GetDeviceCount() {

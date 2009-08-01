@@ -12,8 +12,8 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+//#define DEBUG
 //#define DEBUG_FLOW
-//#define DEBUG_GPU
 //#define DEBUG_BEAGLE
 
 #define DYNAMIC_SCALING
