@@ -101,12 +101,12 @@ void GPUInterface::Synchronize() {
 
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
     GPUFunction openClFunction;
-    
+
     int err;
     openClFunction = clCreateKernel(openClProgram, functionName, &err);
     SAFE_CL(err);
     if (!openClFunction) {
-        printf("OpenCL error: Failed to create compute kernel %s\n", functionName);
+        fprintf(stderr, "OpenCL error: Failed to create compute kernel %s\n", functionName);
         exit(-1);
     }
     
@@ -127,18 +127,18 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     }
     va_end(parameters);
     
-    size_t blockArray[3];
-    blockArray[0] = block.x;
-    blockArray[1] = block.y;
-    blockArray[2] = block.z;
+    size_t localWorkSize[3];
+    localWorkSize[0] = block.x;
+    localWorkSize[1] = block.y;
+    localWorkSize[2] = block.z;
     
-    size_t gridArray[3];
-    gridArray[0] = grid.x;
-    gridArray[1] = grid.y;
-    gridArray[2] = grid.z;
+    size_t globalWorkSize[3];
+    globalWorkSize[0] = block.x * grid.x;
+    globalWorkSize[1] = block.y * grid.y;
+    globalWorkSize[2] = block.z * grid.z;
     
     SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 3, NULL,
-                                   gridArray, blockArray, 0, NULL, NULL));
+                                   globalWorkSize, localWorkSize, 0, NULL, NULL));
 }
 
 

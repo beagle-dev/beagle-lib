@@ -80,8 +80,8 @@ typedef struct {
  * @brief Description of a hardware resource
  */
 typedef struct {
-    char* name; /**< Name of resource as a NULL-terminated character string */
-    long flags; /**< Bit-flags of capabilities on resource */
+    const char* name; /**< Name of resource as a NULL-terminated character string */
+    long flags;       /**< Bit-flags of capabilities on resource */
 } Resource;
 
 /**
