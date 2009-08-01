@@ -128,14 +128,13 @@ public class GeneralBeagleImpl implements Beagle {
      */
     public void setTipStates(int tipIndex, int[] states) {
         assert(this.tipStates[tipIndex] == null);
-        tipStates[tipIndex] = new int[patternCount * categoryCount];
+        tipStates[tipIndex] = new int[patternCount];
         int k = 0;
-        for (int i = 0; i < categoryCount; i++) {
-            for (int state : states) {
-                this.tipStates[tipIndex][k] = (state < stateCount ? state : stateCount);
-                k++;
-            }
+        for (int state : states) {
+            this.tipStates[tipIndex][k] = (state < stateCount ? state : stateCount);
+            k++;
         }
+
     }
 
     public void setEigenDecomposition(int eigenIndex, double[] eigenVectors, double[] inverseEigenValues, double[] eigenValues) {

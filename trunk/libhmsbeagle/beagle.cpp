@@ -26,6 +26,7 @@
 #if defined(CUDA) || defined(OPENCL)
     #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
 #endif
+#include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
@@ -68,6 +69,7 @@ int createInstance(int tipCount,
 #if defined(CUDA) || defined(OPENCL)
             implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
 #endif
+            implFactory.push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
             implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }
 
