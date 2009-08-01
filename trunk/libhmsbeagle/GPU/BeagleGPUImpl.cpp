@@ -219,14 +219,16 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     // No execution has more no kBufferCount events
     dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
     
-    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount);
-    hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount);
+    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount * kCategoryCount);
+    hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount * kCategoryCount);
     checkHostMemory(hDistanceQueue);
     
+    int ptrQueueLength = kMatrixCount * kCategoryCount;
+    if (kPartialsBufferCount > (kMatrixCount * kCategoryCount))
+        ptrQueueLength = kPartialsBufferCount;
     
-    // TODO: won't work if kMatrixCount * kCategoryCount < kPartialsBufferCount
-    dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * kMatrixCount * kCategoryCount);
-    hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount * kCategoryCount);
+    dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * ptrQueueLength);
+    hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
     
 	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
@@ -516,7 +518,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
-            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * SIZE_REAL);
+            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] +
+                    (j * kMatrixSize * sizeof(GPUPtr));
             hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
             totalCount++;
         }
@@ -687,7 +690,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             for(int n = 0; n < length; n++)
                 hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
             
-            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
             
             // Compute scaling factors at the root
             kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
@@ -798,7 +801,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             for(int n = 0; n < length; n++)
                 hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
                         
-            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(REAL*) * length);
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
             
             // Accumulate scaling factors
             kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
