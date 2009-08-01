@@ -143,8 +143,8 @@ AC_SUBST(NVCCFLAGS)
 # ------------------------------------------------------------------------------
 case $host_os in
 *darwin*)
-  CXXFLAGS+=" -arch i386 -arch x86_64"
-  CFLAGS+=" -arch i386 -arch x86_64"
+  CXXFLAGS+=" -arch i386"
+  CFLAGS+=" -arch i386"
   LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.5.sdk"
   AC_SUBST(CXXFLAGS)
   AC_SUBST(CFLAGS)
