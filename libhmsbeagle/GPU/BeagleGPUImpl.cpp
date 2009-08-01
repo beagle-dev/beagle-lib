@@ -166,11 +166,15 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     gpu->PrintInfo();
     
-    
-    dEvec = gpu->AllocateRealMemory(kMatrixSize);
-    dIevc = gpu->AllocateRealMemory(kMatrixSize);
-    
-    dEigenValues = gpu->AllocateRealMemory(kEigenValuesSize);
+    dEvec = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
+    dIevc = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
+    dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
+                
+    for(int i=0; i<kEigenDecompCount; i++) {
+    	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
+    	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);   
+    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);
+    }
     
     dWeights = gpu->AllocateRealMemory(kBufferCount);
     
@@ -375,7 +379,7 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
+int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
                                          const double* inInverseEigenVectors,
                                          const double* inEigenValues) {
@@ -430,14 +434,14 @@ int BeagleGPUImpl::setEigenDecomposition(int matrixIndex,
 #endif
     
     // Copy to GPU device
-    gpu->MemcpyHostToDevice(dIevc, Ievc, SIZE_REAL * kMatrixSize);
-    gpu->MemcpyHostToDevice(dEvec, Evec, SIZE_REAL * kMatrixSize);
-    gpu->MemcpyHostToDevice(dEigenValues, Eval, SIZE_REAL * kPaddedStateCount);
+    gpu->MemcpyHostToDevice(dIevc[eigenIndex], Ievc, SIZE_REAL * kMatrixSize);
+    gpu->MemcpyHostToDevice(dEvec[eigenIndex], Evec, SIZE_REAL * kMatrixSize);
+    gpu->MemcpyHostToDevice(dEigenValues[eigenIndex], Eval, SIZE_REAL * kPaddedStateCount);
     
 #ifdef DEBUG_BEAGLE
-    gpu->PrintfDeviceVector(dEigenValues, kPaddedStateCount);
-    gpu->PrintfDeviceVector(dEvec, kMatrixSize);
-    gpu->PrintfDeviceVector(dIevc, kPaddedStateCount * kPaddedStateCount);
+    gpu->PrintfDeviceVector(dEigenValues[eigenIndex], kPaddedStateCount);
+    gpu->PrintfDeviceVector(dEvec[eigenIndex], kMatrixSize);
+    gpu->PrintfDeviceVector(dIevc[eigenIndex], kPaddedStateCount * kPaddedStateCount);
 #endif
     
 #ifdef DEBUG_FLOW
@@ -529,8 +533,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
     
     // Set-up and call GPU kernel
-    kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec, dIevc, dEigenValues, dDistanceQueue,
-                                              totalCount);
+    kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex], 
+											  dEigenValues[eigenIndex], dDistanceQueue,totalCount);
     
 #ifdef DEBUG_BEAGLE
     gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize * kCategoryCount);
