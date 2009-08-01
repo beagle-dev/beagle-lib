@@ -75,7 +75,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 64659B6E101FF65F00FC78FE /* OpenCL_kernels */;
+			remoteGlobalIDString = 64659B6E101FF65F00FC78FE;
 			remoteInfo = OpenCL_kernels;
 		};
 /* End PBXContainerItemProxy section */
@@ -104,40 +104,40 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		641C422410029F2D00C46ED6 /* CUDA_kernels.o */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.objfile"; includeInIndex = 0; path = CUDA_kernels.o; sourceTree = BUILT_PRODUCTS_DIR; };
+		641C422410029F2D00C46ED6 /* CUDA_kernels.o */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.objfile"; includeInIndex = 0; name = CUDA_kernels.o; path = "/Developer/projects/beagle-lib/project/beagle-xcodeSL/build/Debug/CUDA_kernels.o"; sourceTree = "<absolute>"; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		645747CA0FFF069700603261 /* GPUInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUInterface.h; path = "projects/beagle-lib/libhmsbeagle/GPU/GPUInterface.h"; sourceTree = DEVELOPER_DIR; };
-		645747FC0FFF0B5000603261 /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplDefs.h; path = "projects/beagle-lib/libhmsbeagle/GPU/GPUImplDefs.h"; sourceTree = DEVELOPER_DIR; };
-		645748DD0FFF28CB00603261 /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelLauncher.h; path = "projects/beagle-lib/libhmsbeagle/GPU/KernelLauncher.h"; sourceTree = DEVELOPER_DIR; };
-		645749640FFF2AE300603261 /* GPUImplHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplHelper.h; path = "projects/beagle-lib/libhmsbeagle/GPU/GPUImplHelper.h"; sourceTree = DEVELOPER_DIR; };
-		645749650FFF2AE300603261 /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUImplHelper.cpp; path = "projects/beagle-lib/libhmsbeagle/GPU/GPUImplHelper.cpp"; sourceTree = DEVELOPER_DIR; };
-		64659B73101FF65F00FC78FE /* CUDA_kernels.o */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.objfile"; includeInIndex = 0; path = CUDA_kernels.o; sourceTree = BUILT_PRODUCTS_DIR; };
+		645747CA0FFF069700603261 /* GPUInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUInterface.h; path = ../../libhmsbeagle/GPU/GPUInterface.h; sourceTree = SOURCE_ROOT; };
+		645747FC0FFF0B5000603261 /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplDefs.h; path = ../../libhmsbeagle/GPU/GPUImplDefs.h; sourceTree = SOURCE_ROOT; };
+		645748DD0FFF28CB00603261 /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelLauncher.h; path = ../../libhmsbeagle/GPU/KernelLauncher.h; sourceTree = SOURCE_ROOT; };
+		645749640FFF2AE300603261 /* GPUImplHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplHelper.h; path = ../../libhmsbeagle/GPU/GPUImplHelper.h; sourceTree = SOURCE_ROOT; };
+		645749650FFF2AE300603261 /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUImplHelper.cpp; path = ../../libhmsbeagle/GPU/GPUImplHelper.cpp; sourceTree = SOURCE_ROOT; };
+		64659B73101FF65F00FC78FE /* CUDA_kernels.o */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.objfile"; includeInIndex = 0; name = CUDA_kernels.o; path = "/Developer/projects/beagle-lib/project/beagle-xcodeSL/build/Debug/CUDA_kernels.o"; sourceTree = "<absolute>"; };
 		646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = "Projects/beagle-lib/libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp"; sourceTree = DEVELOPER_DIR; };
+		6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = "../../../../Projects/beagle-lib/libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp"; sourceTree = SOURCE_ROOT; };
 		6474F592101F90D200A1A469 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; name = BeagleOpenCL_kernels.cl; path = "Projects/beagle-lib/libhmsbeagle/GPU/BeagleOpenCL_kernels.cl"; sourceTree = DEVELOPER_DIR; };
-		6474F5F3101F934600A1A469 /* BeagleCUDA_kernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = BeagleCUDA_kernels.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/BeagleCUDA_kernels.cu"; sourceTree = DEVELOPER_DIR; };
-		649E825D0FD6FC580044891D /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelLauncher.cpp; path = "projects/beagle-lib/libhmsbeagle/GPU/KernelLauncher.cpp"; sourceTree = DEVELOPER_DIR; };
-		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = "projects/beagle-lib/CUDA.Makefile"; sourceTree = DEVELOPER_DIR; xcLanguageSpecificationIdentifier = xcode.lang.make; };
-		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_BEAST.xml"; sourceTree = DEVELOPER_DIR; };
-		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = "projects/beagle-lib/examples/tinytest/check_lnL_using_paup.nex"; sourceTree = DEVELOPER_DIR; };
-		64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = "projects/beagle-lib/examples/tinytest/tinytest.cpp"; sourceTree = DEVELOPER_DIR; };
-		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = "projects/beagle-lib/examples/genomictest/genomictest.cpp"; sourceTree = DEVELOPER_DIR; };
+		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = BeagleOpenCL_kernels.cl; path = "../../../../Projects/beagle-lib/libhmsbeagle/GPU/BeagleOpenCL_kernels.cl"; sourceTree = SOURCE_ROOT; };
+		6474F5F3101F934600A1A469 /* BeagleCUDA_kernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = BeagleCUDA_kernels.cu; path = "../../../../Projects/beagle-lib/libhmsbeagle/GPU/BeagleCUDA_kernels.cu"; sourceTree = SOURCE_ROOT; };
+		649E825D0FD6FC580044891D /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelLauncher.cpp; path = ../../libhmsbeagle/GPU/KernelLauncher.cpp; sourceTree = SOURCE_ROOT; };
+		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = ../../CUDA.Makefile; sourceTree = SOURCE_ROOT; xcLanguageSpecificationIdentifier = xcode.lang.make; };
+		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
+		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
+		64BA0A530FD46BCF00E5EA7A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = ../../examples/tinytest/tinytest.cpp; sourceTree = SOURCE_ROOT; };
+		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = "projects/beagle-lib/libhmsbeagle/beagle.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = "projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = "projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleGPUImpl.cpp; path = "projects/beagle-lib/libhmsbeagle/GPU/BeagleGPUImpl.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C3C0FD2B74900678D0B /* BeagleGPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleGPUImpl.h; path = "projects/beagle-lib/libhmsbeagle/GPU/BeagleGPUImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceCUDA.cpp; path = "projects/beagle-lib/libhmsbeagle/GPU/GPUInterfaceCUDA.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = "projects/beagle-lib/libhmsbeagle/beagle.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = "projects/beagle-lib/libhmsbeagle/BeagleImpl.h"; sourceTree = DEVELOPER_DIR; };
-		64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.cpp"; sourceTree = DEVELOPER_DIR; };
-		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.dat"; sourceTree = DEVELOPER_DIR; };
-		64F21C4F0FD2B7B500678D0B /* fourtaxon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = fourtaxon.hpp; path = "projects/beagle-lib/examples/fourtaxon/fourtaxon.hpp"; sourceTree = DEVELOPER_DIR; };
+		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
+		64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPUImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPUImpl.cpp; sourceTree = SOURCE_ROOT; };
+		64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPUImpl.h; sourceTree = SOURCE_ROOT; };
+		64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleGPUImpl.cpp; path = ../../libhmsbeagle/GPU/BeagleGPUImpl.cpp; sourceTree = SOURCE_ROOT; };
+		64F21C3C0FD2B74900678D0B /* BeagleGPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleGPUImpl.h; path = ../../libhmsbeagle/GPU/BeagleGPUImpl.h; sourceTree = SOURCE_ROOT; };
+		64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceCUDA.cpp; path = ../../libhmsbeagle/GPU/GPUInterfaceCUDA.cpp; sourceTree = SOURCE_ROOT; };
+		64F21C490FD2B76300678D0B /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = ../../libhmsbeagle/beagle.h; sourceTree = SOURCE_ROOT; };
+		64F21C4A0FD2B76300678D0B /* BeagleImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = ../../libhmsbeagle/BeagleImpl.h; sourceTree = SOURCE_ROOT; };
+		64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = ../../examples/fourtaxon/fourtaxon.cpp; sourceTree = SOURCE_ROOT; };
+		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = ../../examples/fourtaxon/fourtaxon.dat; sourceTree = SOURCE_ROOT; };
+		64F21C4F0FD2B7B500678D0B /* fourtaxon.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = fourtaxon.hpp; path = ../../examples/fourtaxon/fourtaxon.hpp; sourceTree = SOURCE_ROOT; };
 		64F21C720FD2C0BA00678D0B /* tinyTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -262,9 +262,7 @@
 				644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */,
 				646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */,
-				641C422410029F2D00C46ED6 /* CUDA_kernels.o */,
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
-				64659B73101FF65F00FC78FE /* CUDA_kernels.o */,
 			);
 			name = Products;
 			sourceTree = "<group>";
