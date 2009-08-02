@@ -124,6 +124,7 @@ ResourceList* getResourceList();
  *                               (input)
  * @param matrixBufferCount     Number of rate matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
+ * @param scalingBufferCount	Number of scaling buffers to create (input)
  * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
@@ -143,6 +144,7 @@ int createInstance(int tipCount,
                    int eigenBufferCount,
                    int matrixBufferCount,
                    int categoryCount,
+                   int scalingBufferCount,
                    int* resourceList,
                    int resourceCount,
                    long preferenceFlags,
@@ -199,12 +201,14 @@ int setPartials(int instance,
  *
  * @param instance      Instance number from which to get partialsBuffer (input)
  * @param bufferIndex   Index of source partialsBuffer (input)
+ * @param scalingIndex  Index of scalingBuffer to apply to partialsBuffer (input)
  * @param outPartials   Pointer to which to receive partialsBuffer (output) 
  *
  * @return error code
  */
 int getPartials(int instance,
                 int bufferIndex,
+                int scalingIndex,
                 double* outPartials);
 
 /**
@@ -356,6 +360,22 @@ int waitForPartials(const int* instance,
                     int destinationPartialsCount);
 
 /**
+ * @brief Accumulate scaling factors
+ * 
+ * This function adds (log) scaling factors from a list of scalingBuffers into a resulting buffer. It is
+ * used to calculate the marginal scaling at a specific node for each site
+ * 
+ * @param instance				Instance number (input)
+ * @param scalingIndices		List of scalingBuffers to accumulate (input)
+ * @param count					Number of scalingBuffers in list (input)
+ * @param outBufferIndex		Index number of resultant scalingBuffer (input)
+ */
+int accumulateScalingFactors(int instance,
+					         const int* scalingIndices,
+					         int count,
+					         int outBufferIndex);
+
+/**
  * @brief Calculate site log likelihoods at a root node
  *
  * This function integrates a list of partials at a node with respect to a set of partials-weights
@@ -368,9 +388,8 @@ int waitForPartials(const int* instance,
  *                               parentBufferIndices
  * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
  *                               should be one set for each of parentBufferIndices
- * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There
- *                               should be one set for each of parentBufferIndices
- * @param scalingFactorsCount   List of scalingFactorsIndices sizes for each partialsBuffer (input)
+ * @param scalingFactorsIndices List of scalingBuffers to apply to each partialsBuffer (input). There
+ *                               should be one index for each of parentBufferIndices
  * @param count                 Number of partialsBuffer to integrate (input)
  * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output) 
  *
@@ -380,8 +399,7 @@ int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,
-                                int* scalingFactorsCount,
+                                const int* scalingFactorsIndices,                              
                                 int count,
                                 double* outLogLikelihoods);
 
@@ -404,8 +422,6 @@ int calculateRootLogLikelihoods(int instance,
  *                                   should be one set for each of parentBufferIndices
  * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
  *                                   should be one set for each of parentBufferIndices
- * @param scalingFactorsCount       List of scalingFactorsIndices sizes for each partialsBuffer
- *                                   (input)
  * @param count                     Number of partialsBuffers (input)
  * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
  * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
@@ -421,8 +437,7 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const int* secondDerivativeIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,
-                                int* scalingFactorsCount,
+                                const int* scalingFactorsIndices,                          
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
