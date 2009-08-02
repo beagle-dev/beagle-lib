@@ -30,8 +30,9 @@ public:
                                int stateCount,
                                int patternCount,
                                int eigenBufferCount,
-                               int matrixBufferCount,
-                               int categoryCount) = 0;
+                               int matrixBufferCount,                               
+                               int categoryCount,
+                               int scaleBufferCount) = 0;
     
     virtual int initializeInstance(InstanceDetails* returnInfo) = 0;
     
@@ -39,6 +40,7 @@ public:
                             const double* inPartials) = 0;
     
     virtual int getPartials(int bufferIndex,
+							int scaleIndex,
                             double* outPartials) = 0;
     
     virtual int setTipStates(int tipIndex,
@@ -68,11 +70,19 @@ public:
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
     
+    virtual int accumulateScaleFactors(const int* scalingIndices,
+									   int count,
+									   int cumulativeScalingIndex) = 0;
+    
+    virtual int subtractScaleFactors(const int* scalingIndices,
+                                     int count,
+                                     int cumulativeScalingIndex) = 0;    
+    
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const double* inWeights,
                                             const double* inStateFrequencies,
                                             const int* scalingFactorsIndices,
-                                            int* scalingFactorsCount,
+//                                            int* scalingFactorsCount,
                                             int count,
                                             double* outLogLikelihoods) = 0;
     
@@ -84,7 +94,7 @@ public:
                                             const double* inWeights,
                                             const double* inStateFrequencies,
                                             const int* scalingFactorsIndices,
-                                            int* scalingFactorsCount,
+//                                            int* scalingFactorsCount,
                                             int count,
                                             double* outLogLikelihoods,
                                             double* outFirstDerivatives,
@@ -100,7 +110,8 @@ public:
                                    int patternCount,
                                    int eigenBufferCount,
                                    int matrixBufferCount,
-                                   int categoryCount) = 0; // pure virtual
+                                   int categoryCount,
+                                   int scaleBufferCount) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
 };

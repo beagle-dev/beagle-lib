@@ -1,85 +1,17 @@
-/**
- *
- */
-package beagle;
+package benchmark;
 
-import java.util.*;
+import beagle.Beagle;
+import beagle.BeagleFactory;
 
 /**
- * @author Marc Suchard
- * @author Andrew Rambaut
- *
+ * Created by IntelliJ IDEA.
+ * User: rambaut
+ * Date: Aug 1, 2009
+ * Time: 11:48:51 PM
+ * To change this template use File | Settings | File Templates.
  */
-public class BeagleFactory {
-
-    public static Beagle loadBeagleInstance(
-            int tipCount,
-            int partialsBufferCount,
-            int compactBufferCount,
-            int stateCount,
-            int patternCount,
-            int eigenBufferCount,
-            int matrixBufferCount,
-            int categoryCount,
-            int scaleBufferCount
-    ) {
-
-        boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
-
-        if (BeagleJNIWrapper.INSTANCE == null) {
-            try {
-                BeagleJNIWrapper.loadBeagleLibrary();
-                System.err.println("BEAGLE library loaded");
-
-            } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
-            }
-        }
-
-        if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
-            return new BeagleJNIImpl(
-                    tipCount,
-                    partialsBufferCount,
-                    compactBufferCount,
-                    stateCount,
-                    patternCount,
-                    eigenBufferCount,
-                    matrixBufferCount,
-                    categoryCount,
-                    scaleBufferCount,
-                    new int[] { 0 },
-                    1,
-                    0
-            );
-        }
-
-        if (stateCount == 4) {
-//            return new DependencyAwareBeagleImpl();
-            return new FourStateBeagleImpl(
-                    tipCount,
-                    partialsBufferCount,
-                    compactBufferCount,
-                    patternCount,
-                    eigenBufferCount,
-                    matrixBufferCount,
-                    categoryCount,
-                    scaleBufferCount
-            );
-        }
-
-        return new GeneralBeagleImpl(tipCount,
-                partialsBufferCount,
-                compactBufferCount,
-                stateCount,
-                patternCount,
-                eigenBufferCount,
-                matrixBufferCount,
-                categoryCount,
-                scaleBufferCount
-        );
-    }
-
-    // Code and constants for test main()
+public class BenchmarkLikelihoodCore {
+    private final static int STATE_COUNT = 4;
 
     private final static String human = "AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
     private final static String chimp = "AGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
@@ -151,7 +83,6 @@ public class BeagleFactory {
         return partials;
     }
 
-
     public static void main(String[] argv) {
 
         // is nucleotides...
@@ -161,33 +92,23 @@ public class BeagleFactory {
         int nPatterns = human.length();
 
         // create an instance of the BEAGLE library
-        Beagle instance = loadBeagleInstance(
-                    3,				/**< Number of tip data elements (input) */
-                    5,	            /**< Number of partials buffers to create (input) */
-                    3,		        /**< Number of compact state representation buffers to create (input) */
-                    stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
-                    nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
-                    1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                    4,		        /**< Number of rate matrix buffers (input) */
-                    1,              /**< Number of rate categories (input) */
-                    6   /**< Number of scale buffers (input) */
-                    );
+//        LikelihoodCore instance = new NativeNucleotideLikelihoodCore();
+        LikelihoodCore instance = new NucleotideLikelihoodCore();
         if (instance == null) {
-            System.err.println("Failed to obtain BEAGLE instance");
+            System.err.println("Failed to obtain LikelihoodCore instance");
             System.exit(1);
         }
+        instance.initialize(5, nPatterns, 1, true);
 
-        instance.setTipStates(0, getStates(human));
-        instance.setTipStates(1, getStates(chimp));
-        instance.setTipStates(2, getStates(gorilla));
-
+        instance.setNodeStates(0, getStates(human));
+        instance.setNodeStates(1, getStates(chimp));
+        instance.setNodeStates(2, getStates(gorilla));
+        instance.setNodePartials(3, new double[nPatterns * STATE_COUNT]);
+        instance.setNodePartials(4, new double[nPatterns * STATE_COUNT]);
         // set the sequences for each tip using partial likelihood arrays
 //        instance.setPartials(0, getPartials(human));
 //        instance.setPartials(1, getPartials(chimp));
 //        instance.setPartials(2, getPartials(gorilla));
-
-        final double[] rates = { 1.0 };
-        instance.setCategoryRates(rates);
 
         // create base frequency array
         final double[] freqs = { 0.25, 0.25, 0.25, 0.25 };
@@ -197,66 +118,91 @@ public class BeagleFactory {
 
         // an eigen decomposition for the JC69 model
         final double[] evec = {
-             1.0,  2.0,  0.0,  0.5,
-             1.0,  -2.0,  0.5,  0.0,
-             1.0,  2.0, 0.0,  -0.5,
-             1.0,  -2.0,  -0.5,  0.0
+                1.0,  2.0,  0.0,  0.5,
+                1.0,  -2.0,  0.5,  0.0,
+                1.0,  2.0, 0.0,  -0.5,
+                1.0,  -2.0,  -0.5,  0.0
         };
 
         final double[] ivec = {
-             0.25,  0.25,  0.25,  0.25,
-             0.125,  -0.125,  0.125,  -0.125,
-             0.0,  1.0,  0.0,  -1.0,
-             1.0,  0.0,  -1.0,  0.0
+                0.25,  0.25,  0.25,  0.25,
+                0.125,  -0.125,  0.125,  -0.125,
+                0.0,  1.0,  0.0,  -1.0,
+                1.0,  0.0,  -1.0,  0.0
         };
 
         double[] eval = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 
+        double[] cMatrix = new double[STATE_COUNT * STATE_COUNT * STATE_COUNT];
+        
         // set the Eigen decomposition
-        instance.setEigenDecomposition(0, evec, ivec, eval);
+        int l =0;
+        for (int i = 0; i < STATE_COUNT; i++) {
+            for (int j = 0; j < STATE_COUNT; j++) {
+                for (int k = 0; k < STATE_COUNT; k++) {
+                    cMatrix[l] = evec[(i * stateCount) + k] * ivec[(k * stateCount) + j];
+                    l++;
+                }
+            }
+        }
 
         // a list of indices and edge lengths
         int[] nodeIndices = { 0, 1, 2, 3 };
         double[] edgeLengths = { 0.1, 0.1, 0.2, 0.1 };
 
-        // tell BEAGLE to populate the transition matrices for the above edge lengths
-        instance.updateTransitionMatrices(
-                                 0,             // eigenIndex
-                                 nodeIndices,   // probabilityIndices
-                                 null,          // firstDerivativeIndices
-                                 null,          // secondDervativeIndices
-                                 edgeLengths,   // edgeLengths
-                                 4);            // count
+        // populate the transition matrices for the above edge lengths
+        double[] tmp = new double[STATE_COUNT];
 
-        // create a list of partial likelihood update operations
-        // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-        int[] operations = {
-            3, 3, 0, 0, 1, 1,
-            4, 4, 2, 2, 3, 3
-        };
-        int[] rootIndices = { 4 };
+        double[] pMatrix = new double[STATE_COUNT * STATE_COUNT];
 
-        // update the partials
-        instance.updatePartials(
-                        operations,     // eigenIndex
-                        2,              // operationCount
-                        false);         // rescale ?
+//	    if (DEBUG) System.err.println("1: Rate "+l+" = "+categoryRates[l]);
+        for (int u = 0; u < edgeLengths.length; u++) {
+            int n = 0;
+            for (int i = 0; i < STATE_COUNT; i++) {
+                tmp[i] =  Math.exp(eval[i] * edgeLengths[u]);
+            }
+//            if (DEBUG) System.err.println(new dr.math.matrixAlgebra.Vector(tmp));
+            //        if (DEBUG) System.exit(-1);
+
+            int m = 0;
+            for (int i = 0; i < STATE_COUNT; i++) {
+                for (int j = 0; j < STATE_COUNT; j++) {
+                    double sum = 0.0;
+                    for (int k = 0; k < STATE_COUNT; k++) {
+                        sum += cMatrix[m] * tmp[k];
+                        m++;
+                    }
+                    //	    if (DEBUG) System.err.println("1: matrices[][]["+n+"] = "+sum);
+                    if (sum > 0)
+                        pMatrix[n] = sum;
+                    else
+                        pMatrix[n] = 0; // TODO Decision: set to -sum (as BEAST does)
+                    n++;
+                }
+            }
+            instance.setNodeMatrix(nodeIndices[u], 0, pMatrix);
+        }
+
+
+        int count = 10000000;
+        System.out.println("Running " + count + " iterations...");
+        long time0 = System.nanoTime();
+        for (int i = 0; i < count; i++) {
+            // update the partials
+            instance.calculatePartials(0,1,3);
+            instance.calculatePartials(2,3,4);
+        }
+        long time1 = System.nanoTime();
+        System.out.println("Time = " + ((double)(time1 - time0) / 1000000000));
+
+        double[] rootPartials = new double[nPatterns * STATE_COUNT];
+
+        // calculate the site likelihoods at the root node
+        instance.getPartials(4, rootPartials);
 
         double[] patternLogLik = new double[nPatterns];
 
-        int[] scalingFactorsIndices = {3, 4}; // internal nodes
-        int[] scalingFactorsCount = { 2} ;
-
-        // TODO Need to call accumulateScaleFactors if scaling is enabled
-
-        // calculate the site likelihoods at the root node
-        instance.calculateRootLogLikelihoods(
-                                    rootIndices,            // bufferIndices
-                                    weights,                // weights
-                                    freqs,                 // stateFrequencies
-                                    scalingFactorsIndices,
-//                                    scalingFactorsCount,
-                                    patternLogLik);         // outLogLikelihoods
+        instance.calculateLogLikelihoods(rootPartials, freqs, patternLogLik);
 
         double logL = 0.0;
         for (int i = 0; i < nPatterns; i++) {
@@ -264,7 +210,7 @@ public class BeagleFactory {
             logL += patternLogLik[i];
         }
 
+        System.out.println();
         System.out.println("logL = " + logL + " (PAUP logL = -1574.63623)");
     }
-
 }

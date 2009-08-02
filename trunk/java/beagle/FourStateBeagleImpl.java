@@ -6,8 +6,8 @@ public class FourStateBeagleImpl extends GeneralBeagleImpl {
 
     public static final boolean DEBUG = false;
 
-    public FourStateBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount) {
-        super(tipCount, partialsBufferCount, compactBufferCount, 4, patternCount, eigenBufferCount, matrixBufferCount, categoryCount);
+    public FourStateBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount, final int scaleBufferCount) {
+        super(tipCount, partialsBufferCount, compactBufferCount, 4, patternCount, eigenBufferCount, matrixBufferCount, categoryCount, scaleBufferCount);
         Logger.getLogger("beagle").info("Constructing double-precision 4-state Java BEAGLE implementation.");
     }
 

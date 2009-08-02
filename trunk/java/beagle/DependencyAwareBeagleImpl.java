@@ -6,8 +6,8 @@ import java.util.concurrent.*;
 
 public class DependencyAwareBeagleImpl extends GeneralBeagleImpl {
 
-    public DependencyAwareBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount) {
-        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount, categoryCount);
+    public DependencyAwareBeagleImpl(final int tipCount, final int partialsBufferCount, final int compactBufferCount, final int stateCount, final int patternCount, final int eigenBufferCount, final int matrixBufferCount, final int categoryCount, final int scaleBufferCount) {
+        super(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount, matrixBufferCount, categoryCount, scaleBufferCount);
     }
 
 //    private int[] dependencyCounts;

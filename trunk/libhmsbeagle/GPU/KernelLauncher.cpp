@@ -459,7 +459,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
             for(int i = 0; i < patternCount; i++)
                 ones[i] = 1.0;
         }
-        gpu->MemcpyHostToDevice(scalingFactors, ones, sizeof(REAL*) * patternCount);
+        gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
         return;
     }
     //#endif

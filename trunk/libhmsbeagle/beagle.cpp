@@ -59,6 +59,7 @@ int createInstance(int tipCount,
                    int eigenBufferCount,
                    int matrixBufferCount,
                    int categoryCount,
+                   int scaleBufferCount,
                    int* resourceList,
                    int resourceCount,
                    long preferenceFlags,
@@ -81,7 +82,8 @@ int createInstance(int tipCount,
             beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                         compactBufferCount, stateCount,
                                                         patternCount, eigenBufferCount,
-                                                        matrixBufferCount, categoryCount);
+                                                        matrixBufferCount, categoryCount, 
+                                                        scaleBufferCount);
 
             if (beagle != NULL) {
                 fprintf(stderr, "Success\n");
@@ -165,12 +167,12 @@ int setPartials(int instance,
     }
 }
 
-int getPartials(int instance, int bufferIndex, double* outPartials) {
+int getPartials(int instance, int bufferIndex, int scaleIndex, double* outPartials) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
-        return beagleInstance->getPartials(bufferIndex, outPartials);
+        return beagleInstance->getPartials(bufferIndex, scaleIndex, outPartials);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -355,12 +357,54 @@ int waitForPartials(const int* instanceList,
     }
 }
 
+int accumulateScaleFactors(int instance,
+						   const int* scalingIndices,
+						   int count,
+						   int cumulativeScalingIndex) {
+    try {        
+    	 beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    	 if (beagleInstance == NULL)
+    		 return UNINITIALIZED_INSTANCE_ERROR;
+    	 return beagleInstance->accumulateScaleFactors(scalingIndices, count, cumulativeScalingIndex);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
+int subtractScaleFactors(int instance,
+						   const int* scalingIndices,
+						   int count,
+						   int cumulativeScalingIndex) {
+    try {        
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        return beagleInstance->subtractScaleFactors(scalingIndices, count, cumulativeScalingIndex);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
 int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* weights,
                                 const double* stateFrequencies,
                                 const int* scalingFactorsIndices,
-                                int* scalingFactorsCount,
+//                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods) {
     try {
@@ -370,7 +414,8 @@ int calculateRootLogLikelihoods(int instance,
 
         return beagleInstance->calculateRootLogLikelihoods(bufferIndices, weights, stateFrequencies,
                                                            scalingFactorsIndices,
-                                                           scalingFactorsCount, count,
+//                                                           scalingFactorsCount, 
+                                                           count,
                                                            outLogLikelihoods);
     }
     catch (std::bad_alloc &) {
@@ -395,7 +440,7 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const double* weights,
                                 const double* stateFrequencies,
                                 const int* scalingFactorsIndices,
-                                int* scalingFactorsCount,
+//                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
@@ -410,7 +455,8 @@ int calculateEdgeLogLikelihoods(int instance,
                                                            firstDerivativeIndices,
                                                            secondDerivativeIndices, weights,
                                                            stateFrequencies, scalingFactorsIndices,
-                                                           scalingFactorsCount, count,
+//                                                           scalingFactorsCount, 
+                                                           count,
                                                            outLogLikelihoods, outFirstDerivatives,
                                                            outSecondDerivatives);
     }
