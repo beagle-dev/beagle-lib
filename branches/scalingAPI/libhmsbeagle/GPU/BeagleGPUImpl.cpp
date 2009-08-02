@@ -569,12 +569,13 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     
     // Serial version
     for (int op = 0; op < operationCount; op++) {
-        const int parIndex = operations[op * 6];
-        const int scalingIndex = operations[op * 6 + 1];
-        const int child1Index = operations[op * 6 + 2];
-        const int child1TransMatIndex = operations[op * 6 + 3];
-        const int child2Index = operations[op * 6 + 4];
-        const int child2TransMatIndex = operations[op * 6 + 5];
+        const int parIndex = operations[op * 7];
+        const int scalingIndex = operations[op * 7 + 1];
+//      const int cumulativeScalingIndex = operations[op * 7 + 2];
+        const int child1Index = operations[op * 7 + 3];
+        const int child1TransMatIndex = operations[op * 7 + 4];
+        const int child2Index = operations[op * 7 + 5];
+        const int child2TransMatIndex = operations[op * 7 + 6];
         
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -758,7 +759,8 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
         // Compute scaling factors at the root
         kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
         		   kPaddedPatternCount);
-
+    
+    return NO_ERROR;
 }
 
 int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,

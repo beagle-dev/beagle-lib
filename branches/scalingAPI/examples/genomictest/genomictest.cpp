@@ -48,6 +48,7 @@ void runBeagle(ResourceList* resources)
 				1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
 				2*ntaxa-2,	        /**< Number of rate matrix buffers (input) */
                 1,             /**< Number of rate categories */
+                2*ntaxa,  // scaling buffers
 				rl,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				rll,			/**< Length of resourceList list (input) */
 				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
@@ -121,12 +122,13 @@ void runBeagle(ResourceList* resources)
 	int* operations = new int[(ntaxa-1)*6];
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
-		operations[6*i+0] = ntaxa+i;
-        operations[6*i+1] = ntaxa+i;
-		operations[6*i+2] = i*2;
-		operations[6*i+3] = i*2;
-		operations[6*i+4] = i*2+1;
-		operations[6*i+5] = i*2+1;
+		operations[7*i+0] = ntaxa+i;
+        operations[7*i+1] = ntaxa+i;
+        operations[7*i+1] = 0;
+		operations[7*i+2] = i*2;
+		operations[7*i+3] = i*2;
+		operations[7*i+4] = i*2+1;
+		operations[7*i+5] = i*2+1;
         
         scalingFactorsIndices[i] = ntaxa+i;
 	}	
@@ -148,14 +150,20 @@ void runBeagle(ResourceList* resources)
     
 
     int scalingFactorsCount = ntaxa-1;
+    
+    int cumulativeScalingFactorIndex = 0;
 
+    accumulateScaleFactors(instance,
+                           scalingFactorsIndices,
+                           scalingFactorsCount,
+                           cumulativeScalingFactorIndex);
+    
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                 // stateFrequencies
-                                scalingFactorsIndices,
-                                &scalingFactorsCount,
+                                &cumulativeScalingFactorIndex,
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
 

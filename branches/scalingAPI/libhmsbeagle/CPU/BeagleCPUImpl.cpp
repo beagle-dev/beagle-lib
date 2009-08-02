@@ -264,13 +264,15 @@ int BeagleCPUImpl::updatePartials(const int* operations,
             std::cerr << "op[3]= " << operations[3] << "\n";
             std::cerr << "op[4]= " << operations[4] << "\n";
             std::cerr << "op[5]= " << operations[5] << "\n";
+            std::cerr << "op[6]= " << operations[6] << "\n";
         }
-        const int parIndex = operations[op * 6];
-//      const int scalingIndex = operations[op * 6 + 1];
-        const int child1Index = operations[op * 6 + 2];
-        const int child1TransMatIndex = operations[op * 6 + 3];
-        const int child2Index = operations[op * 6 + 4];
-        const int child2TransMatIndex = operations[op * 6 + 5];
+        const int parIndex = operations[op * 7];
+//      const int parScalingIndex = operations[op * 7 + 1];
+//      const int cumulativeScalingIndex = operations[op * 7 + 2];
+        const int child1Index = operations[op * 7 + 3];
+        const int child1TransMatIndex = operations[op * 7 + 4];
+        const int child2Index = operations[op * 7 + 5];
+        const int child2TransMatIndex = operations[op * 7 + 6];
         
         assert(parIndex < partials.size());
         assert(parIndex >= tipStates.size());
