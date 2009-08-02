@@ -747,18 +747,28 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::accumulateScaleFactors(const int* scaleIndices,
+int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
-										  int outScaleIndex) {
+										  int cumulativeScalingIndex) {
 
         for(int n = 0; n < count; n++)
-            hPtrQueue[n] = dScalingFactors[scaleIndices[n]];
+            hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
         
         // Compute scaling factors at the root
-        kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[outScaleIndex], count,
+        kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
         		   kPaddedPatternCount);
 
+}
+
+int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,
+										  int count,
+										  int cumulativeScalingIndex) {
+    
+    // TODO: implement subtractScaleFactors GPU
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+    
 }
 
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,

@@ -358,14 +358,14 @@ int waitForPartials(const int* instanceList,
 }
 
 int accumulateScaleFactors(int instance,
-						   const int* scaleIndices,
+						   const int* scalingIndices,
 						   int count,
-						   int outScaleIndex) {
+						   int cumulativeScalingIndex) {
     try {        
     	 beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     	 if (beagleInstance == NULL)
     		 return UNINITIALIZED_INSTANCE_ERROR;
-    	 return beagleInstance->accumulateScaleFactors(scaleIndices, count, outScaleIndex);
+    	 return beagleInstance->accumulateScaleFactors(scalingIndices, count, cumulativeScalingIndex);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -378,6 +378,26 @@ int accumulateScaleFactors(int instance,
     }
 }
 
+int subtractScaleFactors(int instance,
+						   const int* scalingIndices,
+						   int count,
+						   int cumulativeScalingIndex) {
+    try {        
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        return beagleInstance->subtractScaleFactors(scalingIndices, count, cumulativeScalingIndex);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
 
 int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,

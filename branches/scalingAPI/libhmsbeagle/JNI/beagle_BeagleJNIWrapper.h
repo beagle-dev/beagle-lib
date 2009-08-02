@@ -121,6 +121,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    subtractScaleFactors
+ * Signature: (I[III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_subtractScaleFactors
+(JNIEnv *, jobject, jint, jintArray, jint, jint);
+    
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoods
  * Signature: (I[I[D[D[II[D)I
  */

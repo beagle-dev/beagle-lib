@@ -155,9 +155,13 @@ public:
                         int destinationPartialsCount);
     
     
-    int accumulateScaleFactors(const int* scaleIndices,
+    int accumulateScaleFactors(const int* scalingIndices,
 							  int count,
-							  int outScaleIndex);
+							  int cumulativeScalingIndex);
+    
+    int subtractScaleFactors(const int* scalingIndices,
+                               int count,
+                               int cumulativeScalingIndex);
     
     // calculate the site log likelihoods at a particular node
     //

@@ -136,6 +136,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = "Projects/beagle-lib-scaling/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp"; sourceTree = DEVELOPER_DIR; };
+		64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle_BeagleJNIWrapper.h; path = "Projects/beagle-lib-scaling/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h"; sourceTree = DEVELOPER_DIR; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		645747CA0FFF069700603261 /* GPUInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUInterface.h; path = ../../libhmsbeagle/GPU/GPUInterface.h; sourceTree = SOURCE_ROOT; };
@@ -231,12 +233,23 @@
 			isa = PBXGroup;
 			children = (
 				649E82ED0FD703C10044891D /* Source */,
+				64206723102618CE004AB87A /* JNI */,
 				6474F594101F90EB00A1A469 /* Frameworks */,
 				649E82EE0FD703EA0044891D /* Other */,
 				64F21C5D0FD2B93B00678D0B /* Products */,
 			);
 			name = "beagle-xcode";
 			sourceTree = "<group>";
+		};
+		64206723102618CE004AB87A /* JNI */ = {
+			isa = PBXGroup;
+			children = (
+				64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */,
+				64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */,
+			);
+			name = JNI;
+			path = "Projects/beagle-lib-scaling/libhmsbeagle/JNI";
+			sourceTree = DEVELOPER_DIR;
 		};
 		6474F594101F90EB00A1A469 /* Frameworks */ = {
 			isa = PBXGroup;

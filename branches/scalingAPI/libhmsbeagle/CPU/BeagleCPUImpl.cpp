@@ -417,9 +417,18 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
-int BeagleCPUImpl::accumulateScaleFactors(const int* scaleIndices,
+int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
-										  int outScaleIndex) {
+										  int cumulativeScalingIndex) {
+    // TODO: implement accumulateScaleFactors CPU
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+}
+
+int BeagleCPUImpl::subtractScaleFactors(const int* scalingIndices,
+										  int count,
+										  int cumulativeScalingIndex) {
+    // TODO: implement subtractScaleFactors CPU
 	fprintf(stderr,"Not yet implemented.\n");
 	exit(-1);
 }

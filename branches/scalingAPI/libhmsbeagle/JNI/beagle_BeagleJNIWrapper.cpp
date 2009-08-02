@@ -263,12 +263,27 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
  * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
-  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint outScaleIndex) {
+  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
 	
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
-	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, outScaleIndex);
+	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
 
+	return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    subtractScaleFactors
+ * Signature: (I[III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_subtractScaleFactors
+(JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
+	
+	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
+    
 	return errCode;
 }
 

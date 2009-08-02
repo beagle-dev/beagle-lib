@@ -146,9 +146,14 @@ public:
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
     
-    int accumulateScaleFactors(const int* scaleIndices,
+    int accumulateScaleFactors(const int* scalingIndices,
 							  int count,
-							  int outScaleIndex);
+							  int cumulativeScalingIndex);
+    
+    int subtractScaleFactors(const int* scalingIndices,
+                               int count,
+                               int cumulativeScalingIndex);
+    
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,

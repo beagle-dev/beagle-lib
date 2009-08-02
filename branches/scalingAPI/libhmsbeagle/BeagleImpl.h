@@ -70,9 +70,13 @@ public:
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
     
-    virtual int accumulateScaleFactors(const int* scaleIndices,
+    virtual int accumulateScaleFactors(const int* scalingIndices,
 									   int count,
-									   int outScaleIndex) = 0;
+									   int cumulativeScalingIndex) = 0;
+    
+    virtual int subtractScaleFactors(const int* scalingIndices,
+                                     int count,
+                                     int cumulativeScalingIndex) = 0;    
     
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const double* inWeights,
