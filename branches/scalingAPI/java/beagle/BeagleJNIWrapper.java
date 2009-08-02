@@ -5,7 +5,6 @@
 
 package beagle;
 
-import java.util.Map;
 
 /*
  * BeagleJNIjava
@@ -84,6 +83,7 @@ public class BeagleJNIWrapper {
 
     public native int accumulateScaleFactors(final int instance,
 					     final int[] scaleIndices,
+                                                       final int count,
 					     final int outScaleIndex);
 
     public native int calculateRootLogLikelihoods(int instance,

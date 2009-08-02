@@ -64,7 +64,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int patternCount,
                                   int eigenDecompositionCount,
                                   int matrixCount,
-                                  int categoryCount) {
+                                  int categoryCount,
+                                  int scaleBufferCount) {
     
     // TODO: Determine if GPU device satisfies memory requirements.
     
@@ -313,6 +314,7 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
 }
 
 int BeagleGPUImpl::getPartials(int bufferIndex,
+							   int scaleIndex,
                                double* outPartials) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering getPartials\n");
@@ -662,7 +664,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
     if (count == 1) { 
@@ -679,12 +681,15 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         tmpStateFrequencies = inStateFrequencies;
 #else
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
+//        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
-                                * kCategoryCount);
-        
+//        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
+//                                * kCategoryCount);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
+   
         const int rootNodeIndex = bufferIndices[0];
         
 #ifdef DYNAMIC_SCALING
@@ -693,7 +698,6 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             int length = scalingFactorsCount[0];
             for(int n = 0; n < length; n++)
                 hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
-            
             gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
             
             // Compute scaling factors at the root
@@ -737,6 +741,13 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
+int BeagleGPUImpl::accumulateScaleFactors(const int* scaleIndices,
+										  int count,
+										  int outScaleIndex) {
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+}
+
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
@@ -745,7 +756,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
@@ -869,12 +880,13 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               int patternCount,
                                               int eigenBufferCount,
                                               int matrixBufferCount,
-                                              int categoryCount) {
+                                              int categoryCount,
+                                              int scaleBufferCount) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount) == 0)
+                                 categoryCount,scaleBufferCount) == 0)
             return impl;
     }
     catch(...)

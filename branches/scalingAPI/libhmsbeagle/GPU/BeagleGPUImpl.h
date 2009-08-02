@@ -106,7 +106,8 @@ public:
                        int patternCount,
                        int eigenDecompositionCount,
                        int matrixCount,
-                       int categoryCount);
+                       int categoryCount,
+                       int scaleBufferCount);
     
     int initializeInstance(InstanceDetails* retunInfo);
     
@@ -114,6 +115,7 @@ public:
                     const double* inPartials);
     
     int getPartials(int bufferIndex,
+				    int scaleIndex,
                     double* outPartials);
     
     int setTipStates(int tipIndex,
@@ -143,11 +145,15 @@ public:
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
     
+    int accumulateScaleFactors(const int* scaleIndices,
+							  int count,
+							  int outScaleIndex);
+    
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -159,7 +165,7 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
@@ -175,7 +181,8 @@ public:
                                    int patternCount,
                                    int eigenBufferCount,
                                    int matrixBufferCount,
-                                   int categoryCount);
+                                   int categoryCount,
+                                   int scaleBufferCount);
 
     virtual const char* getName();
 };

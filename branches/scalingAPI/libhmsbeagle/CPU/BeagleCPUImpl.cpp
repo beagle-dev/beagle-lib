@@ -85,7 +85,8 @@ int BeagleCPUImpl::createInstance(int tipCount,
                                   int patternCount,
                                   int eigenDecompositionCount,
                                   int matrixCount,
-                                  int categoryCount) {
+                                  int categoryCount,
+                                  int scaleBufferCount) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
     
@@ -155,6 +156,7 @@ int BeagleCPUImpl::setPartials(int bufferIndex,
 }
 
 int BeagleCPUImpl::getPartials(int bufferIndex,
+							   int scaleIndex,
                                double* outPartials) {
     memcpy(outPartials, partials[bufferIndex], sizeof(double) * kPartialsSize);
     
@@ -317,7 +319,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
 
@@ -415,6 +417,14 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
+int BeagleCPUImpl::accumulateScaleFactors(const int* scaleIndices,
+										  int count,
+										  int outScaleIndex) {
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+}
+
+
 int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
@@ -423,7 +433,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
@@ -583,7 +593,6 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
     }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
@@ -594,13 +603,14 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,
                                              int patternCount,
                                              int eigenBufferCount,
                                              int matrixBufferCount,
-                                             int categoryCount) {
+                                             int categoryCount,
+                                             int scaleBufferCount) {
     BeagleImpl* impl = new BeagleCPUImpl();
     
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount) == 0)
+                                 categoryCount,scaleBufferCount) == 0)
             return impl;
     }
     catch(...) {

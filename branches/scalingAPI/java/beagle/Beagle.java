@@ -173,6 +173,7 @@ public interface Beagle {
 
     void accumulateScaleFactors(
             final int[] scaleIndices,
+            final int count,
             final int outScaleIndex
     );
 

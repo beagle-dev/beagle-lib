@@ -370,7 +370,7 @@ int waitForPartials(const int* instance,
  * @param count					Number of scalingBuffers in list (input)
  * @param outBufferIndex		Index number of resultant scalingBuffer (input)
  */
-int accumulateScalingFactors(int instance,
+int accumulateScaleFactors(int instance,
 					         const int* scalingIndices,
 					         int count,
 					         int outBufferIndex);

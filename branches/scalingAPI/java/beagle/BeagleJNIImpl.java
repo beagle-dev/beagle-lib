@@ -109,8 +109,8 @@ public class BeagleJNIImpl implements Beagle {
         assert(errCode == 0);
     }
 
-    public void accumulateScaleFactors(final int[] scaleIndices, final int outIndex) {
-        int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactors(instance,scaleIndices,outIndex);
+    public void accumulateScaleFactors(final int[] scaleIndices, final int count, final int outIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactors(instance,scaleIndices,count,outIndex);
         assert(errCode == 0);
     }
 

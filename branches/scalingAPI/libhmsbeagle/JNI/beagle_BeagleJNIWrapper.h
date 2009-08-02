@@ -114,10 +114,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    accumulateScaleFactors
- * Signature: (I[II)I
+ * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
-  (JNIEnv *, jobject, jint, jintArray, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

@@ -35,8 +35,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 	 categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
 {
     jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
-
-	jint instance = (jint)createInstance(tipCount,
+    
+ 	jint instance = (jint)createInstance(tipCount,
 	                                partialsBufferCount,
 	                                compactBufferCount,
 	                                stateCount,
@@ -260,11 +260,16 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    accumulateScaleFactors
- * Signature: (I[II)I
+ * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
-  (JNIEnv *env, jobject obj, jint instance, jintArray scaleIndices, jint outScaleIndex) {
+  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint outScaleIndex) {
+	
+	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, outScaleIndex);
+	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
 
+	return errCode;
 }
 
 /*

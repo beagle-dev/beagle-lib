@@ -280,7 +280,7 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void accumulateScaleFactors(int[] scaleIndices, int outScaleIndex) {
+    public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
         throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
 
     }
