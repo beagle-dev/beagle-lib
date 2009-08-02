@@ -207,7 +207,8 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
                                              int patternCount,
                                              int eigenBufferCount,
                                              int matrixBufferCount,
-                                             int categoryCount) {
+                                             int categoryCount,
+                                             int scaleBufferCount) {
 	
 	if (stateCount != 4) {         
 		return NULL;
@@ -218,7 +219,7 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
 	try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount) == 0)
+                                 categoryCount,scaleBufferCount) == 0)
             return impl;
     }
     catch(...) {

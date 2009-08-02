@@ -27,21 +27,24 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
- * Signature: (IIIIIIII[IIII)I
+ * Signature: (IIIIIIIII[IIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
-	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount, jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint categoryCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
+	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
+	jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
+	 categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
 {
     jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
-
-	jint instance = (jint)createInstance(tipCount,
+    
+ 	jint instance = (jint)createInstance(tipCount,
 	                                partialsBufferCount,
 	                                compactBufferCount,
 	                                stateCount,
 	                                patternCount,
 	                                eigenBufferCount,
 	                                matrixBufferCount,
-                                    categoryCount,
+					categoryCount,
+					scaleBufferCount,
 	                                (int *)resourceList,
 	                                resourceCount,
 	                                preferenceFlags,
@@ -96,14 +99,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    getPartials
- * Signature: (II[D)I
+ * Signature: (III[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
-  (JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jdoubleArray outPartials)
+(JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jint scaleIndex, jdoubleArray outPartials)
 {
     jdouble *partials = env->GetDoubleArrayElements(outPartials, NULL);
 
-	jint errCode = getPartials(instance, bufferIndex, (double *)partials);
+    jint errCode = getPartials(instance, bufferIndex, scaleIndex, (double *)partials);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outPartials, partials, 0);
@@ -256,27 +259,57 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    accumulateScaleFactors
+ * Signature: (I[III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
+  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
+	
+	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
+
+	return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    subtractScaleFactors
+ * Signature: (I[III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_subtractScaleFactors
+(JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
+	
+	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
+    
+	return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoods
  * Signature: (I[I[D[DI[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
-  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jdoubleArray inWeights, jdoubleArray inStateFrequencies, jintArray inScalingIndices, jintArray inScalingCount, jint count, jdoubleArray outLogLikelihoods)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jdoubleArray inWeights, jdoubleArray inStateFrequencies, jintArray inScalingIndices, jint count, jdoubleArray outLogLikelihoods)
 {
     jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
     jdouble *weights = env->GetDoubleArrayElements(inWeights, NULL);
     jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
-    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
+    //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
     jdouble *logLikelihoods = env->GetDoubleArrayElements(outLogLikelihoods, NULL);
 
 	jint errCode = (jint)calculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights,
 	                                                (double *)stateFrequencies, (int *)scalingIndices,
-	                                                (int *)scalingCount, count, (double *)logLikelihoods);
+	                                                 count, (double *)logLikelihoods);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outLogLikelihoods, logLikelihoods, 0);
 
-    env->ReleaseIntArrayElements(inScalingCount, scalingCount, JNI_ABORT);
+    //    env->ReleaseIntArrayElements(inScalingCount, scalingCount, JNI_ABORT);
     env->ReleaseIntArrayElements(inScalingIndices, scalingIndices, JNI_ABORT);
 
     env->ReleaseDoubleArrayElements(inStateFrequencies, stateFrequencies, JNI_ABORT);
@@ -294,7 +327,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
   (JNIEnv *env, jobject obj, jint instance, jintArray inParentBufferIndices, jintArray inChildBufferIndices,
         jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDerivativeIndices,
-        jdoubleArray inWeights, jdoubleArray inStateFrequencies, jintArray inScalingIndices, jintArray inScalingCount,
+        jdoubleArray inWeights, jdoubleArray inStateFrequencies, jintArray inScalingIndices,
         jint count, jdoubleArray outLogLikelihoods, jdoubleArray outFirstDerivatives, jdoubleArray outSecondDerivatives)
 {
     jint *parentBufferIndices = env->GetIntArrayElements(inParentBufferIndices, NULL);
@@ -306,7 +339,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     jdouble *weights = env->GetDoubleArrayElements(inWeights, NULL);
     jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
-    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
+    //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
     jdouble *logLikelihoods = env->GetDoubleArrayElements(outLogLikelihoods, NULL);
     jdouble *firstDerivatives = env->GetDoubleArrayElements(outFirstDerivatives, NULL);
     jdouble *secondDerivatives = env->GetDoubleArrayElements(outSecondDerivatives, NULL);
@@ -315,7 +348,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
 	                                                    (int *)probabilityIndices, (int *)firstDerivativeIndices,
 	                                                    (int *)secondDerivativeIndices, (double *)weights,
 	                                                    (double *)stateFrequencies,
-	                                                    (int *)scalingIndices, (int *)scalingCount,
+							 (int *)scalingIndices,// (int *)scalingCount,
 	                                                    count, (double *)logLikelihoods, (double *)firstDerivatives,
 	                                                    (double *)secondDerivatives);
 
@@ -324,7 +357,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     env->ReleaseDoubleArrayElements(outFirstDerivatives, firstDerivatives, 0);
     env->ReleaseDoubleArrayElements(outLogLikelihoods, logLikelihoods, 0);
 
-    env->ReleaseIntArrayElements(inScalingCount, scalingCount, JNI_ABORT);
+    //    env->ReleaseIntArrayElements(inScalingCount, scalingCount, JNI_ABORT);
     env->ReleaseIntArrayElements(inScalingIndices, scalingIndices, JNI_ABORT);
 
     env->ReleaseDoubleArrayElements(inStateFrequencies, stateFrequencies, JNI_ABORT);

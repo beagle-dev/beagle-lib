@@ -101,6 +101,7 @@ void FourTaxonExample::initBeagleLib()
 	// Assume node 5 is ancestor of C,D (2,3)
 	operations.push_back(4);	// destination (to be calculated)
 	operations.push_back(4);	// destination scaling buffer index to be used
+	operations.push_back(0);	// cumulative scaling buffer index to be used
 	operations.push_back(0);	// left child partial index
 	operations.push_back(0);	// left child transition matrix index
 	operations.push_back(1);	// right child partial index
@@ -108,6 +109,7 @@ void FourTaxonExample::initBeagleLib()
 
 	operations.push_back(5);	// destination (to be calculated)
 	operations.push_back(5);	// destination scaling buffer index to be used
+	operations.push_back(0);	// cumulative scaling buffer index to be used
 	operations.push_back(2);	// left child partial index
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
@@ -122,6 +124,7 @@ void FourTaxonExample::initBeagleLib()
 				1,			// eigenBufferCount
 				5,			// matrixBufferCount,
                 1,          // categoryCount
+                6,          // scalingBuffersCount
 				NULL,		// resourceList
 				0,			// resourceCount
 				0L,			// preferenceFlags
@@ -228,6 +231,13 @@ double FourTaxonExample::calcLnL()
         
     int scalingFactorsIndices[2] = {4, 5}; // internal nodes
     int scalingFactorsCount = 2;
+        
+    int cumulativeScalingFactorIndex = 0;
+    
+    accumulateScaleFactors(instance_handle,
+                           scalingFactorsIndices,
+                           scalingFactorsCount,
+                           cumulativeScalingFactorIndex);
 
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
@@ -242,8 +252,7 @@ double FourTaxonExample::calcLnL()
 		 NULL,								// secondDerivativeIndices
 		 (const double*)&relativeRateProb,	// weights
 		 (const double*)stateFreqs,		// stateFrequencies,
-         scalingFactorsIndices,
-         &scalingFactorsCount,
+         &cumulativeScalingFactorIndex,
 		 1,									// count
 		 &lnL[0],								// outLogLikelihoods,
 		 NULL,								// outFirstDerivatives,

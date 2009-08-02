@@ -41,6 +41,7 @@ private:
  
     int kTipPartialsBufferCount;
     int kBufferCount;
+    int kScaleBufferCount;
     
     int kPaddedStateCount;
     int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
@@ -50,7 +51,7 @@ private:
     int kMatrixSize;
     int kEigenValuesSize;
     
-    int kDoRescaling;
+//    int kDoRescaling;
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
@@ -73,7 +74,7 @@ private:
     int** hTmpStates;
     
     GPUPtr* dScalingFactors;
-    GPUPtr dRootScalingFactors;
+//    GPUPtr dRootScalingFactors;
     
     GPUPtr* dStates;
     
@@ -106,7 +107,8 @@ public:
                        int patternCount,
                        int eigenDecompositionCount,
                        int matrixCount,
-                       int categoryCount);
+                       int categoryCount,
+                       int scaleBufferCount);
     
     int initializeInstance(InstanceDetails* retunInfo);
     
@@ -114,6 +116,7 @@ public:
                     const double* inPartials);
     
     int getPartials(int bufferIndex,
+				    int scaleIndex,
                     double* outPartials);
     
     int setTipStates(int tipIndex,
@@ -143,11 +146,20 @@ public:
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
     
+    int accumulateScaleFactors(const int* scalingIndices,
+							  int count,
+							  int cumulativeScalingIndex);
+    
+    int subtractScaleFactors(const int* scalingIndices,
+                               int count,
+                               int cumulativeScalingIndex);
+    
+    
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -159,7 +171,7 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
@@ -175,7 +187,8 @@ public:
                                    int patternCount,
                                    int eigenBufferCount,
                                    int matrixBufferCount,
-                                   int categoryCount);
+                                   int categoryCount,
+                                   int scaleBufferCount);
 
     virtual const char* getName();
 };

@@ -72,7 +72,8 @@ public:
                        int patternCount,
                        int eigenDecompositionCount,
                        int matrixCount,
-                       int categoryCount);
+                       int categoryCount,
+                       int scaleBufferCount);
     
     // initialization of instance,  returnInfo can be null
     int initializeInstance(InstanceDetails* returnInfo);
@@ -85,6 +86,7 @@ public:
                     const double* inPartials);
     
     int getPartials(int bufferIndex,
+					int scaleBuffer,
                     double* outPartials);
     
     // set the states for a given tip
@@ -152,6 +154,15 @@ public:
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
     
+    
+    int accumulateScaleFactors(const int* scalingIndices,
+							  int count,
+							  int cumulativeScalingIndex);
+    
+    int subtractScaleFactors(const int* scalingIndices,
+                               int count,
+                               int cumulativeScalingIndex);
+    
     // calculate the site log likelihoods at a particular node
     //
     // rootNodeIndex the index of the root
@@ -160,7 +171,7 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -174,7 +185,7 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-                                    int* scalingFactorsCount,
+//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
@@ -209,7 +220,8 @@ public:
                                    int patternCount,
                                    int eigenBufferCount,
                                    int matrixBufferCount,
-                                   int categoryCount);
+                                   int categoryCount,
+                                   int scaleBufferCount);
     
     virtual const char* getName();
 };

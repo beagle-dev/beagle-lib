@@ -103,6 +103,7 @@ int main( int argc, const char* argv[] )
 				1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
 				4,		        /**< Number of rate matrix buffers (input) */
                 1,              /**< Number of rate categories (input) */
+                5,              /**< Number of scaling buffers */
 				NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				0,			    /**< Length of resourceList list (input) */
 				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
@@ -174,9 +175,9 @@ int main( int argc, const char* argv[] )
 
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int operations[6 * 2] = {
-		3, 3, 0, 0, 1, 1,
-		4, 4, 2, 2, 3, 3
+	int operations[7 * 2] = {
+		3, 3, 0, 0, 0, 1, 1,
+		4, 4, 0, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
 
@@ -191,14 +192,20 @@ int main( int argc, const char* argv[] )
     
     int scalingFactorsIndices[2] = {3, 4}; // internal nodes
     int scalingFactorsCount = 2;
+    
+    int cumulativeScalingFactorIndex = 0;
+    
+    accumulateScaleFactors(instance,
+                           scalingFactorsIndices,
+                           scalingFactorsCount,
+                           cumulativeScalingFactorIndex);
 
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                 // stateFrequencies
-                                scalingFactorsIndices,
-                                &scalingFactorsCount,
+                                &cumulativeScalingFactorIndex,
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
 

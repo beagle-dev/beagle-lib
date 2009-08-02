@@ -55,7 +55,8 @@ public:
                                    int patternCount,
                                    int eigenBufferCount,
                                    int matrixBufferCount,
-                                   int categoryCount);
+                                   int categoryCount,
+                                   int scaleBufferCount);
     
     virtual const char* getName();
 };

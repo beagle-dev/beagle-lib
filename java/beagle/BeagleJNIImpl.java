@@ -9,6 +9,7 @@ package beagle;
  * BeagleJNIjava
  *
  * @author Andrew Rambaut
+ * @author Marc Suchard
  *
  */
 
@@ -24,6 +25,7 @@ public class BeagleJNIImpl implements Beagle {
                          int eigenBufferCount,
                          int matrixBufferCount,
                          int categoryCount,
+                         int scaleBufferCount,
                          final int[] resourceList,
                          int preferenceFlags,
                          int requirementFlags) {
@@ -37,6 +39,7 @@ public class BeagleJNIImpl implements Beagle {
                 eigenBufferCount,
                 matrixBufferCount,
                 categoryCount,
+                scaleBufferCount,
                 resourceList,
                 (resourceList != null? resourceList.length: 0),
                 preferenceFlags,
@@ -58,8 +61,8 @@ public class BeagleJNIImpl implements Beagle {
         assert(errCode == 0);
     }
 
-    public void getPartials(int bufferIndex, final double []outPartials) {
-        int errCode = BeagleJNIWrapper.INSTANCE.getPartials(instance, bufferIndex, outPartials);
+    public void getPartials(int bufferIndex, int scaleIndex, final double []outPartials) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getPartials(instance, bufferIndex, scaleIndex, outPartials);
         assert(errCode == 0);
     }
 
@@ -103,15 +106,21 @@ public class BeagleJNIImpl implements Beagle {
     public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
         int[] instances = { instance };
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instances, instances.length, operations, operationCount, rescale ? 1 : 0);
+        assert(errCode == 0);
+    }
+
+    public void accumulateScaleFactors(final int[] scaleIndices, final int count, final int outIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactors(instance,scaleIndices,count,outIndex);
+        assert(errCode == 0);
     }
 
     public void calculateRootLogLikelihoods(int[] bufferIndices,
                                             double[] weights,
                                             double[] stateFrequencies,
                                             int[] scalingFactorsIndices,
-                                            int[] scalingFactorsCount,
                                             double[] outLogLikelihoods) {
-        int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, weights, stateFrequencies, scalingFactorsIndices, scalingFactorsCount, bufferIndices.length, outLogLikelihoods);
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, weights,
+                stateFrequencies, scalingFactorsIndices, bufferIndices.length, outLogLikelihoods);
         assert(errCode == 0);
     }
 
@@ -123,7 +132,6 @@ public class BeagleJNIImpl implements Beagle {
                                             final double[] weights,
                                             final double[] stateFrequencies,
                                             final int[] scalingFactorsIndices,
-                                            final int[] scalingFactorsCount,
                                             final double[] outLogLikelihoods,
                                             final double[] outFirstDerivatives,
                                             final double[] outSecondDerivatives) {
@@ -136,7 +144,6 @@ public class BeagleJNIImpl implements Beagle {
                 weights,
                 stateFrequencies,
                 scalingFactorsIndices,
-                scalingFactorsCount,
                 parentBufferIndices.length,
                 outLogLikelihoods,
                 outFirstDerivatives,

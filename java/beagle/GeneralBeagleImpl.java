@@ -16,6 +16,7 @@ public class GeneralBeagleImpl implements Beagle {
     protected final int eigenBufferCount;
     protected final int matrixBufferCount;
     protected final int categoryCount;
+    protected final int scaleBufferCount;
 
     protected int partialsSize;
     protected int matrixSize;
@@ -48,7 +49,8 @@ public class GeneralBeagleImpl implements Beagle {
                              final int patternCount,
                              final int eigenBufferCount,
                              final int matrixBufferCount,
-                             final int categoryCount) {
+                             final int categoryCount,
+                             final int scaleBufferCount) {
 
         this.tipCount = tipCount;
         this.partialsBufferCount = partialsBufferCount;
@@ -58,6 +60,7 @@ public class GeneralBeagleImpl implements Beagle {
         this.eigenBufferCount = eigenBufferCount;
         this.matrixBufferCount = matrixBufferCount;
         this.categoryCount = categoryCount;
+        this.scaleBufferCount = scaleBufferCount;
 
         Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
 
@@ -115,7 +118,7 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void getPartials(final int bufferIndex, final double[] partials) {
+    public void getPartials(final int bufferIndex, final int scaleIndex, final double[] partials) {
         System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
     }
 
@@ -277,6 +280,11 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
+        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+
+    }
+
     /**
      * Calculates partial likelihoods at a node when both children have states.
      */
@@ -416,7 +424,7 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, double[] outLogLikelihoods) {
 
         assert(bufferIndices.length == 0); // @todo implement integration across multiple subtrees
 
@@ -484,7 +492,7 @@ public class GeneralBeagleImpl implements Beagle {
 //        if (DEBUG) System.exit(-1);
     }
 
-    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, int[] scalingFactorsCount, double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
+    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
     }
 

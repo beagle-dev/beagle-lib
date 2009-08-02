@@ -64,12 +64,11 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int patternCount,
                                   int eigenDecompositionCount,
                                   int matrixCount,
-                                  int categoryCount) {
+                                  int categoryCount,
+                                  int scaleBufferCount) {
     
     // TODO: Determine if GPU device satisfies memory requirements.
-    
-    // TODO: add support for eigenDecompositionCount > 1
-    
+        
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
     kCompactBufferCount = compactBufferCount;
@@ -78,6 +77,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kEigenDecompCount = eigenDecompositionCount;
     kMatrixCount = matrixCount;
     kCategoryCount = categoryCount;
+    kScaleBufferCount = scaleBufferCount;
     
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
@@ -130,7 +130,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hTmpTipPartials = (REAL**) calloc(sizeof(REAL*), kTipCount);
     hTmpStates = (int**) calloc(sizeof(int*), kTipCount);
     
-    kDoRescaling = 1;
+//    kDoRescaling = 1;
     
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
@@ -193,8 +193,17 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
 #ifdef DYNAMIC_SCALING
-    dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kBufferCount);
-    dRootScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
+    REAL* ones = (REAL*) malloc(SIZE_REAL * kPaddedPatternCount);
+    for(int i=0; i<kPaddedPatternCount; i++)
+    	ones[i] = 1.0;
+    
+    dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
+    for (int i=0; i < kScaleBufferCount; i++) {
+    	dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
+    	// Fill with ones.        
+        gpu->MemcpyHostToDevice(dScalingFactors[i], ones, sizeof(REAL) * kPaddedPatternCount);
+    }
+    free(ones);
 #endif
     
     for (int i = 0; i < kBufferCount; i++) {        
@@ -205,9 +214,6 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
                 dTipPartialsBuffers[i] = gpu->AllocateRealMemory(kPartialsSize);
         } else {
             dPartials[i] = gpu->AllocateRealMemory(kPartialsSize);
-#ifdef DYNAMIC_SCALING
-            dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
-#endif
         }
     }
     
@@ -313,6 +319,7 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
 }
 
 int BeagleGPUImpl::getPartials(int bufferIndex,
+							   int scaleIndex,
                                double* outPartials) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering getPartials\n");
@@ -555,19 +562,20 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     fprintf(stderr, "Entering updatePartials\n");
 #endif
     
-#ifdef DYNAMIC_SCALING
-    if (kDoRescaling == 0) // Forces rescaling on first computation
-        kDoRescaling = rescale;
-#endif
+//#ifdef DYNAMIC_SCALING
+//    if (kDoRescaling == 0) // Forces rescaling on first computation
+//        kDoRescaling = rescale;
+//#endif
     
     // Serial version
     for (int op = 0; op < operationCount; op++) {
-        const int parIndex = operations[op * 6];
-        const int scalingIndex = operations[op * 6 + 1];
-        const int child1Index = operations[op * 6 + 2];
-        const int child1TransMatIndex = operations[op * 6 + 3];
-        const int child2Index = operations[op * 6 + 4];
-        const int child2TransMatIndex = operations[op * 6 + 5];
+        const int parIndex = operations[op * 7];
+        const int scalingIndex = operations[op * 7 + 1];
+//      const int cumulativeScalingIndex = operations[op * 7 + 2];
+        const int child1Index = operations[op * 7 + 3];
+        const int child1TransMatIndex = operations[op * 7 + 4];
+        const int child2Index = operations[op * 7 + 5];
+        const int child2TransMatIndex = operations[op * 7 + 6];
         
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -588,24 +596,24 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                 kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
                                                            matrices1, matrices2, scalingFactors,
                                                            kPaddedPatternCount, kCategoryCount,
-                                                           kDoRescaling);
+                                                           rescale);
             } else {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
                                                              matrices1, matrices2, scalingFactors,
                                                              kPaddedPatternCount, kCategoryCount,
-                                                             kDoRescaling);
+                                                             rescale);
             }
         } else {
             if (tipStates2 != 0) {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
                                                              matrices2, matrices1, scalingFactors,
                                                              kPaddedPatternCount, kCategoryCount,
-                                                             kDoRescaling);
+                                                             rescale);
             } else {
                 kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                matrices1, matrices2, scalingFactors,
                                                                kPaddedPatternCount, kCategoryCount,
-                                                               kDoRescaling);
+                                                               rescale);
             }
         }
 #else
@@ -662,7 +670,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
     if (count == 1) { 
@@ -679,33 +687,36 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         tmpStateFrequencies = inStateFrequencies;
 #else
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
+//        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
-                                * kCategoryCount);
-        
+//        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
+//                                * kCategoryCount);
+        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
+   
         const int rootNodeIndex = bufferIndices[0];
         
 #ifdef DYNAMIC_SCALING
-        if (kDoRescaling) {
-            // Construct node-list for scalingFactors
-            int length = scalingFactorsCount[0];
-            for(int n = 0; n < length; n++)
-                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
-            
-            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
-            
-            // Compute scaling factors at the root
-            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
-                                               kPaddedPatternCount);
-        }
-        
-        kDoRescaling = 0;
+//        if (kDoRescaling) {
+//            // Construct node-list for scalingFactors
+//            int length = scalingFactorsCount[0];
+//            for(int n = 0; n < length; n++)
+//                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
+//            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
+//            
+//            // Compute scaling factors at the root
+//            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
+//                                               kPaddedPatternCount);
+//        }
+//        
+//        kDoRescaling = 0;
         
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
-                                                    dRootScalingFactors, kPaddedPatternCount,
+                                                    dScalingFactors[scalingFactorsIndices[0]],
+                                                    kPaddedPatternCount,
                                                     kCategoryCount);
 #else
         kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
@@ -737,6 +748,31 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
+int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
+										  int count,
+										  int cumulativeScalingIndex) {
+
+        for(int n = 0; n < count; n++)
+            hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
+        
+        // Compute scaling factors at the root
+        kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
+        		   kPaddedPatternCount);
+    
+    return NO_ERROR;
+}
+
+int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,
+										  int count,
+										  int cumulativeScalingIndex) {
+    
+    // TODO: implement subtractScaleFactors GPU
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+    
+}
+
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
@@ -745,7 +781,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
                                                const int* scalingFactorsIndices,
-                                               int* scalingFactorsCount,
+//                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
@@ -789,6 +825,9 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 #ifdef DYNAMIC_SCALING
         // TODO: fix calculateEdgLnL with dynamic scaling
         
+        fprintf(stderr,"Not yet implemented: calculateEdgeLogLikelihood with rescaling\n");
+        exit(-1);
+        
         if (statesChild != 0) {
             kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
                                                    transMatrix, kPaddedPatternCount,
@@ -797,25 +836,25 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
                                                      transMatrix, kPaddedPatternCount,
                                                      kCategoryCount);
-        }
+        }        
         
-        if (kDoRescaling) {
-            // Construct node-list for scalingFactors
-            int length = scalingFactorsCount[0];
-            for(int n = 0; n < length; n++)
-                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
-                        
-            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
-            
-            // Accumulate scaling factors
-            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
-                                               kPaddedPatternCount);
-        }
-        
-        kDoRescaling = 0;
+//        if (kDoRescaling) {
+//            // Construct node-list for scalingFactors
+//            int length = scalingFactorsCount[0];
+//            for(int n = 0; n < length; n++)
+//                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
+//                        
+//            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
+//            
+//            // Accumulate scaling factors
+//            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
+//                                               kPaddedPatternCount);
+//        }
+//        
+//        kDoRescaling = 0;
         
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
-                                                    dFrequencies, dRootScalingFactors,
+                                                    dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
                                                     kPaddedPatternCount, kCategoryCount);
 #else
         if (statesChild != 0) {
@@ -869,12 +908,13 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               int patternCount,
                                               int eigenBufferCount,
                                               int matrixBufferCount,
-                                              int categoryCount) {
+                                              int categoryCount,
+                                              int scaleBufferCount) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount) == 0)
+                                 categoryCount,scaleBufferCount) == 0)
             return impl;
     }
     catch(...)

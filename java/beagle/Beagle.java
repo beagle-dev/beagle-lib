@@ -48,10 +48,12 @@ public interface Beagle {
      * This function copies an instance buffer into the array outPartials
      *
      * @param bufferIndex   Index of destination partialsBuffer (input)
+     * @param scaleIndex    Index of scaleBuffer to apply to partials (input)
      * @param  outPartials  Pointer to which to receive partialsBuffer (output)
      */
     void getPartials(
             int bufferIndex,
+            int scaleIndex,
             final double []outPartials);
 
     /**
@@ -167,12 +169,20 @@ public interface Beagle {
      * @param scalingFactorsCount   List of scalingFactorsIndices sizes for each partialsBuffer (input)
      * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
      */
+
+
+    void accumulateScaleFactors(
+            final int[] scaleIndices,
+            final int count,
+            final int outScaleIndex
+    );
+
     void calculateRootLogLikelihoods(
             final int[] bufferIndices,
             final double[] weights,
             final double[] stateFrequencies,
             final int[] scalingFactorsIndices,
-            final int[] scalingFactorsCount,
+//            final int[] scalingFactorsCount,
             final double[] outLogLikelihoods);
 
    /**
@@ -205,7 +215,7 @@ public interface Beagle {
                                             final double[] weights,
                                             final double[] stateFrequencies,
                                             final int[] scalingFactorsIndices,
-                                            final int[] scalingFactorsCount,
+//                                            final int[] scalingFactorsCount,
                                             final double[] outLogLikelihoods,
                                             final double[] outFirstDerivatives,
                                             final double[] outSecondDerivatives);

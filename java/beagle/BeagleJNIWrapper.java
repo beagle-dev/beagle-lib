@@ -5,12 +5,12 @@
 
 package beagle;
 
-import java.util.Map;
 
 /*
  * BeagleJNIjava
  *
  * @author Andrew Rambaut
+ * @author Marc Suchard
  *
  */
 
@@ -34,6 +34,7 @@ public class BeagleJNIWrapper {
             int eigenBufferCount,
             int matrixBufferCount,
             int categoryCount,
+	    int scaleBufferCount,
             final int[] resourceList,
             int resourceCount,
             int preferenceFlags,
@@ -47,7 +48,8 @@ public class BeagleJNIWrapper {
 
     public native int setPartials(int instance, int bufferIndex, final double[] inPartials);
 
-    public native int getPartials(int instance, int bufferIndex, final double[] outPartials);
+    public native int getPartials(int instance, int bufferIndex, int scaleIndex, 
+				  final double[] outPartials);
 
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
@@ -79,12 +81,16 @@ public class BeagleJNIWrapper {
                                      final int[] destinationPartials,
                                      int destinationPartialsCount);
 
+    public native int accumulateScaleFactors(final int instance,
+					     final int[] scaleIndices,
+                                                       final int count,
+					     final int outScaleIndex);
+
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
                                                   final double[] inWeights,
                                                   final double[] inStateFrequencies,
                                                   final int[] scalingFactorsIndices,
-                                                  final int[] scalingFactorsCount,
                                                   int count,
                                                   final double[] outLogLikelihoods);
 
@@ -97,7 +103,6 @@ public class BeagleJNIWrapper {
                                     final double[] inWeights,
                                     final double[] inStateFrequencies,
                                     final int[] scalingFactorsIndices,
-                                    final int[] scalingFactorsCount,
                                     int count,
                                     final double[] outLogLikelihoods,
                                     final double[] outFirstDerivatives,
