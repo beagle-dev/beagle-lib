@@ -20,7 +20,8 @@ public class BeagleFactory {
             int patternCount,
             int eigenBufferCount,
             int matrixBufferCount,
-            int categoryCount
+            int categoryCount,
+            int scaleBufferCount
     ) {
 
         boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
@@ -45,6 +46,7 @@ public class BeagleFactory {
                     eigenBufferCount,
                     matrixBufferCount,
                     categoryCount,
+                    scaleBufferCount,
                     new int[] { 0 },
                     1,
                     0
@@ -60,7 +62,8 @@ public class BeagleFactory {
                     patternCount,
                     eigenBufferCount,
                     matrixBufferCount,
-                    categoryCount
+                    categoryCount,
+                    scaleBufferCount
             );
         }
 
@@ -71,7 +74,8 @@ public class BeagleFactory {
                 patternCount,
                 eigenBufferCount,
                 matrixBufferCount,
-                categoryCount
+                categoryCount,
+                scaleBufferCount
         );
     }
 
@@ -165,7 +169,8 @@ public class BeagleFactory {
                     nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                     1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                     4,		        /**< Number of rate matrix buffers (input) */
-                    1              /**< Number of rate categories (input) */
+                    1,              /**< Number of rate categories (input) */
+                    6   /**< Number of scale buffers (input) */
                     );
         if (instance == null) {
             System.err.println("Failed to obtain BEAGLE instance");
@@ -242,13 +247,15 @@ public class BeagleFactory {
         int[] scalingFactorsIndices = {3, 4}; // internal nodes
         int[] scalingFactorsCount = { 2} ;
 
+        // TODO Need to call accumulateScaleFactors if scaling is enabled
+
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(
                                     rootIndices,            // bufferIndices
                                     weights,                // weights
                                     freqs,                 // stateFrequencies
                                     scalingFactorsIndices,
-                                    scalingFactorsCount,
+//                                    scalingFactorsCount,
                                     patternLogLik);         // outLogLikelihoods
 
         double logL = 0.0;

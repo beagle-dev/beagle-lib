@@ -82,8 +82,8 @@ public class BeagleJNIWrapper {
                                      final int[] destinationPartials,
                                      int destinationPartialsCount);
 
-    public native int accumulateScaleFactors(int instance,
-					     final int[] scalingIndices,
+    public native int accumulateScaleFactors(final int instance,
+					     final int[] scaleIndices,
 					     final int outScaleIndex);
 
     public native int calculateRootLogLikelihoods(int instance,
