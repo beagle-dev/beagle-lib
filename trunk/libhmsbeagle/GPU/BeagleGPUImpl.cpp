@@ -556,7 +556,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
 
 int BeagleGPUImpl::updatePartials(const int* operations,
                                   int operationCount,
-                                  int rescale) {
+                                  int cumulativeScalingIndex) {
     
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering updatePartials\n");
@@ -570,8 +570,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     // Serial version
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * 7];
-        const int scalingIndex = operations[op * 7 + 1];
-//      const int cumulativeScalingIndex = operations[op * 7 + 2];
+        const int writeScalingIndex = operations[op * 7 + 1];
+        const int readScalingIndex = operations[op * 7 + 2];
         const int child1Index = operations[op * 7 + 3];
         const int child1TransMatIndex = operations[op * 7 + 4];
         const int child2Index = operations[op * 7 + 5];
@@ -587,6 +587,17 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
+        
+        
+        // TODO: implement support for cumulativeScalingIndex
+        // TODO: implement support for no rescale, no readScalingIndex
+        int rescale = 0;
+        int scalingIndex = readScalingIndex; 
+        if (writeScalingIndex >= 0) {
+            rescale = 1;
+            scalingIndex = writeScalingIndex;
+        }
+        
         
 #ifdef DYNAMIC_SCALING
         GPUPtr scalingFactors = dScalingFactors[scalingIndex];

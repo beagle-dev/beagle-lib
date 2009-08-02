@@ -81,6 +81,10 @@ public:
     void FreeMemory(GPUPtr dPtr);
     
     void PrintInfo();
+    
+    void GetDeviceName(int deviceNumber,
+                        char* deviceName,
+                        int nameLength);
 
     void PrintfDeviceVector(GPUPtr dPtr,
                       int length);

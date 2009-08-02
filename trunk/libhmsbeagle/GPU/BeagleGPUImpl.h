@@ -141,7 +141,7 @@ public:
     
     int updatePartials(const int* operations,
                        int operationCount,
-                       int rescale);
+                       int cumulativeScalingIndex);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
