@@ -41,6 +41,7 @@ private:
  
     int kTipPartialsBufferCount;
     int kBufferCount;
+    int kScaleBufferCount;
     
     int kPaddedStateCount;
     int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
@@ -50,7 +51,7 @@ private:
     int kMatrixSize;
     int kEigenValuesSize;
     
-    int kDoRescaling;
+//    int kDoRescaling;
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
@@ -73,7 +74,7 @@ private:
     int** hTmpStates;
     
     GPUPtr* dScalingFactors;
-    GPUPtr dRootScalingFactors;
+//    GPUPtr dRootScalingFactors;
     
     GPUPtr* dStates;
     
