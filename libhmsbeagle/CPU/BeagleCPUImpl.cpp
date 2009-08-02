@@ -255,7 +255,7 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
 
 int BeagleCPUImpl::updatePartials(const int* operations,
                                   int count,
-                                  int rescale) {
+                                  int cumulativeScalingIndex) {
     for (int op = 0; op < count; op++) {
         if (DEBUGGING_OUTPUT) {
             std::cerr << "op[0]= " << operations[0] << "\n";
@@ -267,8 +267,8 @@ int BeagleCPUImpl::updatePartials(const int* operations,
             std::cerr << "op[6]= " << operations[6] << "\n";
         }
         const int parIndex = operations[op * 7];
-//      const int parScalingIndex = operations[op * 7 + 1];
-//      const int cumulativeScalingIndex = operations[op * 7 + 2];
+//      const int writeScalingIndex = operations[op * 7 + 1];
+//      const int readScalingIndex = operations[op * 7 + 2];
         const int child1Index = operations[op * 7 + 3];
         const int child1TransMatIndex = operations[op * 7 + 4];
         const int child2Index = operations[op * 7 + 5];

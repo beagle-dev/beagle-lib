@@ -317,18 +317,18 @@ int setTransitionMatrix(int instance,
  *
  * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
  * Format of 7-tuple operation: {destinationPartials,
- *                               destinationScaling,
- *                               cumulativeScaling,
+ *                               destinationScalingWrite,
+ *                               destinationScalingRead,
  *                               child1Partials,
  *                               child1TransitionMatrix,
  *                               child2Partials,
  *                               child2TransitionMatrix}
  *
- * @param instance          List of instances for which to update partials buffers (input)
- * @param instanceCount     Length of instance list (input)
- * @param operations        List of 7-tuples specifying operations (input)
- * @param operationCount    Number of operations (input)
- * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors 
+ * @param instance                  List of instances for which to update partials buffers (input)
+ * @param instanceCount             Length of instance list (input)
+ * @param operations                List of 7-tuples specifying operations (input)
+ * @param operationCount            Number of operations (input)
+ * @param cumulativeScalingIndex    Index number of scalingBuffer to store accumulated factors (input) 
  *
  * @return error code
  */
@@ -336,7 +336,7 @@ int updatePartials(const int* instance,
                    int instanceCount,
                    const int* operations,
                    int operationCount,
-                   int rescale);
+                   int cumulativeScalingIndex);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

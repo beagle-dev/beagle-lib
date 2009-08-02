@@ -48,7 +48,35 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
 std::list<beagle::BeagleImplFactory*> implFactory;
 
 ResourceList* getResourceList() {
-    return NULL;
+
+    ResourceList* rList;
+    rList = (ResourceList*) malloc(sizeof(ResourceList));
+    rList->length = 1;
+    
+#if defined(CUDA) || defined(OPENCL)
+    GPUInterface* gpu = new GPUInterface;
+    int gpuDeviceCount = gpu->GetDeviceCount();
+    rList->length += gpuDeviceCount;
+    rList->list = (Resource*) malloc(sizeof(Resource) * rList->length); 
+    for (int i = 0; i < gpuDeviceCount; i++) {
+        char* dName = (char*) malloc(sizeof(char) * 100);
+        gpu->GetDeviceName(i, dName, 100);
+        rList->list[i + 1].name = dName;
+        rList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
+    }   
+    delete gpu;
+#else
+    rList->list = (Resource*) malloc(sizeof(Resource) * rList->length); 
+#endif
+    
+    rList->list[0].name = "CPU";
+    rList->list[0].flags = ASYNCH | CPU;
+    if (sizeof(REAL) == 4)
+        rList->list[0].flags |= SINGLE;
+    else
+        rList->list[0].flags |= DOUBLE;
+    
+    return rList;
 }
 
 int createInstance(int tipCount,
@@ -301,7 +329,7 @@ int updatePartials(const int* instanceList,
                    int instanceCount,
                    const int* operations,
                    int operationCount,
-                   int rescale) {
+                   int cumulativeScalingIndex) {
     try {
         int error_code = NO_ERROR;
         for (int i = 0; i < instanceCount; i++) {
@@ -309,7 +337,7 @@ int updatePartials(const int* instanceList,
             if (beagleInstance == NULL)
                 return UNINITIALIZED_INSTANCE_ERROR;
 
-            int err = beagleInstance->updatePartials(operations, operationCount, rescale);
+            int err = beagleInstance->updatePartials(operations, operationCount, cumulativeScalingIndex);
             if (err != NO_ERROR) {
                 error_code = err;
             }

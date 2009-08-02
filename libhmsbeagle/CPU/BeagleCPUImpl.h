@@ -136,7 +136,7 @@ public:
     // rescale indicate if partials should be rescaled during peeling
     int updatePartials(const int* operations,
                        int operationCount,
-                       int rescale);
+                       int cumulativeScalingIndex);
     
     // Block until all calculations that write to the specified partials have completed.
     //

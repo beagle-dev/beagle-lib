@@ -65,7 +65,7 @@ public:
     
     virtual int updatePartials(const int* operations,
                                int operationCount,
-                               int rescale) = 0;
+                               int cumulativeScalingIndex) = 0;
     
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;

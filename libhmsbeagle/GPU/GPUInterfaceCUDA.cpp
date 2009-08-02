@@ -44,8 +44,10 @@ GPUInterface::GPUInterface() {
 }
 
 GPUInterface::~GPUInterface() {
-    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-    SAFE_CUDA(cuCtxDetach(cudaContext));
+    if (cudaContext != NULL) {
+        SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+        SAFE_CUDA(cuCtxDetach(cudaContext));
+    }
 }
 
 int GPUInterface::GetDeviceCount() {
@@ -200,6 +202,16 @@ void GPUInterface::PrintInfo() {
     fprintf(stderr, "\tGlobal Memory (MB) : %d\n", int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5));
     fprintf(stderr, "\tClock Speed (Ghz)  : %1.2f\n", clockSpeed / 1000000.0);
     fprintf(stderr, "\tNumber of Cores    : %d\n", 8 * mpCount);
+}
+
+void GPUInterface::GetDeviceName(int deviceNumber,
+                                  char* deviceName,
+                                  int nameLength) {
+    CUdevice tmpCudaDevice;
+
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
+    
+    SAFE_CUDA(cuDeviceGetName(deviceName, nameLength, tmpCudaDevice));
 }
 
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
