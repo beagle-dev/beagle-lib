@@ -677,6 +677,31 @@ int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
     return NO_ERROR;
 }
 
+int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
+										  int count,
+										  int cumulativeScalingIndex) {
+    
+    for(int n = 0; n < count; n++)
+        hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
+    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
+    
+    // Compute scaling factors at the root
+    kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
+                                       kPaddedPatternCount);
+    
+    return NO_ERROR;
+}
+
+int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,
+                                        int count,
+                                        int cumulativeScalingIndex) {
+    
+    // TODO: implement subtractScaleFactors GPU
+	fprintf(stderr,"Not yet implemented.\n");
+	exit(-1);
+    
+}
+
 int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
@@ -759,31 +784,6 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
-										  int count,
-										  int cumulativeScalingIndex) {
-
-        for(int n = 0; n < count; n++)
-            hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
-        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
-        
-        // Compute scaling factors at the root
-        kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
-        		   kPaddedPatternCount);
-    
-    return NO_ERROR;
-}
-
-int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,
-										  int count,
-										  int cumulativeScalingIndex) {
-    
-    // TODO: implement subtractScaleFactors GPU
-	fprintf(stderr,"Not yet implemented.\n");
-	exit(-1);
-    
-}
-
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
@@ -834,10 +834,6 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         //        REAL* secondDerivMatrix = 0L;
         
 #ifdef DYNAMIC_SCALING
-        // TODO: fix calculateEdgLnL with dynamic scaling
-        
-        fprintf(stderr,"Not yet implemented: calculateEdgeLogLikelihood with rescaling\n");
-        exit(-1);
         
         if (statesChild != 0) {
             kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,

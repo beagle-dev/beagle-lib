@@ -423,8 +423,7 @@ int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
     // TODO: implement accumulateScaleFactors CPU
-	fprintf(stderr,"Not yet implemented.\n");
-	exit(-1);
+    return NO_ERROR;
 }
 
 int BeagleCPUImpl::subtractScaleFactors(const int* scalingIndices,
