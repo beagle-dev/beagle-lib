@@ -137,7 +137,7 @@ ResourceList* getResourceList();
  *                               (input)
  * @param matrixBufferCount     Number of rate matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
- * @param scalingBufferCount	Number of scaling buffers to create (input)
+ * @param scaleBufferCount		Number of scale buffers to create (input)
  * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
@@ -157,7 +157,7 @@ int createInstance(int tipCount,
                    int eigenBufferCount,
                    int matrixBufferCount,
                    int categoryCount,
-                   int scalingBufferCount,
+                   int scaleBufferCount,
                    int* resourceList,
                    int resourceCount,
                    long preferenceFlags,
@@ -250,14 +250,14 @@ int setPartials(int instance,
  *
  * @param instance      Instance number from which to get partialsBuffer (input)
  * @param bufferIndex   Index of source partialsBuffer (input)
- * @param scalingIndex  Index of scalingBuffer to apply to partialsBuffer (input)
+ * @param scaleIndex  	Index of scaleBuffer to apply to partialsBuffer (input)
  * @param outPartials   Pointer to which to receive partialsBuffer (output)
  *
  * @return error code
  */
 int getPartials(int instance,
                 int bufferIndex,
-                int scalingIndex,
+                int scaleIndex,
                 double* outPartials);
 
 /**
@@ -348,8 +348,8 @@ int setTransitionMatrix(int instance,
  *
  * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
  * Format of 7-tuple operation: {destinationPartials,
- *                               destinationScalingWrite,
- *                               destinationScalingRead,
+ *                               destinationScaleWrite,
+ *                               destinationScaleRead,
  *                               child1Partials,
  *                               child1TransitionMatrix,
  *                               child2Partials,
@@ -359,7 +359,7 @@ int setTransitionMatrix(int instance,
  * @param instanceCount             Length of instance list (input)
  * @param operations                List of 7-tuples specifying operations (input)
  * @param operationCount            Number of operations (input)
- * @param cumulativeScalingIndex    Index number of scalingBuffer to store accumulated factors (input)
+ * @param cumulativeScaleIndex   	Index number of scaleBuffer to store accumulated factors (input)
  *
  * @return error code
  */
@@ -367,7 +367,7 @@ int updatePartials(const int* instance,
                    int instanceCount,
                    const int* operations,
                    int operationCount,
-                   int cumulativeScalingIndex);
+                   int cumulativeScaleIndex);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.
@@ -392,47 +392,47 @@ int waitForPartials(const int* instance,
                     int destinationPartialsCount);
 
 /**
- * @brief Accumulate scaling factors
+ * @brief Accumulate scale factors
  *
- * This function adds (log) scaling factors from a list of scalingBuffers to a cumulative scaling
+ * This function adds (log) scale factors from a list of scaleBuffers to a cumulative scale
  * buffer. It is used to calculate the marginal scaling at a specific node for each site.
  *
  * @param instance                  Instance number (input)
- * @param scalingIndices            List of scalingBuffers to add (input)
- * @param count                     Number of scalingBuffers in list (input)
- * @param cumulativeScalingIndex    Index number of scalingBuffer to accumulate factors into (input)
+ * @param scaleIndices            	List of scaleBuffers to add (input)
+ * @param count                     Number of scaleBuffers in list (input)
+ * @param cumulativeScaleIndex    Index number of scaleBuffer to accumulate factors into (input)
  */
 int accumulateScaleFactors(int instance,
-                           const int* scalingIndices,
+                           const int* scaleIndices,
 					       int count,
-					       int cumulativeScalingIndex);
+					       int cumulativeScaleIndex);
 
 /**
- * @brief Remove scaling factors
+ * @brief Remove scale factors
  *
- * This function removes (log) scaling factors from a cumulative scaling buffer. The
- * scaling factors to be removed are indicated in a list of scalingBuffers.
+ * This function removes (log) scale factors from a cumulative scale buffer. The
+ * scale factors to be removed are indicated in a list of scaleBuffers.
  *
  * @param instance                  Instance number (input)
- * @param scalingIndices            List of scalingBuffers to remove (input)
- * @param count                     Number of scalingBuffers in list (input)
- * @param cumulativeScalingIndex    Index number of scalingBuffer containing accumulated factors (input)
+ * @param scaleIndices            	List of scaleBuffers to remove (input)
+ * @param count                     Number of scaleBuffers in list (input)
+ * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
  */
 int removeScaleFactors(int instance,
-                       const int* scalingIndices,
+                       const int* scaleIndices,
                        int count,
-                       int cumulativeScalingIndex);
+                       int cumulativeScaleIndex);
 
 /**
- * @brief Reset scaling factors
+ * @brief Reset scalefactors
  *
- * This function resets a cumulative scaling buffer.
+ * This function resets a cumulative scale buffer.
  *
  * @param instance                  Instance number (input)
- * @param cumulativeScalingIndex    Index number of cumulative scalingBuffer (input)
+ * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
  */
 int resetScaleFactors(int instance,
-                      int cumulativeScalingIndex);
+                      int cumulativeScaleIndex);
 
 /**
  * @brief Calculate site log likelihoods at a root node
@@ -447,7 +447,7 @@ int resetScaleFactors(int instance,
  *                               parentBufferIndices
  * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
  *                               should be one set for each of parentBufferIndices
- * @param scalingFactorsIndices List of scalingBuffers to apply to each partialsBuffer (input). There
+ * @param scaleFactoreIndices 	List of scaleBuffers to apply to each partialsBuffer (input). There
  *                               should be one index for each of parentBufferIndices
  * @param count                 Number of partialsBuffer to integrate (input)
  * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
@@ -458,7 +458,7 @@ int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,
+                                const int* scaleFactorsIndices,
                                 int count,
                                 double* outLogLikelihoods);
 
@@ -479,7 +479,7 @@ int calculateRootLogLikelihoods(int instance,
  * @param inWeights                 List of weights to apply to each partialsBuffer (input)
  * @param inStateFrequencies        List of state frequencies for each partialsBuffer (input). There
  *                                   should be one set for each of parentBufferIndices
- * @param scalingFactorsIndices     List of scalingBuffers to apply to each partialsBuffer (input). There
+ * @param scaleFactorsIndices     	List of scaleBuffers to apply to each partialsBuffer (input). There
  *                                   should be one index for each of parentBufferIndices
  * @param count                     Number of partialsBuffers (input)
  * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
@@ -496,7 +496,7 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const int* secondDerivativeIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,
+                                const int* scaleFactorsIndices,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
