@@ -20,6 +20,7 @@
  * @author Paul Lewis
  * @author Michael Ott
  * @author Andrew Rambaut
+ * @author Fredrik Ronquist
  * @author Marc Suchard
  * @author David Swofford
  * @author Derrick Zwickl
@@ -43,7 +44,7 @@ enum BeagleReturnCodes {
     UNIDENTIFIED_EXCEPTION_ERROR = -3,  /**< Unspecified exception */
     UNINITIALIZED_INSTANCE_ERROR = -4,  /**< The instance index is out of range,
                                           *   or the instance has not been created */
-    OUT_OF_RANGE_ERROR           = -5   /**< One of the indices specfied exceeded the range of the
+    OUT_OF_RANGE_ERROR           = -5   /**< One of the indices specified exceeded the range of the
                                           *   array */
 };
 
@@ -65,6 +66,18 @@ enum BeagleFlags {
     FPGA   = 1 << 18,   /**< Request/require FPGA */
     SSE    = 1 << 19,   /**< Request/require SSE */
     CELL   = 1 << 20    /**< Request/require Cell */
+};
+
+/**
+ * @anchor BEAGLE_OP_CODES
+ *
+ * @brief Operation codes
+ *
+ * This enumerates all possible BEAGLE operation codes.
+ */
+enum BeagleOpCodes {
+	OP_COUNT = 7,	/**< Total number of integers per updatePartials operation */
+	NONE     = -1	/**< Specify no use for indexed buffer */
 };
 
 /**
@@ -93,7 +106,7 @@ typedef struct {
 } ResourceList;
 
 /* using C calling conventions so that C programs can successfully link the beagle library
- * (brace is closed at the end of this file) 
+ * (brace is closed at the end of this file)
  */
 #ifdef __cplusplus
 extern "C" {
@@ -131,7 +144,7 @@ ResourceList* getResourceList();
  * @param preferenceFlags       Bit-flags indicating preferred implementation charactertistics,
  *                               see BeagleFlags (input)
  * @param requirementFlags      Bit-flags indicating required implementation characteristics,
- *                               see BeagleFlags (input) 
+ *                               see BeagleFlags (input)
  *
  * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
  * "BeagleReturnCodes")
@@ -157,7 +170,7 @@ int createInstance(int tipCount,
  * allocating memory and populating this memory of values that may have been set.
  *
  * @param instance      Instance number to initialize (input)
- * @param returnInfo    Pointer to return hardware details 
+ * @param returnInfo    Pointer to return hardware details
  *
  * @returns Information about the implementation and hardware on which this instance will run
  */
@@ -169,7 +182,7 @@ int initializeInstance(int instance,
  *
  * This function finalizes the instance by releasing allocated memory
  *
- * @param instance  Instance number 
+ * @param instance  Instance number
  *
  * @return error code
  */
@@ -185,7 +198,7 @@ int finalize(int instance);
  *
  * @param instance  Instance number (input)
  * @param tipIndex  Index of destination compactBuffer (input)
- * @param inStates  Pointer to compact states (input) 
+ * @param inStates  Pointer to compact states (input)
  *
  * @return error code
  */
@@ -198,19 +211,19 @@ int setTipStates(int instance,
  *
  * This function copies an array of partials into an instance buffer. The inPartials array should
  * be stateCount * patternCount in length. For most applications this will be used
- * to set the partial likelihoods for the observed states. Internally, tthe partials will be copied
+ * to set the partial likelihoods for the observed states. Internally, the partials will be copied
  * categoryCount times.
  *
  * @param instance      Instance number in which to set a partialsBuffer (input)
  * @param bufferIndex   Index of destination partialsBuffer (input)
- * @param inPartials    Pointer to partials values to set (input) 
+ * @param inPartials    Pointer to partials values to set (input)
  *
  * @return error code
  */
 int setTipPartials(int instance,
                    int bufferIndex,
                    const double* inPartials);
-    
+
 /**
  * @brief Set an instance partials buffer
  *
@@ -221,7 +234,7 @@ int setTipPartials(int instance,
  *
  * @param instance      Instance number in which to set a partialsBuffer (input)
  * @param bufferIndex   Index of destination partialsBuffer (input)
- * @param inPartials    Pointer to partials values to set (input) 
+ * @param inPartials    Pointer to partials values to set (input)
  *
  * @return error code
  */
@@ -238,7 +251,7 @@ int setPartials(int instance,
  * @param instance      Instance number from which to get partialsBuffer (input)
  * @param bufferIndex   Index of source partialsBuffer (input)
  * @param scalingIndex  Index of scalingBuffer to apply to partialsBuffer (input)
- * @param outPartials   Pointer to which to receive partialsBuffer (output) 
+ * @param outPartials   Pointer to which to receive partialsBuffer (output)
  *
  * @return error code
  */
@@ -246,7 +259,7 @@ int getPartials(int instance,
                 int bufferIndex,
                 int scalingIndex,
                 double* outPartials);
-    
+
 /**
  * @brief Set an eigen-decomposition buffer
  *
@@ -257,8 +270,8 @@ int getPartials(int instance,
  * @param inEigenVectors        Flattened matrix (stateCount x stateCount) of eigen-vectors (input)
  * @param inInverseEigenVectors Flattened matrix (stateCount x stateCount) of inverse-eigen- vectors
  *                               (input)
- * @param inEigenValues         Vector of eigenvalues 
- * 
+ * @param inEigenValues         Vector of eigenvalues
+ *
  * @return error code
  */
 int setEigenDecomposition(int instance,
@@ -266,7 +279,7 @@ int setEigenDecomposition(int instance,
                           const double* inEigenVectors,
                           const double* inInverseEigenVectors,
                           const double* inEigenValues);
-    
+
 /**
  * @brief Set category rates
  *
@@ -274,7 +287,7 @@ int setEigenDecomposition(int instance,
  *
  * @param instance              Instance number (input)
  * @param inCategoryRates       Array containing categoryCount rate scalers (input)
- * 
+ *
  * @return error code
  */
 int setCategoryRates(int instance,
@@ -295,7 +308,7 @@ int setCategoryRates(int instance,
  * @param secondDervativeIndices    List of indices of second derivative matrices to update
  *                                   (input, NULL implies no calculation)
  * @param edgeLengths               List of edge lengths with which to perform calculations (input)
- * @param count                     Length of lists 
+ * @param count                     Length of lists
  *
  * @return error code
  */
@@ -346,7 +359,7 @@ int setTransitionMatrix(int instance,
  * @param instanceCount             Length of instance list (input)
  * @param operations                List of 7-tuples specifying operations (input)
  * @param operationCount            Number of operations (input)
- * @param cumulativeScalingIndex    Index number of scalingBuffer to store accumulated factors (input) 
+ * @param cumulativeScalingIndex    Index number of scalingBuffer to store accumulated factors (input)
  *
  * @return error code
  */
@@ -369,7 +382,7 @@ int updatePartials(const int* instance,
  * @param instanceCount             Length of instance list (input)
  * @param destinationPartials       List of the indices of destinationPartials that must be
  *                                   calculated before the function returns
- * @param destinationPartialsCount  Number of destinationPartials (input) 
+ * @param destinationPartialsCount  Number of destinationPartials (input)
  *
  * @return error code
  */
@@ -380,10 +393,10 @@ int waitForPartials(const int* instance,
 
 /**
  * @brief Accumulate scaling factors
- * 
+ *
  * This function adds (log) scaling factors from a list of scalingBuffers to a cumulative scaling
  * buffer. It is used to calculate the marginal scaling at a specific node for each site.
- * 
+ *
  * @param instance                  Instance number (input)
  * @param scalingIndices            List of scalingBuffers to add (input)
  * @param count                     Number of scalingBuffers in list (input)
@@ -393,13 +406,13 @@ int accumulateScaleFactors(int instance,
                            const int* scalingIndices,
 					       int count,
 					       int cumulativeScalingIndex);
-    
+
 /**
  * @brief Remove scaling factors
- * 
+ *
  * This function removes (log) scaling factors from a cumulative scaling buffer. The
  * scaling factors to be removed are indicated in a list of scalingBuffers.
- * 
+ *
  * @param instance                  Instance number (input)
  * @param scalingIndices            List of scalingBuffers to remove (input)
  * @param count                     Number of scalingBuffers in list (input)
@@ -412,9 +425,9 @@ int removeScaleFactors(int instance,
 
 /**
  * @brief Reset scaling factors
- * 
- * This function resets a cumulative scaling buffer. 
- * 
+ *
+ * This function resets a cumulative scaling buffer.
+ *
  * @param instance                  Instance number (input)
  * @param cumulativeScalingIndex    Index number of cumulative scalingBuffer (input)
  */
@@ -437,7 +450,7 @@ int resetScaleFactors(int instance,
  * @param scalingFactorsIndices List of scalingBuffers to apply to each partialsBuffer (input). There
  *                               should be one index for each of parentBufferIndices
  * @param count                 Number of partialsBuffer to integrate (input)
- * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output) 
+ * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
  *
  * @return error code
  */
@@ -445,7 +458,7 @@ int calculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,                              
+                                const int* scalingFactorsIndices,
                                 int count,
                                 double* outLogLikelihoods);
 
@@ -471,7 +484,7 @@ int calculateRootLogLikelihoods(int instance,
  * @param count                     Number of partialsBuffers (input)
  * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
  * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
- * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output) 
+ * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output)
  *
  * @return error code
  */
@@ -483,7 +496,7 @@ int calculateEdgeLogLikelihoods(int instance,
                                 const int* secondDerivativeIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
-                                const int* scalingFactorsIndices,                          
+                                const int* scalingFactorsIndices,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
