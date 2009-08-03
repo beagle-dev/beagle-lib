@@ -447,7 +447,7 @@ int resetScaleFactors(int instance,
  *                               parentBufferIndices
  * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
  *                               should be one set for each of parentBufferIndices
- * @param scaleFactoreIndices 	List of scaleBuffers to apply to each partialsBuffer (input). There
+ * @param scaleFactorsIndices 	List of scaleBuffers to apply to each partialsBuffer (input). There
  *                               should be one index for each of parentBufferIndices
  * @param count                 Number of partialsBuffer to integrate (input)
  * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
