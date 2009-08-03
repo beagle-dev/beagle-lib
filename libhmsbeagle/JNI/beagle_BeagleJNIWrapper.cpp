@@ -82,6 +82,38 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setTipStates
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
+(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
+{
+    jint *tipStates = env->GetIntArrayElements(inTipStates, NULL);
+    
+	jint errCode = (jint)setTipStates(instance, tipIndex, (int *)tipStates);
+    
+    env->ReleaseIntArrayElements(inTipStates, tipStates, JNI_ABORT);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setTipPartials
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
+(JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jdoubleArray inPartials)
+{
+    jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
+    
+	jint errCode = (jint)setTipPartials(instance, bufferIndex, (double *)partials);
+    
+    env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPartials
  * Signature: (II[D)I
  */
@@ -110,22 +142,6 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outPartials, partials, 0);
-    return errCode;
-}
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    setTipStates
- * Signature: (II[I)I
- */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
-  (JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
-{
-    jint *tipStates = env->GetIntArrayElements(inTipStates, NULL);
-
-	jint errCode = (jint)setTipStates(instance, tipIndex, (int *)tipStates);
-
-    env->ReleaseIntArrayElements(inTipStates, tipStates, JNI_ABORT);
     return errCode;
 }
 
@@ -274,16 +290,28 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    subtractScaleFactors
+ * Method:    removeScaleFactors
  * Signature: (I[III)I
  */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_subtractScaleFactors
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
 	
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
 	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
     
+	return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    resetScaleFactors
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
+(JNIEnv *env, jobject obj, jint instance, jint cumulativeScalingIndex) {
+	
+	jint errCode = (jint)resetScaleFactors(instance, cumulativeScalingIndex);
 	return errCode;
 }
 

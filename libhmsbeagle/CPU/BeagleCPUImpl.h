@@ -78,23 +78,27 @@ public:
     // initialization of instance,  returnInfo can be null
     int initializeInstance(InstanceDetails* returnInfo);
     
-    // set the partials for a given tip
-    //
-    // tipIndex the index of the tip
-    // inPartials the array of partials, stateCount x patternCount
-    int setPartials(int bufferIndex,
-                    const double* inPartials);
-    
-    int getPartials(int bufferIndex,
-					int scaleBuffer,
-                    double* outPartials);
-    
     // set the states for a given tip
     //
     // tipIndex the index of the tip
     // inStates the array of states: 0 to stateCount - 1, missing = stateCount
     int setTipStates(int tipIndex,
                      const int* inStates);
+    
+    // set the partials for a given tip
+    //
+    // tipIndex the index of the tip
+    // inPartials the array of partials, stateCount x patternCount
+    int setTipPartials(int bufferIndex,
+                       const double* inPartials);
+    
+
+    int setPartials(int bufferIndex,
+                    const double* inPartials);
+    
+    int getPartials(int bufferIndex,
+					int scaleBuffer,
+                    double* outPartials);
     
     // sets the Eigen decomposition for a given matrix
     //
@@ -159,9 +163,11 @@ public:
 							  int count,
 							  int cumulativeScalingIndex);
     
-    int subtractScaleFactors(const int* scalingIndices,
+    int removeScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
+    
+    int resetScaleFactors(int cumulativeScalingIndex);
     
     // calculate the site log likelihoods at a particular node
     //

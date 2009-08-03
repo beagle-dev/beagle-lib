@@ -38,6 +38,23 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
   (JNIEnv *, jobject, jint);
+    
+    
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setTipStates
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
+(JNIEnv *, jobject, jint, jint, jintArray);
+    
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setTipPartials
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
+(JNIEnv *, jobject, jint, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -54,14 +71,6 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
   (JNIEnv *, jobject, jint, jint, jint, jdoubleArray);
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    setTipStates
- * Signature: (II[I)I
- */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
-  (JNIEnv *, jobject, jint, jint, jintArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -121,11 +130,19 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
- * Method:    subtractScaleFactors
+ * Method:    removeScaleFactors
  * Signature: (I[III)I
  */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_subtractScaleFactors
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 (JNIEnv *, jobject, jint, jintArray, jint, jint);
+    
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    resetScaleFactors
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
+(JNIEnv *, jobject, jint, jint);
     
 /*
  * Class:     beagle_BeagleJNIWrapper

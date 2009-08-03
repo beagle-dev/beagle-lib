@@ -111,6 +111,12 @@ public:
                        int scaleBufferCount);
     
     int initializeInstance(InstanceDetails* retunInfo);
+
+    int setTipStates(int tipIndex,
+                     const int* inStates);
+
+    int setTipPartials(int bufferIndex,
+                       const double* inPartials);
     
     int setPartials(int bufferIndex,
                     const double* inPartials);
@@ -118,10 +124,7 @@ public:
     int getPartials(int bufferIndex,
 				    int scaleIndex,
                     double* outPartials);
-    
-    int setTipStates(int tipIndex,
-                     const int* inStates);
-    
+        
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
@@ -147,13 +150,14 @@ public:
                         int destinationPartialsCount);
     
     int accumulateScaleFactors(const int* scalingIndices,
-							  int count,
-							  int cumulativeScalingIndex);
-    
-    int subtractScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
     
+    int removeScaleFactors(const int* scalingIndices,
+                           int count,
+                           int cumulativeScalingIndex);
+    
+    int resetScaleFactors(int cumulativeScalingIndex);
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,

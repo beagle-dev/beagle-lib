@@ -155,7 +155,7 @@ void FourTaxonExample::initBeagleLib()
 
 	for (unsigned i = 0; i < 4; ++i)
 		{
-		code = setPartials(
+		code = setTipPartials(
 						instance_handle,			// instance
 						i,							// bufferIndex
 						&partial[i][0]);			// inPartials
@@ -233,6 +233,9 @@ double FourTaxonExample::calcLnL()
     int scalingFactorsCount = 2;
         
     int cumulativeScalingFactorIndex = 0;
+        
+    resetScaleFactors(instance_handle,
+                      cumulativeScalingFactorIndex);
     
     accumulateScaleFactors(instance_handle,
                            scalingFactorsIndices,

@@ -159,9 +159,9 @@ int main( int argc, const char* argv[] )
     //	setTipStates(instance, 2, getStates(gorilla));
     
     // set the sequences for each tip using partial likelihood arrays
-	setPartials(instance, 0, getPartials(human));
-	setPartials(instance, 1, getPartials(chimp));
-	setPartials(instance, 2, getPartials(gorilla));
+	setTipPartials(instance, 0, getPartials(human));
+	setTipPartials(instance, 1, getPartials(chimp));
+	setTipPartials(instance, 2, getPartials(gorilla));
     
 	double rates[1] = { 1.0 };
 	setCategoryRates(instance, rates);
@@ -227,10 +227,13 @@ int main( int argc, const char* argv[] )
     
     int cumulativeScalingFactorIndex = 0;
     
+    resetScaleFactors(instance,
+                      cumulativeScalingFactorIndex);
+    
     accumulateScaleFactors(instance,
                            scalingFactorsIndices,
                            scalingFactorsCount,
-                           cumulativeScalingFactorIndex);
+                           cumulativeScalingFactorIndex);    
     
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance

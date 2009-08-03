@@ -144,6 +144,30 @@ int BeagleCPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     return NO_ERROR;
 }
 
+int BeagleCPUImpl::setTipStates(int tipIndex,
+                                const int* inStates) {
+    tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
+	for (int j = 0; j < kPatternCount; j++) {
+		tipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
+	}        
+    
+    return NO_ERROR;
+}
+
+int BeagleCPUImpl::setTipPartials(int bufferIndex,
+                                  const double* inPartials) {
+    assert(partials[bufferIndex] == 0L);
+    partials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
+    if (partials[bufferIndex] == 0L)
+        return OUT_OF_MEMORY_ERROR;
+    int singlePartialsSize = kPatternCount * kStateCount;
+    for (int i = 0; i < kCategoryCount; i++)
+        memcpy(partials[bufferIndex] + i * singlePartialsSize, inPartials,
+               sizeof(double) * singlePartialsSize);
+    
+    return NO_ERROR;
+}
+
 int BeagleCPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
     assert(partials[bufferIndex] == 0L);
@@ -159,16 +183,6 @@ int BeagleCPUImpl::getPartials(int bufferIndex,
 							   int scaleIndex,
                                double* outPartials) {
     memcpy(outPartials, partials[bufferIndex], sizeof(double) * kPartialsSize);
-    
-    return NO_ERROR;
-}
-
-int BeagleCPUImpl::setTipStates(int tipIndex,
-                                const int* inStates) {
-    tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
-	for (int j = 0; j < kPatternCount; j++) {
-		tipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
-	}        
     
     return NO_ERROR;
 }
@@ -426,14 +440,18 @@ int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
     return NO_ERROR;
 }
 
-int BeagleCPUImpl::subtractScaleFactors(const int* scalingIndices,
+int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
-    // TODO: implement subtractScaleFactors CPU
+    // TODO: implement removeScaleFactors CPU
 	fprintf(stderr,"Not yet implemented.\n");
 	exit(-1);
 }
 
+int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
+    // TODO: implement resetScaleFactors CPU
+    return NO_ERROR;
+}
 
 int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                const int* childBufferIndices,

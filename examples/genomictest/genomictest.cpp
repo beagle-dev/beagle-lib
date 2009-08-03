@@ -70,7 +70,7 @@ void runBeagle(ResourceList* resources)
 	srand(42);	// fix the random seed...
 	for(int i=0; i<ntaxa; i++)
 	{
-		setPartials(instance, i, getRandomTipPartials(nsites, stateCount));
+		setTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
 	}
     
 	double rates[1] = { 1.0 };
@@ -124,11 +124,11 @@ void runBeagle(ResourceList* resources)
 	for(int i=0; i<ntaxa-1; i++){
 		operations[7*i+0] = ntaxa+i;
         operations[7*i+1] = ntaxa+i;
-        operations[7*i+1] = 0;
-		operations[7*i+2] = i*2;
+        operations[7*i+2] = 0;
 		operations[7*i+3] = i*2;
-		operations[7*i+4] = i*2+1;
+		operations[7*i+4] = i*2;
 		operations[7*i+5] = i*2+1;
+		operations[7*i+6] = i*2+1;
         
         scalingFactorsIndices[i] = ntaxa+i;
 	}	
@@ -153,6 +153,9 @@ void runBeagle(ResourceList* resources)
     
     int cumulativeScalingFactorIndex = 0;
 
+    resetScaleFactors(instance,
+                           cumulativeScalingFactorIndex);
+    
     accumulateScaleFactors(instance,
                            scalingFactorsIndices,
                            scalingFactorsCount,
