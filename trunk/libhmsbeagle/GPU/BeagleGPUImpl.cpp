@@ -130,8 +130,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hTmpTipPartials = (REAL**) calloc(sizeof(REAL*), kTipCount);
     hTmpStates = (int**) calloc(sizeof(int*), kTipCount);
     
-//    kDoRescaling = 1;
-    
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
     
@@ -193,17 +191,9 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
 #ifdef DYNAMIC_SCALING
-    REAL* ones = (REAL*) malloc(SIZE_REAL * kPaddedPatternCount);
-    for(int i=0; i<kPaddedPatternCount; i++)
-    	ones[i] = 1.0;
-    
     dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-    for (int i=0; i < kScaleBufferCount; i++) {
+    for (int i=0; i < kScaleBufferCount; i++)
     	dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
-    	// Fill with ones.        
-        gpu->MemcpyHostToDevice(dScalingFactors[i], ones, sizeof(REAL) * kPaddedPatternCount);
-    }
-    free(ones);
 #endif
     
     for (int i = 0; i < kBufferCount; i++) {        
@@ -606,12 +596,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering updatePartials\n");
 #endif
-    
-//#ifdef DYNAMIC_SCALING
-//    if (kDoRescaling == 0) // Forces rescaling on first computation
-//        kDoRescaling = rescale;
-//#endif
-    
+        
     // Serial version
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * 7];
@@ -781,31 +766,14 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         tmpStateFrequencies = inStateFrequencies;
 #else
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-//        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
         MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
-
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-//        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount
-//                                * kCategoryCount);
         gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
    
         const int rootNodeIndex = bufferIndices[0];
         
 #ifdef DYNAMIC_SCALING
-//        if (kDoRescaling) {
-//            // Construct node-list for scalingFactors
-//            int length = scalingFactorsCount[0];
-//            for(int n = 0; n < length; n++)
-//                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
-//            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
-//            
-//            // Compute scaling factors at the root
-//            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
-//                                               kPaddedPatternCount);
-//        }
-//        
-//        kDoRescaling = 0;
         
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                     dWeights, dFrequencies,
@@ -902,22 +870,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                      transMatrix, kPaddedPatternCount,
                                                      kCategoryCount);
         }        
-        
-//        if (kDoRescaling) {
-//            // Construct node-list for scalingFactors
-//            int length = scalingFactorsCount[0];
-//            for(int n = 0; n < length; n++)
-//                hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
-//                        
-//            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * length);
-//            
-//            // Accumulate scaling factors
-//            kernels->ComputeRootDynamicScaling(dPtrQueue, dRootScalingFactors, length,
-//                                               kPaddedPatternCount);
-//        }
-//        
-//        kDoRescaling = 0;
-        
+                
         kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
                                                     dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
                                                     kPaddedPatternCount, kCategoryCount);
