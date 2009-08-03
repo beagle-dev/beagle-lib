@@ -277,6 +277,83 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     return NO_ERROR;
 }
 
+int BeagleGPUImpl::setTipStates(int tipIndex,
+                                const int* inStates) {
+    // TODO: test setTipStates
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Entering setTipStates\n");
+#endif
+    
+    for(int i = 0; i < kPatternCount; i++)
+        hStatesCache[i] = (inStates[i] < kStateCount ? inStates[i] : kPaddedStateCount);
+    
+    // Padded extra patterns
+    for(int i = kPatternCount; i < kPaddedPatternCount; i++)
+        hStatesCache[i] = kPaddedStateCount;
+    
+    if (kDeviceMemoryAllocated) {
+        assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
+        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
+        // Copy to GPU device
+        gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
+    } else {
+        hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
+        checkHostMemory(hTmpStates[tipIndex]);
+        memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
+    }
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting setTipStates\n");
+#endif
+    
+    return NO_ERROR;
+}
+
+int BeagleGPUImpl::setTipPartials(int bufferIndex,
+                                  const double* inPartials) {
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Entering setTipPartials\n");
+#endif
+    
+    const double* inPartialsOffset = inPartials;
+    REAL* tmpRealPartialsOffset = hPartialsCache;
+    for (int i = 0; i < kPatternCount; i++) {
+#ifdef DOUBLE_PRECISION
+        memcpy(tmpRealPartialsOffset, inPartialsOffset, SIZE_REAL * kStateCount);
+#else
+        MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, REAL);
+#endif
+        tmpRealPartialsOffset += kPaddedStateCount;
+        inPartialsOffset += kStateCount;
+    }
+    
+    int partialsLength = kPaddedPatternCount * kPaddedStateCount;
+    for (int i = 1; i < kCategoryCount; i++) {
+        memcpy(hPartialsCache + i * partialsLength, hPartialsCache, partialsLength * SIZE_REAL);
+    }    
+    
+    if (kDeviceMemoryAllocated) {
+        if (bufferIndex < kTipCount) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                   kTipPartialsBufferCount);
+            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        }
+        // Copy to GPU device
+        gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+    } else {
+        hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
+        checkHostMemory(hTmpTipPartials[bufferIndex]);
+        memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+    }
+    
+#ifdef DEBUG_FLOW
+    fprintf(stderr, "Exiting setTipPartials\n");
+#endif
+    
+    return NO_ERROR;
+}
+
 int BeagleGPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
 #ifdef DEBUG_FLOW
@@ -353,38 +430,6 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::setTipStates(int tipIndex,
-                                const int* inStates) {
-    // TODO: test setTipStates
-    
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setTipStates\n");
-#endif
-    
-    for(int i = 0; i < kPatternCount; i++)
-        hStatesCache[i] = (inStates[i] < kStateCount ? inStates[i] : kPaddedStateCount);
-    
-    // Padded extra patterns
-    for(int i = kPatternCount; i < kPaddedPatternCount; i++)
-        hStatesCache[i] = kPaddedStateCount;
-    
-    if (kDeviceMemoryAllocated) {
-        assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
-        // Copy to GPU device
-        gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
-    } else {
-        hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
-        checkHostMemory(hTmpStates[tipIndex]);
-        memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
-    }
-    
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setTipStates\n");
-#endif
-    
-    return NO_ERROR;
-}
 
 int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
@@ -692,14 +737,27 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::subtractScaleFactors(const int* scalingIndices,
+int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
                                         int count,
                                         int cumulativeScalingIndex) {
     
-    // TODO: implement subtractScaleFactors GPU
+    // TODO: implement removeScaleFactors GPU
 	fprintf(stderr,"Not yet implemented.\n");
 	exit(-1);
     
+}
+
+int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
+    
+    REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
+    
+    // Fill with zeroes
+    gpu->MemcpyHostToDevice(dScalingFactors[cumulativeScalingIndex], zeroes,
+                            SIZE_REAL * kPaddedPatternCount);
+    
+    free(zeroes);
+    
+    return NO_ERROR;
 }
 
 int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,

@@ -176,6 +176,42 @@ int initializeInstance(int instance,
 int finalize(int instance);
 
 /**
+ * @brief Set the compact state representation for tip node
+ *
+ * This function copies a compact state representation into an instance buffer.
+ * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount).
+ * The inStates array should be patternCount in length (replication across categoryCount is not
+ * required).
+ *
+ * @param instance  Instance number (input)
+ * @param tipIndex  Index of destination compactBuffer (input)
+ * @param inStates  Pointer to compact states (input) 
+ *
+ * @return error code
+ */
+int setTipStates(int instance,
+                 int tipIndex,
+                 const int* inStates);
+
+/**
+ * @brief Set an instance partials buffer for tip node
+ *
+ * This function copies an array of partials into an instance buffer. The inPartials array should
+ * be stateCount * patternCount in length. For most applications this will be used
+ * to set the partial likelihoods for the observed states. Internally, tthe partials will be copied
+ * categoryCount times.
+ *
+ * @param instance      Instance number in which to set a partialsBuffer (input)
+ * @param bufferIndex   Index of destination partialsBuffer (input)
+ * @param inPartials    Pointer to partials values to set (input) 
+ *
+ * @return error code
+ */
+int setTipPartials(int instance,
+                   int bufferIndex,
+                   const double* inPartials);
+    
+/**
  * @brief Set an instance partials buffer
  *
  * This function copies an array of partials into an instance buffer. The inPartials array should
@@ -210,25 +246,7 @@ int getPartials(int instance,
                 int bufferIndex,
                 int scalingIndex,
                 double* outPartials);
-
-/**
- * @brief Set the compact state representation for tip node
- *
- * This function copies a compact state representation into an instance buffer.
- * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount).
- * The inStates array should be patternCount in length (replication across categoryCount is not
- * required).
- *
- * @param instance  Instance number (input)
- * @param tipIndex  Index of destination compactBuffer (input)
- * @param inStates  Pointer to compact states (input) 
- *
- * @return error code
- */
-int setTipStates(int instance,
-                 int tipIndex,
-                 const int* inStates);
-
+    
 /**
  * @brief Set an eigen-decomposition buffer
  *
@@ -363,14 +381,13 @@ int waitForPartials(const int* instance,
 /**
  * @brief Accumulate scaling factors
  * 
- * This function adds (log) scaling factors from a list of scalingBuffers and stores
- * them in a cumulative scaling buffer. It is used to calculate the marginal scaling at
- * a specific node for each site.
+ * This function adds (log) scaling factors from a list of scalingBuffers to a cumulative scaling
+ * buffer. It is used to calculate the marginal scaling at a specific node for each site.
  * 
  * @param instance                  Instance number (input)
- * @param scalingIndices            List of scalingBuffers to accumulate (input)
+ * @param scalingIndices            List of scalingBuffers to add (input)
  * @param count                     Number of scalingBuffers in list (input)
- * @param cumulativeScalingIndex    Index number of scalingBuffer to store accumulated factors (input)
+ * @param cumulativeScalingIndex    Index number of scalingBuffer to accumulate factors into (input)
  */
 int accumulateScaleFactors(int instance,
                            const int* scalingIndices,
@@ -378,21 +395,31 @@ int accumulateScaleFactors(int instance,
 					       int cumulativeScalingIndex);
     
 /**
- * @brief Subtract scaling factors
+ * @brief Remove scaling factors
  * 
- * This function subtracts (log) scaling factors from a cumulative scaling buffer. The
- * scaling factors to be subtracted are indicated in a list of scalingBuffers.
+ * This function removes (log) scaling factors from a cumulative scaling buffer. The
+ * scaling factors to be removed are indicated in a list of scalingBuffers.
  * 
  * @param instance                  Instance number (input)
- * @param scalingIndices            List of scalingBuffers to subtract (input)
+ * @param scalingIndices            List of scalingBuffers to remove (input)
  * @param count                     Number of scalingBuffers in list (input)
  * @param cumulativeScalingIndex    Index number of scalingBuffer containing accumulated factors (input)
  */
-int subtractScaleFactors(int instance,
-                         const int* scalingIndices,
-                         int count,
-                         int cumulativeScalingIndex);
-    
+int removeScaleFactors(int instance,
+                       const int* scalingIndices,
+                       int count,
+                       int cumulativeScalingIndex);
+
+/**
+ * @brief Reset scaling factors
+ * 
+ * This function resets a cumulative scaling buffer. 
+ * 
+ * @param instance                  Instance number (input)
+ * @param cumulativeScalingIndex    Index number of cumulative scalingBuffer (input)
+ */
+int resetScaleFactors(int instance,
+                      int cumulativeScalingIndex);
 
 /**
  * @brief Calculate site log likelihoods at a root node

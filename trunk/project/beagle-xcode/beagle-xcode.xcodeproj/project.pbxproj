@@ -136,8 +136,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = "../../../beagle-lib-scaling/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp"; sourceTree = SOURCE_ROOT; };
-		64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle_BeagleJNIWrapper.h; path = "../../../beagle-lib-scaling/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h"; sourceTree = SOURCE_ROOT; };
+		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp; sourceTree = SOURCE_ROOT; };
+		64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle_BeagleJNIWrapper.h; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h; sourceTree = SOURCE_ROOT; };
 		6420678D102623AC004AB87A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = ../../examples/tinytest/tinytest.cpp; sourceTree = SOURCE_ROOT; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -151,7 +151,7 @@
 		6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = ../../libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp; sourceTree = SOURCE_ROOT; };
 		6474F592101F90D200A1A469 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; explicitFileType = sourcecode.opencl; fileEncoding = 4; name = BeagleOpenCL_kernels.cl; path = ../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = SOURCE_ROOT; };
+		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = BeagleOpenCL_kernels.cl; path = ../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = SOURCE_ROOT; };
 		6474F5F3101F934600A1A469 /* BeagleCUDA_kernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = BeagleCUDA_kernels.cu; path = ../../libhmsbeagle/GPU/BeagleCUDA_kernels.cu; sourceTree = SOURCE_ROOT; };
 		648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.cpp; sourceTree = SOURCE_ROOT; };
 		648DE27D102486F80022E549 /* BeagleCPU4StateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.h; sourceTree = SOURCE_ROOT; };

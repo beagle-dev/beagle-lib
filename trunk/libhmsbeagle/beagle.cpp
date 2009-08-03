@@ -175,6 +175,47 @@ int finalize(int instance) {
     }
 }
 
+int setTipStates(int instance,
+                 int tipIndex,
+                 const int* inStates) {
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        
+        return beagleInstance->setTipStates(tipIndex, inStates);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
+int setTipPartials(int instance,
+                   int bufferIndex,
+                   const double* inPartials) {
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        return beagleInstance->setTipPartials(bufferIndex, inPartials);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
 int setPartials(int instance,
                 int bufferIndex,
                 const double* inPartials) {
@@ -201,27 +242,6 @@ int getPartials(int instance, int bufferIndex, int scaleIndex, double* outPartia
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
         return beagleInstance->getPartials(bufferIndex, scaleIndex, outPartials);
-    }
-    catch (std::bad_alloc &) {
-        return OUT_OF_MEMORY_ERROR;
-    }
-    catch (std::out_of_range &) {
-        return OUT_OF_RANGE_ERROR;
-    }
-    catch (...) {
-        return UNIDENTIFIED_EXCEPTION_ERROR;
-    }
-}
-
-int setTipStates(int instance,
-                 int tipIndex,
-                 const int* inStates) {
-    try {
-        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
-        if (beagleInstance == NULL)
-            return UNINITIALIZED_INSTANCE_ERROR;
-
-        return beagleInstance->setTipStates(tipIndex, inStates);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
@@ -406,7 +426,7 @@ int accumulateScaleFactors(int instance,
     }
 }
 
-int subtractScaleFactors(int instance,
+int removeScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
 						   int cumulativeScalingIndex) {
@@ -414,7 +434,26 @@ int subtractScaleFactors(int instance,
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
-        return beagleInstance->subtractScaleFactors(scalingIndices, count, cumulativeScalingIndex);
+        return beagleInstance->removeScaleFactors(scalingIndices, count, cumulativeScalingIndex);
+    }
+    catch (std::bad_alloc &) {
+        return OUT_OF_MEMORY_ERROR;
+    }
+    catch (std::out_of_range &) {
+        return OUT_OF_RANGE_ERROR;
+    }
+    catch (...) {
+        return UNIDENTIFIED_EXCEPTION_ERROR;
+    }
+}
+
+int resetScaleFactors(int instance,
+                      int cumulativeScalingIndex) {
+    try {        
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return UNINITIALIZED_INSTANCE_ERROR;
+        return beagleInstance->resetScaleFactors(cumulativeScalingIndex);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;

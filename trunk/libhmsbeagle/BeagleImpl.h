@@ -36,15 +36,18 @@ public:
     
     virtual int initializeInstance(InstanceDetails* returnInfo) = 0;
     
+    virtual int setTipStates(int tipIndex,
+                             const int* inStates) = 0;
+
+    virtual int setTipPartials(int bufferIndex,
+                               const double* inPartials) = 0;
+    
     virtual int setPartials(int bufferIndex,
                             const double* inPartials) = 0;
     
     virtual int getPartials(int bufferIndex,
 							int scaleIndex,
                             double* outPartials) = 0;
-    
-    virtual int setTipStates(int tipIndex,
-                             const int* inStates) = 0;
     
     virtual int setEigenDecomposition(int eigenIndex,
                                       const double* inEigenVectors,
@@ -74,9 +77,11 @@ public:
 									   int count,
 									   int cumulativeScalingIndex) = 0;
     
-    virtual int subtractScaleFactors(const int* scalingIndices,
+    virtual int removeScaleFactors(const int* scalingIndices,
                                      int count,
-                                     int cumulativeScalingIndex) = 0;    
+                                     int cumulativeScalingIndex) = 0;   
+    
+    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;   
     
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const double* inWeights,
