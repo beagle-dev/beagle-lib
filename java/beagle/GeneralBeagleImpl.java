@@ -109,19 +109,6 @@ public class GeneralBeagleImpl implements Beagle {
         super.finalize();
     }
 
-    public void setPartials(final int bufferIndex, final double[] partials) {
-        if (this.partials[bufferIndex] == null) {
-            this.partials[bufferIndex] = new double[partialsSize];
-        }
-        for (int i = 0; i < categoryCount; i++) {
-            System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
-        }
-    }
-
-    public void getPartials(final int bufferIndex, final int scaleIndex, final double[] partials) {
-        System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
-    }
-
     /**
      * Sets partials for a tip - these are numbered from 0 and remain
      * constant throughout the run.
@@ -130,14 +117,37 @@ public class GeneralBeagleImpl implements Beagle {
      * @param states   an array of patternCount state indices
      */
     public void setTipStates(int tipIndex, int[] states) {
-        assert(this.tipStates[tipIndex] == null);
-        tipStates[tipIndex] = new int[patternCount];
+        assert(tipIndex >= 0 && tipIndex < tipCount);
+        if (this.tipStates[tipIndex] == null) {
+            tipStates[tipIndex] = new int[patternCount];
+        }
         int k = 0;
         for (int state : states) {
             this.tipStates[tipIndex][k] = (state < stateCount ? state : stateCount);
             k++;
         }
 
+    }
+
+    public void setTipPartials(int tipIndex, double[] inPartials) {
+        assert(tipIndex >= 0 && tipIndex < tipCount);
+        if (this.partials[tipIndex] == null) {
+            this.partials[tipIndex] = new double[partialsSize];
+        }
+        int k = 0;
+        for (int i = 0; i < categoryCount; i++) {
+            System.arraycopy(inPartials, 0, this.partials[tipIndex], k, inPartials.length);
+            k += inPartials.length;
+        }
+    }
+
+    public void setPartials(final int bufferIndex, final double[] partials) {
+        assert(this.partials[bufferIndex] != null);
+        System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
+    }
+
+    public void getPartials(final int bufferIndex, final int scaleIndex, final double[] partials) {
+        System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
     }
 
     public void setEigenDecomposition(int eigenIndex, double[] eigenVectors, double[] inverseEigenValues, double[] eigenValues) {
@@ -209,27 +219,17 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     /**
-     * Calculate or queue for calculation partials using a list of operations
-     *
-     * This function either calculates or queues for calculation a list partials. Implementations
-     * supporting SYNCH may queue these calculations while other implementations perform these
-     * operations immediately.  Implementations supporting GPU may perform all operations in the list
-     * simultaneously.
-     *
-     * Operations list is a list of 6-tuple integer indices, with one 6-tuple per operation.
-     * Format of 6-tuple operation: {destinationPartials,
-     *                               destinationScalingFactors, (this index must be > tipCount)
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
      *                               child1Partials,
      *                               child1TransitionMatrix,
      *                               child2Partials,
      *                               child2TransitionMatrix}
      *
-     * @param operations        List of 6-tuples specifying operations (input)
-     * @param operationCount    Number of operations (input)
-     * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors
-     *
      */
-    public void updatePartials(final int[] operations, final int operationCount, final boolean rescale) {
+    public void updatePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
 //        if (SCALING) {
 //            if (DYNAMIC_SCALING) {
 //                if (!doRescaling) // Forces rescaling on first computation
@@ -242,12 +242,12 @@ public class GeneralBeagleImpl implements Beagle {
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
             int bufferIndex3 = operations[x];
-            int bufferIndex1 = operations[x + 2];
-            int matrixIndex1 = operations[x + 3];
-            int bufferIndex2 = operations[x + 4];
-            int matrixIndex2 = operations[x + 5];
+            int bufferIndex1 = operations[x + 3];
+            int matrixIndex1 = operations[x + 4];
+            int bufferIndex2 = operations[x + 5];
+            int matrixIndex2 = operations[x + 6];
 
-            x += 6;
+            x += Beagle.OPERATION_TUPLE_SIZE;
 
             if (compactBufferCount == 0) {
                 updatePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
@@ -283,6 +283,14 @@ public class GeneralBeagleImpl implements Beagle {
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
         throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
 
+    }
+
+    public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
+        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+    }
+
+    public void resetScaleFactors(int cumulativeScaleIndex) {
+        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
 
     /**
@@ -424,9 +432,9 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scaleIndices, int count, double[] outLogLikelihoods) {
 
-        assert(bufferIndices.length == 0); // @todo implement integration across multiple subtrees
+        assert(count == 1); // @todo implement integration across multiple subtrees
 
         double[] rootPartials = partials[bufferIndices[0]];
 
@@ -492,7 +500,9 @@ public class GeneralBeagleImpl implements Beagle {
 //        if (DEBUG) System.exit(-1);
     }
 
-    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices, double[] weights, double[] stateFrequencies, int[] scalingFactorsIndices, double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
+    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices,
+                                            double[] weights, double[] stateFrequencies, int[] scaleIndices, int count,
+                                            double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
     }
 

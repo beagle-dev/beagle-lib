@@ -229,10 +229,10 @@ public class BeagleFactory {
                                  4);            // count
 
         // create a list of partial likelihood update operations
-        // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+        // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
         int[] operations = {
-            3, 3, 0, 0, 1, 1,
-            4, 4, 2, 2, 3, 3
+            3, -1, -1, 0, 0, 1, 1,
+            4, -1, -1, 2, 2, 3, 3
         };
         int[] rootIndices = { 4 };
 
@@ -240,7 +240,7 @@ public class BeagleFactory {
         instance.updatePartials(
                         operations,     // eigenIndex
                         2,              // operationCount
-                        false);         // rescale ?
+                        -1);            // rescale ?
 
         double[] patternLogLik = new double[nPatterns];
 
@@ -255,7 +255,7 @@ public class BeagleFactory {
                                     weights,                // weights
                                     freqs,                 // stateFrequencies
                                     scalingFactorsIndices,
-//                                    scalingFactorsCount,
+                                    1,
                                     patternLogLik);         // outLogLikelihoods
 
         double logL = 0.0;

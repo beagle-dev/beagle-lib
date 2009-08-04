@@ -34,30 +34,33 @@ public class BeagleJNIWrapper {
             int eigenBufferCount,
             int matrixBufferCount,
             int categoryCount,
-	    int scaleBufferCount,
+            int scaleBufferCount,
             final int[] resourceList,
             int resourceCount,
             int preferenceFlags,
             int requirementFlags);
 
     public native int initializeInstance(
-						int instance,
-						InstanceDetails[] returnInfo);
+            int instance,
+            InstanceDetails[] returnInfo);
 
     public native int finalize(int instance);
 
-    public native int setPartials(int instance, int bufferIndex, final double[] inPartials);
-
-    public native int getPartials(int instance, int bufferIndex, int scaleIndex, 
-				  final double[] outPartials);
-
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
+    public native int setTipPartials(int instance, int tipIndex, final double[] inPartials);
+
+    public native int setPartials(int instance, int bufferIndex, final double[] inPartials);
+
+    public native int getPartials(int instance, int bufferIndex, int scaleIndex,
+                                  final double[] outPartials);
+
+
     public native int setEigenDecomposition(int instance,
-                                             int eigenIndex,
-                                             final double[] eigenVectors,
-                                             final double[] inverseEigenValues,
-                                             final double[] eigenValues);
+                                            int eigenIndex,
+                                            final double[] eigenVectors,
+                                            final double[] inverseEigenValues,
+                                            final double[] eigenValues);
 
     public native int setCategoryRates(int instance, final double[] inCategoryRates);
 
@@ -74,17 +77,25 @@ public class BeagleJNIWrapper {
                                      int instanceCount,
                                      final int[] operations,
                                      int operationCount,
-                                     int rescale);
+                                     int cumulativeScalingIndex);
 
     public native int waitForPartials(final int[] instance,
-                                     int instanceCount,
-                                     final int[] destinationPartials,
-                                     int destinationPartialsCount);
+                                      int instanceCount,
+                                      final int[] destinationPartials,
+                                      int destinationPartialsCount);
 
     public native int accumulateScaleFactors(final int instance,
-					     final int[] scaleIndices,
-                                                       final int count,
-					     final int outScaleIndex);
+                                             final int[] scaleIndices,
+                                             final int count,
+                                             final int cumulativeScalingIndex);
+
+    public native int removeScaleFactors(final int instance,
+                                             final int[] scaleIndices,
+                                             final int count,
+                                             final int cumulativeScalingIndex);
+
+    public native int resetScaleFactors(final int instance,
+                                             final int cumulativeScalingIndex);
 
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
@@ -95,18 +106,18 @@ public class BeagleJNIWrapper {
                                                   final double[] outLogLikelihoods);
 
     public native int calculateEdgeLogLikelihoods(int instance,
-                                    final int[] parentBufferIndices,
-                                    final int[] childBufferIndices,
-                                    final int[] probabilityIndices,
-                                    final int[] firstDerivativeIndices,
-                                    final int[] secondDerivativeIndices,
-                                    final double[] inWeights,
-                                    final double[] inStateFrequencies,
-                                    final int[] scalingFactorsIndices,
-                                    int count,
-                                    final double[] outLogLikelihoods,
-                                    final double[] outFirstDerivatives,
-                                    final double[] outSecondDerivatives);
+                                                  final int[] parentBufferIndices,
+                                                  final int[] childBufferIndices,
+                                                  final int[] probabilityIndices,
+                                                  final int[] firstDerivativeIndices,
+                                                  final int[] secondDerivativeIndices,
+                                                  final double[] inWeights,
+                                                  final double[] inStateFrequencies,
+                                                  final int[] scalingFactorsIndices,
+                                                  int count,
+                                                  final double[] outLogLikelihoods,
+                                                  final double[] outFirstDerivatives,
+                                                  final double[] outSecondDerivatives);
     /* Library loading routines */
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
