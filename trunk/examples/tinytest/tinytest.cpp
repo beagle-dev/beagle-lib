@@ -115,8 +115,6 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\n");
         
     }    
-    free(rList->list);
-    free(rList);
     
     
     // is nucleotides...
@@ -246,7 +244,7 @@ int main( int argc, const char* argv[] )
     
 	double logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
-		std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
+//		std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
 		logL += patternLogLik[i];
 	}
     
