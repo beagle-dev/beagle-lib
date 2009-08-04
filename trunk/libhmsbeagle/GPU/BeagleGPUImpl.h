@@ -50,8 +50,6 @@ private:
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
-    
-//    int kDoRescaling;
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
@@ -74,7 +72,6 @@ private:
     int** hTmpStates;
     
     GPUPtr* dScalingFactors;
-//    GPUPtr dRootScalingFactors;
     
     GPUPtr* dStates;
     
@@ -115,7 +112,7 @@ public:
     int setTipStates(int tipIndex,
                      const int* inStates);
 
-    int setTipPartials(int bufferIndex,
+    int setTipPartials(int tipIndex,
                        const double* inPartials);
     
     int setPartials(int bufferIndex,
@@ -163,7 +160,6 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods);
     
@@ -175,7 +171,6 @@ public:
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int* scalingFactorsIndices,
-//                                    int* scalingFactorsCount,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,

@@ -100,16 +100,16 @@ void FourTaxonExample::initBeagleLib()
 	// Assume node 4 is ancestor of A,B (0,1)
 	// Assume node 5 is ancestor of C,D (2,3)
 	operations.push_back(4);	// destination (to be calculated)
-	operations.push_back(4);	// destination scaling buffer index to be used
-	operations.push_back(0);	// cumulative scaling buffer index to be used
+	operations.push_back(1);	// destination scaling buffer index to write to
+	operations.push_back(NONE);	// destination scaling buffer index to read from
 	operations.push_back(0);	// left child partial index
 	operations.push_back(0);	// left child transition matrix index
 	operations.push_back(1);	// right child partial index
 	operations.push_back(1);	// right child transition matrix index
 
 	operations.push_back(5);	// destination (to be calculated)
-	operations.push_back(5);	// destination scaling buffer index to be used
-	operations.push_back(0);	// cumulative scaling buffer index to be used
+	operations.push_back(2);	// destination scaling buffer index to write to
+    operations.push_back(NONE);	// destination scaling buffer index to read from
 	operations.push_back(2);	// left child partial index
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
@@ -124,7 +124,7 @@ void FourTaxonExample::initBeagleLib()
 				1,			// eigenBufferCount
 				5,			// matrixBufferCount,
                 1,          // categoryCount
-                6,          // scalingBuffersCount
+                3,          // scalingBuffersCount
 				NULL,		// resourceList
 				0,			// resourceCount
 				0L,			// preferenceFlags
@@ -219,7 +219,7 @@ double FourTaxonExample::calcLnL()
 		   1,					// instanceCount
 		   &operations[0],		// operations
 		   2,					// operationCount
-		   0);					// rescale
+		   NONE);				// cumulative scale index
 
 	if (code != 0)
 		abort("updatePartials encountered a problem");
@@ -229,7 +229,7 @@ double FourTaxonExample::calcLnL()
 	int transitionMatrixIndex  = 4;
 	double relativeRateProb  = 1.0;
         
-    int scalingFactorsIndices[2] = {4, 5}; // internal nodes
+    int scalingFactorsIndices[2] = {1, 2}; // internal nodes
     int scalingFactorsCount = 2;
         
     int cumulativeScalingFactorIndex = 0;
