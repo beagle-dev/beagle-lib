@@ -89,7 +89,7 @@ public:
     //
     // tipIndex the index of the tip
     // inPartials the array of partials, stateCount x patternCount
-    int setTipPartials(int bufferIndex,
+    int setTipPartials(int tipIndex,
                        const double* inPartials);
     
 

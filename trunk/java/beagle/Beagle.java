@@ -31,9 +31,40 @@ public interface Beagle {
     void finalize() throws Throwable;
 
     /**
+     * Set the compressed state representation for tip node
+     *
+     * This function copies a compact state representation into an instance buffer.
+     * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount).
+     * The inStates array should be patternCount in length (replication across categoryCount is not
+     * required).
+     *
+     * @param tipIndex   Index of destination partialsBuffer (input)
+     * @param inStates   Pointer to compressed states (input)
+     */
+    void setTipStates(
+            int tipIndex,
+            final int[] inStates);
+
+    /**
      * Set an instance partials buffer
      *
-     * This function copies an array of partials into an instance buffer.
+     * This function copies an array of partials into an instance buffer. The inPartials array should
+     * be stateCount * patternCount in length. For most applications this will be used
+     * to set the partial likelihoods for the observed states. Internally, the partials will be copied
+     * categoryCount times.
+     *
+     * @param tipIndex   Index of destination partialsBuffer (input)
+     * @param  inPartials   Pointer to partials values to set (input)
+     */
+    void setTipPartials(
+            int tipIndex,
+            final double[] inPartials);
+
+    /**
+     * Set an instance partials buffer
+     *
+     * This function copies an array of partials into an instance buffer. The inPartials array should
+     * be stateCount * patternCount * categoryCount in length. 
      *
      * @param bufferIndex   Index of destination partialsBuffer (input)
      * @param  inPartials   Pointer to partials values to set (input)
@@ -45,7 +76,8 @@ public interface Beagle {
     /**
      * Get partials from an instance buffer
      *
-     * This function copies an instance buffer into the array outPartials
+     * This function copies an array of partials into an instance buffer. The inPartials array should
+     * be stateCount * patternCount * categoryCount in length.
      *
      * @param bufferIndex   Index of destination partialsBuffer (input)
      * @param scaleIndex    Index of scaleBuffer to apply to partials (input)
@@ -55,19 +87,6 @@ public interface Beagle {
             int bufferIndex,
             int scaleIndex,
             final double []outPartials);
-
-    /**
-     * Set the compressed state representation for tip node
-     *
-     * This function copies a compressed state representation into a instance buffer.
-     * Compressed state representation is an array of states: 0 to stateCiunt - 1 (missing = stateCount)
-     *
-     * @param tipIndex   Index of destination partialsBuffer (input)
-     * @param inStates   Pointer to compressed states (input)
-     */
-    void setTipStates(
-            int tipIndex,
-            final int[] inStates);
 
     /**
      * Set an eigen-decomposition buffer
@@ -95,17 +114,6 @@ public interface Beagle {
     void setCategoryRates(final double[] inCategoryRates);
 
     /**
-     * Set a finite-time transition probability matrix
-     *
-     * This function copies a finite-time transition probability matrix into a matrix buffer.
-     * @param matrixIndex   Index of matrix buffer (input)
-     * @param inMatrix          Pointer to source transition probability matrix (input)
-     */
-    void setTransitionMatrix(
-            int matrixIndex,			/**< Index of matrix buffer (input) */
-            final double[] inMatrix);	/**< Pointer to source transition probability matrix (input) */
-
-    /**
      * Calculate a list of transition probability matrices
      *
      * This function calculates a list of transition probabilities matrices and their first and
@@ -127,6 +135,20 @@ public interface Beagle {
             int count);
 
     /**
+     * This function copies a finite-time transition probability matrix into a matrix buffer. This function
+     * is used when the application wishes to explicitly set the transition probability matrix rather than
+     * using the setEigenDecomposition and updateTransitionMatrices functions. The inMatrix array should be
+     * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+     *
+     * This function copies a finite-time transition probability matrix into a matrix buffer.
+     * @param matrixIndex   Index of matrix buffer (input)
+     * @param inMatrix          Pointer to source transition probability matrix (input)
+     */
+    void setTransitionMatrix(
+            int matrixIndex,			/**< Index of matrix buffer (input) */
+            final double[] inMatrix);	/**< Pointer to source transition probability matrix (input) */
+
+    /**
      * Calculate or queue for calculation partials using a list of operations
      *
      * This function either calculates or queues for calculation a list partials. Implementations
@@ -134,23 +156,65 @@ public interface Beagle {
      * operations immediately.  Implementations supporting GPU may perform all operations in the list
      * simultaneously.
      *
-     * Operations list is a list of 6-tuple integer indices, with one 6-tuple per operation.
-     * Format of 6-tuple operation: {destinationPartials,
-     *                               destinationScalingFactors, (this index must be > tipCount)
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
      *                               child1Partials,
      *                               child1TransitionMatrix,
      *                               child2Partials,
      *                               child2TransitionMatrix}
      *
-     * @param operations        List of 6-tuples specifying operations (input)
-     * @param operationCount    Number of operations (input)
-     * @param rescale           Specify whether (=1) or not (=0) to recalculate scaling factors
+     * @param operations            List of 7-tuples specifying operations (input)
+     * @param operationCount        Number of operations (input)
+     * @param cumulativeScaleIndex  Index number of scaleBuffer to store accumulated factors (input)
      *
      */
     void updatePartials(
             final int[] operations,
             int operationCount,
-            boolean rescale);
+            int cumulativeScaleIndex);
+
+    /**
+     * Accumulate scale factors
+     *
+     * This function adds (log) scale factors from a list of scaleBuffers to a cumulative scale
+     * buffer. It is used to calculate the marginal scaling at a specific node for each site.
+     *
+     * @param scaleIndices            	List of scaleBuffers to add (input)
+     * @param count                     Number of scaleBuffers in list (input)
+     * @param cumulativeScaleIndex      Index number of scaleBuffer to accumulate factors into (input)
+     */
+    void accumulateScaleFactors(
+            final int[] scaleIndices,
+            final int count,
+            final int cumulativeScaleIndex
+    );
+
+    /**
+     * Remove scale factors
+     *
+     * This function removes (log) scale factors from a cumulative scale buffer. The
+     * scale factors to be removed are indicated in a list of scaleBuffers.
+     *
+     * @param scaleIndices            	List of scaleBuffers to remove (input)
+     * @param count                     Number of scaleBuffers in list (input)
+     * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
+     */
+    void removeScaleFactors(
+            final int[] scaleIndices,
+            final int count,
+            final int cumulativeScaleIndex
+    );
+
+    /**
+     * Reset scalefactors
+     *
+     * This function resets a cumulative scale buffer.
+     *
+     * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
+     */
+    void resetScaleFactors(int cumulativeScaleIndex);
 
     /**
      * Calculate site log likelihoods at a root node
@@ -159,63 +223,57 @@ public interface Beagle {
      * state frequencies to return the log likelihoods for each site
      *
      * @param bufferIndices         List of partialsBuffer indices to integrate (input)
-     * @param weights             List of weights to apply to each partialsBuffer (input). There
+     * @param inWeights             List of weights to apply to each partialsBuffer (input). There
      *                               should be one categoryCount sized set for each of
      *                               parentBufferIndices
-     * @param stateFrequencies    List of state frequencies for each partialsBuffer (input). There
+     * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
      *                               should be one set for each of parentBufferIndices
      * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There
      *                               should be one set for each of parentBufferIndices
-     * @param scalingFactorsCount   List of scalingFactorsIndices sizes for each partialsBuffer (input)
+     * @param count                 Number of partialsBuffer to integrate (input)
      * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
      */
 
-
-    void accumulateScaleFactors(
-            final int[] scaleIndices,
-            final int count,
-            final int outScaleIndex
-    );
-
     void calculateRootLogLikelihoods(
             final int[] bufferIndices,
-            final double[] weights,
-            final double[] stateFrequencies,
+            final double[] inWeights,
+            final double[] inStateFrequencies,
             final int[] scalingFactorsIndices,
-//            final int[] scalingFactorsCount,
-            final double[] outLogLikelihoods);
+            int count,
+            final double[] outLogLikelihoods
+    );
 
-   /**
-    * Calculate site log likelihoods and derivatives along an edge
-    *
-    * This function integrates at list of partials at a parent and child node with respect
-    * to a set of partials-weights and state frequencies to return the log likelihoods
-    * and first and second derivatives for each site
-    *
-    * @param parentBufferIndices List of indices of parent partialsBuffers (input)
-    * @param childBufferIndices        List of indices of child partialsBuffers (input)
-    * @param probabilityIndices        List indices of transition probability matrices for this edge (input)
-    * @param firstDerivativeIndices    List indices of first derivative matrices (input)
-    * @param secondDerivativeIndices   List indices of second derivative matrices (input)
-    * @param weights                   List of weights to apply to each partialsBuffer (input)
-    * @param stateFrequencies          List of state frequencies for each partialsBuffer (input)
-    *                                      There should be one set for each of parentBufferIndices
-    * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
-    *                                      There should be one set for each of parentBufferIndices
-    * @param scalingFactorsCount       List of scalingFactorsIndices sizes for each partialsBuffer (input)
-    * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
-    * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
-    * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output)
-    */
+    /**
+     * Calculate site log likelihoods and derivatives along an edge
+     *
+     * This function integrates at list of partials at a parent and child node with respect
+     * to a set of partials-weights and state frequencies to return the log likelihoods
+     * and first and second derivatives for each site
+     *
+     * @param parentBufferIndices List of indices of parent partialsBuffers (input)
+     * @param childBufferIndices        List of indices of child partialsBuffers (input)
+     * @param probabilityIndices        List indices of transition probability matrices for this edge (input)
+     * @param firstDerivativeIndices    List indices of first derivative matrices (input)
+     * @param secondDerivativeIndices   List indices of second derivative matrices (input)
+     * @param inWeights                   List of weights to apply to each partialsBuffer (input)
+     * @param inStateFrequencies          List of state frequencies for each partialsBuffer (input)
+     *                                      There should be one set for each of parentBufferIndices
+     * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
+     *                                      There should be one set for each of parentBufferIndices
+     * @param count                     Number of partialsBuffers (input)
+     * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
+     * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
+     * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output)
+     */
     public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
                                             final int[] childBufferIndices,
                                             final int[] probabilityIndices,
                                             final int[] firstDerivativeIndices,
                                             final int[] secondDerivativeIndices,
-                                            final double[] weights,
-                                            final double[] stateFrequencies,
+                                            final double[] inWeights,
+                                            final double[] inStateFrequencies,
                                             final int[] scalingFactorsIndices,
-//                                            final int[] scalingFactorsCount,
+                                            int count,
                                             final double[] outLogLikelihoods,
                                             final double[] outFirstDerivatives,
                                             final double[] outSecondDerivatives);

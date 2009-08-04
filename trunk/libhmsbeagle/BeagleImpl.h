@@ -39,7 +39,7 @@ public:
     virtual int setTipStates(int tipIndex,
                              const int* inStates) = 0;
 
-    virtual int setTipPartials(int bufferIndex,
+    virtual int setTipPartials(int tipIndex,
                                const double* inPartials) = 0;
     
     virtual int setPartials(int bufferIndex,

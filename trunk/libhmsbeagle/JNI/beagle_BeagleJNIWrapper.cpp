@@ -102,11 +102,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
  * Signature: (II[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
-(JNIEnv *env, jobject obj, jint instance, jint bufferIndex, jdoubleArray inPartials)
+(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jdoubleArray inPartials)
 {
     jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
     
-	jint errCode = (jint)setTipPartials(instance, bufferIndex, (double *)partials);
+	jint errCode = (jint)setTipPartials(instance, tipIndex, (double *)partials);
     
     env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
     return errCode;
