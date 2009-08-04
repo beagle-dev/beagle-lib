@@ -27,17 +27,11 @@ double* getRandomTipPartials( int nsites, int stateCount )
 }
 
 
-void runBeagle(ResourceList* resources)
+void runBeagle(int resource)
 {
     // is nucleotides...
     int stateCount = 4;
-    
-	int* rl = NULL;
-	int rll = 0;
-	if(resources!=NULL){
-		rl = (int*)resources->list;
-		rll = resources->length;
-	}
+
     // create an instance of the BEAGLE library
 	int instance = createInstance(
 			    ntaxa,			/**< Number of tip data elements (input) */
@@ -49,8 +43,8 @@ void runBeagle(ResourceList* resources)
 				2*ntaxa-2,	        /**< Number of rate matrix buffers (input) */
                 1,             /**< Number of rate categories */
                 2*ntaxa,  // scaling buffers
-				rl,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-				rll,			/**< Length of resourceList list (input) */
+				&resource,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+				1,			/**< Length of resourceList list (input) */
 				0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
 				0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				);
@@ -192,12 +186,7 @@ int main( int argc, const char* argv[] )
 	ResourceList* rl = getResourceList();
 	if(rl != NULL){
 		for(int i=0; i<rl->length; i++){
-			ResourceList curlist;
-			curlist.list = new Resource[1];
-			curlist.list[0] = rl->list[i];
-			curlist.length = 1;
-			runBeagle(&curlist);
-			delete curlist.list;
+			runBeagle(i);
 		}
 	}else{
 		runBeagle(NULL);
