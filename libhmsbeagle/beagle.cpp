@@ -105,6 +105,9 @@ int createInstance(int tipCount,
             implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }
 
+        if (resourceList != NULL && rsrcList == NULL)
+            getResourceList();
+        
         // Try each implementation
         for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
