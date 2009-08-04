@@ -241,12 +241,12 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
  * Signature: ([II[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
-  (JNIEnv *env, jobject obj, jintArray inInstances, jint instanceCount, jintArray inOperations, jint operationCount, jint rescale)
+  (JNIEnv *env, jobject obj, jintArray inInstances, jint instanceCount, jintArray inOperations, jint operationCount, jint cumulativeScalingIndex)
 {
     jint *instances = env->GetIntArrayElements(inInstances, NULL);
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-	jint errCode = (jint)updatePartials((int *)instances, instanceCount, (int *)operations, operationCount, rescale);
+	jint errCode = (jint)updatePartials((int *)instances, instanceCount, (int *)operations, operationCount, cumulativeScalingIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
     env->ReleaseIntArrayElements(inInstances, instances, JNI_ABORT);

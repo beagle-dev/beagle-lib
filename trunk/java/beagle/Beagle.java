@@ -21,6 +21,7 @@ import java.util.List;
  */
 
 public interface Beagle {
+    public static int OPERATION_TUPLE_SIZE = 7;
 
 
     /**
@@ -228,7 +229,7 @@ public interface Beagle {
      *                               parentBufferIndices
      * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
      *                               should be one set for each of parentBufferIndices
-     * @param scalingFactorsIndices List of scalingFactors indices to accumulate over (input). There
+     * @param scaleIndices          List of scalingFactors indices to accumulate over (input). There
      *                               should be one set for each of parentBufferIndices
      * @param count                 Number of partialsBuffer to integrate (input)
      * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
@@ -238,7 +239,7 @@ public interface Beagle {
             final int[] bufferIndices,
             final double[] inWeights,
             final double[] inStateFrequencies,
-            final int[] scalingFactorsIndices,
+            final int[] scaleIndices,
             int count,
             final double[] outLogLikelihoods
     );
@@ -255,10 +256,10 @@ public interface Beagle {
      * @param probabilityIndices        List indices of transition probability matrices for this edge (input)
      * @param firstDerivativeIndices    List indices of first derivative matrices (input)
      * @param secondDerivativeIndices   List indices of second derivative matrices (input)
-     * @param inWeights                   List of weights to apply to each partialsBuffer (input)
-     * @param inStateFrequencies          List of state frequencies for each partialsBuffer (input)
+     * @param inWeights                 List of weights to apply to each partialsBuffer (input)
+     * @param inStateFrequencies        List of state frequencies for each partialsBuffer (input)
      *                                      There should be one set for each of parentBufferIndices
-     * @param scalingFactorsIndices     List of scalingFactors indices to accumulate over (input). There
+     * @param scaleIndices              List of scalingFactors indices to accumulate over (input). There
      *                                      There should be one set for each of parentBufferIndices
      * @param count                     Number of partialsBuffers (input)
      * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
@@ -272,7 +273,7 @@ public interface Beagle {
                                             final int[] secondDerivativeIndices,
                                             final double[] inWeights,
                                             final double[] inStateFrequencies,
-                                            final int[] scalingFactorsIndices,
+                                            final int[] scaleIndices,
                                             int count,
                                             final double[] outLogLikelihoods,
                                             final double[] outFirstDerivatives,
