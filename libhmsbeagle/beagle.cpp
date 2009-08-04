@@ -47,36 +47,39 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
 
 std::list<beagle::BeagleImplFactory*> implFactory;
 
-ResourceList* getResourceList() {
+ResourceList* rsrcList = NULL;
 
-    ResourceList* rList;
-    rList = (ResourceList*) malloc(sizeof(ResourceList));
-    rList->length = 1;
+ResourceList* getResourceList() {
     
+    if (rsrcList == NULL) {
+        rsrcList = (ResourceList*) malloc(sizeof(ResourceList));
+        rsrcList->length = 1;
+        
 #if defined(CUDA) || defined(OPENCL)
-    GPUInterface* gpu = new GPUInterface;
-    int gpuDeviceCount = gpu->GetDeviceCount();
-    rList->length += gpuDeviceCount;
-    rList->list = (Resource*) malloc(sizeof(Resource) * rList->length); 
-    for (int i = 0; i < gpuDeviceCount; i++) {
-        char* dName = (char*) malloc(sizeof(char) * 100);
-        gpu->GetDeviceName(i, dName, 100);
-        rList->list[i + 1].name = dName;
-        rList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
-    }   
-    delete gpu;
+        GPUInterface* gpu = new GPUInterface;
+        int gpuDeviceCount = gpu->GetDeviceCount();
+        rsrcList->length += gpuDeviceCount;
+        rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
+        for (int i = 0; i < gpuDeviceCount; i++) {
+            char* dName = (char*) malloc(sizeof(char) * 100);
+            gpu->GetDeviceName(i, dName, 100);
+            rsrcList->list[i + 1].name = dName;
+            rsrcList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
+        }   
+        delete gpu;
 #else
-    rList->list = (Resource*) malloc(sizeof(Resource) * rList->length); 
+        rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
 #endif
+        
+        rsrcList->list[0].name = "CPU";
+        rsrcList->list[0].flags = ASYNCH | CPU;
+        if (sizeof(REAL) == 4)
+            rsrcList->list[0].flags |= SINGLE;
+        else
+            rsrcList->list[0].flags |= DOUBLE;
+    }
     
-    rList->list[0].name = "CPU";
-    rList->list[0].flags = ASYNCH | CPU;
-    if (sizeof(REAL) == 4)
-        rList->list[0].flags |= SINGLE;
-    else
-        rList->list[0].flags |= DOUBLE;
-    
-    return rList;
+    return rsrcList;
 }
 
 int createInstance(int tipCount,
@@ -105,6 +108,12 @@ int createInstance(int tipCount,
         // Try each implementation
         for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
+            
+            if ((*factory)->getName() == "GPU" && !(resourceList == NULL ||
+                (resourceList[0] < rsrcList->length
+                 && rsrcList->list[resourceList[0]].flags & GPU)))
+                continue;
+            
             fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
 
             beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,

@@ -710,7 +710,7 @@ int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
 int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
-    
+#ifdef DYNAMIC_SCALING
     for(int n = 0; n < count; n++)
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
@@ -718,6 +718,7 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     // Compute scaling factors at the root
     kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
                                        kPaddedPatternCount);
+#endif // DYNAMIC_SCALING
     
     return NO_ERROR;
 }
@@ -733,7 +734,8 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
 }
 
 int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
-    
+
+#ifdef DYNAMIC_SCALING
     REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
     
     // Fill with zeroes
@@ -741,6 +743,7 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
                             SIZE_REAL * kPaddedPatternCount);
     
     free(zeroes);
+#endif // DYNAMIC_SCALING
     
     return NO_ERROR;
 }
