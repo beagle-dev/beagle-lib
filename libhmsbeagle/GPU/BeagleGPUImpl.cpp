@@ -275,6 +275,9 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     fprintf(stderr, "Entering setTipStates\n");
 #endif
     
+    if (tipIndex < 0 || tipIndex >= kTipCount)
+        return OUT_OF_RANGE_ERROR;
+
     for(int i = 0; i < kPatternCount; i++)
         hStatesCache[i] = (inStates[i] < kStateCount ? inStates[i] : kPaddedStateCount);
     
@@ -300,12 +303,15 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     return NO_ERROR;
 }
 
-int BeagleGPUImpl::setTipPartials(int bufferIndex,
+int BeagleGPUImpl::setTipPartials(int tipIndex,
                                   const double* inPartials) {
 #ifdef DEBUG_FLOW
     fprintf(stderr, "Entering setTipPartials\n");
 #endif
     
+    if (tipIndex < 0 || tipIndex >= kTipCount)
+        return OUT_OF_RANGE_ERROR;
+
     const double* inPartialsOffset = inPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
     for (int i = 0; i < kPatternCount; i++) {
@@ -324,17 +330,17 @@ int BeagleGPUImpl::setTipPartials(int bufferIndex,
     }    
     
     if (kDeviceMemoryAllocated) {
-        if (bufferIndex < kTipCount) {
+        if (tipIndex < kTipCount) {
             assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
                    kTipPartialsBufferCount);
-            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+            dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
         }
         // Copy to GPU device
-        gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+        gpu->MemcpyHostToDevice(dPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     } else {
-        hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
-        checkHostMemory(hTmpTipPartials[bufferIndex]);
-        memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+        hTmpTipPartials[tipIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
+        checkHostMemory(hTmpTipPartials[tipIndex]);
+        memcpy(hTmpTipPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     }
     
 #ifdef DEBUG_FLOW
@@ -350,6 +356,9 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
     fprintf(stderr, "Entering setPartials\n");
 #endif
     
+    if (bufferIndex < 0 || bufferIndex >= kPartialsBufferCount)
+        return OUT_OF_RANGE_ERROR;
+
     const double* inPartialsOffset = inPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
     for (int l = 0; l < kCategoryCount; l++) {

@@ -89,7 +89,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
                                   int scaleBufferCount) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
-    
+
     kBufferCount = partialsBufferCount + compactBufferCount;
     kTipCount = tipCount;
     assert(kBufferCount > kTipCount);
@@ -146,6 +146,8 @@ int BeagleCPUImpl::initializeInstance(InstanceDetails* returnInfo) {
 
 int BeagleCPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
+    if (tipIndex < 0 || tipIndex >= kTipCount)
+        return OUT_OF_RANGE_ERROR;
     tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
 	for (int j = 0; j < kPatternCount; j++) {
 		tipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
@@ -154,15 +156,17 @@ int BeagleCPUImpl::setTipStates(int tipIndex,
     return NO_ERROR;
 }
 
-int BeagleCPUImpl::setTipPartials(int bufferIndex,
+int BeagleCPUImpl::setTipPartials(int tipIndex,
                                   const double* inPartials) {
-    assert(partials[bufferIndex] == 0L);
-    partials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
-    if (partials[bufferIndex] == 0L)
+    if (tipIndex < 0 || tipIndex >= kTipCount)
+        return OUT_OF_RANGE_ERROR;
+    assert(partials[tipIndex] == 0L);
+    partials[tipIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
+    if (partials[tipIndex] == 0L)
         return OUT_OF_MEMORY_ERROR;
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++)
-        memcpy(partials[bufferIndex] + i * singlePartialsSize, inPartials,
+        memcpy(partials[tipIndex] + i * singlePartialsSize, inPartials,
                sizeof(double) * singlePartialsSize);
     
     return NO_ERROR;
@@ -170,6 +174,8 @@ int BeagleCPUImpl::setTipPartials(int bufferIndex,
 
 int BeagleCPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
+    if (bufferIndex < 0 || bufferIndex >= kBufferCount)
+        return OUT_OF_RANGE_ERROR;
     assert(partials[bufferIndex] == 0L);
     partials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
     if (partials[bufferIndex] == 0L)
@@ -182,6 +188,8 @@ int BeagleCPUImpl::setPartials(int bufferIndex,
 int BeagleCPUImpl::getPartials(int bufferIndex,
 							   int scaleIndex,
                                double* outPartials) {
+    if (bufferIndex < 0 || bufferIndex >= kBufferCount)
+        return OUT_OF_RANGE_ERROR;
     memcpy(outPartials, partials[bufferIndex], sizeof(double) * kPartialsSize);
     
     return NO_ERROR;

@@ -215,22 +215,20 @@ int setTipStates(int instance,
  * categoryCount times.
  *
  * @param instance      Instance number in which to set a partialsBuffer (input)
- * @param bufferIndex   Index of destination partialsBuffer (input)
+ * @param tipIndex      Index of destination partialsBuffer (input)
  * @param inPartials    Pointer to partials values to set (input)
  *
  * @return error code
  */
 int setTipPartials(int instance,
-                   int bufferIndex,
+                   int tipIndex,
                    const double* inPartials);
 
 /**
  * @brief Set an instance partials buffer
  *
  * This function copies an array of partials into an instance buffer. The inPartials array should
- * be stateCount * patternCount * categoryCount in length. For most applications this will be used
- * to set the partial likelihoods for the observed states. In such cases, the partials should be
- * copied categoryCount times.
+ * be stateCount * patternCount * categoryCount in length. 
  *
  * @param instance      Instance number in which to set a partialsBuffer (input)
  * @param bufferIndex   Index of destination partialsBuffer (input)

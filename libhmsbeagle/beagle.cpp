@@ -206,13 +206,13 @@ int setTipStates(int instance,
 }
 
 int setTipPartials(int instance,
-                   int bufferIndex,
+                   int tipIndex,
                    const double* inPartials) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return UNINITIALIZED_INSTANCE_ERROR;
-        return beagleInstance->setTipPartials(bufferIndex, inPartials);
+        return beagleInstance->setTipPartials(tipIndex, inPartials);
     }
     catch (std::bad_alloc &) {
         return OUT_OF_MEMORY_ERROR;
