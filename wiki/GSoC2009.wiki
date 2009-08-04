@@ -100,10 +100,20 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Fixed minor issues with conversion to libhmsbeagle
  * Minor updates to Xcode project
 
+
 == 07/27 - 08/02 ==
- * Continue work on derivative calculation on GPU
- * Begin work on OpenCL version
-   * Create OpenCL implementation of GPUInterface
+ * Began work on OpenCL version
+   * Created OpenCL implementation of GPUInterface
+   * Started converting CUDA kernels to OpenCL
+ * Fixed several rate categories related bugs
+ * Modified API with regards to scaling
+   * modified updatePartials. Allows separate setting of write and read scalingBuffers as well as cumulativeScalingBuffer
+   * new accumulateScaleFactors, allows accumulating factors into a scaling buffer
+   * new removeScaleFactors, allows removing factors from a cumulative scaling buffer
+   * new resetScaleFactors which resets a cumulative scaling buffer
+ * Added API function for setting partials at tips
+   * new setTipPartials which requires only one copy of input partials instead category count copies
+ * added support for run time selection of resource (not very robust at the moment but allows one to choose between running on CPU or GPU)
 
 == 08/03 - 08/09 ==
  * Continue work on OpenCL implementation
