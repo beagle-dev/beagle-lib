@@ -5,8 +5,6 @@
 
 package beagle;
 
-import java.util.List;
-
 /**
  * Beagle - An interface exposing the BEAGLE likelihood evaluation library.
  *
@@ -22,6 +20,7 @@ import java.util.List;
 
 public interface Beagle {
     public static int OPERATION_TUPLE_SIZE = 7;
+    public static int NONE = -1;
 
 
     /**
