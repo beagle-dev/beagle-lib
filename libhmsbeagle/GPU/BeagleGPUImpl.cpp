@@ -67,8 +67,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int categoryCount,
                                   int scaleBufferCount) {
     
-    // TODO: Determine if GPU device satisfies memory requirements.
-        
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
+#endif
+    
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
     kCompactBufferCount = compactBufferCount;
@@ -105,13 +107,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
         paddedPatterns = 0;
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
-    
-#ifdef DEBUG
-    fprintf(stderr, "Padding patterns for 4-state model:\n");
-    fprintf(stderr, "\ttruePatternCount = %d\n\tpaddedPatterns = %d\n", kPatternCount,
-            paddedPatterns);
-#endif // DEBUG
-    
+        
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
     kEigenValuesSize = kPaddedStateCount;
@@ -133,6 +129,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
     
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::createInstance\n");
+#endif
+    
     return NO_ERROR;
 }
 
@@ -140,8 +140,8 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     // TODO: compute device memory requirements
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering initialize\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::initializeInstance\n");
 #endif
     
     gpu = new GPUInterface();
@@ -260,8 +260,8 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     kDeviceMemoryAllocated = 1;
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting initialize\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
 #endif
     
     return NO_ERROR;
@@ -271,8 +271,8 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
     // TODO: test setTipStates
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setTipStates\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setTipStates\n");
 #endif
     
     if (tipIndex < 0 || tipIndex >= kTipCount)
@@ -296,8 +296,8 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
         memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     }
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setTipStates\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipStates\n");
 #endif
     
     return NO_ERROR;
@@ -305,8 +305,8 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
 
 int BeagleGPUImpl::setTipPartials(int tipIndex,
                                   const double* inPartials) {
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setTipPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setTipPartials\n");
 #endif
     
     if (tipIndex < 0 || tipIndex >= kTipCount)
@@ -343,8 +343,8 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
         memcpy(hTmpTipPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     }
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setTipPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipPartials\n");
 #endif
     
     return NO_ERROR;
@@ -352,8 +352,8 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
 
 int BeagleGPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setPartials\n");
 #endif
     
     if (bufferIndex < 0 || bufferIndex >= kPartialsBufferCount)
@@ -387,8 +387,8 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
         memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     }
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPartials\n");
 #endif
     
     return NO_ERROR;
@@ -397,8 +397,8 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
 int BeagleGPUImpl::getPartials(int bufferIndex,
 							   int scaleIndex,
                                double* outPartials) {
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering getPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getPartials\n");
 #endif
     
     // TODO: test getPartials
@@ -422,8 +422,8 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
         outPartialsOffset += kStateCount;
     }
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting getPartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getPartials\n");
 #endif
     
     return NO_ERROR;
@@ -435,8 +435,8 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
                                          const double* inInverseEigenVectors,
                                          const double* inEigenValues) {
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr,"Entering updateEigenDecomposition\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\tEntering BeagleGPUImpl::setEigenDecomposition\n");
 #endif
     
     // Native memory packing order (length): Ievc (state^2), Evec (state^2),
@@ -472,14 +472,20 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     MEMCNV(Eval, inEigenValues, STATE_COUNT, REAL);
 #endif
     
-#ifdef DEBUG_BEAGLE
+#ifdef BEAGLE_DEBUG_VALUES
 #ifdef DOUBLE_PRECISION
+    fprintf(stderr, "Eval:\n");
     printfVectorD(Eval, kPaddedStateCount);
+    fprintf(stderr, "Evec:\n");
     printfVectorD(Evec, kMatrixSize);
+    fprintf(stderr, "Ievc:\n");
     printfVectorD(Ievc, kPaddedStateCount * kPaddedStateCount);
 #else
+    fprintf(stderr, "Eval =\n");
     printfVectorF(Eval, kPaddedStateCount);
+    fprintf(stderr, "Evec =\n");
     printfVectorF(Evec, kMatrixSize);
+    fprintf(stderr, "Ievc =\n");
     printfVectorF(Ievc, kPaddedStateCount * kPaddedStateCount);
 #endif
 #endif
@@ -489,14 +495,17 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     gpu->MemcpyHostToDevice(dEvec[eigenIndex], Evec, SIZE_REAL * kMatrixSize);
     gpu->MemcpyHostToDevice(dEigenValues[eigenIndex], Eval, SIZE_REAL * kPaddedStateCount);
     
-#ifdef DEBUG_BEAGLE
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "dEigenValues =\n");
     gpu->PrintfDeviceVector(dEigenValues[eigenIndex], kPaddedStateCount);
+    fprintf(stderr, "dEvec =\n");
     gpu->PrintfDeviceVector(dEvec[eigenIndex], kMatrixSize);
+    fprintf(stderr, "dIevc =\n");
     gpu->PrintfDeviceVector(dIevc[eigenIndex], kPaddedStateCount * kPaddedStateCount);
 #endif
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting updateEigenDecomposition\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setEigenDecomposition\n");
 #endif
     
     return NO_ERROR;
@@ -504,8 +513,8 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
 
 int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
     // TODO: test setCategoryRates
-#ifdef DEBUG_FLOW
-	fprintf(stderr, "Entering updateCategoryRates\n");
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
 #endif
 
 #ifdef DOUBLE_PRECISION
@@ -517,8 +526,8 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
     
 	memcpy(hCategoryRates, categoryRates, SIZE_REAL * kCategoryCount);
     
-#ifdef DEBUG_FLOW
-	fprintf(stderr, "Exiting updateCategoryRates\n");
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateCategoryRates\n");
 #endif
     
     return NO_ERROR;
@@ -528,8 +537,8 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
     // TODO: test setTransitionMatrix
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering setTransitionMatrix\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrix\n");
 #endif
     
     const double* inMatrixOffset = inMatrix;
@@ -551,8 +560,8 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
     gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache,
                             SIZE_REAL * kMatrixSize * kCategoryCount);
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting setTransitionMatrix\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTransitionMatrix\n");
 #endif
     
     return NO_ERROR;
@@ -564,8 +573,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                             const int* secondDervativeIndices,
                                             const double* edgeLengths,
                                             int count) {
-#ifdef DEBUG_FLOW
-    fprintf(stderr,"Entering updateMatrices\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\tEntering BeagleGPUImpl::updateTransitionMatrices\n");
 #endif
     
     // TODO: implement calculation of derivatives
@@ -587,12 +596,13 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex], 
 											  dEigenValues[eigenIndex], dDistanceQueue,totalCount);
     
-#ifdef DEBUG_BEAGLE
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "dMatrices[probabilityIndices[0]] =\n");
     gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize * kCategoryCount);
 #endif
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting updateMatrices\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateTransitionMatrices\n");
 #endif
     
     return NO_ERROR;
@@ -602,8 +612,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                   int operationCount,
                                   int cumulativeScalingIndex) {
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Entering updatePartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updatePartials\n");
 #endif
         
     GPUPtr cumulativeScalingBuffer = 0;
@@ -694,26 +704,29 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         }
 #endif // DYNAMIC_SCALING
         
-#ifdef DEBUG_BEAGLE
+#ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
         fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
         fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
+        fprintf(stderr, "child1 = \n");
         if (tipStates1)
             gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
         else
             gpu->PrintfDeviceVector(partials1, kPartialsSize);
+        fprintf(stderr, "child2 = \n");
         if (tipStates2)
             gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
         else
             gpu->PrintfDeviceVector(partials2, kPartialsSize);
         fprintf(stderr, "node index = %d\n", parIndex);
+        fprintf(stderr, "parent = \n");
         gpu->PrintfDeviceVector(partials3, kPartialsSize);
 #endif
     }
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting updatePartials\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePartials\n");
 #endif
     
     return NO_ERROR;
@@ -721,12 +734,24 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 
 int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
                                    int destinationPartialsCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::waitForPartials\n");
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::waitForPartials\n");
+#endif    
+    
     return NO_ERROR;
 }
 
 int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateScaleFactors\n");
+#endif
+    
 #ifdef DYNAMIC_SCALING
     for(int n = 0; n < count; n++)
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
@@ -737,12 +762,20 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
                                              count, kPaddedPatternCount);
 #endif // DYNAMIC_SCALING
     
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateScaleFactors\n");
+#endif   
+    
     return NO_ERROR;
 }
 
 int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
                                         int count,
                                         int cumulativeScalingIndex) {
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::removeScaleFactors\n");
+#endif
     
 #ifdef DYNAMIC_SCALING
     for(int n = 0; n < count; n++)
@@ -754,10 +787,18 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
                                          count, kPaddedPatternCount);
 #endif // DYNAMIC_SCALING
 
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::removeScaleFactors\n");
+#endif        
+    
     return NO_ERROR;
 }
 
 int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::resetScaleFactors\n");
+#endif
 
 #ifdef DYNAMIC_SCALING
     REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
@@ -769,6 +810,10 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     free(zeroes);
 #endif // DYNAMIC_SCALING
     
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::resetScaleFactors\n");
+#endif    
+    
     return NO_ERROR;
 }
 
@@ -779,12 +824,12 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 //                                               int* scalingFactorsCount,
                                                int count,
                                                double* outLogLikelihoods) {
-    if (count == 1) { 
-        
-#ifdef DEBUG_FLOW
-        fprintf(stderr, "Entering calculateLogLikelihoods\n");
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
-        
+
+    if (count == 1) {         
         REAL* tmpWeights = hWeightsCache;
         REAL* tmpStateFrequencies = hFrequenciesCache;
         
@@ -825,19 +870,14 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
 #endif
         
-#ifdef DEBUG
-        printf("logLike = ");
-        printfVectorD(outLogLikelihoods, kPatternCount);
-        exit(-1);
-#endif
     } else {
         // TODO: implement calculate root lnL for count > 1
         assert(false);
     }
     
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting calculateLogLikelihoods\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
     
     return NO_ERROR;
@@ -856,12 +896,12 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
                                                double* outSecondDerivatives) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
+#endif
     
     if (count == 1) { 
-        
-#ifdef DEBUG_FLOW
-        fprintf(stderr, "Entering calculateEdgeLogLikelihoods\n");
-#endif
         
         REAL* tmpWeights = hWeightsCache;
         REAL* tmpStateFrequencies = hFrequenciesCache;
@@ -926,19 +966,14 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
 #endif
         
-#ifdef DEBUG
-        printf("edgeLogLike = ");
-        printfVectorD(outLogLikelihoods, kPatternCount);
-        exit(-1);
-#endif
     } else {
         // TODO: implement calculateEdgeLnL for count > 1
         assert(false);
     }
     
     
-#ifdef DEBUG_FLOW
-    fprintf(stderr, "Exiting calculateEdgeLogLikelihoods\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
     
     return NO_ERROR;
