@@ -107,7 +107,7 @@ public:
                        int categoryCount,
                        int scaleBufferCount);
     
-    int initializeInstance(InstanceDetails* retunInfo);
+    int initializeInstance(BeagleInstanceDetails* retunInfo);
 
     int setTipStates(int tipIndex,
                      const int* inStates);

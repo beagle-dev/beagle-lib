@@ -76,7 +76,7 @@ public:
                        int scaleBufferCount);
     
     // initialization of instance,  returnInfo can be null
-    int initializeInstance(InstanceDetails* returnInfo);
+    int initializeInstance(BeagleInstanceDetails* returnInfo);
     
     // set the states for a given tip
     //

@@ -15,7 +15,7 @@
 JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
   (JNIEnv *env, jobject obj)
 {
-	ResourceList* rl = getResourceList();
+	BeagleResourceList* rl = BeagleGetResourceList();
 
 	if (rl == NULL) {
 	    return NULL;

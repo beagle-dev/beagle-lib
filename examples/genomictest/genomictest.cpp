@@ -54,7 +54,7 @@ void runBeagle(int resource)
     }
 
     // initialize the instance
-    InstanceDetails instDetails;
+    BeagleInstanceDetails instDetails;
     int error = initializeInstance(instance, &instDetails);
 	
     if (error < 0) {
@@ -63,7 +63,7 @@ void runBeagle(int resource)
     }
         
     int rNumber = instDetails.resourceNumber;
-    ResourceList* rList = getResourceList();
+    BeagleResourceList* rList = BeagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
@@ -122,16 +122,16 @@ void runBeagle(int resource)
 
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int* operations = new int[(ntaxa-1)*6];
+	int* operations = new int[(ntaxa-1)*BEAGLE_OP_COUNT];
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
-		operations[7*i+0] = ntaxa+i;
-        operations[7*i+1] = ntaxa+i;
-        operations[7*i+2] = NONE;
-		operations[7*i+3] = i*2;
-		operations[7*i+4] = i*2;
-		operations[7*i+5] = i*2+1;
-		operations[7*i+6] = i*2+1;
+		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
+        operations[BEAGLE_OP_COUNT*i+1] = ntaxa+i;
+        operations[BEAGLE_OP_COUNT*i+2] = BEAGLE_OP_NONE;
+		operations[BEAGLE_OP_COUNT*i+3] = i*2;
+		operations[BEAGLE_OP_COUNT*i+4] = i*2;
+		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
+		operations[BEAGLE_OP_COUNT*i+6] = i*2+1;
         
         scalingFactorsIndices[i] = ntaxa+i;
 	}	
@@ -147,7 +147,7 @@ void runBeagle(int resource)
 	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
-	                NONE);             // cumulative scaling index
+	                BEAGLE_OP_NONE);             // cumulative scaling index
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nsites);
     
@@ -193,7 +193,7 @@ int main( int argc, const char* argv[] )
 {
 	std::cout << "Simulating genomic DNA with " << ntaxa << " taxa and " << nsites << " site patterns\n";
 
-	ResourceList* rl = getResourceList();
+	BeagleResourceList* rl = BeagleGetResourceList();
 	if(rl != NULL){
 		for(int i=0; i<rl->length; i++){
 			runBeagle(i);

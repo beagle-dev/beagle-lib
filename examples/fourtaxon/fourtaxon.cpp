@@ -101,7 +101,7 @@ void FourTaxonExample::initBeagleLib()
 	// Assume node 5 is ancestor of C,D (2,3)
 	operations.push_back(4);	// destination (to be calculated)
 	operations.push_back(1);	// destination scaling buffer index to write to
-	operations.push_back(NONE);	// destination scaling buffer index to read from
+	operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 	operations.push_back(0);	// left child partial index
 	operations.push_back(0);	// left child transition matrix index
 	operations.push_back(1);	// right child partial index
@@ -109,7 +109,7 @@ void FourTaxonExample::initBeagleLib()
 
 	operations.push_back(5);	// destination (to be calculated)
 	operations.push_back(2);	// destination scaling buffer index to write to
-    operations.push_back(NONE);	// destination scaling buffer index to read from
+    operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 	operations.push_back(2);	// left child partial index
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
@@ -134,14 +134,14 @@ void FourTaxonExample::initBeagleLib()
 	if (instance_handle < 0)
 		abort("createInstance returned a negative instance handle (and that's not good)");
         
-    InstanceDetails instDetails;
+    BeagleInstanceDetails instDetails;
     code = initializeInstance(instance_handle, &instDetails);    
     if (code != 0) {
 			abort("initializeInstance encountered a problem");
     }
         
     int rNumber = instDetails.resourceNumber;
-    ResourceList* rList = getResourceList();
+    BeagleResourceList* rList = BeagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);

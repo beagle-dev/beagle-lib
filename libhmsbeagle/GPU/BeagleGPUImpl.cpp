@@ -133,10 +133,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::createInstance\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
+int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     
     // TODO: compute device memory requirements
     
@@ -152,7 +152,7 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
         fprintf(stderr, "Error: No GPU devices\n");
-        return GENERAL_ERROR;
+        return BEAGLE_ERROR_GENERAL;
     }
     
     currentDevice++;
@@ -262,14 +262,14 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = currentDevice + 1;
-        returnInfo->flags = SINGLE | ASYNCH | GPU;
+        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setTipStates(int tipIndex,
@@ -281,7 +281,7 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
 #endif
     
     if (tipIndex < 0 || tipIndex >= kTipCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
 
     for(int i = 0; i < kPatternCount; i++)
         hStatesCache[i] = (inStates[i] < kStateCount ? inStates[i] : kPaddedStateCount);
@@ -305,7 +305,7 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipStates\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setTipPartials(int tipIndex,
@@ -315,7 +315,7 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
 #endif
     
     if (tipIndex < 0 || tipIndex >= kTipCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
 
     const double* inPartialsOffset = inPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
@@ -352,7 +352,7 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipPartials\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setPartials(int bufferIndex,
@@ -362,7 +362,7 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
 #endif
     
     if (bufferIndex < 0 || bufferIndex >= kPartialsBufferCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
 
     const double* inPartialsOffset = inPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
@@ -396,7 +396,7 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPartials\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::getPartials(int bufferIndex,
@@ -431,7 +431,7 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getPartials\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 
@@ -513,7 +513,7 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setEigenDecomposition\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
@@ -535,7 +535,7 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
 	fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateCategoryRates\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
@@ -569,7 +569,7 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTransitionMatrix\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
@@ -610,7 +610,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateTransitionMatrices\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::updatePartials(const int* operations,
@@ -622,7 +622,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 #endif
         
     GPUPtr cumulativeScalingBuffer = 0;
-    if (cumulativeScalingIndex != NONE)
+    if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
     
     // Serial version
@@ -654,7 +654,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             rescale = 1;
             scalingIndex = writeScalingIndex;
         } else if (readScalingIndex < 0)
-            rescale = NONE;
+            rescale = BEAGLE_OP_NONE;
         
         
 #ifdef DYNAMIC_SCALING
@@ -734,7 +734,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePartials\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
@@ -747,7 +747,7 @@ int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::waitForPartials\n");
 #endif    
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
@@ -771,7 +771,7 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateScaleFactors\n");
 #endif   
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
@@ -796,7 +796,7 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::removeScaleFactors\n");
 #endif        
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
@@ -819,7 +819,7 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::resetScaleFactors\n");
 #endif    
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
@@ -852,7 +852,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         
 #ifdef DYNAMIC_SCALING
         int cumulativeScalingFactor = scalingFactorsIndices[0];
-        if (cumulativeScalingFactor != NONE) {
+        if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                         dWeights, dFrequencies,
                                                         dScalingFactors[cumulativeScalingFactor],
@@ -885,7 +885,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
@@ -950,7 +950,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 
 #ifdef DYNAMIC_SCALING
         int cumulativeScalingFactor = dScalingFactors[scalingFactorsIndices[0]];
-        if (cumulativeScalingFactor != NONE) {
+        if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
                                                         dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
                                                         kPaddedPatternCount, kCategoryCount);
@@ -981,7 +981,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

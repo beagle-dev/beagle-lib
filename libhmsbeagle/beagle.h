@@ -38,13 +38,13 @@
  * This enumerates all possible BEAGLE return codes.  Error codes are always negative.
  */
 enum BeagleReturnCodes {
-    NO_ERROR                     = 0,   /**< Success */
-    GENERAL_ERROR                = -1,  /**< Unspecified error */
-    OUT_OF_MEMORY_ERROR          = -2,  /**< Not enough memory could be allocated */
-    UNIDENTIFIED_EXCEPTION_ERROR = -3,  /**< Unspecified exception */
-    UNINITIALIZED_INSTANCE_ERROR = -4,  /**< The instance index is out of range,
+    BEAGLE_SUCCESS                      = 0,   /**< Success */
+    BEAGLE_ERROR_GENERAL                = -1,  /**< Unspecified error */
+    BEAGLE_ERROR_OUT_OF_MEMORY          = -2,  /**< Not enough memory could be allocated */
+    BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION = -3,  /**< Unspecified exception */
+    BEAGLE_ERROR_UNINITIALIZED_INSTANCE = -4,  /**< The instance index is out of range,
                                           *   or the instance has not been created */
-    OUT_OF_RANGE_ERROR           = -5   /**< One of the indices specified exceeded the range of the
+    BEAGLE_ERROR_OUT_OF_RANGE           = -5   /**< One of the indices specified exceeded the range of the
                                           *   array */
 };
 
@@ -57,15 +57,15 @@ enum BeagleReturnCodes {
  * Each capability is a bit in a 'long'
  */
 enum BeagleFlags {
-    DOUBLE = 1 << 0,    /**< Request/require double precision computation */
-    SINGLE = 1 << 1,    /**< Request/require single precision computation */
-    ASYNCH = 1 << 2,    /**< Request/require asynchronous computation */
-    SYNCH  = 1 << 3,    /**< Request/require synchronous computation */
-    CPU    = 1 << 16,   /**< Request/require CPU */
-    GPU    = 1 << 17,   /**< Request/require GPU */
-    FPGA   = 1 << 18,   /**< Request/require FPGA */
-    SSE    = 1 << 19,   /**< Request/require SSE */
-    CELL   = 1 << 20    /**< Request/require Cell */
+    BEAGLE_FLAG_DOUBLE = 1 << 0,    /**< Request/require double precision computation */
+    BEAGLE_FLAG_SINGLE = 1 << 1,    /**< Request/require single precision computation */
+    BEAGLE_FLAG_ASYNCH = 1 << 2,    /**< Request/require asynchronous computation */
+    BEAGLE_FLAG_SYNCH  = 1 << 3,    /**< Request/require synchronous computation */
+    BEAGLE_FLAG_CPU    = 1 << 16,   /**< Request/require CPU */
+    BEAGLE_FLAG_GPU    = 1 << 17,   /**< Request/require GPU */
+    BEAGLE_FLAG_FPGA   = 1 << 18,   /**< Request/require FPGA */
+    BEAGLE_FLAG_SSE    = 1 << 19,   /**< Request/require SSE */
+    BEAGLE_FLAG_CELL   = 1 << 20    /**< Request/require Cell */
 };
 
 /**
@@ -76,8 +76,8 @@ enum BeagleFlags {
  * This enumerates all possible BEAGLE operation codes.
  */
 enum BeagleOpCodes {
-	OP_COUNT = 7,	/**< Total number of integers per updatePartials operation */
-	NONE     = -1	/**< Specify no use for indexed buffer */
+	BEAGLE_OP_COUNT    = 7,	/**< Total number of integers per updatePartials operation */
+	BEAGLE_OP_NONE     = -1	/**< Specify no use for indexed buffer */
 };
 
 /**
@@ -87,7 +87,7 @@ typedef struct {
     int resourceNumber; /**< Resource upon which instance is running */
     long flags;         /**< Bit-flags that characterize the activate
                           *   capabilities of the resource for this instance */
-} InstanceDetails;
+} BeagleInstanceDetails;
 
 /**
  * @brief Description of a hardware resource
@@ -96,15 +96,15 @@ typedef struct {
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
     long flags;         /**< Bit-flags of capabilities on resource */
-} Resource;
+} BeagleResource;
 
 /**
  * @brief List of hardware resources
  */
 typedef struct {
-    Resource* list; /**< Pointer list of resources */
+    BeagleResource* list; /**< Pointer list of resources */
     int length;     /**< Length of list */
-} ResourceList;
+} BeagleResourceList;
 
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (brace is closed at the end of this file)
@@ -120,7 +120,7 @@ extern "C" {
  *
  * @return A list of resources available to the library as a ResourceList array
  */
-ResourceList* getResourceList();
+BeagleResourceList* BeagleGetResourceList();
 
 /**
  * @brief Create a single instance
@@ -176,7 +176,7 @@ int createInstance(int tipCount,
  * @returns Information about the implementation and hardware on which this instance will run
  */
 int initializeInstance(int instance,
-                       InstanceDetails* returnInfo);
+                       BeagleInstanceDetails* returnInfo);
 
 /**
  * @brief Finalize this instance
