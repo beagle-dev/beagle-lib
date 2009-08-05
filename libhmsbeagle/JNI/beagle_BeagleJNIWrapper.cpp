@@ -29,13 +29,19 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 
 	jmethodID constructorMethodID = env->GetMethodID(objClass, "<init>","(I)V");
 	if (constructorMethodID == NULL) {
-		printf("NULL returned in FindClass: can't find constructor for class: dr/app/beagle/ResourceDetails\n");
+		printf("NULL returned in FindClass: can't find constructor for class: beagle/ResourceDetails\n");
 		return NULL;
     }
 
 	jmethodID setNameMethodID = env->GetMethodID(objClass, "setName", "(Ljava/lang/String;)V");
 	if (setNameMethodID == NULL) {
 		printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/ResourceDetails\n");
+		return NULL;
+    }
+
+	jmethodID setDescriptionID = env->GetMethodID(objClass, "setDescription", "(Ljava/lang/String;)V");
+	if (setDescriptionID == NULL) {
+		printf("NULL returned in FindClass: can't find 'setDescription' method in class: beagle/ResourceDetails\n");
 		return NULL;
     }
 
@@ -51,8 +57,11 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 	    jobject resourceObj = env->NewObject(objClass, constructorMethodID, i);
 
 	    jstring jString = env->NewStringUTF(rl->list[i].name);
-
 	    env->CallVoidMethod(resourceObj, setNameMethodID, jString);
+
+	    jString = env->NewStringUTF(rl->list[i].description);
+    	env->CallVoidMethod(resourceObj, setDescriptionID, jString);
+
 	    env->CallVoidMethod(resourceObj, setFlagsMethodID, rl->list[i].flags);
 
         env->SetObjectArrayElement(resourceArray, i, resourceObj);
@@ -100,8 +109,44 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
   (JNIEnv *env, jobject obj, jint instance, jobjectArray outInstanceDetails)
 {
-    // @todo Ignoring outInstanceDetails for the moment
     jint errCode = (jint)beagleInitializeInstance(instance, NULL);
+
+//    jclass objClass = env->FindClass("beagle/InstanceDetails");
+//    if (objClass == NULL) {
+//        printf("NULL returned in FindClass: can't find class: beagle/InstanceDetails\n");
+//        return BEAGLE_ERROR_GENERAL;
+//    }
+//
+//    jmethodID constructorMethodID = env->GetMethodID(objClass, "<init>","(I)V");
+//    if (constructorMethodID == NULL) {
+//        printf("NULL returned in FindClass: can't find constructor for class: beagle/InstanceDetails\n");
+//        return BEAGLE_ERROR_GENERAL;
+//    }
+//
+//    jmethodID setNameMethodID = env->GetMethodID(objClass, "setName", "(Ljava/lang/String;)V");
+//    if (setNameMethodID == NULL) {
+//        printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/InstanceDetails\n");
+//        return BEAGLE_ERROR_GENERAL;
+//    }
+//
+//    jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
+//    if (setNameMethodID == NULL) {
+//        printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/InstanceDetails\n");
+//        return BEAGLE_ERROR_GENERAL;
+//    }
+//
+//    jobject instanceDetailsObj = env->NewObject(objClass, constructorMethodID, i);
+//
+//    jstring jString = env->NewStringUTF(rl->list[i].name);
+//    env->CallVoidMethod(instanceDetailsObj, setNameMethodID, jString);
+//
+//    jString = env->NewStringUTF(rl->list[i].description);
+//    env->CallVoidMethod(instanceDetailsObj, setDescriptionID, jString);
+//
+//    env->CallVoidMethod(instanceDetailsObj, setFlagsMethodID, rl->list[i].flags);
+//
+//    env->SetObjectArrayElement(outInstanceDetails, i, instanceDetailsObj);
+    
     return errCode;
 }
 
