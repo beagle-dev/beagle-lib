@@ -24,12 +24,12 @@ public class ResourceDetails {
         this.name = name;
     }
 
-    public String getDetails() {
-        return details;
+    public String getDescription() {
+        return description;
     }
 
-    public void setDetails(String details) {
-        this.details = details;
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public long getFlags() {
@@ -42,6 +42,6 @@ public class ResourceDetails {
 
     private final int number;
     private String name;
-    private String details;
+    private String description;
     private long flags;
 }
