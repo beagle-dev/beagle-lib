@@ -277,4 +277,5 @@ public interface Beagle {
                                             final double[] outLogLikelihoods,
                                             final double[] outFirstDerivatives,
                                             final double[] outSecondDerivatives);
+
 }
