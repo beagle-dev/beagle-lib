@@ -297,33 +297,6 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 #endif
 }
 
-void GPUInterface::PrintInfo() {    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tEntering GPUInterface::PrintInfo\n");
-#endif
-    
-    fprintf(stderr, "GPU Device Information:");
-    
-    char name[100];
-    unsigned int totalGlobalMemory = 0;
-    int clockSpeed = 0;
-    int mpCount = 0;
-    
-    SAFE_CUDA(cuDeviceGetName(name, 100, cudaDevice));
-    SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, cudaDevice));
-    SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, cudaDevice));
-    SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, cudaDevice));
-    
-    fprintf(stderr, "\nDevice #%d: %s\n", cudaDevice, name);
-    fprintf(stderr, "\tGlobal Memory (MB) : %d\n", int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5));
-    fprintf(stderr, "\tClock Speed (Ghz)  : %1.2f\n", clockSpeed / 1000000.0);
-    fprintf(stderr, "\tNumber of Cores    : %d\n", 8 * mpCount);
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tLeaving  GPUInterface::PrintInfo\n");
-#endif    
-}
-
 void GPUInterface::GetDeviceName(int deviceNumber,
                                   char* deviceName,
                                   int nameLength) {
@@ -340,6 +313,35 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceName\n");
 #endif        
+}
+
+void GPUInterface::GetDeviceDescription(int deviceNumber,
+                                        char* deviceDescription) {    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceDescription\n");
+#endif
+    
+    CUdevice tmpCudaDevice;
+    
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
+    
+    unsigned int totalGlobalMemory = 0;
+    int clockSpeed = 0;
+    int mpCount = 0;
+    
+    SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, cudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, cudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, cudaDevice));
+    
+    sprintf(deviceDescription,
+            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of cores: %d",
+            int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5),
+            clockSpeed / 1000000.0,
+            8 * mpCount);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
+#endif    
 }
 
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,

@@ -134,11 +134,19 @@ void FourTaxonExample::initBeagleLib()
 	if (instance_handle < 0)
 		abort("createInstance returned a negative instance handle (and that's not good)");
         
-    code = initializeInstance(instance_handle, NULL);    
+    InstanceDetails instDetails;
+    code = initializeInstance(instance_handle, &instDetails);    
     if (code != 0) {
 			abort("initializeInstance encountered a problem");
     }
-
+        
+    int rNumber = instDetails.resourceNumber;
+    ResourceList* rList = getResourceList();
+    fprintf(stdout, "Using resource %i:\n", rNumber);
+    fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
+    fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
+    fprintf(stdout, "\n");        
+        
 	transition_matrix_index.resize(5);
 	transition_matrix_index[0] = 0;
 	transition_matrix_index[1] = 1;

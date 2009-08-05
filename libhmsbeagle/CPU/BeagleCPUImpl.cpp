@@ -141,6 +141,11 @@ int BeagleCPUImpl::createInstance(int tipCount,
 }
 
 int BeagleCPUImpl::initializeInstance(InstanceDetails* returnInfo) {
+    if (returnInfo != NULL) {
+        returnInfo->resourceNumber = 0;
+        returnInfo->flags = SINGLE | ASYNCH | CPU;
+    }
+    
     return NO_ERROR;
 }
 
