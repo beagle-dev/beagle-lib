@@ -34,7 +34,7 @@ public:
                                int categoryCount,
                                int scaleBufferCount) = 0;
     
-    virtual int initializeInstance(InstanceDetails* returnInfo) = 0;
+    virtual int initializeInstance(BeagleInstanceDetails* returnInfo) = 0;
     
     virtual int setTipStates(int tipIndex,
                              const int* inStates) = 0;

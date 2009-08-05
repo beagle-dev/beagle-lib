@@ -137,67 +137,67 @@ int BeagleCPUImpl::createInstance(int tipCount,
     
 	integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
-int BeagleCPUImpl::initializeInstance(InstanceDetails* returnInfo) {
+int BeagleCPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
-        returnInfo->flags = SINGLE | ASYNCH | CPU;
+        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
     }
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     tipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
 	for (int j = 0; j < kPatternCount; j++) {
 		tipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
 	}        
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setTipPartials(int tipIndex,
                                   const double* inPartials) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     assert(partials[tipIndex] == 0L);
     partials[tipIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
     if (partials[tipIndex] == 0L)
-        return OUT_OF_MEMORY_ERROR;
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++)
         memcpy(partials[tipIndex] + i * singlePartialsSize, inPartials,
                sizeof(double) * singlePartialsSize);
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     assert(partials[bufferIndex] == 0L);
     partials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
     if (partials[bufferIndex] == 0L)
-        return OUT_OF_MEMORY_ERROR;
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
     memcpy(partials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::getPartials(int bufferIndex,
 							   int scaleIndex,
                                double* outPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
-        return OUT_OF_RANGE_ERROR;
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     memcpy(outPartials, partials[bufferIndex], sizeof(double) * kPartialsSize);
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
@@ -216,12 +216,12 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
         }
     }
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
 	memcpy(categoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setTransitionMatrix(int matrixIndex,
@@ -229,7 +229,7 @@ int BeagleCPUImpl::setTransitionMatrix(int matrixIndex,
     // TODO: test CPU setTransitionMatrix
     memcpy(&(transitionMatrices[matrixIndex][0]), inMatrix,
            sizeof(double) * kMatrixSize * kCategoryCount);
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
@@ -276,7 +276,7 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
         }
     }
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::updatePartials(const int* operations,
@@ -333,13 +333,13 @@ int BeagleCPUImpl::updatePartials(const int* operations,
         }
     }
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 
 int BeagleCPUImpl::waitForPartials(const int* destinationPartials,
                                    int destinationPartialsCount) {
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 
@@ -442,26 +442,26 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     
 
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
     // TODO: implement accumulateScaleFactors CPU
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
     // TODO: implement removeScaleFactors CPU
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     // TODO: implement resetScaleFactors CPU
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
@@ -533,7 +533,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
         }
     }
     
-    return NO_ERROR;
+    return BEAGLE_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

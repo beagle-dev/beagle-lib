@@ -88,22 +88,22 @@ double* getPartials(char *sequence) {
 int main( int argc, const char* argv[] )
 {
     // print resource list
-    ResourceList* rList;
-    rList = getResourceList();
+    BeagleResourceList* rList;
+    rList = BeagleGetResourceList();
     fprintf(stdout, "Available resources:\n");
     for (int i = 0; i < rList->length; i++) {
         fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
-        if (rList->list[i].flags & DOUBLE) fprintf(stdout, " DOUBLE");
-        if (rList->list[i].flags & SINGLE) fprintf(stdout, " SINGLE");
-        if (rList->list[i].flags & ASYNCH) fprintf(stdout, " ASYNCH");
-        if (rList->list[i].flags & SYNCH)  fprintf(stdout, " SYNCH");
-        if (rList->list[i].flags & CPU)    fprintf(stdout, " CPU");
-        if (rList->list[i].flags & GPU)    fprintf(stdout, " GPU");
-        if (rList->list[i].flags & FPGA)   fprintf(stdout, " FPGA");
-        if (rList->list[i].flags & SSE)    fprintf(stdout, " SSE");
-        if (rList->list[i].flags & CELL)   fprintf(stdout, " CELL");
+        if (rList->list[i].flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
+        if (rList->list[i].flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
+        if (rList->list[i].flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
+        if (rList->list[i].flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+        if (rList->list[i].flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
+        if (rList->list[i].flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
+        if (rList->list[i].flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
+        if (rList->list[i].flags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
+        if (rList->list[i].flags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
         fprintf(stdout, "\n");
     }    
     fprintf(stdout, "\n");    
@@ -127,7 +127,7 @@ int main( int argc, const char* argv[] )
                                   0,              /**< Number of scaling buffers */
                                   NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  GPU,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_GPU,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
     if (instance < 0) {
@@ -136,7 +136,7 @@ int main( int argc, const char* argv[] )
     }
     
     // initialize the instance
-    InstanceDetails instDetails;
+    BeagleInstanceDetails instDetails;
     int error = initializeInstance(instance, &instDetails);
 	
     if (error < 0) {
@@ -149,15 +149,15 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
     fprintf(stdout, "\tFlags:");
-    if (instDetails.flags & DOUBLE) fprintf(stdout, " DOUBLE");
-    if (instDetails.flags & SINGLE) fprintf(stdout, " SINGLE");
-    if (instDetails.flags & ASYNCH) fprintf(stdout, " ASYNCH");
-    if (instDetails.flags & SYNCH)  fprintf(stdout, " SYNCH");
-    if (instDetails.flags & CPU)    fprintf(stdout, " CPU");
-    if (instDetails.flags & GPU)    fprintf(stdout, " GPU");
-    if (instDetails.flags & FPGA)   fprintf(stdout, " FPGA");
-    if (instDetails.flags & SSE)    fprintf(stdout, " SSE");
-    if (instDetails.flags & CELL)   fprintf(stdout, " CELL");
+    if (instDetails.flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
+    if (instDetails.flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
+    if (instDetails.flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
+    if (instDetails.flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
+    if (instDetails.flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
+    if (instDetails.flags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
+    if (instDetails.flags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
     fprintf(stdout, "\n\n");
     
     
@@ -214,9 +214,9 @@ int main( int argc, const char* argv[] )
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int operations[7 * 2] = {
-		3, NONE, NONE, 0, 0, 1, 1,
-		4, NONE, NONE, 2, 2, 3, 3
+	int operations[BEAGLE_OP_COUNT * 2] = {
+		3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1,
+		4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
     
@@ -225,11 +225,11 @@ int main( int argc, const char* argv[] )
                    1,              // instanceCount
                    operations,     // eigenIndex
                    2,              // operationCount
-                   NONE);          // cumulative scaling index
+                   BEAGLE_OP_NONE);          // cumulative scaling index
     
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-    int cumulativeScalingIndex = NONE;
+    int cumulativeScalingIndex = BEAGLE_OP_NONE;
     
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
