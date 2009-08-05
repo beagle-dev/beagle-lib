@@ -123,8 +123,6 @@ int main( int argc, const char* argv[] )
     // get the number of site patterns
 	int nPatterns = strlen(human);
     
-    int resource = 1;
-    
     // create an instance of the BEAGLE library
 	int instance = createInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -136,9 +134,9 @@ int main( int argc, const char* argv[] )
                                   4,		        /**< Number of rate matrix buffers (input) */
                                   1,              /**< Number of rate categories (input) */
                                   0,              /**< Number of scaling buffers */
-                                  &resource,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-                                  1,			    /**< Length of resourceList list (input) */
-                                  0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                                  0,			    /**< Length of resourceList list (input) */
+                                  GPU,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
     if (instance < 0) {
