@@ -124,8 +124,6 @@ int beagleCreateInstance(int tipCount,
             if ((*factory)->getName() == "GPU" && (!(resourceList == NULL || (resourceList[0] < rsrcList->length
                  && rsrcList->list[resourceList[0]].flags & BEAGLE_FLAG_GPU)) || preferenceFlags & BEAGLE_FLAG_CPU || requirementFlags & BEAGLE_FLAG_CPU))
                 continue;
-            
-//            fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
 
             beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                         compactBufferCount, stateCount,
@@ -134,12 +132,10 @@ int beagleCreateInstance(int tipCount,
                                                         scaleBufferCount);
 
             if (beagle != NULL) {
-  //              fprintf(stderr, "Success\n");
                 int instance = instances.size();
                 instances.push_back(beagle);
                 return instance;
             }
-//            fprintf(stderr, "Failed\n");
         }
 
         // No implementations found or appropriate
