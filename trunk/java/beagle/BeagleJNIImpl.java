@@ -53,27 +53,37 @@ public class BeagleJNIImpl implements Beagle {
     public void finalize() throws Throwable {
         super.finalize();
         int errCode = BeagleJNIWrapper.INSTANCE.finalize(instance);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setTipStates(int tipIndex, final int[] states) {
        int errCode = BeagleJNIWrapper.INSTANCE.setTipStates(instance, tipIndex, states);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setTipPartials(int tipIndex, final double[] partials) {
         int errCode = BeagleJNIWrapper.INSTANCE.setTipPartials(instance, tipIndex, partials);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setPartials(int bufferIndex, final double[] partials) {
         int errCode = BeagleJNIWrapper.INSTANCE.setPartials(instance, bufferIndex, partials);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void getPartials(int bufferIndex, int scaleIndex, final double []outPartials) {
         int errCode = BeagleJNIWrapper.INSTANCE.getPartials(instance, bufferIndex, scaleIndex, outPartials);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setEigenDecomposition(int eigenIndex,
@@ -81,17 +91,23 @@ public class BeagleJNIImpl implements Beagle {
                                       final double[] inverseEigenValues,
                                       final double[] eigenValues) {
         int errCode = BeagleJNIWrapper.INSTANCE.setEigenDecomposition(instance, eigenIndex, eigenVectors, inverseEigenValues, eigenValues);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setCategoryRates(double[] inCategoryRates) {
         int errCode = BeagleJNIWrapper.INSTANCE.setCategoryRates(instance, inCategoryRates);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void setTransitionMatrix(int matrixIndex, final double[] inMatrix) {
         int errCode = BeagleJNIWrapper.INSTANCE.setTransitionMatrix(instance, matrixIndex, inMatrix);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void updateTransitionMatrices(int eigenIndex,
@@ -104,29 +120,39 @@ public class BeagleJNIImpl implements Beagle {
                 eigenIndex, probabilityIndices,
                 firstDerivativeIndices, secondDervativeIndices,
                 edgeLengths, count);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
 
     public void updatePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
         int[] instances = { instance };
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instances, instances.length, operations, operationCount, cumulativeScaleIndex);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void accumulateScaleFactors(final int[] scaleIndices, final int count, final int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactors(instance, scaleIndices, count, cumulativeScaleIndex);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.removeScaleFactors(instance, scaleIndices, count, cumulativeScaleIndex);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void resetScaleFactors(int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.resetScaleFactors(instance, cumulativeScaleIndex);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void calculateRootLogLikelihoods(int[] bufferIndices,
@@ -137,7 +163,9 @@ public class BeagleJNIImpl implements Beagle {
                                             double[] outLogLikelihoods) {
         int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, inWeights,
                 inStateFrequencies, scaleIndices, count, outLogLikelihoods);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
     public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
@@ -165,7 +193,9 @@ public class BeagleJNIImpl implements Beagle {
                 outLogLikelihoods,
                 outFirstDerivatives,
                 outSecondDerivatives);
-        assert(errCode == 0);
+        if (errCode != 0) {
+            throw new BeagleException("finalize", errCode);
+        }
     }
 
 
