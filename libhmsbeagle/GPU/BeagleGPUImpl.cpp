@@ -635,7 +635,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingIndex = writeScalingIndex;
-        }
+        } else if (readScalingIndex < 0)
+            rescale = NONE;
         
         
 #ifdef DYNAMIC_SCALING
@@ -786,12 +787,18 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         const int rootNodeIndex = bufferIndices[0];
         
 #ifdef DYNAMIC_SCALING
-        
-        kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
-                                                    dWeights, dFrequencies,
-                                                    dScalingFactors[scalingFactorsIndices[0]],
-                                                    kPaddedPatternCount,
-                                                    kCategoryCount);
+        int cumulativeScalingFactor = scalingFactorsIndices[0];
+        if (cumulativeScalingFactor != NONE) {
+            kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
+                                                        dWeights, dFrequencies,
+                                                        dScalingFactors[cumulativeScalingFactor],
+                                                        kPaddedPatternCount,
+                                                        kCategoryCount);
+        } else {
+            kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
+                                          dFrequencies, kPaddedPatternCount, kCategoryCount);
+        }
+
 #else
         kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
                                       dFrequencies, kPaddedPatternCount, kCategoryCount);
@@ -871,22 +878,6 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         //        REAL* firstDerivMatrix = 0L;
         //        REAL* secondDerivMatrix = 0L;
         
-#ifdef DYNAMIC_SCALING
-        
-        if (statesChild != 0) {
-            kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount,
-                                                   kCategoryCount);
-        } else {
-            kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount,
-                                                     kCategoryCount);
-        }        
-                
-        kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
-                                                    dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
-                                                    kPaddedPatternCount, kCategoryCount);
-#else
         if (statesChild != 0) {
             // TODO: test calculateEdgeLnL when child is of tipStates kind
             kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
@@ -896,8 +887,19 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
                                                      transMatrix, kPaddedPatternCount,
                                                      kCategoryCount);
+        }        
+
+#ifdef DYNAMIC_SCALING
+        int cumulativeScalingFactor = dScalingFactors[scalingFactorsIndices[0]];
+        if (cumulativeScalingFactor != NONE) {
+            kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
+                                                        dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
+                                                        kPaddedPatternCount, kCategoryCount);
+        } else {
+            kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
+                                          kPaddedPatternCount, kCategoryCount);
         }
-        
+#else
         kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
                                       kPaddedPatternCount, kCategoryCount);
         
