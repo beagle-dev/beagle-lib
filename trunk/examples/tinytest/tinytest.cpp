@@ -123,6 +123,8 @@ int main( int argc, const char* argv[] )
     // get the number of site patterns
 	int nPatterns = strlen(human);
     
+    int resource = 1;
+    
     // create an instance of the BEAGLE library
 	int instance = createInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -133,9 +135,9 @@ int main( int argc, const char* argv[] )
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                                   4,		        /**< Number of rate matrix buffers (input) */
                                   1,              /**< Number of rate categories (input) */
-                                  5,              /**< Number of scaling buffers */
-                                  NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-                                  0,			    /**< Length of resourceList list (input) */
+                                  0,              /**< Number of scaling buffers */
+                                  &resource,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                                  1,			    /**< Length of resourceList list (input) */
                                   0,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
@@ -206,8 +208,8 @@ int main( int argc, const char* argv[] )
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 	int operations[7 * 2] = {
-		3, 3, 0, 0, 0, 1, 1,
-		4, 4, 0, 2, 2, 3, 3
+		3, NONE, NONE, 0, 0, 1, 1,
+		4, NONE, NONE, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
     
@@ -219,19 +221,8 @@ int main( int argc, const char* argv[] )
                    0);             // rescale ? 0 = no
     
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
-    
-    int scalingFactorsIndices[2] = {3, 4}; // internal nodes
-    int scalingFactorsCount = 2;
-    
-    int cumulativeScalingFactorIndex = 0;
-    
-    resetScaleFactors(instance,
-                      cumulativeScalingFactorIndex);
-    
-    accumulateScaleFactors(instance,
-                           scalingFactorsIndices,
-                           scalingFactorsCount,
-                           cumulativeScalingFactorIndex);    
+
+    int cumulativeScalingFactorIndex = NONE;
     
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance

@@ -148,7 +148,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     if (patternCount % PATTERN_BLOCK_SIZE != 0)
         grid.x += 1;
 #endif    
-    if (doRescaling)    {
+    if (doRescaling != 0)    {
         // Compute partials without any rescaling
 #if (PADDED_STATE_COUNT == 4)        
         GPUFunction fHandle = fPartialsPartialsByPatternBlockCoherentSmall;
@@ -166,7 +166,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         gpu->Synchronize();
         
         // Rescale partials and save scaling factors
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 0);
+        if (doRescaling > 0)
+            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 0);
         
     } else {
         
@@ -214,7 +215,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         grid.x += 1;
 #endif
     
-    if (doRescaling)    {
+    if (doRescaling != 0)    {
         // Compute partials without any rescaling
 #if (PADDED_STATE_COUNT == 4)
         GPUFunction fHandle = fStatesPartialsByPatternBlockCoherentSmall;
@@ -231,7 +232,8 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         gpu->Synchronize();
         
         // Rescale partials and save scaling factors
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
+        if (doRescaling > 0)
+            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
     } else {
         
         // Compute partials with known rescalings
@@ -279,7 +281,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         grid.x += 1;
 #endif
     
-    if (doRescaling)    {
+    if (doRescaling != 0)    {
         // Compute partials without any rescaling
 #if (PADDED_STATE_COUNT == 4)
         GPUFunction fHandle = fStatesStatesByPatternBlockCoherentSmall;
@@ -296,7 +298,8 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         // If PADDED_STATE_COUNT == 4, just with ones.
-        KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
+        if (doRescaling > 0)
+            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
         
     } else {
         
