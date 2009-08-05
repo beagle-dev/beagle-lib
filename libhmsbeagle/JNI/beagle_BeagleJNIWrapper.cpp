@@ -16,12 +16,49 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
   (JNIEnv *env, jobject obj)
 {
 	ResourceList* rl = getResourceList();
-    // @todo Need to convert the resource list into appropriate Java objects
-	if (rl != NULL) {
-        return NULL;
-	} else {
-        return NULL;
+
+	if (rl == NULL) {
+	    return NULL;
+    }
+    
+	jclass objClass = env->FindClass("beagle/ResourceDetails");
+	if (objClass == NULL) {
+		printf("NULL returned in FindClass: can't find class: beagle/ResourceDetails\n");
+		return NULL;
 	}
+
+	jmethodID constructorMethodID = env->GetMethodID(objClass, "<init>","(I)V");
+	if (constructorMethodID == NULL) {
+		printf("NULL returned in FindClass: can't find constructor for class: dr/app/beagle/ResourceDetails\n");
+		return NULL;
+    }
+
+	jmethodID setNameMethodID = env->GetMethodID(objClass, "setName", "(Ljava/lang/String;)V");
+	if (setNameMethodID == NULL) {
+		printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/ResourceDetails\n");
+		return NULL;
+    }
+
+	jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
+	if (setNameMethodID == NULL) {
+		printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/ResourceDetails\n");
+		return NULL;
+    }
+
+    jobjectArray resourceArray = env->NewObjectArray(rl->length, objClass, NULL);
+
+	for (int i = 0; i < rl->length; i++) {
+	    jobject resourceObj = env->NewObject(objClass, constructorMethodID, i);
+
+	    jstring jString = env->NewStringUTF(rl->list[i].name);
+
+	    env->CallVoidMethod(resourceObj, setNameMethodID, jString);
+	    env->CallVoidMethod(resourceObj, setFlagsMethodID, rl->list[i].flags);
+
+        env->SetObjectArrayElement(resourceArray, i, resourceObj);
+	}
+	
+	return resourceArray;
 }
 
 /*
