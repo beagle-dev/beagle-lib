@@ -213,13 +213,18 @@ double FourTaxonExample::calcLnL()
 
 	if (code != 0)
 		abort("updateTransitionMatrices encountered a problem");
+        
+    int cumulativeScalingFactorIndex = 0;
+        
+    resetScaleFactors(instance_handle,
+                      cumulativeScalingFactorIndex);
 
 	code = updatePartials(
 		   &instance_handle,	// instance
 		   1,					// instanceCount
 		   &operations[0],		// operations
 		   2,					// operationCount
-		   NONE);				// cumulative scale index
+		   cumulativeScalingFactorIndex); // cumulative scale index
 
 	if (code != 0)
 		abort("updatePartials encountered a problem");
@@ -229,19 +234,6 @@ double FourTaxonExample::calcLnL()
 	int transitionMatrixIndex  = 4;
 	double relativeRateProb  = 1.0;
         
-    int scalingFactorsIndices[2] = {1, 2}; // internal nodes
-    int scalingFactorsCount = 2;
-        
-    int cumulativeScalingFactorIndex = 0;
-        
-    resetScaleFactors(instance_handle,
-                      cumulativeScalingFactorIndex);
-    
-    accumulateScaleFactors(instance_handle,
-                           scalingFactorsIndices,
-                           scalingFactorsCount,
-                           cumulativeScalingFactorIndex);
-
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
 	std::vector<double> lnL(nsites);
@@ -482,7 +474,7 @@ void FourTaxonExample::interpretCommandLineParameters(
 	{
 	// see if the user specified the number of MCMC iterations on the command line
 	// and, if so, replace the default value of niters
-	niters = 1000000;
+	niters = 4;
 	if (argc > 1)
 		niters = (unsigned)atoi(argv[1]);
 	if (niters < 1)

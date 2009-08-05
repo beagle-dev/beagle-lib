@@ -152,9 +152,9 @@ int main( int argc, const char* argv[] )
 	    exit(1);
     }
     
-    //	setTipStates(instance, 0, getStates(human));
-    //	setTipStates(instance, 1, getStates(chimp));
-    //	setTipStates(instance, 2, getStates(gorilla));
+//    setTipStates(instance, 0, getStates(human));
+//    setTipStates(instance, 1, getStates(chimp));
+//    setTipStates(instance, 2, getStates(gorilla));
     
     // set the sequences for each tip using partial likelihood arrays
 	setTipPartials(instance, 0, getPartials(human));

@@ -606,6 +606,10 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     fprintf(stderr, "Entering updatePartials\n");
 #endif
         
+    GPUPtr cumulativeScalingBuffer = 0;
+    if (cumulativeScalingIndex != NONE)
+        cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
+    
     // Serial version
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * 7];
@@ -629,9 +633,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         
         // TODO: implement support for cumulativeScalingIndex
-        // TODO: implement support for no rescale, no readScalingIndex
         int rescale = 0;
-        int scalingIndex = readScalingIndex; 
+        int scalingIndex = readScalingIndex;
         if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingIndex = writeScalingIndex;
@@ -646,11 +649,13 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             if (tipStates2 != 0 ) {
                 kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
                                                            matrices1, matrices2, scalingFactors,
+                                                           cumulativeScalingBuffer,
                                                            kPaddedPatternCount, kCategoryCount,
                                                            rescale);
             } else {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
                                                              matrices1, matrices2, scalingFactors,
+                                                             cumulativeScalingBuffer, 
                                                              kPaddedPatternCount, kCategoryCount,
                                                              rescale);
             }
@@ -658,11 +663,13 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             if (tipStates2 != 0) {
                 kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
                                                              matrices2, matrices1, scalingFactors,
+                                                             cumulativeScalingBuffer, 
                                                              kPaddedPatternCount, kCategoryCount,
                                                              rescale);
             } else {
                 kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                matrices1, matrices2, scalingFactors,
+                                                               cumulativeScalingBuffer, 
                                                                kPaddedPatternCount, kCategoryCount,
                                                                rescale);
             }
@@ -726,8 +733,8 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
     
     // Compute scaling factors at the root
-    kernels->ComputeRootDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count,
-                                       kPaddedPatternCount);
+    kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
+                                             count, kPaddedPatternCount);
 #endif // DYNAMIC_SCALING
     
     return NO_ERROR;
@@ -737,10 +744,17 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
                                         int count,
                                         int cumulativeScalingIndex) {
     
-    // TODO: implement removeScaleFactors GPU
-	fprintf(stderr,"Not yet implemented.\n");
-	exit(-1);
+#ifdef DYNAMIC_SCALING
+    for(int n = 0; n < count; n++)
+        hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
+    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
     
+    // Compute scaling factors at the root
+    kernels->RemoveFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
+                                         count, kPaddedPatternCount);
+#endif // DYNAMIC_SCALING
+
+    return NO_ERROR;
 }
 
 int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {

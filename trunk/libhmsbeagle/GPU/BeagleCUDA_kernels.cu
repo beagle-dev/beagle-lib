@@ -1081,7 +1081,7 @@ __global__ void kernelIntegrateLikelihoodsDynamicScaling(REAL* dResult,
         dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
 }
 
-__global__ void kernelComputeRootDynamicScaling(REAL** dNodePtrQueue,
+__global__ void kernelAccumulateFactorsDynamicScaling(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -1106,7 +1106,35 @@ __global__ void kernelComputeRootDynamicScaling(REAL** dNodePtrQueue,
     }
 
     if (pattern < patternCount)
-        rootScaling[pattern] = total;
+        rootScaling[pattern] += total;
+}
+
+__global__ void kernelRemoveFactorsDynamicScaling(REAL** dNodePtrQueue,
+                                                   REAL* rootScaling,
+                                                   int nodeCount,
+                                                   int patternCount) {
+    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+//      if (threadIdx.x == 0) // TODO Why does this not work???
+            nodeScales = dNodePtrQueue[n];
+//      __syncthreads();
+
+#ifdef KERNEL_PRINT_ENABLED
+        if (pattern == 1)
+            printf("added %1.2e\n", nodeScales[pattern]);
+#endif
+        REAL factor = nodeScales[pattern];
+        if (factor != 1.0)
+            total += log(factor);
+    }
+
+    if (pattern < patternCount)
+        rootScaling[pattern] -= total;
 }
 
 /*
@@ -1156,6 +1184,66 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
         }
 
         scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
+    }
+
+    __syncthreads();
+
+    if (matrix < matrixCount)
+        allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
+                    state] /= max;
+
+    __syncthreads();
+}
+
+/*
+ * Find a scaling factor for each pattern and accumulate into buffer
+ */
+__global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
+                                                       REAL* scalingFactors,
+                                                       REAL* cumulativeScaling,
+                                                       int matrixCount) {
+    int state = threadIdx.x;
+    int matrix = threadIdx.y;
+    int pattern = blockIdx.x;
+    int patternCount = gridDim.x;
+
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24(PADDED_STATE_COUNT, patternCount));
+
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE > matrixCount; FIX!!!
+    __shared__ REAL partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    __shared__ REAL max;
+
+    if (matrix < matrixCount)
+        partials[matrix][state] = allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern *
+                                              PADDED_STATE_COUNT + state];
+    else
+        partials[matrix][state] = 0;
+
+    __syncthreads();
+
+    int i;
+    // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
+    for (i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+            REAL compare1 = partials[matrix][state];
+            REAL compare2 = partials[matrix][state + i];
+            if (compare2 > compare1)
+            partials[matrix][state] = compare2;
+        }
+        __syncthreads();
+    }
+
+    if (state == 0 && matrix == 0) {
+        max = 0;
+        int m;
+        for(m = 0; m < matrixCount; m++) {
+            if (partials[m][0] > max)
+                max = partials[m][0];
+        }
+
+        scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
+        cumulativeScaling[pattern] += log(max);
     }
 
     __syncthreads();
