@@ -71,7 +71,7 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : ntaxa(4), niters(0), nsites(0), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
+  : ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
 	{
 	}
 
@@ -123,7 +123,7 @@ void FourTaxonExample::initBeagleLib()
 				nsites,		// patternCount
 				1,			// eigenBufferCount
 				5,			// matrixBufferCount,
-                1,          // categoryCount
+                nrates,     // categoryCount
                 3,          // scalingBuffersCount
 				NULL,		// resourceList
 				0,			// resourceCount
@@ -171,7 +171,11 @@ void FourTaxonExample::initBeagleLib()
 			abort("beagleSetPartials encountered a problem");
 		}
         
-    double rates[1] = { 1.0 };
+    double rates[nrates] ;
+    for (int i = 0; i < nrates; i++) {
+        rates[i] = 1.0;
+    }
+        
     beagleSetCategoryRates(instance_handle, rates);
 
 	// JC69 model eigenvector matrix
@@ -240,7 +244,11 @@ double FourTaxonExample::calcLnL()
 	int parentBufferIndex = 4;
 	int childBufferIndex  = 5;
 	int transitionMatrixIndex  = 4;
-	double relativeRateProb  = 1.0;
+        
+	double relativeRateProb[nrates];
+    for (int i = 0; i < nrates; i++) {
+        relativeRateProb[i] = 1.0 / nrates;
+    }
         
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 

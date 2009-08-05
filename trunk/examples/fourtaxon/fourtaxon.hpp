@@ -34,6 +34,7 @@ class FourTaxonExample
 		std::string					data_file_name;
 		const unsigned 				ntaxa;
 		unsigned 					nsites;
+        unsigned                    nrates;
 		double						delta;
 		double						mu;
 		unsigned					seed;
