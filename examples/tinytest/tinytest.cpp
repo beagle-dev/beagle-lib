@@ -114,6 +114,8 @@ int main( int argc, const char* argv[] )
     // get the number of site patterns
 	int nPatterns = strlen(human);
     
+    int rateCategoryCount = 4;
+    
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -123,12 +125,12 @@ int main( int argc, const char* argv[] )
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                                   4,		        /**< Number of rate matrix buffers (input) */
-                                  1,              /**< Number of rate categories (input) */
-                                  0,              /**< Number of scaling buffers */
-                                  NULL,			/**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                                  rateCategoryCount,/**< Number of rate categories (input) */
+                                  0,                /**< Number of scaling buffers */
+                                  NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  BEAGLE_FLAG_GPU,		        /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  0		        /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_GPU,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  0		            /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -170,14 +172,21 @@ int main( int argc, const char* argv[] )
 	beagleSetTipPartials(instance, 1, getPartials(chimp));
 	beagleSetTipPartials(instance, 2, getPartials(gorilla));
     
-	double rates[1] = { 1.0 };
+	double rates[rateCategoryCount];
+    for (int i = 0; i < rateCategoryCount; i++) {
+        rates[i] = 1.0;
+    }
+    
 	beagleSetCategoryRates(instance, rates);
 	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
     
     // create an array containing site category weights
-	const double weights[1] = { 1.0 };
+	double weights[rateCategoryCount];
+    for (int i = 0; i < rateCategoryCount; i++) {
+        weights[i] = 1.0/rateCategoryCount;
+    }    
     
 	// an eigen decomposition for the JC69 model
 	double evec[4 * 4] = {
