@@ -39,8 +39,10 @@ private:
     GPUFunction fStatesPartialsEdgeLikelihoodsSmall;
     
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
-    GPUFunction fComputeRootDynamicScaling;
+    GPUFunction fAccumulateFactorsDynamicScaling;
+    GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fPartialsDynamicScaling;
+    GPUFunction fPartialsDynamicScalingAccumulate;
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;    
     
@@ -63,6 +65,7 @@ public:
                                                GPUPtr matrices1,
                                                GPUPtr matrices2,
                                                GPUPtr scalingFactors,
+                                               GPUPtr cumulativeScaling,
                                                const unsigned int patternCount,
                                                const unsigned int categoryCount,
                                                int doRescaling);
@@ -73,6 +76,7 @@ public:
                                              GPUPtr matrices1,
                                              GPUPtr matrices2,
                                              GPUPtr scalingFactors,
+                                             GPUPtr cumulativeScaling,
                                              const unsigned int patternCount,
                                              const unsigned int categoryCount,
                                              int doRescaling);
@@ -83,6 +87,7 @@ public:
                                            GPUPtr matrices1,
                                            GPUPtr matrices2,
                                            GPUPtr scalingFactors,
+                                           GPUPtr cumulativeScaling,
                                            const unsigned int patternCount,
                                            const unsigned int categoryCount,
                                            int doRescaling);
@@ -109,13 +114,19 @@ public:
                                        int patternCount,
                                        int categoryCount);
     
-    void ComputeRootDynamicScaling(GPUPtr dNodePtrQueue,
-                                   GPUPtr dRootScalingFactors,
-                                   int nodeCount,
-                                   int patternCount);
+    void AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
+                                         GPUPtr dRootScalingFactors,
+                                         int nodeCount,
+                                         int patternCount);
+
+    void RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
+                                     GPUPtr dRootScalingFactors,
+                                     int nodeCount,
+                                     int patternCount);    
     
     void RescalePartials(GPUPtr partials3,
                          GPUPtr scalingFactors,
+                         GPUPtr cumulativeScaling,
                          int patternCount,
                          int categoryCount,
                          int fillWithOnes);

@@ -452,8 +452,7 @@ int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
     // TODO: implement removeScaleFactors CPU
-	fprintf(stderr,"Not yet implemented.\n");
-	exit(-1);
+    return NO_ERROR;
 }
 
 int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {

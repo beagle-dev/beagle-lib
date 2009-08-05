@@ -118,7 +118,7 @@ void runBeagle(int resource)
 	for(int i=0; i<ntaxa-1; i++){
 		operations[7*i+0] = ntaxa+i;
         operations[7*i+1] = ntaxa+i;
-        operations[7*i+2] = 0;
+        operations[7*i+2] = NONE;
 		operations[7*i+3] = i*2;
 		operations[7*i+4] = i*2;
 		operations[7*i+5] = i*2+1;
@@ -138,7 +138,7 @@ void runBeagle(int resource)
 	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
-	                1);             // rescale ? 0 = no
+	                NONE);             // cumulative scaling index
 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nsites);
     
@@ -154,6 +154,7 @@ void runBeagle(int resource)
                            scalingFactorsIndices,
                            scalingFactorsCount,
                            cumulativeScalingFactorIndex);
+
     
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance

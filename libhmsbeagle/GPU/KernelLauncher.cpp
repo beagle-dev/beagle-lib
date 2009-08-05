@@ -72,11 +72,17 @@ KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
     fIntegrateLikelihoodsDynamicScaling =
             gpu->GetFunction("kernelIntegrateLikelihoodsDynamicScaling");
     
-    fComputeRootDynamicScaling =
-            gpu->GetFunction("kernelComputeRootDynamicScaling");
+    fAccumulateFactorsDynamicScaling =
+            gpu->GetFunction("kernelAccumulateFactorsDynamicScaling");
+
+    fRemoveFactorsDynamicScaling =
+        gpu->GetFunction("kernelRemoveFactorsDynamicScaling");
     
     fPartialsDynamicScaling =
             gpu->GetFunction("kernelPartialsDynamicScaling");
+    
+    fPartialsDynamicScalingAccumulate =
+            gpu->GetFunction("kernelPartialsDynamicScalingAccumulate");
     
     fPartialsDynamicScalingSlow =
             gpu->GetFunction("kernelPartialsDynamicScalingSlow");
@@ -129,6 +135,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr matrices1,
                                                            GPUPtr matrices2,
                                                            GPUPtr scalingFactors,
+                                                           GPUPtr cumulativeScaling,
                                                            const unsigned int patternCount,
                                                            const unsigned int categoryCount,
                                                            int doRescaling) {
@@ -167,7 +174,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0)
-            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 0);
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0);
         
     } else {
         
@@ -200,6 +208,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                                          GPUPtr matrices1,
                                                          GPUPtr matrices2,
                                                          GPUPtr scalingFactors,
+                                                         GPUPtr cumulativeScaling,
                                                          const unsigned int patternCount,
                                                          const unsigned int categoryCount,
                                                          int doRescaling) {
@@ -233,7 +242,8 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0)
-            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 1);
     } else {
         
         // Compute partials with known rescalings
@@ -266,6 +276,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                                        GPUPtr matrices1,
                                                        GPUPtr matrices2,
                                                        GPUPtr scalingFactors,
+                                                       GPUPtr cumulativeScaling,
                                                        const unsigned int patternCount,
                                                        const unsigned int categoryCount,
                                                        int doRescaling) {
@@ -299,7 +310,8 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         // Rescale partials and save scaling factors
         // If PADDED_STATE_COUNT == 4, just with ones.
         if (doRescaling > 0)
-            KernelLauncher::RescalePartials(partials3, scalingFactors, patternCount, categoryCount, 1);
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 1);
         
     } else {
         
@@ -432,7 +444,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     
 }
 
-void KernelLauncher::ComputeRootDynamicScaling(GPUPtr dNodePtrQueue,
+void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
                                                GPUPtr dRootScalingFactors,
                                                int nodeCount,
                                                int patternCount) {
@@ -442,17 +454,37 @@ void KernelLauncher::ComputeRootDynamicScaling(GPUPtr dNodePtrQueue,
         grid.x += 1;
     
     int parameterCount = 4;
-    gpu->LaunchKernelIntParams(fComputeRootDynamicScaling,
+    gpu->LaunchKernelIntParams(fAccumulateFactorsDynamicScaling,
                                block, grid,
                                parameterCount,
                                dNodePtrQueue, dRootScalingFactors, nodeCount, patternCount);
 }
 
+void KernelLauncher::RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
+                                                     GPUPtr dRootScalingFactors,
+                                                     int nodeCount,
+                                                     int patternCount) {
+    Dim3Int block(PATTERN_BLOCK_SIZE);
+    Dim3Int grid(patternCount / PATTERN_BLOCK_SIZE);
+    if (patternCount % PATTERN_BLOCK_SIZE != 0)
+        grid.x += 1;
+    
+    int parameterCount = 4;
+    gpu->LaunchKernelIntParams(fRemoveFactorsDynamicScaling,
+                               block, grid,
+                               parameterCount,
+                               dNodePtrQueue, dRootScalingFactors, nodeCount, patternCount);
+}
+
+
 void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr scalingFactors,
+                                     GPUPtr cumulativeScaling, 
                                      int patternCount,
                                      int categoryCount,
                                      int fillWithOnes) {
+    
+    // TODO: remove fillWithOnes and leave it up to client?
     
     // Rescale partials and save scaling factors
     //#if (PADDED_STATE_COUNT == 4) 
@@ -477,20 +509,34 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     }
     Dim3Int block(PADDED_STATE_COUNT, MATRIX_BLOCK_SIZE);
     // TODO: Totally incoherent for PADDED_STATE_COUNT == 4
+
     
     GPUFunction fHandle = fPartialsDynamicScaling;
+    if (cumulativeScaling != 0)
+        fHandle = fPartialsDynamicScalingAccumulate;
 #else
     Dim3Int grid(patternCount, 1);
     Dim3Int block(PADDED_STATE_COUNT);
     
     GPUFunction fHandle = fPartialsDynamicScalingSlow;
-#endif
     
-    int parameterCount = 3;
-    gpu->LaunchKernelIntParams(fHandle,
-                               block, grid,
-                               parameterCount,
-                               partials3, scalingFactors, categoryCount);
+    // TODO: add support for accumulate scaling as you rescale for SLOW_REWEIGHING
+#endif
+
+    if (cumulativeScaling != 0) {
+        int parameterCount = 4;
+        gpu->LaunchKernelIntParams(fHandle,
+                                   block, grid,
+                                   parameterCount,
+                                   partials3, scalingFactors, cumulativeScaling,
+                                   categoryCount);
+    } else {
+        int parameterCount = 3;
+        gpu->LaunchKernelIntParams(fHandle,
+                                   block, grid,
+                                   parameterCount,
+                                   partials3, scalingFactors, categoryCount);        
+    }
 }
 
 void KernelLauncher::PartialsPartialsPruning(GPUPtr partials1,
