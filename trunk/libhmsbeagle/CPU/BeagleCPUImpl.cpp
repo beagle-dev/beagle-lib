@@ -497,7 +497,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     
     const double* partialsParent = partials[parIndex];
     const std::vector<double> transMatrix = transitionMatrices[probIndex];
-    const double wt = inWeights[0];    
+    const double* wt = inWeights;    
     
     if (childIndex < kTipCount && tipStates[childIndex]) {
         const int* statesChild = tipStates[childIndex];
@@ -507,28 +507,36 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
             double sumK = 0.0;
             for (int i = 0; i < kStateCount; i++) {
                 int w = i * kStateCount + 1;
-                sumK += inStateFrequencies[i] * partialsParent[v + i] * transMatrix[w +
-                                                                                    stateChild];
+                for (int l = 0; l < kCategoryCount; l++) {
+                    sumK += inStateFrequencies[i] * partialsParent[v + i + l * kPatternCount * kStateCount] * transMatrix[w + stateChild + l * kMatrixSize] * wt[l];
+                }
             }
-            outLogLikelihoods[k] = log(sumK * wt);
+            outLogLikelihoods[k] = log(sumK);
             v += kStateCount;
         }
     } else {
         const double* partialsChild = partials[childIndex];
+        
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             int w = 0;
             double sumK = 0.0;
             for (int i = 0; i < kStateCount; i++) {
-                double sumI = 0.0;
+                double sumI[kCategoryCount];
+                for (int l = 0; l < kCategoryCount; l++)
+                    sumI[l] = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
-                    sumI += transMatrix[w] * partialsChild[v + j];
+                    for (int l = 0; l < kCategoryCount; l++) {
+                        sumI[l] += transMatrix[w + l * kMatrixSize] * partialsChild[v + j+ (l * kPatternCount * kStateCount)];
+                    }
                     w++;
                 }
                 w++;    // increment for the extra column at the end
-                sumK += inStateFrequencies[i] * partialsParent[v + i] * sumI;
+                for (int l = 0; l < kCategoryCount; l++) {
+                    sumK += inStateFrequencies[i] * partialsParent[v + i + l * kPatternCount * kStateCount] * sumI[l] * wt[l];
+                }
             }
-            outLogLikelihoods[k] = log(sumK * wt);
+            outLogLikelihoods[k] = log(sumK);
             v += kStateCount;
         }
     }
