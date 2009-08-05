@@ -329,9 +329,9 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     int clockSpeed = 0;
     int mpCount = 0;
     
-    SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, cudaDevice));
-    SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, cudaDevice));
-    SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, cudaDevice));
+    SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, tmpCudaDevice));
     
     sprintf(deviceDescription,
             "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of cores: %d",
