@@ -212,22 +212,22 @@ int main( int argc, const char* argv[] )
 	int rootIndex = 4;
     
     // update the partials
-	updatePartials( &instance,      // instance
+	updatePartials(&instance,      // instance
                    1,              // instanceCount
                    operations,     // eigenIndex
                    2,              // operationCount
-                   0);             // rescale ? 0 = no
+                   NONE);          // cumulative scaling index
     
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-    int cumulativeScalingFactorIndex = NONE;
+    int cumulativeScalingIndex = NONE;
     
     // calculate the site likelihoods at the root node
 	calculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
-	                            freqs,                 // stateFrequencies
-                                &cumulativeScalingFactorIndex,
+	                            freqs,                  // stateFrequencies
+                                &cumulativeScalingIndex,// cumulative scaling index
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
     
