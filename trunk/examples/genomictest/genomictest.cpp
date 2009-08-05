@@ -54,12 +54,21 @@ void runBeagle(int resource)
     }
 
     // initialize the instance
-    int error = initializeInstance(instance, NULL);
+    InstanceDetails instDetails;
+    int error = initializeInstance(instance, &instDetails);
 	
     if (error < 0) {
 	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
 	    exit(1);
     }
+        
+    int rNumber = instDetails.resourceNumber;
+    ResourceList* rList = getResourceList();
+    fprintf(stdout, "Using resource %i:\n", rNumber);
+    fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
+    fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
+    fprintf(stdout, "\n");      
+    
     // set the sequences for each tip using partial likelihood arrays
 	srand(42);	// fix the random seed...
 	for(int i=0; i<ntaxa; i++)
@@ -174,9 +183,9 @@ void runBeagle(int resource)
 	}
 
 
-	fprintf(stdout, "logL = %.5f \n\n", logL);
+	fprintf(stdout, "logL = %.5f \n", logL);
 	double timediff =  end.tv_sec - start.tv_sec + (double)(end.tv_usec-start.tv_usec)/1000000.0;
-	std::cout << "Took " << timediff << " seconds\n";
+	std::cout << "Took " << timediff << " seconds\n\n";
 	finalize(instance);
 }
 

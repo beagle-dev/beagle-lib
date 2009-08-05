@@ -164,8 +164,6 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     kernels = new KernelLauncher(gpu);
     
-    gpu->PrintInfo();
-    
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
     dIevc = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
     dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
@@ -261,6 +259,11 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     free(hTmpStates);
     
     kDeviceMemoryAllocated = 1;
+    
+    if (returnInfo != NULL) {
+        returnInfo->resourceNumber = currentDevice + 1;
+        returnInfo->flags = SINGLE | ASYNCH | GPU;
+    }
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");

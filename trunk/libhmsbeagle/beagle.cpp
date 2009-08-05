@@ -63,8 +63,11 @@ ResourceList* getResourceList() {
             rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
             for (int i = 0; i < gpuDeviceCount; i++) {
                 char* dName = (char*) malloc(sizeof(char) * 100);
+                char* dDesc = (char*) malloc(sizeof(char) * 100);
                 gpu->GetDeviceName(i, dName, 100);
+                gpu->GetDeviceDescription(i, dDesc);
                 rsrcList->list[i + 1].name = dName;
+                rsrcList->list[i + 1].description = dDesc;
                 rsrcList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
             }   
         } else {
@@ -75,7 +78,8 @@ ResourceList* getResourceList() {
         rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
 #endif
         
-        rsrcList->list[0].name = "CPU";
+        rsrcList->list[0].name = (char*) "CPU";
+        rsrcList->list[0].description = (char*) "";
         rsrcList->list[0].flags = ASYNCH | CPU;
         if (sizeof(REAL) == 4)
             rsrcList->list[0].flags |= SINGLE;
@@ -121,7 +125,7 @@ int createInstance(int tipCount,
                  && rsrcList->list[resourceList[0]].flags & GPU)) || preferenceFlags & CPU || requirementFlags & CPU))
                 continue;
             
-            fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
+//            fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
 
             beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                         compactBufferCount, stateCount,
@@ -130,12 +134,12 @@ int createInstance(int tipCount,
                                                         scaleBufferCount);
 
             if (beagle != NULL) {
-                fprintf(stderr, "Success\n");
+  //              fprintf(stderr, "Success\n");
                 int instance = instances.size();
                 instances.push_back(beagle);
                 return instance;
             }
-            fprintf(stderr, "Failed\n");
+//            fprintf(stderr, "Failed\n");
         }
 
         // No implementations found or appropriate
