@@ -35,28 +35,58 @@
                         }
 
 GPUInterface::GPUInterface() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GPUInterface\n");
+#endif    
+    
     // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
     SAFE_CUDA(cuInit(0));
     
     cudaDevice = NULL;
     cudaContext = NULL;
     cudaModule = NULL;
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
+#endif    
 }
 
 GPUInterface::~GPUInterface() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
+#endif    
+    
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
         SAFE_CUDA(cuCtxDetach(cudaContext));
     }
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::~GPUInterface\n");
+#endif    
+    
 }
 
 int GPUInterface::GetDeviceCount() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GetDeviceCount\n");
+#endif        
+    
     int numDevices = 0;
     SAFE_CUDA(cuDeviceGetCount(&numDevices));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
+#endif            
+    
     return numDevices;
 }
 
 void GPUInterface::SetDevice(int deviceNumber) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
+#endif            
+    
     SAFE_CUDA(cuDeviceGet(&cudaDevice, deviceNumber));
     
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
@@ -64,16 +94,39 @@ void GPUInterface::SetDevice(int deviceNumber) {
     SAFE_CUDA(cuModuleLoadData(&cudaModule, KERNELS_STRING)); 
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SetDevice\n");
+#endif            
+    
 }
 
 void GPUInterface::Synchronize() {
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::Synchronize\n");
+#endif                
+    
     SAFE_CUPP(cuCtxSynchronize());
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::Synchronize\n");
+#endif                
+    
 }
 
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GetFunction\n");
+#endif                    
+    
     GPUFunction cudaFunction; 
     
     SAFE_CUPP(cuModuleGetFunction(&cudaFunction, cudaModule, functionName));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetFunction\n");
+#endif                
     
     return cudaFunction;
 }
@@ -83,6 +136,11 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
                                          Dim3Int grid,
                                          int totalParameterCount,
                                          ...) { // unsigned int parameters
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelIntParams\n");
+#endif                
+    
+    
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
     
     SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
@@ -107,55 +165,69 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernelIntParams\n");
+#endif                
+    
 }
 
 
 GPUPtr GPUInterface::AllocateMemory(int memSize) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering ANMA\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateMemory\n");
 #endif
     
     GPUPtr data;
     
     SAFE_CUPP(cuMemAlloc(&data, memSize));
+
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + memSize));
+#endif
     
-#ifdef DEBUG
-    fprintf(stderr, "Allocated %d to %d.\n", data, (data + memSize));
-    fprintf(stderr, "Leaving ANMA\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateMemory\n");
 #endif
     
     return data;
 }
 
 GPUPtr GPUInterface::AllocateRealMemory(int length) {
-#ifdef DEBUG
-    fprintf(stderr,"Entering ANMA-Real\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateRealMemory\n");
 #endif
 
     GPUPtr data;
 
     SAFE_CUPP(cuMemAlloc(&data, SIZE_REAL * length));
 
-#ifdef DEBUG
-    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
-    fprintf(stderr, "Leaving ANMA\n");
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + length));
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateRealMemory\n");
 #endif
     
     return data;
 }
 
 GPUPtr GPUInterface::AllocateIntMemory(int length) {
-#ifdef DEBUG
-    fprintf(stderr, "Entering ANMA-Int\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::AllocateIntMemory\n");
 #endif
 
     GPUPtr data;
     
     SAFE_CUPP(cuMemAlloc(&data, SIZE_INT * length));
 
-#ifdef DEBUG
-    fprintf(stderr, "Allocated %d to %d.\n", data, (data + length));
-    fprintf(stderr, "Leaving ANMA\n");
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + length));
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateIntMemory\n");
 #endif
 
     return data;
@@ -164,28 +236,50 @@ GPUPtr GPUInterface::AllocateIntMemory(int length) {
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
                                       int memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
+#endif    
+    
     SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
+#endif    
+    
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       const GPUPtr src,
                                       int memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
+#endif        
+    
     SAFE_CUPP(cuMemcpyDtoH(dest, src, memSize));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");
+#endif    
+    
 }
 
 void GPUInterface::FreeMemory(GPUPtr dPtr) {
-#ifdef DEBUG
-    fprintf(stderr, "Entering FNMA\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::FreeMemory\n");
 #endif
     
     SAFE_CUPP(cuMemFree(dPtr));
 
-#ifdef DEBUG
-    fprintf(stderr,"Leaving FNMA\n");
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeMemory\n");
 #endif
 }
 
 void GPUInterface::PrintInfo() {    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::PrintInfo\n");
+#endif
+    
     fprintf(stderr, "GPU Device Information:");
     
     char name[100];
@@ -202,16 +296,28 @@ void GPUInterface::PrintInfo() {
     fprintf(stderr, "\tGlobal Memory (MB) : %d\n", int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5));
     fprintf(stderr, "\tClock Speed (Ghz)  : %1.2f\n", clockSpeed / 1000000.0);
     fprintf(stderr, "\tNumber of Cores    : %d\n", 8 * mpCount);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::PrintInfo\n");
+#endif    
 }
 
 void GPUInterface::GetDeviceName(int deviceNumber,
                                   char* deviceName,
                                   int nameLength) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceName\n");
+#endif    
+    
     CUdevice tmpCudaDevice;
 
     SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
     
     SAFE_CUDA(cuDeviceGetName(deviceName, nameLength, tmpCudaDevice));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceName\n");
+#endif        
 }
 
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,

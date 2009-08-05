@@ -215,7 +215,6 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
 }
 
 int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
-    // TODO: test CPU setCategoryRates
 	memcpy(categoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
     return NO_ERROR;
 }
