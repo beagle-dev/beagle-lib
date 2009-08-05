@@ -15,7 +15,7 @@
 JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
   (JNIEnv *env, jobject obj)
 {
-	BeagleResourceList* rl = BeagleGetResourceList();
+	BeagleResourceList* rl = beagleGetResourceList();
 
 	if (rl == NULL) {
 	    return NULL;
@@ -73,7 +73,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 {
     jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
     
- 	jint instance = (jint)createInstance(tipCount,
+ 	jint instance = (jint)beagleCreateInstance(tipCount,
 	                                partialsBufferCount,
 	                                compactBufferCount,
 	                                stateCount,
@@ -101,7 +101,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
   (JNIEnv *env, jobject obj, jint instance, jobjectArray outInstanceDetails)
 {
     // @todo Ignoring outInstanceDetails for the moment
-    jint errCode = (jint)initializeInstance(instance, NULL);
+    jint errCode = (jint)beagleInitializeInstance(instance, NULL);
     return errCode;
 }
 
@@ -113,7 +113,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
   (JNIEnv *env, jobject obj, jint instance)
 {
-	jint errCode = (jint)finalize(instance);
+	jint errCode = (jint)beagleFinalizeInstance(instance);
     return errCode;
 }
 
@@ -127,7 +127,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 {
     jint *tipStates = env->GetIntArrayElements(inTipStates, NULL);
     
-	jint errCode = (jint)setTipStates(instance, tipIndex, (int *)tipStates);
+	jint errCode = (jint)beagleSetTipStates(instance, tipIndex, (int *)tipStates);
     
     env->ReleaseIntArrayElements(inTipStates, tipStates, JNI_ABORT);
     return errCode;
@@ -143,7 +143,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 {
     jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
     
-	jint errCode = (jint)setTipPartials(instance, tipIndex, (double *)partials);
+	jint errCode = (jint)beagleSetTipPartials(instance, tipIndex, (double *)partials);
     
     env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
     return errCode;
@@ -159,7 +159,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
 {
     jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
 
-	jint errCode = (jint)setPartials(instance, bufferIndex, (double *)partials);
+	jint errCode = (jint)beagleSetPartials(instance, bufferIndex, (double *)partials);
 
     env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
     return errCode;
@@ -175,7 +175,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 {
     jdouble *partials = env->GetDoubleArrayElements(outPartials, NULL);
 
-    jint errCode = getPartials(instance, bufferIndex, scaleIndex, (double *)partials);
+    jint errCode = beagleGetPartials(instance, bufferIndex, scaleIndex, (double *)partials);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outPartials, partials, 0);
@@ -194,7 +194,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
     jdouble *invEigenVectors = env->GetDoubleArrayElements(inInvEigenVectors, NULL);
     jdouble *eigenValues = env->GetDoubleArrayElements(inEigenValues, NULL);
 
-	jint errCode = (jint)setEigenDecomposition(instance, eigenIndex, (double *)eigenVectors, (double *)invEigenVectors, (double *)eigenValues);
+	jint errCode = (jint)beagleSetEigenDecomposition(instance, eigenIndex, (double *)eigenVectors, (double *)invEigenVectors, (double *)eigenValues);
 
     env->ReleaseDoubleArrayElements(inEigenValues, eigenValues, JNI_ABORT);
     env->ReleaseDoubleArrayElements(inInvEigenVectors, invEigenVectors, JNI_ABORT);
@@ -214,7 +214,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 {
     jdouble *categoryRates = env->GetDoubleArrayElements(inCategoryRates, NULL);
 
-	jint errCode = (jint)setCategoryRates(instance, (double *)categoryRates);
+	jint errCode = (jint)beagleSetCategoryRates(instance, (double *)categoryRates);
 
     env->ReleaseDoubleArrayElements(inCategoryRates, categoryRates, JNI_ABORT);
 
@@ -231,7 +231,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
 {
     jdouble *matrix = env->GetDoubleArrayElements(inMatrix, NULL);
 
-	jint errCode = (jint)setTransitionMatrix(instance, matrixIndex, (double *)matrix);
+	jint errCode = (jint)beagleSetTransitionMatrix(instance, matrixIndex, (double *)matrix);
 
     env->ReleaseDoubleArrayElements(inMatrix, matrix, JNI_ABORT);
 
@@ -253,7 +253,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
     if (inFirstDerivativeIndices == NULL) {
         jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
 
-        errCode = (jint)updateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, NULL, NULL, (double *)edgeLengths, count);
+        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, NULL, NULL, (double *)edgeLengths, count);
 
         env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
     } else {
@@ -261,7 +261,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
         jint *secondDervativeIndices = env->GetIntArrayElements(inSecondDervativeIndices, NULL);
         jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
 
-        errCode = (jint)updateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDervativeIndices, (double *)edgeLengths, count);
+        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDervativeIndices, (double *)edgeLengths, count);
 
         env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
         env->ReleaseIntArrayElements(inSecondDervativeIndices, secondDervativeIndices, JNI_ABORT);
@@ -283,7 +283,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
     jint *instances = env->GetIntArrayElements(inInstances, NULL);
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-	jint errCode = (jint)updatePartials((int *)instances, instanceCount, (int *)operations, operationCount, cumulativeScalingIndex);
+	jint errCode = (jint)beagleUpdatePartials((int *)instances, instanceCount, (int *)operations, operationCount, cumulativeScalingIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
     env->ReleaseIntArrayElements(inInstances, instances, JNI_ABORT);
@@ -302,7 +302,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
     jint *instances = env->GetIntArrayElements(inInstances, NULL);
     jint *destinationPartials = env->GetIntArrayElements(inDestinationPartials, NULL);
 
-    jint errCode = (jint)waitForPartials((int *)instances, instanceCount, (int *)destinationPartials, destinationPartialsCount);
+    jint errCode = (jint)beagleWaitForPartials((int *)instances, instanceCount, (int *)destinationPartials, destinationPartialsCount);
 
     env->ReleaseIntArrayElements(inDestinationPartials, destinationPartials, JNI_ABORT);
     env->ReleaseIntArrayElements(inInstances, instances, JNI_ABORT);
@@ -319,7 +319,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
   (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
 	
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
-	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	jint errCode = (jint)beagleAccumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
 
 	return errCode;
@@ -334,7 +334,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
 	
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
-	jint errCode = (jint)accumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	jint errCode = (jint)beagleAccumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
     
 	return errCode;
@@ -348,7 +348,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jint cumulativeScalingIndex) {
 	
-	jint errCode = (jint)resetScaleFactors(instance, cumulativeScalingIndex);
+	jint errCode = (jint)beagleResetScaleFactors(instance, cumulativeScalingIndex);
 	return errCode;
 }
 
@@ -367,7 +367,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
     //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
     jdouble *logLikelihoods = env->GetDoubleArrayElements(outLogLikelihoods, NULL);
 
-	jint errCode = (jint)calculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights,
+	jint errCode = (jint)beagleCalculateRootLogLikelihoods(instance, (int *)bufferIndices, (double *)weights,
 	                                                (double *)stateFrequencies, (int *)scalingIndices,
 	                                                 count, (double *)logLikelihoods);
 
@@ -409,7 +409,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     jdouble *firstDerivatives = env->GetDoubleArrayElements(outFirstDerivatives, NULL);
     jdouble *secondDerivatives = env->GetDoubleArrayElements(outSecondDerivatives, NULL);
 
-	jint errCode = (jint)calculateEdgeLogLikelihoods(instance, (int *)parentBufferIndices, (int *)childBufferIndices,
+	jint errCode = (jint)beagleCalculateEdgeLogLikelihoods(instance, (int *)parentBufferIndices, (int *)childBufferIndices,
 	                                                    (int *)probabilityIndices, (int *)firstDerivativeIndices,
 	                                                    (int *)secondDerivativeIndices, (double *)weights,
 	                                                    (double *)stateFrequencies,

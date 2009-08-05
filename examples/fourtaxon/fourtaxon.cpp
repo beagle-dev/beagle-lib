@@ -115,7 +115,7 @@ void FourTaxonExample::initBeagleLib()
 	operations.push_back(3);	// right child partial index
 	operations.push_back(3);	// right child transition matrix index
 
-	instance_handle = createInstance(
+	instance_handle = beagleCreateInstance(
 				4,			// tipCount
 				6,			// partialsBufferCount
 				0,			// compactBufferCount
@@ -132,16 +132,16 @@ void FourTaxonExample::initBeagleLib()
 				);
 
 	if (instance_handle < 0)
-		abort("createInstance returned a negative instance handle (and that's not good)");
+		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
         
     BeagleInstanceDetails instDetails;
-    code = initializeInstance(instance_handle, &instDetails);    
+    code = beagleInitializeInstance(instance_handle, &instDetails);    
     if (code != 0) {
-			abort("initializeInstance encountered a problem");
+			abort("beagleInitializeInstance encountered a problem");
     }
         
     int rNumber = instDetails.resourceNumber;
-    BeagleResourceList* rList = BeagleGetResourceList();
+    BeagleResourceList* rList = beagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
@@ -163,16 +163,16 @@ void FourTaxonExample::initBeagleLib()
 
 	for (unsigned i = 0; i < 4; ++i)
 		{
-		code = setTipPartials(
+		code = beagleSetTipPartials(
 						instance_handle,			// instance
 						i,							// bufferIndex
 						&partial[i][0]);			// inPartials
 		if (code != 0)
-			abort("setPartials encountered a problem");
+			abort("beagleSetPartials encountered a problem");
 		}
         
     double rates[1] = { 1.0 };
-    setCategoryRates(instance_handle, rates);
+    beagleSetCategoryRates(instance_handle, rates);
 
 	// JC69 model eigenvector matrix
 	double evec[4 * 4] = {
@@ -193,7 +193,7 @@ void FourTaxonExample::initBeagleLib()
 	// JC69 model eigenvalues
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 
-	code = setEigenDecomposition(
+	code = beagleSetEigenDecomposition(
 			   instance_handle,					// instance
 			   0,								// eigenIndex,
 			   (const double *)evec,			// inEigenVectors,
@@ -201,16 +201,16 @@ void FourTaxonExample::initBeagleLib()
 			   eval);							// inEigenValues
 
 	if (code != 0)
-		abort("setEigenDecomposition encountered a problem");
+		abort("beagleSetEigenDecomposition encountered a problem");
 	}
 
 /*-----------------------------------------------------------------------------
 |	Calculates the log likelihood by calling the beagle functions
-|	updateTransitionMatrices, updatePartials and calculateEdgeLogLikelihoods.
+|	beagleUpdateTransitionMatrices, beagleUpdatePartials and beagleCalculateEdgeLogLikelihoods.
 */
 double FourTaxonExample::calcLnL()
 	{
-	int code = updateTransitionMatrices(
+	int code = beagleUpdateTransitionMatrices(
 			instance_handle,				// instance,
 			0,								// eigenIndex,
 			&transition_matrix_index[0],	// probabilityIndices,
@@ -220,14 +220,14 @@ double FourTaxonExample::calcLnL()
 			5);								// count
 
 	if (code != 0)
-		abort("updateTransitionMatrices encountered a problem");
+		abort("beagleUpdateTransitionMatrices encountered a problem");
         
     int cumulativeScalingFactorIndex = 0;
         
-    resetScaleFactors(instance_handle,
+    beagleResetScaleFactors(instance_handle,
                       cumulativeScalingFactorIndex);
 
-	code = updatePartials(
+	code = beagleUpdatePartials(
 		   &instance_handle,	// instance
 		   1,					// instanceCount
 		   &operations[0],		// operations
@@ -235,7 +235,7 @@ double FourTaxonExample::calcLnL()
 		   cumulativeScalingFactorIndex); // cumulative scale index
 
 	if (code != 0)
-		abort("updatePartials encountered a problem");
+		abort("beagleUpdatePartials encountered a problem");
 
 	int parentBufferIndex = 4;
 	int childBufferIndex  = 5;
@@ -246,7 +246,7 @@ double FourTaxonExample::calcLnL()
 
 	std::vector<double> lnL(nsites);
         
-	code = calculateEdgeLogLikelihoods(
+	code = beagleCalculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
 		 &parentBufferIndex,				// parentBufferIndices
 		 &childBufferIndex,					// childBufferIndices
@@ -262,7 +262,7 @@ double FourTaxonExample::calcLnL()
 		 NULL);								// outSecondDerivatives
 
 	if (code != 0)
-		abort("calculateEdgeLogLikelihoods encountered a problem");
+		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
 
 	return std::accumulate(lnL.begin(), lnL.end(), 0.0);
 	}
@@ -333,11 +333,11 @@ void FourTaxonExample::run()
 		std::cout << std::endl;
 		}
 
-	int code = finalize(
+	int code = beagleFinalizeInstance(
 		instance_handle);		// instance
 
 	if (code != 0)
-		abort("finalize encountered a problem");
+		abort("beagleFinalizeInstance encountered a problem");
 	}
 
 /*-----------------------------------------------------------------------------

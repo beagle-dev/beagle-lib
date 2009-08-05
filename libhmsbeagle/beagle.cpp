@@ -49,7 +49,7 @@ std::list<beagle::BeagleImplFactory*> implFactory;
 
 BeagleResourceList* rsrcList = NULL;
 
-BeagleResourceList* BeagleGetResourceList() {
+BeagleResourceList* beagleGetResourceList() {
     
     if (rsrcList == NULL) {
         rsrcList = (BeagleResourceList*) malloc(sizeof(BeagleResourceList));
@@ -90,7 +90,7 @@ BeagleResourceList* BeagleGetResourceList() {
     return rsrcList;
 }
 
-int createInstance(int tipCount,
+int beagleCreateInstance(int tipCount,
                    int partialsBufferCount,
                    int compactBufferCount,
                    int stateCount,
@@ -105,7 +105,7 @@ int createInstance(int tipCount,
                    long requirementFlags) {
     try {
         if (rsrcList == NULL)
-            BeagleGetResourceList();
+            beagleGetResourceList();
         
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
@@ -156,7 +156,7 @@ int createInstance(int tipCount,
     }
 }
 
-int initializeInstance(int instance,
+int beagleInitializeInstance(int instance,
                        BeagleInstanceDetails* returnInfo) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
@@ -175,7 +175,7 @@ int initializeInstance(int instance,
     }
 }
 
-int finalize(int instance) {
+int beagleFinalizeInstance(int instance) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -195,7 +195,7 @@ int finalize(int instance) {
     }
 }
 
-int setTipStates(int instance,
+int beagleSetTipStates(int instance,
                  int tipIndex,
                  const int* inStates) {
     try {
@@ -216,7 +216,7 @@ int setTipStates(int instance,
     }
 }
 
-int setTipPartials(int instance,
+int beagleSetTipPartials(int instance,
                    int tipIndex,
                    const double* inPartials) {
     try {
@@ -236,7 +236,7 @@ int setTipPartials(int instance,
     }
 }
 
-int setPartials(int instance,
+int beagleSetPartials(int instance,
                 int bufferIndex,
                 const double* inPartials) {
     try {
@@ -256,7 +256,7 @@ int setPartials(int instance,
     }
 }
 
-int getPartials(int instance, int bufferIndex, int scaleIndex, double* outPartials) {
+int beagleGetPartials(int instance, int bufferIndex, int scaleIndex, double* outPartials) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -274,7 +274,7 @@ int getPartials(int instance, int bufferIndex, int scaleIndex, double* outPartia
     }
 }
 
-int setEigenDecomposition(int instance,
+int beagleSetEigenDecomposition(int instance,
                           int eigenIndex,
                           const double* inEigenVectors,
                           const double* inInverseEigenVectors,
@@ -298,7 +298,7 @@ int setEigenDecomposition(int instance,
     }
 }
 
-int setCategoryRates(int instance,
+int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates) {
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
@@ -318,7 +318,7 @@ int setCategoryRates(int instance,
     }
 }
 
-int setTransitionMatrix(int instance,
+int beagleSetTransitionMatrix(int instance,
                         int matrixIndex,
                         const double* inMatrix) {
     try {
@@ -339,7 +339,7 @@ int setTransitionMatrix(int instance,
     }
 }
 
-int updateTransitionMatrices(int instance,
+int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,
                              const int* probabilityIndices,
                              const int* firstDerivativeIndices,
@@ -365,7 +365,7 @@ int updateTransitionMatrices(int instance,
     }
 }
 
-int updatePartials(const int* instanceList,
+int beagleUpdatePartials(const int* instanceList,
                    int instanceCount,
                    const int* operations,
                    int operationCount,
@@ -395,7 +395,7 @@ int updatePartials(const int* instanceList,
     }
 }
 
-int waitForPartials(const int* instanceList,
+int beagleWaitForPartials(const int* instanceList,
                     int instanceCount,
                     const int* destinationPartials,
                     int destinationPartialsCount) {
@@ -425,7 +425,7 @@ int waitForPartials(const int* instanceList,
     }
 }
 
-int accumulateScaleFactors(int instance,
+int beagleAccumulateScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
 						   int cumulativeScalingIndex) {
@@ -446,7 +446,7 @@ int accumulateScaleFactors(int instance,
     }
 }
 
-int removeScaleFactors(int instance,
+int beagleRemoveScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
 						   int cumulativeScalingIndex) {
@@ -467,7 +467,7 @@ int removeScaleFactors(int instance,
     }
 }
 
-int resetScaleFactors(int instance,
+int beagleResetScaleFactors(int instance,
                       int cumulativeScalingIndex) {
     try {        
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
@@ -486,7 +486,7 @@ int resetScaleFactors(int instance,
     }
 }
 
-int calculateRootLogLikelihoods(int instance,
+int beagleCalculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* weights,
                                 const double* stateFrequencies,
@@ -518,7 +518,7 @@ int calculateRootLogLikelihoods(int instance,
 
 }
 
-int calculateEdgeLogLikelihoods(int instance,
+int beagleCalculateEdgeLogLikelihoods(int instance,
                                 const int* parentBufferIndices,
                                 const int* childBufferIndices,
                                 const int* probabilityIndices,
