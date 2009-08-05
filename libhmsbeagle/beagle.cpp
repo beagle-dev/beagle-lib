@@ -57,15 +57,19 @@ ResourceList* getResourceList() {
         
 #if defined(CUDA) || defined(OPENCL)
         GPUInterface* gpu = new GPUInterface;
-        int gpuDeviceCount = gpu->GetDeviceCount();
-        rsrcList->length += gpuDeviceCount;
-        rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
-        for (int i = 0; i < gpuDeviceCount; i++) {
-            char* dName = (char*) malloc(sizeof(char) * 100);
-            gpu->GetDeviceName(i, dName, 100);
-            rsrcList->list[i + 1].name = dName;
-            rsrcList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
-        }   
+        if (gpu->Initialize()) {
+            int gpuDeviceCount = gpu->GetDeviceCount();
+            rsrcList->length += gpuDeviceCount;
+            rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
+            for (int i = 0; i < gpuDeviceCount; i++) {
+                char* dName = (char*) malloc(sizeof(char) * 100);
+                gpu->GetDeviceName(i, dName, 100);
+                rsrcList->list[i + 1].name = dName;
+                rsrcList->list[i + 1].flags = SINGLE | ASYNCH | GPU;
+            }   
+        } else {
+            rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length);             
+        }
         delete gpu;
 #else
         rsrcList->list = (Resource*) malloc(sizeof(Resource) * rsrcList->length); 
@@ -96,26 +100,25 @@ int createInstance(int tipCount,
                    long preferenceFlags,
                    long requirementFlags) {
     try {
+        if (rsrcList == NULL)
+            getResourceList();
+        
         // Set-up a list of implementation factories in trial-order
         if (implFactory.size() == 0) {
 #if defined(CUDA) || defined(OPENCL)
-            implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
+            if (rsrcList->length > 1)
+                implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
 #endif
             implFactory.push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
             implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
         }
-
-        if (resourceList != NULL && rsrcList == NULL)
-            getResourceList();
         
         // Try each implementation
         for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
             
-            if ((*factory)->getName() == "GPU" && (!(resourceList == NULL ||
-                (resourceList[0] < rsrcList->length
-                 && rsrcList->list[resourceList[0]].flags & GPU))
-                || preferenceFlags & CPU || requirementFlags & CPU))
+            if ((*factory)->getName() == "GPU" && (!(resourceList == NULL || (resourceList[0] < rsrcList->length
+                 && rsrcList->list[resourceList[0]].flags & GPU)) || preferenceFlags & CPU || requirementFlags & CPU))
                 continue;
             
             fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());

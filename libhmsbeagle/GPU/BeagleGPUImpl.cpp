@@ -146,6 +146,8 @@ int BeagleGPUImpl::initializeInstance(InstanceDetails* returnInfo) {
     
     gpu = new GPUInterface();
     
+    gpu->Initialize();
+    
     int numDevices = 0;
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
