@@ -112,9 +112,10 @@ int createInstance(int tipCount,
         for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
             factory != implFactory.end(); factory++) {
             
-            if ((*factory)->getName() == "GPU" && !(resourceList == NULL ||
+            if ((*factory)->getName() == "GPU" && (!(resourceList == NULL ||
                 (resourceList[0] < rsrcList->length
-                 && rsrcList->list[resourceList[0]].flags & GPU)))
+                 && rsrcList->list[resourceList[0]].flags & GPU))
+                || preferenceFlags & CPU || requirementFlags & CPU))
                 continue;
             
             fprintf(stderr, "BEAGLE bootstrap: %s - ", (*factory)->getName());
