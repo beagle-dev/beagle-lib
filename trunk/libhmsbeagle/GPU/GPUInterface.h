@@ -49,6 +49,8 @@ public:
     GPUInterface();
     
     ~GPUInterface();
+    
+    int Initialize();
 
     int GetDeviceCount();
 

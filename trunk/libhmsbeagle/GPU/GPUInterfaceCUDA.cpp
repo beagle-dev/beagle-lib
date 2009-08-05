@@ -39,9 +39,6 @@ GPUInterface::GPUInterface() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::GPUInterface\n");
 #endif    
     
-    // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
-    SAFE_CUDA(cuInit(0));
-    
     cudaDevice = NULL;
     cudaContext = NULL;
     cudaModule = NULL;
@@ -65,6 +62,31 @@ GPUInterface::~GPUInterface() {
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::~GPUInterface\n");
 #endif    
     
+}
+
+int GPUInterface::Initialize() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::Initialize\n");
+#endif    
+    
+    // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
+    CUresult error = cuInit(0);
+    
+    int returnValue = 1;
+    
+    if (error == CUDA_ERROR_NO_DEVICE) {
+        returnValue = 0;
+    } else if (error != CUDA_SUCCESS) {
+        fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n",
+                GetCUDAErrorDescription(error), __FILE__, __LINE__);
+        exit(-1);
+    }
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
+#endif    
+    
+    return returnValue;
 }
 
 int GPUInterface::GetDeviceCount() {
