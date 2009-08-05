@@ -37,6 +37,9 @@ public class BeagleFactory {
         }
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
+
+            int[] resourceList = new int[] { 0 }; // 0 = CPU, > 0 are CUDA-devises
+
             return new BeagleJNIImpl(
                     tipCount,
                     partialsBufferCount,
@@ -47,7 +50,7 @@ public class BeagleFactory {
                     matrixBufferCount,
                     categoryCount,
                     scaleBufferCount,
-                    new int[] { 0 },
+                    resourceList,
                     1,
                     0
             );
