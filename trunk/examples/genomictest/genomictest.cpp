@@ -33,7 +33,7 @@ void runBeagle(int resource)
     int stateCount = 4;
 
     // create an instance of the BEAGLE library
-	int instance = createInstance(
+	int instance = beagleCreateInstance(
 			    ntaxa,			/**< Number of tip data elements (input) */
 				2*ntaxa-1,	        /**< Number of partials buffers to create (input) */
 				0,		        /**< Number of compact state representation buffers to create (input) */
@@ -55,7 +55,7 @@ void runBeagle(int resource)
 
     // initialize the instance
     BeagleInstanceDetails instDetails;
-    int error = initializeInstance(instance, &instDetails);
+    int error = beagleInitializeInstance(instance, &instDetails);
 	
     if (error < 0) {
 	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
@@ -63,7 +63,7 @@ void runBeagle(int resource)
     }
         
     int rNumber = instDetails.resourceNumber;
-    BeagleResourceList* rList = BeagleGetResourceList();
+    BeagleResourceList* rList = beagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
@@ -73,11 +73,11 @@ void runBeagle(int resource)
 	srand(42);	// fix the random seed...
 	for(int i=0; i<ntaxa; i++)
 	{
-		setTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
+		beagleSetTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
 	}
     
 	double rates[1] = { 1.0 };
-	setCategoryRates(instance, rates);
+	beagleSetCategoryRates(instance, rates);
 	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
@@ -103,7 +103,7 @@ void runBeagle(int resource)
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
 
     // set the Eigen decomposition
-	setEigenDecomposition(instance, 0, evec, ivec, eval);
+	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
 
     // a list of indices and edge lengths
 	int* nodeIndices = new int[ntaxa*2-2];
@@ -112,7 +112,7 @@ void runBeagle(int resource)
 	for(int i=0; i<ntaxa*2-2; i++) edgeLengths[i]=0.1;
 
     // tell BEAGLE to populate the transition matrices for the above edge lengths
-	updateTransitionMatrices(instance,     // instance
+	beagleUpdateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices
 	                         NULL,          // firstDerivativeIndices
@@ -143,7 +143,7 @@ void runBeagle(int resource)
 	gettimeofday(&start,NULL);
 
     // update the partials
-	updatePartials( &instance,      // instance
+	beagleUpdatePartials( &instance,      // instance
 	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
@@ -156,17 +156,17 @@ void runBeagle(int resource)
     
     int cumulativeScalingFactorIndex = 0;
 
-    resetScaleFactors(instance,
+    beagleResetScaleFactors(instance,
                            cumulativeScalingFactorIndex);
     
-    accumulateScaleFactors(instance,
+    beagleAccumulateScaleFactors(instance,
                            scalingFactorsIndices,
                            scalingFactorsCount,
                            cumulativeScalingFactorIndex);
 
     
     // calculate the site likelihoods at the root node
-	calculateRootLogLikelihoods(instance,               // instance
+	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                 // stateFrequencies
@@ -186,14 +186,14 @@ void runBeagle(int resource)
 	fprintf(stdout, "logL = %.5f \n", logL);
 	double timediff =  end.tv_sec - start.tv_sec + (double)(end.tv_usec-start.tv_usec)/1000000.0;
 	std::cout << "Took " << timediff << " seconds\n\n";
-	finalize(instance);
+	beagleFinalizeInstance(instance);
 }
 
 int main( int argc, const char* argv[] )
 {
 	std::cout << "Simulating genomic DNA with " << ntaxa << " taxa and " << nsites << " site patterns\n";
 
-	BeagleResourceList* rl = BeagleGetResourceList();
+	BeagleResourceList* rl = beagleGetResourceList();
 	if(rl != NULL){
 		for(int i=0; i<rl->length; i++){
 			runBeagle(i);

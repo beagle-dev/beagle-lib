@@ -89,7 +89,7 @@ int main( int argc, const char* argv[] )
 {
     // print resource list
     BeagleResourceList* rList;
-    rList = BeagleGetResourceList();
+    rList = beagleGetResourceList();
     fprintf(stdout, "Available resources:\n");
     for (int i = 0; i < rList->length; i++) {
         fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
@@ -115,7 +115,7 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human);
     
     // create an instance of the BEAGLE library
-	int instance = createInstance(
+	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
                                   5,	            /**< Number of partials buffers to create (input) */
                                   0,		        /**< Number of compact state representation buffers to create (input) */
@@ -137,7 +137,7 @@ int main( int argc, const char* argv[] )
     
     // initialize the instance
     BeagleInstanceDetails instDetails;
-    int error = initializeInstance(instance, &instDetails);
+    int error = beagleInitializeInstance(instance, &instDetails);
 	
     if (error < 0) {
 	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
@@ -161,17 +161,17 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\n\n");
     
     
-//    setTipStates(instance, 0, getStates(human));
-//    setTipStates(instance, 1, getStates(chimp));
-//    setTipStates(instance, 2, getStates(gorilla));
+//    beagleSetTipStates(instance, 0, getStates(human));
+//    beagleSetTipStates(instance, 1, getStates(chimp));
+//    beagleSetTipStates(instance, 2, getStates(gorilla));
     
     // set the sequences for each tip using partial likelihood arrays
-	setTipPartials(instance, 0, getPartials(human));
-	setTipPartials(instance, 1, getPartials(chimp));
-	setTipPartials(instance, 2, getPartials(gorilla));
+	beagleSetTipPartials(instance, 0, getPartials(human));
+	beagleSetTipPartials(instance, 1, getPartials(chimp));
+	beagleSetTipPartials(instance, 2, getPartials(gorilla));
     
 	double rates[1] = { 1.0 };
-	setCategoryRates(instance, rates);
+	beagleSetCategoryRates(instance, rates);
 	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
@@ -197,14 +197,14 @@ int main( int argc, const char* argv[] )
 	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
     
     // set the Eigen decomposition
-	setEigenDecomposition(instance, 0, evec, ivec, eval);
+	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
     // a list of indices and edge lengths
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
     
     // tell BEAGLE to populate the transition matrices for the above edge lengths
-	updateTransitionMatrices(instance,     // instance
+	beagleUpdateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices
 	                         NULL,          // firstDerivativeIndices
@@ -221,7 +221,7 @@ int main( int argc, const char* argv[] )
 	int rootIndex = 4;
     
     // update the partials
-	updatePartials(&instance,      // instance
+	beagleUpdatePartials(&instance,      // instance
                    1,              // instanceCount
                    operations,     // eigenIndex
                    2,              // operationCount
@@ -232,7 +232,7 @@ int main( int argc, const char* argv[] )
     int cumulativeScalingIndex = BEAGLE_OP_NONE;
     
     // calculate the site likelihoods at the root node
-	calculateRootLogLikelihoods(instance,               // instance
+	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                  // stateFrequencies
@@ -248,6 +248,6 @@ int main( int argc, const char* argv[] )
     
 	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
     
-    finalize(instance);
+    beagleFinalizeInstance(instance);
     
 }

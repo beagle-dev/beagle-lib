@@ -76,7 +76,7 @@ enum BeagleFlags {
  * This enumerates all possible BEAGLE operation codes.
  */
 enum BeagleOpCodes {
-	BEAGLE_OP_COUNT    = 7,	/**< Total number of integers per updatePartials operation */
+	BEAGLE_OP_COUNT    = 7,	/**< Total number of integers per beagleUpdatePartials operation */
 	BEAGLE_OP_NONE     = -1	/**< Specify no use for indexed buffer */
 };
 
@@ -120,7 +120,7 @@ extern "C" {
  *
  * @return A list of resources available to the library as a ResourceList array
  */
-BeagleResourceList* BeagleGetResourceList();
+BeagleResourceList* beagleGetResourceList();
 
 /**
  * @brief Create a single instance
@@ -150,7 +150,7 @@ BeagleResourceList* BeagleGetResourceList();
  * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
  * "BeagleReturnCodes")
  */
-int createInstance(int tipCount,
+int beagleCreateInstance(int tipCount,
                    int partialsBufferCount,
                    int compactBufferCount,
                    int stateCount,
@@ -175,7 +175,7 @@ int createInstance(int tipCount,
  *
  * @returns Information about the implementation and hardware on which this instance will run
  */
-int initializeInstance(int instance,
+int beagleInitializeInstance(int instance,
                        BeagleInstanceDetails* returnInfo);
 
 /**
@@ -187,7 +187,7 @@ int initializeInstance(int instance,
  *
  * @return error code
  */
-int finalize(int instance);
+int beagleFinalizeInstance(int instance);
 
 /**
  * @brief Set the compact state representation for tip node
@@ -203,7 +203,7 @@ int finalize(int instance);
  *
  * @return error code
  */
-int setTipStates(int instance,
+int beagleSetTipStates(int instance,
                  int tipIndex,
                  const int* inStates);
 
@@ -221,7 +221,7 @@ int setTipStates(int instance,
  *
  * @return error code
  */
-int setTipPartials(int instance,
+int beagleSetTipPartials(int instance,
                    int tipIndex,
                    const double* inPartials);
 
@@ -237,7 +237,7 @@ int setTipPartials(int instance,
  *
  * @return error code
  */
-int setPartials(int instance,
+int beagleSetPartials(int instance,
                 int bufferIndex,
                 const double* inPartials);
 
@@ -254,7 +254,7 @@ int setPartials(int instance,
  *
  * @return error code
  */
-int getPartials(int instance,
+int beagleGetPartials(int instance,
                 int bufferIndex,
                 int scaleIndex,
                 double* outPartials);
@@ -273,7 +273,7 @@ int getPartials(int instance,
  *
  * @return error code
  */
-int setEigenDecomposition(int instance,
+int beagleSetEigenDecomposition(int instance,
                           int eigenIndex,
                           const double* inEigenVectors,
                           const double* inInverseEigenVectors,
@@ -289,7 +289,7 @@ int setEigenDecomposition(int instance,
  *
  * @return error code
  */
-int setCategoryRates(int instance,
+int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates);
 
 /**
@@ -311,7 +311,7 @@ int setCategoryRates(int instance,
  *
  * @return error code
  */
-int updateTransitionMatrices(int instance,
+int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,
                              const int* probabilityIndices,
                              const int* firstDerivativeIndices,
@@ -324,7 +324,7 @@ int updateTransitionMatrices(int instance,
  *
  * This function copies a finite-time transition probability matrix into a matrix buffer. This function
  * is used when the application wishes to explicitly set the transition probability matrix rather than
- * using the setEigenDecomposition and updateTransitionMatrices functions. The inMatrix array should be
+ * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
  *
  * @param instance      Instance number (input)
@@ -333,7 +333,7 @@ int updateTransitionMatrices(int instance,
  *
  * @return error code
  */
-int setTransitionMatrix(int instance,
+int beagleSetTransitionMatrix(int instance,
                         int matrixIndex,
                         const double* inMatrix);
 
@@ -362,7 +362,7 @@ int setTransitionMatrix(int instance,
  *
  * @return error code
  */
-int updatePartials(const int* instance,
+int beagleUpdatePartials(const int* instance,
                    int instanceCount,
                    const int* operations,
                    int operationCount,
@@ -373,8 +373,8 @@ int updatePartials(const int* instance,
  *
  * This function is optional and only has to be called by clients that "recycle" partials.
  *
- * If used, this function must be called after an updatePartials call and must refer to
- * indices of "destinationPartials" that were used in a previous updatePartials
+ * If used, this function must be called after an beagleUpdatePartials call and must refer to
+ * indices of "destinationPartials" that were used in a previous beagleUpdatePartials
  * call.  The library will block until those partials have been calculated.
  *
  * @param instance                  List of instances for which to update partials buffers (input)
@@ -385,7 +385,7 @@ int updatePartials(const int* instance,
  *
  * @return error code
  */
-int waitForPartials(const int* instance,
+int beagleWaitForPartials(const int* instance,
                     int instanceCount,
                     const int* destinationPartials,
                     int destinationPartialsCount);
@@ -401,7 +401,7 @@ int waitForPartials(const int* instance,
  * @param count                     Number of scaleBuffers in list (input)
  * @param cumulativeScaleIndex    Index number of scaleBuffer to accumulate factors into (input)
  */
-int accumulateScaleFactors(int instance,
+int beagleAccumulateScaleFactors(int instance,
                            const int* scaleIndices,
 					       int count,
 					       int cumulativeScaleIndex);
@@ -417,7 +417,7 @@ int accumulateScaleFactors(int instance,
  * @param count                     Number of scaleBuffers in list (input)
  * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
  */
-int removeScaleFactors(int instance,
+int beagleRemoveScaleFactors(int instance,
                        const int* scaleIndices,
                        int count,
                        int cumulativeScaleIndex);
@@ -430,7 +430,7 @@ int removeScaleFactors(int instance,
  * @param instance                  Instance number (input)
  * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
  */
-int resetScaleFactors(int instance,
+int beagleResetScaleFactors(int instance,
                       int cumulativeScaleIndex);
 
 /**
@@ -453,7 +453,7 @@ int resetScaleFactors(int instance,
  *
  * @return error code
  */
-int calculateRootLogLikelihoods(int instance,
+int beagleCalculateRootLogLikelihoods(int instance,
                                 const int* bufferIndices,
                                 const double* inWeights,
                                 const double* inStateFrequencies,
@@ -487,7 +487,7 @@ int calculateRootLogLikelihoods(int instance,
  *
  * @return error code
  */
-int calculateEdgeLogLikelihoods(int instance,
+int beagleCalculateEdgeLogLikelihoods(int instance,
                                 const int* parentBufferIndices,
                                 const int* childBufferIndices,
                                 const int* probabilityIndices,
