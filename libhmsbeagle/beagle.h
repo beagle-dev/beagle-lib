@@ -43,9 +43,9 @@ enum BeagleReturnCodes {
     BEAGLE_ERROR_OUT_OF_MEMORY          = -2,  /**< Not enough memory could be allocated */
     BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION = -3,  /**< Unspecified exception */
     BEAGLE_ERROR_UNINITIALIZED_INSTANCE = -4,  /**< The instance index is out of range,
-                                          *   or the instance has not been created */
+                                                *   or the instance has not been created */
     BEAGLE_ERROR_OUT_OF_RANGE           = -5   /**< One of the indices specified exceeded the range of the
-                                          *   array */
+                                                *   array */
 };
 
 /**
@@ -86,7 +86,7 @@ enum BeagleOpCodes {
 typedef struct {
     int resourceNumber; /**< Resource upon which instance is running */
     long flags;         /**< Bit-flags that characterize the activate
-                          *   capabilities of the resource for this instance */
+                         *   capabilities of the resource for this instance */
 } BeagleInstanceDetails;
 
 /**
@@ -112,7 +112,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+    
 /**
  * @brief
  *
@@ -151,18 +151,18 @@ BeagleResourceList* beagleGetResourceList();
  * "BeagleReturnCodes")
  */
 int beagleCreateInstance(int tipCount,
-                   int partialsBufferCount,
-                   int compactBufferCount,
-                   int stateCount,
-                   int patternCount,
-                   int eigenBufferCount,
-                   int matrixBufferCount,
-                   int categoryCount,
-                   int scaleBufferCount,
-                   int* resourceList,
-                   int resourceCount,
-                   long preferenceFlags,
-                   long requirementFlags);
+                         int partialsBufferCount,
+                         int compactBufferCount,
+                         int stateCount,
+                         int patternCount,
+                         int eigenBufferCount,
+                         int matrixBufferCount,
+                         int categoryCount,
+                         int scaleBufferCount,
+                         int* resourceList,
+                         int resourceCount,
+                         long preferenceFlags,
+                         long requirementFlags);
 
 /**
  * @brief Initialize the instance
@@ -176,7 +176,7 @@ int beagleCreateInstance(int tipCount,
  * @returns Information about the implementation and hardware on which this instance will run
  */
 int beagleInitializeInstance(int instance,
-                       BeagleInstanceDetails* returnInfo);
+                             BeagleInstanceDetails* returnInfo);
 
 /**
  * @brief Finalize this instance
@@ -204,8 +204,8 @@ int beagleFinalizeInstance(int instance);
  * @return error code
  */
 int beagleSetTipStates(int instance,
-                 int tipIndex,
-                 const int* inStates);
+                       int tipIndex,
+                       const int* inStates);
 
 /**
  * @brief Set an instance partials buffer for tip node
@@ -222,8 +222,8 @@ int beagleSetTipStates(int instance,
  * @return error code
  */
 int beagleSetTipPartials(int instance,
-                   int tipIndex,
-                   const double* inPartials);
+                         int tipIndex,
+                         const double* inPartials);
 
 /**
  * @brief Set an instance partials buffer
@@ -238,8 +238,8 @@ int beagleSetTipPartials(int instance,
  * @return error code
  */
 int beagleSetPartials(int instance,
-                int bufferIndex,
-                const double* inPartials);
+                      int bufferIndex,
+                      const double* inPartials);
 
 /**
  * @brief Get partials from an instance buffer
@@ -255,9 +255,9 @@ int beagleSetPartials(int instance,
  * @return error code
  */
 int beagleGetPartials(int instance,
-                int bufferIndex,
-                int scaleIndex,
-                double* outPartials);
+                      int bufferIndex,
+                      int scaleIndex,
+                      double* outPartials);
 
 /**
  * @brief Set an eigen-decomposition buffer
@@ -274,10 +274,10 @@ int beagleGetPartials(int instance,
  * @return error code
  */
 int beagleSetEigenDecomposition(int instance,
-                          int eigenIndex,
-                          const double* inEigenVectors,
-                          const double* inInverseEigenVectors,
-                          const double* inEigenValues);
+                                int eigenIndex,
+                                const double* inEigenVectors,
+                                const double* inInverseEigenVectors,
+                                const double* inEigenValues);
 
 /**
  * @brief Set category rates
@@ -290,7 +290,7 @@ int beagleSetEigenDecomposition(int instance,
  * @return error code
  */
 int beagleSetCategoryRates(int instance,
-                     const double* inCategoryRates);
+                           const double* inCategoryRates);
 
 /**
  * @brief Calculate a list of transition probability matrices
@@ -312,12 +312,12 @@ int beagleSetCategoryRates(int instance,
  * @return error code
  */
 int beagleUpdateTransitionMatrices(int instance,
-                             int eigenIndex,
-                             const int* probabilityIndices,
-                             const int* firstDerivativeIndices,
-                             const int* secondDervativeIndices,
-                             const double* edgeLengths,
-                             int count);
+                                   int eigenIndex,
+                                   const int* probabilityIndices,
+                                   const int* firstDerivativeIndices,
+                                   const int* secondDervativeIndices,
+                                   const double* edgeLengths,
+                                   int count);
 
 /**
  * @brief Set a finite-time transition probability matrix
@@ -334,8 +334,8 @@ int beagleUpdateTransitionMatrices(int instance,
  * @return error code
  */
 int beagleSetTransitionMatrix(int instance,
-                        int matrixIndex,
-                        const double* inMatrix);
+                              int matrixIndex,
+                              const double* inMatrix);
 
 /**
  * @brief Calculate or queue for calculation partials using a list of operations
@@ -363,10 +363,10 @@ int beagleSetTransitionMatrix(int instance,
  * @return error code
  */
 int beagleUpdatePartials(const int* instance,
-                   int instanceCount,
-                   const int* operations,
-                   int operationCount,
-                   int cumulativeScaleIndex);
+                         int instanceCount,
+                         const int* operations,
+                         int operationCount,
+                         int cumulativeScaleIndex);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.
@@ -386,9 +386,9 @@ int beagleUpdatePartials(const int* instance,
  * @return error code
  */
 int beagleWaitForPartials(const int* instance,
-                    int instanceCount,
-                    const int* destinationPartials,
-                    int destinationPartialsCount);
+                          int instanceCount,
+                          const int* destinationPartials,
+                          int destinationPartialsCount);
 
 /**
  * @brief Accumulate scale factors
@@ -399,12 +399,12 @@ int beagleWaitForPartials(const int* instance,
  * @param instance                  Instance number (input)
  * @param scaleIndices            	List of scaleBuffers to add (input)
  * @param count                     Number of scaleBuffers in list (input)
- * @param cumulativeScaleIndex    Index number of scaleBuffer to accumulate factors into (input)
+ * @param cumulativeScaleIndex      Index number of scaleBuffer to accumulate factors into (input)
  */
 int beagleAccumulateScaleFactors(int instance,
-                           const int* scaleIndices,
-					       int count,
-					       int cumulativeScaleIndex);
+                                 const int* scaleIndices,
+                                 int count,
+                                 int cumulativeScaleIndex);
 
 /**
  * @brief Remove scale factors
@@ -418,9 +418,9 @@ int beagleAccumulateScaleFactors(int instance,
  * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
  */
 int beagleRemoveScaleFactors(int instance,
-                       const int* scaleIndices,
-                       int count,
-                       int cumulativeScaleIndex);
+                             const int* scaleIndices,
+                             int count,
+                             int cumulativeScaleIndex);
 
 /**
  * @brief Reset scalefactors
@@ -431,7 +431,7 @@ int beagleRemoveScaleFactors(int instance,
  * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
  */
 int beagleResetScaleFactors(int instance,
-                      int cumulativeScaleIndex);
+                            int cumulativeScaleIndex);
 
 /**
  * @brief Calculate site log likelihoods at a root node
@@ -439,27 +439,28 @@ int beagleResetScaleFactors(int instance,
  * This function integrates a list of partials at a node with respect to a set of partials-weights
  * and state frequencies to return the log likelihoods for each site
  *
- * @param instance              Instance number (input)
- * @param bufferIndices         List of partialsBuffer indices to integrate (input)
- * @param inWeights             List of weights to apply to each partialsBuffer (input). There
- *                               should be one categoryCount sized set for each of
- *                               parentBufferIndices
- * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
- *                               should be one set for each of parentBufferIndices
- * @param scaleFactorsIndices 	List of scaleBuffers to apply to each partialsBuffer (input). There
- *                               should be one index for each of parentBufferIndices
- * @param count                 Number of partialsBuffer to integrate (input)
- * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
+ * @param instance               Instance number (input)
+ * @param bufferIndices          List of partialsBuffer indices to integrate (input)
+ * @param inWeights              List of weights to apply to each partialsBuffer (input). There
+ *                                should be one categoryCount sized set for each of
+ *                                parentBufferIndices
+ * @param inStateFrequencies     List of state frequencies for each partialsBuffer (input). There
+ *                                should be one set for each of parentBufferIndices
+ * @param cumulativeScaleIndices List of scaleBuffers containing accumulated factors to apply to
+ *                                each partialsBuffer (input). There should be one index for each
+ *                                of parentBufferIndices
+ * @param count                  Number of partialsBuffer to integrate (input)
+ * @param outLogLikelihoods      Pointer to destination for resulting log likelihoods (output)
  *
  * @return error code
  */
 int beagleCalculateRootLogLikelihoods(int instance,
-                                const int* bufferIndices,
-                                const double* inWeights,
-                                const double* inStateFrequencies,
-                                const int* scaleFactorsIndices,
-                                int count,
-                                double* outLogLikelihoods);
+                                      const int* bufferIndices,
+                                      const double* inWeights,
+                                      const double* inStateFrequencies,
+                                      const int* cumulativeScaleIndices,
+                                      int count,
+                                      double* outLogLikelihoods);
 
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
@@ -478,8 +479,9 @@ int beagleCalculateRootLogLikelihoods(int instance,
  * @param inWeights                 List of weights to apply to each partialsBuffer (input)
  * @param inStateFrequencies        List of state frequencies for each partialsBuffer (input). There
  *                                   should be one set for each of parentBufferIndices
- * @param scaleFactorsIndices     	List of scaleBuffers to apply to each partialsBuffer (input). There
- *                                   should be one index for each of parentBufferIndices
+ * @param cumulativeScaleIndices    List of scaleBuffers containing accumulated factors to apply to
+ *                                   each partialsBuffer (input). There should be one index for each
+ *                                   of parentBufferIndices
  * @param count                     Number of partialsBuffers (input)
  * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
  * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
@@ -488,18 +490,18 @@ int beagleCalculateRootLogLikelihoods(int instance,
  * @return error code
  */
 int beagleCalculateEdgeLogLikelihoods(int instance,
-                                const int* parentBufferIndices,
-                                const int* childBufferIndices,
-                                const int* probabilityIndices,
-                                const int* firstDerivativeIndices,
-                                const int* secondDerivativeIndices,
-                                const double* inWeights,
-                                const double* inStateFrequencies,
-                                const int* scaleFactorsIndices,
-                                int count,
-                                double* outLogLikelihoods,
-                                double* outFirstDerivatives,
-                                double* outSecondDerivatives);
+                                      const int* parentBufferIndices,
+                                      const int* childBufferIndices,
+                                      const int* probabilityIndices,
+                                      const int* firstDerivativeIndices,
+                                      const int* secondDerivativeIndices,
+                                      const double* inWeights,
+                                      const double* inStateFrequencies,
+                                      const int* cumulativeScaleIndices,
+                                      int count,
+                                      double* outLogLikelihoods,
+                                      double* outFirstDerivatives,
+                                      double* outSecondDerivatives);
 
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (closing brace)
