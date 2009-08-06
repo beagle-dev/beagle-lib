@@ -40,6 +40,26 @@ public class ResourceDetails {
         this.flags = flags;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("").append(getNumber()).append(" : ").append(getName()).append("\n");
+        String[] description = getDescription().split("\\|");
+        for (String desc : description) {
+            if (desc.trim().length() > 0) {
+                sb.append("    ").append(desc.trim()).append("\n");
+            }
+        }
+        sb.append("    Flags:");
+        for (BeagleFlag flag : BeagleFlag.values()) {
+            if (flag.isSet(getFlags())) {
+                sb.append(" ").append(flag.name());
+            }
+        }
+        sb.append("\n");
+        return sb.toString();
+    }
+
     private final int number;
     private String name;
     private String description;

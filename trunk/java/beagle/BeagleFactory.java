@@ -3,6 +3,8 @@
  */
 package beagle;
 
+import java.util.*;
+
 /**
  * @author Marc Suchard
  * @author Andrew Rambaut
@@ -10,18 +12,18 @@ package beagle;
  */
 public class BeagleFactory {
 
-    public static ResourceDetails[] getResourceDetails() {
-        if (BeagleJNIWrapper.INSTANCE == null) {
-            try {
-                BeagleJNIWrapper.loadBeagleLibrary();
-                System.err.println("BEAGLE library loaded");
+    private static Map<Integer, ResourceDetails> resourceDetailsMap = new HashMap<Integer, ResourceDetails>();
 
-            } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
-            }
-        }
+    public static List<ResourceDetails> getResourceDetails() {
+        getBeagleJNIWrapper();
 
-        return BeagleJNIWrapper.INSTANCE.getResourceList();
+        return new ArrayList<ResourceDetails>(resourceDetailsMap.values());
+    }
+
+    public static ResourceDetails getResourceDetails(int resourceNumber) {
+        getBeagleJNIWrapper();
+
+        return resourceDetailsMap.get(resourceNumber);
     }
 
     public static Beagle loadBeagleInstance(
@@ -38,15 +40,7 @@ public class BeagleFactory {
 
         boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
 
-        if (BeagleJNIWrapper.INSTANCE == null) {
-            try {
-                BeagleJNIWrapper.loadBeagleLibrary();
-                System.err.println("BEAGLE library loaded");
-
-            } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
-            }
-        }
+        getBeagleJNIWrapper();
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
 
@@ -96,6 +90,25 @@ public class BeagleFactory {
                 scaleBufferCount
         );
     }
+
+    private static BeagleJNIWrapper getBeagleJNIWrapper() {
+        if (BeagleJNIWrapper.INSTANCE == null) {
+            try {
+                BeagleJNIWrapper.loadBeagleLibrary();
+                // System.err.println("BEAGLE library loaded");
+
+            } catch (UnsatisfiedLinkError ule) {
+                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
+            }
+
+            for (ResourceDetails details : BeagleJNIWrapper.INSTANCE.getResourceList()) {
+                resourceDetailsMap.put(details.getNumber(), details);
+            }
+        }
+
+        return BeagleJNIWrapper.INSTANCE;
+    }
+
 
     // Code and constants for test main()
 
@@ -204,7 +217,7 @@ public class BeagleFactory {
             }
         }
         System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
-        
+
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
