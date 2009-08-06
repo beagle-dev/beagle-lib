@@ -130,31 +130,7 @@ public:
                          int patternCount,
                          int categoryCount,
                          int fillWithOnes);
-    
-    void PartialsPartialsPruning(GPUPtr partials1,
-                                 GPUPtr partials2,
-                                 GPUPtr partials3,
-                                 GPUPtr matrices1,
-                                 GPUPtr matrices2,
-                                 const unsigned int patternCount,
-                                 const unsigned int categoryCount);
-    
-    void StatesPartialsPruning(GPUPtr states1,
-                               GPUPtr partials2,
-                               GPUPtr partials3,
-                               GPUPtr matrices1,
-                               GPUPtr matrices2,
-                               const unsigned int patternCount,
-                               const unsigned int categoryCount);
-    
-    void StatesStatesPruning(GPUPtr states1,
-                             GPUPtr states2,
-                             GPUPtr partials3,
-                             GPUPtr matrices1,
-                             GPUPtr matrices2,
-                             const unsigned int patternCount,
-                             const unsigned int categoryCount);
-    
+        
     void IntegrateLikelihoods(GPUPtr dResult,
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,

@@ -43,6 +43,12 @@ GPUInterface::~GPUInterface() {
     SAFE_CL(clReleaseContext(openClContext));
 }
 
+int GPUInterface::Initialize() {
+    // TODO: check for devices and return 0 if none;
+    
+    return 1;
+}
+
 int GPUInterface::GetDeviceCount() {        
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, NULL, NULL,
                            &openClNumDevices));
