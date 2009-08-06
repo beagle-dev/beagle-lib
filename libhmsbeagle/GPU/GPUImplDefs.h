@@ -15,8 +15,6 @@
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
 
-#define DYNAMIC_SCALING
-
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
     #define REAL    double

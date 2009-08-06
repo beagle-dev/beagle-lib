@@ -42,9 +42,7 @@ BeagleGPUImpl::~BeagleGPUImpl() {
     free(dCompactBuffers);
     free(dMatrices);
     
-#ifdef DYNAMIC_SCALING
     free(dScalingFactors);
-#endif
     
     free(hDistanceQueue);
     free(hPtrQueue);
@@ -122,10 +120,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
 	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
 #endif
-    
-    hTmpTipPartials = (REAL**) calloc(sizeof(REAL*), kTipCount);
-    hTmpStates = (int**) calloc(sizeof(int*), kTipCount);
-    
+        
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
     
@@ -190,11 +185,9 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
-#ifdef DYNAMIC_SCALING
     dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
     for (int i=0; i < kScaleBufferCount; i++)
     	dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
-#endif
     
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
@@ -234,32 +227,6 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
 	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
     checkHostMemory(hCategoryRates);
     
-    // loadTipPartialsAndStates
-    for (int i = 0; i < kTipCount; i++) {
-        if (hTmpTipPartials[i] != 0) {
-            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex < 
-                   kTipPartialsBufferCount);
-            dPartials[i] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
-            gpu->MemcpyHostToDevice(dPartials[i], hTmpTipPartials[i], SIZE_REAL * kPartialsSize);
-        } else if (hTmpStates[i] != 0) {
-            assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-            dStates[i] = dCompactBuffers[kLastCompactBufferIndex--];
-            gpu->MemcpyHostToDevice(dStates[i], hTmpStates[i], SIZE_INT * kPaddedPatternCount);
-        }
-    }
-    
-    // freeTmpTipPartialsAndStates
-    for (int i = 0; i < kTipCount; i++) {
-        if (hTmpTipPartials[i] != 0)
-            free(hTmpTipPartials[i]);
-        else if (hTmpStates[i] != 0)
-            free(hTmpStates[i]);
-    }
-    free(hTmpTipPartials);
-    free(hTmpStates);
-    
-    kDeviceMemoryAllocated = 1;
-    
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = currentDevice + 1;
         returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
@@ -290,16 +257,10 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     for(int i = kPatternCount; i < kPaddedPatternCount; i++)
         hStatesCache[i] = kPaddedStateCount;
     
-    if (kDeviceMemoryAllocated) {
-        assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
-        // Copy to GPU device
-        gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
-    } else {
-        hTmpStates[tipIndex] = (int*) malloc(SIZE_INT * kPaddedPatternCount);
-        checkHostMemory(hTmpStates[tipIndex]);
-        memcpy(hTmpStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
-    }
+    assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
+    dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
+    // Copy to GPU device
+    gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipStates\n");
@@ -334,19 +295,13 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
         memcpy(hPartialsCache + i * partialsLength, hPartialsCache, partialsLength * SIZE_REAL);
     }    
     
-    if (kDeviceMemoryAllocated) {
-        if (tipIndex < kTipCount) {
-            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
-                   kTipPartialsBufferCount);
-            dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
-        }
-        // Copy to GPU device
-        gpu->MemcpyHostToDevice(dPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
-    } else {
-        hTmpTipPartials[tipIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
-        checkHostMemory(hTmpTipPartials[tipIndex]);
-        memcpy(hTmpTipPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+    if (tipIndex < kTipCount) {
+        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+               kTipPartialsBufferCount);
+        dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
     }
+    // Copy to GPU device
+    gpu->MemcpyHostToDevice(dPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTipPartials\n");
@@ -378,19 +333,13 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
         }
     }
     
-    if (kDeviceMemoryAllocated) {
-        if (bufferIndex < kTipCount) {
-            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
-                   kTipPartialsBufferCount);
-            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
-        }
-        // Copy to GPU device
-        gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
-    } else {
-        hTmpTipPartials[bufferIndex] = (REAL*) malloc(SIZE_REAL * kPartialsSize);
-        checkHostMemory(hTmpTipPartials[bufferIndex]);
-        memcpy(hTmpTipPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
+    if (bufferIndex < kTipCount) {
+        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+               kTipPartialsBufferCount);
+        dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
     }
+    // Copy to GPU device
+    gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPartials\n");
@@ -408,11 +357,7 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
     
     // TODO: test getPartials
     
-    if (kDeviceMemoryAllocated) {
-        gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], SIZE_REAL * kPartialsSize);
-    } else {
-        memcpy(hPartialsCache, hTmpTipPartials[bufferIndex], SIZE_REAL * kPartialsSize);
-    }
+    gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], SIZE_REAL * kPartialsSize);
     
     double* outPartialsOffset = outPartials;
     REAL* tmpRealPartialsOffset = hPartialsCache;
@@ -656,8 +601,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         } else if (readScalingIndex < 0)
             rescale = BEAGLE_OP_NONE;
         
-        
-#ifdef DYNAMIC_SCALING
         GPUPtr scalingFactors = dScalingFactors[scalingIndex];
         
         if (tipStates1 != 0) {
@@ -689,25 +632,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                                                rescale);
             }
         }
-#else
-        if (tipStates1 != 0) {
-            if (tipStates2 != 0 ) {
-                kernels->StatesStatesPruning(tipStates1, tipStates2, partials3, matrices1,
-                                             matrices2, kPaddedPatternCount, kCategoryCount);
-            } else {
-                kernels->StatesPartialsPruning(tipStates1, partials2, partials3, matrices1,
-                                               matrices2, kPaddedPatternCount, kCategoryCount);
-            }
-        } else {
-            if (tipStates2 != 0) {
-                kernels->StatesPartialsPruning(tipStates2, partials1, partials3, matrices2,
-                                               matrices1, kPaddedPatternCount, kCategoryCount);
-            } else {
-                kernels->PartialsPartialsPruning(partials1, partials2, partials3, matrices1,
-                                                 matrices2, kPaddedPatternCount, kCategoryCount);
-            }
-        }
-#endif // DYNAMIC_SCALING
         
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
@@ -757,7 +681,6 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateScaleFactors\n");
 #endif
     
-#ifdef DYNAMIC_SCALING
     for(int n = 0; n < count; n++)
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
@@ -765,7 +688,6 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     // Compute scaling factors at the root
     kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                              count, kPaddedPatternCount);
-#endif // DYNAMIC_SCALING
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateScaleFactors\n");
@@ -782,7 +704,6 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tEntering BeagleGPUImpl::removeScaleFactors\n");
 #endif
     
-#ifdef DYNAMIC_SCALING
     for(int n = 0; n < count; n++)
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
@@ -790,7 +711,6 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
     // Compute scaling factors at the root
     kernels->RemoveFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                          count, kPaddedPatternCount);
-#endif // DYNAMIC_SCALING
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::removeScaleFactors\n");
@@ -805,7 +725,6 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     fprintf(stderr, "\tEntering BeagleGPUImpl::resetScaleFactors\n");
 #endif
 
-#ifdef DYNAMIC_SCALING
     REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
     
     // Fill with zeroes
@@ -813,7 +732,6 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
                             SIZE_REAL * kPaddedPatternCount);
     
     free(zeroes);
-#endif // DYNAMIC_SCALING
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::resetScaleFactors\n");
@@ -850,7 +768,6 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
    
         const int rootNodeIndex = bufferIndices[0];
         
-#ifdef DYNAMIC_SCALING
         int cumulativeScalingFactor = scalingFactorsIndices[0];
         if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
@@ -862,11 +779,6 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
                                           dFrequencies, kPaddedPatternCount, kCategoryCount);
         }
-
-#else
-        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex], dWeights,
-                                      dFrequencies, kPaddedPatternCount, kCategoryCount);
-#endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
         gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
@@ -948,7 +860,6 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                      kCategoryCount);
         }        
 
-#ifdef DYNAMIC_SCALING
         int cumulativeScalingFactor = dScalingFactors[scalingFactorsIndices[0]];
         if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
@@ -958,11 +869,6 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
                                           kPaddedPatternCount, kCategoryCount);
         }
-#else
-        kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
-                                      kPaddedPatternCount, kCategoryCount);
-        
-#endif // DYNAMIC_SCALING
         
 #ifdef DOUBLE_PRECISION
         gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
