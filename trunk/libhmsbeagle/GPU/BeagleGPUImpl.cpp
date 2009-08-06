@@ -862,7 +862,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         int cumulativeScalingFactor = scalingFactorsIndices[0];
         if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
-                                                        dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
+                                                        dFrequencies, dScalingFactors[cumulativeScalingFactor],
                                                         kPaddedPatternCount, kCategoryCount);
         } else {
             kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
