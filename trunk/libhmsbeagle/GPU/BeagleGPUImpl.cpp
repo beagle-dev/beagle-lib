@@ -590,17 +590,16 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
         
-        
-        // TODO: implement support for cumulativeScalingIndex
-        int rescale = 0;
-        int scalingIndex = readScalingIndex;
+        int rescale = BEAGLE_OP_NONE;
+        GPUPtr scalingFactors;
         if (writeScalingIndex >= 0) {
             rescale = 1;
-            scalingIndex = writeScalingIndex;
-        } else if (readScalingIndex < 0)
-            rescale = BEAGLE_OP_NONE;
+            scalingFactors = dScalingFactors[writeScalingIndex];
+        } else if (readScalingIndex >= 0) {
+            rescale = 0;
+            scalingFactors = dScalingFactors[readScalingIndex];
+        }
         
-        GPUPtr scalingFactors = dScalingFactors[scalingIndex];
         
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {

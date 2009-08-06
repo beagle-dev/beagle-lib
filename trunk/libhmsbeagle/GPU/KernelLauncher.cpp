@@ -167,12 +167,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                    partials1, partials2, partials3, matrices1, matrices2,
                                    patternCount);
         
-        gpu->Synchronize();
-        
         // Rescale partials and save scaling factors
-        if (doRescaling > 0)
+        if (doRescaling > 0) {
+            gpu->Synchronize();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount, 0);
+        }
         
     } else {
         
@@ -238,12 +238,12 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                    states1, partials2, partials3, matrices1, matrices2,
                                    patternCount);
         
-        gpu->Synchronize();
-        
         // Rescale partials and save scaling factors
-        if (doRescaling > 0)
+        if (doRescaling > 0) {
+            gpu->Synchronize();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount, 1);
+        }
     } else {
         
         // Compute partials with known rescalings
@@ -310,13 +310,13 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                    parameterCount,
                                    states1, states2, partials3, matrices1, matrices2, patternCount);
         
-        gpu->Synchronize();
-        
         // Rescale partials and save scaling factors
         // If PADDED_STATE_COUNT == 4, just with ones.
-        if (doRescaling > 0)
+        if (doRescaling > 0) {
+            gpu->Synchronize();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount, 1);
+        }
         
     } else {
         
