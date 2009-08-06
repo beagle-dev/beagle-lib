@@ -33,6 +33,8 @@ void runBeagle(int resource)
     int stateCount = 4;
     
     int rateCategoryCount = 4;
+    
+    int scaleCount = ntaxa;
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
@@ -44,7 +46,7 @@ void runBeagle(int resource)
 				1,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
 				2*ntaxa-2,	      /**< Number of rate matrix buffers (input) */
                 rateCategoryCount,/**< Number of rate categories */
-                2*ntaxa,          /**< scaling buffers */
+                scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
 				0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
@@ -135,14 +137,14 @@ void runBeagle(int resource)
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
 		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
-        operations[BEAGLE_OP_COUNT*i+1] = ntaxa+i;
+        operations[BEAGLE_OP_COUNT*i+1] = i;
         operations[BEAGLE_OP_COUNT*i+2] = BEAGLE_OP_NONE;
 		operations[BEAGLE_OP_COUNT*i+3] = i*2;
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
 		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
 		operations[BEAGLE_OP_COUNT*i+6] = i*2+1;
         
-        scalingFactorsIndices[i] = ntaxa+i;
+        scalingFactorsIndices[i] = i;
 	}	
 
 	int rootIndex = ntaxa*2-2;
@@ -163,7 +165,7 @@ void runBeagle(int resource)
 
     int scalingFactorsCount = ntaxa-1;
     
-    int cumulativeScalingFactorIndex = 0;
+    int cumulativeScalingFactorIndex = ntaxa-1;
 
     beagleResetScaleFactors(instance,
                            cumulativeScalingFactorIndex);
