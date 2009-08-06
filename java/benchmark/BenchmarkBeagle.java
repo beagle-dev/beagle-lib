@@ -2,6 +2,8 @@ package benchmark;
 
 import beagle.Beagle;
 import beagle.BeagleFactory;
+import beagle.BeagleFlag;
+import beagle.BeagleInfo;
 
 /**
  * Created by IntelliJ IDEA.
@@ -84,12 +86,16 @@ public class BenchmarkBeagle {
 
     public static void main(String[] argv) {
 
+        int count = 1000000;
+        boolean scalingOn = true;
+
         // is nucleotides...
         int stateCount = 4;
 
         // get the number of site patterns
         int nPatterns = human.length();
 
+        BeagleInfo.printResourceList();
         // create an instance of the BEAGLE library
         Beagle instance = BeagleFactory.loadBeagleInstance(
                 3,				/**< Number of tip data elements (input) */
@@ -100,12 +106,20 @@ public class BenchmarkBeagle {
                 1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                 4,		        /**< Number of rate matrix buffers (input) */
                 1,              /**< Number of rate categories (input) */
-                1
+                (scalingOn ? 3 : 0)
         );
         if (instance == null) {
             System.err.println("Failed to obtain BEAGLE instance");
             System.exit(1);
         }
+
+        StringBuilder sb = new StringBuilder();
+        for (BeagleFlag flag : BeagleFlag.values()) {
+            if (flag.isSet(instance.getDetails().getFlags())) {
+                sb.append(" ").append(flag.name());
+            }
+        }
+        System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
 
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
@@ -158,15 +172,31 @@ public class BenchmarkBeagle {
                 edgeLengths,   // edgeLengths
                 4);            // count
 
+        if (scalingOn) {
+            // calculate the scaling factors
+            instance.resetScaleFactors(2);
+
+            // create a list of partial likelihood update operations
+            // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
+            int[] operations0 = {
+                    3, (scalingOn ? 0 : -1), (scalingOn ? 0 : -1), 0, 0, 1, 1,
+                    4, (scalingOn ? 1 : -1), (scalingOn ? 1 : -1), 2, 2, 3, 3
+            };
+            // update the partials with scaling
+            instance.updatePartials(
+                    operations0,     // eigenIndex
+                    2,              // operationCount
+                    (scalingOn ? 1 : -1));            // cumulative scale index
+
+        }
+
         // create a list of partial likelihood update operations
         // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
         int[] operations = {
-                3, -1, -1, 0, 0, 1, 1,
-                4, -1, -1, 2, 2, 3, 3
+                3, -1, (scalingOn ? 0 : -1), 0, 0, 1, 1,
+                4, -1, (scalingOn ? 1 : -1), 2, 2, 3, 3
         };
-        int[] rootIndices = { 4 };
 
-        int count = 10000000;
         System.out.println("Running " + count + " iterations...");
         long time0 = System.nanoTime();
         for (int i = 0; i < count; i++) {
@@ -174,15 +204,16 @@ public class BenchmarkBeagle {
             instance.updatePartials(
                     operations,     // eigenIndex
                     2,              // operationCount
-                    -1);            // rescale ?
+                    (scalingOn ? 2 : -1));            // cumulative scale index
         }
         long time1 = System.nanoTime();
         System.out.println("Time = " + ((double)(time1 - time0) / 1000000000));
 
         double[] patternLogLik = new double[nPatterns];
 
-        int[] scalingFactorsIndices = {3, 4}; // internal nodes
-        int[] scalingFactorsCount = { 2} ;
+        int[] scalingFactorsIndices = {(scalingOn ? 2 : -1)}; // internal nodes
+
+        int[] rootIndices = { 4 };
 
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(

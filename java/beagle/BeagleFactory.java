@@ -190,7 +190,7 @@ public class BeagleFactory {
                     1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                     4,		        /**< Number of rate matrix buffers (input) */
                     1,              /**< Number of rate categories (input) */
-                    6   /**< Number of scale buffers (input) */
+                    3               /**< Number of scale buffers (input) */
                     );
         if (instance == null) {
             System.err.println("Failed to obtain BEAGLE instance");
@@ -204,6 +204,7 @@ public class BeagleFactory {
             }
         }
         System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
+        
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
@@ -255,11 +256,13 @@ public class BeagleFactory {
                                  edgeLengths,   // edgeLengths
                                  4);            // count
 
+        instance.resetScaleFactors(2);
+
         // create a list of partial likelihood update operations
         // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
         int[] operations = {
-            3, -1, -1, 0, 0, 1, 1,
-            4, -1, -1, 2, 2, 3, 3
+            3, 0, 0, 0, 0, 1, 1,
+            4, 1, 1, 2, 2, 3, 3
         };
         int[] rootIndices = { 4 };
 
@@ -267,12 +270,11 @@ public class BeagleFactory {
         instance.updatePartials(
                         operations,     // eigenIndex
                         2,              // operationCount
-                        -1);            // rescale ?
+                        2);             // rescale ?
 
         double[] patternLogLik = new double[nPatterns];
 
-        int[] scalingFactorsIndices = {3, 4}; // internal nodes
-        int[] scalingFactorsCount = { 2} ;
+        int[] scalingFactorsIndices = {2}; // internal nodes
 
         // TODO Need to call accumulateScaleFactors if scaling is enabled
 
