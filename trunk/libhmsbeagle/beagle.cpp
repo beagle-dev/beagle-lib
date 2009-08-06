@@ -487,7 +487,6 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                 const double* weights,
                                 const double* stateFrequencies,
                                 const int* scalingFactorsIndices,
-//                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods) {
     try {
@@ -497,7 +496,6 @@ int beagleCalculateRootLogLikelihoods(int instance,
 
         return beagleInstance->calculateRootLogLikelihoods(bufferIndices, weights, stateFrequencies,
                                                            scalingFactorsIndices,
-//                                                           scalingFactorsCount, 
                                                            count,
                                                            outLogLikelihoods);
     }
@@ -523,7 +521,6 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                 const double* weights,
                                 const double* stateFrequencies,
                                 const int* scalingFactorsIndices,
-//                                int* scalingFactorsCount,
                                 int count,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
@@ -538,7 +535,6 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                                            firstDerivativeIndices,
                                                            secondDerivativeIndices, weights,
                                                            stateFrequencies, scalingFactorsIndices,
-//                                                           scalingFactorsCount, 
                                                            count,
                                                            outLogLikelihoods, outFirstDerivatives,
                                                            outSecondDerivatives);
