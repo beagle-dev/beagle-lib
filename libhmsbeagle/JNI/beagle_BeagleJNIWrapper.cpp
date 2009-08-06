@@ -46,8 +46,8 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
     }
 
 	jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
-	if (setNameMethodID == NULL) {
-		printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/ResourceDetails\n");
+	if (setFlagsMethodID == NULL) {
+		printf("NULL returned in FindClass: can't find 'setFlags' method in class: beagle/ResourceDetails\n");
 		return NULL;
     }
 
@@ -73,12 +73,12 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
- * Signature: (IIIIIIIII[IIII)I
+ * Signature: (IIIIIIIII[IIJJ)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
 	jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
-	 categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jint preferenceFlags, jint requirementFlags)
+	 categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags)
 {
     jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
     
@@ -104,48 +104,35 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    initializeInstance
- * Signature: (I[Lbeagle/InstanceDetails;)I
+ * Signature: (ILbeagle/InstanceDetails;)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
-  (JNIEnv *env, jobject obj, jint instance, jobjectArray outInstanceDetails)
+  (JNIEnv *env, jobject obj, jint instance, jobject outInstanceDetails)
 {
-    jint errCode = (jint)beagleInitializeInstance(instance, NULL);
+    BeagleInstanceDetails instanceDetails;
 
-//    jclass objClass = env->FindClass("beagle/InstanceDetails");
-//    if (objClass == NULL) {
-//        printf("NULL returned in FindClass: can't find class: beagle/InstanceDetails\n");
-//        return BEAGLE_ERROR_GENERAL;
-//    }
-//
-//    jmethodID constructorMethodID = env->GetMethodID(objClass, "<init>","(I)V");
-//    if (constructorMethodID == NULL) {
-//        printf("NULL returned in FindClass: can't find constructor for class: beagle/InstanceDetails\n");
-//        return BEAGLE_ERROR_GENERAL;
-//    }
-//
-//    jmethodID setNameMethodID = env->GetMethodID(objClass, "setName", "(Ljava/lang/String;)V");
-//    if (setNameMethodID == NULL) {
-//        printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/InstanceDetails\n");
-//        return BEAGLE_ERROR_GENERAL;
-//    }
-//
-//    jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
-//    if (setNameMethodID == NULL) {
-//        printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/InstanceDetails\n");
-//        return BEAGLE_ERROR_GENERAL;
-//    }
-//
-//    jobject instanceDetailsObj = env->NewObject(objClass, constructorMethodID, i);
-//
-//    jstring jString = env->NewStringUTF(rl->list[i].name);
-//    env->CallVoidMethod(instanceDetailsObj, setNameMethodID, jString);
-//
-//    jString = env->NewStringUTF(rl->list[i].description);
-//    env->CallVoidMethod(instanceDetailsObj, setDescriptionID, jString);
-//
-//    env->CallVoidMethod(instanceDetailsObj, setFlagsMethodID, rl->list[i].flags);
-//
-//    env->SetObjectArrayElement(outInstanceDetails, i, instanceDetailsObj);
+    jint errCode = (jint)beagleInitializeInstance(instance, &instanceDetails);
+
+    jclass objClass = env->FindClass("beagle/InstanceDetails");
+    if (objClass == NULL) {
+        printf("NULL returned in FindClass: can't find class: beagle/InstanceDetails\n");
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    jmethodID setResourceNumberMethodID = env->GetMethodID(objClass, "setResourceNumber", "(I)V");
+    if (setResourceNumberMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setResourceNumber' method in class: beagle/InstanceDetails\n");
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
+    if (setFlagsMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setFlags' method in class: beagle/InstanceDetails\n");
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    env->CallVoidMethod(outInstanceDetails, setResourceNumberMethodID, instanceDetails.resourceNumber);
+    env->CallVoidMethod(outInstanceDetails, setFlagsMethodID, instanceDetails.flags);
     
     return errCode;
 }

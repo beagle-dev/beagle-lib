@@ -278,4 +278,5 @@ public interface Beagle {
                                             final double[] outFirstDerivatives,
                                             final double[] outSecondDerivatives);
 
+    public InstanceDetails getDetails();
 }

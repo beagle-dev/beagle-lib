@@ -16,6 +16,7 @@ package beagle;
 public class BeagleJNIImpl implements Beagle {
 
     private final int instance;
+    private final InstanceDetails details = new InstanceDetails();
 
     public BeagleJNIImpl(int tipCount,
                          int partialsBufferCount,
@@ -27,8 +28,8 @@ public class BeagleJNIImpl implements Beagle {
                          int categoryCount,
                          int scaleBufferCount,
                          final int[] resourceList,
-                         int preferenceFlags,
-                         int requirementFlags) {
+                         long preferenceFlags,
+                         long requirementFlags) {
 
         this.instance = BeagleJNIWrapper.INSTANCE.createInstance(
                 tipCount,
@@ -45,7 +46,6 @@ public class BeagleJNIImpl implements Beagle {
                 preferenceFlags,
                 requirementFlags);
 
-        InstanceDetails[] details = new InstanceDetails[1];
 
         BeagleJNIWrapper.INSTANCE.initializeInstance(instance, details);
     }
@@ -198,5 +198,7 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-
+    public InstanceDetails getDetails() {
+        return details;
+    }
 }

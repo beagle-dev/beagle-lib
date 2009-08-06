@@ -37,12 +37,12 @@ public class BeagleJNIWrapper {
             int scaleBufferCount,
             final int[] resourceList,
             int resourceCount,
-            int preferenceFlags,
-            int requirementFlags);
+            long preferenceFlags,
+            long requirementFlags);
 
     public native int initializeInstance(
             int instance,
-            InstanceDetails[] returnInfo);
+            InstanceDetails returnInfo);
 
     public native int finalize(int instance);
 

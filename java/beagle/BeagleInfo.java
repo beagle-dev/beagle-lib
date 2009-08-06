@@ -8,22 +8,9 @@ import java.util.ArrayList;
  */
 public class BeagleInfo {
 
-    public static ResourceDetails[] getResourceDetails() {
-        if (BeagleJNIWrapper.INSTANCE == null) {
-            try {
-                BeagleJNIWrapper.loadBeagleLibrary();
-                System.err.println("BEAGLE library loaded");
+    public static void printResourceList() {
 
-            } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
-            }
-        }
-
-        return BeagleJNIWrapper.INSTANCE.getResourceList();
-    }
-
-    public static void main(String[] argv) {
-        ResourceDetails[] resourceDetails = getResourceDetails();
+        ResourceDetails[] resourceDetails = BeagleFactory.getResourceDetails();
 
         System.out.println("BEAGLE resources available:");
         for (ResourceDetails resource : resourceDetails) {
@@ -44,7 +31,10 @@ public class BeagleInfo {
             System.out.println();
 
         }
+    }
 
+    public static void main(String[] argv) {
+        printResourceList();
     }
 
 }
