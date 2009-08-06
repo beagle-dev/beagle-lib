@@ -3,14 +3,26 @@
  */
 package beagle;
 
-import java.util.*;
-
 /**
  * @author Marc Suchard
  * @author Andrew Rambaut
  *
  */
 public class BeagleFactory {
+
+    public static ResourceDetails[] getResourceDetails() {
+        if (BeagleJNIWrapper.INSTANCE == null) {
+            try {
+                BeagleJNIWrapper.loadBeagleLibrary();
+                System.err.println("BEAGLE library loaded");
+
+            } catch (UnsatisfiedLinkError ule) {
+                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
+            }
+        }
+
+        return BeagleJNIWrapper.INSTANCE.getResourceList();
+    }
 
     public static Beagle loadBeagleInstance(
             int tipCount,
@@ -38,7 +50,10 @@ public class BeagleFactory {
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
 
-            int[] resourceList = new int[] { 0 }; // 0 = CPU, > 0 are CUDA-devises
+            // 0 = CPU, > 0 are CUDA-devices
+            // at the moment the order determines which device the instance is put on
+            // because the preference flag is ignored
+            int[] resourceList = new int[] { 1, 0 };
 
             return new BeagleJNIImpl(
                     tipCount,
@@ -51,7 +66,7 @@ public class BeagleFactory {
                     categoryCount,
                     scaleBufferCount,
                     resourceList,
-                    1,
+                    BeagleFlag.GPU.getMask(),
                     0
             );
         }
@@ -163,6 +178,8 @@ public class BeagleFactory {
         // get the number of site patterns
         int nPatterns = human.length();
 
+        BeagleInfo.printResourceList();
+
         // create an instance of the BEAGLE library
         Beagle instance = loadBeagleInstance(
                     3,				/**< Number of tip data elements (input) */
@@ -180,6 +197,13 @@ public class BeagleFactory {
             System.exit(1);
         }
 
+        StringBuilder sb = new StringBuilder();
+        for (BeagleFlag flag : BeagleFlag.values()) {
+            if (flag.isSet(instance.getDetails().getFlags())) {
+                sb.append(" ").append(flag.name());
+            }
+        }
+        System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));

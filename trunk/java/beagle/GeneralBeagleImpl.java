@@ -506,6 +506,13 @@ public class GeneralBeagleImpl implements Beagle {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
     }
 
+    public InstanceDetails getDetails() {
+        InstanceDetails details = new InstanceDetails();
+        details.setResourceNumber(0);
+        details.setFlags(BeagleFlag.CPU.getMask() | BeagleFlag.DOUBLE.getMask());
+        return details;
+    }
+
 
 //    private void calculateRootScalingFactors(int[] indices) {
 //        for (int k = 0; k < patternCount; k++) {
