@@ -198,7 +198,20 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
     SAFE_CL(clReleaseMemObject(dPtr));
 }
 
-void GPUInterface::PrintInfo() {        
+void GPUInterface::GetDeviceName(int deviceNumber,
+                                 char* deviceName,
+                                 int nameLength) {
+    cl_device_id  deviceIds[openClNumDevices];
+    
+    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,
+                           NULL));
+    
+    
+    SAFE_CL(clGetDeviceInfo(deviceIds[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));    
+}
+
+void GPUInterface::GetDeviceDescription(int deviceNumber,
+                                        char* deviceDescription) {   
     fprintf(stderr, "GPU Device Information:");
     
     char name[100];

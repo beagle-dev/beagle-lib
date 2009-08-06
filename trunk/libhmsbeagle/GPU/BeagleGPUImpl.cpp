@@ -532,8 +532,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
-            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] +
-                    (j * kMatrixSize * sizeof(GPUPtr));
+            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
             hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
             totalCount++;
         }
@@ -860,7 +859,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                      kCategoryCount);
         }        
 
-        int cumulativeScalingFactor = dScalingFactors[scalingFactorsIndices[0]];
+        int cumulativeScalingFactor = scalingFactorsIndices[0];
         if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
                                                         dFrequencies, dScalingFactors[scalingFactorsIndices[0]],
