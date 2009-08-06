@@ -38,9 +38,14 @@ GPUInterface::~GPUInterface() {
     
     // TODO: cleanup mem objects, kernels
     
-    SAFE_CL(clReleaseProgram(openClProgram));
-    SAFE_CL(clReleaseCommandQueue(openClCommandQueue));
-    SAFE_CL(clReleaseContext(openClContext));
+    if (openClProgram != NULL)
+        SAFE_CL(clReleaseProgram(openClProgram));
+
+    if (openClCommandQueue != NULL)
+        SAFE_CL(clReleaseCommandQueue(openClCommandQueue));
+    
+    if (openClContext != NULL)
+        SAFE_CL(clReleaseContext(openClContext));
 }
 
 int GPUInterface::Initialize() {
@@ -204,36 +209,36 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     cl_device_id  deviceIds[openClNumDevices];
     
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,
-                           NULL));
-    
+                           NULL));    
     
     SAFE_CL(clGetDeviceInfo(deviceIds[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));    
 }
 
 void GPUInterface::GetDeviceDescription(int deviceNumber,
                                         char* deviceDescription) {   
-    fprintf(stderr, "GPU Device Information:");
     
-    char name[100];
+    cl_device_id  deviceIds[openClNumDevices];
+    
+    SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,
+                           NULL));
+    
+    cl_device_id tmpOpenClDevice =deviceIds[deviceNumber]; 
+    
     cl_ulong totalGlobalMemory = 0;
     cl_uint clockSpeed = 0;
     unsigned int mpCount = 0;
     
-    
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_NAME, sizeof(char) * 100, name,
-                            NULL));
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong),
+    SAFE_CL(clGetDeviceInfo(tmpOpenClDevice, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong),
                             &totalGlobalMemory, NULL));
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY,
+    SAFE_CL(clGetDeviceInfo(tmpOpenClDevice, CL_DEVICE_MAX_CLOCK_FREQUENCY,
                             sizeof(cl_uint), &clockSpeed, NULL));
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MAX_COMPUTE_UNITS,
+    SAFE_CL(clGetDeviceInfo(tmpOpenClDevice, CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(unsigned int), &mpCount, NULL));
-    
-    fprintf(stderr, "\nDevice: %s\n", name);
-    fprintf(stderr, "\tGlobal Memory (MB): %1.2f\n", totalGlobalMemory / 1024 / 1024.0);
-    fprintf(stderr, "\tClock Speed (Ghz) : %1.2f\n", clockSpeed / 1000.0);
-    fprintf(stderr, "\tNumber of Cores   : %d\n", mpCount);
-    
+
+    sprintf(deviceDescription,
+            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of cores: %d",
+            int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
+        
 }
 
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
