@@ -35,7 +35,10 @@ public class BeagleFactory {
             int eigenBufferCount,
             int matrixBufferCount,
             int categoryCount,
-            int scaleBufferCount
+            int scaleBufferCount,
+            int[] resourceList,
+            long preferenceFlags,
+            long requirementFlags
     ) {
 
         boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
@@ -43,11 +46,6 @@ public class BeagleFactory {
         getBeagleJNIWrapper();
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
-
-            // 0 = CPU, > 0 are CUDA-devices
-            // at the moment the order determines which device the instance is put on
-            // because the preference flag is ignored
-            int[] resourceList = new int[] { 1, 0 };
 
             return new BeagleJNIImpl(
                     tipCount,
@@ -60,8 +58,8 @@ public class BeagleFactory {
                     categoryCount,
                     scaleBufferCount,
                     resourceList,
-                    BeagleFlag.GPU.getMask(),
-                    0
+                    preferenceFlags,
+                    requirementFlags
             );
         }
 
@@ -195,16 +193,19 @@ public class BeagleFactory {
 
         // create an instance of the BEAGLE library
         Beagle instance = loadBeagleInstance(
-                    3,				/**< Number of tip data elements (input) */
-                    5,	            /**< Number of partials buffers to create (input) */
-                    3,		        /**< Number of compact state representation buffers to create (input) */
-                    stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
-                    nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
-                    1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                    4,		        /**< Number of rate matrix buffers (input) */
-                    1,              /**< Number of rate categories (input) */
-                    3               /**< Number of scale buffers (input) */
-                    );
+                3,				/**< Number of tip data elements (input) */
+                5,	            /**< Number of partials buffers to create (input) */
+                3,		        /**< Number of compact state representation buffers to create (input) */
+                stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
+                nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
+                1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+                4,		        /**< Number of rate matrix buffers (input) */
+                1,              /**< Number of rate categories (input) */
+                3,               /**< Number of scale buffers (input) */
+                new int[] {1, 0},
+                BeagleFlag.GPU.getMask(),
+                0
+        );
         if (instance == null) {
             System.err.println("Failed to obtain BEAGLE instance");
             System.exit(1);
@@ -238,17 +239,17 @@ public class BeagleFactory {
 
         // an eigen decomposition for the JC69 model
         final double[] evec = {
-             1.0,  2.0,  0.0,  0.5,
-             1.0,  -2.0,  0.5,  0.0,
-             1.0,  2.0, 0.0,  -0.5,
-             1.0,  -2.0,  -0.5,  0.0
+                1.0,  2.0,  0.0,  0.5,
+                1.0,  -2.0,  0.5,  0.0,
+                1.0,  2.0, 0.0,  -0.5,
+                1.0,  -2.0,  -0.5,  0.0
         };
 
         final double[] ivec = {
-             0.25,  0.25,  0.25,  0.25,
-             0.125,  -0.125,  0.125,  -0.125,
-             0.0,  1.0,  0.0,  -1.0,
-             1.0,  0.0,  -1.0,  0.0
+                0.25,  0.25,  0.25,  0.25,
+                0.125,  -0.125,  0.125,  -0.125,
+                0.0,  1.0,  0.0,  -1.0,
+                1.0,  0.0,  -1.0,  0.0
         };
 
         double[] eval = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
@@ -262,28 +263,28 @@ public class BeagleFactory {
 
         // tell BEAGLE to populate the transition matrices for the above edge lengths
         instance.updateTransitionMatrices(
-                                 0,             // eigenIndex
-                                 nodeIndices,   // probabilityIndices
-                                 null,          // firstDerivativeIndices
-                                 null,          // secondDervativeIndices
-                                 edgeLengths,   // edgeLengths
-                                 4);            // count
+                0,             // eigenIndex
+                nodeIndices,   // probabilityIndices
+                null,          // firstDerivativeIndices
+                null,          // secondDervativeIndices
+                edgeLengths,   // edgeLengths
+                4);            // count
 
         instance.resetScaleFactors(2);
 
         // create a list of partial likelihood update operations
         // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
         int[] operations = {
-            3, 0, 0, 0, 0, 1, 1,
-            4, 1, 1, 2, 2, 3, 3
+                3, 0, 0, 0, 0, 1, 1,
+                4, 1, 1, 2, 2, 3, 3
         };
         int[] rootIndices = { 4 };
 
         // update the partials
         instance.updatePartials(
-                        operations,     // eigenIndex
-                        2,              // operationCount
-                        2);             // rescale ?
+                operations,     // eigenIndex
+                2,              // operationCount
+                2);             // rescale ?
 
         double[] patternLogLik = new double[nPatterns];
 
@@ -293,12 +294,12 @@ public class BeagleFactory {
 
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(
-                                    rootIndices,            // bufferIndices
-                                    weights,                // weights
-                                    freqs,                 // stateFrequencies
-                                    scalingFactorsIndices,
-                                    1,
-                                    patternLogLik);         // outLogLikelihoods
+                rootIndices,            // bufferIndices
+                weights,                // weights
+                freqs,                 // stateFrequencies
+                scalingFactorsIndices,
+                1,
+                patternLogLik);         // outLogLikelihoods
 
         double logL = 0.0;
         for (int i = 0; i < nPatterns; i++) {
