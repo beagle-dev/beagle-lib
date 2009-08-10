@@ -106,7 +106,10 @@ public class BenchmarkBeagle {
                 1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                 4,		        /**< Number of rate matrix buffers (input) */
                 1,              /**< Number of rate categories (input) */
-                (scalingOn ? 3 : 0)
+                (scalingOn ? 3 : 0),
+                new int[] {1, 0},
+                0,
+                0
         );
         if (instance == null) {
             System.err.println("Failed to obtain BEAGLE instance");
