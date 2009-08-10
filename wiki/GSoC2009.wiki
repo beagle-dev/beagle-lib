@@ -130,8 +130,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
  * Fixed bugs
    * GPU synchronize issue when not rescaling
    * resource list initialization, error when no CUDA device
-   * getDeviceDescription, was always returning info from the first
-device
+   * getDeviceDescription, was always returning info from the first device
    * minor Xcode project issues
  * Cleaning up
    * removed obsolete branches from repository
