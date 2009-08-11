@@ -256,9 +256,11 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     // Padded extra patterns
     for(int i = kPatternCount; i < kPaddedPatternCount; i++)
         hStatesCache[i] = kPaddedStateCount;
-    
-    assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-    dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
+
+    if (dStates[tipIndex] == 0) {
+        assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
+        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
+    }
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, SIZE_INT * kPaddedPatternCount);
     
@@ -296,9 +298,11 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
     }    
     
     if (tipIndex < kTipCount) {
-        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
-               kTipPartialsBufferCount);
-        dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        if (dPartials[tipIndex] == 0) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                   kTipPartialsBufferCount);
+            dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        }
     }
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dPartials[tipIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
@@ -334,9 +338,11 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
     }
     
     if (bufferIndex < kTipCount) {
-        assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
-               kTipPartialsBufferCount);
-        dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        if (dPartials[bufferIndex] == 0) {
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                   kTipPartialsBufferCount);
+            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex--];
+        }
     }
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsCache, SIZE_REAL * kPartialsSize);
