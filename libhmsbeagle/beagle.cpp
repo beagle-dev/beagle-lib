@@ -49,6 +49,15 @@ std::list<beagle::BeagleImplFactory*> implFactory;
 
 BeagleResourceList* rsrcList = NULL;
 
+beagle::BeagleImpl::~BeagleImpl(){
+    free(rsrcList);
+    
+    for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
+        factory != implFactory.end(); factory++) {    
+        delete *factory;
+    }
+}
+
 BeagleResourceList* beagleGetResourceList() {
     
     if (rsrcList == NULL) {
