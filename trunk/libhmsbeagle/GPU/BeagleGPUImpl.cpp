@@ -757,17 +757,16 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 
     if (count == 1) {         
         REAL* tmpWeights = hWeightsCache;
-        REAL* tmpStateFrequencies = hFrequenciesCache;
         
 #ifdef DOUBLE_PRECISION
         tmpWeights = inWeights;
-        tmpStateFrequencies = inStateFrequencies;
+        memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
 #else
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies, SIZE_REAL * kPaddedStateCount);
+        gpu->MemcpyHostToDevice(dFrequencies, hFrequenciesCache, SIZE_REAL * kPaddedStateCount);
    
         const int rootNodeIndex = bufferIndices[0];
         
@@ -823,18 +822,16 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
     if (count == 1) { 
         
         REAL* tmpWeights = hWeightsCache;
-        REAL* tmpStateFrequencies = hFrequenciesCache;
         
 #ifdef DOUBLE_PRECISION
         tmpWeights = inWeights;
-        tmpStateFrequencies = inStateFrequencies;
+        memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
 #else
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kPaddedStateCount * kCategoryCount, REAL);
+        MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
 #endif        
         gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-        gpu->MemcpyHostToDevice(dFrequencies, tmpStateFrequencies,
-                                SIZE_REAL * kPaddedStateCount * kCategoryCount);
+        gpu->MemcpyHostToDevice(dFrequencies, hFrequenciesCache, SIZE_REAL * kPaddedStateCount);
         
         const int parIndex = parentBufferIndices[0];
         const int childIndex = childBufferIndices[0];
