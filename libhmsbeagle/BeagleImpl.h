@@ -22,7 +22,7 @@ namespace beagle {
 
 class BeagleImpl {
 public:
-    virtual ~BeagleImpl();
+    virtual ~BeagleImpl(){};
     
     virtual int createInstance(int tipCount,
                                int partialsBufferCount,
