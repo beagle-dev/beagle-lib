@@ -44,10 +44,12 @@ public class ResourceDetails {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("").append(getNumber()).append(" : ").append(getName()).append("\n");
-        String[] description = getDescription().split("\\|");
-        for (String desc : description) {
-            if (desc.trim().length() > 0) {
-                sb.append("    ").append(desc.trim()).append("\n");
+        if (getDescription() != null) {
+            String[] description = getDescription().split("\\|");
+            for (String desc : description) {
+                if (desc.trim().length() > 0) {
+                    sb.append("    ").append(desc.trim()).append("\n");
+                }
             }
         }
         sb.append("    Flags:");
