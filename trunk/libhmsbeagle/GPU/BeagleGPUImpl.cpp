@@ -701,6 +701,10 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                              count, kPaddedPatternCount);
     
+#ifdef BEAGLE_DEBUG_SYNCH    
+    gpu->Synchronize();
+#endif
+    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateScaleFactors\n");
 #endif   
@@ -723,6 +727,10 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
     // Compute scaling factors at the root
     kernels->RemoveFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                          count, kPaddedPatternCount);
+    
+#ifdef BEAGLE_DEBUG_SYNCH    
+    gpu->Synchronize();
+#endif
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::removeScaleFactors\n");
@@ -744,6 +752,10 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
                             SIZE_REAL * kPaddedPatternCount);
     
     free(zeroes);
+    
+#ifdef BEAGLE_DEBUG_SYNCH    
+    gpu->Synchronize();
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::resetScaleFactors\n");
