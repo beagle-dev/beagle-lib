@@ -97,6 +97,13 @@ int BeagleGPUImpl::createInstance(int tipCount,
     else
         kPaddedStateCount = kStateCount + kStateCount % 16;
     
+    // Abort for mismatched stateCount; remove when run-time stateCounts are complete
+    if (kPaddedStateCount != PADDED_STATE_COUNT) {
+    	fprintf(stderr,"Mismatch in model size!\nkPaddedStateCount = %d\nPADDED_STATE_COUNT = %d\n",
+    			kPaddedStateCount,PADDED_STATE_COUNT);    	
+        return BEAGLE_ERROR_GENERAL;
+    }
+    
     // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
     int paddedPatterns = 0;
     if (kPaddedStateCount == 4 && kPatternCount % 4 != 0)
@@ -574,7 +581,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePartials\n");
 #endif
-        
+    
     GPUPtr cumulativeScalingBuffer = 0;
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
