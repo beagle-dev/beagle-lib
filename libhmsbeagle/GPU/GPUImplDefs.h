@@ -14,6 +14,7 @@
 
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
+//#define BEAGLE_DEBUG_SYNCH
 
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
