@@ -74,6 +74,24 @@
 		648DE318102491000022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
 		648DE3191024911A0022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
 		648DE31A102491250022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
+		64C0EB371034BC820004734E /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
+		64C0EB381034BC820004734E /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
+		64C0EB391034BC820004734E /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
+		64C0EB3A1034BC820004734E /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */; };
+		64C0EB3B1034BC820004734E /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645749650FFF2AE300603261 /* GPUImplHelper.cpp */; };
+		64C0EB3C1034BC820004734E /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* KernelLauncher.cpp */; };
+		64C0EB3D1034BC820004734E /* GPUInterfaceOpenCL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */; };
+		64C0EB401034BC820004734E /* OpenCL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6474F592101F90D200A1A469 /* OpenCL.framework */; };
+		64C0EB461034BCC30004734E /* genomictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64EC49C00FE9BBDB006841E3 /* genomictest.cpp */; };
+		64D10A551033B8F4009EC5FB /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
+		64D10A561033B8F4009EC5FB /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
+		64D10A571033B8F4009EC5FB /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
+		64D10A581033B8F4009EC5FB /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */; };
+		64D10A591033B8F4009EC5FB /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645749650FFF2AE300603261 /* GPUImplHelper.cpp */; };
+		64D10A5A1033B8F4009EC5FB /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* KernelLauncher.cpp */; };
+		64D10A5B1033B8F4009EC5FB /* GPUInterfaceOpenCL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */; };
+		64D10A5E1033B8F4009EC5FB /* OpenCL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6474F592101F90D200A1A469 /* OpenCL.framework */; };
+		64D10A9C1033BEFB009EC5FB /* fourtaxon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */; };
 		64EC49DB0FE9BD0B006841E3 /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		64EC49DC0FE9BD0B006841E3 /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 		64EC49E30FE9BD2E006841E3 /* genomictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64EC49C00FE9BBDB006841E3 /* genomictest.cpp */; };
@@ -104,6 +122,20 @@
 			remoteInfo = CUDA_kernels;
 		};
 		649B47121024056E00FC2C85 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 649B470E1024050D00FC2C85;
+			remoteInfo = OpenCL_kernels;
+		};
+		64C0EB351034BC820004734E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 649B470E1024050D00FC2C85;
+			remoteInfo = OpenCL_kernels;
+		};
+		64D10A531033B8F4009EC5FB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
 			proxyType = 1;
@@ -159,6 +191,8 @@
 		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = ../../CUDA.Makefile; sourceTree = SOURCE_ROOT; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
+		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
@@ -209,6 +243,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				6474F5BB101F916D00A1A469 /* OpenCL.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64C0EB3F1034BC820004734E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64C0EB401034BC820004734E /* OpenCL.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64D10A5D1033B8F4009EC5FB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64D10A5E1033B8F4009EC5FB /* OpenCL.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -358,6 +408,8 @@
 				646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */,
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
+				64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
+				64C0EB441034BC820004734E /* genomicTestOpenCLXcode */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -451,6 +503,40 @@
 			productReference = 6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */;
 			productType = "com.apple.product-type.tool";
 		};
+		64C0EB331034BC820004734E /* genomicTestOpenCLXcode */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64C0EB411034BC820004734E /* Build configuration list for PBXNativeTarget "genomicTestOpenCLXcode" */;
+			buildPhases = (
+				64C0EB361034BC820004734E /* Sources */,
+				64C0EB3F1034BC820004734E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				64C0EB341034BC820004734E /* PBXTargetDependency */,
+			);
+			name = genomicTestOpenCLXcode;
+			productName = tinyTestGPUXcode;
+			productReference = 64C0EB441034BC820004734E /* genomicTestOpenCLXcode */;
+			productType = "com.apple.product-type.tool";
+		};
+		64D10A511033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64D10A5F1033B8F4009EC5FB /* Build configuration list for PBXNativeTarget "fourTaxonOpenCLXcode" */;
+			buildPhases = (
+				64D10A541033B8F4009EC5FB /* Sources */,
+				64D10A5D1033B8F4009EC5FB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				64D10A521033B8F4009EC5FB /* PBXTargetDependency */,
+			);
+			name = fourTaxonOpenCLXcode;
+			productName = tinyTestGPUXcode;
+			productReference = 64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */;
+			productType = "com.apple.product-type.tool";
+		};
 		64EC49D80FE9BD0B006841E3 /* genomicTestCPUXcode */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 64EC49DE0FE9BD0B006841E3 /* Build configuration list for PBXNativeTarget "genomicTestCPUXcode" */;
@@ -503,6 +589,8 @@
 				646F6E8810019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6ECB10019C510085DDB1 /* genomicTestCUDAXcode */,
 				6474F5AF101F916D00A1A469 /* tinyTestOpenCLXcode */,
+				64D10A511033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
+				64C0EB331034BC820004734E /* genomicTestOpenCLXcode */,
 				649B46E11024035300FC2C85 /* CUDA_kernels */,
 				649B470E1024050D00FC2C85 /* OpenCL_kernels */,
 			);
@@ -524,7 +612,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels binary code\" > BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx ./BeagleCUDA_kernels.cu -O3 -use_fast_math -I$PROJECT_DIR/../.. -DCUDA -DSTATE_COUNT=4\n\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\nexit 0";
+			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels binary code\" > BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx ./BeagleCUDA_kernels.cu -O4 -I$PROJECT_DIR/../.. -DCUDA -DSTATE_COUNT=4\n\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\nexit 0";
 			showEnvVarsInLog = 0;
 		};
 		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */ = {
@@ -618,6 +706,36 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		64C0EB361034BC820004734E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64C0EB371034BC820004734E /* beagle.cpp in Sources */,
+				64C0EB381034BC820004734E /* BeagleCPUImpl.cpp in Sources */,
+				64C0EB391034BC820004734E /* BeagleCPU4StateImpl.cpp in Sources */,
+				64C0EB3A1034BC820004734E /* BeagleGPUImpl.cpp in Sources */,
+				64C0EB3B1034BC820004734E /* GPUImplHelper.cpp in Sources */,
+				64C0EB3C1034BC820004734E /* KernelLauncher.cpp in Sources */,
+				64C0EB3D1034BC820004734E /* GPUInterfaceOpenCL.cpp in Sources */,
+				64C0EB461034BCC30004734E /* genomictest.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64D10A541033B8F4009EC5FB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64D10A551033B8F4009EC5FB /* beagle.cpp in Sources */,
+				64D10A561033B8F4009EC5FB /* BeagleCPUImpl.cpp in Sources */,
+				64D10A571033B8F4009EC5FB /* BeagleCPU4StateImpl.cpp in Sources */,
+				64D10A581033B8F4009EC5FB /* BeagleGPUImpl.cpp in Sources */,
+				64D10A591033B8F4009EC5FB /* GPUImplHelper.cpp in Sources */,
+				64D10A5A1033B8F4009EC5FB /* KernelLauncher.cpp in Sources */,
+				64D10A5B1033B8F4009EC5FB /* GPUInterfaceOpenCL.cpp in Sources */,
+				64D10A9C1033BEFB009EC5FB /* fourtaxon.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		64EC49D90FE9BD0B006841E3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -662,6 +780,16 @@
 			isa = PBXTargetDependency;
 			target = 649B470E1024050D00FC2C85 /* OpenCL_kernels */;
 			targetProxy = 649B47121024056E00FC2C85 /* PBXContainerItemProxy */;
+		};
+		64C0EB341034BC820004734E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 649B470E1024050D00FC2C85 /* OpenCL_kernels */;
+			targetProxy = 64C0EB351034BC820004734E /* PBXContainerItemProxy */;
+		};
+		64D10A521033B8F4009EC5FB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 649B470E1024050D00FC2C85 /* OpenCL_kernels */;
+			targetProxy = 64D10A531033B8F4009EC5FB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -984,6 +1112,116 @@
 			};
 			name = Release;
 		};
+		64C0EB421034BC820004734E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"OPENCL_BUILD_OPTIONS=\"\\\"-I /Developer/Projects/beagle-lib\\\"\"",
+					OPENCL,
+					"STATE_COUNT=4",
+				);
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
+				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = genomicTestOpenCLXcode;
+				USER_HEADER_SEARCH_PATHS = "";
+			};
+			name = Debug;
+		};
+		64C0EB431034BC820004734E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
+				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-lcuda";
+				PREBINDING = NO;
+				PRODUCT_NAME = tinyTestCUDAXcode;
+				USER_HEADER_SEARCH_PATHS = "";
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		64D10A601033B8F4009EC5FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"OPENCL_BUILD_OPTIONS=\"\\\"-I /Developer/Projects/beagle-lib\\\"\"",
+					OPENCL,
+					"STATE_COUNT=4",
+				);
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
+				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = fourTaxonOpenCLXcode;
+				USER_HEADER_SEARCH_PATHS = "";
+			};
+			name = Debug;
+		};
+		64D10A611033B8F4009EC5FB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					CUDA,
+					"STATE_COUNT=4",
+				);
+				HEADER_SEARCH_PATHS = (
+					../../,
+					/usr/local/cuda/include,
+				);
+				INSTALL_PATH = /usr/local/bin;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = "-lcuda";
+				PREBINDING = NO;
+				PRODUCT_NAME = tinyTestCUDAXcode;
+				USER_HEADER_SEARCH_PATHS = "";
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
 		64EC49DF0FE9BD0B006841E3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1123,6 +1361,24 @@
 			buildConfigurations = (
 				649B470F1024050D00FC2C85 /* Debug */,
 				649B47101024050D00FC2C85 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64C0EB411034BC820004734E /* Build configuration list for PBXNativeTarget "genomicTestOpenCLXcode" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64C0EB421034BC820004734E /* Debug */,
+				64C0EB431034BC820004734E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64D10A5F1033B8F4009EC5FB /* Build configuration list for PBXNativeTarget "fourTaxonOpenCLXcode" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64D10A601033B8F4009EC5FB /* Debug */,
+				64D10A611033B8F4009EC5FB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

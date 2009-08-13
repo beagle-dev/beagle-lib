@@ -32,6 +32,7 @@ class FourTaxonExample
 	private:
 		unsigned 					niters;
 		std::string					data_file_name;
+        bool                        scaling;
 		const unsigned 				ntaxa;
 		unsigned 					nsites;
         unsigned                    nrates;
