@@ -45,9 +45,55 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
 
 }	// end namespace beagle
 
-std::list<beagle::BeagleImplFactory*> implFactory;
+std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
 BeagleResourceList* rsrcList = NULL;
+
+
+std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {	
+	if (implFactory == NULL) {
+	
+		implFactory = new std::list<beagle::BeagleImplFactory*>;
+	
+		// Set-up a list of implementation factories in trial-order
+#if defined(CUDA) || defined(OPENCL)
+		if (rsrcList->length > 1)
+			implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
+#endif
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
+		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory());		
+	}
+	return implFactory;
+}
+
+
+void __attribute__ ((constructor)) beagle_library_initialize(void) {
+	
+	beagleGetResourceList(); // Generate resource list at library initialization
+	beagleGetFactoryList(); // Generate factory list at library initialization	
+}
+
+
+void __attribute__ ((destructor)) beagle_library_finialize(void) {
+	
+	// Destroy implFactory
+    for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
+          factory != implFactory->end(); factory++) {
+    	delete (*factory); // Fixes 4 byte leak for each entry in implFactory
+    	
+    }	
+	delete implFactory;
+	
+	// Destroy rsrcList
+	for(int i=0; i<rsrcList->length; i++) {
+		if (i>0) {
+			free(rsrcList->list[i].name);
+			free(rsrcList->list[i].description);
+		}
+	}
+	free(rsrcList->list);
+	free(rsrcList);
+}
 
 BeagleResourceList* beagleGetResourceList() {
     
@@ -107,19 +153,12 @@ int beagleCreateInstance(int tipCount,
         if (rsrcList == NULL)
             beagleGetResourceList();
         
-        // Set-up a list of implementation factories in trial-order
-        if (implFactory.size() == 0) {
-#if defined(CUDA) || defined(OPENCL)
-            if (rsrcList->length > 1)
-                implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
-#endif
-            implFactory.push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
-            implFactory.push_back(new beagle::cpu::BeagleCPUImplFactory());
-        }
+        if (implFactory == NULL)
+        	beagleGetFactoryList();
         
         // Try each implementation
-        for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory.begin();
-            factory != implFactory.end(); factory++) {
+        for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
+            factory != implFactory->end(); factory++) {
             
             if ((*factory)->getName() == "GPU" && (!(resourceList == NULL || (resourceList[0] < rsrcList->length
                  && rsrcList->list[resourceList[0]].flags & BEAGLE_FLAG_GPU)) || preferenceFlags & BEAGLE_FLAG_CPU || requirementFlags & BEAGLE_FLAG_CPU))

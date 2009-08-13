@@ -76,6 +76,23 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // free all that stuff...
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
+	
+	for(int i=0; i<partials.size(); i++) {
+		free(partials[i]);	
+	}
+	
+	for(int i=0; i<kEigenDecompCount; i++) {
+		free(cMatrices[i]);
+		free(eigenValues[i]);
+	}
+	
+	free(cMatrices);
+	free(eigenValues);
+			
+	free(categoryRates);
+	free(integrationTmp);
+	
+	
 }
 
 int BeagleCPUImpl::createInstance(int tipCount,
