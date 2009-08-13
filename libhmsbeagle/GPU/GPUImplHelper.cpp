@@ -47,12 +47,12 @@ void printfVectorF(float* ptr,
     for (i = 1; i < length; i++)
         fprintf(stderr, " %1.5e", ptr[i]);
     fprintf(stderr, " ]\n");
-    for(i = 0; i < length; i++) {
-        if(ptr[i] != ptr[i]) {
-            fprintf(stderr, "NaN found!\n");
-            exit(0);
-        }
-    }
+//    for(i = 0; i < length; i++) {
+//        if(ptr[i] != ptr[i]) {
+//            fprintf(stderr, "NaN found!\n");
+//            exit(0);
+//        }
+//    }
 }
 
 void printfVector(REAL* ptr,
