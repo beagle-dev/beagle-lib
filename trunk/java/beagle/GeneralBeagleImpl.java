@@ -32,6 +32,8 @@ public class GeneralBeagleImpl implements Beagle {
 
     protected double[][] matrices;
 
+    double[] tmpPartials;
+
 
 //    protected double[][][] scalingFactors;
 //    protected double[] rootScalingFactors;
@@ -62,7 +64,7 @@ public class GeneralBeagleImpl implements Beagle {
         this.categoryCount = categoryCount;
         this.scaleBufferCount = scaleBufferCount;
 
-        Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
+//        Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
 
         if (patternCount < 1) {
             throw new IllegalArgumentException("Pattern count must be at least 1");
@@ -86,6 +88,8 @@ public class GeneralBeagleImpl implements Beagle {
             partials[i] = new double[partialsSize];
         }
 
+        tmpPartials = new double[patternCount * stateCount];
+
 //        if (SCALING) {
 //            scalingFactors = new double[2][nodeCount][];
 //            for (int i = tipCount; i < nodeCount; i++) {
@@ -100,7 +104,7 @@ public class GeneralBeagleImpl implements Beagle {
 //            }
 //        }
 
-        matrixSize = (stateCount + 1) * stateCount;
+        matrixSize = stateCount * stateCount;
 
         matrices = new double[matrixBufferCount][categoryCount * matrixSize];
     }
@@ -208,8 +212,6 @@ public class GeneralBeagleImpl implements Beagle {
                             matrices[matrixIndex][n] = 0; // TODO Decision: set to -sum (as BEAST does)
                         n++;
                     }
-                    matrices[matrixIndex][n] = 1.0;
-                    n++;
                 }
 
 //            if (DEBUG) System.err.println(new dr.math.matrixAlgebra.Vector(matrices[currentMatricesIndices[nodeIndex]][nodeIndex]));
@@ -281,16 +283,16 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
-        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+//        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
 
     }
 
     public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
-        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+//        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
 
     public void resetScaleFactors(int cumulativeScaleIndex) {
-        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+//        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
 
     /**
@@ -317,12 +319,43 @@ public class GeneralBeagleImpl implements Beagle {
 
                 int w = l * matrixSize;
 
-                for (int i = 0; i < stateCount; i++) {
+                if (state1 < stateCount && state2 < stateCount) {
 
-                    partials3[v] = matrices1[w + state1] * matrices2[w + state2];
+                    for (int i = 0; i < stateCount; i++) {
 
-                    v++;
-                    w += (stateCount + 1);
+                        partials3[v] = matrices1[w + state1] * matrices2[w + state2];
+
+                        v++;
+                        w += stateCount;
+                    }
+
+                } else if (state1 < stateCount) {
+                    // child 2 has a gap or unknown state so treat it as unknown
+
+                    for (int i = 0; i < stateCount; i++) {
+
+                        partials3[v] = matrices1[w + state1];
+
+                        v++;
+                        w += stateCount;
+                    }
+                } else if (state2 < stateCount) {
+                    // child 2 has a gap or unknown state so treat it as unknown
+
+                    for (int i = 0; i < stateCount; i++) {
+
+                        partials3[v] = matrices2[w + state2];
+
+                        v++;
+                        w += stateCount;
+                    }
+                } else {
+                    // both children have a gap or unknown state so set partials to 1
+
+                    for (int j = 0; j < stateCount; j++) {
+                        partials3[v] = 1.0;
+                        v++;
+                    }
                 }
 
             }
@@ -355,24 +388,41 @@ public class GeneralBeagleImpl implements Beagle {
 
                 int w = l * matrixSize;
 
-                for (int i = 0; i < stateCount; i++) {
+                if (state1 < stateCount) {
 
-                    tmp = matrices1[w + state1];
 
-                    sum = 0.0;
-                    for (int j = 0; j < stateCount; j++) {
-                        sum += matrices2[w] * partials2[v + j];
-                        w++;
+                    for (int i = 0; i < stateCount; i++) {
+
+                        tmp = matrices1[w + state1];
+
+                        sum = 0.0;
+                        for (int j = 0; j < stateCount; j++) {
+                            sum += matrices2[w] * partials2[v + j];
+                            w++;
+                        }
+
+                        partials3[u] = tmp * sum;
+                        u++;
                     }
 
-                    // increment for the extra column at the end
-                    w++;
+                    v += stateCount;
+                } else {
+                    // Child 1 has a gap or unknown state so don't use it
 
-                    partials3[u] = tmp * sum;
-                    u++;
+                    for (int i = 0; i < stateCount; i++) {
+
+                        sum = 0.0;
+                        for (int j = 0; j < stateCount; j++) {
+                            sum += matrices2[w] * partials2[v + j];
+                            w++;
+                        }
+
+                        partials3[u] = sum;
+                        u++;
+                    }
+
+                    v += stateCount;
                 }
-
-                v += stateCount;
             }
         }
     }
@@ -409,9 +459,6 @@ public class GeneralBeagleImpl implements Beagle {
                         w++;
                     }
 
-                    // increment for the extra column at the end
-                    w++;
-
                     partials3[u] = sum1 * sum2;
                     u++;
                 }
@@ -438,7 +485,6 @@ public class GeneralBeagleImpl implements Beagle {
 
         double[] rootPartials = partials[bufferIndices[0]];
 
-        double[] tmp = new double[patternCount * stateCount];
 
         int u = 0;
         int v = 0;
@@ -446,7 +492,7 @@ public class GeneralBeagleImpl implements Beagle {
 
             for (int i = 0; i < stateCount; i++) {
 
-                tmp[u] = rootPartials[v] * weights[0];
+                tmpPartials[u] = rootPartials[v] * weights[0];
                 u++;
                 v++;
             }
@@ -460,7 +506,7 @@ public class GeneralBeagleImpl implements Beagle {
 
                 for (int i = 0; i < stateCount; i++) {
 
-                    tmp[u] += rootPartials[v] * weights[l];
+                    tmpPartials[u] += rootPartials[v] * weights[l];
                     u++;
                     v++;
                 }
@@ -483,7 +529,7 @@ public class GeneralBeagleImpl implements Beagle {
             double sum = 0.0;
             for (int i = 0; i < stateCount; i++) {
 
-                sum += stateFrequencies[i] * tmp[u];
+                sum += stateFrequencies[i] * tmpPartials[u];
                 u++;
             }
 

@@ -99,9 +99,12 @@ public class BeagleFactory {
                 System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
             }
 
-            for (ResourceDetails details : BeagleJNIWrapper.INSTANCE.getResourceList()) {
-                resourceDetailsMap.put(details.getNumber(), details);
+            if (BeagleJNIWrapper.INSTANCE != null) {
+                for (ResourceDetails details : BeagleJNIWrapper.INSTANCE.getResourceList()) {
+                    resourceDetailsMap.put(details.getNumber(), details);
+                }
             }
+
         }
 
         return BeagleJNIWrapper.INSTANCE;
