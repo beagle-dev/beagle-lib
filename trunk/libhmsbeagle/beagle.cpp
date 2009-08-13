@@ -58,7 +58,7 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		// Set-up a list of implementation factories in trial-order
 #if defined(CUDA) || defined(OPENCL)
 		if (rsrcList->length > 1)
-			implFactory.push_back(new beagle::gpu::BeagleGPUImplFactory());
+			implFactory->push_back(new beagle::gpu::BeagleGPUImplFactory());
 #endif
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory());		
