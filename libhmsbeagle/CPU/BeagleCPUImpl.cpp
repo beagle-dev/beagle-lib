@@ -370,38 +370,8 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
-        const int rootPartialIndex = bufferIndices[0];
-        const double* rootPartials = partials[rootPartialIndex];
-        assert(rootPartials);
-        const double* wt = inWeights;
-        int u = 0;
-        int v = 0;
-        for (int k = 0; k < kPatternCount; k++) {        
-            for (int i = 0; i < kStateCount; i++) {
-                integrationTmp[u] = rootPartials[v] * wt[0];
-                u++;
-                v++;
-            }
-        }
-        for (int l = 1; l < kCategoryCount; l++) {
-            u = 0;
-            for (int k = 0; k < kPatternCount; k++) {
-                for (int i = 0; i < kStateCount; i++) {
-                    integrationTmp[u] += rootPartials[v] * wt[l];
-                    u++;
-                    v++;
-                }
-            }
-        }
-        u = 0;
-        for (int k = 0; k < kPatternCount; k++) {
-            double sum = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                sum += inStateFrequencies[i] * integrationTmp[u];
-                u++;
-            }
-            outLogLikelihoods[k] = log(sum);   // take the log
-        }
+                
+        calcRootLogLikelihoods(bufferIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
     }
     else
     {
@@ -459,6 +429,45 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 
     
     return BEAGLE_SUCCESS;
+}
+
+void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
+                            const double* inWeights,
+                            const double* inStateFrequencies,
+                            const int scalingFactorsIndex,
+                            double* outLogLikelihoods) {
+
+    const double* rootPartials = partials[bufferIndex];
+    assert(rootPartials);
+    const double* wt = inWeights;
+    int u = 0;
+    int v = 0;
+    for (int k = 0; k < kPatternCount; k++) {
+        for (int i = 0; i < kStateCount; i++) {
+            integrationTmp[u] = rootPartials[v] * wt[0];
+            u++;
+            v++;
+        }
+    }
+    for (int l = 1; l < kCategoryCount; l++) {
+        u = 0;
+        for (int k = 0; k < kPatternCount; k++) {
+            for (int i = 0; i < kStateCount; i++) {
+                integrationTmp[u] += rootPartials[v] * wt[l];
+                u++;
+                v++;
+            }
+        }
+    }
+    u = 0;
+    for (int k = 0; k < kPatternCount; k++) {
+        double sum = 0.0;
+        for (int i = 0; i < kStateCount; i++) {
+            sum += inStateFrequencies[i] * integrationTmp[u];
+            u++;
+        }
+        outLogLikelihoods[k] = log(sum);   // take the log
+    }
 }
 
 int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
@@ -570,6 +579,7 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
                                      const double* child1TransMat,
                                      const int* child2States,
                                      const double*child2TransMat) {
+
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
@@ -602,7 +612,7 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
 	for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             int state1 = states1[k];
-            //std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
+            std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
                 double tmp = matrices1[w + state1];

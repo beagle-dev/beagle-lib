@@ -213,6 +213,12 @@ protected:
                               const double *child0TransMat,
                               const double * child1Partials,
                               const double *child1TransMat);
+
+    virtual void calcRootLogLikelihoods(const int bufferIndex,
+                            const double* inWeights,
+                            const double* inStateFrequencies,
+                            const int scalingFactorsIndex,
+                            double* outLogLikelihoods);
 };
 
 class BeagleCPUImplFactory : public BeagleImplFactory {
