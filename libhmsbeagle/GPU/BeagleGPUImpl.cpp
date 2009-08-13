@@ -672,6 +672,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                                                rescale);
             }
         }
+
+	gpu->Synchronize();
         
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);

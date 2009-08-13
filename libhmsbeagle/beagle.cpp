@@ -75,7 +75,7 @@ void __attribute__ ((constructor)) beagle_library_initialize(void) {
 
 
 void __attribute__ ((destructor)) beagle_library_finialize(void) {
-	
+	fprintf(stderr,"Andrew: Let Marc know if you get here before the crash!\n");
 	// Destroy implFactory
     for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
           factory != implFactory->end(); factory++) {
@@ -93,6 +93,7 @@ void __attribute__ ((destructor)) beagle_library_finialize(void) {
 	}
 	free(rsrcList->list);
 	free(rsrcList);
+	fprintf(stderr,"Andrew: Let Marc know if you get here before the crash! (Part II)\n");
 }
 
 BeagleResourceList* beagleGetResourceList() {

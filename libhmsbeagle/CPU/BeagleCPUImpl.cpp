@@ -107,6 +107,8 @@ int BeagleCPUImpl::createInstance(int tipCount,
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
 
+    fprintf(stderr,"Andrew sucks at C\n");
+
     kBufferCount = partialsBufferCount + compactBufferCount;
     kTipCount = tipCount;
     assert(kBufferCount > kTipCount);
