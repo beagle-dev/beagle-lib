@@ -3,21 +3,19 @@
  * @author Daniel Ayres
  */
  
-#define STATE_COUNT 4
- 
 #include "libhmsbeagle/GPU/GPUImplDefs.h" 
 
-__kernel void kernelMatrixMulADB(__global float* listC,
-                                   __global float* A,
-                                   __global float* D,
-                                   __global float* B,
-                                   __global float* distanceQueue,
+__kernel void kernelMatrixMulADB(__global REAL* listC,
+                                   __global REAL* A,
+                                   __global REAL* D,
+                                   __global REAL* B,
+                                   __global REAL* distanceQueue,
                                    int length,
                                    int wB,
                                    int index) {
 
-//    __global float* C;
-    __local float distance;
+//    __global REAL* C;
+    __local REAL distance;
 
     int totalMatrix = 1;
     
@@ -49,15 +47,15 @@ __kernel void kernelMatrixMulADB(__global float* listC,
 
     // Csub is used to store the element of the block sub-matrix
     // that is computed by the thread
-    float Csub = 0;
+    REAL Csub = 0;
 
     int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
     int b = MULTIPLY_BLOCK_SIZE * bx;
     int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
 
-    __local float As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-    __local float Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-    __local float Ds[MULTIPLY_BLOCK_SIZE];
+    __local REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __local REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __local REAL Ds[MULTIPLY_BLOCK_SIZE];
 
     for (int i = 0; i < BLOCKS - 1; i++) {
 
@@ -116,14 +114,14 @@ __kernel void kernelMatrixMulADB(__global float* listC,
     }
 }
 
-__kernel void kernelPartialsPartialsByPatternBlockCoherent(__global float* partials1,
-                                                             __global float* partials2,
-                                                             __global float* partials3,
-                                                             __global float* matrices1,
-                                                             __global float* matrices2,
+__kernel void kernelPartialsPartialsByPatternBlockCoherent(__global REAL* partials1,
+                                                             __global REAL* partials2,
+                                                             __global REAL* partials3,
+                                                             __global REAL* matrices1,
+                                                             __global REAL* matrices2,
                                                              int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int state = get_local_id(0);
@@ -136,17 +134,17 @@ __kernel void kernelPartialsPartialsByPatternBlockCoherent(__global float* parti
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-    __global float* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + deltaMatrix;
+    __global REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + deltaMatrix;
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    __local float sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -185,15 +183,15 @@ __kernel void kernelPartialsPartialsByPatternBlockCoherent(__global float* parti
         partials3[u] = sum1 * sum2;
 }
 
-__kernel void kernelPartialsPartialsByPatternBlockFixedScaling(__global float* partials1,
-                                                                 __global float* partials2,
-                                                                 __global float* partials3,
-                                                                 __global float* matrices1,
-                                                                 __global float* matrices2,
-                                                                 __global float* scalingFactors,
+__kernel void kernelPartialsPartialsByPatternBlockFixedScaling(__global REAL* partials1,
+                                                                 __global REAL* partials2,
+                                                                 __global REAL* partials3,
+                                                                 __global REAL* matrices1,
+                                                                 __global REAL* matrices2,
+                                                                 __global REAL* scalingFactors,
                                                                  int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int state = get_local_id(0);
@@ -206,19 +204,19 @@ __kernel void kernelPartialsPartialsByPatternBlockFixedScaling(__global float* p
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-    __global float* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + deltaMatrix;
+    __global REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + deltaMatrix;
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    __local float sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
-    __local float fixedScalingFactors[PATTERN_BLOCK_SIZE];
+    __local REAL fixedScalingFactors[PATTERN_BLOCK_SIZE];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -263,13 +261,13 @@ __kernel void kernelPartialsPartialsByPatternBlockFixedScaling(__global float* p
 }
 
 __kernel void kernelStatesPartialsByPatternBlockCoherent(__global int* states1,
-                                                           __global float* partials2,
-                                                           __global float* partials3,
-                                                           __global float* matrices1,
-                                                           __global float* matrices2,
+                                                           __global REAL* partials2,
+                                                           __global REAL* partials3,
+                                                           __global REAL* matrices1,
+                                                           __global REAL* matrices2,
                                                            int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int state = get_local_id(0);
@@ -285,9 +283,9 @@ __kernel void kernelStatesPartialsByPatternBlockCoherent(__global int* states1,
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -296,12 +294,12 @@ __kernel void kernelStatesPartialsByPatternBlockCoherent(__global int* states1,
         sPartials2[patIdx][state] = 0;
     }
 
-    __global float* matrix2 = matrices2 + deltaMatrix;
+    __global REAL* matrix2 = matrices2 + deltaMatrix;
 
     if (pattern < totalPatterns) {
         int state1 = states1[pattern]; // Coalesced; no need to share
 
-        __global float* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+        __global REAL* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
 
         if (state1 < PADDED_STATE_COUNT)
             sum1 = matrix1[state];
@@ -333,14 +331,14 @@ __kernel void kernelStatesPartialsByPatternBlockCoherent(__global int* states1,
 }
 
 __kernel void kernelStatesPartialsByPatternBlockFixedScaling(__global int* states1,
-                                                               __global float* partials2,
-                                                               __global float* partials3,
-                                                               __global float* matrices1,
-                                                               __global float* matrices2,
-                                                               __global float* scalingFactors,
+                                                               __global REAL* partials2,
+                                                               __global REAL* partials3,
+                                                               __global REAL* matrices1,
+                                                               __global REAL* matrices2,
+                                                               __global REAL* scalingFactors,
                                                                int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int state = get_local_id(0);
@@ -356,11 +354,11 @@ __kernel void kernelStatesPartialsByPatternBlockFixedScaling(__global int* state
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
-    __local float fixedScalingFactors[PATTERN_BLOCK_SIZE];
+    __local REAL fixedScalingFactors[PATTERN_BLOCK_SIZE];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -369,12 +367,12 @@ __kernel void kernelStatesPartialsByPatternBlockFixedScaling(__global int* state
         sPartials2[patIdx][state] = 0;
     }
 
-    __global float* matrix2 = matrices2 + deltaMatrix;
+    __global REAL* matrix2 = matrices2 + deltaMatrix;
 
     if (pattern < totalPatterns) {
         int state1 = states1[pattern]; // Coalesced; no need to share
 
-        __global float* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+        __global REAL* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
 
         if (state1 < PADDED_STATE_COUNT)
             sum1 = matrix1[state];
@@ -411,9 +409,9 @@ __kernel void kernelStatesPartialsByPatternBlockFixedScaling(__global int* state
 
 __kernel void kernelStatesStatesByPatternBlockCoherent(__global int* states1,
                                                          __global int* states2,
-                                                         __global float* partials3,
-                                                         __global float* matrices1,
-                                                         __global float* matrices2,
+                                                         __global REAL* partials3,
+                                                         __global REAL* matrices1,
+                                                         __global REAL* matrices2,
                                                          int totalPatterns) {
     int state = get_local_id(0);
     int patIdx = get_local_id(1);
@@ -427,15 +425,15 @@ __kernel void kernelStatesStatesByPatternBlockCoherent(__global int* states1,
 
 
     // Load values into shared memory
-//  __local float sMatrix1[PADDED_STATE_COUNT];
-//  __local float sMatrix2[PADDED_STATE_COUNT];
+//  __local REAL sMatrix1[PADDED_STATE_COUNT];
+//  __local REAL sMatrix2[PADDED_STATE_COUNT];
 
     int state1 = states1[pattern];
     int state2 = states2[pattern];
 
     // Points to *this* matrix
-    __global float* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
-    __global float* matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
+    __global REAL* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+    __global REAL* matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
 
 //  if (patIdx == 0) {
 //      sMatrix1[state] = matrix1[state];
@@ -463,10 +461,10 @@ __kernel void kernelStatesStatesByPatternBlockCoherent(__global int* states1,
 
 __kernel void kernelStatesStatesByPatternBlockFixedScaling(__global int* states1,
                                                              __global int* states2,
-                                                             __global float* partials3,
-                                                             __global float* matrices1,
-                                                             __global float* matrices2,
-                                                             __global float* scalingFactors,
+                                                             __global REAL* partials3,
+                                                             __global REAL* matrices1,
+                                                             __global REAL* matrices2,
+                                                             __global REAL* scalingFactors,
                                                              int totalPatterns) {
     int state = get_local_id(0);
     int patIdx = get_local_id(1);
@@ -481,17 +479,17 @@ __kernel void kernelStatesStatesByPatternBlockFixedScaling(__global int* states1
     // Load values into shared memory
     // Prefetching into shared memory gives no performance gain
     // TODO: Double-check.
-//  __local float sMatrix1[PADDED_STATE_COUNT];
-//  __local float sMatrix2[PADDED_STATE_COUNT];
+//  __local REAL sMatrix1[PADDED_STATE_COUNT];
+//  __local REAL sMatrix2[PADDED_STATE_COUNT];
 
-    __local float fixedScalingFactors[PATTERN_BLOCK_SIZE];
+    __local REAL fixedScalingFactors[PATTERN_BLOCK_SIZE];
 
     int state1 = states1[pattern];
     int state2 = states2[pattern];
 
     // Points to *this* matrix
-    __global float* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
-    __global float* matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
+    __global REAL* matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+    __global REAL* matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
 
 //  if (patIdx == 0) {
 //      sMatrix1[state] = matrix1[state];
@@ -521,12 +519,12 @@ __kernel void kernelStatesStatesByPatternBlockFixedScaling(__global int* states1
 }
 
 
-__kernel void kernelPartialsPartialsEdgeLikelihoods(__global float* dPartialsTmp,
-                                                         __global float* dParentPartials,
-                                                         __global float* dChildParials,
-                                                         __global float* dTransMatrix,
+__kernel void kernelPartialsPartialsEdgeLikelihoods(__global REAL* dPartialsTmp,
+                                                         __global REAL* dParentPartials,
+                                                         __global REAL* dChildParials,
+                                                         __global REAL* dTransMatrix,
                                                          int patternCount) {
-    float sum1 = 0;
+    REAL sum1 = 0;
 
     int i;
 
@@ -540,15 +538,15 @@ __kernel void kernelPartialsPartialsEdgeLikelihoods(__global float* dPartialsTmp
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-    __global float* matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
+    __global REAL* matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __local REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -584,12 +582,12 @@ __kernel void kernelPartialsPartialsEdgeLikelihoods(__global float* dPartialsTmp
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
 }
 
-__kernel void kernelStatesPartialsEdgeLikelihoods(__global float* dPartialsTmp,
-                                                    __global float* dParentPartials,
+__kernel void kernelStatesPartialsEdgeLikelihoods(__global REAL* dPartialsTmp,
+                                                    __global REAL* dParentPartials,
                                                     __global int* dChildStates,
-                                                    __global float* dTransMatrix,
+                                                    __global REAL* dTransMatrix,
                                                     int patternCount) {
-    float sum1 = 0;
+    REAL sum1 = 0;
 
     int state = get_local_id(0);
     int patIdx = get_local_id(1);
@@ -604,7 +602,7 @@ __kernel void kernelStatesPartialsEdgeLikelihoods(__global float* dPartialsTmp,
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -616,7 +614,7 @@ __kernel void kernelStatesPartialsEdgeLikelihoods(__global float* dPartialsTmp,
     if (pattern < totalPatterns) {
         int state1 = dChildStates[pattern]; // Coalesced; no need to share
 
-        __global float* matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
+        __global REAL* matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
 
         if (state1 < PADDED_STATE_COUNT)
             sum1 = matrix1[state];
@@ -629,14 +627,14 @@ __kernel void kernelStatesPartialsEdgeLikelihoods(__global float* dPartialsTmp,
 }
 
 
-__kernel void kernelPartialsPartialsByPatternBlockCoherentSmall(__global float* partials1,
-                                                                  __global float* partials2,
-                                                                  __global float* partials3,
-                                                                  __global float* matrices1,
-                                                                  __global float* matrices2,
+__kernel void kernelPartialsPartialsByPatternBlockCoherentSmall(__global REAL* partials1,
+                                                                  __global REAL* partials2,
+                                                                  __global REAL* partials3,
+                                                                  __global REAL* matrices1,
+                                                                  __global REAL* matrices2,
                                                                   int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int tx = get_local_id(0);
@@ -655,18 +653,18 @@ __kernel void kernelPartialsPartialsByPatternBlockCoherentSmall(__global float* 
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = matrices1 + x2; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + x2;
+    __global REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + x2;
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
-    __local float sMatrix2[16];
+    __local REAL sMatrix1[16];
+    __local REAL sMatrix2[16];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    __local float sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -694,15 +692,15 @@ __kernel void kernelPartialsPartialsByPatternBlockCoherentSmall(__global float* 
 
 }
 
-__kernel void kernelPartialsPartialsByPatternBlockSmallFixedScaling(__global float* partials1,
-                                                                      __global float* partials2,
-                                                                      __global float* partials3,
-                                                                      __global float* matrices1,
-                                                                      __global float* matrices2,
-                                                                      __global float* scalingFactors,
+__kernel void kernelPartialsPartialsByPatternBlockSmallFixedScaling(__global REAL* partials1,
+                                                                      __global REAL* partials2,
+                                                                      __global REAL* partials3,
+                                                                      __global REAL* matrices1,
+                                                                      __global REAL* matrices2,
+                                                                      __global REAL* scalingFactors,
                                                                       int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int tx = get_local_id(0);
@@ -721,21 +719,21 @@ __kernel void kernelPartialsPartialsByPatternBlockSmallFixedScaling(__global flo
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = matrices1 + x2; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + x2;
+    __global REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + x2;
 
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
-    __local float sMatrix2[16];
+    __local REAL sMatrix1[16];
+    __local REAL sMatrix2[16];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    __local float sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
-    __local float fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];
+    __local REAL fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -768,13 +766,13 @@ __kernel void kernelPartialsPartialsByPatternBlockSmallFixedScaling(__global flo
 }
 
 __kernel void kernelStatesPartialsByPatternBlockCoherentSmall(__global int* states1,
-                                                                __global float* partials2,
-                                                                __global float* partials3,
-                                                                __global float* matrices1,
-                                                                __global float* matrices2,
+                                                                __global REAL* partials2,
+                                                                __global REAL* partials3,
+                                                                __global REAL* matrices1,
+                                                                __global REAL* matrices2,
                                                                 int totalPatterns) {
-    float sum1 = 0;
-    float sum2 = 0;
+    REAL sum1 = 0;
+    REAL sum2 = 0;
     int i;
 
     int tx = get_local_id(0);
@@ -792,19 +790,19 @@ __kernel void kernelStatesPartialsByPatternBlockCoherentSmall(__global int* stat
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = matrices1 + x2; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + x2;
+    __global REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + x2;
 
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
-    __local float sMatrix2[16];
+    __local REAL sMatrix1[16];
+    __local REAL sMatrix2[16];
 
 //  __local INT sStates1[PATTERN_BLOCK_SIZE * 4];
-    __local float sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -844,9 +842,9 @@ __kernel void kernelStatesPartialsByPatternBlockCoherentSmall(__global int* stat
 
 __kernel void kernelStatesStatesByPatternBlockCoherentSmall(__global int* states1,
                                                               __global int* states2,
-                                                              __global float* partials3,
-                                                              __global float* matrices1,
-                                                              __global float* matrices2,
+                                                              __global REAL* partials3,
+                                                              __global REAL* matrices1,
+                                                              __global REAL* matrices2,
                                                               int totalPatterns) {
 
     int tx = get_local_id(0);
@@ -864,14 +862,14 @@ __kernel void kernelStatesStatesByPatternBlockCoherentSmall(__global int* states
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = matrices1 + x2; // Points to *this* matrix
-    __global float* matrix2 = matrices2 + x2;
+    __global REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    __global REAL* matrix2 = matrices2 + x2;
 
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
-    __local float sMatrix2[16];
+    __local REAL sMatrix1[16];
+    __local REAL sMatrix2[16];
 
 //  __local INT sStates1[PATTERN_BLOCK_SIZE * 4];
 //  __local INT sStates2[PATTERN_BLOCK_SIZE * 4];
@@ -913,12 +911,12 @@ __kernel void kernelStatesStatesByPatternBlockCoherentSmall(__global int* states
     }
 }
 
-__kernel void kernelPartialsPartialsEdgeLikelihoodsSmall(__global float* dPartialsTmp,
-                                                              __global float* dParentPartials,
-                                                              __global float* dChildParials,
-                                                              __global float* dTransMatrix,
+__kernel void kernelPartialsPartialsEdgeLikelihoodsSmall(__global REAL* dPartialsTmp,
+                                                              __global REAL* dParentPartials,
+                                                              __global REAL* dChildParials,
+                                                              __global REAL* dTransMatrix,
                                                               int patternCount) {
-    float sum1 = 0;
+    REAL sum1 = 0;
 
     int i;
 
@@ -937,16 +935,16 @@ __kernel void kernelPartialsPartialsEdgeLikelihoodsSmall(__global float* dPartia
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+    __global REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
+    __local REAL sMatrix1[16];
 
-    __local float sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    __local float sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -972,12 +970,12 @@ __kernel void kernelPartialsPartialsEdgeLikelihoodsSmall(__global float* dPartia
 
 }
 
-__kernel void kernelStatesPartialsEdgeLikelihoodsSmall(__global float* dPartialsTmp,
-                                                         __global float* dParentPartials,
+__kernel void kernelStatesPartialsEdgeLikelihoodsSmall(__global REAL* dPartialsTmp,
+                                                         __global REAL* dParentPartials,
                                                          __global int* dChildStates,
-                                                         __global float* dTransMatrix,
+                                                         __global REAL* dTransMatrix,
                                                          int patternCount) {
-    float sum1 = 0;
+    REAL sum1 = 0;
 
     int tx = get_local_id(0);
     int state = tx % 4;
@@ -994,15 +992,15 @@ __kernel void kernelStatesPartialsEdgeLikelihoodsSmall(__global float* dPartials
 
     int x2 = (matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT);
 
-    __global float* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+    __global REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __local float sMatrix1[16];
+    __local REAL sMatrix1[16];
 
-    __local float sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __local REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -1029,20 +1027,20 @@ __kernel void kernelStatesPartialsEdgeLikelihoodsSmall(__global float* dPartials
     }
 }
 
-__kernel void kernelIntegrateLikelihoodsDynamicScaling(__global float* dResult,
-                                                            __global float* dRootPartials,
-                                                            float *dWeights,
-                                                            float *dFrequencies,
-                                                            float *dRootScalingFactors,
+__kernel void kernelIntegrateLikelihoodsDynamicScaling(__global REAL* dResult,
+                                                            __global REAL* dRootPartials,
+                                                            REAL *dWeights,
+                                                            REAL *dFrequencies,
+                                                            REAL *dRootScalingFactors,
                                                             int count) {
     int state   = get_local_id(0);
     int pattern = get_group_id(0);
     int patternCount = get_num_groups(0);
 
-    __local float stateFreq[PADDED_STATE_COUNT];
+    __local REAL stateFreq[PADDED_STATE_COUNT];
     // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
-    __local float matrixProp[MATRIX_BLOCK_SIZE];
-    __local float sum[PADDED_STATE_COUNT];
+    __local REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __local REAL sum[PADDED_STATE_COUNT];
 
     // Load shared memory
 
@@ -1085,14 +1083,14 @@ __kernel void kernelIntegrateLikelihoodsDynamicScaling(__global float* dResult,
 }
 
 
-__kernel void kernelAccumulateFactorsDynamicScaling(__global float** dNodePtrQueue,
-                                                   __global float* rootScaling,
+__kernel void kernelAccumulateFactorsDynamicScaling(__global REAL** dNodePtrQueue,
+                                                   __global REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
     int pattern = get_local_id(0) + get_group_id(0) * PATTERN_BLOCK_SIZE;
 
-    float total = 0;
-    __global float* nodeScales;
+    REAL total = 0;
+    __global REAL* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
@@ -1100,7 +1098,7 @@ __kernel void kernelAccumulateFactorsDynamicScaling(__global float** dNodePtrQue
             nodeScales = dNodePtrQueue[n];
 //      __syncthreads();
 
-        float factor = nodeScales[pattern];
+        REAL factor = nodeScales[pattern];
         if (factor != 1.0)
             total += log(factor);
     }
@@ -1109,14 +1107,14 @@ __kernel void kernelAccumulateFactorsDynamicScaling(__global float** dNodePtrQue
         rootScaling[pattern] += total;
 }
 
-__kernel void kernelRemoveFactorsDynamicScaling(__global float** dNodePtrQueue,
-                                                   __global float* rootScaling,
+__kernel void kernelRemoveFactorsDynamicScaling(__global REAL** dNodePtrQueue,
+                                                   __global REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
     int pattern = get_local_id(0) + get_group_id(0) * PATTERN_BLOCK_SIZE;
 
-    float total = 0;
-    __global float* nodeScales;
+    REAL total = 0;
+    __global REAL* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
@@ -1124,7 +1122,7 @@ __kernel void kernelRemoveFactorsDynamicScaling(__global float** dNodePtrQueue,
             nodeScales = dNodePtrQueue[n];
 //      __syncthreads();
 
-        float factor = nodeScales[pattern];
+        REAL factor = nodeScales[pattern];
         if (factor != 1.0)
             total += log(factor);
     }
@@ -1136,8 +1134,8 @@ __kernel void kernelRemoveFactorsDynamicScaling(__global float** dNodePtrQueue,
 /*
  * Find a scaling factor for each pattern
  */
-__kernel void kernelPartialsDynamicScaling(__global float* allPartials,
-                                             __global float* scalingFactors,
+__kernel void kernelPartialsDynamicScaling(__global REAL* allPartials,
+                                             __global REAL* scalingFactors,
                                              int matrixCount) {
     int state = get_local_id(0);
     int matrix = get_local_id(1);
@@ -1147,9 +1145,9 @@ __kernel void kernelPartialsDynamicScaling(__global float* allPartials,
     int deltaPartialsByMatrix = (matrix * (PADDED_STATE_COUNT * patternCount));
 
     // TODO: Currently assumes MATRIX_BLOCK_SIZE > matrixCount; FIX!!!
-    __local float partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
 
-    __local float max;
+    __local REAL max;
 
     if (matrix < matrixCount)
         partials[matrix][state] = allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern *
@@ -1163,8 +1161,8 @@ __kernel void kernelPartialsDynamicScaling(__global float* allPartials,
     // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
     for (i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
         if (state < i) {
-            float compare1 = partials[matrix][state];
-            float compare2 = partials[matrix][state + i];
+            REAL compare1 = partials[matrix][state];
+            REAL compare2 = partials[matrix][state + i];
             if (compare2 > compare1)
             partials[matrix][state] = compare2;
         }
@@ -1194,9 +1192,9 @@ __kernel void kernelPartialsDynamicScaling(__global float* allPartials,
 /*
  * Find a scaling factor for each pattern and accumulate into buffer
  */
-__kernel void kernelPartialsDynamicScalingAccumulate(__global float* allPartials,
-                                                       __global float* scalingFactors,
-                                                       __global float* cumulativeScaling,
+__kernel void kernelPartialsDynamicScalingAccumulate(__global REAL* allPartials,
+                                                       __global REAL* scalingFactors,
+                                                       __global REAL* cumulativeScaling,
                                                        int matrixCount) {
     int state = get_local_id(0);
     int matrix = get_local_id(1);
@@ -1206,9 +1204,9 @@ __kernel void kernelPartialsDynamicScalingAccumulate(__global float* allPartials
     int deltaPartialsByMatrix = (matrix * (PADDED_STATE_COUNT * patternCount));
 
     // TODO: Currently assumes MATRIX_BLOCK_SIZE > matrixCount; FIX!!!
-    __local float partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __local REAL partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
 
-    __local float max;
+    __local REAL max;
 
     if (matrix < matrixCount)
         partials[matrix][state] = allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern *
@@ -1222,8 +1220,8 @@ __kernel void kernelPartialsDynamicScalingAccumulate(__global float* allPartials
     // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
     for (i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
         if (state < i) {
-            float compare1 = partials[matrix][state];
-            float compare2 = partials[matrix][state + i];
+            REAL compare1 = partials[matrix][state];
+            REAL compare2 = partials[matrix][state + i];
             if (compare2 > compare1)
             partials[matrix][state] = compare2;
         }
@@ -1253,8 +1251,8 @@ __kernel void kernelPartialsDynamicScalingAccumulate(__global float* allPartials
 
 
 
-__kernel void kernelPartialsDynamicScalingSlow(__global float* allPartials,
-                                                 __global float* scalingFactors,
+__kernel void kernelPartialsDynamicScalingSlow(__global REAL* allPartials,
+                                                 __global REAL* scalingFactors,
                                                  int matrixCount) {
     int state = get_local_id(0);
     int matrix = get_local_id(1);
@@ -1263,9 +1261,9 @@ __kernel void kernelPartialsDynamicScalingSlow(__global float* allPartials,
 
     int deltaPartialsByMatrix = (matrix * ( PADDED_STATE_COUNT * patternCount));
 
-    __local float partials[PADDED_STATE_COUNT];
+    __local REAL partials[PADDED_STATE_COUNT];
 
-    __local float max;
+    __local REAL max;
 
     if (state == 0)
         max = 0.0;
@@ -1284,8 +1282,8 @@ __kernel void kernelPartialsDynamicScalingSlow(__global float* allPartials,
     for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
         if (state < i && state + i < PADDED_STATE_COUNT ) {
 #endif // IS_POWER_OF_TWO
-                float compare1 = partials[state];
-                float compare2 = partials[state + i];
+                REAL compare1 = partials[state];
+                REAL compare2 = partials[state + i];
                 if(compare2 > compare1)
                     partials[state] = compare2;
             }
@@ -1308,19 +1306,19 @@ __kernel void kernelPartialsDynamicScalingSlow(__global float* allPartials,
 
 }
 
-__kernel void kernelIntegrateLikelihoods(__global float* dResult,
-                                              __global float* dRootPartials,
-                                              __global float* dWeights,
-                                              __global float* dFrequencies,
+__kernel void kernelIntegrateLikelihoods(__global REAL* dResult,
+                                              __global REAL* dRootPartials,
+                                              __global REAL* dWeights,
+                                              __global REAL* dFrequencies,
                                               int count) {
     int state   = get_local_id(0);
     int pattern = get_group_id(0);
     int patternCount = get_num_groups(0);
 
-    __local float stateFreq[PADDED_STATE_COUNT];
+    __local REAL stateFreq[PADDED_STATE_COUNT];
     // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
-    __local float matrixProp[MATRIX_BLOCK_SIZE];
-    __local float sum[PADDED_STATE_COUNT];
+    __local REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __local REAL sum[PADDED_STATE_COUNT];
 
     // Load shared memory
 

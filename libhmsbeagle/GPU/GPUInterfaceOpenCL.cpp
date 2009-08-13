@@ -88,7 +88,7 @@ void GPUInterface::SetDevice(int deviceNumber) {
         exit(-1);
     }
     
-    err = clBuildProgram(openClProgram, 0, NULL, OPENCL_BUILD_OPTIONS, NULL, NULL);
+    err = clBuildProgram(openClProgram, 0, NULL, BEAGLE_OPENCL_BUILD_OPTIONS, NULL, NULL);
     if (err != CL_SUCCESS) {
         size_t len;
         char buffer[2048];
