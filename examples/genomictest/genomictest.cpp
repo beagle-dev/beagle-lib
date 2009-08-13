@@ -29,12 +29,14 @@ double* getRandomTipPartials( int nsites, int stateCount )
 
 void runBeagle(int resource)
 {
+    bool scaling = true;
+    
     // is nucleotides...
     int stateCount = 4;
     
     int rateCategoryCount = 4;
     
-    int scaleCount = ntaxa;
+    int scaleCount = (scaling ? ntaxa : 0);
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
@@ -137,7 +139,7 @@ void runBeagle(int resource)
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
 		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
-        operations[BEAGLE_OP_COUNT*i+1] = i;
+        operations[BEAGLE_OP_COUNT*i+1] = (scaling ? i : BEAGLE_OP_NONE);
         operations[BEAGLE_OP_COUNT*i+2] = BEAGLE_OP_NONE;
 		operations[BEAGLE_OP_COUNT*i+3] = i*2;
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
@@ -165,15 +167,18 @@ void runBeagle(int resource)
 
     int scalingFactorsCount = ntaxa-1;
     
-    int cumulativeScalingFactorIndex = ntaxa-1;
-
-    beagleResetScaleFactors(instance,
-                           cumulativeScalingFactorIndex);
+    int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
     
-    beagleAccumulateScaleFactors(instance,
-                           scalingFactorsIndices,
-                           scalingFactorsCount,
-                           cumulativeScalingFactorIndex);
+    
+    if (scaling) {
+        beagleResetScaleFactors(instance,
+                               cumulativeScalingFactorIndex);
+        
+        beagleAccumulateScaleFactors(instance,
+                               scalingFactorsIndices,
+                               scalingFactorsCount,
+                               cumulativeScalingFactorIndex);
+    }
 
     
     // calculate the site likelihoods at the root node

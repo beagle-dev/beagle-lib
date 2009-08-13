@@ -542,6 +542,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     
     // TODO: implement calculation of derivatives
     
+    
+#ifdef CUDA
     int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
@@ -556,12 +558,35 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     
     // Set-up and call GPU kernel
     kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex], 
-											  dEigenValues[eigenIndex], dDistanceQueue,totalCount);
+                                              dEigenValues[eigenIndex], dDistanceQueue, totalCount);    
+    
+#else
+    int totalCount = 0;
+    for (int i = 0; i < count; i++) {        
+		for (int j = 0; j < kCategoryCount; j++) {
+//            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]];// + (j * kMatrixSize * sizeof(GPUPtr));
+            hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
+            totalCount++;
+        }
+    }
+    
+//    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount);
+    gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
+    
+    // Set-up and call GPU kernel
+    for (int i = 0; i < count; i++) {        
+        kernels->GetTransitionProbabilitiesSquare(dMatrices[probabilityIndices[i]], dEvec[eigenIndex], dIevc[eigenIndex], 
+                                                  dEigenValues[eigenIndex], dDistanceQueue, i);
+    }
+        
+#endif
     
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "dMatrices[probabilityIndices[0]] =\n");
-    gpu->PrintfDeviceVector(hPtrQueue[0], kMatrixSize * kCategoryCount);
-#endif
+    for (int i = 0; i < totalCount; i++) {
+        fprintf(stderr, "dMatrices[probabilityIndices[%d]] =\n", i);
+        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount);
+    }
+#endif    
 
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();

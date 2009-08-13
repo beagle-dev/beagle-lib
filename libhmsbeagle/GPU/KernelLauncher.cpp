@@ -111,7 +111,9 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
         grid.x += 1;
         grid.y += 1;
     }
+#ifdef CUDA
     grid.x *= totalMatrix;
+#endif
 
     // Transposed (interchanged Ievc and Evec)    
     int parameterCount = 8;

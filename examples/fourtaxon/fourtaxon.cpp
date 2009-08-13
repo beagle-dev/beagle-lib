@@ -71,7 +71,7 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
+  : scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
 	{
 	}
 
@@ -100,7 +100,7 @@ void FourTaxonExample::initBeagleLib()
 	// Assume node 4 is ancestor of A,B (0,1)
 	// Assume node 5 is ancestor of C,D (2,3)
 	operations.push_back(4);	// destination (to be calculated)
-	operations.push_back(1);	// destination scaling buffer index to write to
+    operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 	operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 	operations.push_back(0);	// left child partial index
 	operations.push_back(0);	// left child transition matrix index
@@ -108,7 +108,7 @@ void FourTaxonExample::initBeagleLib()
 	operations.push_back(1);	// right child transition matrix index
 
 	operations.push_back(5);	// destination (to be calculated)
-	operations.push_back(2);	// destination scaling buffer index to write to
+	operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
     operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 	operations.push_back(2);	// left child partial index
 	operations.push_back(2);	// left child transition matrix index
@@ -226,10 +226,10 @@ double FourTaxonExample::calcLnL()
 	if (code != 0)
 		abort("beagleUpdateTransitionMatrices encountered a problem");
         
-    int cumulativeScalingFactorIndex = 0;
+    int cumulativeScalingFactorIndex = (scaling ? 0 : BEAGLE_OP_NONE);
         
-    beagleResetScaleFactors(instance_handle,
-                      cumulativeScalingFactorIndex);
+    if (scaling)
+        beagleResetScaleFactors(instance_handle, cumulativeScalingFactorIndex);
 
 	code = beagleUpdatePartials(
 		   &instance_handle,	// instance
