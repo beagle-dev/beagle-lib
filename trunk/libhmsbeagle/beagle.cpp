@@ -68,15 +68,6 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 	return implFactory;
 }
 
-#ifdef __GNUC__
-void __attribute__ ((constructor)) beagle_gnu_init(void) {
-	beagle_library_initialize()
-}
-void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
-	beagle_library_finalize()
-}
-#endif
-
 void beagle_library_initialize(void) {
 //	beagleGetResourceList(); // Generate resource list at library initialization, causes Bus error on Mac
 //	beagleGetFactoryList(); // Generate factory list at library initialization, causes Bus error on Mac	
@@ -113,6 +104,15 @@ void beagle_library_finalize(void) {
 	}
 	loaded = 0;
 }
+
+#ifdef __GNUC__
+void __attribute__ ((constructor)) beagle_gnu_init(void) {
+	beagle_library_initialize();
+}
+void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
+	beagle_library_finalize();
+}
+#endif
 
 BeagleResourceList* beagleGetResourceList() {
     
