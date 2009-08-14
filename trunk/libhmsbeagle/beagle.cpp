@@ -70,7 +70,6 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 void __attribute__ ((constructor)) beagle_library_initialize(void) {
 //	beagleGetResourceList(); // Generate resource list at library initialization, causes Bus error on Mac
 //	beagleGetFactoryList(); // Generate factory list at library initialization, causes Bus error on Mac	
-	fprintf(stderr,"Initalize me!!!\n");
 }
 
 void __attribute__ ((destructor)) beagle_library_finialize(void) {
