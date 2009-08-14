@@ -507,7 +507,7 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
 #endif
 
 #ifdef DOUBLE_PRECISION
-	double* categoryRates = inCategoryRates;
+	const double* categoryRates = inCategoryRates;
 #else
 	REAL* categoryRates = hCategoryCache;
 	MEMCNV(categoryRates, inCategoryRates, kCategoryCount, REAL);
@@ -835,12 +835,13 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #endif
 
     if (count == 1) {         
-        REAL* tmpWeights = hWeightsCache;
         
+    	// MAS:  I may have introduced a bug here.
 #ifdef DOUBLE_PRECISION
-        tmpWeights = inWeights;
+    	const double* tmpWeights = inWeights;        
         memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
 #else
+        REAL* tmpWeights = hWeightsCache;
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
         MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
 #endif        
@@ -899,13 +900,12 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 #endif
     
     if (count == 1) { 
-        
-        REAL* tmpWeights = hWeightsCache;
-        
+                 
 #ifdef DOUBLE_PRECISION
-        tmpWeights = inWeights;
+        const double* tmpWeights = inWeights;
         memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
 #else
+        REAL* tmpWeights = hWeightsCache;
         MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
         MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
 #endif        

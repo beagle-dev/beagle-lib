@@ -61,6 +61,9 @@
 #if (STATE_COUNT <= 32) // else if
     #define PADDED_STATE_COUNT  32
 #else
+//#if (STATE_COUNT <= 48) // else if
+//	#define PADDED_STATE_COUNT	48
+//#else
 #if (STATE_COUNT <= 64) // else if
     #define PADDED_STATE_COUNT  64
 #else
@@ -75,6 +78,7 @@
 #endif
 #endif
 #endif
+//#endif
 
 #define PADDED_STATES   PADDED_STATE_COUNT - STATE_COUNT
 #define IS_POWER_OF_TWO
