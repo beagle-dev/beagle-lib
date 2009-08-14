@@ -68,32 +68,32 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 
 
 void __attribute__ ((constructor)) beagle_library_initialize(void) {
-	
-	beagleGetResourceList(); // Generate resource list at library initialization
-	beagleGetFactoryList(); // Generate factory list at library initialization	
+//	beagleGetResourceList(); // Generate resource list at library initialization, causes Bus error on Mac
+//	beagleGetFactoryList(); // Generate factory list at library initialization, causes Bus error on Mac	
 }
 
 
 void __attribute__ ((destructor)) beagle_library_finialize(void) {
-	fprintf(stderr,"Andrew: Let Marc know if you get here before the crash!\n");
+	
 	// Destroy implFactory
-    for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
-          factory != implFactory->end(); factory++) {
-    	delete (*factory); // Fixes 4 byte leak for each entry in implFactory
-    	
-    }	
-	delete implFactory;
+	if (implFactory) {	
+		for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
+				factory != implFactory->end(); factory++) {
+			delete (*factory); // Fixes 4 byte leak for each entry in implFactory    	
+		}	
+		delete implFactory;
+	}
 	
 	// Destroy rsrcList
-	for(int i=0; i<rsrcList->length; i++) {
-		if (i>0) {
+	if (rsrcList) {
+		for(int i=1; i<rsrcList->length; i++) { // #0 is not needed		
 			free(rsrcList->list[i].name);
-			free(rsrcList->list[i].description);
+			free(rsrcList->list[i].description);	
 		}
+		free(rsrcList->list);
+		free(rsrcList);
 	}
-	free(rsrcList->list);
-	free(rsrcList);
-	fprintf(stderr,"Andrew: Let Marc know if you get here before the crash! (Part II)\n");
+	
 }
 
 BeagleResourceList* beagleGetResourceList() {
@@ -103,8 +103,8 @@ BeagleResourceList* beagleGetResourceList() {
         rsrcList->length = 1;
         
 #if defined(CUDA) || defined(OPENCL)
-        GPUInterface* gpu = new GPUInterface;
-        if (gpu->Initialize()) {
+        GPUInterface* gpu = new GPUInterface;     
+        if (gpu->Initialize()) {        
             int gpuDeviceCount = gpu->GetDeviceCount();
             rsrcList->length += gpuDeviceCount;
             rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length); 
@@ -117,7 +117,7 @@ BeagleResourceList* beagleGetResourceList() {
                 rsrcList->list[i + 1].description = dDesc;
                 rsrcList->list[i + 1].flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
             }   
-        } else {
+        } else {        	
             rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);             
         }
         delete gpu;

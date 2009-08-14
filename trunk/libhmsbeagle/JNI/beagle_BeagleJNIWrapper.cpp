@@ -468,3 +468,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
 
     return errCode;
 }
+
+void __attribute__ ((constructor)) beagle_jni_library_initialize(void) {
+	
+}
+
+
+void __attribute__ ((destructor)) beagle_jni_library_finialize(void) {
+	fprintf(stderr,"jni finalizer\n");
+	
+}
+
