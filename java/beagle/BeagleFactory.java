@@ -66,6 +66,7 @@ public class BeagleFactory {
         if (stateCount == 4) {
 //            return new DependencyAwareBeagleImpl();
             return new FourStateBeagleImpl(
+//            return new NNLCBeagleImpl(
                     tipCount,
                     partialsBufferCount,
                     compactBufferCount,

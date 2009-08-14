@@ -47,13 +47,13 @@ public class NativeNucleotideLikelihoodCore extends AbstractLikelihoodCore {
 
 	}
 
-	protected void calculateStatesStatesPruning(int[] states1, double[] matrices1,
+	public void calculateStatesStatesPruning(int[] states1, double[] matrices1,
 												int[] states2, double[] matrices2,
 												double[] partials3) {
         nativeStatesStatesPruning(states1, matrices1, states2, matrices2, patternCount, matrixCount, partials3);
     }
 
-    protected void calculateStatesPartialsPruning(	int[] states1, double[] matrices1,
+    public void calculateStatesPartialsPruning(	int[] states1, double[] matrices1,
 													double[] partials2, double[] matrices2,
 													double[] partials3) {
         nativeStatesPartialsPruning(states1, matrices1, partials2, matrices2, patternCount, matrixCount, partials3);
@@ -65,7 +65,7 @@ public class NativeNucleotideLikelihoodCore extends AbstractLikelihoodCore {
         s.println("};");
     }
     */
-    protected void calculatePartialsPartialsPruning(double[] partials1, double[] matrices1,
+    public void calculatePartialsPartialsPruning(double[] partials1, double[] matrices1,
 													double[] partials2, double[] matrices2,
 													double[] partials3) {
        /* if( false ) {
