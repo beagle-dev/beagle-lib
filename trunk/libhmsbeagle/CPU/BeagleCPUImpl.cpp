@@ -59,6 +59,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert> 
+#include <vector>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
@@ -77,7 +78,7 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 	
-	for(int i=0; i<partials.size(); i++) {
+	for(unsigned int i=0; i<partials.size(); i++) {
 		free(partials[i]);	
 	}
 	
@@ -546,7 +547,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
             int w = 0;
             double sumK = 0.0;
             for (int i = 0; i < kStateCount; i++) {
-                double sumI[kCategoryCount];
+				std::vector<double> sumI(kCategoryCount);
                 for (int l = 0; l < kCategoryCount; l++)
                     sumI[l] = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
