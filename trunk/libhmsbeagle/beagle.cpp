@@ -30,7 +30,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
-std::vector<beagle::BeagleImpl*> instances;
+std::vector<beagle::BeagleImpl*> *instances = NULL;
 
 /// returns an initialized instance or NULL if the index refers to an invalid instance
 namespace beagle {
@@ -38,9 +38,9 @@ BeagleImpl* getBeagleInstance(int instanceIndex);
 
 
 BeagleImpl* getBeagleInstance(int instanceIndex) {
-    if (instanceIndex > instances.size())
+    if (instanceIndex > instances->size())
         return NULL;
-    return instances[instanceIndex];
+    return (*instances)[instanceIndex];
 }
 
 }	// end namespace beagle
@@ -49,10 +49,12 @@ std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
 BeagleResourceList* rsrcList = NULL;
 
+int loaded = 0; // Indicates is the initial library constructors have been run
+                // This patches a bug with JVM under Linux that calls the finalizer twice
 
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {	
 	if (implFactory == NULL) {
-	
+		
 		implFactory = new std::list<beagle::BeagleImplFactory*>;
 	
 		// Set-up a list of implementation factories in trial-order
@@ -75,16 +77,20 @@ void __attribute__ ((constructor)) beagle_library_initialize(void) {
 void __attribute__ ((destructor)) beagle_library_finialize(void) {
 	
 	// Destroy implFactory
-	if (implFactory) {	
+	if (implFactory && loaded) {	
+		try {
 		for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
-				factory != implFactory->end(); factory++) {
+				factory != implFactory->end(); factory++) {			
 			delete (*factory); // Fixes 4 byte leak for each entry in implFactory    	
 		}	
 		delete implFactory;
+		} catch (...) {
+			
+		}
 	}
 	
 	// Destroy rsrcList
-	if (rsrcList) {
+	if (rsrcList && loaded) {
 		for(int i=1; i<rsrcList->length; i++) { // #0 is not needed		
 			free(rsrcList->list[i].name);
 			free(rsrcList->list[i].description);	
@@ -92,6 +98,12 @@ void __attribute__ ((destructor)) beagle_library_finialize(void) {
 		free(rsrcList->list);
 		free(rsrcList);
 	}	
+	
+	// Destroy instances
+	if (instances && loaded) {
+		delete instances;
+	}
+	loaded = 0;
 }
 
 BeagleResourceList* beagleGetResourceList() {
@@ -149,12 +161,16 @@ int beagleCreateInstance(int tipCount,
                    long preferenceFlags,
                    long requirementFlags) {
     try {
+    	if (instances == NULL)
+    		instances = new std::vector<beagle::BeagleImpl*>;
+    	
         if (rsrcList == NULL)
             beagleGetResourceList();
         
         if (implFactory == NULL)
         	beagleGetFactoryList();
         
+        loaded = 1;
         // Try each implementation
         for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
             factory != implFactory->end(); factory++) {
@@ -170,8 +186,8 @@ int beagleCreateInstance(int tipCount,
                                                         scaleBufferCount);
 
             if (beagle != NULL) {
-                int instance = instances.size();
-                instances.push_back(beagle);
+                int instance = instances->size();
+                instances->push_back(beagle);
                 return instance;
             }
         }
@@ -188,6 +204,7 @@ int beagleCreateInstance(int tipCount,
     catch (...) {
         return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
     }
+    loaded = 1;
 }
 
 int beagleInitializeInstance(int instance,
@@ -215,7 +232,7 @@ int beagleFinalizeInstance(int instance) {
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         delete beagleInstance;
-        instances[instance] = 0L;
+        (*instances)[instance] = NULL;
         return BEAGLE_SUCCESS;
     }
     catch (std::bad_alloc &) {
