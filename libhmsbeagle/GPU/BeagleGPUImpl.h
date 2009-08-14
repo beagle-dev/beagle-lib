@@ -28,6 +28,9 @@ private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
     
+    int kHostMemoryUsed;
+    int kInitialized;
+    
     int kTipCount;
     int kPartialsBufferCount;
     int kCompactBufferCount;

@@ -31,28 +31,47 @@ using namespace beagle::gpu;
 int currentDevice = -1;
 
 BeagleGPUImpl::~BeagleGPUImpl() {
+		
+	// free GPU memory
+	
+	if (kInitialized) {
+		for (int i=0; i < kScaleBufferCount; i++)
+			gpu->FreeMemory(dScalingFactors[i]);
+		for (int i = 0; i < kBufferCount; i++) {        
+			if (i < kTipCount) { // For the tips
+				if (i < kCompactBufferCount)
+					gpu->FreeMemory(dCompactBuffers[i]);
+				if (i < kTipPartialsBufferCount)
+					gpu->FreeMemory(dTipPartialsBuffers[i]);
+			} else {
+				gpu->FreeMemory(dPartials[i]);        
+			}
+		}
+	}
+	
+	if (kHostMemoryUsed) {
+		// free memory
+		delete kernels;
+		delete gpu;
     
-    // free memory
-    delete kernels;
-    delete gpu;
+		free(dPartials);
+		free(dTipPartialsBuffers);
+		free(dStates);
+		free(dCompactBuffers);
+		free(dMatrices);
     
-    free(dPartials);
-    free(dTipPartialsBuffers);
-    free(dStates);
-    free(dCompactBuffers);
-    free(dMatrices);
+		free(dScalingFactors);
     
-    free(dScalingFactors);
+		free(hDistanceQueue);
+		free(hPtrQueue);
     
-    free(hDistanceQueue);
-    free(hPtrQueue);
-    
-    free(hWeightsCache);
-    free(hFrequenciesCache);
-    free(hPartialsCache);
-    free(hStatesCache);
-    free(hMatrixCache);
-    free(hLogLikelihoodsCache);
+		free(hWeightsCache);
+		free(hFrequenciesCache);
+		free(hPartialsCache);
+		free(hStatesCache);
+		free(hMatrixCache);
+		free(hLogLikelihoodsCache);
+	}
 }
 
 int BeagleGPUImpl::createInstance(int tipCount,
@@ -68,6 +87,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
 #endif
+    
+    kHostMemoryUsed = 0;
+    kInitialized = 0;
     
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
@@ -99,7 +121,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     // Abort for mismatched stateCount; remove when run-time stateCounts are complete
     if (kPaddedStateCount != PADDED_STATE_COUNT) {
-    	fprintf(stderr,"Mismatch in model size!\nkPaddedStateCount = %d\nPADDED_STATE_COUNT = %d\n",
+    	fprintf(stderr,"\tMismatch in model size in CUDA implementation!\n\t\tkPaddedStateCount = %d\n\t\tPADDED_STATE_COUNT = %d\n",
     			kPaddedStateCount,PADDED_STATE_COUNT);    	
         return BEAGLE_ERROR_GENERAL;
     }
@@ -127,6 +149,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
 	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
 #endif
+    
+    kHostMemoryUsed = 1;
         
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
@@ -242,6 +266,8 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
 #endif
+    
+    kInitialized = 1;
     
     return BEAGLE_SUCCESS;
 }
