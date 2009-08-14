@@ -1,7 +1,7 @@
 #
 #
 
-OUTNAME		:= BEAGLE
+OUTNAME		:= hmsbeagle-jni
 
 ############
 
