@@ -61,9 +61,9 @@
 #if (STATE_COUNT <= 32) // else if
     #define PADDED_STATE_COUNT  32
 #else
-//#if (STATE_COUNT <= 48) // else if
-//	#define PADDED_STATE_COUNT	48
-//#else
+#if (STATE_COUNT <= 48) // else if
+	#define PADDED_STATE_COUNT	48
+#else
 #if (STATE_COUNT <= 64) // else if
     #define PADDED_STATE_COUNT  64
 #else
@@ -78,7 +78,7 @@
 #endif
 #endif
 #endif
-//#endif
+#endif
 
 #define PADDED_STATES   PADDED_STATE_COUNT - STATE_COUNT
 #define IS_POWER_OF_TWO
@@ -88,6 +88,19 @@
 #endif
 
 // TODO Find optimal settings for PADDED_STATE_COUNT == 32
+
+#if (PADDED_STATE_COUNT == 48)
+    #ifdef DOUBLE_PRECISION
+// TODO Find optimal settings for DOUBLE_PRECISION
+        #define PATTERN_BLOCK_SIZE  8
+        #define BLOCK_PEELING_SIZE  4
+    #else
+        #define PATTERN_BLOCK_SIZE  8
+        #define BLOCK_PEELING_SIZE  8
+    #endif
+	#define SMALLEST_POWER_OF_TWO	64
+	#undef IS_POWER_OF_TWO
+#endif
 
 #if (PADDED_STATE_COUNT == 64)
     #ifdef DOUBLE_PRECISION
