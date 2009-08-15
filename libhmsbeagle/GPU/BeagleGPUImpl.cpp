@@ -110,7 +110,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
         kPaddedStateCount = 16;
     else if (kStateCount <= 32)
         kPaddedStateCount = 32;
-    // TODO: Consider 48-state models; these are not powers-of-two, but may have performance benefits when kStateCount << 64
+    else if (kStateCount <= 48)
+    	kPaddedStateCount = 48;    
     else if (kStateCount <= 64)
         kPaddedStateCount = 64;
     else if (kStateCount <= 128)
