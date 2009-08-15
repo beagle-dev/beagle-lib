@@ -47,7 +47,7 @@ public class BeagleFactory {
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
 
-            return new BeagleJNIImpl(
+            Beagle beagle = new BeagleJNIImpl(
                     tipCount,
                     partialsBufferCount,
                     compactBufferCount,
@@ -61,12 +61,35 @@ public class BeagleFactory {
                     preferenceFlags,
                     requirementFlags
             );
+
+            // From Java we are overriding the default CPU BEAGLE implementation in favour
+            // of a hybrid Java/Native C version. This is for performance reasons until the
+            // JNI calling of CPU Beagle is speeded up.
+
+            // In order to know that it was a CPU instance created, we have to let BEAGLE
+            // to make the instance and then override it...
+
+            InstanceDetails details = beagle.getDetails();
+            if ( stateCount == 4 && BeagleFlag.CPU.isSet(details.getFlags()) ) {
+
+                System.out.println("Using BeagleNative4StateImpl");
+                return new BeagleNative4StateImpl(
+                        tipCount,
+                        partialsBufferCount,
+                        compactBufferCount,
+                        patternCount,
+                        eigenBufferCount,
+                        matrixBufferCount,
+                        categoryCount,
+                        scaleBufferCount
+                );
+            }
+
+            return beagle;
         }
 
         if (stateCount == 4) {
-//            return new DependencyAwareBeagleImpl();
             return new FourStateBeagleImpl(
-//            return new NNLCBeagleImpl(
                     tipCount,
                     partialsBufferCount,
                     compactBufferCount,
@@ -94,10 +117,10 @@ public class BeagleFactory {
         if (BeagleJNIWrapper.INSTANCE == null) {
             try {
                 BeagleJNIWrapper.loadBeagleLibrary();
-                // System.err.println("BEAGLE library loaded");
+//                 System.err.println("BEAGLE library loaded");
 
             } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
+//                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
             }
 
             if (BeagleJNIWrapper.INSTANCE != null) {
