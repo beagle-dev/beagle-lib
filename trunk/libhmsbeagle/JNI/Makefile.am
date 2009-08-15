@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES=libjni.la 
 
-libjni_la_SOURCES = beagle_BeagleJNIWrapper.cpp beagle_BeagleJNIWrapper.h
+libjni_la_SOURCES = beagle_BeagleJNIWrapper.cpp beagle_BeagleJNIWrapper.h beagle_BeagleNative4StateImpl.cpp beagle_BeagleNative4StateImpl.h
 libjni_la_LDFLAGS = 
 # TODO: remove CUDA conditional here, should not be necessary
 if BUILDCUDA

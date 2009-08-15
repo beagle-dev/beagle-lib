@@ -90,12 +90,12 @@ public class BeagleJNIWrapper {
                                              final int cumulativeScalingIndex);
 
     public native int removeScaleFactors(final int instance,
-                                             final int[] scaleIndices,
-                                             final int count,
-                                             final int cumulativeScalingIndex);
+                                         final int[] scaleIndices,
+                                         final int count,
+                                         final int cumulativeScalingIndex);
 
     public native int resetScaleFactors(final int instance,
-                                             final int cumulativeScalingIndex);
+                                        final int cumulativeScalingIndex);
 
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
@@ -118,6 +118,7 @@ public class BeagleJNIWrapper {
                                                   final double[] outLogLikelihoods,
                                                   final double[] outFirstDerivatives,
                                                   final double[] outSecondDerivatives);
+
     /* Library loading routines */
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
