@@ -110,6 +110,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
         kPaddedStateCount = 16;
     else if (kStateCount <= 32)
         kPaddedStateCount = 32;
+    // TODO: Consider 48-state models; these are not powers-of-two, but may have performance benefits when kStateCount << 64
     else if (kStateCount <= 64)
         kPaddedStateCount = 64;
     else if (kStateCount <= 128)
@@ -137,7 +138,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
         
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
-    kEigenValuesSize = kPaddedStateCount;
+    kEigenValuesSize = kPaddedStateCount; // TODO: How are we going to handle complex eigenvalues?
     
     // TODO: only allocate if necessary on the fly
     hWeightsCache = (REAL*) calloc(kBufferCount, SIZE_REAL);
@@ -197,7 +198,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
     	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);   
-    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);
+    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);      	              
     }
     
     dWeights = gpu->AllocateRealMemory(kBufferCount);
@@ -449,16 +450,15 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
         tmpEvec += kPaddedStateCount;
     }
     
-    // Transposing matrices avoids incoherent memory read/writes    
-    transposeSquareMatrix(Ievc, kPaddedStateCount);
-    
+    // Transposing matrices avoids incoherent memory read/writes  
     // TODO: Only need to tranpose sub-matrix of trueStateCount
+    transposeSquareMatrix(Ievc, kPaddedStateCount); 
     transposeSquareMatrix(Evec, kPaddedStateCount);
     
 #ifdef DOUBLE_PRECISION
-    memcpy(Eval, inEigenValues, SIZE_REAL * STATE_COUNT);
+    memcpy(Eval, inEigenValues, SIZE_REAL * kStateCount);
 #else
-    MEMCNV(Eval, inEigenValues, STATE_COUNT, REAL);
+    MEMCNV(Eval, inEigenValues, kStateCount, REAL);
 #endif
     
 #ifdef BEAGLE_DEBUG_VALUES
@@ -475,7 +475,7 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     fprintf(stderr, "Evec =\n");
     printfVectorF(Evec, kMatrixSize);
     fprintf(stderr, "Ievc =\n");
-    printfVectorF(Ievc, kPaddedStateCount * kPaddedStateCount);
+    printfVectorF(Ievc, kPaddedStateCount * kPaddedStateCount);   
 #endif
 #endif
     
