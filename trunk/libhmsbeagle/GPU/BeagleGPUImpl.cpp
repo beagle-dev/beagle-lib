@@ -609,8 +609,11 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     
 #ifdef BEAGLE_DEBUG_VALUES
     for (int i = 0; i < totalCount; i++) {
-        fprintf(stderr, "dMatrices[probabilityIndices[%d]] =\n", i);
-        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount);
+        fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
+        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], 5); //kMatrixSize * kCategoryCount);
+        for(int j=0; j<kCategoryCount; j++)
+        	fprintf(stderr, " %1.5f",hCategoryRates[j]);
+        fprintf(stderr,"\n");
     }
 #endif    
 
@@ -705,6 +708,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
         fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
+        fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
         fprintf(stderr, "child1 = \n");
         if (tipStates1)
             gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
@@ -718,6 +722,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         fprintf(stderr, "node index = %d\n", parIndex);
         fprintf(stderr, "parent = \n");
         gpu->PrintfDeviceVector(partials3, kPartialsSize);
+        if (rescale > -1)
+        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount);
 #endif
     }
     
@@ -762,6 +768,11 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
+#endif
+
+#ifdef BEAGLE_DEBUG_VALUES    
+    fprintf(stderr, "scaling factors = ");
+    gpu->PrintfDeviceVector(dScalingFactors[cumulativeScalingIndex], kPaddedPatternCount);
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -873,6 +884,11 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         // TODO: implement calculate root lnL for count > 1
         assert(false);
     }
+    
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "parent = \n");
+    gpu->PrintfDeviceVector(dIntegrationTmp, kPatternCount);    
+#endif
     
     
 #ifdef BEAGLE_DEBUG_FLOW
