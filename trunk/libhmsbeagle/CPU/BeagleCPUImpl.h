@@ -61,6 +61,8 @@ protected:
     
     double* integrationTmp;
     
+    double* ones;
+    
 public:
     virtual ~BeagleCPUImpl();
     
@@ -202,18 +204,44 @@ protected:
                           const int * child1States,
                           const double *child1TransMat);
     
+    virtual void calcStatesStatesFixedScaling(double *destP,
+                                           const int *child0States,
+                                        const double *child0TransMat,
+                                           const int *child1States,
+                                        const double *child1TransMat,
+                                        const double  scaleFactor);
+    
     virtual void calcStatesPartials(double * destP,
                             const int * child0States,
                             const double *child0TransMat,
                             const double * child1Partials,
                             const double *child1TransMat);
     
+    virtual void calcStatesPartialsFixedScaling(double *destP,
+                                             const int *child0States,
+                                          const double *child0TransMat,
+                                          const double *child1Partials,
+                                          const double *child1TransMat,
+                                          const double  scaleFactor);
+    
     virtual void calcPartialsPartials(double * destP,
                               const double * child0States,
                               const double *child0TransMat,
                               const double * child1Partials,
                               const double *child1TransMat);
-
+    
+    virtual void calcPartialsPartialsFixedScaling(double *destP,
+                                            const double *child0States,
+                                            const double *child0TransMat,
+                                            const double *child1Partials,
+                                            const double *child1TransMat,
+                                            const double  scaleFactor);
+    
+    virtual void rescalePartials(double *destP,
+                                 double *scaleFactors,
+                                 double *cumulativeScaleFactors,
+                             const int  fillWithOnes);
+    
     virtual void calcRootLogLikelihoods(const int bufferIndex,
                             const double* inWeights,
                             const double* inStateFrequencies,

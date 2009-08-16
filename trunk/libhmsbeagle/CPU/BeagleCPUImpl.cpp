@@ -93,6 +93,8 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 	free(categoryRates);
 	free(integrationTmp);
 	
+    if (ones)
+        free(ones);
 	
 }
 
@@ -153,7 +155,8 @@ int BeagleCPUImpl::createInstance(int tipCount,
     std::vector<double> emptyMat(kMatrixSize * kCategoryCount);
     transitionMatrices.assign(kMatrixCount, emptyMat);
     
-	integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+    integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+    ones = NULL;
     
     return BEAGLE_SUCCESS;
 }
@@ -573,6 +576,50 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 // private methods
 
 /*
+ * Re-scales the partial likelihoods such that the largest is one.
+ */
+void BeagleCPUImpl::rescalePartials(double* destP,
+                                    double* scaleFactors,
+                                    double* cumulativeScaleFactors,
+                                 const int  fillWithOnes) {
+    if (fillWithOnes != 0) {
+        if (ones == NULL) {
+            ones = (double*) malloc(sizeof(double) * kPatternCount);
+                for(int i = 0; i < kPatternCount; i++)
+                    ones[i] = 1.0;
+        }
+        memcpy(scaleFactors,ones,sizeof(double) * kPatternCount);
+        // No accumulation necessary as cumulativeScaleFactors are on the log-scale
+        return;
+    }
+    
+    // TODO None of the code below has been checked.
+    int u = 0;
+    int v = 0;
+    for (int k = 0; k < kPatternCount; k++) {
+        double max = 0;
+        const int patternOffset = k * kStateCount;
+        for (int l = 0; l < kCategoryCount; l++) {
+            int offset = l * kPatternCount + patternOffset;
+            for (int i = 0; i < kStateCount; i++) {
+                if(destP[offset] > max)
+                    max = destP[offset];
+                offset++;
+            }
+        }
+        for (int l = 0; l < kCategoryCount; k++) {
+            int offset = l * kPatternCount + patternOffset;
+            for (int i = 0; i < kStateCount; i++) {
+                destP[offset++] /= max;
+            }
+        }
+        scaleFactors[k] = max;
+        if( cumulativeScaleFactors != NULL )
+            cumulativeScaleFactors[k] += log(max);
+    }
+}
+
+/*
  * Calculates partial likelihoods at a node when both children have states.
  */
 void BeagleCPUImpl::calcStatesStates(double* destP,
@@ -580,7 +627,6 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
                                      const double* child1TransMat,
                                      const int* child2States,
                                      const double*child2TransMat) {
-
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
@@ -600,6 +646,28 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
     }
 }
 
+void BeagleCPUImpl::calcStatesStatesFixedScaling(double* destP,
+                                              const int* child1States,
+                                           const double* child1TransMat,
+                                              const int* child2States,
+                                           const double* child2TransMat,
+                                           const double  scaleFactor) {
+    int v = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            const int state1 = child1States[k];
+            const int state2 = child2States[k];
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                destP[v] = child1TransMat[w + state1] * 
+                           child2TransMat[w + state2] / scaleFactor;
+                v++;
+                w += (kStateCount + 1);
+            }
+        }
+    }
+}
+
 /*
  * Calculates partial likelihoods at a node when one child has states and one has partials.
  */
@@ -610,10 +678,9 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
                                        const double* matrices2) {
     int u = 0;
     int v = 0;
-	for (int l = 0; l < kCategoryCount; l++) {
+    for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             int state1 = states1[k];
-            std::cerr << "calcStatesPartials s1 = " << state1 << '\n';
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
                 double tmp = matrices1[w + state1];
@@ -632,6 +699,38 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
     }
 }
 
+void BeagleCPUImpl::calcStatesPartialsFixedScaling(double* destP,
+                                                const int* states1,
+                                             const double* matrices1,
+                                             const double* partials2,
+                                             const double* matrices2,
+                                             const double  scaleFactor) {
+    int u = 0;
+    int v = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            int state1 = states1[k];
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                double tmp = matrices1[w + state1];
+                double sum = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sum += matrices2[w] * partials2[v + j];
+                    w++;
+                }
+                // increment for the extra column at the end
+                w++;
+                destP[u] = tmp * sum / scaleFactor;
+                u++;
+            }
+            v += kStateCount;
+        }
+    }
+}
+
+/*
+ * Calculates partial likelihoods at a node when both children have partials.
+ */
 void BeagleCPUImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
@@ -640,7 +739,7 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
     double sum1, sum2;
     int u = 0;
     int v = 0;
-	for (int l = 0; l < kCategoryCount; l++) {
+    for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
@@ -659,6 +758,35 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
                 // increment for the extra column at the end
                 w++;
                 destP[u] = sum1 * sum2;
+                u++;
+            }
+            v += kStateCount;
+        }
+    }
+}
+
+void BeagleCPUImpl::calcPartialsPartialsFixedScaling(double* destP,
+                                               const double* partials1,
+                                               const double* matrices1,
+                                               const double* partials2,
+                                               const double* matrices2,
+                                               const double  scaleFactor) {
+    double sum1, sum2;
+    int u = 0;
+    int v = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                sum1 = sum2 = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sum1 += matrices1[w] * partials1[v + j];
+                    sum2 += matrices2[w] * partials2[v + j];
+                    w++;
+                }
+                // increment for the extra column at the end
+                w++;
+                destP[u] = sum1 * sum2 / scaleFactor;
                 u++;
             }
             v += kStateCount;
