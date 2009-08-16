@@ -670,6 +670,24 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             scalingFactors = dScalingFactors[readScalingIndex];
         }
         
+#ifdef BEAGLE_DEBUG_VALUES
+        fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
+        fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
+        fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
+        fprintf(stderr, "partialSize = %d\n", kPartialsSize);
+        fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
+        fprintf(stderr, "child1 = \n");
+        if (tipStates1)
+            gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
+        else
+            gpu->PrintfDeviceVector(partials1, kPartialsSize);
+        fprintf(stderr, "child2 = \n");
+        if (tipStates2)
+            gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
+        else
+            gpu->PrintfDeviceVector(partials2, kPartialsSize);
+        fprintf(stderr, "node index = %d\n", parIndex);       
+#endif        
         
         if (tipStates1 != 0) {
             if (tipStates2 != 0 ) {
@@ -702,27 +720,25 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         }
 
         
-#ifdef BEAGLE_DEBUG_VALUES
-        fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
-        fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
-        fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
-        fprintf(stderr, "partialSize = %d\n", kPartialsSize);
-        fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
-        fprintf(stderr, "child1 = \n");
-        if (tipStates1)
-            gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
-        else
-            gpu->PrintfDeviceVector(partials1, kPartialsSize);
-        fprintf(stderr, "child2 = \n");
-        if (tipStates2)
-            gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
-        else
-            gpu->PrintfDeviceVector(partials2, kPartialsSize);
-        fprintf(stderr, "node index = %d\n", parIndex);
-        fprintf(stderr, "parent = \n");
-        gpu->PrintfDeviceVector(partials3, kPartialsSize);
-        if (rescale > -1)
+#ifdef BEAGLE_DEBUG_VALUES            
+        if (rescale > -1) {
+        	fprintf(stderr,"scalars = ");
         	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount);
+        }
+        fprintf(stderr, "parent = \n");
+        int signal = 0;
+        if (writeScalingIndex == -1)
+        	gpu->PrintfDeviceVector(partials3, kPartialsSize);
+        else
+        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0,&signal);
+//        if (signal) {
+//        	fprintf(stderr,"mat1 = ");
+//        	gpu->PrintfDeviceVector(matrices1,kMatrixSize);
+//        	fprintf(stderr,"mat2 = ");
+//        	gpu->PrintfDeviceVector(matrices2,kMatrixSize);
+//        	exit(0);
+//        }
+        
 #endif
     }
     
