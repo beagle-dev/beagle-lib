@@ -94,6 +94,7 @@ KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
 KernelLauncher::~KernelLauncher() {
 }
 
+#ifdef CUDA
 void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
                                                       GPUPtr dEvec,
                                                       GPUPtr dIevc,
@@ -111,9 +112,8 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
         grid.x += 1;
         grid.y += 1;
     }
-#ifdef CUDA
+
     grid.x *= totalMatrix;
-#endif
 
     // Transposed (interchanged Ievc and Evec)    
     int parameterCount = 8;
@@ -127,6 +127,43 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
 #endif
 }
+
+#else //OpenCL
+void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtr,
+                                                      GPUPtr dEvec,
+                                                      GPUPtr dIevc,
+                                                      GPUPtr dEigenValues,
+                                                      GPUPtr distanceQueue,
+                                                      int totalMatrix,
+                                                      int index) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquare\n");
+#endif
+    
+    Dim3Int block(MULTIPLY_BLOCK_SIZE, MULTIPLY_BLOCK_SIZE);
+    Dim3Int grid(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE,
+                 PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE);
+    if (PADDED_STATE_COUNT % MULTIPLY_BLOCK_SIZE != 0) {
+        grid.x += 1;
+        grid.y += 1;
+    }
+    
+    grid.x *= totalMatrix;
+    
+    // Transposed (interchanged Ievc and Evec)    
+    int parameterCount = 9;
+    gpu->LaunchKernelIntParams(fMatrixMulADB,
+                               block, grid,
+                               parameterCount,
+                               dPtr, dIevc, dEigenValues, dEvec, distanceQueue,
+                               PADDED_STATE_COUNT, PADDED_STATE_COUNT, totalMatrix,
+                               index);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
+#endif
+}
+#endif
 
 
 void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,

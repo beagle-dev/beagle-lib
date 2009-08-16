@@ -569,9 +569,9 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     
     // TODO: implement calculation of derivatives
     
+    int totalCount = 0;
     
 #ifdef CUDA
-    int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
             hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
@@ -588,30 +588,28 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                               dEigenValues[eigenIndex], dDistanceQueue, totalCount);    
     
 #else
-    int totalCount = 0;
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
-//            hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]];// + (j * kMatrixSize * sizeof(GPUPtr));
             hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
             totalCount++;
         }
     }
     
-//    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount);
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
     
     // Set-up and call GPU kernel
     for (int i = 0; i < count; i++) {        
         kernels->GetTransitionProbabilitiesSquare(dMatrices[probabilityIndices[i]], dEvec[eigenIndex], dIevc[eigenIndex], 
-                                                  dEigenValues[eigenIndex], dDistanceQueue, i);
+                                                  dEigenValues[eigenIndex], dDistanceQueue, kCategoryCount,
+                                                  i * kCategoryCount);
     }
         
 #endif
     
 #ifdef BEAGLE_DEBUG_VALUES
-    for (int i = 0; i < totalCount; i++) {
+    for (int i = 0; i < count; i++) {
         fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
-        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], 5); //kMatrixSize * kCategoryCount);
+        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount);
         for(int j=0; j<kCategoryCount; j++)
         	fprintf(stderr, " %1.5f",hCategoryRates[j]);
         fprintf(stderr,"\n");
