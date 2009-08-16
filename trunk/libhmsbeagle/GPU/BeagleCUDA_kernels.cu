@@ -1163,10 +1163,15 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
 
     __syncthreads();
 
-    int i;
-    // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
-    for (i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
         if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+    // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
             REAL compare1 = partials[matrix][state];
             REAL compare2 = partials[matrix][state + i];
             if (compare2 > compare1)
@@ -1182,6 +1187,9 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
             if (partials[m][0] > max)
                 max = partials[m][0];
         }
+        
+        if (max == 0)
+        	max = 1.0;
 
         scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
     }
@@ -1221,11 +1229,15 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
         partials[matrix][state] = 0;
 
     __syncthreads();
-
-    int i;
-    // parallelized reduction; assumes PADDED_STATE_COUNT is power of 2.
-    for (i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+  
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
         if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO        
             REAL compare1 = partials[matrix][state];
             REAL compare2 = partials[matrix][state + i];
             if (compare2 > compare1)
@@ -1241,6 +1253,9 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
             if (partials[m][0] > max)
                 max = partials[m][0];
         }
+        
+        if (max == 0)
+        	max = 1.0;
 
         scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
         cumulativeScaling[pattern] += log(max);
@@ -1300,8 +1315,11 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
         }
     }
 
-    if(state == 0)
+    if(state == 0) {
+        if (max == 0)
+        	max = 1.0;    
         scalingFactors[pattern] = max;
+    }
 
     __syncthreads();
 

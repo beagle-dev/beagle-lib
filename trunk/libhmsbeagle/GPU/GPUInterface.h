@@ -91,6 +91,12 @@ public:
 
     void PrintfDeviceVector(GPUPtr dPtr,
                       int length);
+    
+    void PrintfDeviceVector(GPUPtr dPtr,
+                      int length, double checkValue);
+    
+    void PrintfDeviceVector(GPUPtr dPtr,
+					  int length, double checkValue, int *signal);
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
