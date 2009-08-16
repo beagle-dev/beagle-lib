@@ -108,6 +108,8 @@ int main( int argc, const char* argv[] )
     }    
     fprintf(stdout, "\n");    
     
+    bool scaling = true;
+    
     // is nucleotides...
     int stateCount = 4;
 	
@@ -115,6 +117,8 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human);
     
     int rateCategoryCount = 4;
+    
+    int scaleCount = (scaling ? 3 : 0);
     
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
@@ -126,7 +130,7 @@ int main( int argc, const char* argv[] )
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                                   4,		        /**< Number of rate matrix buffers (input) */
                                   rateCategoryCount,/**< Number of rate categories (input) */
-                                  0,                /**< Number of scaling buffers */
+                                  scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                   BEAGLE_FLAG_GPU,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
@@ -224,8 +228,8 @@ int main( int argc, const char* argv[] )
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 	int operations[BEAGLE_OP_COUNT * 2] = {
-		3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1,
-		4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3
+		3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
+		4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
 	};
 	int rootIndex = 4;
     
@@ -238,7 +242,20 @@ int main( int argc, const char* argv[] )
     
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
-    int cumulativeScalingIndex = BEAGLE_OP_NONE;
+    int cumulativeScalingIndex = (scaling ? 2 : BEAGLE_OP_NONE);
+    
+    if (scaling) {
+        int scalingFactorsCount = 2;
+        int scalingFactorsIndices[2] = {0, 1};
+        
+        beagleResetScaleFactors(instance,
+                                cumulativeScalingIndex);
+        
+        beagleAccumulateScaleFactors(instance,
+                                     scalingFactorsIndices,
+                                     scalingFactorsCount,
+                                     cumulativeScalingIndex);
+    }
     
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance

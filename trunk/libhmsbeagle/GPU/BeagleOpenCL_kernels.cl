@@ -1027,10 +1027,10 @@ __kernel void kernelStatesPartialsEdgeLikelihoodsSmall(__global REAL* dPartialsT
 }
 
 __kernel void kernelIntegrateLikelihoodsDynamicScaling(__global REAL* dResult,
-                                                            __global REAL* dRootPartials,
-                                                            REAL *dWeights,
-                                                            REAL *dFrequencies,
-                                                            REAL *dRootScalingFactors,
+                                                        __global REAL* dRootPartials,
+                                                        __global REAL* dWeights,
+                                                        __global REAL* dFrequencies,
+                                                        __global REAL* dRootScalingFactors,
                                                             int count) {
     int state   = get_local_id(0);
     int pattern = get_group_id(0);
@@ -1082,22 +1082,18 @@ __kernel void kernelIntegrateLikelihoodsDynamicScaling(__global REAL* dResult,
 }
 
 
-__kernel void kernelAccumulateFactorsDynamicScaling(__global REAL** dNodePtrQueue,
+__kernel void kernelAccumulateFactorsDynamicScaling(__global REAL* dNodePtr,
                                                    __global REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
     int pattern = get_local_id(0) + get_group_id(0) * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
-    __global REAL* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-//      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = dNodePtrQueue[n];
-//      __syncthreads();
 
-        REAL factor = nodeScales[pattern];
+        REAL factor = dNodePtr[pattern];
         if (factor != 1.0)
             total += log(factor);
     }
@@ -1106,22 +1102,18 @@ __kernel void kernelAccumulateFactorsDynamicScaling(__global REAL** dNodePtrQueu
         rootScaling[pattern] += total;
 }
 
-__kernel void kernelRemoveFactorsDynamicScaling(__global REAL** dNodePtrQueue,
+__kernel void kernelRemoveFactorsDynamicScaling(__global REAL* dNodePtr,
                                                    __global REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
     int pattern = get_local_id(0) + get_group_id(0) * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
-    __global REAL* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-//      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = dNodePtrQueue[n];
-//      __syncthreads();
 
-        REAL factor = nodeScales[pattern];
+        REAL factor = dNodePtr[pattern];
         if (factor != 1.0)
             total += log(factor);
     }

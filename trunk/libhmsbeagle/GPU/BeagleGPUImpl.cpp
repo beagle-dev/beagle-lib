@@ -761,9 +761,17 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
     
+
+#ifdef CUDA    
     // Compute scaling factors at the root
     kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                              count, kPaddedPatternCount);
+#else // OpenCL
+    for (int i = 0; i < count; i++) {
+        kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
+                                                 1, kPaddedPatternCount);
+    }
+#endif
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
@@ -793,9 +801,17 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
         hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
     
+#ifdef CUDA    
     // Compute scaling factors at the root
     kernels->RemoveFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                          count, kPaddedPatternCount);
+#else // OpenCL
+    for (int i = 0; i < count; i++) {
+        kernels->RemoveFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
+                                             1, kPaddedPatternCount);
+    }
+    
+#endif
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
