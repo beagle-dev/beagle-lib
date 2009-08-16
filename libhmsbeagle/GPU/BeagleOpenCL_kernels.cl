@@ -12,12 +12,11 @@ __kernel void kernelMatrixMulADB(__global REAL* listC,
                                    __global REAL* distanceQueue,
                                    int length,
                                    int wB,
+                                   int totalMatrix,
                                    int index) {
 
-//    __global REAL* C;
+    __global REAL* C;
     __local REAL distance;
-
-    int totalMatrix = 1;
     
     int wMatrix = get_group_id(0) % totalMatrix;
 
@@ -30,10 +29,10 @@ __kernel void kernelMatrixMulADB(__global REAL* listC,
     int ty = get_local_id(1);
     int BLOCKS = get_num_groups(1);
 
-    if (tx == 0 && ty == 0) {
-//        C = listC[wMatrix]; // Non-coalescent read
-        distance = distanceQueue[index]; // Non-coalescent read
-    }
+//    if (tx == 0 && ty == 0) {
+        C = listC + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; // Non-coalescent read
+        distance = distanceQueue[index + wMatrix]; // Non-coalescent read
+//    }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -106,10 +105,10 @@ __kernel void kernelMatrixMulADB(__global REAL* listC,
 
     if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
         if (Csub < 0)
-            listC[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = 0;
         else
-            listC[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = Csub;
     }
 }

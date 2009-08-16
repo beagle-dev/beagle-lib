@@ -52,12 +52,22 @@ public:
     ~KernelLauncher();
     
 // Kernel links
+#ifdef CUDA
     void GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
                                           int totalMatrix);
+#else //OpenCL
+    void GetTransitionProbabilitiesSquare(GPUPtr dPtr,
+                                          GPUPtr dEvec,
+                                          GPUPtr dIevc,
+                                          GPUPtr dEigenValues,
+                                          GPUPtr distanceQueue,
+                                          int totalMatrix,
+                                          int index);    
+#endif
     
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
