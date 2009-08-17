@@ -69,6 +69,35 @@ AC_SUBST(abs_top_srcdir)
 
 AC_DEFINE([STATE_COUNT],[4],[Define the number of character states in use])
 
+# ------------------------------------------------------------------------------
+# Setup OPENCL paths
+# ------------------------------------------------------------------------------
+AC_ARG_WITH([opencl],
+   [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
+   [],
+   [with_opencl=no])
+
+OPENCL_CFLAGS=
+OPENCL_LIBS=
+
+if test "x$with_opencl" != "xno"
+then
+   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4 -I /Developer/Projects/beagle-lib\\\"\""
+   OPENCL_LIBS="-framework OpenCL"
+   OPENCLPATH=""
+fi
+
+AM_CONDITIONAL(BUILDOPENCL, test ! x$with_opencl = xno)
+
+AC_SUBST(OPENCL_CFLAGS)
+AC_SUBST(OPENCL_LIBS)
+
+if( test ! x$with_opencl = xno ) 
+then
+	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
+fi
+
+
 
 # ------------------------------------------------------------------------------
 # Setup CUDA paths
@@ -136,21 +165,6 @@ fi
 AC_SUBST(NVCCFLAGS)
 
 
-# ------------------------------------------------------------------------------
-# Setup Mac multi-architecture flags
-#
-# TODO: Automatically determine MacOS10.x.sdk directory
-# ------------------------------------------------------------------------------
-case $host_os in
-*darwin*)
-  CXXFLAGS+=" -arch i386"
-  CFLAGS+=" -arch i386"
-  LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.5.sdk"
-  AC_SUBST(CXXFLAGS)
-  AC_SUBST(CFLAGS)
-  AC_SUBST(LDFLAGS)
-  AM_INIT_AUTOMAKE(no-dependencies)
-esac
 
 
 # ------------------------------------------------------------------------------

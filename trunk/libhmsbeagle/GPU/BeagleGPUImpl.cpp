@@ -141,7 +141,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     // Abort for mismatched stateCount; remove when run-time stateCounts are complete
     if (kPaddedStateCount != PADDED_STATE_COUNT) {
-    	fprintf(stderr,"\tMismatch in model size in CUDA implementation!\n\t\tkPaddedStateCount = %d\n\t\tPADDED_STATE_COUNT = %d\n",
+    	fprintf(stderr,"\tMismatch in model size in GPU implementation!\n\t\tkPaddedStateCount = %d\n\t\tPADDED_STATE_COUNT = %d\n",
     			kPaddedStateCount,PADDED_STATE_COUNT);    	
         return BEAGLE_ERROR_GENERAL;
     }
