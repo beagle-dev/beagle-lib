@@ -41,6 +41,7 @@ CLEANFILES = BeagleOpenCL_Kernels.h
 BeagleOpenCL_Kernels.h: Makefile
 	echo "// auto-generated header file with OpenCL kernels code" > BeagleOpenCL_kernels.h
 	echo "#define KERNELS_STRING \"\\" >> BeagleOpenCL_kernels.h
+	cat GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	cat BeagleOpenCL_kernels.cl | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "\"" >> BeagleOpenCL_kernels.h
 

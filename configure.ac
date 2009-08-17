@@ -82,7 +82,7 @@ OPENCL_LIBS=
 
 if test "x$with_opencl" != "xno"
 then
-   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4 -I /Developer/Projects/beagle-lib\\\"\""
+   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4\\\"\""
    OPENCL_LIBS="-framework OpenCL"
    OPENCLPATH=""
 fi
