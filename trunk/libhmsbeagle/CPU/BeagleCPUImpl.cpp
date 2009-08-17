@@ -600,7 +600,7 @@ void BeagleCPUImpl::rescalePartials(double* destP,
                                     double* scaleFactors,
                                     double* cumulativeScaleFactors,
                                  const int  fillWithOnes) {
-    if (fillWithOnes != 0) {
+    if (kStateCount == 4 && fillWithOnes != 0) {
         if (ones == NULL) {
             ones = (double*) malloc(sizeof(double) * kPatternCount);
                 for(int i = 0; i < kPatternCount; i++)

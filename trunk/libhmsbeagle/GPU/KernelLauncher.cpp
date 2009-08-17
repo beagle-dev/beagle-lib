@@ -572,7 +572,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     // TODO: remove fillWithOnes and leave it up to client?
     
     // Rescale partials and save scaling factors
-    //#if (PADDED_STATE_COUNT == 4) 
+#if (PADDED_STATE_COUNT == 4) // Large state-space models can underflow even at a cherry
     if (fillWithOnes != 0) {
         if (ones == NULL) {
             ones = (REAL*) malloc(SIZE_REAL * patternCount);
@@ -582,7 +582,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
         gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
         return;
     }
-    //#endif
+#endif
     
 #ifndef SLOW_REWEIGHING
     Dim3Int grid(patternCount, categoryCount / MATRIX_BLOCK_SIZE);
