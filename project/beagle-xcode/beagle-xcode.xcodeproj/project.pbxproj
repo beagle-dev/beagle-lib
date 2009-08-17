@@ -192,7 +192,7 @@
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
 		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
@@ -408,7 +408,7 @@
 				646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */,
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
-				64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
+				64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */,
 				64C0EB441034BC820004734E /* genomicTestOpenCLXcode */,
 			);
 			name = Products;
@@ -534,7 +534,7 @@
 			);
 			name = fourTaxonOpenCLXcode;
 			productName = tinyTestGPUXcode;
-			productReference = 64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */;
+			productReference = 64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */;
 			productType = "com.apple.product-type.tool";
 		};
 		64EC49D80FE9BD0B006841E3 /* genomicTestCPUXcode */ = {
@@ -1029,12 +1029,9 @@
 					OPENCL,
 					"STATE_COUNT=4",
 				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
+				HEADER_SEARCH_PATHS = ../../;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				LIBRARY_SEARCH_PATHS = "";
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestOpenCLXcode;
@@ -1047,26 +1044,22 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					CUDA,
+					"BEAGLE_OPENCL_BUILD_OPTIONS=\"\\\"-D STATE_COUNT=4 -I /Developer/Projects/beagle-lib\\\"\"",
+					OPENCL,
 					"STATE_COUNT=4",
 				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
+				HEADER_SEARCH_PATHS = ../../;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				LIBRARY_SEARCH_PATHS = "";
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "-lcuda";
+				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				PRODUCT_NAME = tinyTestCUDAXcode;
+				PRODUCT_NAME = tinyTestOpenCLXcode;
 				USER_HEADER_SEARCH_PATHS = "";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
@@ -1126,12 +1119,9 @@
 					OPENCL,
 					"STATE_COUNT=4",
 				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
+				HEADER_SEARCH_PATHS = ../../;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				LIBRARY_SEARCH_PATHS = "";
 				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
 				PRODUCT_NAME = genomicTestOpenCLXcode;
@@ -1144,26 +1134,22 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					CUDA,
+					"BEAGLE_OPENCL_BUILD_OPTIONS=\"\\\"-D STATE_COUNT=4 -I /Developer/Projects/beagle-lib\\\"\"",
+					OPENCL,
 					"STATE_COUNT=4",
 				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
+				HEADER_SEARCH_PATHS = ../../;
 				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				LIBRARY_SEARCH_PATHS = "";
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "-lcuda";
+				OTHER_LDFLAGS = "";
 				PREBINDING = NO;
-				PRODUCT_NAME = tinyTestCUDAXcode;
+				PRODUCT_NAME = genomicTestOpenCLXcode;
 				USER_HEADER_SEARCH_PATHS = "";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
