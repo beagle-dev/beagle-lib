@@ -21,8 +21,6 @@
  * @author Marc Suchard
  * @author Daniel Ayres
  */
- 
-#include "libhmsbeagle/GPU/GPUImplDefs.h" 
 
 __kernel void kernelMatrixMulADB(__global REAL* listC,
                                    __global REAL* A,
