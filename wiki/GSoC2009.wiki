@@ -138,9 +138,11 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
    * improved output when debug flags defined
    * beagle.h API documentation
 
-== 08/09 - 08/15 ==
- * Continue work on OpenCL implementation
-   * Fix OpenCL bugs
+== 08/09 - 08/17 ==
+ * Completed work on OpenCL implementation
+   * matches CUDA version feature-wise
+   * can be compiled on Mac OS 10.6 with ./configure && make
+ * Fixed minor bugs in GPU implementation
 
 == Deliverables ==
 
@@ -150,7 +152,7 @@ The OpenCL library will be a continuation of the beagle-lib project hosted on th
 === 06/20 ===
  * CUDA driver API port of beagle-lib
 
-=== 08/23 ===
+=== 08/17 ===
  * OpenCL implementation of beagle-lib
 
 == Decision Discussion ==
