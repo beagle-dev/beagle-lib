@@ -40,7 +40,7 @@ namespace beagle {
 namespace cpu {
 
 class BeagleCPUImpl : public BeagleImpl {
-    
+
 protected:
     int kBufferCount; /// after initialize this will be partials.size()
     ///   (we don't really need this field)
@@ -51,39 +51,41 @@ protected:
     int kStateCount; /// the number of states
     int kEigenDecompCount; /// the number of eigen solutions to alloc and store
     int kCategoryCount;
-    
+    int kScaleBufferCount;
+
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
-    
+
     //@ the following eigen-calculation-related fields should be changed to vectors
     //      of vectors
     // each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
     //  from the eigenVector matrix and inverse eigen vector matrix. Storing these
     //  temps saves time in the updateTransitionMatrices()
-    double** cMatrices;
+    double** dCMatrices;
     // each element of eigenValues is a kStateCount array of eigenvalues
-    double** eigenValues;
-    
-    double* categoryRates;
-    
+    double** dEigenValues;
+
+    double* dCategoryRates;
+
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
-    std::vector<double*> partials;
-    std::vector<int*> tipStates;
-    
+    std::vector<double*> dPartials;
+    std::vector<int*> dTipStates;
+    std::vector<double*> dScalingFactors;
+
     // There will be kMatrixCount transitionMatrices.
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
-    std::vector< std::vector<double> > transitionMatrices;
-    
-    double* integrationTmp;
-    
+    std::vector< std::vector<double> > dTransitionMatrices;
+
+    double* dIntegrationTmp;
+
     double* ones;
-    
+
 public:
     virtual ~BeagleCPUImpl();
-    
+
     // creation of instance
     int createInstance(int tipCount,
                        int partialsBufferCount,
@@ -94,32 +96,32 @@ public:
                        int matrixCount,
                        int categoryCount,
                        int scaleBufferCount);
-    
+
     // initialization of instance,  returnInfo can be null
     int initializeInstance(BeagleInstanceDetails* returnInfo);
-    
+
     // set the states for a given tip
     //
     // tipIndex the index of the tip
     // inStates the array of states: 0 to stateCount - 1, missing = stateCount
     int setTipStates(int tipIndex,
                      const int* inStates);
-    
+
     // set the partials for a given tip
     //
     // tipIndex the index of the tip
     // inPartials the array of partials, stateCount x patternCount
     int setTipPartials(int tipIndex,
                        const double* inPartials);
-    
+
 
     int setPartials(int bufferIndex,
                     const double* inPartials);
-    
+
     int getPartials(int bufferIndex,
 					int scaleBuffer,
                     double* outPartials);
-    
+
     // sets the Eigen decomposition for a given matrix
     //
     // matrixIndex the matrix index to update
@@ -130,15 +132,15 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
-    
+
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers
     int setCategoryRates(const double* inCategoryRates);
-    
+
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
-    
+
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //
@@ -151,7 +153,7 @@ public:
                                  const int* secondDervativeIndices,
                                  const double* edgeLengths,
                                  int count);
-    
+
     // calculate or queue for calculation partials using an array of operations
     //
     // operations an array of triplets of indices: the two source partials and the destination
@@ -161,7 +163,7 @@ public:
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
-    
+
     // Block until all calculations that write to the specified partials have completed.
     //
     // This function is optional and only has to be called by clients that "recycle" partials.
@@ -177,18 +179,18 @@ public:
     // return error code
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
-    
-    
+
+
     int accumulateScaleFactors(const int* scalingIndices,
 							  int count,
 							  int cumulativeScalingIndex);
-    
+
     int removeScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
-    
+
     int resetScaleFactors(int cumulativeScalingIndex);
-    
+
     // calculate the site log likelihoods at a particular node
     //
     // rootNodeIndex the index of the root
@@ -199,7 +201,7 @@ public:
                                     const int* scalingFactorsIndices,
                                     int count,
                                     double* outLogLikelihoods);
-    
+
     // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
     //                 outFirstDerivatives, outSecondDerivatives
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
@@ -214,57 +216,70 @@ public:
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
-    
+
 protected:
-    virtual void calcStatesStates(double * destP,
-                          const int * child0States,
-                          const double *child0TransMat,
-                          const int * child1States,
-                          const double *child1TransMat);
-    
+    virtual void calcStatesStates(double* destP,
+                                    const int* states1,
+                                    const double* matrices1,
+                                    const int* states2,
+                                    const double* matrices2,
+                                    const double* scalingFactors,
+                                    const double* cumulativeScalingBuffer,
+                                    int rescale );
+
+
+    virtual void calcStatesPartials(double* destP,
+                                    const int* states1,
+                                    const double* matrices1,
+                                    const double* partials2,
+                                    const double* matrices2,
+                                    const double* scalingFactors,
+                                    const double* cumulativeScalingBuffer,
+                                    int rescale );
+
+    virtual void calcPartialsPartials(double* destP,
+                                    const double* partials1,
+                                    const double* matrices1,
+                                    const double* partials2,
+                                    const double* matrices2,
+                                    const double* scalingFactors,
+                                    const double* cumulativeScalingBuffer,
+                                    int rescale );
+
+    virtual void calcRootLogLikelihoods(const int bufferIndex,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
+                                    const int scalingFactorsIndex,
+                                    double* outLogLikelihoods);
+
+
     virtual void calcStatesStatesFixedScaling(double *destP,
                                            const int *child0States,
                                         const double *child0TransMat,
                                            const int *child1States,
                                         const double *child1TransMat,
                                         const double  scaleFactor);
-    
-    virtual void calcStatesPartials(double * destP,
-                            const int * child0States,
-                            const double *child0TransMat,
-                            const double * child1Partials,
-                            const double *child1TransMat);
-    
+
     virtual void calcStatesPartialsFixedScaling(double *destP,
                                              const int *child0States,
                                           const double *child0TransMat,
                                           const double *child1Partials,
                                           const double *child1TransMat,
                                           const double  scaleFactor);
-    
-    virtual void calcPartialsPartials(double * destP,
-                              const double * child0States,
-                              const double *child0TransMat,
-                              const double * child1Partials,
-                              const double *child1TransMat);
-    
+
     virtual void calcPartialsPartialsFixedScaling(double *destP,
                                             const double *child0States,
                                             const double *child0TransMat,
                                             const double *child1Partials,
                                             const double *child1TransMat,
                                             const double  scaleFactor);
-    
+
     virtual void rescalePartials(double *destP,
                                  double *scaleFactors,
                                  double *cumulativeScaleFactors,
                              const int  fillWithOnes);
-    
-    virtual void calcRootLogLikelihoods(const int bufferIndex,
-                            const double* inWeights,
-                            const double* inStateFrequencies,
-                            const int scalingFactorsIndex,
-                            double* outLogLikelihoods);
+
+
 };
 
 class BeagleCPUImplFactory : public BeagleImplFactory {
@@ -278,7 +293,7 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount);
-    
+
     virtual const char* getName();
 };
 

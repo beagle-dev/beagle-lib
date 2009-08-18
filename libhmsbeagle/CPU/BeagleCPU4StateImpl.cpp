@@ -35,7 +35,7 @@
 #include <iostream>
 #include <cstring>
 #include <cmath>
-#include <cassert> 
+#include <cassert>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
@@ -63,27 +63,31 @@ BeagleCPU4StateImpl::~BeagleCPU4StateImpl() {
  * Calculates partial likelihoods at a node when both children have states.
  */
 void BeagleCPU4StateImpl::calcStatesStates(double* destP,
-                                     const int* child1States,
-                                     const double* child1TransMat,
-                                     const int* child2States,
-                                     const double*child2TransMat) {
+                                     const int* states1,
+                                     const double* matrices1,
+                                     const int* states2,
+                                     const double* matrices2,
+                                      const double* scalingFactors,
+                                      const double* cumulativeScalingBuffer,
+                                      int rescale) {
+
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
 
         for (int k = 0; k < kPatternCount; k++) {
 
-            int state1 = child1States[k];
-            int state2 = child2States[k];
+            int state1 = states1[k];
+            int state2 = states2[k];
 
             int w = l * kMatrixSize;
 
-            destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+            destP[v] = matrices1[w + state1] * matrices2[w + state2];
             v++;    w += 5;
-            destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+            destP[v] = matrices1[w + state1] * matrices2[w + state2];
             v++;    w += 5;
-            destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+            destP[v] = matrices1[w + state1] * matrices2[w + state2];
             v++;    w += 5;
-            destP[v] = child1TransMat[w + state1] * child2TransMat[w + state2];
+            destP[v] = matrices1[w + state1] * matrices2[w + state2];
             v++;    w += 5;
 
         }
@@ -97,7 +101,11 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
                                        const double* partials2,
-                                       const double* matrices2) {
+                                       const double* matrices2,
+                                          const double* scalingFactors,
+                                          const double* cumulativeScalingBuffer,
+                                          int rescale) {
+
     int u = 0;
     int v = 0;
 
@@ -154,7 +162,11 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
                                          const double* partials2,
-                                         const double* matrices2) {
+                                         const double* matrices2,
+                                          const double* scalingFactors,
+                                          const double* cumulativeScalingBuffer,
+                                          int rescale) {
+
     double sum1, sum2;
     int u = 0;
     int v = 0;
@@ -222,32 +234,32 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
 
      // We treat this as a special case so that we don't have convoluted logic
      //      at the end of the loop over patterns
-     const double* rootPartials = partials[bufferIndex];
+     const double* rootPartials = dPartials[bufferIndex];
      assert(rootPartials);
      const double* wt = inWeights;
      int u = 0;
      int v = 0;
      for (int k = 0; k < kPatternCount; k++) {
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
      }
      for (int l = 1; l < kCategoryCount; l++) {
          u = 0;
          for (int k = 0; k < kPatternCount; k++) {
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
          }
      }
      u = 0;
      for (int k = 0; k < kPatternCount; k++) {
-         double sum = inStateFrequencies[0] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[1] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[2] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[3] * integrationTmp[u]; u++;
+         double sum = inStateFrequencies[0] * dIntegrationTmp[u]; u++;
+         sum += inStateFrequencies[1] * dIntegrationTmp[u]; u++;
+         sum += inStateFrequencies[2] * dIntegrationTmp[u]; u++;
+         sum += inStateFrequencies[3] * dIntegrationTmp[u]; u++;
          outLogLikelihoods[k] = log(sum);   // take the log
      }
 }
@@ -255,7 +267,7 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
-BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,   
+BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -264,12 +276,12 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
                                              int matrixBufferCount,
                                              int categoryCount,
                                              int scaleBufferCount) {
-	
-	if (stateCount != 4) {         
+
+	if (stateCount != 4) {
 		return NULL;
     }
-    
-   	BeagleImpl* impl = new BeagleCPU4StateImpl();                                         
+
+   	BeagleImpl* impl = new BeagleCPU4StateImpl();
 
 	try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
@@ -283,9 +295,9 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
         delete impl;
         throw;
     }
-    
+
     delete impl;
-    
+
     return NULL;
 }
 
