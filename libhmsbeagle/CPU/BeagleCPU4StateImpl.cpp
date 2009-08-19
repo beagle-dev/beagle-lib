@@ -66,10 +66,10 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
                                      const int* states1,
                                      const double* matrices1,
                                      const int* states2,
-                                     const double* matrices2,
-                                      const double* scalingFactors,
-                                      const double* cumulativeScalingBuffer,
-                                      int rescale) {
+                                     const double* matrices2) {//,
+//                                      const double* scalingFactors,
+//                                      const double* cumulativeScalingBuffer,
+//                                      int rescale) {
 
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
@@ -94,6 +94,38 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
     }
 }
 
+void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
+                                     const int* states1,
+                                     const double* matrices1,
+                                     const int* states2,
+                                     const double* matrices2,
+                                     const double* scaleFactors) {
+
+    int v = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+
+        for (int k = 0; k < kPatternCount; k++) {
+
+            int state1 = states1[k];
+            int state2 = states2[k];
+
+            int w = l * kMatrixSize;
+            
+            const double scaleFactor = scaleFactors[k];
+
+            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
+            v++;    w += 5;
+            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
+            v++;    w += 5;
+            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
+            v++;    w += 5;
+            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
+            v++;    w += 5;
+
+        }
+    }
+}
+
 /*
  * Calculates partial likelihoods at a node when one child has states and one has partials.
  */
@@ -101,10 +133,10 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
                                        const double* partials2,
-                                       const double* matrices2,
-                                          const double* scalingFactors,
-                                          const double* cumulativeScalingBuffer,
-                                          int rescale) {
+                                       const double* matrices2) {//,
+//                                          const double* scalingFactors,
+//                                          const double* cumulativeScalingBuffer,
+//                                          int rescale) {
 
     int u = 0;
     int v = 0;
@@ -158,14 +190,74 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
     }
 }
 
+void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
+                                       const int* states1,
+                                       const double* matrices1,
+                                       const double* partials2,
+                                       const double* matrices2,
+                                       const double* scaleFactors) {
+    int u = 0;
+    int v = 0;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+
+            int state1 = states1[k];
+
+            int w = l * kMatrixSize;
+            
+            const double scaleFactor = scaleFactors[k];
+
+            destP[u] = matrices1[w + state1];
+
+            double sum = matrices2[w] * partials2[v]; w++;
+            sum +=  matrices2[w] * partials2[v + 1]; w++;
+            sum +=  matrices2[w] * partials2[v + 2]; w++;
+            sum +=  matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] *= sum / scaleFactor;    u++;
+
+            destP[u] = matrices1[w + state1];
+
+            sum = matrices2[w] * partials2[v]; w++;
+            sum +=  matrices2[w] * partials2[v + 1]; w++;
+            sum +=  matrices2[w] * partials2[v + 2]; w++;
+            sum +=  matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] *= sum / scaleFactor;    u++;
+
+            destP[u] = matrices1[w + state1];
+
+            sum = matrices2[w] * partials2[v]; w++;
+            sum +=  matrices2[w] * partials2[v + 1]; w++;
+            sum +=  matrices2[w] * partials2[v + 2]; w++;
+            sum +=  matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] *= sum / scaleFactor;    u++;
+
+            destP[u] = matrices1[w + state1];
+
+            sum = matrices2[w] * partials2[v]; w++;
+            sum +=  matrices2[w] * partials2[v + 1]; w++;
+            sum +=  matrices2[w] * partials2[v + 2]; w++;
+            sum +=  matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] *= sum / scaleFactor;    u++;
+
+            v += 4;
+
+        }
+    }
+}
+
 void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
                                          const double* partials2,
-                                         const double* matrices2,
-                                          const double* scalingFactors,
-                                          const double* cumulativeScalingBuffer,
-                                          int rescale) {
+                                         const double* matrices2) {//,
+//                                          const double* scalingFactors,
+//                                          const double* cumulativeScalingBuffer,
+//                                          int rescale) {
 
     double sum1, sum2;
     int u = 0;
@@ -226,6 +318,74 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
     }
 }
 
+void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
+                                         const double* partials1,
+                                         const double* matrices1,
+                                         const double* partials2,
+                                         const double* matrices2,
+                                         const double* scaleFactors) {
+
+    double sum1, sum2;
+    int u = 0;
+    int v = 0;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+
+            int w = l * kMatrixSize;
+
+            const double scaleFactor = scaleFactors[k];
+            
+            sum1 = matrices1[w] * partials1[v];
+            sum2 = matrices2[w] * partials2[v]; w++;
+            sum1 += matrices1[w] * partials1[v + 1];
+            sum2 += matrices2[w] * partials2[v + 1]; w++;
+            sum1 += matrices1[w] * partials1[v + 2];
+            sum2 += matrices2[w] * partials2[v + 2]; w++;
+            sum1 += matrices1[w] * partials1[v + 3];
+            sum2 += matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] = sum1 * sum2 / scaleFactor; u++;
+
+            sum1 = matrices1[w] * partials1[v];
+            sum2 = matrices2[w] * partials2[v]; w++;
+            sum1 += matrices1[w] * partials1[v + 1];
+            sum2 += matrices2[w] * partials2[v + 1]; w++;
+            sum1 += matrices1[w] * partials1[v + 2];
+            sum2 += matrices2[w] * partials2[v + 2]; w++;
+            sum1 += matrices1[w] * partials1[v + 3];
+            sum2 += matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] = sum1 * sum2 / scaleFactor; u++;
+
+            sum1 = matrices1[w] * partials1[v];
+            sum2 = matrices2[w] * partials2[v]; w++;
+            sum1 += matrices1[w] * partials1[v + 1];
+            sum2 += matrices2[w] * partials2[v + 1]; w++;
+            sum1 += matrices1[w] * partials1[v + 2];
+            sum2 += matrices2[w] * partials2[v + 2]; w++;
+            sum1 += matrices1[w] * partials1[v + 3];
+            sum2 += matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] = sum1 * sum2 / scaleFactor; u++;
+
+            sum1 = matrices1[w] * partials1[v];
+            sum2 = matrices2[w] * partials2[v]; w++;
+            sum1 += matrices1[w] * partials1[v + 1];
+            sum2 += matrices2[w] * partials2[v + 1]; w++;
+            sum1 += matrices1[w] * partials1[v + 2];
+            sum2 += matrices2[w] * partials2[v + 2]; w++;
+            sum1 += matrices1[w] * partials1[v + 3];
+            sum2 += matrices2[w] * partials2[v + 3]; w++;
+            w++; // increment for the extra column at the end
+            destP[u] = sum1 * sum2 / scaleFactor; u++;
+            
+            v += 4;
+
+        }
+    }
+}
+
 void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
                                                 const double* inWeights,
                                                 const double* inStateFrequencies,
@@ -261,6 +421,11 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
          sum += inStateFrequencies[2] * dIntegrationTmp[u]; u++;
          sum += inStateFrequencies[3] * dIntegrationTmp[u]; u++;
          outLogLikelihoods[k] = log(sum);   // take the log
+     }
+     if (scalingFactorsIndex >=0) {
+         const double *cumulativeScaleFactors = dScalingFactors[scalingFactorsIndex];
+         for(int k=0; k<kPatternCount; k++)
+             outLogLikelihoods[k] += cumulativeScaleFactors[k];
      }
 }
 
