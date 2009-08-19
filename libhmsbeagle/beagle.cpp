@@ -378,43 +378,43 @@ int beagleSetEigenDecomposition(int instance,
 
 int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates) {
-    try {
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         
         return beagleInstance->setCategoryRates(inCategoryRates);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleSetTransitionMatrix(int instance,
                         int matrixIndex,
                         const double* inMatrix) {
-    try {
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 
         return beagleInstance->setTransitionMatrix(matrixIndex, inMatrix);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleUpdateTransitionMatrices(int instance,
@@ -424,23 +424,23 @@ int beagleUpdateTransitionMatrices(int instance,
                              const int* secondDervativeIndices,
                              const double* edgeLengths,
                              int count) {
-    try {
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         return beagleInstance->updateTransitionMatrices(eigenIndex, probabilityIndices,
                                                         firstDerivativeIndices,
                                                         secondDervativeIndices, edgeLengths, count);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleUpdatePartials(const int* instanceList,
@@ -448,7 +448,7 @@ int beagleUpdatePartials(const int* instanceList,
                    const int* operations,
                    int operationCount,
                    int cumulativeScalingIndex) {
-    try {
+//    try {
         int error_code = BEAGLE_SUCCESS;
         for (int i = 0; i < instanceCount; i++) {
             beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instanceList[i]);
@@ -461,23 +461,23 @@ int beagleUpdatePartials(const int* instanceList,
             }
         }
         return error_code;
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleWaitForPartials(const int* instanceList,
                     int instanceCount,
                     const int* destinationPartials,
                     int destinationPartialsCount) {
-    try {
+//    try {
         int error_code = BEAGLE_SUCCESS;
         for (int i = 0; i < instanceCount; i++) {
             beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instanceList[i]);
@@ -491,77 +491,77 @@ int beagleWaitForPartials(const int* instanceList,
             }
         }
         return error_code;
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleAccumulateScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
 						   int cumulativeScalingIndex) {
-    try {        
+//    try {
     	 beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     	 if (beagleInstance == NULL)
     		 return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     	 return beagleInstance->accumulateScaleFactors(scalingIndices, count, cumulativeScalingIndex);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleRemoveScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
 						   int cumulativeScalingIndex) {
-    try {        
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         return beagleInstance->removeScaleFactors(scalingIndices, count, cumulativeScalingIndex);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleResetScaleFactors(int instance,
                       int cumulativeScalingIndex) {
-    try {        
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         return beagleInstance->resetScaleFactors(cumulativeScalingIndex);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 
 int beagleCalculateRootLogLikelihoods(int instance,
@@ -571,7 +571,7 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                 const int* scalingFactorsIndices,
                                 int count,
                                 double* outLogLikelihoods) {
-    try {
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
@@ -580,16 +580,16 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                                            scalingFactorsIndices,
                                                            count,
                                                            outLogLikelihoods);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 
 
 }
@@ -607,7 +607,7 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                 double* outLogLikelihoods,
                                 double* outFirstDerivatives,
                                 double* outSecondDerivatives) {
-    try {
+//    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
@@ -620,15 +620,15 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                                            count,
                                                            outLogLikelihoods, outFirstDerivatives,
                                                            outSecondDerivatives);
-    }
-    catch (std::bad_alloc &) {
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    }
-    catch (std::out_of_range &) {
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
-    catch (...) {
-        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
-    }
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
 }
 

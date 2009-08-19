@@ -61,25 +61,26 @@ protected:
     // each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
     //  from the eigenVector matrix and inverse eigen vector matrix. Storing these
     //  temps saves time in the updateTransitionMatrices()
-    double** dCMatrices;
+    double** gCMatrices;
     // each element of eigenValues is a kStateCount array of eigenvalues
-    double** dEigenValues;
+    double** gEigenValues;
 
-    double* dCategoryRates;
+    double* gCategoryRates;
 
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
-    std::vector<double*> dPartials;
-    std::vector<int*> dTipStates;
-    std::vector<double*> dScalingFactors;
+    double** gPartials;
+    int** gTipStates;
+    double** gScaleBuffers;
 
     // There will be kMatrixCount transitionMatrices.
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
-    std::vector< std::vector<double> > dTransitionMatrices;
+    double** gTransitionMatrices;
 
-    double* dIntegrationTmp;
+    double* integrationTmp;
+    double* matrixTmp;
 
     double* ones;
     double* zeros;
@@ -199,7 +200,7 @@ public:
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
-                                    const int* scalingFactorsIndices,
+                                    const int* scaleBufferIndices,
                                     int count,
                                     double* outLogLikelihoods);
 
@@ -212,7 +213,7 @@ public:
                                     const int* secondDerivativeIndices,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
-                                    const int* scalingFactorsIndices,
+                                    const int* scaleBufferIndices,
                                     int count,
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
@@ -223,34 +224,25 @@ protected:
                                     const int* states1,
                                     const double* matrices1,
                                     const int* states2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
+                                    const double* matrices2);
 
 
     virtual void calcStatesPartials(double* destP,
                                     const int* states1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
+                                    const double* matrices2);
 
     virtual void calcPartialsPartials(double* destP,
                                     const double* partials1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
+                                    const double* matrices2);
 
     virtual void calcRootLogLikelihoods(const int bufferIndex,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
-                                    const int scalingFactorsIndex,
+                                    const int scaleBufferIndex,
                                     double* outLogLikelihoods);
 
 
