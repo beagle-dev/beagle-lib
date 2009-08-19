@@ -190,7 +190,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
 int BeagleCPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
-        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
+        returnInfo->flags = BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
     }
 
     return BEAGLE_SUCCESS;
@@ -365,7 +365,7 @@ int BeagleCPUImpl::updatePartials(const int* operations,
         double* destPartials = dPartials[parIndex];
 
         int rescale = BEAGLE_OP_NONE;
-        const double* scalingFactors;
+        double* scalingFactors;
         if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
@@ -374,25 +374,52 @@ int BeagleCPUImpl::updatePartials(const int* operations,
             scalingFactors = dScalingFactors[readScalingIndex];
         }
 
-
         if (tipStates1 != NULL) {
             if (tipStates2 != NULL ) {
-                calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2,
-                                 scalingFactors, cumulativeScalingBuffer, rescale);
+                if (rescale == 0) { // Use fixed scaleFactors
+                    calcStatesStatesFixedScaling(destPartials, tipStates1, matrices1, tipStates2, matrices2,
+                                                 scalingFactors);
+                } else { 
+                    // First compute without any scaling
+                    calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);//,
+//                                     scalingFactors, cumulativeScalingBuffer, rescale);
+                    if (rescale == 1) // Recompute scaleFactors
+                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,1);
+                }
             } else {
-                calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2,
-                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                if (rescale == 0) {
+                    calcStatesPartialsFixedScaling(destPartials, tipStates1, matrices1, partials2, matrices2,
+                                                   scalingFactors);
+                } else {
+                    calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2);//,
+//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    if (rescale == 1)
+                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                }
             }
         } else {
             if (tipStates2 != NULL) {
-                calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1,
-                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                if (rescale == 0) {
+                    calcStatesPartialsFixedScaling(destPartials,tipStates2,matrices2,partials1,matrices1,
+                                                   scalingFactors);
+                } else {
+                    calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1);//,
+//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    if (rescale == 1)
+                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                }
             } else {
-                calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
-                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                if (rescale == 0) {
+                    calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,matrices2,
+                                                     scalingFactors);
+                } else {
+                    calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2);//,
+//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    if (rescale == 1)
+                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                }
             }
         }
-
     }
 
     return BEAGLE_SUCCESS;
@@ -622,7 +649,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 void BeagleCPUImpl::rescalePartials(double* destP,
                                     double* scaleFactors,
                                     double* cumulativeScaleFactors,
-                                 const int  fillWithOnes) {
+                                       const int  fillWithOnes) {
     if (kStateCount == 4 && fillWithOnes != 0) {
         if (ones == NULL) {
             ones = (double*) malloc(sizeof(double) * kPatternCount);
@@ -667,10 +694,10 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
                                      const int* states1,
                                      const double* matrices1,
                                      const int* states2,
-                                     const double* matrices2,
-                                     const double* scalingFactors,
-                                     const double* cumulativeScalingBuffer,
-                                     int rescale) {
+                                     const double* matrices2) {//,
+//                                     const double* scalingFactors,
+//                                     const double* cumulativeScalingBuffer,
+//                                     int rescale) {
 
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
@@ -696,13 +723,14 @@ void BeagleCPUImpl::calcStatesStatesFixedScaling(double* destP,
                                            const double* child1TransMat,
                                               const int* child2States,
                                            const double* child2TransMat,
-                                           const double  scaleFactor) {
+                                           const double* scaleFactors) {
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             const int state1 = child1States[k];
             const int state2 = child2States[k];
             int w = l * kMatrixSize;
+            double scaleFactor = scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
                 destP[v] = child1TransMat[w + state1] *
                            child2TransMat[w + state2] / scaleFactor;
@@ -720,10 +748,10 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
                                        const double* partials2,
-                                       const double* matrices2,
-                                       const double* scalingFactors,
-                                       const double* cumulativeScalingBuffer,
-                                       int rescale) {
+                                       const double* matrices2) {//,
+//                                       const double* scalingFactors,
+//                                       const double* cumulativeScalingBuffer,
+//                                       int rescale) {
     int u = 0;
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
@@ -752,13 +780,14 @@ void BeagleCPUImpl::calcStatesPartialsFixedScaling(double* destP,
                                              const double* matrices1,
                                              const double* partials2,
                                              const double* matrices2,
-                                             const double  scaleFactor) {
+                                             const double* scaleFactors) {
     int u = 0;
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             int state1 = states1[k];
             int w = l * kMatrixSize;
+            double scaleFactor = scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
                 double tmp = matrices1[w + state1];
                 double sum = 0.0;
@@ -783,10 +812,10 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
                                          const double* partials2,
-                                         const double* matrices2,
-                                         const double* scalingFactors,
-                                         const double* cumulativeScalingBuffer,
-                                         int rescale) {
+                                         const double* matrices2) {//,
+//                                         const double* scalingFactors,
+//                                         const double* cumulativeScalingBuffer,
+//                                         int rescale) {
     double sum1, sum2;
     int u = 0;
     int v = 0;
@@ -821,13 +850,14 @@ void BeagleCPUImpl::calcPartialsPartialsFixedScaling(double* destP,
                                                const double* matrices1,
                                                const double* partials2,
                                                const double* matrices2,
-                                               const double  scaleFactor) {
+                                               const double* scaleFactors) {
     double sum1, sum2;
     int u = 0;
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
+            double scaleFactor = scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
                 sum1 = sum2 = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
