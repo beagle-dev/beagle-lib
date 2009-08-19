@@ -49,34 +49,55 @@ private:
                                     const int* states1,
                                     const double* matrices1,
                                     const int* states2,
-                                    const double* matrices2,
-                                    const double* scalingFactors,
-                                    const double* cumulativeScalingBuffer,
-                                    int rescale );
+                                    const double* matrices2);//,
+//                                    const double* scalingFactors,
+//                                    const double* cumulativeScalingBuffer,
+//                                    int rescale );
 
     virtual void calcStatesPartials(double* destP,
                                     const int* states1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2,
-                                    const double* scalingFactors,
-                                    const double* cumulativeScalingBuffer,
-                                    int rescale );
+                                    const double* matrices2);//,
+//                                    const double* scalingFactors,
+//                                    const double* cumulativeScalingBuffer,
+//                                    int rescale );
 
     virtual void calcPartialsPartials(double* destP,
                                     const double* partials1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2,
-                                    const double* scalingFactors,
-                                    const double* cumulativeScalingBuffer,
-                                    int rescale );
+                                    const double* matrices2);//,
+//                                    const double* scalingFactors,
+//                                    const double* cumulativeScalingBuffer,
+//                                    int rescale );
 
     virtual void calcRootLogLikelihoods(const int bufferIndex,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
                                     const int scalingFactorsIndex,
                                     double* outLogLikelihoods);
+    
+    virtual void calcStatesStatesFixedScaling(double *destP,
+                                           const int *child0States,
+                                        const double *child0TransMat,
+                                           const int *child1States,
+                                        const double *child1TransMat,
+                                        const double *scaleFactors);
+
+    virtual void calcStatesPartialsFixedScaling(double *destP,
+                                             const int *child0States,
+                                          const double *child0TransMat,
+                                          const double *child1Partials,
+                                          const double *child1TransMat,
+                                          const double *scaleFactors);
+
+    virtual void calcPartialsPartialsFixedScaling(double *destP,
+                                            const double *child0States,
+                                            const double *child0TransMat,
+                                            const double *child1Partials,
+                                            const double *child1TransMat,
+                                            const double *scaleFactors);
 };
 
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {

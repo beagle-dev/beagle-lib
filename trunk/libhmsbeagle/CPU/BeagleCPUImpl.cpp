@@ -110,7 +110,9 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 
 	free(dCategoryRates);
 	free(dIntegrationTmp);
-
+	
+	free(ones);
+	free(zeros);
 
 }
 
@@ -182,7 +184,13 @@ int BeagleCPUImpl::createInstance(int tipCount,
     dTransitionMatrices.assign(kMatrixCount, emptyMat);
 
 	dIntegrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
-    ones = NULL;
+
+	zeros = (double*) malloc(sizeof(double) * kPatternCount);
+    ones = (double*) malloc(sizeof(double) * kPatternCount);
+    for(int i = 0; i < kPatternCount; i++) {
+    	zeros[i] = 0.0;
+        ones[i] = 1.0;
+    }
 
     return BEAGLE_SUCCESS;
 }
@@ -365,13 +373,18 @@ int BeagleCPUImpl::updatePartials(const int* operations,
         double* destPartials = dPartials[parIndex];
 
         int rescale = BEAGLE_OP_NONE;
-        double* scalingFactors;
+        double* scalingFactors = NULL;
         if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
         } else if (readScalingIndex >= 0) {
             rescale = 0;
             scalingFactors = dScalingFactors[readScalingIndex];
+        }
+        
+        if (DEBUGGING_OUTPUT) {
+            std::cerr << "Rescale= " << rescale << " writeIndex= " << writeScalingIndex 
+                     << " readIndex = " << readScalingIndex << "\n";
         }
 
         if (tipStates1 != NULL) {
@@ -420,6 +433,15 @@ int BeagleCPUImpl::updatePartials(const int* operations,
                 }
             }
         }
+        if (DEBUGGING_OUTPUT) {
+        	if (scalingFactors != NULL && rescale == 0) {
+        		for(int i=0; i<kPatternCount; i++)
+        			fprintf(stderr,"old scaleFactor[%d] = %.5f\n",i,scalingFactors[i]);
+        	}
+        	fprintf(stderr,"Result partials:\n");
+        	for(int i = 0; i < kPartialsSize; i++)
+        		fprintf(stderr,"destP[%d] = %.5f\n",i,destPartials[i]);
+        }
     }
 
     return BEAGLE_SUCCESS;
@@ -442,7 +464,6 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
-
         calcRootLogLikelihoods(bufferIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
     }
     else
@@ -540,24 +561,45 @@ void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
         }
         outLogLikelihoods[k] = log(sum);   // take the log
     }
+    
+    if (scalingFactorsIndex >= 0) {
+    	const double* cumulativeScaleFactors = dScalingFactors[scalingFactorsIndex];
+    	for(int i=0; i<kPatternCount; i++)
+    		outLogLikelihoods[i] += cumulativeScaleFactors[i];
+    }
 }
 
 int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
-    // TODO: implement accumulateScaleFactors CPU
+	
+	double* cumulativeScaleBuffer = dScalingFactors[cumulativeScalingIndex];
+	for(int i=0; i<count; i++) {
+		const double* scaleBuffer = dScalingFactors[scalingIndices[i]];
+		for(int j=0; j<kPatternCount; j++) 
+			cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+	}
+	
+	if (DEBUGGING_OUTPUT) {
+		fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
+		for(int j=0; j<kPatternCount; j++) {
+			fprintf(stderr,"cumulativeScaleBuffer[%d] = %2.5e\n",j,cumulativeScaleBuffer[j]);
+		}
+	}
     return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
+	fprintf(stderr,"BeagleCPUImpl::removeScaleFactors is not yet implemented!");
+	exit(0);
     // TODO: implement removeScaleFactors CPU
     return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
-    // TODO: implement resetScaleFactors CPU
+    memcpy(dScalingFactors[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
     return BEAGLE_SUCCESS;
 }
 
@@ -650,40 +692,51 @@ void BeagleCPUImpl::rescalePartials(double* destP,
                                     double* scaleFactors,
                                     double* cumulativeScaleFactors,
                                        const int  fillWithOnes) {
+    if (DEBUGGING_OUTPUT) {
+        std::cerr << "destP (before rescale): \n";// << destP << "\n";
+        for(int i=0; i<kPartialsSize; i++)
+            fprintf(stderr,"destP[%d] = %.5f\n",i,destP[i]);
+    }
+    
     if (kStateCount == 4 && fillWithOnes != 0) {
-        if (ones == NULL) {
-            ones = (double*) malloc(sizeof(double) * kPatternCount);
-                for(int i = 0; i < kPatternCount; i++)
-                    ones[i] = 1.0;
-        }
+//        if (ones == NULL) {
+//            ones = (double*) malloc(sizeof(double) * kPatternCount);
+//                for(int i = 0; i < kPatternCount; i++)
+//                    ones[i] = 1.0;
+//        }
         memcpy(scaleFactors,ones,sizeof(double) * kPatternCount);
         // No accumulation necessary as cumulativeScaleFactors are on the log-scale
+        if (DEBUGGING_OUTPUT)
+            fprintf(stderr,"Ones copied!\n");
         return;
     }
 
-    // TODO None of the code below has been checked.
-    int u = 0;
-    int v = 0;
+    // TODO None of the code below has been optimized.
     for (int k = 0; k < kPatternCount; k++) {
         double max = 0;
         const int patternOffset = k * kStateCount;
         for (int l = 0; l < kCategoryCount; l++) {
-            int offset = l * kPatternCount + patternOffset;
+            int offset = l * kPatternCount * kStateCount + patternOffset;
             for (int i = 0; i < kStateCount; i++) {
                 if(destP[offset] > max)
                     max = destP[offset];
                 offset++;
             }
         }
-        for (int l = 0; l < kCategoryCount; k++) {
-            int offset = l * kPatternCount + patternOffset;
-            for (int i = 0; i < kStateCount; i++) {
+        for (int l = 0; l < kCategoryCount; l++) {
+            int offset = l * kPatternCount * kStateCount + patternOffset;
+            for (int i = 0; i < kStateCount; i++)
                 destP[offset++] /= max;
-            }
         }
+        if (max == 0)
+            max = 1.0;
         scaleFactors[k] = max;
         if( cumulativeScaleFactors != NULL )
             cumulativeScaleFactors[k] += log(max);
+    }
+    if (DEBUGGING_OUTPUT) {
+    	for(int i=0; i<kPatternCount; i++)
+    		fprintf(stderr,"new scaleFactor[%d] = %.5f\n",i,scaleFactors[i]);
     }
 }
 

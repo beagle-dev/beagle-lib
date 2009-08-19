@@ -82,6 +82,7 @@ protected:
     double* dIntegrationTmp;
 
     double* ones;
+    double* zeros;
 
 public:
     virtual ~BeagleCPUImpl();
