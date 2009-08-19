@@ -96,21 +96,48 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 
-	for(unsigned int i=0; i<dPartials.size(); i++) {
-		free(dPartials[i]);
+	for(unsigned int i=0; i<kBufferCount; i++) {
+	    if (gPartials[i] != NULL)
+		    free(gPartials[i]);
+	    if (gTipStates[i] != NULL)
+		    free(gTipStates[i]);
 	}
+    free(gPartials);
+    free(gTipStates);
 
 	for(int i=0; i<kEigenDecompCount; i++) {
-		free(dCMatrices[i]);
-		free(dEigenValues[i]);
+		free(gCMatrices[i]);
+		free(gEigenValues[i]);
 	}
 
-	free(dCMatrices);
-	free(dEigenValues);
+	for(unsigned int i=0; i<kMatrixCount; i++) {
+	    if (gTransitionMatrices[i] != NULL)
+		    free(gTransitionMatrices[i]);
+	}
+    free(gTransitionMatrices);
 
-	free(dCategoryRates);
-	free(dIntegrationTmp);
-	
+	for(unsigned int i=0; i<kScaleBufferCount; i++) {
+	    if (gScaleBuffers[i] != NULL)
+		    free(gScaleBuffers[i]);
+	}
+    free(gTransitionMatrices);
+
+	for(unsigned int i=0; i<kBufferCount; i++) {
+	    if (gPartials[i] != NULL)
+		    free(gPartials[i]);
+	    if (gTipStates[i] != NULL)
+		    free(gTipStates[i]);
+	}
+    free(gPartials);
+    free(gTipStates);
+
+	free(gCMatrices);
+	free(gEigenValues);
+
+	free(gCategoryRates);
+	free(integrationTmp);
+	free(matrixTmp);
+
 	free(ones);
 	free(zeros);
 
@@ -139,51 +166,70 @@ int BeagleCPUImpl::createInstance(int tipCount,
     kScaleBufferCount = scaleBufferCount;
     kMatrixSize = (1 + kStateCount) * kStateCount;
 
-    dCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-    if (dCMatrices == 0L)
+    gCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+    if (gCMatrices == NULL)
         throw std::bad_alloc();
 
-    dEigenValues = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-    if (dEigenValues == 0L)
+    gEigenValues = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+    if (gEigenValues == NULL)
         throw std::bad_alloc();
 
     for (int i = 0; i < eigenDecompositionCount; i++) {
-        dCMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
-        if (dCMatrices[i] == 0L)
+        gCMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
+        if (gCMatrices[i] == NULL)
             throw std::bad_alloc();
 
-        dEigenValues[i] = (double*) malloc(sizeof(double) * kStateCount);
-        if (dEigenValues[i] == 0L)
+        gEigenValues[i] = (double*) malloc(sizeof(double) * kStateCount);
+        if (gEigenValues[i] == NULL)
             throw std::bad_alloc();
     }
 
-	dCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
+	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
 
     kPartialsSize = kPatternCount * kStateCount * kCategoryCount;
 
-    dPartials.assign(kBufferCount, 0L);
+    gPartials = (double**) malloc(sizeof(double*) * kBufferCount);
+    if (gPartials == NULL)
+     throw std::bad_alloc();
 
     // assigning kBufferCount to this array so that we can just check if a tipStateBuffer is
     // allocated
-    dTipStates.assign(kBufferCount, 0L);
+    gTipStates = (int**) malloc(sizeof(int*) * kBufferCount);
+    if (gTipStates == NULL)
+        throw std::bad_alloc();
+
+    for (int i = 0; i < kBufferCount; i++) {
+        gPartials[i] = NULL;
+        gTipStates[i] = NULL;
+    }
 
     for (int i = kTipCount; i < kBufferCount; i++) {
-        dPartials[i] = (double*) malloc(sizeof(double) * kPartialsSize);
-        if (dPartials[i] == 0L)
+        gPartials[i] = (double*) malloc(sizeof(double) * kPartialsSize);
+        if (gPartials[i] == NULL)
             throw std::bad_alloc();
     }
 
-    dScalingFactors.assign(kScaleBufferCount, 0L);
+    gScaleBuffers = (double**) malloc(sizeof(double*) * kScaleBufferCount);
+    if (gScaleBuffers == NULL)
+         throw std::bad_alloc();
+
     for (int i = 0; i < kScaleBufferCount; i++) {
-        dScalingFactors[i] = (double*) malloc(sizeof(double) * kPartialsSize);
-        if (dScalingFactors[i] == 0L)
+        gScaleBuffers[i] = (double*) malloc(sizeof(double) * kPartialsSize);
+        if (gScaleBuffers[i] == 0L)
             throw std::bad_alloc();
     }
 
-    std::vector<double> emptyMat(kMatrixSize * kCategoryCount);
-    dTransitionMatrices.assign(kMatrixCount, emptyMat);
+    gTransitionMatrices = (double**) malloc(sizeof(double*) * kMatrixCount);
+    if (gTransitionMatrices == NULL)
+        throw std::bad_alloc();
+    for (int i = 0; i < kMatrixCount; i++) {
+        gTransitionMatrices[i] = (double*) malloc(sizeof(double) * kMatrixSize * kCategoryCount);
+        if (gTransitionMatrices[i] == 0L)
+            throw std::bad_alloc();
+    }
 
-	dIntegrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+	integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+	matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
 
 	zeros = (double*) malloc(sizeof(double) * kPatternCount);
     ones = (double*) malloc(sizeof(double) * kPatternCount);
@@ -208,9 +254,9 @@ int BeagleCPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    dTipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
+    gTipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
 	for (int j = 0; j < kPatternCount; j++) {
-		dTipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
+		gTipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
 	}
 
     return BEAGLE_SUCCESS;
@@ -220,13 +266,13 @@ int BeagleCPUImpl::setTipPartials(int tipIndex,
                                   const double* inPartials) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    assert(dPartials[tipIndex] == 0L);
-    dPartials[tipIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
-    if (dPartials[tipIndex] == 0L)
+    assert(gPartials[tipIndex] == 0L);
+    gPartials[tipIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
+    if (gPartials[tipIndex] == 0L)
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++)
-        memcpy(dPartials[tipIndex] + i * singlePartialsSize, inPartials,
+        memcpy(gPartials[tipIndex] + i * singlePartialsSize, inPartials,
                sizeof(double) * singlePartialsSize);
 
     return BEAGLE_SUCCESS;
@@ -236,11 +282,12 @@ int BeagleCPUImpl::setPartials(int bufferIndex,
                                const double* inPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    assert(dPartials[bufferIndex] == 0L);
-    dPartials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
-    if (dPartials[bufferIndex] == 0L)
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-    memcpy(dPartials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
+    if (gPartials[bufferIndex] == NULL) {
+        gPartials[bufferIndex] = (double*) malloc(sizeof(double) * kPartialsSize);
+        if (gPartials[bufferIndex] == 0L)
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    memcpy(gPartials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
 
     return BEAGLE_SUCCESS;
 }
@@ -250,7 +297,7 @@ int BeagleCPUImpl::getPartials(int bufferIndex,
                                double* outPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    memcpy(outPartials, dPartials[bufferIndex], sizeof(double) * kPartialsSize);
+    memcpy(outPartials, gPartials[bufferIndex], sizeof(double) * kPartialsSize);
 
     return BEAGLE_SUCCESS;
 }
@@ -261,10 +308,10 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenValues) {
     int l = 0;
     for (int i = 0; i < kStateCount; i++) {
-        dEigenValues[eigenIndex][i] = inEigenValues[i];
+        gEigenValues[eigenIndex][i] = inEigenValues[i];
         for (int j = 0; j < kStateCount; j++) {
             for (int k = 0; k < kStateCount; k++) {
-                dCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
+                gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
                         * inInverseEigenVectors[(k * kStateCount) + j];
                 l++;
             }
@@ -275,14 +322,14 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
 }
 
 int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
-	memcpy(dCategoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
+	memcpy(gCategoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
     return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
     // TODO: test CPU setTransitionMatrix
-    memcpy(&(dTransitionMatrices[matrixIndex][0]), inMatrix,
+    memcpy(gTransitionMatrices[matrixIndex], inMatrix,
            sizeof(double) * kMatrixSize * kCategoryCount);
     return BEAGLE_SUCCESS;
 }
@@ -293,16 +340,13 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
                                             const int* secondDervativeIndices,
                                             const double* edgeLengths,
                                             int count) {
-    std::vector<double> tmp;
-    tmp.resize(kStateCount);
-
     for (int u = 0; u < count; u++) {
-        std::vector<double> & transitionMat = dTransitionMatrices[probabilityIndices[u]];
+        double* transitionMat = gTransitionMatrices[probabilityIndices[u]];
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
 
             for (int i = 0; i < kStateCount; i++) {
-                tmp[i] = exp(dEigenValues[eigenIndex][i] * edgeLengths[u] * dCategoryRates[l]);
+                matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * edgeLengths[u] * gCategoryRates[l]);
             }
 
             int m = 0;
@@ -310,7 +354,7 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
                 for (int j = 0; j < kStateCount; j++) {
                     double sum = 0.0;
                     for (int k = 0; k < kStateCount; k++) {
-                        sum += dCMatrices[eigenIndex][m] * tmp[k];
+                        sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
                         m++;
                     }
                     if (sum > 0)
@@ -336,11 +380,11 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
 
 int BeagleCPUImpl::updatePartials(const int* operations,
                                   int count,
-                                  int cumulativeScalingIndex) {
+                                  int cumulativeScaleIndex) {
 
-    double* cumulativeScalingBuffer = NULL;
-    if (cumulativeScalingIndex != BEAGLE_OP_NONE)
-        cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
+    double* cumulativeScaleBuffer = NULL;
+    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
 
     for (int op = 0; op < count; op++) {
         if (DEBUGGING_OUTPUT) {
@@ -361,25 +405,25 @@ int BeagleCPUImpl::updatePartials(const int* operations,
         const int child2Index = operations[op * 7 + 5];
         const int child2TransMatIndex = operations[op * 7 + 6];
 
-        const double* partials1 = dPartials[child1Index];
-        const double* partials2 = dPartials[child2Index];
+        const double* partials1 = gPartials[child1Index];
+        const double* partials2 = gPartials[child2Index];
 
-        const int* tipStates1 = dTipStates[child1Index];
-        const int* tipStates2 = dTipStates[child2Index];
+        const int* tipStates1 = gTipStates[child1Index];
+        const int* tipStates2 = gTipStates[child2Index];
 
-        const double* matrices1 = &(dTransitionMatrices[child1TransMatIndex][0]);
-        const double* matrices2 = &(dTransitionMatrices[child2TransMatIndex][0]);
+        const double* matrices1 = gTransitionMatrices[child1TransMatIndex];
+        const double* matrices2 = gTransitionMatrices[child2TransMatIndex];
 
-        double* destPartials = dPartials[parIndex];
+        double* destPartials = gPartials[parIndex];
 
         int rescale = BEAGLE_OP_NONE;
         double* scalingFactors = NULL;
         if (writeScalingIndex >= 0) {
             rescale = 1;
-            scalingFactors = dScalingFactors[writeScalingIndex];
+            scalingFactors = gScaleBuffers[writeScalingIndex];
         } else if (readScalingIndex >= 0) {
             rescale = 0;
-            scalingFactors = dScalingFactors[readScalingIndex];
+            scalingFactors = gScaleBuffers[readScalingIndex];
         }
         
         if (DEBUGGING_OUTPUT) {
@@ -397,7 +441,7 @@ int BeagleCPUImpl::updatePartials(const int* operations,
                     calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);//,
 //                                     scalingFactors, cumulativeScalingBuffer, rescale);
                     if (rescale == 1) // Recompute scaleFactors
-                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,1);
+                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,1);
                 }
             } else {
                 if (rescale == 0) {
@@ -407,7 +451,7 @@ int BeagleCPUImpl::updatePartials(const int* operations,
                     calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2);//,
 //                                   scalingFactors, cumulativeScalingBuffer, rescale);
                     if (rescale == 1)
-                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
             }
         } else {
@@ -419,7 +463,7 @@ int BeagleCPUImpl::updatePartials(const int* operations,
                     calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1);//,
 //                                   scalingFactors, cumulativeScalingBuffer, rescale);
                     if (rescale == 1)
-                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
             } else {
                 if (rescale == 0) {
@@ -429,7 +473,7 @@ int BeagleCPUImpl::updatePartials(const int* operations,
                     calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2);//,
 //                                   scalingFactors, cumulativeScalingBuffer, rescale);
                     if (rescale == 1)
-                        rescalePartials(destPartials,scalingFactors,cumulativeScalingBuffer,0);
+                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
             }
         }
@@ -457,14 +501,14 @@ int BeagleCPUImpl::waitForPartials(const int* destinationPartials,
 int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const double* inWeights,
                                                const double* inStateFrequencies,
-                                               const int* scalingFactorsIndices,
+                                               const int* scaleBufferIndices,
                                                int count,
                                                double* outLogLikelihoods) {
 
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
-        calcRootLogLikelihoods(bufferIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
+        calcRootLogLikelihoods(bufferIndices[0], inWeights, inStateFrequencies, scaleBufferIndices[0], outLogLikelihoods);
     }
     else
     {
@@ -477,17 +521,15 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         //              a problem, though as we deal with count == 1 in the previous
         //              branch.
         for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
-            assert(subsetIndex < dPartials.size());
             const int rootPartialIndex = bufferIndices[subsetIndex];
-            const double* rootPartials = dPartials[rootPartialIndex];
-            assert(rootPartials);
+            const double* rootPartials = gPartials[rootPartialIndex];
             const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
             const double* wt = inWeights + subsetIndex * kCategoryCount;
             int u = 0;
             int v = 0;
             for (int k = 0; k < kPatternCount; k++) {
                 for (int i = 0; i < kStateCount; i++) {
-                    dIntegrationTmp[u] = rootPartials[v] * wt[0];
+                    integrationTmp[u] = rootPartials[v] * wt[0];
                     u++;
                     v++;
                 }
@@ -496,7 +538,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                 u = 0;
                 for (int k = 0; k < kPatternCount; k++) {
                     for (int i = 0; i < kStateCount; i++) {
-                        dIntegrationTmp[u] += rootPartials[v] * wt[l];
+                        integrationTmp[u] += rootPartials[v] * wt[l];
                         u++;
                         v++;
                     }
@@ -506,7 +548,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             for (int k = 0; k < kPatternCount; k++) {
                 double sum = 0.0;
                 for (int i = 0; i < kStateCount; i++) {
-                    sum += frequencies[i] * dIntegrationTmp[u];
+                    sum += frequencies[i] * integrationTmp[u];
                     u++;
                 }
                 if (subsetIndex == 0)
@@ -530,14 +572,13 @@ void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
                             const int scalingFactorsIndex,
                             double* outLogLikelihoods) {
 
-    const double* rootPartials = dPartials[bufferIndex];
-    assert(rootPartials);
+    const double* rootPartials = gPartials[bufferIndex];
     const double* wt = inWeights;
     int u = 0;
     int v = 0;
     for (int k = 0; k < kPatternCount; k++) {
         for (int i = 0; i < kStateCount; i++) {
-            dIntegrationTmp[u] = rootPartials[v] * wt[0];
+            integrationTmp[u] = rootPartials[v] * wt[0];
             u++;
             v++;
         }
@@ -546,7 +587,7 @@ void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
         u = 0;
         for (int k = 0; k < kPatternCount; k++) {
             for (int i = 0; i < kStateCount; i++) {
-                dIntegrationTmp[u] += rootPartials[v] * wt[l];
+                integrationTmp[u] += rootPartials[v] * wt[l];
                 u++;
                 v++;
             }
@@ -556,14 +597,14 @@ void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
     for (int k = 0; k < kPatternCount; k++) {
         double sum = 0.0;
         for (int i = 0; i < kStateCount; i++) {
-            sum += inStateFrequencies[i] * dIntegrationTmp[u];
+            sum += inStateFrequencies[i] * integrationTmp[u];
             u++;
         }
         outLogLikelihoods[k] = log(sum);   // take the log
     }
     
     if (scalingFactorsIndex >= 0) {
-    	const double* cumulativeScaleFactors = dScalingFactors[scalingFactorsIndex];
+    	const double* cumulativeScaleFactors = gScaleBuffers[scalingFactorsIndex];
     	for(int i=0; i<kPatternCount; i++)
     		outLogLikelihoods[i] += cumulativeScaleFactors[i];
     }
@@ -573,9 +614,9 @@ int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
 	
-	double* cumulativeScaleBuffer = dScalingFactors[cumulativeScalingIndex];
+	double* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
 	for(int i=0; i<count; i++) {
-		const double* scaleBuffer = dScalingFactors[scalingIndices[i]];
+		const double* scaleBuffer = gScaleBuffers[scalingIndices[i]];
 		for(int j=0; j<kPatternCount; j++) 
 			cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
 	}
@@ -599,7 +640,7 @@ int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 }
 
 int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
-    memcpy(dScalingFactors[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
+    memcpy(gScaleBuffers[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
     return BEAGLE_SUCCESS;
 }
 
@@ -633,12 +674,12 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
 
     assert(parIndex >= kTipCount);
 
-    const double* partialsParent = dPartials[parIndex];
-    const std::vector<double> transMatrix = dTransitionMatrices[probIndex];
+    const double* partialsParent = gPartials[parIndex];
+    const double* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
 
-    if (childIndex < kTipCount && dTipStates[childIndex]) {
-        const int* statesChild = dTipStates[childIndex];
+    if (childIndex < kTipCount && gTipStates[childIndex]) {
+        const int* statesChild = gTipStates[childIndex];
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {
             int stateChild = statesChild[k];
@@ -653,7 +694,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
             v += kStateCount;
         }
     } else {
-        const double* partialsChild = dPartials[childIndex];
+        const double* partialsChild = gPartials[childIndex];
 
         int v = 0;
         for (int k = 0; k < kPatternCount; k++) {

@@ -394,36 +394,36 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
 
      // We treat this as a special case so that we don't have convoluted logic
      //      at the end of the loop over patterns
-     const double* rootPartials = dPartials[bufferIndex];
+     const double* rootPartials = gPartials[bufferIndex];
      assert(rootPartials);
      const double* wt = inWeights;
      int u = 0;
      int v = 0;
      for (int k = 0; k < kPatternCount; k++) {
-        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        dIntegrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
+        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
      }
      for (int l = 1; l < kCategoryCount; l++) {
          u = 0;
          for (int k = 0; k < kPatternCount; k++) {
-             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             dIntegrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
+             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
          }
      }
      u = 0;
      for (int k = 0; k < kPatternCount; k++) {
-         double sum = inStateFrequencies[0] * dIntegrationTmp[u]; u++;
-         sum += inStateFrequencies[1] * dIntegrationTmp[u]; u++;
-         sum += inStateFrequencies[2] * dIntegrationTmp[u]; u++;
-         sum += inStateFrequencies[3] * dIntegrationTmp[u]; u++;
+         double sum = inStateFrequencies[0] * integrationTmp[u]; u++;
+         sum += inStateFrequencies[1] * integrationTmp[u]; u++;
+         sum += inStateFrequencies[2] * integrationTmp[u]; u++;
+         sum += inStateFrequencies[3] * integrationTmp[u]; u++;
          outLogLikelihoods[k] = log(sum);   // take the log
      }
      if (scalingFactorsIndex >=0) {
-         const double *cumulativeScaleFactors = dScalingFactors[scalingFactorsIndex];
+         const double *cumulativeScaleFactors = gScaleBuffers[scalingFactorsIndex];
          for(int k=0; k<kPatternCount; k++)
              outLogLikelihoods[k] += cumulativeScaleFactors[k];
      }
