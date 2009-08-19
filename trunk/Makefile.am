@@ -2,7 +2,6 @@ ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST=\
 autogen.sh \
 build.xml \
-BEAGLE.iml \
 beagle.dox \
 java/beagle/BeagleFactory.java \
 java/beagle/BeagleInfo.java \
@@ -11,9 +10,7 @@ java/beagle/BeagleJNIWrapper.java \
 java/beagle/DependencyAwareBeagleImpl.java \
 java/beagle/FourStateBeagleImpl.java \
 java/beagle/GeneralBeagleImpl.java \
-project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj \
-JNI.Makefile \
-CUDA.Makefile 
+project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj 
 
 AM_CFLAGS=-I$(top_builddir) -I$(top_srcdir)
 AM_CPPFLAGS=-I$(top_builddir) -I$(top_srcdir)
