@@ -119,12 +119,11 @@ then
       CUDA_LIBS="-L$with_cuda/lib -lcuda"
       CUDAPATH="$with_cuda"
    else
-      CUDA_CFLAGS="-I/usr/local/cuda/include"
-      CUDA_LIBS="-L/usr/local/cuda/lib -lcuda"
-      CUDAPATH="/usr/local/cuda"
+      AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
+      AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS="-I/usr/local/cuda/include"],[])
+      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS="/usr/local/cuda/lib -lcuda"],[])
    fi
 
-   AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$CUDAPATH/bin])
 
 
 AC_ARG_ENABLE([emu],
@@ -137,6 +136,11 @@ AC_ARG_ENABLE([emu],
    [EMULATION=false]
 )
 
+fi
+
+if test "x$CUDA_CFLAGS" != "x"
+then
+   AC_PATH_PROG([NVCC],[nvcc],[no],[$PATH:$CUDAPATH/bin])
 fi
 
 AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
