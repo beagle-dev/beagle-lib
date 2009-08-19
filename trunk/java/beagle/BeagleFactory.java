@@ -42,6 +42,7 @@ public class BeagleFactory {
     ) {
 
         boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
+        boolean forceBeagleCPU = Boolean.valueOf(System.getProperty("force.bcpu"));
 
         getBeagleJNIWrapper();
 
@@ -70,7 +71,8 @@ public class BeagleFactory {
             // to make the instance and then override it...
 
             InstanceDetails details = beagle.getDetails();
-            if ( stateCount == 4 && BeagleFlag.CPU.isSet(details.getFlags()) ) {
+            if ( stateCount == 4 && BeagleFlag.CPU.isSet(details.getFlags()) &&
+            		!forceBeagleCPU ) {
 
                 System.out.println("Using BeagleNative4StateImpl");
                 return new BeagleNative4StateImpl(
