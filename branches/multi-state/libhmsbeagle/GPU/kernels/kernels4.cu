@@ -24,8 +24,8 @@
  */
 
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
 
-#define PATTERN_BLOCK_SIZE  16
 
 extern "C" {
 

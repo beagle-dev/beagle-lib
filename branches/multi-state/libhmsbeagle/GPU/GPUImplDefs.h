@@ -19,7 +19,6 @@
  * <http://www.gnu.org/licenses/>.
  *
  * @author Marc Suchard
- * @author Dat Huynh
  * @author Daniel Ayres
  */
 
