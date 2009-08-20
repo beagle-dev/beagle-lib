@@ -67,7 +67,7 @@ AM_CONFIG_HEADER(libhmsbeagle/config.h)
 AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
-AC_DEFINE([STATE_COUNT],[4],[Define the number of character states in use])
+AC_DEFINE([STATE_COUNT],[40],[Define the number of character states in use])
 
 # ------------------------------------------------------------------------------
 # Setup OPENCL paths
@@ -121,7 +121,7 @@ then
    else
       AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
       AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS="-I/usr/local/cuda/include"],[])
-      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS="/usr/local/cuda/lib -lcuda"],[])
+      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS="-L/usr/local/cuda/lib -lcuda"],[])
    fi
 
 
