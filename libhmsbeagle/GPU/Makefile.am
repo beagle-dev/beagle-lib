@@ -1,3 +1,4 @@
+SUBDIRS = kernels
 
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
