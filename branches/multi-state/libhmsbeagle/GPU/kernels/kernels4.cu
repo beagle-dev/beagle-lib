@@ -38,7 +38,7 @@ __global__ void kernelPartialsPartialsNoScale4(REAL* partials1,
                                                                   int totalPatterns) {
     REAL sum1 = 0;
     REAL sum2 = 0;
-    int i;
+//    int i;
 
     int tx = threadIdx.x;
     int state = tx % 4;
@@ -91,14 +91,14 @@ __global__ void kernelPartialsPartialsNoScale4(REAL* partials1,
     __syncthreads();
 
     if (pattern < totalPatterns) { // Remove padded threads!
-        sum1 = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
-        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+        sum1 =  sMatrix1[0 * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
+        sum1 += sMatrix1[1 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
+        sum1 += sMatrix1[2 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
+        sum1 += sMatrix1[3 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
+        sum2 =  sMatrix2[0 * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
+        sum2 += sMatrix2[1 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+        sum2 += sMatrix2[2 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+        sum2 += sMatrix2[3 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
         partials3[u] = sum1 * sum2;
     }
 
@@ -113,7 +113,7 @@ __global__ void kernelPartialsPartialsFixedScale4(REAL* partials1,
                                                                       int totalPatterns) {
     REAL sum1 = 0;
     REAL sum2 = 0;
-    int i;
+//    int i;
 
     int tx = threadIdx.x;
     int state = tx % 4;
@@ -174,14 +174,14 @@ __global__ void kernelPartialsPartialsFixedScale4(REAL* partials1,
 
     if (pattern < totalPatterns) { // Remove padded threads!
 
-        sum1 = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
-        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
-        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+        sum1 =  sMatrix1[0 * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
+        sum1 += sMatrix1[1 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
+        sum1 += sMatrix1[2 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
+        sum1 += sMatrix1[3 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
+        sum2 =  sMatrix2[0 * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
+        sum2 += sMatrix2[1 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+        sum2 += sMatrix2[2 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+        sum2 += sMatrix2[3 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
         partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
     }
 
@@ -195,7 +195,7 @@ __global__ void kernelStatesPartialsNoScale4(int* states1,
                                                                 int totalPatterns) {
     REAL sum1 = 0;
     REAL sum2 = 0;
-    int i;
+//    int i;
 
     int tx = threadIdx.x;
     int state = tx % 4;
@@ -259,10 +259,10 @@ __global__ void kernelStatesPartialsNoScale4(int* states1,
         else
             sum1 = 1.0;
 
-        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
-        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+        sum2 =  sMatrix2[0 * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
+        sum2 += sMatrix2[1 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+        sum2 += sMatrix2[2 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+        sum2 += sMatrix2[3 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
         partials3[u] = sum1 * sum2;
     }
 
