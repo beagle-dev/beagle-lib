@@ -176,11 +176,20 @@ AC_SUBST(NVCCFLAGS)
 # ------------------------------------------------------------------------------
 case $host_os in
 *darwin*)
-  CXXFLAGS+=" -arch i386"
-  CFLAGS+=" -arch i386"
-  AC_CHECK_FILE(/Developer/SDKs/MacOSX10.6.sdk,
-      [LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.6.sdk"],
-      [LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.5.sdk"])
+  # CUDA will only work with i386
+  if( test ! x$NVCC = xno )
+  then
+     CXXFLAGS+=" -arch i386"
+     CFLAGS+=" -arch i386"
+  fi
+  # OpenCL requires the 10.6 SDK
+  if( test ! x$with_opencl = xno )
+  then
+    AC_CHECK_FILE(/Developer/SDKs/MacOSX10.6.sdk,
+        [LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.6.sdk"],
+        [AC_MSG_ERROR([OpenCL builds require Mac OS X 10.6 and Xcode])])
+  fi
+
   AC_SUBST(CXXFLAGS)
   AC_SUBST(CFLAGS)
   AC_SUBST(LDFLAGS)
