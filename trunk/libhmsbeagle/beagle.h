@@ -74,15 +74,16 @@ enum BeagleReturnCodes {
  * Each capability is a bit in a 'long'
  */
 enum BeagleFlags {
-    BEAGLE_FLAG_DOUBLE = 1 << 0,    /**< double precision computation */
-    BEAGLE_FLAG_SINGLE = 1 << 1,    /**< single precision computation */
-    BEAGLE_FLAG_ASYNCH = 1 << 2,    /**< asynchronous computation */
-    BEAGLE_FLAG_SYNCH  = 1 << 3,    /**< synchronous computation */
-    BEAGLE_FLAG_CPU    = 1 << 16,   /**< CPU */
-    BEAGLE_FLAG_GPU    = 1 << 17,   /**< GPU */
-    BEAGLE_FLAG_FPGA   = 1 << 18,   /**< FPGA */
-    BEAGLE_FLAG_SSE    = 1 << 19,   /**< SSE */
-    BEAGLE_FLAG_CELL   = 1 << 20    /**< Cell */
+    BEAGLE_FLAG_DOUBLE  = 1 << 0,    /**< double precision computation */
+    BEAGLE_FLAG_SINGLE  = 1 << 1,    /**< single precision computation */
+    BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous computation */
+    BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous computation */
+    BEAGLE_FLAG_COMPLEX = 1 << 4,    /**< complex eigenvalue computation */
+    BEAGLE_FLAG_CPU     = 1 << 16,   /**< CPU */
+    BEAGLE_FLAG_GPU     = 1 << 17,   /**< GPU */
+    BEAGLE_FLAG_FPGA    = 1 << 18,   /**< FPGA */
+    BEAGLE_FLAG_SSE     = 1 << 19,   /**< SSE */
+    BEAGLE_FLAG_CELL    = 1 << 20,   /**< Cell */
 };
 
 /**
