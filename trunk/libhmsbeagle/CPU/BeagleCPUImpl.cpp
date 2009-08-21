@@ -96,15 +96,6 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 
-	for(unsigned int i=0; i<kBufferCount; i++) {
-	    if (gPartials[i] != NULL)
-		    free(gPartials[i]);
-	    if (gTipStates[i] != NULL)
-		    free(gTipStates[i]);
-	}
-    free(gPartials);
-    free(gTipStates);
-
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gCMatrices[i]);
 		free(gEigenValues[i]);
@@ -120,7 +111,6 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 	    if (gScaleBuffers[i] != NULL)
 		    free(gScaleBuffers[i]);
 	}
-    free(gTransitionMatrices);
 
 	for(unsigned int i=0; i<kBufferCount; i++) {
 	    if (gPartials[i] != NULL)
