@@ -71,7 +71,7 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
+  : quiet(false), scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
 	{
 	}
 
@@ -316,39 +316,6 @@ void FourTaxonExample::updateBrlen(
 	}
 
 /*-----------------------------------------------------------------------------
-|	Reads in the data file (which must be named fourtaxon.dat and must contain
-|	data for four taxa), then calls calcLnL `n' times before calling finalize
-|	to inform the beagle library that it is ok to destroy all allocated memory.
-*/
-void FourTaxonExample::run()
-	{
-	::rnseed = seed;
-	readData();
-	initBeagleLib();
-	writeData();
-
-	std::cout.setf(std::ios::showpoint);
-	std::cout.setf(std::ios::floatfield, std::ios::fixed);
-
-	std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length" << std::endl;
-	for (unsigned rep = 1; rep <= niters; ++rep)
-		{
-		for (unsigned b = 0; b < 5; ++b)
-			updateBrlen(b);
-		std::cout << std::setw(12) << rep;
-		std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
-		std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
-		std::cout << std::endl;
-		}
-
-	int code = beagleFinalizeInstance(
-		instance_handle);		// instance
-
-	if (code != 0)
-		abort("beagleFinalizeInstance encountered a problem");
-	}
-
-/*-----------------------------------------------------------------------------
 |	Reads the data file the name of which is supplied. This function expects
 |	the data to be in pseufoPHYLIP format: ntaxa followed by nsites on first
 |	line, then name and sequence data (separated by whitespace) for each
@@ -474,33 +441,121 @@ void FourTaxonExample::writeData()
 	}
 
 /*-----------------------------------------------------------------------------
-|	Reads command line arguments and interprets them as follows:
-|>
-|	fourtaxon [<niters> [<data_file_name>]]
-|>
-|	If niters is not specified, the default value 1 million is used.
-|	If data_file_name	is not specified, the default value "fourtaxon.dat" is
-|	used. If data_file_name is specified, the file should have the same format
-|	as the file "fourtaxon.dat" and should only contain sequences for 4 taxa
-|	(although the sequences can be of arbitrary length).
+|	Reads in the data file (which must contain data for exactly four taxa), 
+|	then calls calcLnL `n' times before calling finalize to inform the beagle 
+|	library that it is ok to destroy all allocated memory.
+*/
+void FourTaxonExample::run()
+	{
+	::rnseed = seed;
+	readData();
+	initBeagleLib();
+	writeData();
+
+	if (!quiet)
+		{
+		std::cout.setf(std::ios::showpoint);
+		std::cout.setf(std::ios::floatfield, std::ios::fixed);
+		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length" << std::endl;
+		}
+		
+	for (unsigned rep = 1; rep <= niters; ++rep)
+		{
+		for (unsigned b = 0; b < 5; ++b)
+			updateBrlen(b);
+			
+		if (!quiet)
+			{
+			std::cout << std::setw(12) << rep;
+			std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
+			std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
+			std::cout << std::endl;
+			}
+		}
+
+	int code = beagleFinalizeInstance(
+		instance_handle);		// instance
+
+	if (code != 0)
+		abort("beagleFinalizeInstance encountered a problem");
+	}
+
+/*-----------------------------------------------------------------------------
+|	Reads command line arguments and interprets them.
+*/
+void FourTaxonExample::helpMessage()
+	{
+	std::cerr << "Usage:\n\n";
+	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]\n\n";
+	std::cerr << "If --niters is specified, the MCMC sampler will be run for the specified\n";
+	std::cerr << "number of iterations. The default number of iterations is 10.\n\n";
+	std::cerr << "If --datafile is specified, the file should have the same format as the\n";
+	std::cerr << "(default) data file \"fourtaxon.dat\" and should only contain sequences for\n";
+	std::cerr << " 4 taxa (although the sequences can be of arbitrary length).\n\n";
+	std::cerr << "If --help is specified, this usage message is shown\n\n";
+	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
+	std::cerr << "more accurate timing).";
+	std::cerr << std::endl;
+	std::exit(0);
+	}
+
+/*-----------------------------------------------------------------------------
+|	Reads command line arguments and interprets them.
 */
 void FourTaxonExample::interpretCommandLineParameters(
   int argc, 		/**< is the number of command line arguments */
   char* argv[])		/**< is the array of command line arguments */
 	{
-	// see if the user specified the number of MCMC iterations on the command line
-	// and, if so, replace the default value of niters
-	niters = 4;
-	if (argc > 1)
-		niters = (unsigned)atoi(argv[1]);
+	data_file_name = "fourtaxon.dat";
+	niters = 10;
+	bool expecting_niters = false;
+	bool expecting_filename = false;
+	for (unsigned i = 1; i < argc; ++i)
+		{
+		std::string option = argv[i];
+		if (expecting_niters)
+			{
+			std::cerr << "niters option: " << option << std::endl;
+			niters = (unsigned)atoi(option.c_str());
+			std::cerr << "niters = " << niters << std::endl;
+			expecting_niters = false;
+			}
+		else if (expecting_filename)
+			{
+			data_file_name = option.c_str();
+			expecting_filename = false;
+			}
+		else if (option == "--help")
+			{
+			helpMessage();
+			}
+		else if (option == "--quiet")
+			{
+			quiet = true;
+			}
+		else if (option == "--niters")
+			{
+			expecting_niters = true;
+			}
+		else if (option == "--filename")
+			{
+			expecting_filename = true;
+			}
+		}
+
+	if (expecting_niters)
+		abort("read last command line option without finding value associated with --niters");
+		
+	if (expecting_filename)
+		abort("read last command line option without finding value associated with --filename");
+		
 	if (niters < 1)
 		abort("invalid number of iterations supplied on the command line");
-
-	// see if the user specified a data file name on the command line
-	// and, if so, replace the default value of data_file_name
-	data_file_name = "fourtaxon.dat";
-	if (argc > 2)
-		data_file_name = std::string(argv[2]);
+		
+	std::cout << "quiet                = " << (quiet ? "true" : "false") << '\n';
+	std::cout << "number of iterations = " << niters << '\n';
+	std::cout << "data file name       = " << data_file_name << '\n';
+	std::cout << std::endl;
 	}
 
 /*-----------------------------------------------------------------------------

@@ -22,6 +22,7 @@ class FourTaxonExample
 		void run();
 		
 	private:
+		void helpMessage();
 		void abort(std::string msg);
 		void initBeagleLib();
 		void readData();
@@ -30,6 +31,7 @@ class FourTaxonExample
 		double calcLnL();
 		
 	private:
+		bool						quiet;
 		unsigned 					niters;
 		std::string					data_file_name;
         bool                        scaling;
