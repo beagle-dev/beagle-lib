@@ -1,0 +1,12 @@
+#summary List of items to address in BEAGLE
+
+= Introduction =
+
+Please feel free to add items to this list!
+
+
+= TODO List =
+  * Make Windows build
+  * Finish multiple state-counts
+  * Create better JNI library versioning
+  * Develop stand-alone example projects
