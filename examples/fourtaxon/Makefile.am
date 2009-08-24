@@ -4,7 +4,7 @@ fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la @CUDA_
 
 check_SCRIPTS = fourtaxonrun.sh
 fourtaxonrun.sh:
-	echo './fourtaxon 4 $(srcdir)/fourtaxon.dat' > fourtaxonrun.sh
+	echo './fourtaxon --niters 4 --filename $(srcdir)/fourtaxon.dat' > fourtaxonrun.sh
 	chmod +x fourtaxonrun.sh
 
 clean-local:
