@@ -541,6 +541,13 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			expecting_filename = true;
 			}
+		else 
+			{
+			std::string msg("Unknown command line parameter \"");
+			msg.append(option);
+			msg.append("\"  If this was intended to be the file path, it should be preceded by a --filename argument");
+			abort(msg.c_str());
+			}
 		}
 
 	if (expecting_niters)
