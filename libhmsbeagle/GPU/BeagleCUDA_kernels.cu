@@ -619,12 +619,12 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
                                                                   REAL* matrices1,
                                                                   REAL* matrices2,
                                                                   int totalPatterns) {
-    REAL sum1 = 0;
-    REAL sum2 = 0;
+    REAL sum1;
+    REAL sum2;
     int i;
 
     int tx = threadIdx.x;
-    int state = tx % 4;
+    int state = tx & 0x3; //  tx % 4;
     int pat = tx / 4;
     int patIdx = threadIdx.y;
     int matrix = blockIdx.y;
@@ -656,6 +656,7 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
 
     __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
     __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    __shared__ REAL sPartials3[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -674,10 +675,39 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
     __syncthreads();
 
     if (pattern < totalPatterns) { // Remove padded threads!
-        for(i = 0; i < PADDED_STATE_COUNT; i++) {
-            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
-        }
+//        for(i = 0; i < PADDED_STATE_COUNT; i++) {
+//            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+//            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+//        }
+
+//        sum1 = sMatrix1[state] * sPartials1[patIdx * 16 + pat * 4];
+//        sum2 = sMatrix2[state] * sPartials2[patIdx * 16 + pat * 4];
+//
+//        sum1 += sMatrix1[4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
+//        sum2 += sMatrix2[4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+//
+//        sum1 += sMatrix1[8 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
+//        sum2 += sMatrix2[8 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+//
+//        sum1 += sMatrix1[12 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
+//        sum2 += sMatrix2[12 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+
+        i = state;
+        sum1 = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
         partials3[u] = sum1 * sum2;
     }
 
@@ -690,12 +720,12 @@ __global__ void kernelPartialsPartialsByPatternBlockSmallFixedScaling(REAL* part
                                                                       REAL* matrices2,
                                                                       REAL* scalingFactors,
                                                                       int totalPatterns) {
-    REAL sum1 = 0;
-    REAL sum2 = 0;
+    REAL sum1;
+    REAL sum2;
     int i;
 
     int tx = threadIdx.x;
-    int state = tx % 4;
+    int state = tx & 0x3; //  tx % 4;
     int pat = tx / 4;
     int patIdx = threadIdx.y;
     int matrix = blockIdx.y;
@@ -705,10 +735,10 @@ __global__ void kernelPartialsPartialsByPatternBlockSmallFixedScaling(REAL* part
     int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
 
 //  int deltaPartialsByState = __umul24(pattern,PADDED_STATE_COUNT);
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
+    int deltaPartialsByState = 16 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( 4, patternCount));
 
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
+    int x2 = __umul24(matrix, 16);
 
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
@@ -744,7 +774,7 @@ __global__ void kernelPartialsPartialsByPatternBlockSmallFixedScaling(REAL* part
         fixedScalingFactors[patIdx * PATTERN_BLOCK_SIZE + tx] =
             scalingFactors[blockIdx.x * PATTERN_BLOCK_SIZE * 4 + patIdx * PATTERN_BLOCK_SIZE + tx];
 
-    if (patIdx == 0) {
+    if (patIdx == 0 ) {
         sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
         sMatrix2[tx] = matrix2[tx];
     }
@@ -752,10 +782,39 @@ __global__ void kernelPartialsPartialsByPatternBlockSmallFixedScaling(REAL* part
     __syncthreads();
 
     if (pattern < totalPatterns) { // Remove padded threads!
-        for(i = 0; i < PADDED_STATE_COUNT; i++) {
-            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
-        }
+//        for(i = 0; i < PADDED_STATE_COUNT; i++) {
+//            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+//            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+//        }
+
+//        sum1 = sMatrix1[state] * sPartials1[patIdx * 16 + pat * 4];
+//        sum2 = sMatrix2[state] * sPartials2[patIdx * 16 + pat * 4];
+//
+//        sum1 += sMatrix1[4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
+//        sum2 += sMatrix2[4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+//
+//        sum1 += sMatrix1[8 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
+//        sum2 += sMatrix2[8 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+//
+//        sum1 += sMatrix1[12 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
+//        sum2 += sMatrix2[12 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+
+        i = state;
+        sum1 = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
         partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
     }
 
@@ -767,12 +826,12 @@ __global__ void kernelStatesPartialsByPatternBlockCoherentSmall(int* states1,
                                                                 REAL* matrices1,
                                                                 REAL* matrices2,
                                                                 int totalPatterns) {
-    REAL sum1 = 0;
-    REAL sum2 = 0;
+    REAL sum1 = 1;
+    REAL sum2;
     int i;
 
     int tx = threadIdx.x;
-    int state = tx % 4;
+    int state = tx & 0x3; //  tx % 4;
     int pat = tx / 4;
     int patIdx = threadIdx.y;
     int matrix = blockIdx.y;
@@ -830,12 +889,22 @@ __global__ void kernelStatesPartialsByPatternBlockCoherentSmall(int* states1,
 
         if (state1 < PADDED_STATE_COUNT)
             sum1 = sMatrix1[state1 * 4 + state];
-        else
-            sum1 = 1.0;
+            // sum1 is initialized to 1
+//        else
+//            sum1 = 1.0;
 
-        for(i=0; i<PADDED_STATE_COUNT; i++) {
-            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
-        }
+//        for(i=0; i<PADDED_STATE_COUNT; i++) {
+//            sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+//        }
+
+        i = state;
+        sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
         partials3[u] = sum1 * sum2;
     }
 
@@ -849,7 +918,7 @@ __global__ void kernelStatesStatesByPatternBlockCoherentSmall(int* states1,
                                                               int totalPatterns) {
 
     int tx = threadIdx.x;
-    int state = tx % 4;
+    int state = tx & 0x3; //  tx % 4;
     int pat = tx / 4;
     int patIdx = threadIdx.y;
     int matrix = blockIdx.y;
