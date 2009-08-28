@@ -119,10 +119,10 @@ public class BeagleFactory {
         if (BeagleJNIWrapper.INSTANCE == null) {
             try {
                 BeagleJNIWrapper.loadBeagleLibrary();
-//                 System.err.println("BEAGLE library loaded");
+//                System.err.println("BEAGLE library loaded");
 
             } catch (UnsatisfiedLinkError ule) {
-//                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
+                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
             }
 
             if (BeagleJNIWrapper.INSTANCE != null) {
