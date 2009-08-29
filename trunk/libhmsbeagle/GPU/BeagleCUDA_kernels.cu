@@ -20,6 +20,7 @@
  *
  * @author Marc Suchard
  * @author Daniel Ayres
+ * @author Andrew Rambaut
  */
 
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -34,6 +35,18 @@
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; \
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; \
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+
+// TODO (in above):
+//  - Convert * operations to __mult24()
+//  - Do not recompute deltaPartailsByState in deltaPartialsByMatrix
+
+#define DETERMINE_INDICES_4() \
+    int tx = threadIdx.x; \
+    int state = tx & 0x3; \
+    int pat = tx >> 2; \
+    int patIdx = threadIdx.y; \
+    int matrix = blockIdx.y; \
+    int patternCount = totalPatterns;
 
 extern "C" {
 
