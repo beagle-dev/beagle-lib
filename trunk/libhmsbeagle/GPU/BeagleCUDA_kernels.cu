@@ -46,7 +46,11 @@
     int pat = tx >> 2; \
     int patIdx = threadIdx.y; \
     int matrix = blockIdx.y; \
-    int patternCount = totalPatterns;
+    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat; \
+    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx); \
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, totalPatterns)); \
+    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT); \
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 extern "C" {
 
@@ -636,27 +640,11 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
     REAL sum2;
     int i;
 
-    int tx = threadIdx.x;
-    int state = tx & 0x3; //  tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int patternCount = totalPatterns; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16 
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-//  int deltaPartialsByState = __umul24(pattern, PADDED_STATE_COUNT);
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
-
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
-
+    DETERMINE_INDICES_4();
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
-
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
@@ -669,7 +657,7 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
 
     __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
     __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
-    __shared__ REAL sPartials3[PATTERN_BLOCK_SIZE * 4 * 4];
+//    __shared__ REAL sPartials3[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
@@ -737,28 +725,14 @@ __global__ void kernelPartialsPartialsByPatternBlockSmallFixedScaling(REAL* part
     REAL sum2;
     int i;
 
-    int tx = threadIdx.x;
-    int state = tx & 0x3; //  tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int patternCount = totalPatterns; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-//  int deltaPartialsByState = __umul24(pattern,PADDED_STATE_COUNT);
-    int deltaPartialsByState = 16 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( 4, patternCount));
-
-    int x2 = __umul24(matrix, 16);
-
+    DETERMINE_INDICES_4();
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
 
 
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+//    int y = deltaPartialsByState + deltaPartialsByMatrix;
+//    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
@@ -843,27 +817,14 @@ __global__ void kernelStatesPartialsByPatternBlockCoherentSmall(int* states1,
     REAL sum2;
     int i;
 
-    int tx = threadIdx.x;
-    int state = tx & 0x3; //  tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int patternCount = totalPatterns; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
-
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
-
+    DETERMINE_INDICES_4();
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
 
 
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+//    int y = deltaPartialsByState + deltaPartialsByMatrix;
+//    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
@@ -930,26 +891,10 @@ __global__ void kernelStatesStatesByPatternBlockCoherentSmall(int* states1,
                                                               REAL* matrices2,
                                                               int totalPatterns) {
 
-    int tx = threadIdx.x;
-    int state = tx & 0x3; //  tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int patternCount = totalPatterns; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24(PADDED_STATE_COUNT, patternCount));
-
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
-
+	DETERMINE_INDICES_4();
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
-
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
-
+    
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
            state, u);
@@ -1003,30 +948,14 @@ __global__ void kernelPartialsPartialsEdgeLikelihoodsSmall(REAL* dPartialsTmp,
                                                               REAL* dParentPartials,
                                                               REAL* dChildParials,
                                                               REAL* dTransMatrix,
-                                                              int patternCount) {
+                                                              int totalPatterns) {
     REAL sum1 = 0;
 
     int i;
 
-    int tx = threadIdx.x;
-    int state = tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int totalPatterns = patternCount; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16 
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, totalPatterns));
-
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
-
-    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
-
+    DETERMINE_INDICES_4();
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
 
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
@@ -1067,29 +996,13 @@ __global__ void kernelStatesPartialsEdgeLikelihoodsSmall(REAL* dPartialsTmp,
                                                          REAL* dParentPartials,
                                                          int* dChildStates,
                                                          REAL* dTransMatrix,
-                                                         int patternCount) {
+                                                         int totalPatterns) {
     REAL sum1 = 0;
 
-    int tx = threadIdx.x;
-    int state = tx % 4;
-    int pat = tx / 4;
-    int patIdx = threadIdx.y;
-    int matrix = blockIdx.y;
-    int totalPatterns = patternCount; // gridDim.x;
-
-    // read 4 patterns at a time, since 4 * 4 = 16
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
-
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
-
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
-
-    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
-
+    DETERMINE_INDICES_4();
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
-
+    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+    
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
            state, u);
