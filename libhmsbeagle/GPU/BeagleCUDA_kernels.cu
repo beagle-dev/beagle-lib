@@ -693,7 +693,7 @@ __global__ void kernelPartialsPartialsByPatternBlockCoherentSmall(REAL* partials
 //        sum1 += sMatrix1[12 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
 //        sum2 += sMatrix2[12 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
 
-        i = state;
+        i = pat;
         sum1 = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
