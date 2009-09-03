@@ -31,12 +31,17 @@
 #include <cstring>
 #include <cassert>
 #include <cstdarg>
+#include <map>
 
 #include <cuda.h>
 
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
+
+
+std::map<int, KernelResource*> kernelMap;
+
 
 #define SAFE_CUDA(call) { \
                             CUresult error = call; \
@@ -123,7 +128,30 @@ int GPUInterface::GetDeviceCount() {
     return numDevices;
 }
 
-void GPUInterface::SetDevice(int deviceNumber) {
+void GPUInterface::InitializeKernelMap() {
+
+	fprintf(stderr,"DEBUG: Loading kernel information for CUDA!\n");
+	
+	KernelResource* kernel4 = new KernelResource;
+	kernel4->kernelCode = KERNELS_STRING; // TODO _4
+	kernel4->paddedStateCount = 4;
+	kernel4->patternBlockSize = PATTERN_BLOCK_SIZE_4;
+	kernel4->matrixBlockSize = MATRIX_BLOCK_SIZE_4;
+	kernel4->blockPeelingSize = BLOCK_PEELING_SIZE_4;
+	kernel4->slowReweighing = SLOW_REWEIGHING_4;
+	kernel4->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
+	kernelMap.insert(std::make_pair(4,kernel4));
+//	
+//	kernelMap[48].kernelCode = KERNELS_STRING;  // TODO _48
+//	kernelMap[48].patternBlockSize = PATTERN_BLOCK_SIZE_48;
+//	kernelMap[48].matrixBlockSize = MATRIX_BLOCK_SIZE_48;
+	
+//	kernelMap[48].blockPeelingSize = BLOCK_PEELING_SIZE_48;
+//	kernelMap[48].slowReweighing = SLOW_REWEIGHING_48;
+	
+}
+
+void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif            
@@ -132,7 +160,19 @@ void GPUInterface::SetDevice(int deviceNumber) {
     
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     
-    SAFE_CUDA(cuModuleLoadData(&cudaModule, KERNELS_STRING)); 
+    if (kernelMap.size() == 0) {
+    	// kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
+    	InitializeKernelMap();    	
+    }
+    
+    if (kernelMap.count(paddedStateCount) == 0) {
+    	fprintf(stderr,"Critical error: unable to find kernel code for %d states.\n",paddedStateCount);
+    	exit(-1);
+    }
+    
+    kernel = kernelMap[paddedStateCount];
+                
+    SAFE_CUDA(cuModuleLoadData(&cudaModule, kernel->kernelCode));     	
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     

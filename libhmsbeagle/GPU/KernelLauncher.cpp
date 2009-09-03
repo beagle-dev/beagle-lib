@@ -40,7 +40,18 @@ REAL* ones = NULL; // TODO: Memory leak, need to free at some point.
 KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
     // TODO: copy the gpu instance?
     gpu = inGpu;
-
+    
+    kPaddedStateCount = gpu->kernel->paddedStateCount;
+    kMultiplyBlockSize = gpu->kernel->multiplyBlockSize;
+    
+    bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
+    bgTransitionProbabilitiesGrid = Dim3Int(kPaddedStateCount/kMultiplyBlockSize, 
+    		kPaddedStateCount/kMultiplyBlockSize);
+    if(kPaddedStateCount % kMultiplyBlockSize != 0) {
+    	bgTransitionProbabilitiesGrid.x += 1;
+    	bgTransitionProbabilitiesGrid.y += 1;
+    }
+            
     fMatrixMulADB =
             gpu->GetFunction("kernelMatrixMulADB");
     
@@ -124,23 +135,29 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
     fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquare\n");
 #endif
     
-    Dim3Int block(MULTIPLY_BLOCK_SIZE, MULTIPLY_BLOCK_SIZE);
-    Dim3Int grid(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE,
-                 PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE);
-    if (PADDED_STATE_COUNT % MULTIPLY_BLOCK_SIZE != 0) {
-        grid.x += 1;
-        grid.y += 1;
-    }
+//    Dim3Int block(MULTIPLY_BLOCK_SIZE, MULTIPLY_BLOCK_SIZE);
+//    Dim3Int grid(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE,
+//                 PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE);
+//    if (PADDED_STATE_COUNT % MULTIPLY_BLOCK_SIZE != 0) {
+//        grid.x += 1;
+//        grid.y += 1;
+//    }
 
-    grid.x *= totalMatrix;
+//    grid.x *= totalMatrix;
+    bgTransitionProbabilitiesGrid.x *= totalMatrix;
 
     // Transposed (interchanged Ievc and Evec)    
     int parameterCount = 8;
     gpu->LaunchKernelIntParams(fMatrixMulADB,
-                               block, grid,
+//                               block, grid,
+				bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
                                parameterCount,
                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
-                               PADDED_STATE_COUNT, PADDED_STATE_COUNT, totalMatrix);
+//                               PADDED_STATE_COUNT, PADDED_STATE_COUNT, 
+                               kPaddedStateCount, kPaddedStateCount,
+                               totalMatrix);
+    
+    bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");

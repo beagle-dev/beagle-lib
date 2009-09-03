@@ -206,7 +206,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
         currentDevice = 0;
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(currentDevice);
+    gpu->SetDevice(currentDevice,kPaddedStateCount);
     
     kernels = new KernelLauncher(gpu);
     
