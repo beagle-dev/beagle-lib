@@ -66,11 +66,21 @@ private:
     
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
+    Dim3Int bgPeelingBlock;
+    Dim3Int bgPeelingGrid;
+    Dim3Int bgLikelihoodBlock;
+    Dim3Int bgLikelihoodGrid;
+    Dim3Int bgAccumulateBlock;
+    Dim3Int bgAccumulateGrid;
+    Dim3Int bgScaleBlock;
+    Dim3Int bgScaleGrid;
     
     int kPaddedStateCount;
+    int kCategoryCount;
+    int kPatternCount;
     int kPatternBlockSize;
     int kMatrixBlockSize;
-    int kSlowWeighing;  
+    int kSlowReweighing;  
     int kMultiplyBlockSize;
     
 public:

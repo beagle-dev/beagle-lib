@@ -72,7 +72,7 @@ public:
 
     int GetDeviceCount();
 
-    void SetDevice(int deviceNumber, int paddedStateCount);
+    void SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int patternCount);
     
     void Synchronize();
     

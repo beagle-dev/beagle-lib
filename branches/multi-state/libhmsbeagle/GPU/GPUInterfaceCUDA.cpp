@@ -141,17 +141,20 @@ void GPUInterface::InitializeKernelMap() {
 	kernel4->slowReweighing = SLOW_REWEIGHING_4;
 	kernel4->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
 	kernelMap.insert(std::make_pair(4,kernel4));
-//	
-//	kernelMap[48].kernelCode = KERNELS_STRING;  // TODO _48
-//	kernelMap[48].patternBlockSize = PATTERN_BLOCK_SIZE_48;
-//	kernelMap[48].matrixBlockSize = MATRIX_BLOCK_SIZE_48;
 	
-//	kernelMap[48].blockPeelingSize = BLOCK_PEELING_SIZE_48;
-//	kernelMap[48].slowReweighing = SLOW_REWEIGHING_48;
+	KernelResource* kernel64 = new KernelResource;
+	kernel64->kernelCode = KERNELS_STRING; // TODO _64
+	kernel64->paddedStateCount = 64;
+	kernel64->patternBlockSize = PATTERN_BLOCK_SIZE_64;
+	kernel64->matrixBlockSize = MATRIX_BLOCK_SIZE_64;
+	kernel64->blockPeelingSize = BLOCK_PEELING_SIZE_64;
+	kernel64->slowReweighing = SLOW_REWEIGHING_64;
+	kernel64->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
+	kernelMap.insert(std::make_pair(64,kernel64));
 	
 }
 
-void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount) {
+void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif            
@@ -171,6 +174,8 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount) {
     }
     
     kernel = kernelMap[paddedStateCount];
+    kernel->categoryCount = categoryCount;
+    kernel->patternCount = paddedPatternCount;
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernel->kernelCode));     	
     
