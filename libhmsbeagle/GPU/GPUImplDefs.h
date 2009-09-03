@@ -123,6 +123,8 @@
 #define SLOW_REWEIGHING_192			1
 
 
+
+
 #if (STATE_COUNT == 4)
     #define PADDED_STATE_COUNT  	4
 	#define PATTERN_BLOCK_SIZE		PATTERN_BLOCK_SIZE_4
@@ -148,6 +150,7 @@
 	#if (SLOW_REWEIGHING_8 == 1)
 		#define SLOW_REWEIGHING
 	#endif
+#else
 #if (STATE_COUNT <= 16) // else if
     #define PADDED_STATE_COUNT  	16
 	#define PATTERN_BLOCK_SIZE		PATTERN_BLOCK_SIZE_16
@@ -245,6 +248,8 @@
 
 typedef struct {
 	int paddedStateCount;
+	int categoryCount;
+	int patternCount;
     char* kernelCode;
     int patternBlockSize;
     int matrixBlockSize;
