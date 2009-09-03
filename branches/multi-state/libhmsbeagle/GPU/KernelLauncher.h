@@ -64,6 +64,15 @@ private:
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;    
     
+    Dim3Int bgTransitionProbabilitiesBlock;
+    Dim3Int bgTransitionProbabilitiesGrid;
+    
+    int kPaddedStateCount;
+    int kPatternBlockSize;
+    int kMatrixBlockSize;
+    int kSlowWeighing;  
+    int kMultiplyBlockSize;
+    
 public:
     KernelLauncher(GPUInterface* inGpu);
     

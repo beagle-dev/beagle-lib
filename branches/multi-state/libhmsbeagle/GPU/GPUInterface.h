@@ -72,7 +72,7 @@ public:
 
     int GetDeviceCount();
 
-    void SetDevice(int deviceNumber);
+    void SetDevice(int deviceNumber, int paddedStateCount);
     
     void Synchronize();
     
@@ -118,6 +118,11 @@ public:
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
+    
+    KernelResource* kernel;
+    
+protected:
+	void InitializeKernelMap();
 };
 
 #endif // __GPUInterface__
