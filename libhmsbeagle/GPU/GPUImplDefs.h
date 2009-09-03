@@ -25,8 +25,6 @@
 #ifndef __GPUImplDefs__
 #define __GPUImplDefs__
 
-#include <map>
-
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif

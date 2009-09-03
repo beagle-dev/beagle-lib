@@ -34,7 +34,7 @@
 
 #ifdef CUDA
     #include <cuda.h>
-    #include "libhmsbeagle/GPU/BeagleCUDA_kernels.h"
+    #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
 #else

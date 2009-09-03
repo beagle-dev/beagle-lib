@@ -130,10 +130,12 @@ int GPUInterface::GetDeviceCount() {
 
 void GPUInterface::InitializeKernelMap() {
 
-	fprintf(stderr,"DEBUG: Loading kernel information for CUDA!\n");
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
+#endif
 	
 	KernelResource* kernel4 = new KernelResource;
-	kernel4->kernelCode = KERNELS_STRING; // TODO _4
+	kernel4->kernelCode = KERNELS_STRING_4; 
 	kernel4->paddedStateCount = 4;
 	kernel4->patternBlockSize = PATTERN_BLOCK_SIZE_4;
 	kernel4->matrixBlockSize = MATRIX_BLOCK_SIZE_4;
@@ -142,8 +144,18 @@ void GPUInterface::InitializeKernelMap() {
 	kernel4->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
 	kernelMap.insert(std::make_pair(4,kernel4));
 	
+	KernelResource* kernel48 = new KernelResource;
+	kernel48->kernelCode = KERNELS_STRING_48;
+	kernel48->paddedStateCount = 48;
+	kernel48->patternBlockSize = PATTERN_BLOCK_SIZE_48;
+	kernel48->matrixBlockSize = MATRIX_BLOCK_SIZE_48;
+	kernel48->blockPeelingSize = BLOCK_PEELING_SIZE_48;
+	kernel48->slowReweighing = SLOW_REWEIGHING_48;
+	kernel48->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
+	kernelMap.insert(std::make_pair(48,kernel48));
+	
 	KernelResource* kernel64 = new KernelResource;
-	kernel64->kernelCode = KERNELS_STRING; // TODO _64
+	kernel64->kernelCode = KERNELS_STRING_64;
 	kernel64->paddedStateCount = 64;
 	kernel64->patternBlockSize = PATTERN_BLOCK_SIZE_64;
 	kernel64->matrixBlockSize = MATRIX_BLOCK_SIZE_64;

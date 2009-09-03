@@ -30,7 +30,7 @@
 extern "C" {
 
 
-__global__ void kernelPartialsPartialsNoScale4(REAL* partials1,
+__global__ void kernelPartialsPartialsNoScale(REAL* partials1,
                                                                   REAL* partials2,
                                                                   REAL* partials3,
                                                                   REAL* matrices1,
@@ -104,7 +104,7 @@ __global__ void kernelPartialsPartialsNoScale4(REAL* partials1,
 
 }
 
-__global__ void kernelPartialsPartialsFixedScale4(REAL* partials1,
+__global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
                                                                       REAL* partials2,
                                                                       REAL* partials3,
                                                                       REAL* matrices1,
@@ -187,7 +187,7 @@ __global__ void kernelPartialsPartialsFixedScale4(REAL* partials1,
 
 }
 
-__global__ void kernelStatesPartialsNoScale4(int* states1,
+__global__ void kernelStatesPartialsNoScale(int* states1,
                                                                 REAL* partials2,
                                                                 REAL* partials3,
                                                                 REAL* matrices1,
@@ -268,7 +268,7 @@ __global__ void kernelStatesPartialsNoScale4(int* states1,
 
 }
 
-__global__ void kernelStatesStatesNoScale4(int* states1,
+__global__ void kernelStatesStatesNoScale(int* states1,
                                                               int* states2,
                                                               REAL* partials3,
                                                               REAL* matrices1,
@@ -341,6 +341,132 @@ __global__ void kernelStatesStatesNoScale4(int* states1,
         } else {
             partials3[u] = 1.0;
         }
+    }
+}
+
+__global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
+                                                              REAL* dParentPartials,
+                                                              REAL* dChildParials,
+                                                              REAL* dTransMatrix,
+                                                              int patternCount) {
+    REAL sum1 = 0;
+
+    int i;
+
+    int tx = threadIdx.x;
+    int state = tx % 4;
+    int pat = tx / 4;
+    int patIdx = threadIdx.y;
+    int matrix = blockIdx.y;
+    int totalPatterns = patternCount; // gridDim.x;
+
+    // read 4 patterns at a time, since 4 * 4 = 16 
+    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
+
+    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, totalPatterns));
+
+    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
+
+    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+
+    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx * 16 + tx] = dParentPartials[y + tx]; // All coalesced memory reads
+        sPartials2[patIdx * 16 + tx] = dChildParials[y + tx];
+    } else {
+        sPartials1[patIdx * 16 + tx] = 0;
+        sPartials2[patIdx * 16 + tx] = 0;
+    }
+
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) { // Remove padded threads!
+        for(i = 0; i < PADDED_STATE_COUNT; i++) {
+            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        }
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx * 16 + pat * 4 + state];
+    }    
+
+}
+
+__global__ void kernelStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
+                                                         REAL* dParentPartials,
+                                                         int* dChildStates,
+                                                         REAL* dTransMatrix,
+                                                         int patternCount) {
+    REAL sum1 = 0;
+
+    int tx = threadIdx.x;
+    int state = tx % 4;
+    int pat = tx / 4;
+    int patIdx = threadIdx.y;
+    int matrix = blockIdx.y;
+    int totalPatterns = patternCount; // gridDim.x;
+
+    // read 4 patterns at a time, since 4 * 4 = 16
+    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat;
+
+    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
+
+    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT);
+
+    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials2[patIdx * 16 + tx] = dParentPartials[y + tx];
+    } else {
+        sPartials2[patIdx * 16 + tx] = 0;
+    }
+
+    if (patIdx == 0) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) { // Remove padded threads!
+        int state1 = dChildStates[pattern];
+
+        if (state1 < PADDED_STATE_COUNT)
+            sum1 = sMatrix1[state1 * 4 + state];
+        else
+            sum1 = 1.0;
+
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx * 16 + pat * 4 + state];
     }
 }
 

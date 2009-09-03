@@ -100,75 +100,53 @@ KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
     fMatrixMulADB =
             gpu->GetFunction("kernelMatrixMulADB");
     
-    if (kPaddedStateCount != 4) {
-    
     fPartialsPartialsByPatternBlockCoherent =
-            gpu->GetFunction("kernelPartialsPartialsByPatternBlockCoherent");
+            gpu->GetFunction("kernelPartialsPartialsNoScale");
 
     fPartialsPartialsByPatternBlockFixedScaling =
-            gpu->GetFunction("kernelPartialsPartialsByPatternBlockFixedScaling");
+            gpu->GetFunction("kernelPartialsPartialsFixedScale");
     
     fStatesPartialsByPatternBlockCoherent =
-            gpu->GetFunction("kernelStatesPartialsByPatternBlockCoherent");
-    
-    fStatesPartialsByPatternBlockFixedScaling =
-            gpu->GetFunction("kernelStatesPartialsByPatternBlockFixedScaling");
+            gpu->GetFunction("kernelStatesPartialsNoScale");
     
     fStatesStatesByPatternBlockCoherent =
-            gpu->GetFunction("kernelStatesStatesByPatternBlockCoherent");
+            gpu->GetFunction("kernelStatesStatesNoScale");
     
-    fStatesStatesByPatternBlockFixedScaling =
-            gpu->GetFunction("kernelStatesStatesByPatternBlockFixedScaling");
+    if (kPaddedStateCount != 4) {
+    	fStatesPartialsByPatternBlockFixedScaling =
+                gpu->GetFunction("kernelStatesPartialsFixedScale");
+    
+    	fStatesStatesByPatternBlockFixedScaling =
+            gpu->GetFunction("kernelStatesStatesFixedScale");
+    }
     
     fPartialsPartialsEdgeLikelihoods =
             gpu->GetFunction("kernelPartialsPartialsEdgeLikelihoods");
     
     fStatesPartialsEdgeLikelihoods =
             gpu->GetFunction("kernelStatesPartialsEdgeLikelihoods");
-    
-    } else {
-    
-    fPartialsPartialsByPatternBlockCoherent = 
-            gpu->GetFunction("kernelPartialsPartialsByPatternBlockCoherentSmall");
-    
-    fPartialsPartialsByPatternBlockFixedScaling =
-            gpu->GetFunction("kernelPartialsPartialsByPatternBlockSmallFixedScaling");
-    
-    fStatesPartialsByPatternBlockCoherent =
-            gpu->GetFunction("kernelStatesPartialsByPatternBlockCoherentSmall");
-    
-    fStatesStatesByPatternBlockCoherent =
-            gpu->GetFunction("kernelStatesStatesByPatternBlockCoherentSmall");
-    
-    fPartialsPartialsEdgeLikelihoods =
-            gpu->GetFunction("kernelPartialsPartialsEdgeLikelihoodsSmall");
-    
-    fStatesPartialsEdgeLikelihoods =
-            gpu->GetFunction("kernelStatesPartialsEdgeLikelihoodsSmall");
-    
-    }
-    
+           
     fIntegrateLikelihoodsDynamicScaling =
-            gpu->GetFunction("kernelIntegrateLikelihoodsDynamicScaling");
-    
+            gpu->GetFunction("kernelIntegrateLikelihoodsFixedScale");
+        
     fAccumulateFactorsDynamicScaling =
-            gpu->GetFunction("kernelAccumulateFactorsDynamicScaling");
-
-    fRemoveFactorsDynamicScaling =
-        gpu->GetFunction("kernelRemoveFactorsDynamicScaling");
+            gpu->GetFunction("kernelAccumulateFactors");
     
+    fRemoveFactorsDynamicScaling =
+        gpu->GetFunction("kernelRemoveFactors");
+        
     if (!kSlowReweighing) {
     	fPartialsDynamicScaling =
 				gpu->GetFunction("kernelPartialsDynamicScaling");
     	
     	fPartialsDynamicScalingAccumulate =
-    	            gpu->GetFunction("kernelPartialsDynamicScalingAccumulate");
+    	        gpu->GetFunction("kernelPartialsDynamicScalingAccumulate");
     } else {
     	fPartialsDynamicScaling =
-    	            gpu->GetFunction("kernelPartialsDynamicScalingSlow");
+    	        gpu->GetFunction("kernelPartialsDynamicScalingSlow");
     	
     	fPartialsDynamicScalingAccumulate =
-    	    	            gpu->GetFunction("kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
+    	    	gpu->GetFunction("kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
     }
         	        
     fIntegrateLikelihoods =

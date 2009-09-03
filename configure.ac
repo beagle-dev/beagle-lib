@@ -67,10 +67,6 @@ AM_CONFIG_HEADER(libhmsbeagle/config.h)
 AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
-AC_DEFINE([STATE_COUNT],[4],[Oh yeah])
-
-AC_DEFINE([STATE_COUNT_LIST],[48 64],[Define the list of numbers of character states to compile])
-
 # ------------------------------------------------------------------------------
 # Setup OPENCL paths
 # ------------------------------------------------------------------------------
