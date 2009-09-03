@@ -148,113 +148,6 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
-__global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
-                                                         REAL* dParentPartials,
-                                                         REAL* dChildParials,
-                                                         REAL* dTransMatrix,
-                                                         int patternCount) {
-    REAL sum1 = 0;
-
-    int i;
-
-    int state = threadIdx.x;
-    int patIdx = threadIdx.y;
-    int pattern = __umul24(blockIdx.x,PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = blockIdx.y;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
-
-    REAL* matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
-
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
-    __shared__ REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-
-    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        // These are all coherent global memory reads; checked in Profiler
-        sPartials1[patIdx][state] = dParentPartials[y + state];
-        sPartials2[patIdx][state] = dChildParials[y + state];
-    } else {
-        sPartials1[patIdx][state] = 0;
-        sPartials2[patIdx][state] = 0;
-    }
-
-    for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        // load one row of matrices
-        if (patIdx < BLOCK_PEELING_SIZE) {
-            // These are all coherent global memory reads.
-            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-
-            // sMatrix now filled with starting in state and ending in i
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-        }
-        __syncthreads();
-
-        int j;
-        for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
-            sum1 += sMatrix1[j][state] * sPartials1[patIdx][i + j];
-        }
-
-        __syncthreads(); // GTX280 FIX HERE
-
-    }
-
-    if (pattern < totalPatterns)
-        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
-}
-
-__global__ void kernelStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
-                                                    REAL* dParentPartials,
-                                                    int* dChildStates,
-                                                    REAL* dTransMatrix,
-                                                    int patternCount) {
-    REAL sum1 = 0;
-
-    int state = threadIdx.x;
-    int patIdx = threadIdx.y;
-    int pattern = __umul24(blockIdx.x,PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = blockIdx.y;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
-
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
-    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        sPartials2[patIdx][state] = dParentPartials[y + state];
-    } else {
-        sPartials2[patIdx][state] = 0;
-    }
-
-    if (pattern < totalPatterns) {
-        int state1 = dChildStates[pattern]; // Coalesced; no need to share
-
-        REAL* matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
-
-        if (state1 < PADDED_STATE_COUNT)
-            sum1 = matrix1[state];
-        else
-            sum1 = 1.0;
-    }
-
-    if (pattern < totalPatterns)
-        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];                         
-}
-
 __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
                                                             REAL* dRootPartials,
                                                             REAL *dWeights,
@@ -310,7 +203,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
         dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
 }
 
-__global__ void kernelAccumulateFactorsDynamicScaling(REAL** dNodePtrQueue,
+__global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -338,7 +231,7 @@ __global__ void kernelAccumulateFactorsDynamicScaling(REAL** dNodePtrQueue,
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelRemoveFactorsDynamicScaling(REAL** dNodePtrQueue,
+__global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {

@@ -1,18 +1,14 @@
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 if BUILDCUDA
-#noinst_LTLIBRARIES= libcuda_kernels.la 
-#libcuda_kernels_la_SOURCES =  \
-#kernels4.cu kernelsX.cu kernelsAll.cu
 
-#nodist_libcuda_kernels_la_SOURCES = NewBeagleCUDA_Kernels.h
-BUILT_SOURCES = NewBeagleCUDA_Kernels.h
-CLEANFILES = NewBeagleCUDA_Kernels.h
+BUILT_SOURCES = BeagleCUDA_Kernels.h
+CLEANFILES = BeagleCUDA_Kernels.h
 
 STATE_COUNT_LIST = 48 64
 
 # rules for building cuda files
-NewBeagleCUDA_Kernels.h: Makefile
+BeagleCUDA_Kernels.h: Makefile
 	echo "// auto-generated header file with CUDA kernels PTX code" > $(BUILT_SOURCES)
 # 	Compile 4-state model
 	$(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_4.ptx -ptx -DSTATE_COUNT=4 \
