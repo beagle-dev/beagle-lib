@@ -2,13 +2,13 @@ INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 if BUILDCUDA
 
-BUILT_SOURCES = BeagleCUDA_Kernels.h
-CLEANFILES = BeagleCUDA_Kernels.h
+BUILT_SOURCES = BeagleCUDA_kernels.h
+CLEANFILES = BeagleCUDA_kernels.h
 
 STATE_COUNT_LIST = 48 64
 
 # rules for building cuda files
-BeagleCUDA_Kernels.h: Makefile
+BeagleCUDA_kernels.h: Makefile
 	echo "// auto-generated header file with CUDA kernels PTX code" > $(BUILT_SOURCES)
 # 	Compile 4-state model
 	$(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_4.ptx -ptx -DSTATE_COUNT=4 \
