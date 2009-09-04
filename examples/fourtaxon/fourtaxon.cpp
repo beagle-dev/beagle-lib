@@ -71,7 +71,8 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
+  : scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), 
+    instance_handle(-1), rsrc_number(-1)
 	{
 	}
 
@@ -114,6 +115,9 @@ void FourTaxonExample::initBeagleLib()
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
 	operations.push_back(3);	// right child transition matrix index
+	
+	int* rsrcList = new int[1];
+	rsrcList[0] = rsrc_number;
 
 	instance_handle = beagleCreateInstance(
 				4,			// tipCount
@@ -125,8 +129,10 @@ void FourTaxonExample::initBeagleLib()
 				5,			// matrixBufferCount,
                 nrates,     // categoryCount
                 3,          // scalingBuffersCount
-				NULL,		// resourceList
-				0,			// resourceCount
+				(rsrc_number != -1 ? rsrcList : NULL),   
+				            // resourceList
+				(rsrc_number != -1 ? 1 : 0),
+							// resourceCount
 				0L,			// preferenceFlags
 				0L			// requirementFlags
 				);
@@ -476,12 +482,13 @@ void FourTaxonExample::writeData()
 /*-----------------------------------------------------------------------------
 |	Reads command line arguments and interprets them as follows:
 |>
-|	fourtaxon [<niters> [<data_file_name>]]
+|	fourtaxon [<niters> [<data_file_name>] [<nrsrc>]]
 |>
 |	If niters is not specified, the default value 1 million is used.
 |	If data_file_name	is not specified, the default value "fourtaxon.dat" is
 |	used. If data_file_name is specified, the file should have the same format
 |	as the file "fourtaxon.dat" and should only contain sequences for 4 taxa
+|   If nrsrc is not specified, the default resource from BEAGLE is employed.
 |	(although the sequences can be of arbitrary length).
 */
 void FourTaxonExample::interpretCommandLineParameters(
@@ -501,6 +508,11 @@ void FourTaxonExample::interpretCommandLineParameters(
 	data_file_name = "fourtaxon.dat";
 	if (argc > 2)
 		data_file_name = std::string(argv[2]);
+		if (argc > 3) {
+			rsrc_number = (unsigned)atoi(argv[3]);
+			if (rsrc_number < 0)
+				abort("invalid resource number supplied on the command line");
+		}
 	}
 
 /*-----------------------------------------------------------------------------
