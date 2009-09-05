@@ -667,6 +667,9 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     const double* partialsParent = gPartials[parIndex];
     const double* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
+    
+//    const double* scalingFactors = (scalingFactorsIndices != BEAGLE_OP_NONE ? 
+//    		gScaleBuffers[scalingFactorsIndices] : NULL);
 
     if (childIndex < kTipCount && gTipStates[childIndex]) {
         const int* statesChild = gTipStates[childIndex];
@@ -708,6 +711,12 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
             outLogLikelihoods[k] = log(sumK);
             v += kStateCount;
         }
+    }
+    
+    if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+        const double* scalingFactors = gScaleBuffers[scalingFactorsIndices[0]];
+        for(int k=0; k < kPatternCount; k++)
+            outLogLikelihoods[k] += scalingFactors[k];
     }
 
     return BEAGLE_SUCCESS;
@@ -778,10 +787,7 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
                                      const int* states1,
                                      const double* matrices1,
                                      const int* states2,
-                                     const double* matrices2) {//,
-//                                     const double* scalingFactors,
-//                                     const double* cumulativeScalingBuffer,
-//                                     int rescale) {
+                                     const double* matrices2) {
 
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
@@ -832,10 +838,7 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
                                        const double* partials2,
-                                       const double* matrices2) {//,
-//                                       const double* scalingFactors,
-//                                       const double* cumulativeScalingBuffer,
-//                                       int rescale) {
+                                       const double* matrices2) {
     int u = 0;
     int v = 0;
     for (int l = 0; l < kCategoryCount; l++) {
@@ -896,10 +899,7 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
                                          const double* partials2,
-                                         const double* matrices2) {//,
-//                                         const double* scalingFactors,
-//                                         const double* cumulativeScalingBuffer,
-//                                         int rescale) {
+                                         const double* matrices2) {
     double sum1, sum2;
     int u = 0;
     int v = 0;

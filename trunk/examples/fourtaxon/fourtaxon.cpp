@@ -71,7 +71,8 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : quiet(false), scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), instance_handle(-1)
+  : quiet(false), scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), 
+    instance_handle(-1), rsrc_number(BEAGLE_OP_NONE)
 	{
 	}
 
@@ -114,6 +115,14 @@ void FourTaxonExample::initBeagleLib()
 	operations.push_back(2);	// left child transition matrix index
 	operations.push_back(3);	// right child partial index
 	operations.push_back(3);	// right child transition matrix index
+	
+	int* rsrcList = NULL;
+	int  rsrcCnt = 0;
+	if (rsrc_number != BEAGLE_OP_NONE) {
+		rsrcList = new int[1];
+		rsrcList[0] = rsrc_number;
+		rsrcCnt = 1;
+	}
 
 	instance_handle = beagleCreateInstance(
 				4,			// tipCount
@@ -124,12 +133,15 @@ void FourTaxonExample::initBeagleLib()
 				1,			// eigenBufferCount
 				5,			// matrixBufferCount,
                 nrates,     // categoryCount
-                3,          // scalingBuffersCount
-				NULL,		// resourceList
-				0,			// resourceCount
+                3,          // scalingBuffersCount                
+				rsrcList,	// resourceList
+				rsrcCnt,	// resourceCount
 				0L,			// preferenceFlags
 				0L			// requirementFlags
 				);
+	
+	if (rsrc_number != BEAGLE_OP_NONE)
+		delete rsrcList;
 
 	if (instance_handle < 0)
 		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
@@ -262,10 +274,10 @@ double FourTaxonExample::calcLnL()
 		 NULL,								// firstDerivativeIndices
 		 NULL,								// secondDerivativeIndices
 		 (const double*)&relativeRateProb,	// weights
-		 (const double*)stateFreqs,		// stateFrequencies,
+		 (const double*)stateFreqs,			// stateFrequencies,
          &cumulativeScalingFactorIndex,
 		 1,									// count
-		 &lnL[0],								// outLogLikelihoods,
+		 &lnL[0],							// outLogLikelihoods,
 		 NULL,								// outFirstDerivatives,
 		 NULL);								// outSecondDerivatives
 
@@ -486,12 +498,13 @@ void FourTaxonExample::run()
 void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
-	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]\n\n";
+	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>]\n\n";
 	std::cerr << "If --niters is specified, the MCMC sampler will be run for the specified\n";
 	std::cerr << "number of iterations. The default number of iterations is 10.\n\n";
 	std::cerr << "If --datafile is specified, the file should have the same format as the\n";
 	std::cerr << "(default) data file \"fourtaxon.dat\" and should only contain sequences for\n";
 	std::cerr << " 4 taxa (although the sequences can be of arbitrary length).\n\n";
+	std::cerr << "If --rsrc is specified, the BEAGLE resource specified will be employed.\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "more accurate timing).";
@@ -510,6 +523,7 @@ void FourTaxonExample::interpretCommandLineParameters(
 	niters = 10;
 	bool expecting_niters = false;
 	bool expecting_filename = false;
+	bool expecting_rsrc_number = false;
 	for (unsigned i = 1; i < argc; ++i)
 		{
 		std::string option = argv[i];
@@ -524,6 +538,14 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			data_file_name = option.c_str();
 			expecting_filename = false;
+			}
+		else if (expecting_rsrc_number) {
+			std::cerr << "rsrc_number option: " << option << std::endl;
+			rsrc_number = (unsigned)atoi(option.c_str());
+			std::cerr << "rsrc_number = " << rsrc_number << std::endl;
+			expecting_rsrc_number = false;
+			if (rsrc_number < 0)
+				abort("invalid BEAGLE resource number supplied on the command line");
 			}
 		else if (option == "--help")
 			{
@@ -541,6 +563,10 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			expecting_filename = true;
 			}
+		else if (option == "--rsrc")
+			{
+			expecting_rsrc_number = true;
+			}
 		else 
 			{
 			std::string msg("Unknown command line parameter \"");
@@ -556,6 +582,9 @@ void FourTaxonExample::interpretCommandLineParameters(
 	if (expecting_filename)
 		abort("read last command line option without finding value associated with --filename");
 		
+	if (expecting_rsrc_number)
+		abort("read last command line option without finding value associated with --rsrc");
+	
 	if (niters < 1)
 		abort("invalid number of iterations supplied on the command line");
 		

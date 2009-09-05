@@ -48,4 +48,5 @@ class FourTaxonExample
 		std::vector<double>			brlens;
 		std::vector<int>			operations;
 		int							instance_handle;
+		int							rsrc_number;
 	};
