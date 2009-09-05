@@ -7,8 +7,8 @@ Please feel free to add items to this list!
 
 = TODO List =
   * Make Windows build
-  * Finish multiple state-counts
+  * Finish multiple state-counts for OpenCL
   * Create better JNI library versioning
   * Develop stand-alone example projects
-  * fourtaxon example incorrect if scaling used (CPU version always wrong, CUDA version wrong on some platforms)
+  * fourtaxon example incorrect if scaling used (CUDA version wrong on some platforms)
   * Reintroduce a limited CUDA runtime API version for debugging purposes (bank conflict checking)
