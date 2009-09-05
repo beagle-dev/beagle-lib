@@ -140,9 +140,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
         kPaddedStateCount = kStateCount + kStateCount % 16;
     
     // Abort for mismatched stateCount; remove when run-time stateCounts are complete
-    if (kPaddedStateCount != PADDED_STATE_COUNT) {
-    	fprintf(stderr,"\tMismatch in model size in GPU implementation!\n\t\tkPaddedStateCount = %d\n\t\tPADDED_STATE_COUNT = %d\n",
-    			kPaddedStateCount,PADDED_STATE_COUNT);    	
+    if (kPaddedStateCount == 16 || kPaddedStateCount == 32) {
+    	fprintf(stderr,"\tMismatch in model size in GPU implementation!\n\t\tkPaddedStateCount = %d (not yet implemented)\n",
+    			kPaddedStateCount);    	
         return BEAGLE_ERROR_GENERAL;
     }
     
@@ -206,7 +206,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
         currentDevice = 0;
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(currentDevice);
+    gpu->SetDevice(currentDevice,kPaddedStateCount,kCategoryCount,kPaddedPatternCount);
     
     kernels = new KernelLauncher(gpu);
     

@@ -19,7 +19,6 @@
  * <http://www.gnu.org/licenses/>.
  *
  * @author Marc Suchard
- * @author Dat Huynh
  * @author Daniel Ayres
  */
 
@@ -47,8 +46,6 @@
 
 /* Compiler definitions
  *
- * STATE_COUNT        - Controlled by Makefile
- *
  * PADDED_STATE_COUNT - # of total states after augmentation
  *                      *should* be a multiple of 16
  *
@@ -64,98 +61,178 @@
  * BLOCK_PEELING_SIZE - # of the states to pre-fetch in inner-sum in pruning;
  *                      BLOCK_PEELING_SIZE <= PATTERN_BLOCK_SIZE and
  *                      *must* be a divisor of PADDED_STATE_COUNT
+ *                      
+ * IS_POWER_OF_TWO    - 1 if PADDED_STATE_COUNT = 2^{N} for some integer N, otherwise 0  
  *
  * SMALLEST_POWER_OF_TWO - Smallest power of 2 greater than or equal to PADDED_STATE_COUNT
- *    (if not already a power of 2)
- *
+ *                         (if not already a power of 2)
+ *    
+ * SLOW_REWEIGHING    - 1 if requires the slow reweighing algorithm, otherwise 0                    
+ *    
  */
 
+/* Table of pre-optimized compiler definitions
+ */
+
+// PADDED_STATE_COUNT == 4
+#define PATTERN_BLOCK_SIZE_4          16
+#define MATRIX_BLOCK_SIZE_4           8
+#define BLOCK_PEELING_SIZE_4          8
+#define IS_POWER_OF_TWO_4             1
+#define SMALLEST_POWER_OF_TWO_4       4
+#define SLOW_REWEIGHING_4             0
+
+// PADDED_STATE_COUNT == 8 TODO
+
+// PADDED_STATE_COUNT == 16 TODO
+
+// PADDED_STATE_COUNT == 32 TODO
+
+// PADDED_STATE_COUNT == 48
+#define PATTERN_BLOCK_SIZE_48         8
+#define MATRIX_BLOCK_SIZE_48          8
+#define BLOCK_PEELING_SIZE_48         8
+#define IS_POWER_OF_TWO_48            0
+#define SMALLEST_POWER_OF_TWO_48      64
+#define SLOW_REWEIGHING_48            0
+
+// PADDED_STATE_COUNT == 64
+#define PATTERN_BLOCK_SIZE_64         8
+#define MATRIX_BLOCK_SIZE_64          8
+#define BLOCK_PEELING_SIZE_64         8
+#define IS_POWER_OF_TWO_64            1
+#define SMALLEST_POWER_OF_TWO_64      64
+#define SLOW_REWEIGHING_64            0
+
+// PADDED_STATE_COUNT == 128
+#define PATTERN_BLOCK_SIZE_128        4
+#define MATRIX_BLOCK_SIZE_128         8
+#define BLOCK_PEELING_SIZE_128        2
+#define IS_POWER_OF_TWO_128           1
+#define SMALLEST_POWER_OF_TWO_128     128
+#define SLOW_REWEIGHING_128           1
+ 
+// PADDED_STATE_COUNT == 192
+#define PATTERN_BLOCK_SIZE_192        2
+#define MATRIX_BLOCK_SIZE_192         8
+#define BLOCK_PEELING_SIZE_192        2
+#define IS_POWER_OF_TWO_192           0
+#define SMALLEST_POWER_OF_TWO_192     256
+#define SLOW_REWEIGHING_192           1
+
+
+
+
 #if (STATE_COUNT == 4)
-    #define PADDED_STATE_COUNT  4
+    #define PADDED_STATE_COUNT        4
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_4
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_4
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_4
+    #if (IS_POWER_OF_TWO_4 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_4
+    #if (SLOW_REWEIGHING_4 == 1)
+        #define SLOW_REWEIGHING
+    #endif
+#else
+#if (STATE_COUNT <= 8)  // else if
+    #define PADDED_STATE_COUNT        8
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_8
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_8
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_8
+    #if (IS_POWER_OF_TWO_8 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_8
+    #if (SLOW_REWEIGHING_8 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 16) // else if
-    #define PADDED_STATE_COUNT  16
+    #define PADDED_STATE_COUNT        16
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_16
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_16
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_16
+    #if (IS_POWER_OF_TWO_16 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_16
+    #if (SLOW_REWEIGHING_16 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 32) // else if
-    #define PADDED_STATE_COUNT  32
+    #define PADDED_STATE_COUNT        32
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_32
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_32
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_32
+    #if (IS_POWER_OF_TWO_32 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_32
+    #if (SLOW_REWEIGHING_32 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 48) // else if
-	#define PADDED_STATE_COUNT	48
+    #define PADDED_STATE_COUNT        48
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_48
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_48
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_48
+    #if (IS_POWER_OF_TWO_48 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_48
+    #if (SLOW_REWEIGHING_48 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 64) // else if
-    #define PADDED_STATE_COUNT  64
+    #define PADDED_STATE_COUNT        64
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_64
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_64
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_64
+    #if (IS_POWER_OF_TWO_64 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_64
+    #if (SLOW_REWEIGHING_64 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 128) // else if
-    #define PADDED_STATE_COUNT  128
+    #define PADDED_STATE_COUNT        128
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_128
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_128
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_128
+    #if (IS_POWER_OF_TWO_128 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_128
+    #if (SLOW_REWEIGHING_128 == 1)
+        #define SLOW_REWEIGHING
+    #endif
 #else
 #if (STATE_COUNT <= 192) // else if
-    #define PADDED_STATE_COUNT  192
-#endif
-#endif
-#endif
-#endif
-#endif
-#endif
-#endif
-
-#define PADDED_STATES   PADDED_STATE_COUNT - STATE_COUNT
-#define IS_POWER_OF_TWO
-
-#if (PADDED_STATE_COUNT == 4)
-    #define PATTERN_BLOCK_SIZE  16
-#endif
-
-// TODO Find optimal settings for PADDED_STATE_COUNT == 32
-
-#if (PADDED_STATE_COUNT == 48)
-    #ifdef DOUBLE_PRECISION
-// TODO Find optimal settings for DOUBLE_PRECISION
-        #define PATTERN_BLOCK_SIZE  8
-        #define BLOCK_PEELING_SIZE  4
-    #else
-        #define PATTERN_BLOCK_SIZE  8
-        #define BLOCK_PEELING_SIZE  8
+    #define PADDED_STATE_COUNT        192
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_192
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_192
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_192
+    #if (IS_POWER_OF_TWO_192 == 1)
+        #define IS_POWER_OF_TWO
     #endif
-	#define SMALLEST_POWER_OF_TWO	64
-	#undef IS_POWER_OF_TWO
-#endif
-
-#if (PADDED_STATE_COUNT == 64)
-    #ifdef DOUBLE_PRECISION
-        #define PATTERN_BLOCK_SIZE  8
-        #define BLOCK_PEELING_SIZE  4
-    #else
-        #define PATTERN_BLOCK_SIZE  8
-        #define BLOCK_PEELING_SIZE  8
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_192
+    #if (SLOW_REWEIGHING_192 == 1)
+        #define SLOW_REWEIGHING
     #endif
 #endif
-
-#if (PADDED_STATE_COUNT == 128)
-    #define PATTERN_BLOCK_SIZE  4
-    #define BLOCK_PEELING_SIZE  2 // seems small, but yields 100% occupancy
-    #define SLOW_REWEIGHING
 #endif
-
-#if (PADDED_STATE_COUNT == 192)
-    #define PATTERN_BLOCK_SIZE  2
-    #define BLOCK_PEELING_SIZE  2
-    #define SLOW_REWEIGHING
-    #define SMALLEST_POWER_OF_TWO 256
-    #undef IS_POWER_OF_TWO
 #endif
-
-/* Defaults */
-
-#ifndef PATTERN_BLOCK_SIZE
-    #define PATTERN_BLOCK_SIZE  16
 #endif
-
-#ifndef MATRIX_BLOCK_SIZE
-    #define MATRIX_BLOCK_SIZE   8
 #endif
-
-#ifndef BLOCK_PEELING_SIZE
-    #define BLOCK_PEELING_SIZE  8
+#endif
+#endif
 #endif
 
 #define MULTIPLY_BLOCK_SIZE 16
@@ -166,6 +243,20 @@
                                                     to[m] = (toType) from[m]; \
                                                 } \
                                             }
+
+typedef struct {
+    int paddedStateCount;
+    int categoryCount;
+    int patternCount;
+    char* kernelCode;
+    int patternBlockSize;
+    int matrixBlockSize;
+    int blockPeelingSize;
+    int isPowerOfTwo;
+    int smallestPowerOfTwo;
+    int slowReweighing;
+    int multiplyBlockSize;
+} KernelResource;
 
 typedef struct Dim3Int Dim3Int;
 

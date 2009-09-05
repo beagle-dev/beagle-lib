@@ -67,8 +67,6 @@ AM_CONFIG_HEADER(libhmsbeagle/config.h)
 AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
-AC_DEFINE([STATE_COUNT],[4],[Define the number of character states in use])
-
 # ------------------------------------------------------------------------------
 # Setup OPENCL paths
 # ------------------------------------------------------------------------------
@@ -242,6 +240,7 @@ AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([hmsbeagle-1.0.pc])
 AC_CONFIG_FILES([libhmsbeagle/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile examples/tinytest/Makefile])

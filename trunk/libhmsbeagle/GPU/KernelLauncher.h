@@ -64,6 +64,25 @@ private:
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;    
     
+    Dim3Int bgTransitionProbabilitiesBlock;
+    Dim3Int bgTransitionProbabilitiesGrid;
+    Dim3Int bgPeelingBlock;
+    Dim3Int bgPeelingGrid;
+    Dim3Int bgLikelihoodBlock;
+    Dim3Int bgLikelihoodGrid;
+    Dim3Int bgAccumulateBlock;
+    Dim3Int bgAccumulateGrid;
+    Dim3Int bgScaleBlock;
+    Dim3Int bgScaleGrid;
+    
+    int kPaddedStateCount;
+    int kCategoryCount;
+    int kPatternCount;
+    int kPatternBlockSize;
+    int kMatrixBlockSize;
+    int kSlowReweighing;  
+    int kMultiplyBlockSize;
+    
 public:
     KernelLauncher(GPUInterface* inGpu);
     
@@ -165,5 +184,11 @@ public:
                               GPUPtr dFrequencies,
                               int patternCount,
                               int categoryCount);
+    
+    void SetupKernelBlocksAndGrids();
+    
+protected:
+    void LoadKernels();
+
 };
 #endif // __KernelLauncher__
