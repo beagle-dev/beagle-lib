@@ -80,7 +80,11 @@ int GPUInterface::GetDeviceCount() {
     return openClNumDevices;
 }
 
-void GPUInterface::SetDevice(int deviceNumber) {
+void GPUInterface::SetDevice(int deviceNumber,
+                             int paddedStateCount
+                             int categoryCount,
+                             int patternCount) {
+
     cl_device_id  deviceIds[openClNumDevices];
     
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,

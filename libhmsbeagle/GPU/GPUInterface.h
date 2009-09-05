@@ -34,7 +34,7 @@
 
 #ifdef CUDA
     #include <cuda.h>
-    #include "libhmsbeagle/GPU/BeagleCUDA_kernels.h"
+    #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
 #else
@@ -72,7 +72,10 @@ public:
 
     int GetDeviceCount();
 
-    void SetDevice(int deviceNumber);
+    void SetDevice(int deviceNumber, 
+                   int paddedStateCount, 
+                   int categoryCount, 
+                   int patternCount);
     
     void Synchronize();
     
@@ -111,13 +114,20 @@ public:
                       int length);
     
     void PrintfDeviceVector(GPUPtr dPtr,
-                      int length, double checkValue);
+                           int length, double checkValue);
     
     void PrintfDeviceVector(GPUPtr dPtr,
-					  int length, double checkValue, int *signal);
+                            int length,
+                            double checkValue,
+                            int *signal);
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
+    
+    KernelResource* kernel;
+    
+protected:
+	void InitializeKernelMap();
 };
 
 #endif // __GPUInterface__
