@@ -120,6 +120,9 @@ BeagleCPUImpl::~BeagleCPUImpl() {
 	}
     free(gPartials);
     free(gTipStates);
+    
+    if (gScaleBuffers)
+        free(gScaleBuffers);
 
 	free(gCMatrices);
 	free(gEigenValues);
@@ -199,6 +202,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
             throw std::bad_alloc();
     }
 
+    gScaleBuffers = NULL;
     gScaleBuffers = (double**) malloc(sizeof(double*) * kScaleBufferCount);
     if (gScaleBuffers == NULL)
          throw std::bad_alloc();

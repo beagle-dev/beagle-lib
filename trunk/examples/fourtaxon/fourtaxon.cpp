@@ -141,7 +141,7 @@ void FourTaxonExample::initBeagleLib()
 				);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
-		delete rsrcList;
+		delete[] rsrcList;
 
 	if (instance_handle < 0)
 		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
