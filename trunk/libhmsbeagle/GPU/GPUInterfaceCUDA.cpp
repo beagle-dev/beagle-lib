@@ -137,7 +137,7 @@ void GPUInterface::DestroyKernelMap() {
         delete rsrc;
 //        delete (*itr).second;
     }
-    kernelMap.clear();
+    //kernelMap.clear();
 }
 
 void GPUInterface::InitializeKernelMap() {
