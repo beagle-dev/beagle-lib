@@ -94,8 +94,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 		free(hCategoryRates);
 		
 #ifndef DOUBLE_PRECISION
-	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
-    hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
+    free(hCategoryCache);
+    free(hLogLikelihoodsCache);
 #endif
     
 	}
