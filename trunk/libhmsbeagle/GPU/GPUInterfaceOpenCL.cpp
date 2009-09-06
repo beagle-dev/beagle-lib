@@ -73,6 +73,12 @@ int GPUInterface::Initialize() {
     return 1;
 }
 
+void GPUInterface::DestroyKernelMap() {
+}
+
+void GPUInterface::InitializeKernelMap() {
+}
+
 int GPUInterface::GetDeviceCount() {        
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, NULL, NULL,
                            &openClNumDevices));

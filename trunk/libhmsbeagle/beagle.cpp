@@ -94,6 +94,13 @@ void beagle_library_initialize(void) {
 
 void beagle_library_finalize(void) {
 	
+	// Destory GPU kernel info
+#if defined(CUDA)
+	GPUInterface* gpu = new GPUInterface;
+	gpu->DestroyKernelMap();
+	delete gpu;
+#endif
+	
 	// Destroy implFactory
 	if (implFactory && loaded) {	
 		try {

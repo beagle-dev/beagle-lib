@@ -77,6 +77,9 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 		free(dStates);
 		free(dCompactBuffers);
 		free(dMatrices);
+		free(dEigenValues);
+		free(dEvec);
+		free(dIevc);
     
 		free(dScalingFactors);
     
@@ -88,7 +91,13 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 		free(hPartialsCache);
 		free(hStatesCache);
 		free(hMatrixCache);
-		free(hLogLikelihoodsCache);
+		free(hCategoryRates);
+		
+#ifndef DOUBLE_PRECISION
+	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
+    hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
+#endif
+    
 	}
 }
 

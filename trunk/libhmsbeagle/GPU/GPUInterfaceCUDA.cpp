@@ -128,6 +128,18 @@ int GPUInterface::GetDeviceCount() {
     return numDevices;
 }
 
+void GPUInterface::DestroyKernelMap() {
+
+    std::map<int, KernelResource*>::const_iterator itr;
+    for(itr = kernelMap.begin(); itr != kernelMap.end(); ++itr) {
+        KernelResource* rsrc = itr->second;
+        fprintf(stderr,"Key: %d %d\n",(*itr).first, rsrc->paddedStateCount);
+        delete rsrc;
+//        delete (*itr).second;
+    }
+    kernelMap.clear();
+}
+
 void GPUInterface::InitializeKernelMap() {
 
 #ifdef BEAGLE_DEBUG_FLOW

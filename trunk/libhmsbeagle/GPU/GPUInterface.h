@@ -124,6 +124,8 @@ public:
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
     
+    void DestroyKernelMap();
+    
     KernelResource* kernel;
     
 protected:
