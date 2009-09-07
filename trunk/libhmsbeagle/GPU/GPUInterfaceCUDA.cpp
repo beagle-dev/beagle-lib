@@ -38,9 +38,10 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
+#include "libhmsbeagle/GPU/KernelResource.h"
 
 
-std::map<int, KernelResource*> kernelMap;
+std::map<int, KernelResource> kernelMap;
 
 
 #define SAFE_CUDA(call) { \
@@ -66,6 +67,7 @@ GPUInterface::GPUInterface() {
     cudaDevice = NULL;
     cudaContext = NULL;
     cudaModule = NULL;
+    kernelResource = NULL;
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
@@ -80,6 +82,10 @@ GPUInterface::~GPUInterface() {
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
         SAFE_CUDA(cuCtxDetach(cudaContext));
+    }
+    
+    if (kernelResource != NULL) {
+        delete kernelResource;
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -129,55 +135,47 @@ int GPUInterface::GetDeviceCount() {
 }
 
 void GPUInterface::DestroyKernelMap() {
-
-    std::map<int, KernelResource*>::const_iterator itr;
-    for(itr = kernelMap.begin(); itr != kernelMap.end(); ++itr) {
-        KernelResource* rsrc = itr->second;
-#ifdef BEAGLE_DEBUG_VALUES
-        fprintf(stderr,"Key: %d %d\n",(*itr).first, rsrc->paddedStateCount);
-#endif BEAGLE_DEBUG_VALUES
-        delete rsrc;
-//        delete (*itr).second;
-    }
-    //kernelMap.clear();
+// No longer necessary as std::map automatically clears itself
 }
 
 void GPUInterface::InitializeKernelMap() {
 
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
+    fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
 #endif
-	
-	KernelResource* kernel4 = new KernelResource;
-	kernel4->kernelCode = (char*) KERNELS_STRING_4; 
-	kernel4->paddedStateCount = 4;
-	kernel4->patternBlockSize = PATTERN_BLOCK_SIZE_4;
-	kernel4->matrixBlockSize = MATRIX_BLOCK_SIZE_4;
-	kernel4->blockPeelingSize = BLOCK_PEELING_SIZE_4;
-	kernel4->slowReweighing = SLOW_REWEIGHING_4;
-	kernel4->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
-	kernelMap.insert(std::make_pair(4,kernel4));
-	
-	KernelResource* kernel48 = new KernelResource;
-	kernel48->kernelCode = (char*) KERNELS_STRING_48;
-	kernel48->paddedStateCount = 48;
-	kernel48->patternBlockSize = PATTERN_BLOCK_SIZE_48;
-	kernel48->matrixBlockSize = MATRIX_BLOCK_SIZE_48;
-	kernel48->blockPeelingSize = BLOCK_PEELING_SIZE_48;
-	kernel48->slowReweighing = SLOW_REWEIGHING_48;
-	kernel48->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
-	kernelMap.insert(std::make_pair(48,kernel48));
-	
-	KernelResource* kernel64 = new KernelResource;
-	kernel64->kernelCode = (char*) KERNELS_STRING_64;
-	kernel64->paddedStateCount = 64;
-	kernel64->patternBlockSize = PATTERN_BLOCK_SIZE_64;
-	kernel64->matrixBlockSize = MATRIX_BLOCK_SIZE_64;
-	kernel64->blockPeelingSize = BLOCK_PEELING_SIZE_64;
-	kernel64->slowReweighing = SLOW_REWEIGHING_64;
-	kernel64->multiplyBlockSize = MULTIPLY_BLOCK_SIZE;
-	kernelMap.insert(std::make_pair(64,kernel64));
-	
+
+    KernelResource kernel4 = KernelResource(
+        4,
+        (char*) KERNELS_STRING_4,
+        PATTERN_BLOCK_SIZE_4,
+        MATRIX_BLOCK_SIZE_4,
+        BLOCK_PEELING_SIZE_4,
+        SLOW_REWEIGHING_4,
+        MULTIPLY_BLOCK_SIZE,
+        0,0);
+    kernelMap.insert(std::make_pair(4,kernel4));
+    
+    KernelResource kernel48 = KernelResource(
+        48,
+        (char*) KERNELS_STRING_48,
+        PATTERN_BLOCK_SIZE_48,
+        MATRIX_BLOCK_SIZE_48,
+        BLOCK_PEELING_SIZE_48,
+        SLOW_REWEIGHING_48,
+        MULTIPLY_BLOCK_SIZE,
+        0,0);
+    kernelMap.insert(std::make_pair(48,kernel48));
+    
+    KernelResource kernel64 = KernelResource(
+        64,
+        (char*) KERNELS_STRING_64,
+        PATTERN_BLOCK_SIZE_64,
+        MATRIX_BLOCK_SIZE_64,
+        BLOCK_PEELING_SIZE_64,
+        SLOW_REWEIGHING_64,
+        MULTIPLY_BLOCK_SIZE,
+        0,0);
+    kernelMap.insert(std::make_pair(64,kernel64));
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount) {
@@ -190,8 +188,8 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     
     if (kernelMap.size() == 0) {
-    	// kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
-    	InitializeKernelMap();    	
+        // kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
+        InitializeKernelMap();
     }
     
     if (kernelMap.count(paddedStateCount) == 0) {
@@ -199,11 +197,18 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     	exit(-1);
     }
     
-    kernel = kernelMap[paddedStateCount];
-    kernel->categoryCount = categoryCount;
-    kernel->patternCount = paddedPatternCount;
+//    kernel.paddedStateCount = paddedStateCount;
+//    kernel.kernelCode = kernelMap[paddedStateCount].kernelCode;
+//    kernel.patternBlockSize = kernelMap[paddedStateCount].patternBlockSize;
+//    kernel.matrixBlockSize = kernelMap[paddedStateCount].matrixBlockSize;
+//    kernel.blockPeelingSize = kernelMap[paddedStateCount].blockPeelingSize;
+//    kernel.slowReweighing = kernelMap[paddedStateCount].slowReweighing;
+//    kernel.multiplyBlockSize = kernelMap[paddedStateCount].multiplyBlockSize;
+    kernelResource = kernelMap[paddedStateCount].copy();
+    kernelResource->categoryCount = categoryCount;
+    kernelResource->patternCount = paddedPatternCount;
                 
-    SAFE_CUDA(cuModuleLoadData(&cudaModule, kernel->kernelCode));     	
+    SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
