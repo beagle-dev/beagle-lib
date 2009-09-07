@@ -67,6 +67,12 @@
 		6474F5B8101F916D00A1A469 /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* KernelLauncher.cpp */; };
 		6474F5BB101F916D00A1A469 /* OpenCL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6474F592101F90D200A1A469 /* OpenCL.framework */; };
 		6474F5C7101F91BC00A1A469 /* GPUInterfaceOpenCL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */; };
+		64835E1C10559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
+		64835E1D10559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
+		64835E1E10559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
+		64835E1F10559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
+		64835E2010559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
+		64835E2110559B4B00561CFA /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
 		648DE27E102486F80022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
 		648DE27F102486F80022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
 		648DE280102486F80022E549 /* BeagleCPU4StateImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */; };
@@ -187,6 +193,8 @@
 		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernelsX.cu"; sourceTree = DEVELOPER_DIR; };
 		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernelsAll.cu"; sourceTree = DEVELOPER_DIR; };
 		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernels4.cu"; sourceTree = DEVELOPER_DIR; };
+		64835E1A10559B4B00561CFA /* KernelResource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelResource.h; path = "Projects/beagle-lib/libhmsbeagle/GPU/KernelResource.h"; sourceTree = DEVELOPER_DIR; };
+		64835E1B10559B4B00561CFA /* KernelResource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelResource.cpp; path = "Projects/beagle-lib/libhmsbeagle/GPU/KernelResource.cpp"; sourceTree = DEVELOPER_DIR; };
 		648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.cpp; sourceTree = SOURCE_ROOT; };
 		648DE27D102486F80022E549 /* BeagleCPU4StateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.h; sourceTree = SOURCE_ROOT; };
 		649E825D0FD6FC580044891D /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelLauncher.cpp; path = ../../libhmsbeagle/GPU/KernelLauncher.cpp; sourceTree = SOURCE_ROOT; };
@@ -347,6 +355,8 @@
 				645749650FFF2AE300603261 /* GPUImplHelper.cpp */,
 				645748DD0FFF28CB00603261 /* KernelLauncher.h */,
 				649E825D0FD6FC580044891D /* KernelLauncher.cpp */,
+				64835E1A10559B4B00561CFA /* KernelResource.h */,
+				64835E1B10559B4B00561CFA /* KernelResource.cpp */,
 				645747CA0FFF069700603261 /* GPUInterface.h */,
 			);
 			name = "GPU Impl";
@@ -662,6 +672,7 @@
 				64574B581000101100603261 /* KernelLauncher.cpp in Sources */,
 				644D3F7B0FFEE53200774CDD /* GPUInterfaceCUDA.cpp in Sources */,
 				6420678E102623AC004AB87A /* tinytest.cpp in Sources */,
+				64835E1E10559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -677,6 +688,7 @@
 				646F6E8E10019AA10085DDB1 /* GPUImplHelper.cpp in Sources */,
 				646F6E8F10019AA10085DDB1 /* KernelLauncher.cpp in Sources */,
 				646F6E9010019AA10085DDB1 /* GPUInterfaceCUDA.cpp in Sources */,
+				64835E1D10559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -692,6 +704,7 @@
 				646F6ED110019C510085DDB1 /* GPUImplHelper.cpp in Sources */,
 				646F6ED210019C510085DDB1 /* KernelLauncher.cpp in Sources */,
 				646F6ED310019C510085DDB1 /* GPUInterfaceCUDA.cpp in Sources */,
+				64835E1C10559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -707,6 +720,7 @@
 				6474F5B8101F916D00A1A469 /* KernelLauncher.cpp in Sources */,
 				6474F5C7101F91BC00A1A469 /* GPUInterfaceOpenCL.cpp in Sources */,
 				6420678F102623AC004AB87A /* tinytest.cpp in Sources */,
+				64835E2010559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -722,6 +736,7 @@
 				64C0EB3C1034BC820004734E /* KernelLauncher.cpp in Sources */,
 				64C0EB3D1034BC820004734E /* GPUInterfaceOpenCL.cpp in Sources */,
 				64C0EB461034BCC30004734E /* genomictest.cpp in Sources */,
+				64835E1F10559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -737,6 +752,7 @@
 				64D10A5A1033B8F4009EC5FB /* KernelLauncher.cpp in Sources */,
 				64D10A5B1033B8F4009EC5FB /* GPUInterfaceOpenCL.cpp in Sources */,
 				64D10A9C1033BEFB009EC5FB /* fourtaxon.cpp in Sources */,
+				64835E2110559B4B00561CFA /* KernelResource.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
