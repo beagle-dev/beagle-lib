@@ -41,7 +41,7 @@
 #include "libhmsbeagle/GPU/KernelResource.h"
 
 
-std::map<int, KernelResource> kernelMap;
+std::map<int, KernelResource>* kernelMap = NULL;
 
 
 #define SAFE_CUDA(call) { \
@@ -135,7 +135,9 @@ int GPUInterface::GetDeviceCount() {
 }
 
 void GPUInterface::DestroyKernelMap() {
-// No longer necessary as std::map automatically clears itself
+    if (kernelMap) {
+        delete kernelMap;
+    }
 }
 
 void GPUInterface::InitializeKernelMap() {
@@ -144,6 +146,8 @@ void GPUInterface::InitializeKernelMap() {
     fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
 #endif
 
+    kernelMap = new std::map<int, KernelResource>;
+    
     KernelResource kernel4 = KernelResource(
         4,
         (char*) KERNELS_STRING_4,
@@ -153,7 +157,7 @@ void GPUInterface::InitializeKernelMap() {
         SLOW_REWEIGHING_4,
         MULTIPLY_BLOCK_SIZE,
         0,0);
-    kernelMap.insert(std::make_pair(4,kernel4));
+    kernelMap->insert(std::make_pair(4,kernel4));
     
     KernelResource kernel48 = KernelResource(
         48,
@@ -164,7 +168,7 @@ void GPUInterface::InitializeKernelMap() {
         SLOW_REWEIGHING_48,
         MULTIPLY_BLOCK_SIZE,
         0,0);
-    kernelMap.insert(std::make_pair(48,kernel48));
+    kernelMap->insert(std::make_pair(48,kernel48));
     
     KernelResource kernel64 = KernelResource(
         64,
@@ -175,7 +179,7 @@ void GPUInterface::InitializeKernelMap() {
         SLOW_REWEIGHING_64,
         MULTIPLY_BLOCK_SIZE,
         0,0);
-    kernelMap.insert(std::make_pair(64,kernel64));
+    kernelMap->insert(std::make_pair(64,kernel64));
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount) {
@@ -187,12 +191,12 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     
-    if (kernelMap.size() == 0) {
+    if (kernelMap == NULL) {
         // kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
         InitializeKernelMap();
     }
     
-    if (kernelMap.count(paddedStateCount) == 0) {
+    if (kernelMap->count(paddedStateCount) == 0) {
     	fprintf(stderr,"Critical error: unable to find kernel code for %d states.\n",paddedStateCount);
     	exit(-1);
     }
@@ -204,7 +208,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 //    kernel.blockPeelingSize = kernelMap[paddedStateCount].blockPeelingSize;
 //    kernel.slowReweighing = kernelMap[paddedStateCount].slowReweighing;
 //    kernel.multiplyBlockSize = kernelMap[paddedStateCount].multiplyBlockSize;
-    kernelResource = kernelMap[paddedStateCount].copy();
+    kernelResource = (*kernelMap)[paddedStateCount].copy();
     kernelResource->categoryCount = categoryCount;
     kernelResource->patternCount = paddedPatternCount;
                 
