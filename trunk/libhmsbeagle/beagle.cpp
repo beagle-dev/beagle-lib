@@ -136,13 +136,13 @@ void __attribute__ ((constructor)) beagle_gnu_init(void) {
 	beagle_library_initialize();
 }
 void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
-	beagle_library_finalize();
+    beagle_library_finalize();
 }
 #endif
 
 int beagleFinalize() {
-    
-	beagle_library_finalize();
+    if (!loaded)
+        beagle_library_finalize();
     return BEAGLE_SUCCESS;
 }
 
