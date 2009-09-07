@@ -208,6 +208,16 @@ int beagleInitializeInstance(int instance,
 int beagleFinalizeInstance(int instance);
 
 /**
+ * @brief Finalize the library
+ *
+ * This function finalizes the library and releases all allocated memory.
+ * This function is automatically called under GNU C via __attribute__ ((destructor)).
+ *
+ * @return error code
+ */
+int beagleFinalize();
+        
+/**
  * @brief Set the compact state representation for tip node
  *
  * This function copies a compact state representation into an instance buffer.
