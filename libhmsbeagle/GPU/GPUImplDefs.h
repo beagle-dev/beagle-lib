@@ -244,20 +244,6 @@
                                                 } \
                                             }
 
-typedef struct {
-    int paddedStateCount;
-    int categoryCount;
-    int patternCount;
-    char* kernelCode;
-    int patternBlockSize;
-    int matrixBlockSize;
-    int blockPeelingSize;
-    int isPowerOfTwo;
-    int smallestPowerOfTwo;
-    int slowReweighing;
-    int multiplyBlockSize;
-} KernelResource;
-
 typedef struct Dim3Int Dim3Int;
 
 struct Dim3Int

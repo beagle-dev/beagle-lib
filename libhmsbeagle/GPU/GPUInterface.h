@@ -31,6 +31,7 @@
 #endif
 
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
+#include "libhmsbeagle/GPU/KernelResource.h"
 
 #ifdef CUDA
     #include <cuda.h>
@@ -126,7 +127,7 @@ public:
     
     void DestroyKernelMap();
     
-    KernelResource* kernel;
+    KernelResource* kernelResource;
     
 protected:
 	void InitializeKernelMap();

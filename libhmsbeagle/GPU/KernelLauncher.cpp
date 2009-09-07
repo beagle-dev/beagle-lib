@@ -49,13 +49,13 @@ KernelLauncher::~KernelLauncher() {
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
 
-    kPaddedStateCount = gpu->kernel->paddedStateCount;
-    kCategoryCount = gpu->kernel->categoryCount;
-    kPatternCount = gpu->kernel->patternCount;
-    kMultiplyBlockSize = gpu->kernel->multiplyBlockSize;
-    kPatternBlockSize = gpu->kernel->patternBlockSize;
-    kSlowReweighing = gpu->kernel->slowReweighing;
-    kMatrixBlockSize = gpu->kernel->matrixBlockSize;
+    kPaddedStateCount = gpu->kernelResource->paddedStateCount;
+    kCategoryCount = gpu->kernelResource->categoryCount;
+    kPatternCount = gpu->kernelResource->patternCount;
+    kMultiplyBlockSize = gpu->kernelResource->multiplyBlockSize;
+    kPatternBlockSize = gpu->kernelResource->patternBlockSize;
+    kSlowReweighing = gpu->kernelResource->slowReweighing;
+    kMatrixBlockSize = gpu->kernelResource->matrixBlockSize;
     
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);

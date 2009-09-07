@@ -6,7 +6,8 @@ if BUILDCUDA
 noinst_LTLIBRARIES= libcuda.la 
 libcuda_la_SOURCES =  \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
-GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp  KernelLauncher.h 
+GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp \
+KernelLauncher.h KernelResource.cpp KernelResource.h
 
 libcuda_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
@@ -17,7 +18,8 @@ if BUILDOPENCL
 noinst_LTLIBRARIES= libopencl.la 
 libopencl_la_SOURCES =  \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
-GPUImplHelper.h  GPUInterface.h  GPUInterfaceOpenCL.cpp  KernelLauncher.cpp  KernelLauncher.h 
+GPUImplHelper.h  GPUInterface.h  GPUInterfaceOpenCL.cpp  KernelLauncher.cpp \
+KernelLauncher.h KernelResource.cpp KernelResource.h
 
 nodist_libopencl_la_SOURCES = BeagleOpenCL_Kernels.h
 BUILT_SOURCES = BeagleOpenCL_Kernels.h
