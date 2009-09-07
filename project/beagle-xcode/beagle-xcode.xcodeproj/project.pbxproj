@@ -184,7 +184,9 @@
 		6474F592101F90D200A1A469 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; name = BeagleOpenCL_kernels.cl; path = ../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = SOURCE_ROOT; };
-		6474F5F3101F934600A1A469 /* BeagleCUDA_kernels.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = BeagleCUDA_kernels.cu; path = ../../libhmsbeagle/GPU/BeagleCUDA_kernels.cu; sourceTree = SOURCE_ROOT; };
+		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernelsX.cu"; sourceTree = DEVELOPER_DIR; };
+		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernelsAll.cu"; sourceTree = DEVELOPER_DIR; };
+		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = "Projects/beagle-lib/libhmsbeagle/GPU/kernels/kernels4.cu"; sourceTree = DEVELOPER_DIR; };
 		648DE27C102486F80022E549 /* BeagleCPU4StateImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.cpp; sourceTree = SOURCE_ROOT; };
 		648DE27D102486F80022E549 /* BeagleCPU4StateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.h; sourceTree = SOURCE_ROOT; };
 		649E825D0FD6FC580044891D /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelLauncher.cpp; path = ../../libhmsbeagle/GPU/KernelLauncher.cpp; sourceTree = SOURCE_ROOT; };
@@ -354,7 +356,9 @@
 			isa = PBXGroup;
 			children = (
 				64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */,
-				6474F5F3101F934600A1A469 /* BeagleCUDA_kernels.cu */,
+				64835D251055719000561CFA /* kernels4.cu */,
+				64835D231055719000561CFA /* kernelsX.cu */,
+				64835D241055719000561CFA /* kernelsAll.cu */,
 			);
 			name = "GPU CUDA";
 			sourceTree = SOURCE_ROOT;
@@ -612,7 +616,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels binary code\" > BeagleCUDA_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx ./BeagleCUDA_kernels.cu -O4 -I$PROJECT_DIR/../.. -DCUDA -DSTATE_COUNT=4\n\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\nexit 0";
+			shellScript = "STATE_COUNT_LIST=48 64\n\ncd $PROJECT_DIR/../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_4.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels_4.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_48.ptx -ptx -DSTATE_COUNT=48 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels_48.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\n/usr/local/cuda/bin/nvcc -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_64.ptx -ptx -DSTATE_COUNT=64 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels_64.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\nexit 0\n";
 			showEnvVarsInLog = 0;
 		};
 		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */ = {

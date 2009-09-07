@@ -133,7 +133,9 @@ void GPUInterface::DestroyKernelMap() {
     std::map<int, KernelResource*>::const_iterator itr;
     for(itr = kernelMap.begin(); itr != kernelMap.end(); ++itr) {
         KernelResource* rsrc = itr->second;
+#ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr,"Key: %d %d\n",(*itr).first, rsrc->paddedStateCount);
+#endif BEAGLE_DEBUG_VALUES
         delete rsrc;
 //        delete (*itr).second;
     }
@@ -147,7 +149,7 @@ void GPUInterface::InitializeKernelMap() {
 #endif
 	
 	KernelResource* kernel4 = new KernelResource;
-	kernel4->kernelCode = KERNELS_STRING_4; 
+	kernel4->kernelCode = (char*) KERNELS_STRING_4; 
 	kernel4->paddedStateCount = 4;
 	kernel4->patternBlockSize = PATTERN_BLOCK_SIZE_4;
 	kernel4->matrixBlockSize = MATRIX_BLOCK_SIZE_4;
@@ -157,7 +159,7 @@ void GPUInterface::InitializeKernelMap() {
 	kernelMap.insert(std::make_pair(4,kernel4));
 	
 	KernelResource* kernel48 = new KernelResource;
-	kernel48->kernelCode = KERNELS_STRING_48;
+	kernel48->kernelCode = (char*) KERNELS_STRING_48;
 	kernel48->paddedStateCount = 48;
 	kernel48->patternBlockSize = PATTERN_BLOCK_SIZE_48;
 	kernel48->matrixBlockSize = MATRIX_BLOCK_SIZE_48;
@@ -167,7 +169,7 @@ void GPUInterface::InitializeKernelMap() {
 	kernelMap.insert(std::make_pair(48,kernel48));
 	
 	KernelResource* kernel64 = new KernelResource;
-	kernel64->kernelCode = KERNELS_STRING_64;
+	kernel64->kernelCode = (char*) KERNELS_STRING_64;
 	kernel64->paddedStateCount = 64;
 	kernel64->patternBlockSize = PATTERN_BLOCK_SIZE_64;
 	kernel64->matrixBlockSize = MATRIX_BLOCK_SIZE_64;
