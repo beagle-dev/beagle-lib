@@ -140,6 +140,12 @@ void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
 }
 #endif
 
+int beagleFinalize() {
+    
+	beagle_library_finalize();
+    return BEAGLE_SUCCESS;
+}
+
 BeagleResourceList* beagleGetResourceList() {
     
     if (rsrcList == NULL) {
