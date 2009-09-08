@@ -61,8 +61,10 @@ enum BeagleReturnCodes {
     BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION = -3,  /**< Unspecified exception */
     BEAGLE_ERROR_UNINITIALIZED_INSTANCE = -4,  /**< The instance index is out of range,
                                                 *   or the instance has not been created */
-    BEAGLE_ERROR_OUT_OF_RANGE           = -5   /**< One of the indices specified exceeded the range of the
+    BEAGLE_ERROR_OUT_OF_RANGE           = -5,  /**< One of the indices specified exceeded the range of the
                                                 *   array */
+    BEAGLE_ERROR_NO_RESOURCE            = -6,  /**< No resource matches requirements */
+    BEAGLE_ERROR_NO_IMPLEMENTATION      = -7   /**< No implementation matches requirements */
 };
 
 /**
@@ -113,7 +115,8 @@ typedef struct {
 typedef struct {
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
-    long flags;         /**< Bit-flags of capabilities on resource */
+    long  supportFlags; /**< Bit-flags of supported capabilities on resource */
+    long  requiredFlags;/**< Bit-flags of required capabilities on resource */
 } BeagleResource;
 
 /**

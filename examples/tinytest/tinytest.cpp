@@ -95,15 +95,16 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
-        if (rList->list[i].flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
-        if (rList->list[i].flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
-        if (rList->list[i].flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
-        if (rList->list[i].flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
-        if (rList->list[i].flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
-        if (rList->list[i].flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
-        if (rList->list[i].flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
-        if (rList->list[i].flags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
-        if (rList->list[i].flags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
         fprintf(stdout, "\n");
     }    
     fprintf(stdout, "\n");    
@@ -134,7 +135,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                   BEAGLE_FLAG_GPU,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  0		            /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                                  0                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -154,11 +155,13 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
+    fprintf(stdout, "\tImpl : %s\n", "GET INFO");
     fprintf(stdout, "\tFlags:");
     if (instDetails.flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
     if (instDetails.flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
     if (instDetails.flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
     if (instDetails.flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
     if (instDetails.flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
     if (instDetails.flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
     if (instDetails.flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");

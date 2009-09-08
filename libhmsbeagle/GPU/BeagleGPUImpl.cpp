@@ -185,7 +185,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kLastTipPartialsBufferIndex = -1;
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::createInstance\n");
+    fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
 #endif
     
     return BEAGLE_SUCCESS;
@@ -225,8 +225,8 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
                 
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
-    	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);   
-    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);      	              
+    	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);
+    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);
     }
     
     dWeights = gpu->AllocateRealMemory(kBufferCount);
@@ -1072,4 +1072,8 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
 
 const char* BeagleGPUImplFactory::getName() {
     return "GPU";
+}
+
+const long BeagleGPUImplFactory::getFlags() {
+   return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE;
 }

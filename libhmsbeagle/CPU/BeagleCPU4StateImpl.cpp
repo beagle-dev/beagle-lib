@@ -470,3 +470,7 @@ const char* BeagleCPU4StateImplFactory::getName() {
     return "CPU-4State";
 }
 
+const long BeagleCPU4StateImplFactory::getFlags() {
+    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE;
+}
+

@@ -999,3 +999,7 @@ const char* BeagleCPUImplFactory::getName() {
     return "CPU";
 }
 
+const long BeagleCPUImplFactory::getFlags() {
+    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE;
+}
+
