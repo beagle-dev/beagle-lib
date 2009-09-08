@@ -201,8 +201,6 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     
     gpu->Initialize();
     
-    fprintf(stderr,"Resource # %d\n",resourceNumber);
-    
     int numDevices = 0;
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
