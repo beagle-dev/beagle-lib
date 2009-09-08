@@ -13,4 +13,3 @@ Please feel free to add items to this list!
   * fourtaxon example incorrect if scaling used (CUDA version wrong on some platforms)
   * Reintroduce a limited CUDA runtime API version for debugging purposes (bank conflict checking)
   * Create 4-state unrolled CPU version of CalcEdgeLike
-  * Add ability to set specific GPU device when multiple are present
