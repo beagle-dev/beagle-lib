@@ -209,7 +209,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
         fprintf(stderr, "Error: No GPU devices\n");
         return BEAGLE_ERROR_GENERAL;
     }
-    if (numDevices > resourceNumber) {
+    if (resourceNumber > numDevices) {
         fprintf(stderr,"Error: Trying to initialize device # %d (which does not exist)\n",resourceNumber);
         return BEAGLE_ERROR_GENERAL;
     }
