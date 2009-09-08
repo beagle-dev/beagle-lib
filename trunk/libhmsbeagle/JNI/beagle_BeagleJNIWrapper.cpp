@@ -62,7 +62,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 	    jString = env->NewStringUTF(rl->list[i].description);
     	env->CallVoidMethod(resourceObj, setDescriptionID, jString);
 
-	    env->CallVoidMethod(resourceObj, setFlagsMethodID, rl->list[i].flags);
+	    env->CallVoidMethod(resourceObj, setFlagsMethodID, rl->list[i].supportFlags);
 
         env->SetObjectArrayElement(resourceArray, i, resourceObj);
 	}

@@ -122,6 +122,8 @@ public:
                                             double* outLogLikelihoods,
                                             double* outFirstDerivatives,
                                             double* outSecondDerivatives) = 0;
+//protected:
+    int resourceNumber;
 };
 
 class BeagleImplFactory {
@@ -137,6 +139,8 @@ public:
                                    int scaleBufferCount) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
+    
+    virtual const long getFlags() = 0; // pure virtual
 };
 
 } // end namespace beagle

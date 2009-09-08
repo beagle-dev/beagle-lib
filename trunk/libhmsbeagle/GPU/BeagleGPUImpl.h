@@ -210,6 +210,7 @@ public:
                                    int scaleBufferCount);
 
     virtual const char* getName();
+    virtual const long getFlags();
 };
 
 }	// namespace gpu
