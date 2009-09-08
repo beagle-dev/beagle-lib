@@ -175,9 +175,13 @@ int main( int argc, const char* argv[] )
 //    beagleSetTipStates(instance, 2, getStates(gorilla));
     
     // set the sequences for each tip using partial likelihood arrays
-	beagleSetTipPartials(instance, 0, getPartials(human));
-	beagleSetTipPartials(instance, 1, getPartials(chimp));
-	beagleSetTipPartials(instance, 2, getPartials(gorilla));
+    double *humanPartials   = getPartials(human);
+    double *chimpPartials   = getPartials(chimp);
+    double *gorillaPartials = getPartials(gorilla);
+    
+	beagleSetTipPartials(instance, 0, humanPartials);
+	beagleSetTipPartials(instance, 1, chimpPartials);
+	beagleSetTipPartials(instance, 2, gorillaPartials);
     
 	double rates[rateCategoryCount];
     for (int i = 0; i < rateCategoryCount; i++) {
@@ -276,6 +280,11 @@ int main( int argc, const char* argv[] )
 	}
     
 	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
+	
+	free(patternLogLik);
+	free(humanPartials);
+	free(chimpPartials);
+	free(gorillaPartials);
     
     beagleFinalizeInstance(instance);
     

@@ -46,8 +46,6 @@
 using namespace beagle;
 using namespace beagle::gpu;
 
-int currentDevice = -1;
-
 BeagleGPUImpl::~BeagleGPUImpl() {
 		
 	// free GPU memory
@@ -203,19 +201,21 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     
     gpu->Initialize();
     
+    fprintf(stderr,"Resource # %d\n",resourceNumber);
+    
     int numDevices = 0;
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
         fprintf(stderr, "Error: No GPU devices\n");
         return BEAGLE_ERROR_GENERAL;
     }
-    
-    currentDevice++;
-    if (currentDevice == numDevices)
-        currentDevice = 0;
+    if (numDevices > resourceNumber) {
+        fprintf(stderr,"Error: Trying to initialize device # %d (which does not exist)\n",resourceNumber);
+        return BEAGLE_ERROR_GENERAL;
+    }
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(currentDevice,kPaddedStateCount,kCategoryCount,kPaddedPatternCount);
+    gpu->SetDevice(resourceNumber-1,kPaddedStateCount,kCategoryCount,kPaddedPatternCount);
     
     kernels = new KernelLauncher(gpu);
     
@@ -288,7 +288,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     checkHostMemory(hCategoryRates);
     
     if (returnInfo != NULL) {
-        returnInfo->resourceNumber = currentDevice + 1;
+        returnInfo->resourceNumber = resourceNumber;
         returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
     }
     
