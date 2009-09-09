@@ -159,7 +159,11 @@ int BeagleCPUImpl::createInstance(int tipCount,
     kEigenDecompCount = eigenDecompositionCount;
 	kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
+#ifdef PAD_MATRICES
     kMatrixSize = (1 + kStateCount) * kStateCount;
+#else
+    kMatrixSize = kStateCount * kStateCount;
+#endif
 
     gCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
     if (gCMatrices == NULL)
@@ -224,10 +228,10 @@ int BeagleCPUImpl::createInstance(int tipCount,
             throw std::bad_alloc();
     }
 
-	integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
-	matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
+    integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
+    matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
 
-	zeros = (double*) malloc(sizeof(double) * kPatternCount);
+    zeros = (double*) malloc(sizeof(double) * kPatternCount);
     ones = (double*) malloc(sizeof(double) * kPatternCount);
     for(int i = 0; i < kPatternCount; i++) {
     	zeros[i] = 0.0;
@@ -289,7 +293,7 @@ int BeagleCPUImpl::setPartials(int bufferIndex,
 }
 
 int BeagleCPUImpl::getPartials(int bufferIndex,
-							   int scaleIndex,
+                               int scaleIndex,
                                double* outPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
@@ -359,15 +363,17 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
                         transitionMat[n] = 0;
                     n++;
                 }
+#ifdef PAD_MATRICES
                 transitionMat[n] = 1.0;
                 n++;
+#endif
             }
         }
 
         if (DEBUGGING_OUTPUT) {
-            printf("transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
-            for ( int w = 0; w < 20; ++w)
-                printf("transitionMat[%d] = %.5f\n", w, transitionMat[w]);
+            fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
+            for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
+                fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
         }
     }
 
@@ -474,13 +480,13 @@ int BeagleCPUImpl::updatePartials(const int* operations,
             }
         }
         if (DEBUGGING_OUTPUT) {
-        	if (scalingFactors != NULL && rescale == 0) {
-        		for(int i=0; i<kPatternCount; i++)
-        			fprintf(stderr,"old scaleFactor[%d] = %.5f\n",i,scalingFactors[i]);
-        	}
-        	fprintf(stderr,"Result partials:\n");
-        	for(int i = 0; i < kPartialsSize; i++)
-        		fprintf(stderr,"destP[%d] = %.5f\n",i,destPartials[i]);
+            if (scalingFactors != NULL && rescale == 0) {
+                for(int i=0; i<kPatternCount; i++)
+                    fprintf(stderr,"old scaleFactor[%d] = %.5f\n",i,scalingFactors[i]);
+            }
+            fprintf(stderr,"Result partials:\n");
+            for(int i = 0; i < kPartialsSize; i++)
+                fprintf(stderr,"destP[%d] = %.5f\n",i,destPartials[i]);
         }
     }
 
@@ -607,30 +613,30 @@ void BeagleCPUImpl::calcRootLogLikelihoods(const int bufferIndex,
 }
 
 int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
-										  int count,
-										  int cumulativeScalingIndex) {
-	
-	double* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
-	for(int i=0; i<count; i++) {
-		const double* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-		for(int j=0; j<kPatternCount; j++) 
-			cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
-	}
-	
-	if (DEBUGGING_OUTPUT) {
-		fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
-		for(int j=0; j<kPatternCount; j++) {
-			fprintf(stderr,"cumulativeScaleBuffer[%d] = %2.5e\n",j,cumulativeScaleBuffer[j]);
-		}
-	}
+                                                int  count,
+                                                int  cumulativeScalingIndex) {
+    
+    double* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+    for(int i=0; i<count; i++) {
+        const double* scaleBuffer = gScaleBuffers[scalingIndices[i]];
+        for(int j=0; j<kPatternCount; j++) 
+            cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+    }
+    
+    if (DEBUGGING_OUTPUT) {
+        fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
+        for(int j=0; j<kPatternCount; j++) {
+            fprintf(stderr,"cumulativeScaleBuffer[%d] = %2.5e\n",j,cumulativeScaleBuffer[j]);
+        }
+    }
     return BEAGLE_SUCCESS;
 }
 
 int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
-										  int count,
-										  int cumulativeScalingIndex) {
-	fprintf(stderr,"BeagleCPUImpl::removeScaleFactors is not yet implemented!");
-	exit(0);
+                                            int  count,
+                                            int  cumulativeScalingIndex) {
+    fprintf(stderr,"BeagleCPUImpl::removeScaleFactors is not yet implemented!");
+    exit(0);
     // TODO: implement removeScaleFactors CPU
     return BEAGLE_SUCCESS;
 }
@@ -700,7 +706,7 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
             int w = 0;
             double sumK = 0.0;
             for (int i = 0; i < kStateCount; i++) {
-				std::vector<double> sumI(kCategoryCount);
+                std::vector<double> sumI(kCategoryCount); // TODO: Hotspot! remove std::vector
                 for (int l = 0; l < kCategoryCount; l++)
                     sumI[l] = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
@@ -709,7 +715,9 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                     }
                     w++;
                 }
+#ifdef PAD_MATRICES
                 w++;    // increment for the extra column at the end
+#endif
                 for (int l = 0; l < kCategoryCount; l++) {
                     sumK += inStateFrequencies[i] * partialsParent[v + i + l * kPatternCount * kStateCount] * sumI[l] * wt[l];
                 }
@@ -781,8 +789,8 @@ void BeagleCPUImpl::rescalePartials(double* destP,
             cumulativeScaleFactors[k] += log(max);
     }
     if (DEBUGGING_OUTPUT) {
-    	for(int i=0; i<kPatternCount; i++)
-    		fprintf(stderr,"new scaleFactor[%d] = %.5f\n",i,scaleFactors[i]);
+        for(int i=0; i<kPatternCount; i++)
+            fprintf(stderr,"new scaleFactor[%d] = %.5f\n",i,scaleFactors[i]);
     }
 }
 
@@ -808,7 +816,11 @@ void BeagleCPUImpl::calcStatesStates(double* destP,
             for (int i = 0; i < kStateCount; i++) {
                 destP[v] = matrices1[w + state1] * matrices2[w + state2];
                 v++;
+#ifdef PAD_MATRICES
                 w += (kStateCount + 1);
+#else
+                w += kStateCount;
+#endif
             }
         }
     }
@@ -831,7 +843,11 @@ void BeagleCPUImpl::calcStatesStatesFixedScaling(double* destP,
                 destP[v] = child1TransMat[w + state1] *
                            child2TransMat[w + state2] / scaleFactor;
                 v++;
+#ifdef PAD_MATRICES
                 w += (kStateCount + 1);
+#else
+                w += kStateCount;
+#endif
             }
         }
     }
@@ -858,8 +874,10 @@ void BeagleCPUImpl::calcStatesPartials(double* destP,
                     sum += matrices2[w] * partials2[v + j];
                     w++;
                 }
+#ifdef PAD_MATRICES
                 // increment for the extra column at the end
                 w++;
+#endif
                 destP[u] = tmp * sum;
                 u++;
             }
@@ -888,8 +906,10 @@ void BeagleCPUImpl::calcStatesPartialsFixedScaling(double* destP,
                     sum += matrices2[w] * partials2[v + j];
                     w++;
                 }
+#ifdef PAD_MATRICES
                 // increment for the extra column at the end
                 w++;
+#endif
                 destP[u] = tmp * sum / scaleFactor;
                 u++;
             }
@@ -925,8 +945,10 @@ void BeagleCPUImpl::calcPartialsPartials(double* destP,
                     }
                     w++;
                 }
+#ifdef PAD_MATRICES
                 // increment for the extra column at the end
                 w++;
+#endif
                 destP[u] = sum1 * sum2;
                 u++;
             }
@@ -955,8 +977,10 @@ void BeagleCPUImpl::calcPartialsPartialsFixedScaling(double* destP,
                     sum2 += matrices2[w] * partials2[v + j];
                     w++;
                 }
+#ifdef PAD_MATRICES
                 // increment for the extra column at the end
                 w++;
+#endif
                 destP[u] = sum1 * sum2 / scaleFactor;
                 u++;
             }
