@@ -86,7 +86,14 @@
 
 // PADDED_STATE_COUNT == 16 TODO
 
-// PADDED_STATE_COUNT == 32 TODO
+// PADDED_STATE_COUNT == 32
+// TODO: find optimal settings
+#define PATTERN_BLOCK_SIZE_32         8
+#define MATRIX_BLOCK_SIZE_32          8
+#define BLOCK_PEELING_SIZE_32         8
+#define IS_POWER_OF_TWO_32            1
+#define SMALLEST_POWER_OF_TWO_32      32
+#define SLOW_REWEIGHING_32            0
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_48         8
