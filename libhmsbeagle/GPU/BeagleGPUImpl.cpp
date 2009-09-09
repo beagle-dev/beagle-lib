@@ -107,7 +107,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int eigenDecompositionCount,
                                   int matrixCount,
                                   int categoryCount,
-                                  int scaleBufferCount) {
+                                  int scaleBufferCount,
+                                  long preferenceFlags,
+                                  long requirementFlags) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
@@ -1051,12 +1053,14 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               int eigenBufferCount,
                                               int matrixBufferCount,
                                               int categoryCount,
-                                              int scaleBufferCount) {
+                                              int scaleBufferCount,
+                                              long preferenceFlags,
+                                              long requirementFlags) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount) == 0)
+                                 categoryCount,scaleBufferCount,preferenceFlags, requirementFlags) == 0)
             return impl;
     }
     catch(...)

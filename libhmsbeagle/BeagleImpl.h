@@ -50,7 +50,9 @@ public:
                                int eigenBufferCount,
                                int matrixBufferCount,                               
                                int categoryCount,
-                               int scaleBufferCount) = 0;
+                               int scaleBufferCount,
+                               long preferenceFlags,
+                               long requirementFlags) = 0;
     
     virtual int initializeInstance(BeagleInstanceDetails* returnInfo) = 0;
     
@@ -136,7 +138,9 @@ public:
                                    int eigenBufferCount,
                                    int matrixBufferCount,
                                    int categoryCount,
-                                   int scaleBufferCount) = 0; // pure virtual
+                                   int scaleBufferCount,
+                                   long preferenceFlags,
+                                   long requirementFlags) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
     

@@ -97,7 +97,9 @@ public:
                        int eigenDecompositionCount,
                        int matrixCount,
                        int categoryCount,
-                       int scaleBufferCount);
+                       int scaleBufferCount,
+                       long preferenceFlags,
+                       long requirementFlags);
 
     // initialization of instance,  returnInfo can be null
     int initializeInstance(BeagleInstanceDetails* returnInfo);
@@ -285,7 +287,9 @@ public:
                                    int eigenBufferCount,
                                    int matrixBufferCount,
                                    int categoryCount,
-                                   int scaleBufferCount);
+                                   int scaleBufferCount,
+                                   long preferenceFlags,
+                                   long requirementFlags);
 
     virtual const char* getName();
     virtual const long getFlags();
