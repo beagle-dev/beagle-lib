@@ -68,31 +68,30 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
                                      const int* states1,
                                      const double* matrices1,
                                      const int* states2,
-                                     const double* matrices2) {//,
-//                                      const double* scalingFactors,
-//                                      const double* cumulativeScalingBuffer,
-//                                      int rescale) {
+                                     const double* matrices2) {
 
     int v = 0;
+    int w = 0;
+
     for (int l = 0; l < kCategoryCount; l++) {
 
         for (int k = 0; k < kPatternCount; k++) {
 
-            int state1 = states1[k];
-            int state2 = states2[k];
+            const int state1 = states1[k];
+            const int state2 = states2[k];
 
-            int w = l * kMatrixSize;
-
-            destP[v] = matrices1[w + state1] * matrices2[w + state2];
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2];
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2];
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2];
-            v++;    w += 5;
-
+            destP[v    ] = matrices1[w            + state1] * 
+                           matrices2[w            + state2];
+            destP[v + 1] = matrices1[w + OFFSET*1 + state1] * 
+                           matrices2[w + OFFSET*1 + state2];
+            destP[v + 2] = matrices1[w + OFFSET*2 + state1] * 
+                           matrices2[w + OFFSET*2 + state2];
+            destP[v + 3] = matrices1[w + OFFSET*3 + state1] * 
+                           matrices2[w + OFFSET*3 + state2];
+           v += 4;
         }
+        
+        w += OFFSET*4;
     }
 }
 
@@ -174,7 +173,7 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
             v += 4;
 
         }
-        w += 20;
+        w += OFFSET*4;
     }
 }
 
@@ -295,7 +294,7 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
             v += 4;
 
         }
-        w += 20;
+        w += OFFSET*4;
     }
 }
 
