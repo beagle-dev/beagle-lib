@@ -30,6 +30,8 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#define OFFSET    5    // For easy conversion between 4/5
+
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -133,60 +135,46 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
                                        const double* partials2,
-                                       const double* matrices2) {//,
-//                                          const double* scalingFactors,
-//                                          const double* cumulativeScalingBuffer,
-//                                          int rescale) {
+                                       const double* matrices2) {
 
     int u = 0;
     int v = 0;
-
+    int w = 0;
+    
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
 
-            int state1 = states1[k];
+            const int state1 = states1[k];
 
-            int w = l * kMatrixSize;
+            double 
+            sum  =  matrices2[w] * partials2[v];
+            sum +=  matrices2[w + 1] * partials2[v + 1];
+            sum +=  matrices2[w + 2] * partials2[v + 2];
+            sum +=  matrices2[w + 3] * partials2[v + 3];
+            destP[u] = matrices1[w + state1] * sum;    u++;
 
-            destP[u] = matrices1[w + state1];
+            sum  =  matrices2[w + OFFSET*1] * partials2[v];    // TODO: Check ASM in Shark to make sure that -O2 automatically expands
+            sum +=  matrices2[w + OFFSET*1 + 1] * partials2[v + 1];
+            sum +=  matrices2[w + OFFSET*1 + 2] * partials2[v + 2];
+            sum +=  matrices2[w + OFFSET*1 + 3] * partials2[v + 3];
+            destP[u] = matrices1[w + 5 + state1] * sum;    u++;
 
-            double sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum;    u++;
+            sum  =  matrices2[w + OFFSET*2] * partials2[v];
+            sum +=  matrices2[w + OFFSET*2 + 1] * partials2[v + 1];
+            sum +=  matrices2[w + OFFSET*2 + 2] * partials2[v + 2];
+            sum +=  matrices2[w + OFFSET*2 + 3] * partials2[v + 3];
+            destP[u] = matrices1[w + 10 + state1] * sum;    u++;
 
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum;    u++;
-
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum;    u++;
-
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum;    u++;
+            sum  =  matrices2[w + OFFSET*3] * partials2[v];
+            sum +=  matrices2[w + OFFSET*3 + 1] * partials2[v + 1];
+            sum +=  matrices2[w + OFFSET*3 + 2] * partials2[v + 2];
+            sum +=  matrices2[w + OFFSET*3 + 3] * partials2[v + 3];
+            destP[u] = matrices1[w + 15 + state1] * sum;    u++;
 
             v += 4;
 
         }
+        w += 20;
     }
 }
 
@@ -254,67 +242,60 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
                                          const double* partials1,
                                          const double* matrices1,
                                          const double* partials2,
-                                         const double* matrices2) {//,
-//                                          const double* scalingFactors,
-//                                          const double* cumulativeScalingBuffer,
-//                                          int rescale) {
+                                         const double* matrices2) {
 
     double sum1, sum2;
     int u = 0;
     int v = 0;
+    int w = 0;
 
     for (int l = 0; l < kCategoryCount; l++) {
         for (int k = 0; k < kPatternCount; k++) {
 
-            int w = l * kMatrixSize;
-
-            sum1 = matrices1[w] * partials1[v];
-            sum2 = matrices2[w] * partials2[v]; w++;
-            sum1 += matrices1[w] * partials1[v + 1];
-            sum2 += matrices2[w] * partials2[v + 1]; w++;
-            sum1 += matrices1[w] * partials1[v + 2];
-            sum2 += matrices2[w] * partials2[v + 2]; w++;
-            sum1 += matrices1[w] * partials1[v + 3];
-            sum2 += matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
+            sum1  = matrices1[w] * partials1[v];
+            sum2  = matrices2[w] * partials2[v];
+            sum1 += matrices1[w + 1] * partials1[v + 1];
+            sum2 += matrices2[w + 1] * partials2[v + 1];
+            sum1 += matrices1[w + 2] * partials1[v + 2];
+            sum2 += matrices2[w + 2] * partials2[v + 2];
+            sum1 += matrices1[w + 3] * partials1[v + 3];
+            sum2 += matrices2[w + 3] * partials2[v + 3];
             destP[u] = sum1 * sum2; u++;
 
-            sum1 = matrices1[w] * partials1[v];
-            sum2 = matrices2[w] * partials2[v]; w++;
-            sum1 += matrices1[w] * partials1[v + 1];
-            sum2 += matrices2[w] * partials2[v + 1]; w++;
-            sum1 += matrices1[w] * partials1[v + 2];
-            sum2 += matrices2[w] * partials2[v + 2]; w++;
-            sum1 += matrices1[w] * partials1[v + 3];
-            sum2 += matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
+            sum1  = matrices1[w + OFFSET*1] * partials1[v];
+            sum2  = matrices2[w + OFFSET*1] * partials2[v];
+            sum1 += matrices1[w + OFFSET*1 + 1] * partials1[v + 1];
+            sum2 += matrices2[w + OFFSET*1 + 1] * partials2[v + 1];
+            sum1 += matrices1[w + OFFSET*1 + 2] * partials1[v + 2];
+            sum2 += matrices2[w + OFFSET*1 + 2] * partials2[v + 2];
+            sum1 += matrices1[w + OFFSET*1 + 3] * partials1[v + 3];
+            sum2 += matrices2[w + OFFSET*1 + 3] * partials2[v + 3];
             destP[u] = sum1 * sum2; u++;
 
-            sum1 = matrices1[w] * partials1[v];
-            sum2 = matrices2[w] * partials2[v]; w++;
-            sum1 += matrices1[w] * partials1[v + 1];
-            sum2 += matrices2[w] * partials2[v + 1]; w++;
-            sum1 += matrices1[w] * partials1[v + 2];
-            sum2 += matrices2[w] * partials2[v + 2]; w++;
-            sum1 += matrices1[w] * partials1[v + 3];
-            sum2 += matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
+            sum1  = matrices1[w + OFFSET*2] * partials1[v];
+            sum2  = matrices2[w + OFFSET*2] * partials2[v];
+            sum1 += matrices1[w + OFFSET*2 + 1] * partials1[v + 1];
+            sum2 += matrices2[w + OFFSET*2 + 1] * partials2[v + 1];
+            sum1 += matrices1[w + OFFSET*2 + 2] * partials1[v + 2];
+            sum2 += matrices2[w + OFFSET*2 + 2] * partials2[v + 2];
+            sum1 += matrices1[w + OFFSET*2 + 3] * partials1[v + 3];
+            sum2 += matrices2[w + OFFSET*2 + 3] * partials2[v + 3];
             destP[u] = sum1 * sum2; u++;
 
-            sum1 = matrices1[w] * partials1[v];
-            sum2 = matrices2[w] * partials2[v]; w++;
-            sum1 += matrices1[w] * partials1[v + 1];
-            sum2 += matrices2[w] * partials2[v + 1]; w++;
-            sum1 += matrices1[w] * partials1[v + 2];
-            sum2 += matrices2[w] * partials2[v + 2]; w++;
-            sum1 += matrices1[w] * partials1[v + 3];
-            sum2 += matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
+            sum1  = matrices1[w + OFFSET*3] * partials1[v];
+            sum2  = matrices2[w + OFFSET*3] * partials2[v];
+            sum1 += matrices1[w + OFFSET*3 + 1] * partials1[v + 1];
+            sum2 += matrices2[w + OFFSET*3 + 1] * partials2[v + 1];
+            sum1 += matrices1[w + OFFSET*3 + 2] * partials1[v + 2];
+            sum2 += matrices2[w + OFFSET*3 + 2] * partials2[v + 2];
+            sum1 += matrices1[w + OFFSET*3 + 3] * partials1[v + 3];
+            sum2 += matrices2[w + OFFSET*3 + 3] * partials2[v + 3];
             destP[u] = sum1 * sum2; u++;
 
             v += 4;
 
         }
+        w += 20;
     }
 }
 
