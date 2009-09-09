@@ -159,6 +159,17 @@ void GPUInterface::InitializeKernelMap() {
         0,0);
     kernelMap->insert(std::make_pair(4,kernel4));
     
+    KernelResource kernel32 = KernelResource(
+        32,
+        (char*) KERNELS_STRING_32,
+        PATTERN_BLOCK_SIZE_32,
+        MATRIX_BLOCK_SIZE_32,
+        BLOCK_PEELING_SIZE_32,
+        SLOW_REWEIGHING_32,
+        MULTIPLY_BLOCK_SIZE,
+        0,0);
+    kernelMap->insert(std::make_pair(32,kernel32));
+    
     KernelResource kernel48 = KernelResource(
         48,
         (char*) KERNELS_STRING_48,
