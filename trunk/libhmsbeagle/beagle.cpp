@@ -290,7 +290,8 @@ int beagleCreateInstance(int tipCount,
                                                                     compactBufferCount, stateCount,
                                                                     patternCount, eigenBufferCount,
                                                                     matrixBufferCount, categoryCount, 
-                                                                    scaleBufferCount);
+                                                                    scaleBufferCount, preferenceFlags,
+                                                                    requirementFlags);
                         if (beagle != NULL) {
                             beagle->resourceNumber = resource;
                             // Found a better implementation

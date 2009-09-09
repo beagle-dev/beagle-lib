@@ -81,6 +81,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous computation */
     BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous computation */
     BEAGLE_FLAG_COMPLEX = 1 << 4,    /**< complex eigenvalue computation */
+    BEAGLE_FLAG_LSCALER = 1 << 5,    /**< save log scalers */
     BEAGLE_FLAG_CPU     = 1 << 16,   /**< CPU */
     BEAGLE_FLAG_GPU     = 1 << 17,   /**< GPU */
     BEAGLE_FLAG_FPGA    = 1 << 18,   /**< FPGA */

@@ -144,7 +144,9 @@ int BeagleCPUImpl::createInstance(int tipCount,
                                   int eigenDecompositionCount,
                                   int matrixCount,
                                   int categoryCount,
-                                  int scaleBufferCount) {
+                                  int scaleBufferCount,
+                                  long preferenceFlags,
+                                  long requirementFlags) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
 
@@ -974,13 +976,15 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,
                                              int eigenBufferCount,
                                              int matrixBufferCount,
                                              int categoryCount,
-                                             int scaleBufferCount) {
+                                             int scaleBufferCount,
+                                             long preferenceFlags,
+                                             long requirementFlags) {
     BeagleImpl* impl = new BeagleCPUImpl();
 
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount) == 0)
+                                 categoryCount,scaleBufferCount, preferenceFlags, requirementFlags) == 0)
             return impl;
     }
     catch(...) {
