@@ -131,6 +131,11 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
     
+    kStoreLogScalers = 0;
+    
+    if (preferenceFlags & BEAGLE_FLAG_LSCALER || requirementFlags & BEAGLE_FLAG_LSCALER)
+        kStoreLogScalers = 1;
+    
     if (kStateCount <= 4)
         kPaddedStateCount = 4;
     else if (kStateCount <= 16)
@@ -215,7 +220,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     }
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(resourceNumber-1,kPaddedStateCount,kCategoryCount,kPaddedPatternCount);
+    gpu->SetDevice(resourceNumber-1,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kStoreLogScalers);
     
     kernels = new KernelLauncher(gpu);
     

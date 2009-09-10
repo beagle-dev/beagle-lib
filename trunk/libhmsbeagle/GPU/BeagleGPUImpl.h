@@ -50,6 +50,8 @@ private:
     int kHostMemoryUsed;
     int kInitialized;
     
+    int kStoreLogScalers;
+    
     int kTipCount;
     int kPartialsBufferCount;
     int kCompactBufferCount;

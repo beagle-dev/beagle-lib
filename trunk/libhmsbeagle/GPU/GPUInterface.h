@@ -76,7 +76,8 @@ public:
     void SetDevice(int deviceNumber, 
                    int paddedStateCount, 
                    int categoryCount, 
-                   int patternCount);
+                   int patternCount,
+                   int storeLogScalers);
     
     void Synchronize();
     

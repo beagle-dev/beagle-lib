@@ -223,8 +223,13 @@ __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
             printf("added %1.2e\n", nodeScales[pattern]);
 #endif
         REAL factor = nodeScales[pattern];
-        if (factor != 1.0)
+        if (factor != 1.0) {
+#ifdef LSCALER
+            total += factor;
+#else
             total += log(factor);
+#endif
+        }
     }
 
     if (pattern < patternCount)
@@ -251,8 +256,13 @@ __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
             printf("added %1.2e\n", nodeScales[pattern]);
 #endif
         REAL factor = nodeScales[pattern];
-        if (factor != 1.0)
+        if (factor != 1.0) {
+#ifdef LSCALER
+            total += factor;
+#else
             total += log(factor);
+#endif
+        }
     }
 
     if (pattern < patternCount)
@@ -313,7 +323,11 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
         if (max == 0)
         	max = 1.0;
 
+#ifdef LSCALER
+        scalingFactors[pattern] = log(max);
+#else
         scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
+#endif
     }
 
     __syncthreads();
@@ -379,8 +393,15 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
         if (max == 0)
         	max = 1.0;
 
+#ifdef LSCALER
+        REAL logMax = log(max);
+        scalingFactors[pattern] = logMax;
+        cumulativeScaling[pattern] += logMax;
+#else
         scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
         cumulativeScaling[pattern] += log(max);
+#endif
+
     }
 
     __syncthreads();
@@ -439,9 +460,14 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
 
     if(state == 0) {
         if (max == 0)
-        	max = 1.0;    
+        	max = 1.0;
+#ifdef LSCALER
+        scalingFactors[pattern] = log(max);
+#else
         scalingFactors[pattern] = max;
+#endif
     }
+
 
     __syncthreads();
 
