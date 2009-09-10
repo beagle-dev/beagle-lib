@@ -147,10 +147,6 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void setPartials(final int bufferIndex, final double[] partials) {
         assert(this.partials[bufferIndex] != null);
-        if (partials == null)
-            System.err.println("Partials == null");
-        if (this.partials[bufferIndex] == null)
-            System.err.println("this.partials == null");
         System.arraycopy(partials, 0, this.partials[bufferIndex], 0, partialsSize);
     }
 
