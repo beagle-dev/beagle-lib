@@ -41,8 +41,8 @@ public class BeagleFactory {
             long requirementFlags
     ) {
 
-        boolean forceJava = Boolean.valueOf(System.getProperty("java_only"));
-        boolean forceBeagleCPU = Boolean.valueOf(System.getProperty("force.bcpu"));
+        boolean forceJava = Boolean.valueOf(System.getProperty("java.only"));
+        boolean forceHybrid = Boolean.valueOf(System.getProperty("force.hybrid"));
 
         getBeagleJNIWrapper();
 
@@ -63,19 +63,23 @@ public class BeagleFactory {
                     requirementFlags
             );
 
-            // From Java we are overriding the default CPU BEAGLE implementation in favour
-            // of a hybrid Java/Native C version. This is for performance reasons until the
-            // JNI calling of CPU Beagle is speeded up.
+            // From Java we allow the opton of overriding the default CPU BEAGLE implementation in favour
+            // of a hybrid Java/Native C version.
 
             // In order to know that it was a CPU instance created, we have to let BEAGLE
             // to make the instance and then override it...
 
             InstanceDetails details = beagle.getDetails();
             if ( stateCount == 4 && BeagleFlag.CPU.isSet(details.getFlags()) &&
-            		!forceBeagleCPU ) {
+            		forceHybrid ) {
 
+                try {
+                    beagle.finalize();
+                } catch (Throwable throwable) {
+                    System.err.println("Error releasing BEAGLE implementation:\n"+throwable.getMessage());
+                }
                 System.out.println("Using BeagleNative4StateImpl");
-                return new BeagleNative4StateImpl(
+                beagle = new BeagleNative4StateImpl(
                         tipCount,
                         partialsBufferCount,
                         compactBufferCount,
