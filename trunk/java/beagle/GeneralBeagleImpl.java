@@ -553,10 +553,11 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     public InstanceDetails getDetails() {
-        InstanceDetails details = new InstanceDetails();
-        details.setResourceNumber(0);
-        details.setFlags(BeagleFlag.DOUBLE.getMask());
-        return details;
+//        InstanceDetails details = new InstanceDetails();
+//        details.setResourceNumber(0);
+//        details.setFlags(BeagleFlag.DOUBLE.getMask());
+//        return details;
+        return null;
     }
 
 

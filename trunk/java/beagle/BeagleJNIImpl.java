@@ -15,8 +15,8 @@ package beagle;
 
 public class BeagleJNIImpl implements Beagle {
 
-    private final int instance;
-    private final InstanceDetails details = new InstanceDetails();
+    private int instance = -1;
+    private InstanceDetails details = new InstanceDetails();
 
     public BeagleJNIImpl(int tipCount,
                          int partialsBufferCount,
@@ -46,8 +46,10 @@ public class BeagleJNIImpl implements Beagle {
                 preferenceFlags,
                 requirementFlags);
 
-
-        BeagleJNIWrapper.INSTANCE.initializeInstance(instance, details);
+        if (instance >= 0)
+            BeagleJNIWrapper.INSTANCE.initializeInstance(instance, details);
+        else
+            details = null; // To communicate that no instance would be created!        
     }
 
     public void finalize() throws Throwable {

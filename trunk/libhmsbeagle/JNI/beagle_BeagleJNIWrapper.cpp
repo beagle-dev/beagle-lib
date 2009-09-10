@@ -76,28 +76,32 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
  * Signature: (IIIIIIIII[IIJJ)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
-	(JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
-	jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
-	 categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags)
+    (JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
+    jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
+     categoryCount, jint scaleBufferCount, jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags)
 {
-    jint *resourceList = env->GetIntArrayElements(inResourceList, NULL);
+
+    jint *resourceList = NULL;
+    if (inResourceList != NULL)
+        resourceList = env->GetIntArrayElements(inResourceList, NULL);
     
- 	jint instance = (jint)beagleCreateInstance(tipCount,
-	                                partialsBufferCount,
-	                                compactBufferCount,
-	                                stateCount,
-	                                patternCount,
-	                                eigenBufferCount,
-	                                matrixBufferCount,
-					categoryCount,
-					scaleBufferCount,
-	                                (int *)resourceList,
-	                                resourceCount,
-	                                preferenceFlags,
-	                                requirementFlags);
-
-    env->ReleaseIntArrayElements(inResourceList, resourceList, JNI_ABORT);
-
+     jint instance = (jint)beagleCreateInstance(tipCount,
+                                    partialsBufferCount,
+                                    compactBufferCount,
+                                    stateCount,
+                                    patternCount,
+                                    eigenBufferCount,
+                                    matrixBufferCount,
+                                    categoryCount,
+                                    scaleBufferCount,
+                                    (int *)resourceList,
+                                    resourceCount,
+                                    preferenceFlags,
+                                    requirementFlags);
+    
+    if(inResourceList != NULL)
+        env->ReleaseIntArrayElements(inResourceList, resourceList, JNI_ABORT);
+    
     return instance;
 }
 
