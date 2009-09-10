@@ -73,6 +73,13 @@ public class BeagleNative4StateImpl extends GeneralBeagleImpl {
                                                    int patternCount, int categoryCount,
                                                    double[] outPartials, double[] outLogLikelihoods);
 
+    public InstanceDetails getDetails() {
+        InstanceDetails details = new InstanceDetails();
+        details.setResourceNumber(0);
+        details.setFlags(BeagleFlag.DOUBLE.getMask());
+        return details;
+    }
+
     public static boolean isAvailable() { return isNativeAvailable; }
 
     private static boolean isNativeAvailable = false;

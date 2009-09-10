@@ -70,7 +70,7 @@ public class BeagleFactory {
             // to make the instance and then override it...
 
             InstanceDetails details = beagle.getDetails();
-            if ( stateCount == 4 && BeagleFlag.CPU.isSet(details.getFlags()) &&
+            if ( stateCount == 4 && details != null && BeagleFlag.CPU.isSet(details.getFlags()) &&
             		forceHybrid ) {
 
                 try {
@@ -90,8 +90,8 @@ public class BeagleFactory {
                         scaleBufferCount
                 );
             }
-
-            return beagle;
+            if (details != null) // If resourceList/requirements not met, details == null here
+                return beagle;
         }
 
         if (stateCount == 4) {
