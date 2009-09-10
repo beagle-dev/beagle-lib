@@ -26,8 +26,6 @@
  * @author Mark Holder
  */
 
-///@TODO: deal with underflow
-///@TODO: get rid of malloc (use vectors to make sure that memory is freed)
 ///@TODO: wrap partials, eigen calcs, and transition matrices in a small structs
 //      so that we can flag them. This would this would be helpful for
 //      implementing:
@@ -679,53 +677,73 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     const double* partialsParent = gPartials[parIndex];
     const double* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
+        
+    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(double));
     
-//    const double* scalingFactors = (scalingFactorsIndices != BEAGLE_OP_NONE ? 
-//    		gScaleBuffers[scalingFactorsIndices] : NULL);
-
-    if (childIndex < kTipCount && gTipStates[childIndex]) {
-        const int* statesChild = gTipStates[childIndex];
-        int v = 0;
-        for (int k = 0; k < kPatternCount; k++) {
-            int stateChild = statesChild[k];
-            double sumK = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                int w = i * kStateCount + 1;
-                for (int l = 0; l < kCategoryCount; l++) {
-                    sumK += inStateFrequencies[i] * partialsParent[v + i + l * kPatternCount * kStateCount] * transMatrix[w + stateChild + l * kMatrixSize] * wt[l];
-                }
-            }
-            outLogLikelihoods[k] = log(sumK);
-            v += kStateCount;
-        }
-    } else {
-        const double* partialsChild = gPartials[childIndex];
-
-        int v = 0;
-        for (int k = 0; k < kPatternCount; k++) {
-            int w = 0;
-            double sumK = 0.0;
-            for (int i = 0; i < kStateCount; i++) {
-                std::vector<double> sumI(kCategoryCount); // TODO: Hotspot! remove std::vector
-                for (int l = 0; l < kCategoryCount; l++)
-                    sumI[l] = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    for (int l = 0; l < kCategoryCount; l++) {
-                        sumI[l] += transMatrix[w + l * kMatrixSize] * partialsChild[v + j+ (l * kPatternCount * kStateCount)];
-                    }
-                    w++;
-                }
+    if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+        
+        const int* statesChild = gTipStates[childIndex];    
+        int v = 0; // Index for parent partials
+        
+        for(int l = 0; l < kCategoryCount; l++) {
+            int u = 0; // Index in resulting product-partials (summed over categories)
+            const double weight = wt[l];
+            for(int k = 0; k < kPatternCount; k++) {
+                
+                const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
+                                                        // so we can interchange the patterCount and categoryCount loop order?
+                int w =  l * kMatrixSize;
+                for(int i = 0; i < kStateCount; i++) {
+                    integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                    u++;
 #ifdef PAD_MATRICES
-                w++;    // increment for the extra column at the end
+                    w += (kStateCount + 1);
+#else
+                    w += kStateCount;
 #endif
-                for (int l = 0; l < kCategoryCount; l++) {
-                    sumK += inStateFrequencies[i] * partialsParent[v + i + l * kPatternCount * kStateCount] * sumI[l] * wt[l];
                 }
+                v += kStateCount;
             }
-            outLogLikelihoods[k] = log(sumK);
-            v += kStateCount;
+        }
+        
+    } else { // Integrate against a partial at the child
+        
+        const double* partialsChild = gPartials[childIndex];
+        int v = 0;
+        
+        for(int l = 0; l < kCategoryCount; l++) {
+            int u = 0;
+            const double weight = wt[l];
+            for(int k = 0; k < kPatternCount; k++) {                
+                int w = l * kMatrixSize;                 
+                for(int i = 0; i < kStateCount; i++) {
+                    double sumOverJ = 0.0;
+                    for(int j = 0; j < kStateCount; j++) {
+                        sumOverJ += transMatrix[w] * partialsChild[v + j];
+                        w++;
+                    }
+#ifdef PAD_MATRICES
+                    // increment for the extra column at the end
+                    w++;
+#endif
+                    integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
+                    u++;
+                }
+                v += kStateCount;
+            }
         }
     }
+        
+    int u = 0;
+    for(int k = 0; k < kPatternCount; k++) {
+        double sumOverI = 0.0;
+        for(int i = 0; i < kStateCount; i++) {
+            sumOverI += inStateFrequencies[i] * integrationTmp[u];
+            u++;
+        }
+        outLogLikelihoods[k] = log(sumOverI);
+    }        
+
     
     if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
         const double* scalingFactors = gScaleBuffers[scalingFactorsIndices[0]];
