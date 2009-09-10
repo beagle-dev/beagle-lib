@@ -32,6 +32,19 @@ KernelResource::KernelResource(
     patternCount = inPatternCount;
 }
 
+KernelResource::KernelResource(KernelResource krIn,
+                               char* inKernelCode) {
+    paddedStateCount = krIn.paddedStateCount;
+    kernelCode = inKernelCode;
+    patternBlockSize = krIn.patternBlockSize;
+    matrixBlockSize = krIn.matrixBlockSize;
+    blockPeelingSize = krIn.blockPeelingSize,
+    slowReweighing = krIn.slowReweighing;
+    multiplyBlockSize = krIn.multiplyBlockSize;
+    categoryCount = krIn.categoryCount;
+    patternCount = krIn.patternCount;
+}
+
 KernelResource::~KernelResource() {
 }
 

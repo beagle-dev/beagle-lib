@@ -158,6 +158,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0);
     kernelMap->insert(std::make_pair(4,kernel4));
+    KernelResource kernel4LS = KernelResource(kernel4, (char*) KERNELS_STRING_LS_4);
+    kernelMap->insert(std::make_pair(-4,kernel4LS));
     
     KernelResource kernel32 = KernelResource(
         32,
@@ -169,6 +171,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0);
     kernelMap->insert(std::make_pair(32,kernel32));
+    KernelResource kernel32LS = KernelResource(kernel32, (char*) KERNELS_STRING_LS_32);
+    kernelMap->insert(std::make_pair(-32,kernel32LS));
     
     KernelResource kernel48 = KernelResource(
         48,
@@ -180,6 +184,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0);
     kernelMap->insert(std::make_pair(48,kernel48));
+    KernelResource kernel48LS = KernelResource(kernel48, (char*) KERNELS_STRING_LS_48);
+    kernelMap->insert(std::make_pair(-48,kernel48LS));
     
     KernelResource kernel64 = KernelResource(
         64,
@@ -191,9 +197,12 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
+    KernelResource kernel64LS = KernelResource(kernel64, (char*) KERNELS_STRING_LS_64);
+    kernelMap->insert(std::make_pair(-64,kernel64LS));
 }
 
-void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount) {
+void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
+                             int storeLogScalers) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif            

@@ -42,6 +42,9 @@ public:
         int inPatternCount
         );
     
+    KernelResource(KernelResource krIn,
+                   char* inKernelCode);
+    
     virtual ~KernelResource();
     
     int paddedStateCount;
