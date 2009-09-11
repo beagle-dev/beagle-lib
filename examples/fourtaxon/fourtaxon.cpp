@@ -101,6 +101,149 @@ void FourTaxonExample::abort(
 	}
 
 /*-----------------------------------------------------------------------------
+|	This function builds the operations vector based on the value of the 
+|	likeroot command line option.
+*/
+void FourTaxonExample::defineOperations()
+	{
+	// If the user specified a node to serve as likelihood root, that
+	// node will be considered the child, with the parent being the internal
+	// node to which it is connected.
+	//
+	//    A(0)     C(2)
+	//      \      /
+	//       4----5
+	//      /      \
+	//    B(1)     D(3)
+	//
+	like_child_index = like_root_node - 1;
+	if (like_child_index == 0 || like_child_index == 1)
+		like_parent_index = 4;
+	else
+		like_parent_index = 5;
+	transmat_index = (like_child_index == 4 ? 4 : like_child_index);
+	
+	// 	std::cerr << "Tip chosen to serve as likelihood root:\n";
+	// 	std::cerr << "  like_root_node     = " << like_root_node << '\n';
+	// 	std::cerr << "  like_parent_index  = " << like_parent_index << '\n';
+	// 	std::cerr << "  like_child_index   = " << like_child_index << '\n';
+	// 	std::cerr << "  transmat_index     = " << transmat_index << '\n';
+	
+	operations.clear();	
+	switch (like_child_index)
+		{
+		case 0:
+			// assuming node 0 is the child and node 4 is the parent
+			
+			// first_cherry uses 2 and 3 to build 5
+			operations.push_back(5);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(2);	// left child partial index
+			operations.push_back(2);	// left child transition matrix index
+			operations.push_back(3);	// right child partial index
+			operations.push_back(3);	// right child transition matrix index
+			
+			// second cherry uses 1 and 5 to build 4
+			operations.push_back(4);	// destination partial to be calculated
+			operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(1);	// left child partial index
+			operations.push_back(1);	// left child transition matrix index
+			operations.push_back(5);	// right child partial index
+			operations.push_back(4);	// right child transition matrix index (note: using transition matrix 4 because there are only 5 of them total)
+			
+			break;
+		case 1:
+			// assuming node 1 is the child and node 4 is the parent
+			
+			// first_cherry uses 2 and 3 to build 5
+			operations.push_back(5);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(2);	// left child partial index
+			operations.push_back(2);	// left child transition matrix index
+			operations.push_back(3);	// right child partial index
+			operations.push_back(3);	// right child transition matrix index
+			
+			// second cherry uses 0 and 5 to build 4
+			operations.push_back(4);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(0);	// left child partial index
+			operations.push_back(0);	// left child transition matrix index
+			operations.push_back(5);	// right child partial index
+			operations.push_back(4);	// right child transition matrix index (note: using transition matrix 4 because there are only 5 of them total)
+			
+			break;
+		case 2:
+			// assuming node 2 is the child and node 5 is the parent
+			
+			// first_cherry uses 0 and 1 to build 4
+			operations.push_back(4);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(0);	// left child partial index
+			operations.push_back(0);	// left child transition matrix index
+			operations.push_back(1);	// right child partial index
+			operations.push_back(1);	// right child transition matrix index
+			
+			// second cherry uses 3 and 4 to build 5
+			operations.push_back(5);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(3);	// left child partial index
+			operations.push_back(3);	// left child transition matrix index
+			operations.push_back(4);	// right child partial index
+			operations.push_back(4);	// right child transition matrix index
+			
+			break;
+		case 3:
+			// assuming node 3 is the child and node 5 is the parent
+			
+			// first_cherry uses 0 and 1 to build 4
+			operations.push_back(4);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(0);	// left child partial index
+			operations.push_back(0);	// left child transition matrix index
+			operations.push_back(1);	// right child partial index
+			operations.push_back(1);	// right child transition matrix index
+			
+			// second cherry uses 2 and 4 to build 5
+			operations.push_back(5);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(2);	// left child partial index
+			operations.push_back(2);	// left child transition matrix index
+			operations.push_back(4);	// right child partial index
+			operations.push_back(4);	// right child transition matrix index
+			
+			break;
+		default:
+			// assuming node 4 is the child and node 5 is the parent
+			
+			// first_cherry uses 0 and 1 to build 4
+			operations.push_back(4);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(0);	// left child partial index
+			operations.push_back(0);	// left child transition matrix index
+			operations.push_back(1);	// right child partial index
+			operations.push_back(1);	// right child transition matrix index
+			
+			// second cherry uses 2 and 3 to build 5
+			operations.push_back(5);	// destination partial to be calculated
+			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
+			operations.push_back(2);	// left child partial index
+			operations.push_back(2);	// left child transition matrix index
+			operations.push_back(3);	// right child partial index
+			operations.push_back(3);	// right child transition matrix index
+		}
+	}
+	
+/*-----------------------------------------------------------------------------
 |	This function sets up the beagle library and initializes all data members.
 */
 void FourTaxonExample::initBeagleLib()
@@ -118,21 +261,6 @@ void FourTaxonExample::initBeagleLib()
 	//       4----5
 	//      /      \
 	//    A(0)     D(3)
-	operations.push_back(4);	// destination (to be calculated)
-    operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
-	operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
-	operations.push_back(0);	// left child partial index
-	operations.push_back(0);	// left child transition matrix index
-	operations.push_back(1);	// right child partial index
-	operations.push_back(1);	// right child transition matrix index
-
-	operations.push_back(5);	// destination (to be calculated)
-	operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
-    operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
-	operations.push_back(2);	// left child partial index
-	operations.push_back(2);	// left child transition matrix index
-	operations.push_back(3);	// right child partial index
-	operations.push_back(3);	// right child transition matrix index
 	
 	int* rsrcList = NULL;
 	int  rsrcCnt = 0;
@@ -625,34 +753,11 @@ void FourTaxonExample::interpretCommandLineParameters(
 		
 	if (like_root_node > 5)
 		abort("invalid node number specified for --likeroot option (should be 1, 2, 3, 4, or 5)");
-		
-	if (like_root_node < 6)	//CHANGE ME BACK TO 5; ONLY SET TO 6 FOR DEBUGGING
-		{
-		//    A(0)     C(2)
-		//      \      /
-		//       4----5
-		//      /      \
-		//    B(1)     D(3)
-		// The user specified a tip node to serve as likelihood root. The specified
-		// node will be considered the child, with the parent being the internal
-		// node to which it is connected.
-		like_child_index = like_root_node - 1;
-		if (like_child_index == 0 || like_child_index == 1)
-			{
-			like_parent_index = 4;
-			}
-		else
-			{
-			like_parent_index = 5;
-			}
-		transmat_index = (like_child_index == 4 ? 4 : like_child_index);
-		std::cerr << "Tip chosen to serve as likelihood root:\n";
-		std::cerr << "  like_root_node     = " << like_root_node << '\n';
-		std::cerr << "  like_parent_index  = " << like_parent_index << '\n';
-		std::cerr << "  like_child_index   = " << like_child_index << '\n';
-		std::cerr << "  transmat_index     = " << transmat_index << '\n';
-		}
-		
+
+	// Now that we know what edge will be used for the likelihood calculation, we can
+	// define the operations vector that the library will use to perform updates of partials
+	defineOperations();
+
 	std::cout << "quiet                = " << (quiet ? "true" : "false") << '\n';
 	std::cout << "number of iterations = " << niters << '\n';
 	std::cout << "data file name       = " << data_file_name << '\n';

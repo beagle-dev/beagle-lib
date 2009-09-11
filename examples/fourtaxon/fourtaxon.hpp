@@ -28,6 +28,7 @@ class FourTaxonExample
 		void readData();
 		void writeData();
 		void updateBrlen(unsigned brlen_index);
+		void defineOperations();
 		double calcLnL();
 		
 	private:
