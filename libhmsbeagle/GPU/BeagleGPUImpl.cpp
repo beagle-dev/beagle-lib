@@ -463,6 +463,7 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
 #endif
     
     // TODO: test getPartials
+    // TODO: unscale the partials
     
     gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], SIZE_REAL * kPartialsSize);
     

@@ -295,6 +295,8 @@ int BeagleCPUImpl::getPartials(int bufferIndex,
                                double* outPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
+    
+    //TODO: unscale the partials
     memcpy(outPartials, gPartials[bufferIndex], sizeof(double) * kPartialsSize);
 
     return BEAGLE_SUCCESS;
@@ -520,6 +522,10 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         //              we need operation 1 and 3 in the preceding list.  This is not
         //              a problem, though as we deal with count == 1 in the previous
         //              branch.
+        
+        int indexMaxScale;
+        int maxScaleFactor[kPatternCount];
+        
         for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
             const int rootPartialIndex = bufferIndices[subsetIndex];
             const double* rootPartials = gPartials[rootPartialIndex];
@@ -551,6 +557,23 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                     sum += frequencies[i] * integrationTmp[u];
                     u++;
                 }
+                
+                if (scaleBufferIndices != NULL) {
+                    if (subsetIndex == 0) {
+                        indexMaxScale = 0;
+                        maxScaleFactor[k] = scaleBufferIndices[k];
+                        for (int j = 1; j < count; j++) {
+                            if (scaleBufferIndices[j * kPatternCount + k] > maxScaleFactor[k]) {
+                                indexMaxScale = j;
+                                maxScaleFactor[k] = scaleBufferIndices[j * kPatternCount + k];
+                            }
+                        }
+                    }
+                    
+                    if (subsetIndex != indexMaxScale)
+                        sum *= exp(scaleBufferIndices[k] - maxScaleFactor[k]);
+                }
+                
                 if (subsetIndex == 0)
                     outLogLikelihoods[k] = sum;
                 else if (subsetIndex == count - 1)
@@ -559,9 +582,12 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                     outLogLikelihoods[k] += sum;
             }
         }
+        
+        if (scaleBufferIndices != NULL) {
+            for(int i=0; i<kPatternCount; i++)
+                outLogLikelihoods[i] += maxScaleFactor[i];
+        }
     }
-
-
 
     return BEAGLE_SUCCESS;
 }
