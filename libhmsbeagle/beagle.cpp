@@ -172,7 +172,7 @@ BeagleResourceList* beagleGetResourceList() {
                 rsrcList->list[i + 1].description = dDesc;
                 rsrcList->list[i + 1].supportFlags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH |
                                                      BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_COMPLEX | 
-                                                     BEAGLE_FLAG_GPU;
+                                                     BEAGLE_FLAG_LSCALER | BEAGLE_FLAG_GPU;
                 rsrcList->list[i + 1].requiredFlags = BEAGLE_FLAG_GPU;
             }   
         } else {        	

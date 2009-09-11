@@ -100,6 +100,7 @@ int main( int argc, const char* argv[] )
         if (rList->list[i].supportFlags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
         if (rList->list[i].supportFlags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
         if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
         if (rList->list[i].supportFlags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
         if (rList->list[i].supportFlags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
         if (rList->list[i].supportFlags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
@@ -162,6 +163,7 @@ int main( int argc, const char* argv[] )
     if (instDetails.flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
     if (instDetails.flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
     if (instDetails.flags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
+    if (instDetails.flags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
     if (instDetails.flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
     if (instDetails.flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
     if (instDetails.flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");

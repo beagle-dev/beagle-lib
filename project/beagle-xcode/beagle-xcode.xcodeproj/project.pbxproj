@@ -624,7 +624,7 @@
 			);
 			name = "Generate CUDA_kernels.h";
 			outputPaths = (
-				$PROJECT_DIR/../../libhmsbeagle/GPU/BeagleCUDA_kernels.h,
+				$PROJECT_DIR/../../libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
