@@ -295,6 +295,8 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = resourceNumber;
         returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
+        if (kStoreLogScalers)
+            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1082,5 +1084,5 @@ const char* BeagleGPUImplFactory::getName() {
 }
 
 const long BeagleGPUImplFactory::getFlags() {
-   return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE;
+   return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_LSCALER;
 }

@@ -633,9 +633,13 @@ int BeagleCPUImpl::accumulateScaleFactors(const int* scalingIndices,
 int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
                                             int  count,
                                             int  cumulativeScalingIndex) {
-    fprintf(stderr,"BeagleCPUImpl::removeScaleFactors is not yet implemented!");
-    exit(0);
-    // TODO: implement removeScaleFactors CPU
+    double* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+    for(int i=0; i<count; i++) {
+        const double* scaleBuffer = gScaleBuffers[scalingIndices[i]];
+        for(int j=0; j<kPatternCount; j++) 
+            cumulativeScaleBuffer[j] -= log(scaleBuffer[j]);
+    }    
+    
     return BEAGLE_SUCCESS;
 }
 
