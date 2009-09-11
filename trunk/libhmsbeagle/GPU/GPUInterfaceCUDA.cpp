@@ -416,6 +416,12 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 #endif
 }
 
+unsigned int GPUInterface::GetAvailableMemory() {
+    unsigned int availableMem = 0;
+    SAFE_CUPP(cuMemGetInfo(&availableMem, NULL));
+    return availableMem;
+}
+
 void GPUInterface::GetDeviceName(int deviceNumber,
                                   char* deviceName,
                                   int nameLength) {

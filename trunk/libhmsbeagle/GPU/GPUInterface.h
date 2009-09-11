@@ -105,6 +105,8 @@ public:
 
     void FreeMemory(GPUPtr dPtr);
     
+    unsigned int GetAvailableMemory();
+    
     void GetDeviceName(int deviceNumber,
                        char* deviceName,
                        int nameLength);

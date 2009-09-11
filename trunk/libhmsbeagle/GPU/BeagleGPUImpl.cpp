@@ -222,12 +222,41 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     // TODO: recompiling kernels for every instance, probably not ideal
     gpu->SetDevice(resourceNumber-1,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kStoreLogScalers);
     
+    int ptrQueueLength = kMatrixCount * kCategoryCount;
+    if (kPartialsBufferCount > (kMatrixCount * kCategoryCount))
+        ptrQueueLength = kPartialsBufferCount;
+    
+    unsigned int neededMemory = SIZE_REAL * (kMatrixSize + // dEvec
+                                             kMatrixSize + // dIevc
+                                             kEigenValuesSize + // dEigenValues
+                                             kBufferCount + // dWeights
+                                             kPaddedStateCount + // dFrequencies
+                                             kPaddedPatternCount + // dIntegrationTmp
+                                             kPartialsSize + // dPartialsTmp
+                                             kScaleBufferCount * kPaddedPatternCount + // dScalingFactors
+                                             kPartialsBufferCount * kPartialsSize + // dTipPartialsBuffers + dPartials
+                                             kMatrixCount * kMatrixSize * kCategoryCount + // dMatrices
+                                             kBufferCount + // dBranchLengths
+                                             kMatrixCount * kCategoryCount) + // dDistanceQueue
+    SIZE_INT * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
+    sizeof(GPUPtr) * ptrQueueLength; // dPtrQueue
+    
+    
+    int availableMem = gpu->GetAvailableMemory();
+    if (availableMem < neededMemory) 
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    
+#ifdef BEAGLE_DEBUG_VALUES
+    fprintf(stderr, "     needed memory: %d\n", neededMemory);
+    fprintf(stderr, "  available memory: %d\n", availableMem);
+#endif    
+    
     kernels = new KernelLauncher(gpu);
     
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
     dIevc = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
     dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
-                
+    
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
     	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);
@@ -281,10 +310,6 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount * kCategoryCount);
     checkHostMemory(hDistanceQueue);
     
-    int ptrQueueLength = kMatrixCount * kCategoryCount;
-    if (kPartialsBufferCount > (kMatrixCount * kCategoryCount))
-        ptrQueueLength = kPartialsBufferCount;
-    
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * ptrQueueLength);
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
@@ -304,6 +329,13 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
 #endif
     
     kInitialized = 1;
+    
+#if BEAGLE_DEBUG_VALUES
+    gpu->Synchronize();
+    int usedMemory = availableMem - gpu->GetAvailableMemory();
+    fprintf(stderr, "actual used memory: %d\n", usedMemory);
+    fprintf(stderr, "        difference: %d\n\n", usedMemory-neededMemory);
+#endif
     
     return BEAGLE_SUCCESS;
 }
