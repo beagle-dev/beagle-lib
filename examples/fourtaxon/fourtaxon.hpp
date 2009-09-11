@@ -54,4 +54,5 @@ class FourTaxonExample
 		std::vector<int>			operations;
 		int							instance_handle;
 		int							rsrc_number;
+		bool						use_tip_partials;
 	};

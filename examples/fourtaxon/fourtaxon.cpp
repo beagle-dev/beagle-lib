@@ -83,8 +83,10 @@ FourTaxonExample::FourTaxonExample()
   , nrates(4)
   , seed(1)
   , delta(0.2)
-  , mu(1.0), 
-    instance_handle(-1), rsrc_number(BEAGLE_OP_NONE)
+  , mu(1.0)
+  , instance_handle(-1)
+  , rsrc_number(BEAGLE_OP_NONE)
+  , use_tip_partials(true)
 	{
 	data_file_name = "fourtaxon.dat";
 	}
@@ -273,7 +275,7 @@ void FourTaxonExample::initBeagleLib()
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
 				ntaxa + 2,	// partialsBufferCount
-				0,			// compactBufferCount
+				(use_tip_partials ? 0 : ntaxa),			// compactBufferCount
 				4, 			// stateCount
 				nsites,		// patternCount
 				1,			// eigenBufferCount
@@ -315,12 +317,25 @@ void FourTaxonExample::initBeagleLib()
 
 	for (unsigned i = 0; i < ntaxa; ++i)
 		{
-		code = beagleSetTipPartials(
+		
+		if (use_tip_partials)
+			{
+			code = beagleSetTipPartials(
 						instance_handle,			// instance
 						i,							// bufferIndex
 						&partial[i][0]);			// inPartials
-		if (code != 0)
-			abort("beagleSetPartials encountered a problem");
+			if (code != 0)
+				abort("beagleSetTipPartials encountered a problem");
+			}
+		else 
+			{
+			code = beagleSetTipStates(
+						instance_handle,			// instance);
+						i,							// bufferIndex
+						(int*)&data[i][0]);
+			if (code != 0)
+				abort("beagleSetTipStates encountered a problem");
+			}
 		}
         
     double rates[nrates] ;
@@ -723,6 +738,9 @@ void FourTaxonExample::interpretCommandLineParameters(
 		else if (option == "--rsrc")
 			{
 			expecting_rsrc_number = true;
+			}
+		else if (option == "--usetipstates") {
+			use_tip_partials = false;
 			}
 		else 
 			{
