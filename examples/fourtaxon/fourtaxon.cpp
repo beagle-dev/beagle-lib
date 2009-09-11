@@ -71,9 +71,22 @@ double uniform()
 |	Constructor simply calls init().
 */
 FourTaxonExample::FourTaxonExample()
-  : quiet(false), scaling(true), ntaxa(4), niters(0), nsites(0), nrates(4), seed(1), delta(0.2), mu(1.0), 
+  : quiet(false)
+  , scaling(true)
+  , ntaxa(4)
+  , niters(10)
+  , like_root_node(5)
+  , like_parent_index(4)
+  , like_child_index(5)
+  , transmat_index(4)
+  , nsites(0)
+  , nrates(4)
+  , seed(1)
+  , delta(0.2)
+  , mu(1.0), 
     instance_handle(-1), rsrc_number(BEAGLE_OP_NONE)
 	{
+	data_file_name = "fourtaxon.dat";
 	}
 
 /*-----------------------------------------------------------------------------
@@ -93,13 +106,18 @@ void FourTaxonExample::abort(
 void FourTaxonExample::initBeagleLib()
 	{
 	int code;
-	partial.resize(4);
+	partial.resize(ntaxa);
 
 	// hard coded tree topology is (A,B,(C,D))
 	// where taxon order is A, B, C, D in the data file
 	// Assume nodes 0..3 are the tip node indices
 	// Assume node 4 is ancestor of A,B (0,1)
 	// Assume node 5 is ancestor of C,D (2,3)
+	//    B(1)     C(2)
+	//      \      /
+	//       4----5
+	//      /      \
+	//    A(0)     D(3)
 	operations.push_back(4);	// destination (to be calculated)
     operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 	operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
@@ -125,13 +143,13 @@ void FourTaxonExample::initBeagleLib()
 	}
 
 	instance_handle = beagleCreateInstance(
-				4,			// tipCount
-				6,			// partialsBufferCount
+				ntaxa,		// tipCount
+				ntaxa + 2,	// partialsBufferCount
 				0,			// compactBufferCount
 				4, 			// stateCount
 				nsites,		// patternCount
 				1,			// eigenBufferCount
-				5,			// matrixBufferCount,
+				ntaxa + 1,	// matrixBufferCount,
                 nrates,     // categoryCount
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
@@ -159,21 +177,15 @@ void FourTaxonExample::initBeagleLib()
     fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
     fprintf(stdout, "\n");        
         
-	transition_matrix_index.resize(5);
-	transition_matrix_index[0] = 0;
-	transition_matrix_index[1] = 1;
-	transition_matrix_index[2] = 2;
-	transition_matrix_index[3] = 3;
-	transition_matrix_index[4] = 4;
-
 	brlens.resize(5);
-	brlens[0] = 0.01;
-	brlens[1] = 0.02;
-	brlens[2] = 0.03;
-	brlens[3] = 0.04;
-	brlens[4] = 0.05;
+	transition_matrix_index.resize(5);
+	for (unsigned i = 0; i < 5; ++i)
+		{
+		brlens[i] = 0.01;
+		transition_matrix_index[i] = i;
+		}
 
-	for (unsigned i = 0; i < 4; ++i)
+	for (unsigned i = 0; i < ntaxa; ++i)
 		{
 		code = beagleSetTipPartials(
 						instance_handle,			// instance
@@ -253,9 +265,9 @@ double FourTaxonExample::calcLnL()
 	if (code != 0)
 		abort("beagleUpdatePartials encountered a problem");
 
-	int parentBufferIndex = 4;
-	int childBufferIndex  = 5;
-	int transitionMatrixIndex  = 4;
+	int parentBufferIndex = like_parent_index;
+	int childBufferIndex  = like_child_index;
+	int transitionMatrixIndex  = transmat_index;
         
 	double relativeRateProb[nrates];
     for (int i = 0; i < nrates; i++) {
@@ -498,16 +510,23 @@ void FourTaxonExample::run()
 void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
-	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>]\n\n";
-	std::cerr << "If --niters is specified, the MCMC sampler will be run for the specified\n";
-	std::cerr << "number of iterations. The default number of iterations is 10.\n\n";
-	std::cerr << "If --datafile is specified, the file should have the same format as the\n";
-	std::cerr << "(default) data file \"fourtaxon.dat\" and should only contain sequences for\n";
-	std::cerr << " 4 taxa (although the sequences can be of arbitrary length).\n\n";
-	std::cerr << "If --rsrc is specified, the BEAGLE resource specified will be employed.\n\n";
+	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>] [--likeroot <integer>]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
-	std::cerr << "more accurate timing).";
+	std::cerr << "        more accurate timing).\n\n";
+	std::cerr << "If --niters is specified, the MCMC sampler will be run for the specified\n";
+	std::cerr << "        number of iterations. The default number of iterations is 10.\n\n";
+	std::cerr << "If --datafile is specified, the file should have the same format as the\n";
+	std::cerr << "        (default) data file \"fourtaxon.dat\" and should only contain sequences for\n";
+	std::cerr << "        4 taxa (although the sequences can be of arbitrary length).\n\n";
+	std::cerr << "If --rsrc is specified, the BEAGLE resource specified will be employed.\n\n";
+	std::cerr << "If --likeroot is specified, the likelihood will be computed across the\n";
+	std::cerr << "        edge associated with the specified node. The nodes are indexed thusly:\n";
+	std::cerr << "        1          3    If 1, 2, 3 or 4 is specified, the likelihood will   \n";
+	std::cerr << "          \\       /    be computed across the corresponding terminal edge. \n";
+	std::cerr << "           5-----+      If 5 is chosen, the likelihood will be computed     \n";
+	std::cerr << "          /       \\    across the internal edge. Default is 5.             \n";
+	std::cerr << "        2           4                                                       \n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -519,11 +538,10 @@ void FourTaxonExample::interpretCommandLineParameters(
   int argc, 		/**< is the number of command line arguments */
   char* argv[])		/**< is the array of command line arguments */
 	{
-	data_file_name = "fourtaxon.dat";
-	niters = 10;
 	bool expecting_niters = false;
 	bool expecting_filename = false;
 	bool expecting_rsrc_number = false;
+	bool expecting_likerootnode = false;
 	for (unsigned i = 1; i < argc; ++i)
 		{
 		std::string option = argv[i];
@@ -547,6 +565,13 @@ void FourTaxonExample::interpretCommandLineParameters(
 			if (rsrc_number < 0)
 				abort("invalid BEAGLE resource number supplied on the command line");
 			}
+		else if (expecting_likerootnode)
+			{
+			std::cerr << "likeroot option: " << option << std::endl;
+			like_root_node = (unsigned)atoi(option.c_str());
+			std::cerr << "like_root_node = " << like_root_node << std::endl;
+			expecting_likerootnode = false;
+			}
 		else if (option == "--help")
 			{
 			helpMessage();
@@ -554,6 +579,10 @@ void FourTaxonExample::interpretCommandLineParameters(
 		else if (option == "--quiet")
 			{
 			quiet = true;
+			}
+		else if (option == "--likeroot")
+			{
+			expecting_likerootnode = true;
 			}
 		else if (option == "--niters")
 			{
@@ -585,8 +614,44 @@ void FourTaxonExample::interpretCommandLineParameters(
 	if (expecting_rsrc_number)
 		abort("read last command line option without finding value associated with --rsrc");
 	
+	if (expecting_likerootnode)
+		abort("read last command line option without finding value associated with --likeroot");
+	
 	if (niters < 1)
 		abort("invalid number of iterations supplied on the command line");
+		
+	if (like_root_node < 1)
+		abort("invalid node number specified for --likeroot option (should be 1, 2, 3, 4, or 5)");
+		
+	if (like_root_node > 5)
+		abort("invalid node number specified for --likeroot option (should be 1, 2, 3, 4, or 5)");
+		
+	if (like_root_node < 6)	//CHANGE ME BACK TO 5; ONLY SET TO 6 FOR DEBUGGING
+		{
+		//    A(0)     C(2)
+		//      \      /
+		//       4----5
+		//      /      \
+		//    B(1)     D(3)
+		// The user specified a tip node to serve as likelihood root. The specified
+		// node will be considered the child, with the parent being the internal
+		// node to which it is connected.
+		like_child_index = like_root_node - 1;
+		if (like_child_index == 0 || like_child_index == 1)
+			{
+			like_parent_index = 4;
+			}
+		else
+			{
+			like_parent_index = 5;
+			}
+		transmat_index = (like_child_index == 4 ? 4 : like_child_index);
+		std::cerr << "Tip chosen to serve as likelihood root:\n";
+		std::cerr << "  like_root_node     = " << like_root_node << '\n';
+		std::cerr << "  like_parent_index  = " << like_parent_index << '\n';
+		std::cerr << "  like_child_index   = " << like_child_index << '\n';
+		std::cerr << "  transmat_index     = " << transmat_index << '\n';
+		}
 		
 	std::cout << "quiet                = " << (quiet ? "true" : "false") << '\n';
 	std::cout << "number of iterations = " << niters << '\n';
