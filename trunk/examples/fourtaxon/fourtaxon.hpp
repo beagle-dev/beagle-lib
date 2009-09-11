@@ -33,6 +33,10 @@ class FourTaxonExample
 	private:
 		bool						quiet;
 		unsigned 					niters;
+		unsigned 					like_root_node;
+		unsigned 					like_parent_index;
+		unsigned 					like_child_index;
+		unsigned 					transmat_index;
 		std::string					data_file_name;
         bool                        scaling;
 		const unsigned 				ntaxa;
