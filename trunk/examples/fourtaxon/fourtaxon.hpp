@@ -55,4 +55,5 @@ class FourTaxonExample
 		int							instance_handle;
 		int							rsrc_number;
 		bool						use_tip_partials;
+        bool                        accumulate_on_the_fly;
 	};
