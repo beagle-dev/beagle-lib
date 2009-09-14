@@ -72,7 +72,7 @@ double uniform()
 */
 FourTaxonExample::FourTaxonExample()
   : quiet(false)
-  , scaling(true)
+  , scaling(false)
   , ntaxa(4)
   , niters(10)
   , like_root_node(5)
@@ -87,7 +87,7 @@ FourTaxonExample::FourTaxonExample()
   , instance_handle(-1)
   , rsrc_number(BEAGLE_OP_NONE)
   , use_tip_partials(true)
-	{
+    {
 	data_file_name = "fourtaxon.dat";
 	}
 
@@ -170,7 +170,7 @@ void FourTaxonExample::defineOperations()
 			
 			// second cherry uses 0 and 5 to build 4
 			operations.push_back(4);	// destination partial to be calculated
-			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 			operations.push_back(0);	// left child partial index
 			operations.push_back(0);	// left child transition matrix index
@@ -192,7 +192,7 @@ void FourTaxonExample::defineOperations()
 			
 			// second cherry uses 3 and 4 to build 5
 			operations.push_back(5);	// destination partial to be calculated
-			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 			operations.push_back(3);	// left child partial index
 			operations.push_back(3);	// left child transition matrix index
@@ -214,7 +214,7 @@ void FourTaxonExample::defineOperations()
 			
 			// second cherry uses 2 and 4 to build 5
 			operations.push_back(5);	// destination partial to be calculated
-			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 			operations.push_back(2);	// left child partial index
 			operations.push_back(2);	// left child transition matrix index
@@ -236,7 +236,7 @@ void FourTaxonExample::defineOperations()
 			
 			// second cherry uses 2 and 3 to build 5
 			operations.push_back(5);	// destination partial to be calculated
-			operations.push_back(scaling ? 1 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
+			operations.push_back(scaling ? 2 : BEAGLE_OP_NONE);	// destination scaling buffer index to write to
 			operations.push_back(BEAGLE_OP_NONE);	// destination scaling buffer index to read from
 			operations.push_back(2);	// left child partial index
 			operations.push_back(2);	// left child transition matrix index
@@ -397,7 +397,7 @@ double FourTaxonExample::calcLnL()
         
     if (scaling)
         beagleResetScaleFactors(instance_handle, cumulativeScalingFactorIndex);
-
+      
 	code = beagleUpdatePartials(
 		   &instance_handle,	// instance
 		   1,					// instanceCount
@@ -653,7 +653,7 @@ void FourTaxonExample::run()
 void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
-	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>] [--likeroot <integer>]\n\n";
+	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";
@@ -670,6 +670,7 @@ void FourTaxonExample::helpMessage()
 	std::cerr << "           5-----+      If 5 is chosen, the likelihood will be computed     \n";
 	std::cerr << "          /       \\    across the internal edge. Default is 5.             \n";
 	std::cerr << "        2           4                                                       \n\n";
+    std::cerr << "If --scaling is specified, 0 indicates no rescaling, 1 indicates rescaling\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -685,6 +686,7 @@ void FourTaxonExample::interpretCommandLineParameters(
 	bool expecting_filename = false;
 	bool expecting_rsrc_number = false;
 	bool expecting_likerootnode = false;
+    bool expecting_scaling_number = false;
 	for (unsigned i = 1; i < argc; ++i)
 		{
 		std::string option = argv[i];
@@ -715,6 +717,17 @@ void FourTaxonExample::interpretCommandLineParameters(
 			std::cerr << "like_root_node = " << like_root_node << std::endl;
 			expecting_likerootnode = false;
 			}
+        else if (expecting_scaling_number)
+            {
+            std::cerr << "scaling option: " << option << std::endl;
+            int noption = (unsigned)atoi(option.c_str());
+            scaling = false;
+            if (noption == 1)
+                scaling = true;
+            expecting_scaling_number = false;
+            if (noption < 0 || noption > 1)
+                abort("invalid scaling option supplied on the command line");
+             }
 		else if (option == "--help")
 			{
 			helpMessage();
@@ -739,6 +752,10 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			expecting_rsrc_number = true;
 			}
+        else if (option == "--scaling")
+            {
+            expecting_scaling_number = true;
+            }
 		else if (option == "--usetipstates") {
 			use_tip_partials = false;
 			}
@@ -771,6 +788,9 @@ void FourTaxonExample::interpretCommandLineParameters(
 		
 	if (like_root_node > 5)
 		abort("invalid node number specified for --likeroot option (should be 1, 2, 3, 4, or 5)");
+        
+    if (expecting_scaling_number)
+        abort("read last command line options with finding value associated with --scaling");
 
 	// Now that we know what edge will be used for the likelihood calculation, we can
 	// define the operations vector that the library will use to perform updates of partials
