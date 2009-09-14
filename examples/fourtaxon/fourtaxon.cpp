@@ -650,6 +650,12 @@ void FourTaxonExample::run()
 		std::cout.setf(std::ios::showpoint);
 		std::cout.setf(std::ios::floatfield, std::ios::fixed);
 		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length" << std::endl;
+        
+        // Print initial state
+        std::cout << std::setw(12) << 0;
+        std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
+        std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
+        std::cout << std::endl;
 		}
 		
 	for (unsigned rep = 1; rep <= niters; ++rep)
