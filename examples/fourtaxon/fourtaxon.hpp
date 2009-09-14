@@ -52,8 +52,11 @@ class FourTaxonExample
 		std::vector<int>			transition_matrix_index;
 		std::vector<double>			brlens;
 		std::vector<int>			operations;
+        std::vector<int>            scaleIndices;
 		int							instance_handle;
 		int							rsrc_number;
 		bool						use_tip_partials;
         bool                        accumulate_on_the_fly;
+        bool                        dynamic_scaling;
+        bool                        do_rescaling;
 	};

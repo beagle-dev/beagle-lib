@@ -72,7 +72,6 @@ double uniform()
 */
 FourTaxonExample::FourTaxonExample()
   : quiet(false)
-  , scaling(false)
   , ntaxa(4)
   , niters(10)
   , like_root_node(5)
@@ -87,7 +86,9 @@ FourTaxonExample::FourTaxonExample()
   , instance_handle(-1)
   , rsrc_number(BEAGLE_OP_NONE)
   , use_tip_partials(true)
+  , scaling(false)
   , accumulate_on_the_fly(false)
+  , dynamic_scaling(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -374,6 +375,13 @@ void FourTaxonExample::initBeagleLib()
 
 	if (code != 0)
 		abort("beagleSetEigenDecomposition encountered a problem");
+        
+    if (scaling && !accumulate_on_the_fly) {
+        scaleIndices.resize(2);
+        scaleIndices[0] = 1;
+        scaleIndices[1] = 2;
+    }
+            
 	}
 
 /*-----------------------------------------------------------------------------
@@ -396,15 +404,15 @@ double FourTaxonExample::calcLnL()
         
     int cumulativeScalingFactorIndex = (scaling ? 0 : BEAGLE_OP_NONE);
         
-    if (scaling)
+    if (do_rescaling) // Perform rescaling during this likelihood evaluation
         beagleResetScaleFactors(instance_handle, cumulativeScalingFactorIndex);
       
 	code = beagleUpdatePartials(
-		   &instance_handle,	// instance
-		   1,					// instanceCount
-		   &operations[0],		// operations
-		   2,					// operationCount
-           (accumulate_on_the_fly ? 
+		   &instance_handle,                                 // instance
+		   1,                                                // instanceCount
+		   &operations[0],                                   // operations
+		   2,                                                // operationCount
+           (accumulate_on_the_fly ?                          
             cumulativeScalingFactorIndex : BEAGLE_OP_NONE)); // cumulative scale index
 
 	if (code != 0)
@@ -419,15 +427,12 @@ double FourTaxonExample::calcLnL()
         relativeRateProb[i] = 1.0 / nrates;
     }
         
-    if (scaling && !accumulate_on_the_fly) {
-        std::vector<int> scaleIndices(2);
-        scaleIndices[0] = 1;
-        scaleIndices[1] = 2;
+    if (do_rescaling && !accumulate_on_the_fly) { // Accumulate scale factors if not on-the-fly
         code = beagleAccumulateScaleFactors(
-                                            instance_handle,
-                                            &scaleIndices[0],
-                                            2, 
-                                            cumulativeScalingFactorIndex);
+             instance_handle,
+             &scaleIndices[0],
+             2, 
+             cumulativeScalingFactorIndex);
     }
         
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
@@ -451,6 +456,14 @@ double FourTaxonExample::calcLnL()
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
+        
+    if (dynamic_scaling) {
+        operations[1] = BEAGLE_OP_NONE; // Set write scale buffer (op1) to NONE
+        operations[8] = BEAGLE_OP_NONE; // Set write scale buffer (op2) to NONE
+        operations[2] = 1;              // Set read scale buffer (op1)
+        operations[9] = 2;              // Set read scale buffer (op2)
+        do_rescaling = false;           // Turn off calculating of scale factors
+    }
 
 	return std::accumulate(lnL.begin(), lnL.end(), 0.0);
 	}
@@ -685,7 +698,8 @@ void FourTaxonExample::helpMessage()
 	std::cerr << "        2           4                                                       \n\n";
     std::cerr << "If --scaling is specified, 0 = no rescaling,\n";
     std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
-    std::cerr << "                           2 = rescale and accumulate scale factors at once\n\n";
+    std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
+    std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -737,13 +751,19 @@ void FourTaxonExample::interpretCommandLineParameters(
             std::cerr << "scaling option: " << option << std::endl;
             int noption = (unsigned)atoi(option.c_str());
             scaling = false;
-            accumulate_on_the_fly = true;
+            accumulate_on_the_fly = false;
+            do_rescaling = false;                
             if (noption >= 1)
+                {                
                 scaling = true;
-            if (noption == 2)
+                do_rescaling = true;
+                }
+            if (noption >= 2)
                 accumulate_on_the_fly = false;
+            if (noption == 3)                 
+                dynamic_scaling = true;                
             expecting_scaling_number = false;
-            if (noption < 0 || noption > 2)
+            if (noption < 0 || noption > 3)
                 abort("invalid scaling option supplied on the command line");
              }
 		else if (option == "--help")
