@@ -87,6 +87,7 @@ FourTaxonExample::FourTaxonExample()
   , instance_handle(-1)
   , rsrc_number(BEAGLE_OP_NONE)
   , use_tip_partials(true)
+  , accumulate_on_the_fly(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -403,7 +404,8 @@ double FourTaxonExample::calcLnL()
 		   1,					// instanceCount
 		   &operations[0],		// operations
 		   2,					// operationCount
-		   cumulativeScalingFactorIndex); // cumulative scale index
+           (accumulate_on_the_fly ? 
+            cumulativeScalingFactorIndex : BEAGLE_OP_NONE)); // cumulative scale index
 
 	if (code != 0)
 		abort("beagleUpdatePartials encountered a problem");
@@ -415,6 +417,17 @@ double FourTaxonExample::calcLnL()
 	double relativeRateProb[nrates];
     for (int i = 0; i < nrates; i++) {
         relativeRateProb[i] = 1.0 / nrates;
+    }
+        
+    if (scaling && !accumulate_on_the_fly) {
+        std::vector<int> scaleIndices(2);
+        scaleIndices[0] = 1;
+        scaleIndices[1] = 2;
+        code = beagleAccumulateScaleFactors(
+                                            instance_handle,
+                                            &scaleIndices[0],
+                                            2, 
+                                            cumulativeScalingFactorIndex);
     }
         
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
@@ -670,7 +683,9 @@ void FourTaxonExample::helpMessage()
 	std::cerr << "           5-----+      If 5 is chosen, the likelihood will be computed     \n";
 	std::cerr << "          /       \\    across the internal edge. Default is 5.             \n";
 	std::cerr << "        2           4                                                       \n\n";
-    std::cerr << "If --scaling is specified, 0 indicates no rescaling, 1 indicates rescaling\n\n";
+    std::cerr << "If --scaling is specified, 0 = no rescaling,\n";
+    std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
+    std::cerr << "                           2 = rescale and accumulate scale factors at once\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -722,10 +737,13 @@ void FourTaxonExample::interpretCommandLineParameters(
             std::cerr << "scaling option: " << option << std::endl;
             int noption = (unsigned)atoi(option.c_str());
             scaling = false;
-            if (noption == 1)
+            accumulate_on_the_fly = true;
+            if (noption >= 1)
                 scaling = true;
+            if (noption == 2)
+                accumulate_on_the_fly = false;
             expecting_scaling_number = false;
-            if (noption < 0 || noption > 1)
+            if (noption < 0 || noption > 2)
                 abort("invalid scaling option supplied on the command line");
              }
 		else if (option == "--help")
