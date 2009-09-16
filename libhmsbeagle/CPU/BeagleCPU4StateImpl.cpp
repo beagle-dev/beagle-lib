@@ -197,27 +197,7 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
             sum1 +=  m213 * p23;
             sum2 +=  m223 * p23;
             sum3 +=  m233 * p23;
-            
-//            sum0  =  matrices2[w               ] * partials2[v    ];
-//            sum0 +=  matrices2[w            + 1] * partials2[v + 1];
-//            sum0 +=  matrices2[w            + 2] * partials2[v + 2];
-//            sum0 +=  matrices2[w            + 3] * partials2[v + 3];
-//            
-//            sum1  =  matrices2[w + OFFSET*1    ] * partials2[v    ];
-//            sum1 +=  matrices2[w + OFFSET*1 + 1] * partials2[v + 1];
-//            sum1 +=  matrices2[w + OFFSET*1 + 2] * partials2[v + 2];
-//            sum1 +=  matrices2[w + OFFSET*1 + 3] * partials2[v + 3];
-//            
-//            sum2  =  matrices2[w + OFFSET*2    ] * partials2[v    ];
-//            sum2 +=  matrices2[w + OFFSET*2 + 1] * partials2[v + 1];
-//            sum2 +=  matrices2[w + OFFSET*2 + 2] * partials2[v + 2];
-//            sum2 +=  matrices2[w + OFFSET*2 + 3] * partials2[v + 3];
-//            
-//            sum3  =  matrices2[w + OFFSET*3    ] * partials2[v    ];
-//            sum3 +=  matrices2[w + OFFSET*3 + 1] * partials2[v + 1];
-//            sum3 +=  matrices2[w + OFFSET*3 + 2] * partials2[v + 2];
-//            sum3 +=  matrices2[w + OFFSET*3 + 3] * partials2[v + 3];
-            
+                        
             destP[u    ] = matrices1[w            + state1] * sum0;
             destP[u + 1] = matrices1[w + OFFSET*1 + state1] * sum1;
             destP[u + 2] = matrices1[w + OFFSET*2 + state1] * sum2;
@@ -603,37 +583,88 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
         
         const double* partialsChild = gPartials[childIndex];
         int v = 0;
-        
-        for(int l = 0; l < kCategoryCount; l++) {
+        int w = 0;
+        for(int l = 0; l < kCategoryCount; l++) {            
             int u = 0;
             const double weight = wt[l];
+            
+            const double *matrices1 = transMatrix;
+            
+            double m100 = matrices1[w + OFFSET*0 + 0]; // Should we force these into registers?
+            double m101 = matrices1[w + OFFSET*0 + 1];
+            double m102 = matrices1[w + OFFSET*0 + 2];
+            double m103 = matrices1[w + OFFSET*0 + 3];
+            double m110 = matrices1[w + OFFSET*1 + 0];
+            double m111 = matrices1[w + OFFSET*1 + 1];
+            double m112 = matrices1[w + OFFSET*1 + 2];
+            double m113 = matrices1[w + OFFSET*1 + 3];
+            double m120 = matrices1[w + OFFSET*2 + 0];
+            double m121 = matrices1[w + OFFSET*2 + 1];
+            double m122 = matrices1[w + OFFSET*2 + 2];
+            double m123 = matrices1[w + OFFSET*2 + 3];
+            double m130 = matrices1[w + OFFSET*3 + 0];
+            double m131 = matrices1[w + OFFSET*3 + 1];
+            double m132 = matrices1[w + OFFSET*3 + 2];
+            double m133 = matrices1[w + OFFSET*3 + 3];
+            
             for(int k = 0; k < kPatternCount; k++) {                
-                int w = l * kMatrixSize;                 
-                for(int i = 0; i < kStateCount; i++) {
-                    double sumOverJ = 0.0;
-                    for(int j = 0; j < kStateCount; j++) {
-                        sumOverJ += transMatrix[w] * partialsChild[v + j];
-                        w++;
-                    }
-#ifdef PAD_MATRICES
-                    // increment for the extra column at the end
-                    w++;
-#endif
-                    integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
-                    u++;
-                }
-                v += kStateCount;
-            }
+                                 
+                const double* partials1 = partialsChild;
+                
+                double p10 = partials1[v    ];
+                double p11 = partials1[v + 1];
+                double p12 = partials1[v + 2];
+                double p13 = partials1[v + 3];
+                
+                register double sum10, sum11, sum12, sum13;
+                
+                // Do integration
+                sum10  = m100 * p10;
+                sum11  = m110 * p10;
+                sum12  = m120 * p10;
+                sum13  = m130 * p10;
+                
+                sum10 += m101 * p11;
+                sum11 += m111 * p11;
+                sum12 += m121 * p11;
+                sum13 += m131 * p11;
+                
+                sum10 += m102 * p12;
+                sum11 += m112 * p12;
+                sum12 += m122 * p12;
+                sum13 += m132 * p12;
+                
+                sum10 += m103 * p13;
+                sum11 += m113 * p13;
+                sum12 += m123 * p13;
+                sum13 += m133 * p13;
+
+                integrationTmp[u    ] += sum10 * partialsParent[v    ] * weight;
+                integrationTmp[u + 1] += sum11 * partialsParent[v + 1] * weight;
+                integrationTmp[u + 2] += sum12 * partialsParent[v + 2] * weight;
+                integrationTmp[u + 3] += sum13 * partialsParent[v + 3] * weight;
+                
+                u += 4;
+                v += 4;
+            } 
+            w += OFFSET*4;
         }
     }
     
+    register double freq0 = inStateFrequencies[0]; // Is it a good idea to specify 'register'?  
+    register double freq1 = inStateFrequencies[1];
+    register double freq2 = inStateFrequencies[2];
+    register double freq3 = inStateFrequencies[3];
+    
     int u = 0;
     for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI = 0.0;
-        for(int i = 0; i < kStateCount; i++) {
-            sumOverI += inStateFrequencies[i] * integrationTmp[u];
-            u++;
-        }
+        double sumOverI =
+            freq0 * integrationTmp[u    ] +
+            freq1 * integrationTmp[u + 1] +
+            freq2 * integrationTmp[u + 2] +
+            freq3 * integrationTmp[u + 3];
+        
+        u += 4;        
         outLogLikelihoods[k] = log(sumOverI);
     }        
     
