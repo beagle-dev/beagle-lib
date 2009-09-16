@@ -687,7 +687,6 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                double* outFirstDerivatives,
                                                double* outSecondDerivatives) {
     // TODO: implement calculateEdgeLnL for count > 1
-    // TODO: test calculateEdgeLnL when child is of tipStates kind
     // TODO: implement derivatives for calculateEdgeLnL
     // TODO: implement rate categories for calculateEdgeLnL
 

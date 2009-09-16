@@ -107,29 +107,30 @@ void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
                                      const int* states2,
                                      const double* matrices2,
                                      const double* scaleFactors) {
-
+    
     int v = 0;
+    int w = 0;
+    
     for (int l = 0; l < kCategoryCount; l++) {
-
+        
         for (int k = 0; k < kPatternCount; k++) {
-
-            int state1 = states1[k];
-            int state2 = states2[k];
-
-            int w = l * kMatrixSize;
             
+            const int state1 = states1[k];
+            const int state2 = states2[k];
             const double scaleFactor = scaleFactors[k];
-
-            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
-            v++;    w += 5;
-            destP[v] = matrices1[w + state1] * matrices2[w + state2] / scaleFactor;
-            v++;    w += 5;
-
+            
+            destP[v    ] = matrices1[w            + state1] * 
+                           matrices2[w            + state2] / scaleFactor;
+            destP[v + 1] = matrices1[w + OFFSET*1 + state1] * 
+                           matrices2[w + OFFSET*1 + state2] / scaleFactor;
+            destP[v + 2] = matrices1[w + OFFSET*2 + state1] * 
+                           matrices2[w + OFFSET*2 + state2] / scaleFactor;
+            destP[v + 3] = matrices1[w + OFFSET*3 + state1] * 
+                           matrices2[w + OFFSET*3 + state2] / scaleFactor;
+            v += 4;
         }
+        
+        w += OFFSET*4;
     }
 }
 
@@ -236,58 +237,74 @@ void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
                                        const double* partials2,
                                        const double* matrices2,
                                        const double* scaleFactors) {
+    
+    double sum0, sum1, sum2, sum3;
     int u = 0;
     int v = 0;
-
+    int w = 0;
+    
     for (int l = 0; l < kCategoryCount; l++) {
+        
+        // Prefetch matrix 2
+        double m200 = matrices2[w + OFFSET*0 + 0];
+        double m201 = matrices2[w + OFFSET*0 + 1];
+        double m202 = matrices2[w + OFFSET*0 + 2];
+        double m203 = matrices2[w + OFFSET*0 + 3];
+        double m210 = matrices2[w + OFFSET*1 + 0];
+        double m211 = matrices2[w + OFFSET*1 + 1];
+        double m212 = matrices2[w + OFFSET*1 + 2];
+        double m213 = matrices2[w + OFFSET*1 + 3];
+        double m220 = matrices2[w + OFFSET*2 + 0];
+        double m221 = matrices2[w + OFFSET*2 + 1];
+        double m222 = matrices2[w + OFFSET*2 + 2];
+        double m223 = matrices2[w + OFFSET*2 + 3];
+        double m230 = matrices2[w + OFFSET*3 + 0];
+        double m231 = matrices2[w + OFFSET*3 + 1];
+        double m232 = matrices2[w + OFFSET*3 + 2];
+        double m233 = matrices2[w + OFFSET*3 + 3];
+        
         for (int k = 0; k < kPatternCount; k++) {
-
-            int state1 = states1[k];
-
-            int w = l * kMatrixSize;
             
+            const int state1 = states1[k];
             const double scaleFactor = scaleFactors[k];
-
-            destP[u] = matrices1[w + state1];
-
-            double sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum / scaleFactor;    u++;
-
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum / scaleFactor;    u++;
-
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum / scaleFactor;    u++;
-
-            destP[u] = matrices1[w + state1];
-
-            sum = matrices2[w] * partials2[v]; w++;
-            sum +=  matrices2[w] * partials2[v + 1]; w++;
-            sum +=  matrices2[w] * partials2[v + 2]; w++;
-            sum +=  matrices2[w] * partials2[v + 3]; w++;
-            w++; // increment for the extra column at the end
-            destP[u] *= sum / scaleFactor;    u++;
-
+            
+            // Prefetch partials
+            double p20 = partials2[v + 0];
+            double p21 = partials2[v + 1];
+            double p22 = partials2[v + 2];
+            double p23 = partials2[v + 3];
+            
+            sum0  =  m200 * p20;
+            sum1  =  m210 * p20;
+            sum2  =  m220 * p20;
+            sum3  =  m230 * p20;
+            
+            sum0 +=  m201 * p21;
+            sum1 +=  m211 * p21;
+            sum2 +=  m221 * p21;
+            sum3 +=  m231 * p21;
+            
+            sum0 +=  m202 * p22;
+            sum1 +=  m212 * p22;
+            sum2 +=  m222 * p22;
+            sum3 +=  m232 * p22;
+            
+            sum0 +=  m203 * p23;
+            sum1 +=  m213 * p23;
+            sum2 +=  m223 * p23;
+            sum3 +=  m233 * p23;
+                    
+            destP[u    ] = matrices1[w            + state1] * sum0 / scaleFactor;
+            destP[u + 1] = matrices1[w + OFFSET*1 + state1] * sum1 / scaleFactor;
+            destP[u + 2] = matrices1[w + OFFSET*2 + state1] * sum2 / scaleFactor;
+            destP[u + 3] = matrices1[w + OFFSET*3 + state1] * sum3 / scaleFactor;
+            
             v += 4;
-
+            u += 4;
+            
         }
-    }
+        w += OFFSET*4;
+    }   
 }
 
 void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
@@ -395,47 +412,7 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
             sum21 += m213 * p23;
             sum22 += m223 * p23;
             sum23 += m233 * p23;
-            
-//            sum10  = matrices1[w               ] * partials1[v    ];
-//            sum10 += matrices1[w            + 1] * partials1[v + 1];
-//            sum10 += matrices1[w            + 2] * partials1[v + 2];
-//            sum10 += matrices1[w            + 3] * partials1[v + 3];
-//            
-//            sum20  = matrices2[w               ] * partials2[v    ];
-//            sum20 += matrices2[w            + 1] * partials2[v + 1];
-//            sum20 += matrices2[w            + 2] * partials2[v + 2];
-//            sum20 += matrices2[w            + 3] * partials2[v + 3];
-//            
-//            sum11  = matrices1[w + OFFSET*1    ] * partials1[v    ];
-//            sum11 += matrices1[w + OFFSET*1 + 1] * partials1[v + 1];
-//            sum11 += matrices1[w + OFFSET*1 + 2] * partials1[v + 2];
-//            sum11 += matrices1[w + OFFSET*1 + 3] * partials1[v + 3];
-//            
-//            sum21  = matrices2[w + OFFSET*1    ] * partials2[v    ];
-//            sum21 += matrices2[w + OFFSET*1 + 1] * partials2[v + 1];
-//            sum21 += matrices2[w + OFFSET*1 + 2] * partials2[v + 2];
-//            sum21 += matrices2[w + OFFSET*1 + 3] * partials2[v + 3];
-//            
-//            sum12  = matrices1[w + OFFSET*2    ] * partials1[v    ];
-//            sum12 += matrices1[w + OFFSET*2 + 1] * partials1[v + 1];
-//            sum12 += matrices1[w + OFFSET*2 + 2] * partials1[v + 2];
-//            sum12 += matrices1[w + OFFSET*2 + 3] * partials1[v + 3];
-//            
-//            sum22  = matrices2[w + OFFSET*2    ] * partials2[v    ];
-//            sum22 += matrices2[w + OFFSET*2 + 1] * partials2[v + 1];
-//            sum22 += matrices2[w + OFFSET*2 + 2] * partials2[v + 2];
-//            sum22 += matrices2[w + OFFSET*2 + 3] * partials2[v + 3];
-//            
-//            sum13  = matrices1[w + OFFSET*3    ] * partials1[v    ];
-//            sum13 += matrices1[w + OFFSET*3 + 1] * partials1[v + 1];
-//            sum13 += matrices1[w + OFFSET*3 + 2] * partials1[v + 2];
-//            sum13 += matrices1[w + OFFSET*3 + 3] * partials1[v + 3];
-//            
-//            sum23  = matrices2[w + OFFSET*3    ] * partials2[v    ];
-//            sum23 += matrices2[w + OFFSET*3 + 1] * partials2[v + 1];
-//            sum23 += matrices2[w + OFFSET*3 + 2] * partials2[v + 2];
-//            sum23 += matrices2[w + OFFSET*3 + 3] * partials2[v + 3];
-            
+                        
             // Final results
             destP[u    ] = sum10 * sum20;
             destP[u + 1] = sum11 * sum21;
@@ -632,13 +609,13 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
                                              long preferenceFlags,
                                              long requirementFlags) {
 
-	if (stateCount != 4) {
-		return NULL;
+    if (stateCount != 4) {
+        return NULL;
     }
 
-   	BeagleImpl* impl = new BeagleCPU4StateImpl();
+    BeagleImpl* impl = new BeagleCPU4StateImpl();
 
-	try {
+    try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
                                  categoryCount,scaleBufferCount, preferenceFlags, requirementFlags) == 0)
