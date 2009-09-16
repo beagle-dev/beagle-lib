@@ -110,6 +110,11 @@ private:
                                             const double *child1Partials,
                                             const double *child1TransMat,
                                             const double *scaleFactors);
+    
+    inline void integrateOutStatesAndScale(const double* integrationTmp,
+                                           const double* inStateFrequencies,
+                                           const int scalingFactorsIndex,
+                                           double* outLogLikelihoods);
 };
 
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {

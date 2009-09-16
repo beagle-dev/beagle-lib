@@ -77,28 +77,49 @@
     p##num##2 = partials[v + 2]; \
     p##num##3 = partials[v + 3];
 
-#define DO_INTEGRATION(num) \
-    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \ 
-    sum##num##0  = m##num##00 * p##num##0; \
-    sum##num##1  = m##num##10 * p##num##0; \
-    sum##num##2  = m##num##20 * p##num##0; \
-    sum##num##3  = m##num##30 * p##num##0; \
- \
-    sum##num##0 += m##num##01 * p##num##1; \
-    sum##num##1 += m##num##11 * p##num##1; \
-    sum##num##2 += m##num##21 * p##num##1; \
-    sum##num##3 += m##num##31 * p##num##1; \
- \
-    sum##num##0 += m##num##02 * p##num##2; \
-    sum##num##1 += m##num##12 * p##num##2; \
-    sum##num##2 += m##num##22 * p##num##2; \
-    sum##num##3 += m##num##32 * p##num##2; \
- \
-    sum##num##0 += m##num##03 * p##num##3; \
-    sum##num##1 += m##num##13 * p##num##3; \
-    sum##num##2 += m##num##23 * p##num##3; \
-    sum##num##3 += m##num##33 * p##num##3;
+//#define DO_INTEGRATION(num) \
+//    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
+//    sum##num##0  = m##num##00 * p##num##0; \
+//    sum##num##1  = m##num##10 * p##num##0; \
+//    sum##num##2  = m##num##20 * p##num##0; \
+//    sum##num##3  = m##num##30 * p##num##0; \
+// \
+//    sum##num##0 += m##num##01 * p##num##1; \
+//    sum##num##1 += m##num##11 * p##num##1; \
+//    sum##num##2 += m##num##21 * p##num##1; \
+//    sum##num##3 += m##num##31 * p##num##1; \
+// \
+//    sum##num##0 += m##num##02 * p##num##2; \
+//    sum##num##1 += m##num##12 * p##num##2; \
+//    sum##num##2 += m##num##22 * p##num##2; \
+//    sum##num##3 += m##num##32 * p##num##2; \
+// \
+//    sum##num##0 += m##num##03 * p##num##3; \
+//    sum##num##1 += m##num##13 * p##num##3; \
+//    sum##num##2 += m##num##23 * p##num##3; \
+//    sum##num##3 += m##num##33 * p##num##3;
 
+#define DO_INTEGRATION(num) \
+    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
+    sum##num##0  = m##num##00 * p##num##0 + \
+                   m##num##01 * p##num##1 + \
+                   m##num##02 * p##num##2 + \
+                   m##num##03 * p##num##3;  \
+ \
+    sum##num##1  = m##num##10 * p##num##0 + \
+                   m##num##11 * p##num##1 + \
+                   m##num##12 * p##num##2 + \
+                   m##num##13 * p##num##3;  \
+ \
+    sum##num##2  = m##num##20 * p##num##0 + \
+                   m##num##21 * p##num##1 + \
+                   m##num##22 * p##num##2 + \
+                   m##num##23 * p##num##3;  \
+\
+    sum##num##3  = m##num##30 * p##num##0 + \
+                   m##num##31 * p##num##1 + \
+                   m##num##32 * p##num##2 + \
+                   m##num##33 * p##num##3;
 
 using namespace beagle;
 using namespace beagle::cpu;
@@ -334,6 +355,36 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
     }    
 }
 
+void inline BeagleCPU4StateImpl::integrateOutStatesAndScale(const double* integrationTmp,
+                                                            const double* inStateFrequencies,
+                                                            const int scalingFactorsIndex,
+                                                            double* outLogLikelihoods) {
+    
+    register double freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
+    freq0 = inStateFrequencies[0];   
+    freq1 = inStateFrequencies[1];
+    freq2 = inStateFrequencies[2];
+    freq3 = inStateFrequencies[3];
+    
+    int u = 0;
+    for(int k = 0; k < kPatternCount; k++) {
+        double sumOverI =
+        freq0 * integrationTmp[u    ] +
+        freq1 * integrationTmp[u + 1] +
+        freq2 * integrationTmp[u + 2] +
+        freq3 * integrationTmp[u + 3];
+        
+        u += 4;        
+        outLogLikelihoods[k] = log(sumOverI);
+    }        
+        
+    if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+        const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+        for(int k=0; k < kPatternCount; k++)
+            outLogLikelihoods[k] += scalingFactors[k];
+    }             
+}
+
 void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
                                                  const int childIndex,
                                                  const int probIndex,
@@ -357,29 +408,26 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
     memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(double));
     
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
-        
+      
         const int* statesChild = gTipStates[childIndex];    
         int v = 0; // Index for parent partials
-        
+        int w = 0;
         for(int l = 0; l < kCategoryCount; l++) {
             int u = 0; // Index in resulting product-partials (summed over categories)
             const double weight = wt[l];
             for(int k = 0; k < kPatternCount; k++) {
                 
-                const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
-                // so we can interchange the patterCount and categoryCount loop order?
-                int w =  l * kMatrixSize;
-                for(int i = 0; i < kStateCount; i++) {
-                    integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
-                    u++;
-#ifdef PAD_MATRICES
-                    w += (kStateCount + 1);
-#else
-                    w += kStateCount;
-#endif
-                }
-                v += kStateCount;
+                const int stateChild = statesChild[k]; 
+                
+                integrationTmp[u    ] += transMatrix[w            + stateChild] * partialsParent[v    ] * weight;                                               
+                integrationTmp[u + 1] += transMatrix[w + OFFSET*1 + stateChild] * partialsParent[v + 1] * weight;
+                integrationTmp[u + 2] += transMatrix[w + OFFSET*2 + stateChild] * partialsParent[v + 2] * weight;
+                integrationTmp[u + 3] += transMatrix[w + OFFSET*3 + stateChild] * partialsParent[v + 3] * weight;
+                
+                u += 4;
+                v += 4;                
             }
+            w += OFFSET*4;
         }
         
     } else { // Integrate against a partial at the child
@@ -413,29 +461,7 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
         }
     }
     
-    register double freq0 = inStateFrequencies[0]; // Is it a good idea to specify 'register'?  
-    register double freq1 = inStateFrequencies[1];
-    register double freq2 = inStateFrequencies[2];
-    register double freq3 = inStateFrequencies[3];
-    
-    int u = 0;
-    for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI =
-            freq0 * integrationTmp[u    ] +
-            freq1 * integrationTmp[u + 1] +
-            freq2 * integrationTmp[u + 2] +
-            freq3 * integrationTmp[u + 3];
-        
-        u += 4;        
-        outLogLikelihoods[k] = log(sumOverI);
-    }        
-    
-    
-    if (scalingFactorsIndex != BEAGLE_OP_NONE) {
-        const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
-        for(int k=0; k < kPatternCount; k++)
-            outLogLikelihoods[k] += scalingFactors[k];
-    }
+    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
 void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
@@ -444,41 +470,35 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
                                                 const int scalingFactorsIndex,
                                                 double* outLogLikelihoods) {
 
-     // We treat this as a special case so that we don't have convoluted logic
-     //      at the end of the loop over patterns
-     const double* rootPartials = gPartials[bufferIndex];
-     assert(rootPartials);
-     const double* wt = inWeights;
-     int u = 0;
-     int v = 0;
-     for (int k = 0; k < kPatternCount; k++) {
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-        integrationTmp[v] = rootPartials[v] * wt[0]; v++;
-     }
-     for (int l = 1; l < kCategoryCount; l++) {
-         u = 0;
-         for (int k = 0; k < kPatternCount; k++) {
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-             integrationTmp[u] += rootPartials[v] * wt[l]; u++; v++;
-         }
-     }
-     u = 0;
-     for (int k = 0; k < kPatternCount; k++) {
-         double sum = inStateFrequencies[0] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[1] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[2] * integrationTmp[u]; u++;
-         sum += inStateFrequencies[3] * integrationTmp[u]; u++;
-         outLogLikelihoods[k] = log(sum);   // take the log
-     }
-     if (scalingFactorsIndex >=0) {
-         const double *cumulativeScaleFactors = gScaleBuffers[scalingFactorsIndex];
-         for(int k=0; k<kPatternCount; k++)
-             outLogLikelihoods[k] += cumulativeScaleFactors[k];
-     }
+    const double* rootPartials = gPartials[bufferIndex];
+    assert(rootPartials);
+    const double* wt = inWeights;
+    
+    int u = 0;
+    int v = 0;
+    const double wt0 = wt[0];
+    for (int k = 0; k < kPatternCount; k++) {
+        integrationTmp[v    ] = rootPartials[v    ] * wt0;
+        integrationTmp[v + 1] = rootPartials[v + 1] * wt0;
+        integrationTmp[v + 2] = rootPartials[v + 2] * wt0;
+        integrationTmp[v + 3] = rootPartials[v + 3] * wt0;
+        v += 4;
+    }
+    for (int l = 1; l < kCategoryCount; l++) {
+        u = 0;
+        const double wtl = wt[l];
+        for (int k = 0; k < kPatternCount; k++) {
+            integrationTmp[u    ] += rootPartials[v    ] * wtl;
+            integrationTmp[u + 1] += rootPartials[v + 1] * wtl;
+            integrationTmp[u + 2] += rootPartials[v + 2] * wtl;
+            integrationTmp[u + 3] += rootPartials[v + 3] * wtl;
+             
+            u += 4;
+            v += 4;
+        }
+    }
+    
+    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
