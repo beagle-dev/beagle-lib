@@ -670,11 +670,12 @@ int BeagleCPUImpl::removeScaleFactors(const int* scalingIndices,
 }
 
 int BeagleCPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
-    memcpy(gScaleBuffers[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
+    //memcpy(gScaleBuffers[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
+    memset(gScaleBuffers[cumulativeScalingIndex], 0, sizeof(double) * kPatternCount);
     return BEAGLE_SUCCESS;
 }
 
-int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
+int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
                                                const int* firstDerivativeIndices,
@@ -686,20 +687,37 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
                                                double* outSecondDerivatives) {
-    // TODO: implement calculateEdgeLnL for count > 1
-    // TODO: implement derivatives for calculateEdgeLnL
-    // TODO: implement rate categories for calculateEdgeLnL
-
+    // TODO: implement for count > 1 
+    
+    assert(count == 1);
     assert(firstDerivativeIndices == 0L);
     assert(secondDerivativeIndices == 0L);
     assert(outFirstDerivatives == 0L);
     assert(outSecondDerivatives == 0L);
+    
+    if (count == 1) {
+        calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], BEAGLE_OP_NONE, BEAGLE_OP_NONE, inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives, outSecondDerivatives);
+    } else {
+        fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+        
+    return BEAGLE_SUCCESS;    
+}
 
-    assert(count == 1);
-
-    int parIndex = parentBufferIndices[0];
-    int childIndex = childBufferIndices[0];
-    int probIndex = probabilityIndices[0];
+void BeagleCPUImpl::calcEdgeLogLikelihoods(const int parIndex,
+                                           const int childIndex,
+                                           const int probIndex,
+                                           const int firstDerivativeIndex,
+                                           const int secondDerivativeIndex,
+                                           const double* inWeights,
+                                           const double* inStateFrequencies,
+                                           const int scalingFactorsIndex,
+                                           double* outLogLikelihoods,
+                                           double* outFirstDerivatives,
+                                           double* outSecondDerivatives) {
+    // TODO: implement derivatives for calculateEdgeLnL
+    // TODO: implement rate categories for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);
 
@@ -774,13 +792,11 @@ int BeagleCPUImpl::calculateEdgeLogLikelihoods(const int * parentBufferIndices,
     }        
 
     
-    if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
-        const double* scalingFactors = gScaleBuffers[scalingFactorsIndices[0]];
+    if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+        const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
         for(int k=0; k < kPatternCount; k++)
             outLogLikelihoods[k] += scalingFactors[k];
     }
-
-    return BEAGLE_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

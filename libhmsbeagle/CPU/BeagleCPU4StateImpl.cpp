@@ -551,6 +551,100 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
     }    
 }
 
+void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
+                                                 const int childIndex,
+                                                 const int probIndex,
+                                                 const int firstDerivativeIndex,
+                                                 const int secondDerivativeIndex,
+                                                 const double* inWeights,
+                                                 const double* inStateFrequencies,
+                                                 const int scalingFactorsIndex,
+                                                 double* outLogLikelihoods,
+                                                 double* outFirstDerivatives,
+                                                 double* outSecondDerivatives) {
+    // TODO: implement derivatives for calculateEdgeLnL
+    // TODO: implement rate categories for calculateEdgeLnL
+    
+    assert(parIndex >= kTipCount);
+    
+    const double* partialsParent = gPartials[parIndex];
+    const double* transMatrix = gTransitionMatrices[probIndex];
+    const double* wt = inWeights;
+    
+    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(double));
+    
+    if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+        
+        const int* statesChild = gTipStates[childIndex];    
+        int v = 0; // Index for parent partials
+        
+        for(int l = 0; l < kCategoryCount; l++) {
+            int u = 0; // Index in resulting product-partials (summed over categories)
+            const double weight = wt[l];
+            for(int k = 0; k < kPatternCount; k++) {
+                
+                const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
+                // so we can interchange the patterCount and categoryCount loop order?
+                int w =  l * kMatrixSize;
+                for(int i = 0; i < kStateCount; i++) {
+                    integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                    u++;
+#ifdef PAD_MATRICES
+                    w += (kStateCount + 1);
+#else
+                    w += kStateCount;
+#endif
+                }
+                v += kStateCount;
+            }
+        }
+        
+    } else { // Integrate against a partial at the child
+        
+        const double* partialsChild = gPartials[childIndex];
+        int v = 0;
+        
+        for(int l = 0; l < kCategoryCount; l++) {
+            int u = 0;
+            const double weight = wt[l];
+            for(int k = 0; k < kPatternCount; k++) {                
+                int w = l * kMatrixSize;                 
+                for(int i = 0; i < kStateCount; i++) {
+                    double sumOverJ = 0.0;
+                    for(int j = 0; j < kStateCount; j++) {
+                        sumOverJ += transMatrix[w] * partialsChild[v + j];
+                        w++;
+                    }
+#ifdef PAD_MATRICES
+                    // increment for the extra column at the end
+                    w++;
+#endif
+                    integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
+                    u++;
+                }
+                v += kStateCount;
+            }
+        }
+    }
+    
+    int u = 0;
+    for(int k = 0; k < kPatternCount; k++) {
+        double sumOverI = 0.0;
+        for(int i = 0; i < kStateCount; i++) {
+            sumOverI += inStateFrequencies[i] * integrationTmp[u];
+            u++;
+        }
+        outLogLikelihoods[k] = log(sumOverI);
+    }        
+    
+    
+    if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+        const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+        for(int k=0; k < kPatternCount; k++)
+            outLogLikelihoods[k] += scalingFactors[k];
+    }
+}
+
 void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
                                                 const double* inWeights,
                                                 const double* inStateFrequencies,

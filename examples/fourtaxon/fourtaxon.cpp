@@ -624,7 +624,7 @@ void FourTaxonExample::writeData()
 	outf << "  set criterion=likelihood storebrlens;\n";
 	outf << "end;\n\n";
 	outf << "begin trees;\n";
-	outf << "  tree starting = [&U](alga_D86836:0.01, fern_D14882:0.02, (hops_AF206777:0.03, corn_Z11973:0.04):0.05);\n";
+	outf << "  tree starting = [&U](alga_D86836:0.01, fern_D14882:0.01, (hops_AF206777:0.01, corn_Z11973:0.01):0.01);\n";
 	outf << "end;\n\n";
 	outf << "begin paup;\n";
 	outf << "  lset nst=1 basefreq=equal;\n";
