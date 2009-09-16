@@ -78,6 +78,18 @@ private:
                                     const int scalingFactorsIndex,
                                     double* outLogLikelihoods);
     
+    virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
+                                        const int childBufferIndex,
+                                        const int probabilityIndex,
+                                        const int firstDerivativeIndex,
+                                        const int secondDerivativeIndex,
+                                        const double* inWeights,
+                                        const double* inStateFrequencies,
+                                        const int scalingFactorsIndex,
+                                        double* outLogLikelihoods,
+                                        double* outFirstDerivatives,
+                                        double* outSecondDerivatives);
+    
     virtual void calcStatesStatesFixedScaling(double *destP,
                                            const int *child0States,
                                         const double *child0TransMat,
