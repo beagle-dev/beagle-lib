@@ -524,7 +524,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         //              branch.
         
         int indexMaxScale;
-        int maxScaleFactor[kPatternCount];
+		std::vector<int> maxScaleFactor(kPatternCount);
         
         for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
             const int rootPartialIndex = bufferIndices[subsetIndex];
@@ -571,7 +571,7 @@ int BeagleCPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                     }
                     
                     if (subsetIndex != indexMaxScale)
-                        sum *= exp(scaleBufferIndices[k] - maxScaleFactor[k]);
+                        sum *= exp((double)(scaleBufferIndices[k] - maxScaleFactor[k]));
                 }
                 
                 if (subsetIndex == 0)

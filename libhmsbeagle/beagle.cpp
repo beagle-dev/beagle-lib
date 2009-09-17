@@ -30,6 +30,10 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -142,6 +146,20 @@ void __attribute__ ((constructor)) beagle_gnu_init(void) {
 }
 void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
     beagle_library_finalize();
+}
+#endif
+
+#ifdef _WIN32
+BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD fdwReason, LPVOID lpvReserved) {
+    switch (fdwReason) {
+    case DLL_PROCESS_ATTACH:
+		beagle_library_initialize();
+        break;
+    case DLL_PROCESS_DETACH:
+		beagle_library_finalize();
+        break;
+    }
+    return TRUE;
 }
 #endif
 
