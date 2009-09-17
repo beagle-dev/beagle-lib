@@ -1,3 +1,5 @@
+#define STATE_COUNT 4
+
 /*
  *
  * Copyright 2009 Phylogenetic Likelihood Working Group
