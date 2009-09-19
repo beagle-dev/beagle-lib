@@ -37,6 +37,9 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+				Description=""
+				CommandLine=""
+				Outputs=""
 			/>
 			<Tool
 				Name="CUDA Build Rule"

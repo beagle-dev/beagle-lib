@@ -50,6 +50,11 @@ double uniform()
 #	define MASK_31_BITS	0x7FFFFFFF
 
 	unsigned	x, y;
+
+#ifdef _WIN32
+	typedef unsigned __int64 uint64_t;
+#endif
+
 	uint64_t	w;
 
 	w = (uint64_t)A * rnseed;
@@ -339,13 +344,24 @@ void FourTaxonExample::initBeagleLib()
 				abort("beagleSetTipStates encountered a problem");
 			}
 		}
-        
-    double rates[nrates] ;
+
+#ifdef _WIN32
+	std::vector<double> rates(nrates);
+#else
+    double rates[nrates];
+#endif
+
     for (int i = 0; i < nrates; i++) {
         rates[i] = 1.0;
     }
         
-    beagleSetCategoryRates(instance_handle, rates);
+    beagleSetCategoryRates(instance_handle,
+#ifdef _WIN32		
+		&rates[0]
+#else
+		rates
+#endif
+		);
 
 	// JC69 model eigenvector matrix
 	double evec[4 * 4] = {
@@ -422,7 +438,12 @@ double FourTaxonExample::calcLnL()
 	int childBufferIndex  = like_child_index;
 	int transitionMatrixIndex  = transmat_index;
         
+#ifdef _WIN32
+	std::vector<double> relativeRateProb(nrates);
+#else
 	double relativeRateProb[nrates];
+#endif
+
     for (int i = 0; i < nrates; i++) {
         relativeRateProb[i] = 1.0 / nrates;
     }
@@ -446,7 +467,11 @@ double FourTaxonExample::calcLnL()
 		 &transitionMatrixIndex,			// probabilityIndices
 		 NULL,								// firstDerivativeIndices
 		 NULL,								// secondDerivativeIndices
+#ifdef _WIN32
+		 &relativeRateProb[0],
+#else
 		 (const double*)&relativeRateProb,	// weights
+#endif
 		 (const double*)stateFreqs,			// stateFrequencies,
          &cumulativeScalingFactorIndex,
 		 1,									// count
@@ -522,7 +547,7 @@ void FourTaxonExample::readData()
 	std::string sequence;
 	std::ifstream inf(data_file_name.c_str());
 	if(!inf.good())
-		abort("problem reading data file");
+		abort("problem reading data file");	
 	inf >> nsites;	// ntaxa is a constant (4) in this example
 	taxon_name.resize(ntaxa);
 	data.resize(ntaxa);
@@ -859,5 +884,9 @@ int main(
 	FourTaxonExample fourtax;
 	fourtax.interpretCommandLineParameters(argc, argv);
 	fourtax.run();
+#ifdef _WIN32
+	std::cout << "\nPress any key then hit ENTER to continue.\n";
+	char x;
+	std::cin >> x;
+#endif
 	}
-

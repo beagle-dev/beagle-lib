@@ -305,7 +305,7 @@ int main( int argc, const char* argv[] )
     beagleFinalizeInstance(instance);
 
 #ifdef _WIN32
-	std::cout << "Press any key to continue.\n";
+	std::cout << "\nPress any key then hit ENTER to continue.\n";
 	char x;
 	std::cin >> x;
 #endif
