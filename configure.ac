@@ -198,7 +198,7 @@ case $host_os in
   *cygwin*)
   CXXFLAGS+=" -D__int64=\"long long\""
   CFLAGS+=" -D__int64=\"long long\""
-  LDFLAGS+=" -mno-cygwin -Wl,-add-stdcall-alias -shared"
+  LDFLAGS+=" -mno-cygwin -Wl,-add-stdcall-alias -shared -no-undefined"
   AC_SUBST(CXXFLAGS)
   AC_SUBST(CFLAGS)
   AC_SUBST(LDFLAGS)
