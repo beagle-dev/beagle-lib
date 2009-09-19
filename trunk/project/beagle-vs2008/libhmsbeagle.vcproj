@@ -29,6 +29,7 @@
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			CharacterSet="2"
+			ExcludeBuckets="3"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -36,28 +37,32 @@
 				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
-				Name="VCCustomBuildTool"
-				Description=""
-				CommandLine=""
-				Outputs=""
-			/>
-			<Tool
 				Name="CUDA Build Rule"
+				ExecutionBucket="2"
 				Include="&quot;../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
 			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"
+				Name="VCCustomBuildTool"
+				Description=""
+				CommandLine="echo &quot;Starting to combine PTX files.&quot;&#x0D;&#x0A;"
+				Outputs=""
 			/>
 			<Tool
 				Name="VCWebServiceProxyGeneratorTool"
+				ExecutionBucket="4"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
 				Name="VCMIDLTool"
+				ExecutionBucket="5"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				ExecutionBucket="6"
 				Optimization="2"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);./;../../;../../../"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;CUDA"
@@ -71,15 +76,19 @@
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
+				ExecutionBucket="7"
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				ExecutionBucket="8"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
+				ExecutionBucket="9"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				ExecutionBucket="10"
 				AdditionalDependencies="cudart.lib cutil32D.lib cuda.lib"
 				OutputFile="$(OutDir)\$(ProjectName).dll"
 				LinkIncremental="1"
@@ -93,25 +102,31 @@
 			/>
 			<Tool
 				Name="VCALinkTool"
+				ExecutionBucket="11"
 			/>
 			<Tool
 				Name="VCManifestTool"
+				ExecutionBucket="12"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
+				ExecutionBucket="13"
 			/>
 			<Tool
 				Name="VCBscMakeTool"
+				ExecutionBucket="14"
 			/>
 			<Tool
 				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
+				ExecutionBucket="15"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
 				CommandLine="IF EXIST cg_variables.h move cg_variables.h $(ConfigurationName)\"
+				ExecutionBucket="16"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
 			/>
 		</Configuration>
 		<Configuration
@@ -121,6 +136,7 @@
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			CharacterSet="2"
+			ExcludeBuckets="3"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -128,25 +144,32 @@
 				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
 				Name="CUDA Build Rule"
+				ExecutionBucket="2"
 				Include="&quot;../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
 			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"
+				Name="VCCustomBuildTool"
+				Description=""
+				CommandLine=""
+				Outputs=""
 			/>
 			<Tool
 				Name="VCWebServiceProxyGeneratorTool"
+				ExecutionBucket="4"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
 				Name="VCMIDLTool"
+				ExecutionBucket="5"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				ExecutionBucket="6"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);./;../../;../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA"
 				RuntimeLibrary="0"
@@ -157,19 +180,23 @@
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
+				ExecutionBucket="7"
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				ExecutionBucket="8"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
+				ExecutionBucket="9"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				ExecutionBucket="10"
 				AdditionalDependencies="cudart.lib cutil32.lib cuda.lib"
-				OutputFile="../../lib/win32/$(ConfigurationName)/libhmsbeagle.dll"
+				OutputFile="$(OutDir)\$(ProjectName).dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;$(CUDA_LIB_PATH)&quot;;&quot;$(NVSDKCUDA_ROOT)\common\lib&quot;"
+				AdditionalLibraryDirectories="&quot;$(CUDA_LIB_PATH)&quot;;&quot;$(CUDA_SDK_PATH)\common\lib&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -180,25 +207,31 @@
 			/>
 			<Tool
 				Name="VCALinkTool"
+				ExecutionBucket="11"
 			/>
 			<Tool
 				Name="VCManifestTool"
+				ExecutionBucket="12"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
+				ExecutionBucket="13"
 			/>
 			<Tool
 				Name="VCBscMakeTool"
+				ExecutionBucket="14"
 			/>
 			<Tool
 				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
+				ExecutionBucket="15"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
 				CommandLine="IF EXIST cg_variables.h move cg_variables.h $(ConfigurationName)\"
+				ExecutionBucket="16"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
 			/>
 		</Configuration>
 		<Configuration
@@ -208,6 +241,7 @@
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			CharacterSet="2"
+			ExcludeBuckets="3"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -215,25 +249,31 @@
 				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
 				Name="CUDA Build Rule"
+				ExecutionBucket="2"
 				Include="&quot;../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
 			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"
+				Name="VCCustomBuildTool"
+				Description="Combined PTX files into single header"
+				CommandLine="echo &quot;Starting to combine PTX files.&quot;&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCWebServiceProxyGeneratorTool"
+				ExecutionBucket="4"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
 				Name="VCMIDLTool"
+				ExecutionBucket="5"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				ExecutionBucket="6"
 				Optimization="0"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);./;../../;../../../"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;CUDA"
@@ -247,15 +287,19 @@
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
+				ExecutionBucket="7"
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				ExecutionBucket="8"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
+				ExecutionBucket="9"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				ExecutionBucket="10"
 				AdditionalDependencies="cudart.lib cutil32D.lib cuda.lib"
 				OutputFile="../../lib/win32/$(ConfigurationName)/libhmsbeagle.dll"
 				LinkIncremental="1"
@@ -269,25 +313,31 @@
 			/>
 			<Tool
 				Name="VCALinkTool"
+				ExecutionBucket="11"
 			/>
 			<Tool
 				Name="VCManifestTool"
+				ExecutionBucket="12"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
+				ExecutionBucket="13"
 			/>
 			<Tool
 				Name="VCBscMakeTool"
+				ExecutionBucket="14"
 			/>
 			<Tool
 				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
+				ExecutionBucket="15"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
 				CommandLine="IF EXIST cg_variables.h move cg_variables.h $(ConfigurationName)\"
+				ExecutionBucket="16"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
 			/>
 		</Configuration>
 		<Configuration
@@ -297,6 +347,7 @@
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			CharacterSet="2"
+			ExcludeBuckets="3"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -304,25 +355,31 @@
 				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
 				Name="CUDA Build Rule"
+				ExecutionBucket="2"
 				Include="&quot;../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
 			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"
+				Name="VCCustomBuildTool"
+				Description=""
+				CommandLine="echo &quot;Starting to combine PTX files.&quot;&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCWebServiceProxyGeneratorTool"
+				ExecutionBucket="4"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
 				Name="VCMIDLTool"
+				ExecutionBucket="5"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				ExecutionBucket="6"
 				Optimization="0"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);./;../../;../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA"
@@ -334,15 +391,19 @@
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
+				ExecutionBucket="7"
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				ExecutionBucket="8"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
+				ExecutionBucket="9"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				ExecutionBucket="10"
 				AdditionalDependencies="cudart.lib cutil32.lib cuda.lib"
 				OutputFile="../../lib/win32/$(ConfigurationName)/libhmsbeagle.dll"
 				LinkIncremental="1"
@@ -357,25 +418,31 @@
 			/>
 			<Tool
 				Name="VCALinkTool"
+				ExecutionBucket="11"
 			/>
 			<Tool
 				Name="VCManifestTool"
+				ExecutionBucket="12"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
+				ExecutionBucket="13"
 			/>
 			<Tool
 				Name="VCBscMakeTool"
+				ExecutionBucket="14"
 			/>
 			<Tool
 				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
+				ExecutionBucket="15"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
 				CommandLine="IF EXIST cg_variables.h move cg_variables.h $(ConfigurationName)\"
+				ExecutionBucket="16"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
 			/>
 		</Configuration>
 		<Configuration
