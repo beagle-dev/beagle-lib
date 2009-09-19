@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <iostream>
 
+#ifdef _WIN32
+	#include <vector>
+#endif
+
 #include "libhmsbeagle/beagle.h"
 
 char *human = (char*)"AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
@@ -84,6 +88,8 @@ double* getPartials(char *sequence) {
 	}
 	return partials;
 }
+
+#include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
 
 int main( int argc, const char* argv[] )
 {
@@ -185,18 +191,26 @@ int main( int argc, const char* argv[] )
 	beagleSetTipPartials(instance, 1, chimpPartials);
 	beagleSetTipPartials(instance, 2, gorillaPartials);
     
+#ifdef _WIN32
+	std::vector<double> rates(rateCategoryCount);
+#else
 	double rates[rateCategoryCount];
+#endif
     for (int i = 0; i < rateCategoryCount; i++) {
         rates[i] = 1.0;
     }
     
-	beagleSetCategoryRates(instance, rates);
+	beagleSetCategoryRates(instance, &rates[0]);
 	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
     
     // create an array containing site category weights
+#ifdef _WIN32
+	std::vector<double> weights(rateCategoryCount);
+#else
 	double weights[rateCategoryCount];
+#endif
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     }    
@@ -269,7 +283,7 @@ int main( int argc, const char* argv[] )
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
-	                            weights,                // weights
+	                            &weights[0],                // weights
 	                            freqs,                  // stateFrequencies
                                 &cumulativeScalingIndex,// cumulative scaling index
 	                            1,                      // count
@@ -289,5 +303,11 @@ int main( int argc, const char* argv[] )
 	free(gorillaPartials);
     
     beagleFinalizeInstance(instance);
+
+#ifdef _WIN32
+	std::cout << "Press any key to continue.\n";
+	char x;
+	std::cin >> x;
+#endif
     
 }
