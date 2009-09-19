@@ -20,6 +20,17 @@ string escape( string& s, char c )
 	return output;
 }
 
+string LFCR(string& s) {
+	string output;
+	string::size_type prev = 0;
+	for( string::size_type cur = s.find('\r'); cur != string::npos; cur = s.find('\r',prev) ) {
+		output += s.substr(prev,cur-prev) + "\\n";
+		prev = cur+1;
+	}
+	output += s.substr(prev);
+	return output;
+}
+
 int main(int argc, char* argv[])
 {
 	if(argc != 4){
@@ -39,6 +50,7 @@ int main(int argc, char* argv[])
 	while( getline( infile, cur_line ) ){
 		cur_line = escape(cur_line, '\\');
 		cur_line = escape(cur_line, '"');
+		cur_line = LFCR(cur_line);
 		charCount += cur_line.size();
 		if(charCount > 60000){
 			// start a new constant variable to circumvent
