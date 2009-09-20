@@ -44,34 +44,25 @@ class BeagleCPU4StateImpl : public BeagleCPUImpl {
 public:
     virtual ~BeagleCPU4StateImpl();
 
-private:
+protected:
     virtual void calcStatesStates(double* destP,
                                     const int* states1,
                                     const double* matrices1,
                                     const int* states2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
-
+                                    const double* matrices2);
+    
     virtual void calcStatesPartials(double* destP,
                                     const int* states1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
-
+                                    const double* matrices2);
+    
     virtual void calcPartialsPartials(double* destP,
                                     const double* partials1,
                                     const double* matrices1,
                                     const double* partials2,
-                                    const double* matrices2);//,
-//                                    const double* scalingFactors,
-//                                    const double* cumulativeScalingBuffer,
-//                                    int rescale );
-
+                                    const double* matrices2);
+    
     virtual void calcRootLogLikelihoods(const int bufferIndex,
                                     const double* inWeights,
                                     const double* inStateFrequencies,
@@ -105,7 +96,7 @@ private:
                                           const double *scaleFactors);
 
     virtual void calcPartialsPartialsFixedScaling(double *destP,
-                                            const double *child0States,
+                                            const double *child0Partials,
                                             const double *child0TransMat,
                                             const double *child1Partials,
                                             const double *child1TransMat,

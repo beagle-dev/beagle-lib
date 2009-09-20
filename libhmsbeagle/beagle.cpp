@@ -24,8 +24,10 @@
  * @author Marc Suchard
  * @author Daniel Ayres
  * @author Aaron Darling
- * 
  */
+
+//#define EXPERIMENTAL
+
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
@@ -52,6 +54,10 @@
 #endif
 #include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
+
+#if defined(EXPERIMENTAL)
+    #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
+#endif
 
 typedef std::list< std::pair<int,int> > PairedList;
 
@@ -87,6 +93,9 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 #if defined(CUDA) || defined(OPENCL)
 		if (rsrcList->length > 1)
 			implFactory->push_back(new beagle::gpu::BeagleGPUImplFactory());
+#endif
+#if defined(EXPERIMENTAL)
+        implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory());
 #endif
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory());
