@@ -95,22 +95,46 @@ void runBeagle(int resource,
         weights[i] = 1.0/rateCategoryCount;
     } 
 
-	// an eigen decomposition for the Generalized JC69 model
-    // See Suchard (2005) Genetics for a derivation of the eigendecomposition
-    // My decomposition for stateCount == 4 differs!  Need to figure out what is going on...
-	double evec[4 * 4] = {
-		 1.0,  2.0,  0.0,  0.5,
-		 1.0,  -2.0,  0.5,  0.0,
-		 1.0,  2.0, 0.0,  -0.5,
-		 1.0,  -2.0,  -0.5,  0.0
-	};
-
-	double ivec[4 * 4] = {
-		 0.25,  0.25,  0.25,  0.25,
-		 0.125,  -0.125,  0.125,  -0.125,
-		 0.0,  1.0,  0.0,  -1.0,
-		 1.0,  0.0,  -1.0,  0.0
-	};
+	// an eigen decomposition for the general state-space JC69 model
+    // If stateCount (n) is a power-of-two, then Hadamard matrix H_n describes
+    // the eigendecomposition of the infinitesimal rate matrix
+     
+    double* Hn = (double*)malloc(sizeof(double)*4);
+    Hn[0] = 1.0; Hn[1] = 1.0; Hn[2] = 1.0; Hn[3] = -1.0; // H_2
+ 
+    for (int n=4; n <= stateCount; n <<= 1) {
+        int oldn = n >> 1;
+        double* Hold = Hn;
+        Hn = (double*)malloc(sizeof(double)*n*n);
+        // H_n = H_2 (Kronecker product) H_{n-1}
+        for (int i=0; i<oldn; i++) {
+            for (int j=i; j<oldn; j++) {
+                double Hijold = Hold[i*oldn + j];
+                Hn[i       *n + j       ] =  Hijold;
+                Hn[i       *n + j + oldn] =  Hijold;
+                Hn[(i+oldn)*n + j       ] =  Hijold;
+                Hn[(i+oldn)*n + j + oldn] = -Hijold;
+                
+                Hn[j       *n + i       ] = Hn[i       *n + j       ];
+                Hn[j       *n + i + oldn] = Hn[i       *n + j + oldn];
+                Hn[(j+oldn)*n + i       ] = Hn[(i+oldn)*n + j       ];
+                Hn[(j+oldn)*n + i + oldn] = Hn[(i+oldn)*n + j + oldn];
+                
+                
+            }
+        }
+        free(Hold);        
+    }
+    double* evec = Hn;
+    
+    // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+    double ivec[stateCount * stateCount];
+    for (int i=0; i<stateCount; i++) {
+        for (int j=i; j<stateCount; j++) {
+            ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
+            ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+        }
+    }
 
     double eval[stateCount];
     eval[0] = 0.0;
@@ -278,12 +302,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	if (expecting_rateCategoryCount)
 		abort("read last command line option without finding value associated with --rates");
 	
-//	if (*stateCount < 2)
-//		abort("invalid number of states supplied on the command line");
-    
-    if (*stateCount != 4)
-		abort("invalid number of states supplied on the command line (only currently DNA supported)");
-    
+	if (*stateCount < 2 || 
+        (*stateCount & (*stateCount-1)) != 0)
+		abort("invalid number of states (must be a power-of-two) supplied on the command line");
+        
 	if (*ntaxa < 2)
 		abort("invalid number of taxa supplied on the command line");
       
