@@ -96,34 +96,27 @@ void runBeagle(int resource,
     } 
 
 	// an eigen decomposition for the general state-space JC69 model
-    // If stateCount (n) is a power-of-two, then Hadamard matrix H_n describes
+    // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
     // the eigendecomposition of the infinitesimal rate matrix
      
-    double* Hn = (double*)malloc(sizeof(double)*4);
-    Hn[0] = 1.0; Hn[1] = 1.0; Hn[2] = 1.0; Hn[3] = -1.0; // H_2
+    double* Hn = (double*)malloc(sizeof(double)*stateCount*stateCount);
+    Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
+    Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
  
-    for (int n=4; n <= stateCount; n <<= 1) {
-        int oldn = n >> 1;
-        double* Hold = Hn;
-        Hn = (double*)malloc(sizeof(double)*n*n);
-        // H_n = H_2 (Kronecker product) H_{n-1}
-        for (int i=0; i<oldn; i++) {
-            for (int j=i; j<oldn; j++) {
-                double Hijold = Hold[i*oldn + j];
-                Hn[i       *n + j       ] =  Hijold;
-                Hn[i       *n + j + oldn] =  Hijold;
-                Hn[(i+oldn)*n + j       ] =  Hijold;
-                Hn[(i+oldn)*n + j + oldn] = -Hijold;
+    for (int k=2; k < stateCount; k <<= 1) {
+        // H_n = H_1 (Kronecker product) H_{n-1}
+        for (int i=0; i<k; i++) {
+            for (int j=i; j<k; j++) {
+                double Hijold = Hn[i*stateCount + j];
+                Hn[i    *stateCount + j + k] =  Hijold;
+                Hn[(i+k)*stateCount + j    ] =  Hijold;
+                Hn[(i+k)*stateCount + j + k] = -Hijold;
                 
-                Hn[j       *n + i       ] = Hn[i       *n + j       ];
-                Hn[j       *n + i + oldn] = Hn[i       *n + j + oldn];
-                Hn[(j+oldn)*n + i       ] = Hn[(i+oldn)*n + j       ];
-                Hn[(j+oldn)*n + i + oldn] = Hn[(i+oldn)*n + j + oldn];
-                
-                
+                Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
+                Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
+                Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
             }
-        }
-        free(Hold);        
+        }        
     }
     double* evec = Hn;
     
@@ -229,6 +222,7 @@ void runBeagle(int resource,
 	double timediff =  end.tv_sec - start.tv_sec + (double)(end.tv_usec-start.tv_usec)/1000000.0;
 	std::cout << "Took " << timediff << " seconds\n\n";
 	beagleFinalizeInstance(instance);
+    free(evec);
 }
 
 void abort(std::string msg) {
