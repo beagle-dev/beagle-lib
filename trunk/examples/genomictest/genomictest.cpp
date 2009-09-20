@@ -10,11 +10,6 @@
 #include <sys/time.h>
 #include "libhmsbeagle/beagle.h"
 
-int ntaxa = 29;
-int nsites = 10000;
-
-
-
 double* getRandomTipPartials( int nsites, int stateCount )
 {
 	double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
@@ -27,14 +22,13 @@ double* getRandomTipPartials( int nsites, int stateCount )
 }
 
 
-void runBeagle(int resource)
+void runBeagle(int resource, 
+               int stateCount, 
+               int ntaxa, 
+               int nsites, 
+               bool scaling, 
+               int rateCategoryCount)
 {
-    bool scaling = true;
-    
-    // is nucleotides...
-    int stateCount = 4;
-    
-    int rateCategoryCount = 4;
     
     int scaleCount = (scaling ? ntaxa : 0);
 
@@ -90,7 +84,10 @@ void runBeagle(int resource)
 	beagleSetCategoryRates(instance, rates);
 	
     // create base frequency array
-	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+    double freqs[stateCount];
+    for (int i=0; i<stateCount; i++) {
+        freqs[i] = 1.0 / stateCount;
+    }
 
     // create an array containing site category weights
 	double weights[rateCategoryCount];
@@ -98,7 +95,9 @@ void runBeagle(int resource)
         weights[i] = 1.0/rateCategoryCount;
     } 
 
-	// an eigen decomposition for the JC69 model
+	// an eigen decomposition for the Generalized JC69 model
+    // See Suchard (2005) Genetics for a derivation of the eigendecomposition
+    // My decomposition for stateCount == 4 differs!  Need to figure out what is going on...
 	double evec[4 * 4] = {
 		 1.0,  2.0,  0.0,  0.5,
 		 1.0,  -2.0,  0.5,  0.0,
@@ -113,7 +112,11 @@ void runBeagle(int resource)
 		 1.0,  0.0,  -1.0,  0.0
 	};
 
-	double eval[4] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333 };
+    double eval[stateCount];
+    eval[0] = 0.0;
+    for (int i=1; i<stateCount; i++) {
+        eval[i] = -stateCount / (stateCount - 1.0);
+    }
 
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -204,16 +207,128 @@ void runBeagle(int resource)
 	beagleFinalizeInstance(instance);
 }
 
+void abort(std::string msg) {
+	std::cerr << msg << "\nAborting..." << std::endl;
+	std::exit(1);
+}
+
+void helpMessage() {
+	std::cerr << "Usage:\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale]\n\n";
+    std::cerr << "If --help is specified, this usage message is shown\n\n";
+    std::cerr << "If --scale is specified, BEAGLE will rescale the partials during computation\n\n";
+	std::exit(0);
+}
+
+
+void interpretCommandLineParameters(int argc, const char* argv[],
+                                    int* stateCount,
+                                    int* ntaxa,
+                                    int* nsites,
+                                    bool* scaling,
+                                    int* rateCategoryCount)	{
+    bool expecting_stateCount = false;
+	bool expecting_ntaxa = false;
+	bool expecting_nsites = false;
+	bool expecting_rateCategoryCount = false;
+	
+    for (unsigned i = 1; i < argc; ++i) {
+		std::string option = argv[i];
+        
+        if (expecting_stateCount) {
+            *stateCount = (unsigned)atoi(option.c_str());
+            expecting_stateCount = false;
+        } else if (expecting_ntaxa) {
+            *ntaxa = (unsigned)atoi(option.c_str());
+            expecting_ntaxa = false;
+        } else if (expecting_nsites) {
+            *nsites = (unsigned)atoi(option.c_str());
+            expecting_nsites = false;
+        } else if (expecting_rateCategoryCount) {
+            *rateCategoryCount = (unsigned)atoi(option.c_str());
+            expecting_rateCategoryCount = false;
+        } else if (option == "--help") {
+			helpMessage();
+        } else if (option == "--scale") {
+            *scaling = true;
+        } else if (option == "--states") {
+            expecting_stateCount = true;
+        } else if (option == "--taxa") {
+            expecting_ntaxa = true;
+        } else if (option == "--sites") {
+            expecting_nsites = true;
+        } else if (option == "--rates") {
+            expecting_rateCategoryCount = true;
+        } else {
+			std::string msg("Unknown command line parameter \"");
+			msg.append(option);			
+			abort(msg.c_str());
+        }
+    }
+    
+	if (expecting_stateCount)
+		abort("read last command line option without finding value associated with --states");
+    
+	if (expecting_ntaxa)
+		abort("read last command line option without finding value associated with --taxa");
+    
+	if (expecting_nsites)
+		abort("read last command line option without finding value associated with --sites");
+	
+	if (expecting_rateCategoryCount)
+		abort("read last command line option without finding value associated with --rates");
+	
+//	if (*stateCount < 2)
+//		abort("invalid number of states supplied on the command line");
+    
+    if (*stateCount != 4)
+		abort("invalid number of states supplied on the command line (only currently DNA supported)");
+    
+	if (*ntaxa < 2)
+		abort("invalid number of taxa supplied on the command line");
+      
+	if (*nsites < 1)
+		abort("invalid number of sites supplied on the command line");
+    
+    if (*rateCategoryCount < 1) {
+        abort("invalid number of rates supplied on the command line");
+    }
+}
+
 int main( int argc, const char* argv[] )
 {
-	std::cout << "Simulating genomic DNA with " << ntaxa << " taxa and " << nsites << " site patterns\n";
+    // Default values
+    int stateCount = 4;
+    int ntaxa = 29;
+    int nsites = 10000;
+    bool scaling = false;
+    int rateCategoryCount = 4;
+    
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &scaling, &rateCategoryCount);
+    
+	std::cout << "Simulating genomic ";
+    if (stateCount == 4)
+        std::cout << "DNA";
+    else
+        std::cout << stateCount << "-state data";
+    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns\n";
 
 	BeagleResourceList* rl = beagleGetResourceList();
 	if(rl != NULL){
 		for(int i=0; i<rl->length; i++){
-			runBeagle(i);
+			runBeagle(i,
+                      stateCount,
+                      ntaxa,
+                      nsites,
+                      scaling,
+                      rateCategoryCount);                      
 		}
 	}else{
-		runBeagle(NULL);
+		runBeagle(NULL,
+                  stateCount,
+                  ntaxa,
+                  nsites,
+                  scaling,
+                  rateCategoryCount);
 	}
 }
