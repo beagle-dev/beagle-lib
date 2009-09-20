@@ -92,6 +92,7 @@ FourTaxonExample::FourTaxonExample()
   , rsrc_number(BEAGLE_OP_NONE)
   , use_tip_partials(true)
   , scaling(false)
+  , do_rescaling(false)
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
     {
