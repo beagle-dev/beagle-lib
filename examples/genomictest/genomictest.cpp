@@ -17,7 +17,7 @@ int nsites = 10000;
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
-	double *partials = (double*) malloc(sizeof(double) * nsites * stateCount);
+	double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
 	for( int i=0; i<nsites*stateCount; i+=stateCount )
 	{
 		int s = rand()%stateCount;
@@ -124,15 +124,6 @@ void runBeagle(int resource)
 	double* edgeLengths = new double[ntaxa*2-2];
 	for(int i=0; i<ntaxa*2-2; i++) edgeLengths[i]=0.1;
 
-    // tell BEAGLE to populate the transition matrices for the above edge lengths
-	beagleUpdateTransitionMatrices(instance,     // instance
-	                         0,             // eigenIndex
-	                         nodeIndices,   // probabilityIndices
-	                         NULL,          // firstDerivativeIndices
-	                         NULL,          // secondDervativeIndices
-	                         edgeLengths,   // edgeLengths
-	                         ntaxa*2-2);            // count
-
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 	int* operations = new int[(ntaxa-1)*BEAGLE_OP_COUNT];
@@ -154,6 +145,15 @@ void runBeagle(int resource)
     // start timing!
 	struct timeval start, end;
 	gettimeofday(&start,NULL);
+    
+    // tell BEAGLE to populate the transition matrices for the above edge lengths
+	beagleUpdateTransitionMatrices(instance,     // instance
+                                   0,             // eigenIndex
+                                   nodeIndices,   // probabilityIndices
+                                   NULL,          // firstDerivativeIndices
+                                   NULL,          // secondDervativeIndices
+                                   edgeLengths,   // edgeLengths
+                                   ntaxa*2-2);            // count    
 
     // update the partials
 	beagleUpdatePartials( &instance,      // instance
@@ -179,7 +179,6 @@ void runBeagle(int resource)
                                scalingFactorsCount,
                                cumulativeScalingFactorIndex);
     }
-
     
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
