@@ -330,7 +330,7 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     
     kInitialized = 1;
     
-#if BEAGLE_DEBUG_VALUES
+#ifdef BEAGLE_DEBUG_VALUES
     gpu->Synchronize();
     int usedMemory = availableMem - gpu->GetAvailableMemory();
     fprintf(stderr, "actual used memory: %d\n", usedMemory);

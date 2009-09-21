@@ -574,5 +574,80 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
     __syncthreads();
 }
 
+
+/*
+ * Find a scaling factor for each pattern and accumulate into buffer
+ */
+__global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
+                                                       REAL* scalingFactors,
+                                                       REAL* cumulativeScaling,
+                                                       int matrixCount) {
+    int state = threadIdx.x;
+    int matrix = threadIdx.y;
+    int pattern = blockIdx.x;
+    int patternCount = gridDim.x;
+
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24(PADDED_STATE_COUNT, patternCount));
+
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE > matrixCount; FIX!!!
+    __shared__ REAL partials[MATRIX_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    __shared__ REAL max;
+
+    if (matrix < matrixCount)
+        partials[matrix][state] = allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern *
+                                              PADDED_STATE_COUNT + state];
+    else
+        partials[matrix][state] = 0;
+
+    __syncthreads();
+  
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO        
+            REAL compare1 = partials[matrix][state];
+            REAL compare2 = partials[matrix][state + i];
+            if (compare2 > compare1)
+            partials[matrix][state] = compare2;
+        }
+        __syncthreads();
+    }
+
+    if (state == 0 && matrix == 0) {
+        max = 0;
+        int m;
+        for(m = 0; m < matrixCount; m++) {
+            if (partials[m][0] > max)
+                max = partials[m][0];
+        }
+        
+        if (max == 0)
+        	max = 1.0;
+
+#ifdef LSCALER
+        REAL logMax = log(max);
+        scalingFactors[pattern] = logMax;
+        cumulativeScaling[pattern] += logMax;
+#else
+        scalingFactors[pattern] = max; // TODO: These are incoherent memory writes!!!
+        cumulativeScaling[pattern] += log(max);
+#endif
+
+    }
+
+    __syncthreads();
+
+    if (matrix < matrixCount)
+        allPartials[matrix * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
+                    state] /= max;
+
+    __syncthreads();
+}
+
 } // extern "C"
 
