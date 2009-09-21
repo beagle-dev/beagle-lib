@@ -783,7 +783,7 @@ void FourTaxonExample::interpretCommandLineParameters(
             std::cerr << "scaling option: " << option << std::endl;
             int noption = (unsigned)atoi(option.c_str());
             scaling = false;
-            accumulate_on_the_fly = false;
+            accumulate_on_the_fly = true;
             do_rescaling = false;                
             if (noption >= 1)
                 {                
