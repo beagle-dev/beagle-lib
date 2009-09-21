@@ -163,8 +163,8 @@ void runBeagle(int resource,
 	int rootIndex = ntaxa*2-2;
 
     // start timing!
-	struct timeval start, end;
-	gettimeofday(&start,NULL);
+	struct timeval time1, time2, time3;
+	gettimeofday(&time1,NULL);
     
     // tell BEAGLE to populate the transition matrices for the above edge lengths
 	beagleUpdateTransitionMatrices(instance,     // instance
@@ -175,6 +175,8 @@ void runBeagle(int resource,
                                    edgeLengths,   // edgeLengths
                                    ntaxa*2-2);            // count    
 
+    gettimeofday(&time2, NULL);
+    
     // update the partials
 	beagleUpdatePartials( &instance,      // instance
 	                1,              // instanceCount
@@ -210,7 +212,7 @@ void runBeagle(int resource,
 	                            patternLogLik);         // outLogLikelihoods
 
 	// end timing!
-	gettimeofday(&end,NULL);
+	gettimeofday(&time3,NULL);
 
 	double logL = 0.0;
 	for (int i = 0; i < nsites; i++) {
@@ -219,8 +221,10 @@ void runBeagle(int resource,
 
 
 	fprintf(stdout, "logL = %.5f \n", logL);
-	double timediff =  end.tv_sec - start.tv_sec + (double)(end.tv_usec-start.tv_usec)/1000000.0;
-	std::cout << "Took " << timediff << " seconds\n\n";
+	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
+    double timediff2 =  time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
+	std::cout << "Took " << timediff1 << " and\n";
+    std::cout << "     " << timediff2 << " seconds\n\n";
 	beagleFinalizeInstance(instance);
     free(evec);
 }

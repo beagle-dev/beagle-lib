@@ -176,7 +176,7 @@ __global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
         i = (++i) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
-
+        
         partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
     }
 
@@ -566,6 +566,114 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
 
     if (matrix < matrixCount)
         allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
+        
+}
+
+#define LIKE_PATTERN_BLOCK_SIZE PATTERN_BLOCK_SIZE
+
+__global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
+                                                     REAL* dRootPartials,
+                                                     REAL *dWeights,
+                                                     REAL *dFrequencies,
+                                                     REAL *dRootScalingFactors,
+                                                     int matrixCount,
+                                                     int patternCount) {
+    int state   = threadIdx.x;
+    int pat = threadIdx.y;
+    int pattern = blockIdx.x * LIKE_PATTERN_BLOCK_SIZE + threadIdx.y;
+    
+    __shared__ REAL stateFreq[4];
+    
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE >= matrixCount
+    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __shared__ REAL sum[LIKE_PATTERN_BLOCK_SIZE][4];
+
+    // Load shared memory
+
+    if (pat == 0) {
+        stateFreq[state] = dFrequencies[state];
+    }
+    
+    sum[pat][state] = 0;
+    
+    // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    }
+
+    __syncthreads();
+
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;;
+
+    for(int r = 0; r < matrixCount; r++) {
+        sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
+    }
+
+    sum[pat][state] *= stateFreq[state];
+        
+    if (state < 2)
+        sum[pat][state] += sum[pat][state + 2];
+    __syncthreads();
+    if (state < 1) {
+        sum[pat][state] += sum[pat][state + 1];
+    }
+    __syncthreads();
+    
+    if (state == 0)
+        dResult[pattern] = log(sum[pat][state]) + dRootScalingFactors[pattern];
+}
+
+__global__ void kernelIntegrateLikelihoods(REAL* dResult,
+                                              REAL* dRootPartials,
+                                              REAL* dWeights,
+                                              REAL* dFrequencies,
+                                              int matrixCount,
+                                              int patternCount) {
+    int state   = threadIdx.x;
+    int pat = threadIdx.y;
+    int pattern = blockIdx.x * LIKE_PATTERN_BLOCK_SIZE + threadIdx.y;
+    
+    __shared__ REAL stateFreq[4];
+    
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE >= matrixCount
+    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __shared__ REAL sum[LIKE_PATTERN_BLOCK_SIZE][4];
+
+    // Load shared memory
+
+    if (pat == 0) {
+        stateFreq[state] = dFrequencies[state];
+    }
+    
+    sum[pat][state] = 0;
+    
+    // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    }
+
+    __syncthreads();
+
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;;
+
+    for(int r = 0; r < matrixCount; r++) {
+        sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
+    }
+
+    sum[pat][state] *= stateFreq[state];
+        
+    if (state < 2)
+        sum[pat][state] += sum[pat][state + 2];
+    __syncthreads();
+    if (state < 1) {
+        sum[pat][state] += sum[pat][state + 1];
+    }
+    __syncthreads();
+    
+    if (state == 0)
+        dResult[pattern] = log(sum[pat][state]);
         
 }
 
