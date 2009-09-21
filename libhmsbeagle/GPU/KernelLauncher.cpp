@@ -81,8 +81,16 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     } 
     
     // Set up block/grid for likelihood computation
-    bgLikelihoodBlock = Dim3Int(kPaddedStateCount);
-    bgLikelihoodGrid  = Dim3Int(kPatternCount);    
+    if (kPaddedStateCount == 4) {
+        int likePatternBlockSize = kPatternBlockSize;
+        bgLikelihoodBlock = Dim3Int(4,likePatternBlockSize);
+        bgLikelihoodGrid = Dim3Int(kPatternCount/likePatternBlockSize);
+        if (kPatternCount % likePatternBlockSize != 0)
+            bgLikelihoodGrid.x += 1;
+    } else {
+        bgLikelihoodBlock = Dim3Int(kPaddedStateCount);
+        bgLikelihoodGrid  = Dim3Int(kPatternCount);
+    }
     
     // Set up block/grid for scale factor accumulation
     bgAccumulateBlock = Dim3Int(kPatternBlockSize);
@@ -406,9 +414,9 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
     
     gpu->LaunchKernelIntParams(fIntegrateLikelihoodsDynamicScaling,
                                bgLikelihoodBlock, bgLikelihoodGrid,
-                               6,
+                               7,
                                dResult, dRootPartials, dWeights, dFrequencies, dRootScalingFactors,
-                               categoryCount);    
+                               categoryCount,patternCount);    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsDynamicScaling\n");
 #endif
@@ -567,11 +575,12 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
     fprintf(stderr,"\t\tEntering KernelLauncher::IntegrateLikelihoods\n");
 #endif
    
-    int parameterCount = 5;
+    int parameterCount = 6;
     gpu->LaunchKernelIntParams(fIntegrateLikelihoods,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                parameterCount,
-                               dResult, dRootPartials, dWeights, dFrequencies, categoryCount);
+                               dResult, dRootPartials, dWeights, dFrequencies, 
+                               categoryCount, patternCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoods\n");

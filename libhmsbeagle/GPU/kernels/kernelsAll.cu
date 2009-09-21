@@ -148,61 +148,6 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
-__global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
-                                                            REAL* dRootPartials,
-                                                            REAL *dWeights,
-                                                            REAL *dFrequencies,
-                                                            REAL *dRootScalingFactors,
-                                                            int count) {
-    int state   = threadIdx.x;
-    int pattern = blockIdx.x;
-    int patternCount = gridDim.x;
-
-    __shared__ REAL stateFreq[PADDED_STATE_COUNT];
-    // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
-    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
-    __shared__ REAL sum[PADDED_STATE_COUNT];
-
-    // Load shared memory
-
-    stateFreq[state] = dFrequencies[state];
-    sum[state] = 0;
-
-    for(int matrixEdge = 0; matrixEdge < count; matrixEdge += PADDED_STATE_COUNT) {
-        int x = matrixEdge + state;
-        if (x < count)
-            matrixProp[x] = dWeights[x];
-    }
-
-    __syncthreads();
-
-    int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;;
-
-    for(int r = 0; r < count; r++) {
-        sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
-    }
-
-    sum[state] *= stateFreq[state];
-    __syncthreads();
-
-#ifdef IS_POWER_OF_TWO
-    // parallelized reduction *** only works for powers-of-2 ****
-    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-        if (state < i) {
-#else
-    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-        if (state < i && state + i < PADDED_STATE_COUNT ) {
-#endif // IS_POWER_OF_TWO
-            sum[state] += sum[state + i];
-        }
-        __syncthreads();
-    }
-
-    if (state == 0)
-        dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
-}
-
 __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
@@ -330,60 +275,6 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
         allPartials[m * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
                     state] /= max;
 
-}
-
-__global__ void kernelIntegrateLikelihoods(REAL* dResult,
-                                              REAL* dRootPartials,
-                                              REAL* dWeights,
-                                              REAL* dFrequencies,
-                                              int count) {
-    int state   = threadIdx.x;
-    int pattern = blockIdx.x;
-    int patternCount = gridDim.x;
-
-    __shared__ REAL stateFreq[PADDED_STATE_COUNT];
-    // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
-    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
-    __shared__ REAL sum[PADDED_STATE_COUNT];
-
-    // Load shared memory
-
-    stateFreq[state] = dFrequencies[state];
-    sum[state] = 0;
-
-    for(int matrixEdge = 0; matrixEdge < count; matrixEdge += PADDED_STATE_COUNT) {
-        int x = matrixEdge + state;
-        if (x < count)
-            matrixProp[x] = dWeights[x];
-    }
-
-    __syncthreads();
-
-    int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;
-
-    for(int r = 0; r < count; r++) {
-        sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
-    }
-
-    sum[state] *= stateFreq[state];
-    __syncthreads();
-
-#ifdef IS_POWER_OF_TWO
-    // parallelized reduction *** only works for powers-of-2 ****
-    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-        if (state < i) {
-#else
-    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-        if (state < i && state + i < PADDED_STATE_COUNT ) {
-#endif // IS_POWER_OF_TWO
-            sum[state] += sum[state + i];
-        }
-        __syncthreads();
-    }
-
-    if (state == 0)
-        dResult[pattern] = log(sum[state]);
 }
 
 } // extern "C"
