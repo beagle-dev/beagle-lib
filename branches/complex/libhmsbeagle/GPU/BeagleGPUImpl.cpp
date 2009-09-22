@@ -563,7 +563,7 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     	MEMCNV((Eval+kPaddedStateCount),(inEigenValues+kStateCount),kStateCount,REAL);
 #endif
     
-//#ifdef BEAGLE_DEBUG_VALUES
+#ifdef BEAGLE_DEBUG_VALUES
 #ifdef DOUBLE_PRECISION
     fprintf(stderr, "Eval:\n");
     printfVectorD(Eval, kEigenValuesSize);
@@ -579,7 +579,7 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     fprintf(stderr, "Ievc =\n");
     printfVectorF(Ievc, kPaddedStateCount * kPaddedStateCount);   
 #endif
-//#endif
+#endif
     
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dIevc[eigenIndex], Ievc, SIZE_REAL * kMatrixSize);
