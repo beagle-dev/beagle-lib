@@ -28,16 +28,21 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
 
+#define multBy4(x)	(x << 2)
+#define multBy16(x)	(x << 4)
+
+// Do not use | (instead of +) for any term involing PATTERN_BLOCK_SIZE
+// as this should be adjustable
 #define DETERMINE_INDICES_4() \
     int tx = threadIdx.x; \
     int state = tx & 0x3; \
     int pat = tx >> 2; \
     int patIdx = threadIdx.y; \
     int matrix = blockIdx.y; \
-    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + patIdx * 4 + pat; \
-    int deltaPartialsByState = 4 * 4 * (blockIdx.x * PATTERN_BLOCK_SIZE + patIdx); \
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, totalPatterns)); \
-    int x2 = __umul24(matrix, PADDED_STATE_COUNT * PADDED_STATE_COUNT); \
+    int pattern = __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat; \
+    int deltaPartialsByState = multBy16(blockIdx.x * PATTERN_BLOCK_SIZE + patIdx); \
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns)); \
+    int x2 = multBy16(matrix); \
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 extern "C" {
@@ -53,6 +58,8 @@ __global__ void kernelPartialsPartialsNoScale(REAL* partials1,
 	    int i;
 
 	    DETERMINE_INDICES_4();
+
+	    int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
 	    int y = deltaPartialsByState + deltaPartialsByMatrix;
 	    
 	    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
@@ -72,11 +79,11 @@ __global__ void kernelPartialsPartialsNoScale(REAL* partials1,
 
 	    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
 	    if (pattern < totalPatterns) {
-	        sPartials1[patIdx * 16 + tx] = partials1[y + tx]; // All coalesced memory reads
-	        sPartials2[patIdx * 16 + tx] = partials2[y + tx];
+	        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
+	        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
 	    } else {
-	        sPartials1[patIdx * 16 + tx] = 0;
-	        sPartials2[patIdx * 16 + tx] = 0;
+	        sPartials1[multBy16(patIdx) | tx] = 0;
+	        sPartials2[multBy16(patIdx) | tx] = 0;
 	    }
 
 	    if (patIdx == 0 ) {
@@ -88,21 +95,21 @@ __global__ void kernelPartialsPartialsNoScale(REAL* partials1,
 
 	    if (pattern < totalPatterns) { // Remove padded threads!
 
- 	        i = pat;                       
-	        sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-	        sum2  = sMatrix2[i * 4  + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+ 	        i = pat;
+	        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-	        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-	        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-	        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
 	        partials3[u] = sum1 * sum2;
 	    }
@@ -181,7 +188,6 @@ __global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
     }
 
 }
-
 
 __global__ void kernelStatesPartialsNoScale(int* states1,
                                                                 REAL* partials2,
@@ -298,6 +304,7 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
 	    int i;
 
 	    DETERMINE_INDICES_4();
+	    int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
 	    int y = deltaPartialsByState + deltaPartialsByMatrix;
 	    REAL* matrix1 = dTransMatrix + x2; // Points to *this* matrix
 
@@ -314,11 +321,11 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
 
 	    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
 	    if (pattern < totalPatterns) {
-	        sPartials1[patIdx * 16 + tx] = dParentPartials[y + tx]; // All coalesced memory reads
-	        sPartials2[patIdx * 16 + tx] = dChildParials[y + tx];
+	        sPartials1[multBy16(patIdx) | tx] = dParentPartials[y | tx]; // All coalesced memory reads
+	        sPartials2[multBy16(patIdx) | tx] = dChildParials  [y | tx];
 	    } else {
-	        sPartials1[patIdx * 16 + tx] = 0;
-	        sPartials2[patIdx * 16 + tx] = 0;
+	        sPartials1[multBy16(patIdx) | tx] = 0;
+	        sPartials2[multBy16(patIdx) | tx] = 0;
 	    }
 
 	    if (patIdx == 0 ) {
@@ -328,19 +335,17 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
 	    __syncthreads();
 
 	    if (pattern < totalPatterns) { // Remove padded threads!
-//	        for(i = 0; i < PADDED_STATE_COUNT; i++) {
-//	            sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
-//	        }
+
 	        i = pat;
-	        sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+	        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
 	        i = (++i) & 0x3;
-	        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
 	        
-	        dPartialsTmp[u] = sum1 * sPartials2[patIdx * 16 + pat * 4 + state];
+	        dPartialsTmp[u] = sum1 * sPartials2[patIdx16pat4 | state];
 	    }    
 
 	}
