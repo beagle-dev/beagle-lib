@@ -39,6 +39,8 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixMulADB;
+    GPUFunction fMatrixMulAB;
+    GPUFunction fMatrixMulDComplexB;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
@@ -82,6 +84,7 @@ private:
     int kMatrixBlockSize;
     int kSlowReweighing;  
     int kMultiplyBlockSize;
+    int kFlags;
     
 public:
     KernelLauncher(GPUInterface* inGpu);
@@ -95,6 +98,14 @@ public:
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
+                                          int totalMatrix);
+    
+    void GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
+                                           GPUPtr dEvec,
+                                           GPUPtr dIevc,
+                                           GPUPtr dEigenValues,
+                                           GPUPtr distanceQueue,
+                                           GPUPtr dComplex,
                                           int totalMatrix);
 #else //OpenCL
     void GetTransitionProbabilitiesSquare(GPUPtr dPtr,
