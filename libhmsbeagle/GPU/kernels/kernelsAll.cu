@@ -148,20 +148,17 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
-__global__ void kernelMatrixMulDComplexB(REAL** listC,
-//                                   REAL* A,
-                                   REAL* D,
-                                   REAL* B,
-                                   REAL* distanceQueue,
-                                   int length,
-                                   int wB,
-                                   int totalMatrix) {
-
+__global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
+									     REAL* D,
+									     REAL* B,
+									     REAL* distanceQueue,
+									     int totalMatrix) {
+	 
     __shared__ REAL* C;
     __shared__ REAL distance;
-
+    
     int wMatrix = blockIdx.x % totalMatrix;
-
+ 
     // Block index
     int bx = blockIdx.x / totalMatrix;
     int by = blockIdx.y;
@@ -172,7 +169,7 @@ __global__ void kernelMatrixMulDComplexB(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
+    	C = Cstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -194,28 +191,24 @@ __global__ void kernelMatrixMulDComplexB(REAL** listC,
     int b = MULTIPLY_BLOCK_SIZE * bx;
     int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
 
-//    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL DsSin[MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL DsCos[MULTIPLY_BLOCK_SIZE];
+//    __shared__ REAL DsSin[MULTIPLY_BLOCK_SIZE];
+//    __shared__ REAL DsCos[MULTIPLY_BLOCK_SIZE];
 
     for (int i = 0; i < BLOCKS - 1; i++) {
 
         if (ty == 0) {
             Ds[tx] = exp(D[d + tx] * distance);
-            DsSin[tx] = D[d + PADDED_STATE_COUNT + tx];
-            DsCos[tx] = cos(DsSin[tx]);
-            DsSin[tx] = sin(DsSin[tx]);
         }
+        __syncthreads();
 
-//        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
         __syncthreads();
 
-        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
-            Csub += Ds[k] * Bs[k][tx];
+       if (i == by)	        	
+        	Csub += Ds[ty] * Bs[ty][tx];
 
         __syncthreads();
 
@@ -228,34 +221,24 @@ __global__ void kernelMatrixMulDComplexB(REAL** listC,
     if (tx < EDGE && ty < EDGE) {
         if (ty == 0) {
             Ds[tx] = exp(D[d + tx] * distance);
-            DsSin[tx] = D[d + PADDED_STATE_COUNT + tx];
-            DsCos[tx] = cos(DsSin[tx]);
-            DsSin[tx] = sin(DsSin[tx]);
         }           
-
-#ifndef KERNEL_PRINT_ENABLED
         __syncthreads();
-#endif
 
-//        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
     } else {
 
         if (ty == 0) {
             Ds[tx] = 0;
-            DsCos[tx] = 0;
-            DsSin[tx] = 0;
         }
 
-//        As[ty][tx] = 0;
         Bs[ty][tx] = 0;
     }
 
     __syncthreads();
 
-    for (int k = 0; k < EDGE; k++)
-        Csub += Ds[k] * Bs[k][tx];
+    if (by == BLOCKS - 1)
+    	Csub += Ds[ty] * Bs[ty][tx];
 
     __syncthreads();
 
@@ -263,24 +246,18 @@ __global__ void kernelMatrixMulDComplexB(REAL** listC,
     // each thread writes one element
 
     if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
-        if (Csub < 0)
-            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
-              PADDED_STATE_COUNT * ty + tx] = 0;
-        else
-            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+    	C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = Csub;
     }
 }
 
 __global__ void kernelMatrixMulAB(REAL** listC,
                                   REAL* A,                                   
-                                  REAL* B,                                   
-                                  int length,
-                                  int wB,
+                                  REAL* Bstart,     
                                   int totalMatrix) {
 
     __shared__ REAL* C;
-//    __shared__ REAL distance;
+    __shared__ REAL* B;
 
     int wMatrix = blockIdx.x % totalMatrix;
 
@@ -295,7 +272,7 @@ __global__ void kernelMatrixMulAB(REAL** listC,
 
     if (tx == 0 && ty == 0) {
         C = listC[wMatrix]; // Non-coalescent read
-//        distance = distanceQueue[wMatrix]; // Non-coalescent read
+        B = Bstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
     }
 
     __syncthreads();
@@ -314,16 +291,11 @@ __global__ void kernelMatrixMulAB(REAL** listC,
 
     int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
     int b = MULTIPLY_BLOCK_SIZE * bx;
-    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
 
     __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-//    __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
 
     for (int i = 0; i < BLOCKS - 1; i++) {
-
-//        if (ty == 0)
-//            Ds[tx] = exp(D[d + tx] * distance);
 
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
@@ -337,26 +309,16 @@ __global__ void kernelMatrixMulAB(REAL** listC,
 
         a += aStep;
         b += bStep;
-        d += MULTIPLY_BLOCK_SIZE;
     }
 
     // Last block is too long
     if (tx < EDGE && ty < EDGE) {
-//        if (ty == 0)
-//            Ds[tx] = exp(D[d + tx] * distance);
-
-//#ifndef KERNEL_PRINT_ENABLED
-//        __syncthreads();
-//#endif
 
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
     } else {
-
-//        if (ty == 0)
-//            Ds[tx] = 0;
-
+    	
         As[ty][tx] = 0;
         Bs[ty][tx] = 0;
     }

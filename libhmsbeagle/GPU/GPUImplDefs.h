@@ -142,6 +142,7 @@
     #if (SLOW_REWEIGHING_4 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 8)  // else if
     #define PADDED_STATE_COUNT        8
@@ -155,6 +156,7 @@
     #if (SLOW_REWEIGHING_8 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 16) // else if
     #define PADDED_STATE_COUNT        16
@@ -168,6 +170,7 @@
     #if (SLOW_REWEIGHING_16 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 32) // else if
     #define PADDED_STATE_COUNT        32
@@ -181,6 +184,7 @@
     #if (SLOW_REWEIGHING_32 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 48) // else if
     #define PADDED_STATE_COUNT        48
@@ -194,6 +198,7 @@
     #if (SLOW_REWEIGHING_48 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 64) // else if
     #define PADDED_STATE_COUNT        64
@@ -207,6 +212,7 @@
     #if (SLOW_REWEIGHING_64 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 128) // else if
     #define PADDED_STATE_COUNT        128
@@ -220,6 +226,7 @@
     #if (SLOW_REWEIGHING_128 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #else
 #if (STATE_COUNT <= 192) // else if
     #define PADDED_STATE_COUNT        192
@@ -233,6 +240,7 @@
     #if (SLOW_REWEIGHING_192 == 1)
         #define SLOW_REWEIGHING
     #endif
+	#define MULTIPLY_BLOCK_SIZE 16
 #endif
 #endif
 #endif
@@ -241,8 +249,6 @@
 #endif
 #endif
 #endif
-
-#define MULTIPLY_BLOCK_SIZE 16
 
 #define MEMCNV(to, from, length, toType)    { \
                                                 int m; \

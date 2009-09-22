@@ -63,7 +63,7 @@ void printfVectorF(float* ptr,
     fprintf(stderr, "[ %1.5e", ptr[0]);
     int i;
     for (i = 1; i < length; i++)
-        fprintf(stderr, " %1.5e", ptr[i]);
+        fprintf(stderr, ", %1.5e", ptr[i]);
     fprintf(stderr, " ]\n");
 //    for(i = 0; i < length; i++) {
 //        if(ptr[i] != ptr[i]) {
