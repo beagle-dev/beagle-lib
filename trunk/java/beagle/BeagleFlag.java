@@ -2,7 +2,7 @@ package beagle;
 
 /**
  * @author Andrew Rambaut
- * @author Alexei Drummond
+ * @author Marc Suchard
  * @version $Id$
  */
 public enum BeagleFlag {
@@ -10,6 +10,8 @@ public enum BeagleFlag {
     SINGLE(1 << 1, "Request/require single precision computation"),
     ASYNCH(1 << 2, "Request/require asynchronous computation"),
     SYNCH(1 << 3, "Request/require synchronous computation"),
+    COMPLEX(1 <<4, "Request/require complex diagonalization capability"),
+    LSCALE(1 << 5, "Request/require storing scalars on log-scale"),
     CPU(1 << 16, "Request/require CPU"),
     GPU(1 << 17, "Request/require GPU"),
     FPGA(1 << 18, "Request/require FPGA"),
