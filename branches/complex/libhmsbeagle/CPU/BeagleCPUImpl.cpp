@@ -79,6 +79,7 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
+#include "libhmsbeagle/CPU/EigenDecompositionCube.h"
 
 using namespace beagle;
 using namespace beagle::cpu;
@@ -94,10 +95,14 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 
-	for(int i=0; i<kEigenDecompCount; i++) {
-		free(gCMatrices[i]);
-		free(gEigenValues[i]);
-	}
+//	for(int i=0; i<kEigenDecompCount; i++) {
+//		if (kFlags | BEAGLE_FLAG_COMPLEX) {
+//			free(gEMatrices[i]);
+//			free(gIMatrices[i]);
+//		} else
+//			free(gCMatrices[i]);
+//		free(gEigenValues[i]);
+//	}
 
 	for(unsigned int i=0; i<kMatrixCount; i++) {
 	    if (gTransitionMatrices[i] != NULL)
@@ -122,12 +127,16 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     if (gScaleBuffers)
         free(gScaleBuffers);
 
-	free(gCMatrices);
-	free(gEigenValues);
+//    if (kFlags | BEAGLE_FLAG_COMPLEX) {
+//    	free(gEMatrices);
+//    	free(gIMatrices);
+//    } else
+//    	free(gCMatrices);
+//	free(gEigenValues);
 
 	free(gCategoryRates);
 	free(integrationTmp);
-	free(matrixTmp);
+//	free(matrixTmp);
 
 	free(ones);
 	free(zeros);
@@ -162,24 +171,52 @@ int BeagleCPUImpl::createInstance(int tipCount,
 #else
     kMatrixSize = kStateCount * kStateCount;
 #endif
+    
+    kFlags = 0;
+    
+    if (requirementFlags | BEAGLE_FLAG_COMPLEX || preferenceFlags | BEAGLE_FLAG_COMPLEX) {
+    	kFlags |= BEAGLE_FLAG_COMPLEX;
+    	kEigenValuesSize = 2 * kStateCount;
+    } else
+    	kEigenValuesSize = kStateCount;
 
-    gCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-    if (gCMatrices == NULL)
-        throw std::bad_alloc();
-
-    gEigenValues = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-    if (gEigenValues == NULL)
-        throw std::bad_alloc();
-
-    for (int i = 0; i < eigenDecompositionCount; i++) {
-        gCMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
-        if (gCMatrices[i] == NULL)
-            throw std::bad_alloc();
-
-        gEigenValues[i] = (double*) malloc(sizeof(double) * kStateCount);
-        if (gEigenValues[i] == NULL)
-            throw std::bad_alloc();
-    }
+//    gEigenValues = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+//    if (gEigenValues == NULL)
+//        throw std::bad_alloc();
+//    
+//    if (kFlags | BEAGLE_FLAG_COMPLEX) {
+//    	gEMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+//    	if (gEMatrices == NULL)
+//    		throw std::bad_alloc();
+//    	gIMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+//    	if (gIMatrices == NULL)
+//    		throw std::bad_alloc();    	
+//    } else {
+//    	gCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
+//    	if (gCMatrices == NULL)
+//    		throw std::bad_alloc();
+//    }
+//
+//    for (int i = 0; i < eigenDecompositionCount; i++) {
+//    	if (kFlags | BEAGLE_FLAG_COMPLEX) {
+//    		gEMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount);
+//    		if (gEMatrices[i] == NULL)
+//    			throw std::bad_alloc();
+//    		gIMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount);
+//    		if (gIMatrices[i] == NULL)
+//    			throw std::bad_alloc();
+//    	} else {
+//    		gCMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
+//    		if (gCMatrices[i] == NULL)
+//    			throw std::bad_alloc();
+//    	}
+//
+//        gEigenValues[i] = (double*) malloc(sizeof(double) * kEigenValuesSize);
+//        if (gEigenValues[i] == NULL)
+//            throw std::bad_alloc();
+//    }
+    
+    gEigenDecomposition = new EigenDecompositionCube(kEigenDecompCount, kStateCount, kCategoryCount);
 
 	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
 
@@ -227,7 +264,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
     }
 
     integrationTmp = (double*) malloc(sizeof(double) * kPatternCount * kStateCount);
-    matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
+//    matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
 
     zeros = (double*) malloc(sizeof(double) * kPatternCount);
     ones = (double*) malloc(sizeof(double) * kPatternCount);
@@ -306,20 +343,21 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
                                          const double* inInverseEigenVectors,
                                          const double* inEigenValues) {
-    int l = 0;
-    for (int i = 0; i < kStateCount; i++) {
-        gEigenValues[eigenIndex][i] = inEigenValues[i];
-        for (int j = 0; j < kStateCount; j++) {
-            for (int k = 0; k < kStateCount; k++) {
-                gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
-                        * inInverseEigenVectors[(k * kStateCount) + j];
-                l++;
-            }
-        }
-    }
 
-    return BEAGLE_SUCCESS;
+	gEigenDecomposition->setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
+	return BEAGLE_SUCCESS;
 }
+
+//void BeagleCPUImpl::setEigenDecompositionSquare(int eigenIndex,
+//												const double* inEigenVectors,
+//                                                const double* inInverseEigenVectors,
+//                                                const double* inEigenValues) {
+//	
+//	memcpy(gEigenValues[eigenIndex],inEigenValues,sizeof(double) * kEigenValuesSize);
+//	const int len = kStateCount * kStateCount;
+//	memcpy(gEMatrices[eigenIndex],inEigenVectors,sizeof(double) * len);
+//	memcpy(gIMatrices[eigenIndex],inInverseEigenVectors,sizeof(double) * len);
+//}
 
 int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
 	memcpy(gCategoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
@@ -340,45 +378,62 @@ int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
                                             const int* secondDervativeIndices,
                                             const double* edgeLengths,
                                             int count) {
-    for (int u = 0; u < count; u++) {
-        double* transitionMat = gTransitionMatrices[probabilityIndices[u]];
-        int n = 0;
-        for (int l = 0; l < kCategoryCount; l++) {
-
-            for (int i = 0; i < kStateCount; i++) {
-                matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * edgeLengths[u] * gCategoryRates[l]);
-            }
-
-            int m = 0;
-            for (int i = 0; i < kStateCount; i++) {
-                for (int j = 0; j < kStateCount; j++) {
-                    double sum = 0.0;
-                    for (int k = 0; k < kStateCount; k++) {
-                        sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
-                        m++;
-                    }
-                    if (sum > 0)
-                        transitionMat[n] = sum;
-                    else
-                        transitionMat[n] = 0;
-                    n++;
-                }
-#ifdef PAD_MATRICES
-                transitionMat[n] = 1.0;
-                n++;
-#endif
-            }
-        }
-
-        if (DEBUGGING_OUTPUT) {
-            fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
-            for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
-                fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
-        }
-    }
-
-    return BEAGLE_SUCCESS;
+	gEigenDecomposition->updateTransitionMatrices(eigenIndex,probabilityIndices,firstDerivativeIndices,secondDervativeIndices,
+												  edgeLengths,gCategoryRates,gTransitionMatrices,count);
+	return BEAGLE_SUCCESS;
 }
+
+//int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
+//                                            const int* probabilityIndices,
+//                                            const int* firstDerivativeIndices,
+//                                            const int* secondDervativeIndices,
+//                                            const double* edgeLengths,
+//                                            int count) {
+//    for (int u = 0; u < count; u++) {
+//        double* transitionMat = gTransitionMatrices[probabilityIndices[u]];
+//        int n = 0;
+//        for (int l = 0; l < kCategoryCount; l++) {
+//
+//        	if (kFlags | BEAGLE_FLAG_COMPLEX) {
+//        		for (int i = 0; i < kStateCount; i++ ) {
+//        			if (gEigenValues[eigenIndex][i+kStateCount] == 0)
+//        				;
+//        		}        		
+//        	} else { // Only real diagonalization        	
+//        		for (int i = 0; i < kStateCount; i++) {
+//        			matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * edgeLengths[u] * gCategoryRates[l]);
+//        		}
+//        	}
+//            int m = 0;
+//            for (int i = 0; i < kStateCount; i++) {
+//                for (int j = 0; j < kStateCount; j++) {
+//                    double sum = 0.0;
+//                    for (int k = 0; k < kStateCount; k++) {
+//                        sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
+//                        m++;
+//                    }
+//                    if (sum > 0)
+//                        transitionMat[n] = sum;
+//                    else
+//                        transitionMat[n] = 0;
+//                    n++;
+//                }
+//#ifdef PAD_MATRICES
+//                transitionMat[n] = 1.0;
+//                n++;
+//#endif
+//            }
+//        }
+//
+//        if (DEBUGGING_OUTPUT) {
+//            fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
+//            for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
+//                fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
+//        }
+//    }
+//
+//    return BEAGLE_SUCCESS;
+//}
 
 int BeagleCPUImpl::updatePartials(const int* operations,
                                   int count,
@@ -1091,6 +1146,6 @@ const char* BeagleCPUImplFactory::getName() {
 }
 
 const long BeagleCPUImplFactory::getFlags() {
-    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE;
+    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_COMPLEX;
 }
 
