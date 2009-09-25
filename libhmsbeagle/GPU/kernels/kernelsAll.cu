@@ -189,17 +189,28 @@ __global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
 
     int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
     int b = MULTIPLY_BLOCK_SIZE * bx;
-    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; // also acts as the i-index offset for each block
+    
+    int indexI = by * MULTIPLY_BLOCK_SIZE + ty;
+    int indexIm1 = indexI - 1;
+    int indexIp1 = indexI + 1;
 
     __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
-//    __shared__ REAL DsSin[MULTIPLY_BLOCK_SIZE];
-//    __shared__ REAL DsCos[MULTIPLY_BLOCK_SIZE];
-
+    __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE+2];
+//    __shared__ REAL CsUpper[MULTIPLY_BLOCK_SIZE];
+    
     for (int i = 0; i < BLOCKS - 1; i++) {
 
         if (ty == 0) {
             Ds[tx] = exp(D[d + tx] * distance);
+//            DsSin[tx] = D[d + PADDED_STATE_COUNT + tx];
+//            DsSin[tx] = 0;
+//            DsCos[tx] = cos(DsSin[tx]);
+//            DsSin[tx] = sin(DsSin[tx]);
+            Cs[tx] = D[d + PADDED_STATE_COUNT - 1 + tx];
+            if (tx < 2)
+            	Cs[MULTIPLY_BLOCK_SIZE + tx] = D[d + PADDED_STATE_COUNT + MULTIPLY_BLOCK_SIZE - 1 + tx];
         }
         __syncthreads();
 
@@ -207,20 +218,29 @@ __global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
 
         __syncthreads();
 
-       if (i == by)	        	
-        	Csub += Ds[ty] * Bs[ty][tx];
+        int k = indexI - i*MULTIPLY_BLOCK_SIZE;
+        if (indexI >= d && k < MULTIPLY_BLOCK_SIZE)
+        	Csub += Ds[k] * Bs[k][tx];
 
         __syncthreads();
 
         a += aStep;
         b += bStep;
-        d += MULTIPLY_BLOCK_SIZE;
+        d += MULTIPLY_BLOCK_SIZE;      
     }
 
     // Last block is too long
     if (tx < EDGE && ty < EDGE) {
         if (ty == 0) {
             Ds[tx] = exp(D[d + tx] * distance);
+//            DsSin[tx] = D[d + PADDED_STATE_COUNT + tx];
+//            DsSin[tx] = 0;
+//            DsCos[tx] = cos(DsSin[tx]);
+//            DsSin[tx] = sin(DsSin[tx]);
+            Cs[tx] = D[d + PADDED_STATE_COUNT - 1 + tx];
+            if (tx < 2)
+            	Cs[EDGE + tx] = D[d + PADDED_STATE_COUNT + EDGE - 1 + tx];
+  
         }           
         __syncthreads();
 
@@ -236,10 +256,12 @@ __global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
     }
 
     __syncthreads();
-
-    if (by == BLOCKS - 1)
-    	Csub += Ds[ty] * Bs[ty][tx];
-
+    
+    for(int k=0; k < EDGE; k++) {
+    	if (indexI == d + k)
+    		Csub += Ds[k] * Bs[k][tx];
+    } // Faster to loop at end
+   
     __syncthreads();
 
     // Write the block sub-matrix to device memory;
