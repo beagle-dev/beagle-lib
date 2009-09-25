@@ -28,6 +28,7 @@ protected:
     int kStateCount;
     int kEigenDecompCount;
     int kCategoryCount;
+    double* matrixTmp;
 	
 public:	
 	EigenDecomposition(int decompositionCount,

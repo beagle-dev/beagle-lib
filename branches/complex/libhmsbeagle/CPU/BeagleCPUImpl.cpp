@@ -80,6 +80,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
+#include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 
 using namespace beagle;
 using namespace beagle::cpu;
@@ -94,15 +95,6 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     // free all that stuff...
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
-
-//	for(int i=0; i<kEigenDecompCount; i++) {
-//		if (kFlags | BEAGLE_FLAG_COMPLEX) {
-//			free(gEMatrices[i]);
-//			free(gIMatrices[i]);
-//		} else
-//			free(gCMatrices[i]);
-//		free(gEigenValues[i]);
-//	}
 
 	for(unsigned int i=0; i<kMatrixCount; i++) {
 	    if (gTransitionMatrices[i] != NULL)
@@ -127,20 +119,13 @@ BeagleCPUImpl::~BeagleCPUImpl() {
     if (gScaleBuffers)
         free(gScaleBuffers);
 
-//    if (kFlags | BEAGLE_FLAG_COMPLEX) {
-//    	free(gEMatrices);
-//    	free(gIMatrices);
-//    } else
-//    	free(gCMatrices);
-//	free(gEigenValues);
-
 	free(gCategoryRates);
 	free(integrationTmp);
-//	free(matrixTmp);
 
 	free(ones);
 	free(zeros);
 
+	delete gEigenDecomposition;
 }
 
 int BeagleCPUImpl::createInstance(int tipCount,
@@ -174,49 +159,15 @@ int BeagleCPUImpl::createInstance(int tipCount,
     
     kFlags = 0;
     
-    if (requirementFlags | BEAGLE_FLAG_COMPLEX || preferenceFlags | BEAGLE_FLAG_COMPLEX) {
+    if (requirementFlags & BEAGLE_FLAG_COMPLEX || preferenceFlags & BEAGLE_FLAG_COMPLEX)
     	kFlags |= BEAGLE_FLAG_COMPLEX;
-    	kEigenValuesSize = 2 * kStateCount;
-    } else
-    	kEigenValuesSize = kStateCount;
 
-//    gEigenValues = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-//    if (gEigenValues == NULL)
-//        throw std::bad_alloc();
-//    
-//    if (kFlags | BEAGLE_FLAG_COMPLEX) {
-//    	gEMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-//    	if (gEMatrices == NULL)
-//    		throw std::bad_alloc();
-//    	gIMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-//    	if (gIMatrices == NULL)
-//    		throw std::bad_alloc();    	
-//    } else {
-//    	gCMatrices = (double**) malloc(sizeof(double*) * eigenDecompositionCount);
-//    	if (gCMatrices == NULL)
-//    		throw std::bad_alloc();
-//    }
-//
-//    for (int i = 0; i < eigenDecompositionCount; i++) {
-//    	if (kFlags | BEAGLE_FLAG_COMPLEX) {
-//    		gEMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount);
-//    		if (gEMatrices[i] == NULL)
-//    			throw std::bad_alloc();
-//    		gIMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount);
-//    		if (gIMatrices[i] == NULL)
-//    			throw std::bad_alloc();
-//    	} else {
-//    		gCMatrices[i] = (double*) malloc(sizeof(double) * kStateCount * kStateCount * kStateCount);
-//    		if (gCMatrices[i] == NULL)
-//    			throw std::bad_alloc();
-//    	}
-//
-//        gEigenValues[i] = (double*) malloc(sizeof(double) * kEigenValuesSize);
-//        if (gEigenValues[i] == NULL)
-//            throw std::bad_alloc();
-//    }
-    
-    gEigenDecomposition = new EigenDecompositionCube(kEigenDecompCount, kStateCount, kCategoryCount);
+//    if (kFlags & BEAGLE_FLAG_COMPLEX)
+    	gEigenDecomposition = new EigenDecompositionSquare(kEigenDecompCount,
+    			kStateCount,kCategoryCount,kFlags);
+//    else
+//    	gEigenDecomposition = new EigenDecompositionCube(kEigenDecompCount,
+//    			kStateCount, kCategoryCount);
 
 	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
 
@@ -347,17 +298,6 @@ int BeagleCPUImpl::setEigenDecomposition(int eigenIndex,
 	gEigenDecomposition->setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
 	return BEAGLE_SUCCESS;
 }
-
-//void BeagleCPUImpl::setEigenDecompositionSquare(int eigenIndex,
-//												const double* inEigenVectors,
-//                                                const double* inInverseEigenVectors,
-//                                                const double* inEigenValues) {
-//	
-//	memcpy(gEigenValues[eigenIndex],inEigenValues,sizeof(double) * kEigenValuesSize);
-//	const int len = kStateCount * kStateCount;
-//	memcpy(gEMatrices[eigenIndex],inEigenVectors,sizeof(double) * len);
-//	memcpy(gIMatrices[eigenIndex],inInverseEigenVectors,sizeof(double) * len);
-//}
 
 int BeagleCPUImpl::setCategoryRates(const double* inCategoryRates) {
 	memcpy(gCategoryRates, inCategoryRates, sizeof(double) * kCategoryCount);
@@ -852,6 +792,11 @@ void BeagleCPUImpl::calcEdgeLogLikelihoods(const int parIndex,
         for(int k=0; k < kPatternCount; k++)
             outLogLikelihoods[k] += scalingFactors[k];
     }
+}
+
+int BeagleCPUImpl::block(void) {
+	// Do nothing.
+	return BEAGLE_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

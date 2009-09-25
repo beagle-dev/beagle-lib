@@ -666,6 +666,13 @@ int beagleRemoveScaleFactors(int instance,
 //    }
 }
 
+int beagleBlock(int instance) {
+	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL)
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	return beagleInstance->block();
+}
+
 int beagleResetScaleFactors(int instance,
                       int cumulativeScalingIndex) {
 //    try {

@@ -124,6 +124,8 @@ public:
                                             double* outLogLikelihoods,
                                             double* outFirstDerivatives,
                                             double* outSecondDerivatives) = 0;
+
+    virtual int block(void) = 0;
 //protected:
     int resourceNumber;
 };
