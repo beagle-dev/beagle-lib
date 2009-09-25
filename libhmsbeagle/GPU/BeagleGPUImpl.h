@@ -201,6 +201,8 @@ public:
                                     double* outLogLikelihoods,
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);    
+
+    int block(void);
 };
 
 class BeagleGPUImplFactory : public BeagleImplFactory {

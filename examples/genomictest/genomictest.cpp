@@ -175,6 +175,7 @@ void runBeagle(int resource,
                                    edgeLengths,   // edgeLengths
                                    ntaxa*2-2);            // count    
 
+	beagleBlock(instance);
     gettimeofday(&time2, NULL);
     
     // update the partials

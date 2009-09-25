@@ -17,10 +17,7 @@ class EigenDecompositionCube : public EigenDecomposition {
 
 protected:
     double** gCMatrices;
-//    double** gEMatrices; // kStateCount^2 flattened array  
-//    double** gIMatrices; // kStateCount^2 flattened array
-         
-    double* matrixTmp;
+
 public:
 	EigenDecompositionCube(int decompositionCount, 
 						   int stateCount, 

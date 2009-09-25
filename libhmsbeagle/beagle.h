@@ -541,6 +541,13 @@ DLLEXPORT int beagleCalculateEdgeLogLikelihoods(int instance,
                                       double* outFirstDerivatives,
                                       double* outSecondDerivatives);
 
+/* Undocumented function go below here
+ */
+
+DLLEXPORT int beagleBlock(int instance);
+
+
+
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (closing brace)
  */

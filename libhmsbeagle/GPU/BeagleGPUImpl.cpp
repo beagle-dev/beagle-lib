@@ -149,7 +149,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     if (preferenceFlags & BEAGLE_FLAG_LSCALER || requirementFlags & BEAGLE_FLAG_LSCALER)
         kFlags |= BEAGLE_FLAG_LSCALER;
     
- //   if (preferenceFlags & BEAGLE_FLAG_COMPLEX || requirementFlags & BEAGLE_FLAG_COMPLEX)
+    if (preferenceFlags & BEAGLE_FLAG_COMPLEX || requirementFlags & BEAGLE_FLAG_COMPLEX)
     {
     	kFlags |= BEAGLE_FLAG_COMPLEX;
     	kMatrixCount++; // Use last set as temporary buffers for complex calculations
@@ -1118,6 +1118,11 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 #endif
     
     return BEAGLE_SUCCESS;
+}
+
+int BeagleGPUImpl::block(void) {
+	gpu->Synchronize();
+	return BEAGLE_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
