@@ -1,5 +1,5 @@
 /*
- *  BeagleCPUImpl.h
+ *  BeagleCPU4StateImpl.h
  *  BEAGLE
  *
  * Copyright 2009 Phylogenetic Likelihood Working Group
