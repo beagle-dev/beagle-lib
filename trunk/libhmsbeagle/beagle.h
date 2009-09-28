@@ -148,7 +148,7 @@ extern "C" {
  *
  * @return A list of resources available to the library as a ResourceList array
  */
-DLLEXPORT BeagleResourceList* beagleGetResourceList();
+DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
 
 /**
  * @brief Create a single instance
@@ -225,7 +225,7 @@ DLLEXPORT int beagleFinalizeInstance(int instance);
  *
  * @return error code
  */
-DLLEXPORT int beagleFinalize();
+DLLEXPORT int beagleFinalize(void);
         
 /**
  * @brief Set the compact state representation for tip node
