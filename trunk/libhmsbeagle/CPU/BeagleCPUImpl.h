@@ -33,6 +33,7 @@
 #endif
 
 #include "libhmsbeagle/BeagleImpl.h"
+#include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 #include <vector>
 
@@ -59,15 +60,10 @@ protected:
 
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
+    
+    long kFlags;
 
-    //@ the following eigen-calculation-related fields should be changed to vectors
-    //      of vectors
-    // each element of cMatrices is a kStateCount^3 flattened array to temporaries calculated
-    //  from the eigenVector matrix and inverse eigen vector matrix. Storing these
-    //  temps saves time in the updateTransitionMatrices()
-    double** gCMatrices;
-    // each element of eigenValues is a kStateCount array of eigenvalues
-    double** gEigenValues;
+    EigenDecomposition* gEigenDecomposition;
 
     double* gCategoryRates;
 
@@ -84,7 +80,7 @@ protected:
     double** gTransitionMatrices;
 
     double* integrationTmp;
-    double* matrixTmp;
+//    double* matrixTmp;
 
     double* ones;
     double* zeros;
@@ -225,6 +221,8 @@ public:
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
 
+    int block(void);
+
 protected:
     virtual void calcStatesStates(double* destP,
                                     const int* states1,
@@ -287,9 +285,8 @@ protected:
     virtual void rescalePartials(double *destP,
                                  double *scaleFactors,
                                  double *cumulativeScaleFactors,
-                                    const int  fillWithOnes);
-
-
+                                 const int  fillWithOnes);
+    
 };
 
 class BeagleCPUImplFactory : public BeagleImplFactory {
