@@ -32,7 +32,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -122,7 +122,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -215,7 +215,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -303,7 +303,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -394,7 +394,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -484,7 +484,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -577,7 +577,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -666,7 +666,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\createCUDAkernels.bat"
+				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -770,6 +770,14 @@
 				Name="CPU"
 				>
 				<File
+					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.h"
+					>
+				</File>
+				<File
 					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.cpp"
 					>
 				</File>
@@ -778,11 +786,39 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.h"
+					>
+				</File>
+				<File
 					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPUImpl.cpp"
 					>
 				</File>
 				<File
 					RelativePath="..\..\libhmsbeagle\CPU\BeagleCPUImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\EigenDecomposition.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\EigenDecompositionCube.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\EigenDecompositionCube.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\EigenDecompositionSquare.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\CPU\EigenDecompositionSquare.h"
 					>
 				</File>
 			</Filter>
@@ -817,7 +853,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat"
+							CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
 							AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
 							Outputs="$(InputDir)\kernels\BeagleCUDA_kernels.h"
 						/>
@@ -941,6 +977,14 @@
 			<Filter
 				Name="JNI"
 				>
+				<File
+					RelativePath="..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.h"
+					>
+				</File>
 			</Filter>
 		</Filter>
 	</Files>
