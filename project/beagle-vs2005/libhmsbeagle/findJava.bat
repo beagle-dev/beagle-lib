@@ -9,5 +9,5 @@ FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Develo
 
 :END
 
-echo #pragma include_alias(^<jni.h^>, ^<%JDK_HOME%\include\jni.h^>) > ..\..\libhmsbeagle\JNI\winjni.h
-echo #pragma include_alias("jni_md.h", "%JDK_HOME%\include\win32\jni_md.h") >> ..\..\libhmsbeagle\JNI\winjni.h
+echo #pragma include_alias(^<jni.h^>, ^<%JDK_HOME%\include\jni.h^>) > ..\..\..\libhmsbeagle\JNI\winjni.h
+echo #pragma include_alias("jni_md.h", "%JDK_HOME%\include\win32\jni_md.h") >> ..\..\..\libhmsbeagle\JNI\winjni.h

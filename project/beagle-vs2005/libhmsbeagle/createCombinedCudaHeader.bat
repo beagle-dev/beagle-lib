@@ -7,7 +7,7 @@
 ::
 
 
-set OUTFILE="..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
+set OUTFILE="..\..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
 if exist %OUTFILE% del %OUTFILE%
 
 echo #ifndef __BeagleCUDA_kernels__ >> %OUTFILE%
