@@ -47,11 +47,7 @@
 #ifndef __beagle__
 #define __beagle__
 
-#ifdef _WIN32
-#define DLLEXPORT __declspec(dllexport)
-#else
-#define DLLEXPORT
-#endif
+#include "libhmsbeagle/platform.h"
 
 /**
  * @anchor BEAGLE_RETURN_CODES
@@ -148,7 +144,7 @@ extern "C" {
  *
  * @return A list of resources available to the library as a ResourceList array
  */
-DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
+BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
 
 /**
  * @brief Create a single instance
@@ -178,7 +174,7 @@ DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
  * "BeagleReturnCodes")
  */
-DLLEXPORT int beagleCreateInstance(int tipCount,
+BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int partialsBufferCount,
                          int compactBufferCount,
                          int stateCount,
@@ -203,7 +199,7 @@ DLLEXPORT int beagleCreateInstance(int tipCount,
  *
  * @returns Information about the implementation and hardware on which this instance will run
  */
-DLLEXPORT int beagleInitializeInstance(int instance,
+BEAGLE_DLLEXPORT int beagleInitializeInstance(int instance,
                              BeagleInstanceDetails* returnInfo);
 
 /**
@@ -215,7 +211,7 @@ DLLEXPORT int beagleInitializeInstance(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleFinalizeInstance(int instance);
+BEAGLE_DLLEXPORT int beagleFinalizeInstance(int instance);
 
 /**
  * @brief Finalize the library
@@ -225,7 +221,7 @@ DLLEXPORT int beagleFinalizeInstance(int instance);
  *
  * @return error code
  */
-DLLEXPORT int beagleFinalize(void);
+BEAGLE_DLLEXPORT int beagleFinalize(void);
         
 /**
  * @brief Set the compact state representation for tip node
@@ -241,7 +237,7 @@ DLLEXPORT int beagleFinalize(void);
  *
  * @return error code
  */
-DLLEXPORT int beagleSetTipStates(int instance,
+BEAGLE_DLLEXPORT int beagleSetTipStates(int instance,
                        int tipIndex,
                        const int* inStates);
 
@@ -259,7 +255,7 @@ DLLEXPORT int beagleSetTipStates(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleSetTipPartials(int instance,
+BEAGLE_DLLEXPORT int beagleSetTipPartials(int instance,
                          int tipIndex,
                          const double* inPartials);
 
@@ -275,7 +271,7 @@ DLLEXPORT int beagleSetTipPartials(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleSetPartials(int instance,
+BEAGLE_DLLEXPORT int beagleSetPartials(int instance,
                       int bufferIndex,
                       const double* inPartials);
 
@@ -292,7 +288,7 @@ DLLEXPORT int beagleSetPartials(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleGetPartials(int instance,
+BEAGLE_DLLEXPORT int beagleGetPartials(int instance,
                       int bufferIndex,
                       int scaleIndex,
                       double* outPartials);
@@ -311,7 +307,7 @@ DLLEXPORT int beagleGetPartials(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleSetEigenDecomposition(int instance,
+BEAGLE_DLLEXPORT int beagleSetEigenDecomposition(int instance,
                                 int eigenIndex,
                                 const double* inEigenVectors,
                                 const double* inInverseEigenVectors,
@@ -327,7 +323,7 @@ DLLEXPORT int beagleSetEigenDecomposition(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleSetCategoryRates(int instance,
+BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
                            const double* inCategoryRates);
 
 /**
@@ -349,7 +345,7 @@ DLLEXPORT int beagleSetCategoryRates(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
+BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int eigenIndex,
                                    const int* probabilityIndices,
                                    const int* firstDerivativeIndices,
@@ -371,7 +367,7 @@ DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleSetTransitionMatrix(int instance,
+BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
                               int matrixIndex,
                               const double* inMatrix);
 
@@ -400,7 +396,7 @@ DLLEXPORT int beagleSetTransitionMatrix(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleUpdatePartials(const int* instance,
+BEAGLE_DLLEXPORT int beagleUpdatePartials(const int* instance,
                          int instanceCount,
                          const int* operations,
                          int operationCount,
@@ -423,7 +419,7 @@ DLLEXPORT int beagleUpdatePartials(const int* instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleWaitForPartials(const int* instance,
+BEAGLE_DLLEXPORT int beagleWaitForPartials(const int* instance,
                           int instanceCount,
                           const int* destinationPartials,
                           int destinationPartialsCount);
@@ -439,7 +435,7 @@ DLLEXPORT int beagleWaitForPartials(const int* instance,
  * @param count                     Number of scaleBuffers in list (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to accumulate factors into (input)
  */
-DLLEXPORT int beagleAccumulateScaleFactors(int instance,
+BEAGLE_DLLEXPORT int beagleAccumulateScaleFactors(int instance,
                                  const int* scaleIndices,
                                  int count,
                                  int cumulativeScaleIndex);
@@ -455,7 +451,7 @@ DLLEXPORT int beagleAccumulateScaleFactors(int instance,
  * @param count                     Number of scaleBuffers in list (input)
  * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
  */
-DLLEXPORT int beagleRemoveScaleFactors(int instance,
+BEAGLE_DLLEXPORT int beagleRemoveScaleFactors(int instance,
                              const int* scaleIndices,
                              int count,
                              int cumulativeScaleIndex);
@@ -468,7 +464,7 @@ DLLEXPORT int beagleRemoveScaleFactors(int instance,
  * @param instance                  Instance number (input)
  * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
  */
-DLLEXPORT int beagleResetScaleFactors(int instance,
+BEAGLE_DLLEXPORT int beagleResetScaleFactors(int instance,
                             int cumulativeScaleIndex);
 
 /**
@@ -492,7 +488,7 @@ DLLEXPORT int beagleResetScaleFactors(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
+BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* bufferIndices,
                                       const double* inWeights,
                                       const double* inStateFrequencies,
@@ -527,7 +523,7 @@ DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
  *
  * @return error code
  */
-DLLEXPORT int beagleCalculateEdgeLogLikelihoods(int instance,
+BEAGLE_DLLEXPORT int beagleCalculateEdgeLogLikelihoods(int instance,
                                       const int* parentBufferIndices,
                                       const int* childBufferIndices,
                                       const int* probabilityIndices,
