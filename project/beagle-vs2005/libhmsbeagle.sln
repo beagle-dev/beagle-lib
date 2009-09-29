@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle", "libhmsbeagle.vcproj", "{74775C34-D68F-4812-AF73-7270C035DAD2}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle", "libhmsbeagle/libhmsbeagle.vcproj", "{74775C34-D68F-4812-AF73-7270C035DAD2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
