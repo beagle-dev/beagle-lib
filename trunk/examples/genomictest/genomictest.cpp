@@ -404,4 +404,11 @@ int main( int argc, const char* argv[] )
                   scaling,
                   rateCategoryCount);
 	}
+
+#ifdef _WIN32
+    std::cout << "\nPress ENTER to exit...\n";
+    fflush( stdout);
+    fflush( stderr);
+    getchar();
+#endif
 }
