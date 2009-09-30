@@ -728,7 +728,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         GPUPtr tipStates2 = dStates[child2Index];
         
         int rescale = BEAGLE_OP_NONE;
-        GPUPtr scalingFactors;
+        GPUPtr scalingFactors = NULL;
         if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
