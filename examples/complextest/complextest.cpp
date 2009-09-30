@@ -305,9 +305,10 @@ int main( int argc, const char* argv[] )
     beagleFinalizeInstance(instance);
 
 #ifdef _WIN32
-	std::cout << "\nPress any key then hit ENTER to continue.\n";
-	char x;
-	std::cin >> x;
+    std::cout << "\nPress ENTER to exit...\n";
+    fflush( stdout);
+    fflush( stderr);
+    getchar();
 #endif
     
 }
