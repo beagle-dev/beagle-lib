@@ -4,18 +4,39 @@
  *  Based on tinyTest.cpp by Andrew Rambaut.
  */
 #include <cstdio>
-#include <cstring>
+#include <string>
 #include <cstdlib>
 #include <iostream>
 
 #ifdef _WIN32
 	#include <vector>
-//	#include <winsock.h>
+	#include <winsock.h>
 #else
 	#include <sys/time.h>
 #endif
 
 #include "libhmsbeagle/beagle.h"
+
+#ifdef _WIN32
+	//From January 1, 1601 (UTC). to January 1,1970
+	#define FACTOR 0x19db1ded53e8000 
+
+	int gettimeofday(struct timeval *tp,void * tz) {
+		FILETIME f;
+		ULARGE_INTEGER ifreq;
+		LONGLONG res; 
+		GetSystemTimeAsFileTime(&f);
+		ifreq.HighPart = f.dwHighDateTime;
+		ifreq.LowPart = f.dwLowDateTime;
+
+		res = ifreq.QuadPart - FACTOR;
+		tp->tv_sec = (long)((LONGLONG)res/10000000);
+		tp->tv_usec = (long)((LONGLONG)res% 10000000000); // Micro Seonds
+
+		return 0;
+	}
+#endif
+
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
@@ -169,7 +190,7 @@ void runBeagle(int resource,
     }
 
     // set the Eigen decomposition
-	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
+	beagleSetEigenDecomposition(instance, 0, &evec[0], &ivec[0], &eval[0]);
 
     // a list of indices and edge lengths
 	int* nodeIndices = new int[ntaxa*2-2];
@@ -196,10 +217,8 @@ void runBeagle(int resource,
 	int rootIndex = ntaxa*2-2;
 
     // start timing!
-#ifndef _WIN32
 	struct timeval time1, time2, time3;
 	gettimeofday(&time1,NULL);
-#endif
 
     // tell BEAGLE to populate the transition matrices for the above edge lengths
 	beagleUpdateTransitionMatrices(instance,     // instance
@@ -210,9 +229,7 @@ void runBeagle(int resource,
                                    edgeLengths,   // edgeLengths
                                    ntaxa*2-2);            // count    
 
-#ifndef _WIN32
     gettimeofday(&time2, NULL);
-#endif
     
     // update the partials
 	beagleUpdatePartials( &instance,      // instance
@@ -242,30 +259,25 @@ void runBeagle(int resource,
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
-	                            weights,                // weights
-	                            freqs,                 // stateFrequencies
+	                            &weights[0],                // weights
+	                            &freqs[0],                 // stateFrequencies
                                 &cumulativeScalingFactorIndex,
 	                            1,                      // count
 	                            patternLogLik);         // outLogLikelihoods
 
 	// end timing!
-#ifndef _WIN32
 	gettimeofday(&time3,NULL);
-#endif
 
 	double logL = 0.0;
 	for (int i = 0; i < nsites; i++) {
 		logL += patternLogLik[i];
 	}
 
-
 	fprintf(stdout, "logL = %.5f \n", logL);
-#ifndef _WIN32
 	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
     double timediff2 =  time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
 	std::cout << "Took " << timediff1 << " and\n";
     std::cout << "     " << timediff2 << " seconds\n\n";
-#endif
 	beagleFinalizeInstance(instance);
     free(evec);
 }
