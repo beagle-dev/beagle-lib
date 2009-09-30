@@ -603,7 +603,31 @@
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu"
 						>
 						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
 							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
 							ExcludedFromBuild="true"
 							>
 							<Tool
@@ -615,7 +639,31 @@
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsX.cu"
 						>
 						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
 							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
 							ExcludedFromBuild="true"
 							>
 							<Tool
