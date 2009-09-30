@@ -7,7 +7,14 @@
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
-#include <sys/time.h>
+
+#ifdef _WIN32
+	#include <vector>
+//	#include <winsock.h>
+#else
+	#include <sys/time.h>
+#endif
+
 #include "libhmsbeagle/beagle.h"
 
 double* getRandomTipPartials( int nsites, int stateCount )
@@ -76,21 +83,37 @@ void runBeagle(int resource,
 		beagleSetTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
 	}
     
-	double rates[rateCategoryCount];
+#ifdef _WIN32
+	std::vector<double> rates(rateCategoryCount);
+#else
+    double rates[rateCategoryCount];
+#endif
+	
     for (int i = 0; i < rateCategoryCount; i++) {
         rates[i] = 1.0;
     }
     
-	beagleSetCategoryRates(instance, rates);
+	beagleSetCategoryRates(instance, &rates[0]);
 	
     // create base frequency array
+
+#ifdef _WIN32
+	std::vector<double> freqs(stateCount);
+#else
     double freqs[stateCount];
+#endif
+   
     for (int i=0; i<stateCount; i++) {
         freqs[i] = 1.0 / stateCount;
     }
 
     // create an array containing site category weights
-	double weights[rateCategoryCount];
+#ifdef _WIN32
+	std::vector<double> weights(rateCategoryCount);
+#else
+    double weights[rateCategoryCount];
+#endif
+
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     } 
@@ -121,7 +144,12 @@ void runBeagle(int resource,
     double* evec = Hn;
     
     // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+#ifdef _WIN32
+	std::vector<double> ivec(stateCount * stateCount);
+#else
     double ivec[stateCount * stateCount];
+#endif
+
     for (int i=0; i<stateCount; i++) {
         for (int j=i; j<stateCount; j++) {
             ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
@@ -129,7 +157,12 @@ void runBeagle(int resource,
         }
     }
 
+#ifdef _WIN32
+	std::vector<double> eval(stateCount);
+#else
     double eval[stateCount];
+#endif
+   
     eval[0] = 0.0;
     for (int i=1; i<stateCount; i++) {
         eval[i] = -stateCount / (stateCount - 1.0);
@@ -163,9 +196,11 @@ void runBeagle(int resource,
 	int rootIndex = ntaxa*2-2;
 
     // start timing!
+#ifndef _WIN32
 	struct timeval time1, time2, time3;
 	gettimeofday(&time1,NULL);
-    
+#endif
+
     // tell BEAGLE to populate the transition matrices for the above edge lengths
 	beagleUpdateTransitionMatrices(instance,     // instance
                                    0,             // eigenIndex
@@ -175,7 +210,9 @@ void runBeagle(int resource,
                                    edgeLengths,   // edgeLengths
                                    ntaxa*2-2);            // count    
 
+#ifndef _WIN32
     gettimeofday(&time2, NULL);
+#endif
     
     // update the partials
 	beagleUpdatePartials( &instance,      // instance
@@ -212,7 +249,9 @@ void runBeagle(int resource,
 	                            patternLogLik);         // outLogLikelihoods
 
 	// end timing!
+#ifndef _WIN32
 	gettimeofday(&time3,NULL);
+#endif
 
 	double logL = 0.0;
 	for (int i = 0; i < nsites; i++) {
@@ -221,10 +260,12 @@ void runBeagle(int resource,
 
 
 	fprintf(stdout, "logL = %.5f \n", logL);
+#ifndef _WIN32
 	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
     double timediff2 =  time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
 	std::cout << "Took " << timediff1 << " and\n";
     std::cout << "     " << timediff2 << " seconds\n\n";
+#endif
 	beagleFinalizeInstance(instance);
     free(evec);
 }
