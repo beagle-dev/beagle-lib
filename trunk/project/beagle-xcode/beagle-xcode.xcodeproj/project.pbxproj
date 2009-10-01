@@ -61,6 +61,24 @@
 		644D3EC30FFDBD8300774CDD /* BeagleCPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C380FD2B74900678D0B /* BeagleCPUImpl.cpp */; };
 		644D3EC40FFDBD8300774CDD /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */; };
 		644D3F7B0FFEE53200774CDD /* GPUInterfaceCUDA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */; };
+		645670B810751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670B910751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670BA10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670BB10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670BC10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670BD10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670BE10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670BF10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670C010751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670C110751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670C210751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670C310751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670C410751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670C510751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670C610751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670C710751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
+		645670C810751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */; };
+		645670C910751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */; };
 		64574B581000101100603261 /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* KernelLauncher.cpp */; };
 		64574B591000101900603261 /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645749650FFF2AE300603261 /* GPUImplHelper.cpp */; };
 		646F6E8B10019AA10085DDB1 /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
@@ -201,6 +219,11 @@
 		6420678D102623AC004AB87A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = ../../examples/tinytest/tinytest.cpp; sourceTree = SOURCE_ROOT; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		645670B310751CAC00E9CDF0 /* EigenDecomposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecomposition.h; path = "Projects/beagle-lib/libhmsbeagle/CPU/EigenDecomposition.h"; sourceTree = DEVELOPER_DIR; };
+		645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = EigenDecompositionCube.cpp; path = "Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.cpp"; sourceTree = DEVELOPER_DIR; };
+		645670B510751CAC00E9CDF0 /* EigenDecompositionCube.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecompositionCube.h; path = "Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.h"; sourceTree = DEVELOPER_DIR; };
+		645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = EigenDecompositionSquare.cpp; path = "Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.cpp"; sourceTree = DEVELOPER_DIR; };
+		645670B710751CAC00E9CDF0 /* EigenDecompositionSquare.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecompositionSquare.h; path = "Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.h"; sourceTree = DEVELOPER_DIR; };
 		645747CA0FFF069700603261 /* GPUInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUInterface.h; path = ../../libhmsbeagle/GPU/GPUInterface.h; sourceTree = SOURCE_ROOT; };
 		645747FC0FFF0B5000603261 /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplDefs.h; path = ../../libhmsbeagle/GPU/GPUImplDefs.h; sourceTree = SOURCE_ROOT; };
 		645748DD0FFF28CB00603261 /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelLauncher.h; path = ../../libhmsbeagle/GPU/KernelLauncher.h; sourceTree = SOURCE_ROOT; };
@@ -224,7 +247,7 @@
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
 		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
@@ -316,6 +339,7 @@
 			children = (
 				649E82ED0FD703C10044891D /* Beagle */,
 				649C82471027867600B21A29 /* CPU Impl */,
+				645670DF10751D0F00E9CDF0 /* CPU Complex */,
 				649C82611027A32200B21A29 /* CPU 4State Impl */,
 				33CE76B3106690F300CBF579 /* CPU 4State SSE Impl */,
 				33CE770110669F1B00CBF579 /* CPU 4State GCD Impl */,
@@ -358,6 +382,18 @@
 			name = JNI;
 			path = ../../libhmsbeagle/JNI;
 			sourceTree = SOURCE_ROOT;
+		};
+		645670DF10751D0F00E9CDF0 /* CPU Complex */ = {
+			isa = PBXGroup;
+			children = (
+				645670B310751CAC00E9CDF0 /* EigenDecomposition.h */,
+				645670B510751CAC00E9CDF0 /* EigenDecompositionCube.h */,
+				645670B410751CAC00E9CDF0 /* EigenDecompositionCube.cpp */,
+				645670B710751CAC00E9CDF0 /* EigenDecompositionSquare.h */,
+				645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.cpp */,
+			);
+			name = "CPU Complex";
+			sourceTree = "<group>";
 		};
 		6474F594101F90EB00A1A469 /* Frameworks */ = {
 			isa = PBXGroup;
@@ -464,7 +500,7 @@
 				646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */,
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
-				64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */,
+				64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
 				64C0EB441034BC820004734E /* genomicTestOpenCLXcode */,
 			);
 			name = Products;
@@ -590,7 +626,7 @@
 			);
 			name = fourTaxonOpenCLXcode;
 			productName = tinyTestGPUXcode;
-			productReference = 64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */;
+			productReference = 64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */;
 			productType = "com.apple.product-type.tool";
 		};
 		64EC49D80FE9BD0B006841E3 /* genomicTestCPUXcode */ = {
@@ -703,6 +739,8 @@
 				648DE27F102486F80022E549 /* BeagleCPU4StateImpl.cpp in Sources */,
 				33CE76DF10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770410669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670BC10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670BD10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -721,6 +759,8 @@
 				64835E1E10559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E210669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770710669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670B810751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670B910751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -739,6 +779,8 @@
 				64835E1D10559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E310669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770810669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670C010751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670C110751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -757,6 +799,8 @@
 				64835E1C10559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E410669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770910669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670C210751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670C310751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -775,6 +819,8 @@
 				64835E2010559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E510669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770A10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670C410751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670C510751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -793,6 +839,8 @@
 				64835E1F10559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E710669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770C10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670C810751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670C910751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -811,6 +859,8 @@
 				64835E2110559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE76E610669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770B10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670C610751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670C710751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -824,6 +874,8 @@
 				648DE27E102486F80022E549 /* BeagleCPU4StateImpl.cpp in Sources */,
 				33CE76E110669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770610669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670BE10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670BF10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -837,6 +889,8 @@
 				64206790102623AC004AB87A /* tinytest.cpp in Sources */,
 				33CE76E010669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
 				33CE770510669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
+				645670BA10751CAC00E9CDF0 /* EigenDecompositionCube.cpp in Sources */,
+				645670BB10751CAC00E9CDF0 /* EigenDecompositionSquare.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
