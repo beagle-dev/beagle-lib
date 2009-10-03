@@ -23,7 +23,7 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
@@ -32,7 +32,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -76,10 +76,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cudart.lib cutil32D.lib cuda.lib"
-				OutputFile="../../../lib/libhmsbeagle32d.dll"
+				AdditionalDependencies="cuda.lib"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32D.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="C:\CUDA\LIB;$(NVSDKCUDA_ROOT)\common\lib"
+				AdditionalLibraryDirectories="C:\CUDA\LIB"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
 				SubSystem="1"
@@ -113,7 +113,7 @@
 		</Configuration>
 		<Configuration
 			Name="Debug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
@@ -122,12 +122,12 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="createCombinedCudaHeader.bat&#x0D;&#x0A;"
-				Outputs="..\..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
+				CommandLine=""
+				Outputs=""
 			/>
 			<Tool
 				Name="CUDA Build Rule"
@@ -169,10 +169,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cudart.lib cutil64D.lib cuda.lib"
-				OutputFile="../../../lib/libhmsbeagle64d.dll"
+				AdditionalDependencies="cuda.lib"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64D.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="$(CUDA_LIB_PATH);$(NVSDKCUDA_ROOT)\common\lib"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
 				SubSystem="1"
@@ -206,7 +206,7 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
@@ -215,7 +215,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -256,10 +256,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cudart.lib cutil32.lib cuda.lib"
-				OutputFile="../../../lib/libhmsbeagle32.dll"
+				AdditionalDependencies="cuda.lib"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="C:\CUDA\LIB;$(NVSDKCUDA_ROOT)\common\lib"
+				AdditionalLibraryDirectories="C:\CUDA\LIB"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -294,7 +294,7 @@
 		</Configuration>
 		<Configuration
 			Name="Release|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
@@ -303,12 +303,12 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Creating a .cu file for every combination of state counts"
-				CommandLine="$(ProjectDir)\findJava.bat&#x0D;&#x0A;$(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="createCombinedCudaHeader.bat&#x0D;&#x0A;"
-				Outputs="..\..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
+				CommandLine=""
+				Outputs=""
 			/>
 			<Tool
 				Name="CUDA Build Rule"
@@ -347,10 +347,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cudart.lib cutil64.lib cuda.lib"
-				OutputFile="../../../lib/libhmsbeagle64.dll"
+				AdditionalDependencies="cuda.lib"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="$(CUDA_LIB_PATH);$(NVSDKCUDA_ROOT)\common\lib"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -493,9 +493,9 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-							AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
-							Outputs="$(InputDir)\kernels\BeagleCUDA_kernels.h"
+							CommandLine=""
+							AdditionalDependencies=""
+							Outputs=""
 						/>
 					</FileConfiguration>
 				</File>
@@ -526,14 +526,25 @@
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
 						>
 						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
+								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
 							Name="Debug|x64"
 							>
 							<Tool
 								Name="VCCustomBuildTool"
 								Description="Creating CUDA kernel header file"
 								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-								AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
-								Outputs="$(InputPath)"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
 							/>
 						</FileConfiguration>
 						<FileConfiguration
@@ -541,8 +552,9 @@
 							>
 							<Tool
 								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
 								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
 								Outputs="BeagleCUDA_kernels.h"
 							/>
 						</FileConfiguration>
@@ -553,30 +565,8 @@
 								Name="VCCustomBuildTool"
 								Description="Creating CUDA kernel header file"
 								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-								AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
-								Outputs="$(InputPath)"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="EmuDebug|x64"
-							>
-							<Tool
-								Name="VCCustomBuildTool"
-								Description="Creating CUDA kernel header file"
-								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-								AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
-								Outputs="$(InputPath)"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="EmuRelease|x64"
-							>
-							<Tool
-								Name="VCCustomBuildTool"
-								Description="Creating CUDA kernel header file"
-								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
-								AdditionalDependencies="$(ProjectDir)\data\kernels4.ptx"
-								Outputs="$(InputPath)"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
 							/>
 						</FileConfiguration>
 					</File>
@@ -611,6 +601,78 @@
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64ls.cu"
 						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsX.cu"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
 					</File>
 				</Filter>
 			</Filter>
