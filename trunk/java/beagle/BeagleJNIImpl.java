@@ -5,6 +5,8 @@
 
 package beagle;
 
+import java.util.logging.Logger;
+
 /*
  * BeagleJNIjava
  *
@@ -31,7 +33,7 @@ public class BeagleJNIImpl implements Beagle {
                          long preferenceFlags,
                          long requirementFlags) {
 
-        this.instance = BeagleJNIWrapper.INSTANCE.createInstance(
+        int errCode = BeagleJNIWrapper.INSTANCE.createInstance(
                 tipCount,
                 partialsBufferCount,
                 compactBufferCount,
@@ -46,10 +48,13 @@ public class BeagleJNIImpl implements Beagle {
                 preferenceFlags,
                 requirementFlags);
 
-        if (instance >= 0)
+        if (errCode >= 0) {
+            instance = errCode;
             BeagleJNIWrapper.INSTANCE.initializeInstance(instance, details);
-        else
-            details = null; // To communicate that no instance would be created!        
+        } else {
+            details = null; // To communicate that no instance would be created!
+            throw new BeagleException("create",errCode);
+        }
     }
 
     public void finalize() throws Throwable {

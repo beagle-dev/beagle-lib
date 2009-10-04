@@ -290,6 +290,8 @@ int beagleCreateInstance(int tipCount,
         int bestScore = +1;
         possibleResources->sort(); // Attempt in rank order, lowest score wins
         
+        int errorCode;
+        
         // Score each resource-implementation pair given preferences
         for(PairedList::iterator it = possibleResources->begin(); 
                 it != possibleResources->end(); ++it) {
@@ -313,14 +315,18 @@ int beagleCreateInstance(int tipCount,
                             (*factory)->getName(),totalScore);
 #endif
                     if (totalScore < bestScore) { // Looking for lowest
+                        
                         beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                                     compactBufferCount, stateCount,
                                                                     patternCount, eigenBufferCount,
                                                                     matrixBufferCount, categoryCount, 
-                                                                    scaleBufferCount, preferenceFlags,
-                                                                    requirementFlags);
+                                                                    scaleBufferCount,
+                                                                    resource,
+                                                                    preferenceFlags,
+                                                                    requirementFlags,                                                                                                                                                        
+                                                                    &errorCode);
                         if (beagle != NULL) {
-                            beagle->resourceNumber = resource;
+//                            beagle->resourceNumber = resource;
                             // Found a better implementation
                             if (bestBeagle != NULL)
                                 delete bestBeagle;
@@ -340,8 +346,8 @@ int beagleCreateInstance(int tipCount,
             return instance;
         }
 
-        // No implementations found or appropriate
-        return BEAGLE_ERROR_GENERAL;
+        // No implementations found or appropriate, return last error code
+        return errorCode;
     }
     catch (std::bad_alloc &) {
         return BEAGLE_ERROR_OUT_OF_MEMORY;
@@ -358,10 +364,13 @@ int beagleCreateInstance(int tipCount,
 int beagleInitializeInstance(int instance,
                        BeagleInstanceDetails* returnInfo) {
     try {
+    	// BeagleImpl::createInstance should be called here
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-        return beagleInstance->initializeInstance(returnInfo);
+        int returnValue = beagleInstance->getInstanceDetails(returnInfo);
+        fprintf(stderr,"Beagle initializeInstance returnValue: %d\n",returnValue);
+        return returnValue;
     }
     catch (std::bad_alloc &) {
         return BEAGLE_ERROR_OUT_OF_MEMORY;

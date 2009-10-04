@@ -137,6 +137,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
                                   int matrixCount,
                                   int categoryCount,
                                   int scaleBufferCount,
+                                  int resourceNumber,
                                   long preferenceFlags,
                                   long requirementFlags) {
     if (DEBUGGING_OUTPUT)
@@ -227,7 +228,7 @@ int BeagleCPUImpl::createInstance(int tipCount,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleCPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
+int BeagleCPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
         returnInfo->flags = BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
@@ -1064,15 +1065,22 @@ BeagleImpl* BeagleCPUImplFactory::createImpl(int tipCount,
                                              int matrixBufferCount,
                                              int categoryCount,
                                              int scaleBufferCount,
+                                             int resourceNumber,
                                              long preferenceFlags,
-                                             long requirementFlags) {
+                                             long requirementFlags,
+                                             int* errorCode) {
     BeagleImpl* impl = new BeagleCPUImpl();
 
     try {
-        if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+        *errorCode = 
+            impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, preferenceFlags, requirementFlags) == 0)
+                                 categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags);
+        if (*errorCode == BEAGLE_SUCCESS) {
             return impl;
+        }
+        delete impl;
+        return NULL;
     }
     catch(...) {
         if (DEBUGGING_OUTPUT)
