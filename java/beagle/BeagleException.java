@@ -2,8 +2,7 @@ package beagle;
 
 /**
  * @author Andrew Rambaut
- * @author Alexei Drummond
- * @version $Id$
+ * @author Marc Suchard
  */
 public class BeagleException extends RuntimeException {
     public BeagleException(String functionName, int errCode) {

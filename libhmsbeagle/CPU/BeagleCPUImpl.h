@@ -98,11 +98,12 @@ public:
                        int matrixCount,
                        int categoryCount,
                        int scaleBufferCount,
+                       int resourceNumber,
                        long preferenceFlags,
                        long requirementFlags);
 
     // initialization of instance,  returnInfo can be null
-    int initializeInstance(BeagleInstanceDetails* returnInfo);
+    int getInstanceDetails(BeagleInstanceDetails* returnInfo);
 
     // set the states for a given tip
     //
@@ -300,8 +301,10 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount,
+                                   int resourceNumber,
                                    long preferenceFlags,
-                                   long requirementFlags);
+                                   long requirementFlags,
+                                   int* errorCode);
 
     virtual const char* getName();
     virtual const long getFlags();

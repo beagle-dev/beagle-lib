@@ -51,10 +51,11 @@ public:
                                int matrixBufferCount,                               
                                int categoryCount,
                                int scaleBufferCount,
+                               int resourceNumber,
                                long preferenceFlags,
                                long requirementFlags) = 0;
     
-    virtual int initializeInstance(BeagleInstanceDetails* returnInfo) = 0;
+    virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
     
     virtual int setTipStates(int tipIndex,
                              const int* inStates) = 0;
@@ -139,8 +140,10 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount,
+                                   int resourceNumber,
                                    long preferenceFlags,
-                                   long requirementFlags) = 0; // pure virtual
+                                   long requirementFlags,
+                                   int* errorCode) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
     

@@ -116,7 +116,9 @@ private:
     int* hStatesCache;
     REAL* hMatrixCache;
     
-public:
+public:    
+    BeagleGPUImpl();
+    
     virtual ~BeagleGPUImpl();
     
     int createInstance(int tipCount,
@@ -128,10 +130,11 @@ public:
                        int matrixCount,
                        int categoryCount,
                        int scaleBufferCount,
+                       int resourceNumber,
                        long preferenceFlags,
                        long requirementFlags);
     
-    int initializeInstance(BeagleInstanceDetails* retunInfo);
+    int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
     int setTipStates(int tipIndex,
                      const int* inStates);
@@ -212,8 +215,10 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount,
+                                   int resourceNumber,
                                    long preferenceFlags,
-                                   long requirementFlags);
+                                   long requirementFlags,
+                                   int* errorCode);
 
     virtual const char* getName();
     virtual const long getFlags();

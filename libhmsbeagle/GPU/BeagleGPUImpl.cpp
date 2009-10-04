@@ -46,6 +46,52 @@
 using namespace beagle;
 using namespace beagle::gpu;
 
+BeagleGPUImpl::BeagleGPUImpl() {
+    
+    gpu = NULL;
+    kernels = NULL;
+    
+    dEigenValues = NULL;
+    dEvec = NULL;
+    dIevc = NULL;
+    
+    dWeights = NULL;
+    dFrequencies = NULL; 
+    dIntegrationTmp = NULL;
+    dPartialsTmp = NULL;
+    
+	hCategoryRates = NULL;
+    
+    dPartials = NULL;
+    dMatrices = NULL;
+    
+    hTmpTipPartials = NULL;
+    hTmpStates = NULL;
+    
+    dScalingFactors = NULL;
+    
+    dStates = NULL;
+    
+    dCompactBuffers = NULL;
+    dTipPartialsBuffers = NULL;
+    
+    dBranchLengths = NULL;
+    
+    hDistanceQueue = NULL;
+    dDistanceQueue = NULL;
+    
+    hPtrQueue = NULL;
+    dPtrQueue = NULL;
+    
+    hWeightsCache = NULL;
+    hFrequenciesCache = NULL;
+    hCategoryCache = NULL;
+    hLogLikelihoodsCache = NULL;
+    hPartialsCache = NULL;
+    hStatesCache = NULL;
+    hMatrixCache = NULL;
+}
+
 BeagleGPUImpl::~BeagleGPUImpl() {
 		
 	// free GPU memory
@@ -65,38 +111,56 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 		}
 	}
 	
-	if (kHostMemoryUsed) {
+//	if (kHostMemoryUsed) {
 		// free memory
-		delete kernels;
-		delete gpu;
-    
-		free(dPartials);
-		free(dTipPartialsBuffers);
-		free(dStates);
-		free(dCompactBuffers);
-		free(dMatrices);
-		free(dEigenValues);
-		free(dEvec);
-		free(dIevc);
-    
-		free(dScalingFactors);
-    
-		free(hDistanceQueue);
-		free(hPtrQueue);
-    
-		free(hWeightsCache);
-		free(hFrequenciesCache);
-		free(hPartialsCache);
-		free(hStatesCache);
-		free(hMatrixCache);
-		free(hCategoryRates);
+        if (kernels)
+            delete kernels;        
+        if (gpu) 
+            delete gpu;
+		
+        if (dPartials)
+            free(dPartials);
+        if (dTipPartialsBuffers)                    
+            free(dTipPartialsBuffers);
+        if (dStates)
+            free(dStates);
+        if (dCompactBuffers)
+            free(dCompactBuffers);
+        if (dMatrices)
+            free(dMatrices);
+        if (dEigenValues)
+            free(dEigenValues);
+        if (dEvec)
+            free(dEvec);
+        if (dIevc)
+            free(dIevc);
+        if (dScalingFactors)
+            free(dScalingFactors);
+        if (hDistanceQueue)
+            free(hDistanceQueue);
+        if (hPtrQueue)
+            free(hPtrQueue);
+        if (hWeightsCache)
+            free(hWeightsCache);
+        if (hFrequenciesCache)
+            free(hFrequenciesCache);
+        if (hPartialsCache)
+            free(hPartialsCache);
+        if (hStatesCache)
+            free(hStatesCache);
+        if (hMatrixCache)
+            free(hMatrixCache);
+        if (hCategoryRates)
+            free(hCategoryRates);
 		
 #ifndef DOUBLE_PRECISION
-    free(hCategoryCache);
-    free(hLogLikelihoodsCache);
+    if (hCategoryCache)
+        free(hCategoryCache);
+    if (hLogLikelihoodsCache)
+        free(hLogLikelihoodsCache);
 #endif
     
-	}
+//	}
 }
 
 int BeagleGPUImpl::createInstance(int tipCount,
@@ -108,6 +172,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                   int matrixCount,
                                   int categoryCount,
                                   int scaleBufferCount,
+                                  int iResourceNumber,
                                   long preferenceFlags,
                                   long requirementFlags) {
     
@@ -128,6 +193,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
     
+    resourceNumber = iResourceNumber;
+
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
     
@@ -193,10 +260,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
 #endif
     
-    return BEAGLE_SUCCESS;
-}
+//    return BEAGLE_SUCCESS;
+//}
 
-int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
+//int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     
     // TODO: compute device memory requirements
     
@@ -212,11 +279,11 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     numDevices = gpu->GetDeviceCount();
     if (numDevices == 0) {
         fprintf(stderr, "Error: No GPU devices\n");
-        return BEAGLE_ERROR_GENERAL;
+        return BEAGLE_ERROR_NO_RESOURCE;
     }
     if (resourceNumber > numDevices) {
         fprintf(stderr,"Error: Trying to initialize device # %d (which does not exist)\n",resourceNumber);
-        return BEAGLE_ERROR_GENERAL;
+        return BEAGLE_ERROR_NO_RESOURCE;
     }
     
     // TODO: recompiling kernels for every instance, probably not ideal
@@ -245,6 +312,9 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     int availableMem = gpu->GetAvailableMemory();
     if (availableMem < neededMemory) 
         return BEAGLE_ERROR_OUT_OF_MEMORY;
+    
+    fprintf(stderr,"Ditching!!!\n");
+    return BEAGLE_ERROR_OUT_OF_MEMORY;
     
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "     needed memory: %d\n", neededMemory);
@@ -317,12 +387,12 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
 	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
     checkHostMemory(hCategoryRates);
     
-    if (returnInfo != NULL) {
-        returnInfo->resourceNumber = resourceNumber;
-        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
-        if (kStoreLogScalers)
-            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
-    }
+//    if (returnInfo != NULL) {
+//        returnInfo->resourceNumber = resourceNumber;
+//        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
+//        if (kStoreLogScalers)
+//            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
+//    }
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
@@ -337,6 +407,16 @@ int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
     fprintf(stderr, "        difference: %d\n\n", usedMemory-neededMemory);
 #endif
     
+    return BEAGLE_SUCCESS;
+}
+
+int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
+    if (returnInfo != NULL) {
+        returnInfo->resourceNumber = resourceNumber;
+        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
+        if (kStoreLogScalers)
+            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
+    }
     return BEAGLE_SUCCESS;
 }
 
@@ -1094,21 +1174,30 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               int matrixBufferCount,
                                               int categoryCount,
                                               int scaleBufferCount,
+                                              int resourceNumber,
                                               long preferenceFlags,
-                                              long requirementFlags) {
+                                              long requirementFlags,
+                                              int* errorCode) {
     BeagleImpl* impl = new BeagleGPUImpl();
     try {
-        if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+        *errorCode =
+            impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount,preferenceFlags, requirementFlags) == 0)
+                                 categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags);      
+        if (*errorCode == BEAGLE_SUCCESS) {
             return impl;
+        }
+        delete impl;
+        return NULL;
     }
     catch(...)
     {
         delete impl;
+        *errorCode = BEAGLE_ERROR_GENERAL;
         throw;
     }
     delete impl;
+    *errorCode = BEAGLE_ERROR_GENERAL;
     return NULL;
 }
 

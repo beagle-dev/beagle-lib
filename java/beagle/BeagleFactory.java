@@ -4,6 +4,7 @@
 package beagle;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 /**
  * @author Marc Suchard
@@ -22,7 +23,7 @@ public class BeagleFactory {
 
     public static ResourceDetails getResourceDetails(int resourceNumber) {
         getBeagleJNIWrapper();
-
+        System.err.println("resourceNumber = "+resourceNumber);
         return resourceDetailsMap.get(resourceNumber);
     }
 
@@ -48,50 +49,55 @@ public class BeagleFactory {
 
         if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
 
-            Beagle beagle = new BeagleJNIImpl(
-                    tipCount,
-                    partialsBufferCount,
-                    compactBufferCount,
-                    stateCount,
-                    patternCount,
-                    eigenBufferCount,
-                    matrixBufferCount,
-                    categoryCount,
-                    scaleBufferCount,
-                    resourceList,
-                    preferenceFlags,
-                    requirementFlags
-            );
-
-            // From Java we allow the opton of overriding the default CPU BEAGLE implementation in favour
-            // of a hybrid Java/Native C version.
-
-            // In order to know that it was a CPU instance created, we have to let BEAGLE
-            // to make the instance and then override it...
-
-            InstanceDetails details = beagle.getDetails();
-            if ( stateCount == 4 && details != null && BeagleFlag.CPU.isSet(details.getFlags()) &&
-            		forceHybrid ) {
-
-                try {
-                    beagle.finalize();
-                } catch (Throwable throwable) {
-                    System.err.println("Error releasing BEAGLE implementation:\n"+throwable.getMessage());
-                }
-                System.out.println("Using BeagleNative4StateImpl");
-                beagle = new BeagleNative4StateImpl(
+            try {
+                Beagle beagle = new BeagleJNIImpl(
                         tipCount,
                         partialsBufferCount,
                         compactBufferCount,
+                        stateCount,
                         patternCount,
                         eigenBufferCount,
                         matrixBufferCount,
                         categoryCount,
-                        scaleBufferCount
+                        scaleBufferCount,
+                        resourceList,
+                        preferenceFlags,
+                        requirementFlags
                 );
-            }
-            if (details != null) // If resourceList/requirements not met, details == null here
-                return beagle;
+
+                // From Java we allow the opton of overriding the default CPU BEAGLE implementation in favour
+                // of a hybrid Java/Native C version.
+
+                // In order to know that it was a CPU instance created, we have to let BEAGLE
+                // to make the instance and then override it...
+
+                InstanceDetails details = beagle.getDetails();
+                if (stateCount == 4 && details != null && BeagleFlag.CPU.isSet(details.getFlags()) &&
+                        forceHybrid) {
+
+                    try {
+                        beagle.finalize();
+                    } catch (Throwable throwable) {
+                        System.err.println("Error releasing BEAGLE implementation:\n" + throwable.getMessage());
+                    }
+                    System.out.println("Using BeagleNative4StateImpl");
+                    beagle = new BeagleNative4StateImpl(
+                            tipCount,
+                            partialsBufferCount,
+                            compactBufferCount,
+                            patternCount,
+                            eigenBufferCount,
+                            matrixBufferCount,
+                            categoryCount,
+                            scaleBufferCount
+                    );
+                }
+                if (details != null) // If resourceList/requirements not met, details == null here
+                    return beagle;
+
+            } catch (BeagleException beagleException) {
+                Logger.getLogger("dr.evomodel").info("  "+beagleException.getMessage());
+            }                
         }
 
         if (stateCount == 4) {

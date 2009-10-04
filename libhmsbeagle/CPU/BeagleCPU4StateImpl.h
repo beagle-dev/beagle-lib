@@ -119,8 +119,10 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount,
+                                   int resourceNumber,
                                    long preferenceFlags,
-                                   long requirementFlags);
+                                   long requirementFlags,
+                                   int* errorCode);
 
     virtual const char* getName();
     virtual const long getFlags();
