@@ -312,10 +312,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     int availableMem = gpu->GetAvailableMemory();
     if (availableMem < neededMemory) 
         return BEAGLE_ERROR_OUT_OF_MEMORY;
-    
-    fprintf(stderr,"Ditching!!!\n");
-    return BEAGLE_ERROR_OUT_OF_MEMORY;
-    
+
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "     needed memory: %d\n", neededMemory);
     fprintf(stderr, "  available memory: %d\n", availableMem);
