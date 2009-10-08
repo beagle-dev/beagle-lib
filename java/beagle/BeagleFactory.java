@@ -80,7 +80,7 @@ public class BeagleFactory {
                     } catch (Throwable throwable) {
                         System.err.println("Error releasing BEAGLE implementation:\n" + throwable.getMessage());
                     }
-                    System.out.println("Using BeagleNative4StateImpl");
+                    Logger.getLogger("beagle").info("Using BeagleNative4StateImpl");
                     beagle = new BeagleNative4StateImpl(
                             tipCount,
                             partialsBufferCount,
@@ -96,7 +96,7 @@ public class BeagleFactory {
                     return beagle;
 
             } catch (BeagleException beagleException) {
-                Logger.getLogger("dr.evomodel").info("  "+beagleException.getMessage());
+                Logger.getLogger("beagle").info("  "+beagleException.getMessage());
             }                
         }
 
