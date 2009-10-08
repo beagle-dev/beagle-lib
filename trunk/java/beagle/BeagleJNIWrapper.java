@@ -124,17 +124,25 @@ public class BeagleJNIWrapper {
 
     private static final String getPlatformSpecificLibraryName()
     {
-      String osName = System.getProperty("os.name").toLowerCase();
-      String osArch = System.getProperty("os.arch").toLowerCase();
-      if (osName.startsWith("windows")) {
-	if(osArch.equals("i386")) return "hmsbeagle32";
-	if(osArch.startsWith("amd64")||osArch.startsWith("x86_64")) return "hmsbeagle64";
-      }
-      return "hmsbeagle-jni";
+        String osName = System.getProperty("os.name").toLowerCase();
+        String osArch = System.getProperty("os.arch").toLowerCase();
+        if (osName.startsWith("windows")) {
+            if(osArch.equals("i386")) return "hmsbeagle32";
+            if(osArch.startsWith("amd64")||osArch.startsWith("x86_64")) return "hmsbeagle64";
+        }
+        return "hmsbeagle-jni";
     }
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
-        System.loadLibrary(LIBRARY_NAME);
+        String path = "";
+        if (System.getProperty("beagle.library.path") != null) {
+            path = System.getProperty("beagle.library.path");
+            if (path.length() > 0 && !path.endsWith("/")) {
+                path += "/";
+            }
+        }
+
+        System.loadLibrary(path + LIBRARY_NAME);
         INSTANCE = new BeagleJNIWrapper();
     }
 
