@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <cmath>
+#include <cstdio>
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 
 void checkHostMemory(void* ptr) {
