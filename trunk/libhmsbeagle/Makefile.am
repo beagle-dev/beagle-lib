@@ -3,8 +3,8 @@ SUBDIRS=GPU CPU JNI
 lib_LTLIBRARIES=libhmsbeagle.la libhmsbeagle-jni.la
 libhmsbeagle_la_SOURCES=beagle.cpp BeagleImpl.h platform.h 
 libhmsbeagle_la_LIBADD = CPU/libcpu.la  
-libhmsbeagle_la_CFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS)
-libhmsbeagle_la_CXXFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS)
+libhmsbeagle_la_CFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS) $(OPENMP_CFLAGS)
+libhmsbeagle_la_CXXFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS) $(OPENMP_CXXFLAGS)
 
 if BUILDCUDA
 libhmsbeagle_la_LIBADD += GPU/libcuda.la 

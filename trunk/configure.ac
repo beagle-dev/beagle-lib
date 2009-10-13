@@ -68,6 +68,17 @@ AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
 # ------------------------------------------------------------------------------
+# Setup OPENMP 
+# ------------------------------------------------------------------------------
+dnl Check for OpenMP
+AX_OPENMP()
+AC_SUBST(OPENMP_CFLAGS)
+dnl OpenMP checker only defines for C when compiling both C and C++
+OPENMP_CXXFLAGS=$OPENMP_CFLAGS
+AC_SUBST(OPENMP_CXXFLAGS)
+
+
+# ------------------------------------------------------------------------------
 # Setup OPENCL paths
 # ------------------------------------------------------------------------------
 AC_ARG_WITH([opencl],
