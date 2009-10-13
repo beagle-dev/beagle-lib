@@ -71,7 +71,14 @@ AC_SUBST(abs_top_srcdir)
 # Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
-AX_OPENMP()
+AC_ARG_WITH([openmp],
+   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
+   [],
+   [with_openmp=yes])
+if test "x$with_openmp" != "xno"
+then
+   AX_OPENMP()
+fi
 AC_SUBST(OPENMP_CFLAGS)
 dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
