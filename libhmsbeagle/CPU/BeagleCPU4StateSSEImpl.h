@@ -45,6 +45,13 @@ public:
     int CPUSupportsSSE();
     
 private:    
+
+	virtual void calcStatesStates(double* destP,
+                                     const int* states1,
+                                     const double* matrices1,
+                                     const int* states2,
+                                     const double* matrices2);
+                                     
     virtual void calcPartialsPartials(double* destP,
                                       const double* partials1,
                                       const double* matrices1,
