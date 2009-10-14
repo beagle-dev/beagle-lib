@@ -37,6 +37,23 @@ pkgconfig_DATA = hmsbeagle-1.0.pc
 # DOXYGEN SUPPORT
 include $(top_srcdir)/aminclude.am
 
+# ------------------------------------------------------------
+# Support for profile-guided optimization.  Run `make profile`
+# ------------------------------------------------------------
+# currently using complextest, need one that hits all possible code paths
+profile:
+	make clean
+	make CXXFLAGS="$(CXXFLAGS) -fprofile-generate"
+	make -C examples/complextest/ check CXXFLAGS="$(CXXFLAGS) -static -fprofile-generate"
+	make mostlyclean
+	make CXXFLAGS="$(CXXFLAGS) -fprofile-use"
+
+CLEANFILES = \
+libhmsbeagle/*/*.gcda libhmsbeagle/*/*.gcno \
+libhmsbeagle/*/*/*.gcda libhmsbeagle/*/*/*.gcno \
+examples/*/*/*.gcda examples/*/*/*.gcno
+
+
 SUBDIRS = libhmsbeagle examples
 
 
