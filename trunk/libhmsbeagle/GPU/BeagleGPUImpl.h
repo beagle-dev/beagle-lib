@@ -85,7 +85,7 @@ private:
     GPUPtr dIntegrationTmp;
     GPUPtr dPartialsTmp;
     
-	REAL* hCategoryRates;
+	double* hCategoryRates; // Can keep in double-precision
     
     GPUPtr* dPartials;
     GPUPtr* dMatrices;

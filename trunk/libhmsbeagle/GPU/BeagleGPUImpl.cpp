@@ -381,7 +381,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
     
-	hCategoryRates = (REAL*) malloc(SIZE_REAL * kCategoryCount);
+	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
     
 //    if (returnInfo != NULL) {
@@ -651,14 +651,15 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
 	fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
 #endif
 
-#ifdef DOUBLE_PRECISION
+//#ifdef DOUBLE_PRECISION
 	const double* categoryRates = inCategoryRates;
-#else
-	REAL* categoryRates = hCategoryCache;
-	MEMCNV(categoryRates, inCategoryRates, kCategoryCount, REAL);
-#endif
-    
-	memcpy(hCategoryRates, categoryRates, SIZE_REAL * kCategoryCount);
+//#else
+//	REAL* categoryRates = hCategoryCache;
+//	MEMCNV(categoryRates, inCategoryRates, kCategoryCount, REAL);
+//#endif
+	// Can keep these in double-precision until after multiplication by (double) branch-length
+
+	memcpy(hCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateCategoryRates\n");
@@ -719,7 +720,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
             hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
-            hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
+            hDistanceQueue[totalCount] = (REAL) (edgeLengths[i] * hCategoryRates[j]);
             totalCount++;
         }
     }
@@ -734,7 +735,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
 #else
     for (int i = 0; i < count; i++) {        
 		for (int j = 0; j < kCategoryCount; j++) {
-            hDistanceQueue[totalCount] = ((REAL) edgeLengths[i]) * hCategoryRates[j];
+            hDistanceQueue[totalCount] = (REAL) (edgeLengths[i] * hCategoryRates[j]);
             totalCount++;
         }
     }
