@@ -152,12 +152,11 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
     int w = 0;
 
     for (int l = 0; l < kCategoryCount; l++) {
-#pragma omp parallel for private(v)
+
         for (int k = 0; k < kPatternCount; k++) {
 
             const int state1 = states1[k];
             const int state2 = states2[k];
-	    v = k*4;
 
             destP[v    ] = matrices1[w            + state1] * 
                            matrices2[w            + state2];
@@ -167,6 +166,7 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
                            matrices2[w + OFFSET*2 + state2];
             destP[v + 3] = matrices1[w + OFFSET*3 + state1] * 
                            matrices2[w + OFFSET*3 + state2];
+           v += 4;
         }
         
         w += OFFSET*4;
@@ -184,14 +184,13 @@ void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
     int w = 0;
     
     for (int l = 0; l < kCategoryCount; l++) {
-#pragma omp parallel for private(v)
+        
         for (int k = 0; k < kPatternCount; k++) {
             
             const int state1 = states1[k];
             const int state2 = states2[k];
             const double scaleFactor = scaleFactors[k];
-            v = k*4;
-
+            
             destP[v    ] = matrices1[w            + state1] * 
                            matrices2[w            + state2] / scaleFactor;
             destP[v + 1] = matrices1[w + OFFSET*1 + state1] * 
@@ -200,6 +199,7 @@ void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
                            matrices2[w + OFFSET*2 + state2] / scaleFactor;
             destP[v + 3] = matrices1[w + OFFSET*3 + state1] * 
                            matrices2[w + OFFSET*3 + state2] / scaleFactor;
+            v += 4;
         }
         
         w += OFFSET*4;
@@ -223,13 +223,10 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
-#pragma omp parallel for private(u,v)
         for (int k = 0; k < kPatternCount; k++) {
             
             const int state1 = states1[k];
-            u = k*4;
-            v = k*4;
-
+            
             PREFETCH_PARTIALS(2,partials2,v);
                         
             DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23;
@@ -239,6 +236,8 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
             destP[u + 2] = matrices1[w + OFFSET*2 + state1] * sum22;
             destP[u + 3] = matrices1[w + OFFSET*3 + state1] * sum23;
             
+            v += 4;
+            u += 4;
         }
         w += OFFSET*4;
     }
@@ -259,13 +258,11 @@ void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
-#pragma omp parallel for private(u,v)
         for (int k = 0; k < kPatternCount; k++) {
             
             const int state1 = states1[k];
             const double scaleFactor = scaleFactors[k];
-            u=k*4;
-            v=k*4;
+            
             PREFETCH_PARTIALS(2,partials2,v);
             
             DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
@@ -275,6 +272,8 @@ void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
             destP[u + 2] = matrices1[w + OFFSET*2 + state1] * sum22 / scaleFactor;
             destP[u + 3] = matrices1[w + OFFSET*3 + state1] * sum23 / scaleFactor;
             
+            v += 4;
+            u += 4;            
         }
         w += OFFSET*4;
     }   
@@ -295,10 +294,7 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
         PREFETCH_MATRIX(1,matrices1,w);                
         PREFETCH_MATRIX(2,matrices2,w);
         
-#pragma omp parallel for private(u,v)
         for (int k = 0; k < kPatternCount; k++) {                   
-            u=k*4;
-            v=k*4;
             
             PREFETCH_PARTIALS(1,partials1,v);
             PREFETCH_PARTIALS(2,partials2,v);
@@ -312,6 +308,8 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
             destP[u + 2] = sum12 * sum22;
             destP[u + 3] = sum13 * sum23;
 
+            u += 4;
+            v += 4;
         }
         w += OFFSET*4;
     }
@@ -333,13 +331,11 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
         PREFETCH_MATRIX(1,matrices1,w);
         PREFETCH_MATRIX(2,matrices2,w);
         
-#pragma omp parallel for private(u,v)
         for (int k = 0; k < kPatternCount; k++) {
                         
             // Prefetch scale factor
             const double scaleFactor = scaleFactors[k];
-            u=k*4;
-            v=k*4;
+            
             PREFETCH_PARTIALS(1,partials1,v);
             PREFETCH_PARTIALS(2,partials2,v);
             
@@ -352,6 +348,8 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
             destP[u + 2] = sum12 * sum22 / scaleFactor;
             destP[u + 3] = sum13 * sum23 / scaleFactor;
             
+            u += 4;
+            v += 4;            
         }
         w += OFFSET*4;
     }    
@@ -369,15 +367,14 @@ void inline BeagleCPU4StateImpl::integrateOutStatesAndScale(const double* integr
     freq3 = inStateFrequencies[3];
     
     int u = 0;
-#pragma omp parallel for private(u)
     for(int k = 0; k < kPatternCount; k++) {
-        u=k*4;
         double sumOverI =
         freq0 * integrationTmp[u    ] +
         freq1 * integrationTmp[u + 1] +
         freq2 * integrationTmp[u + 2] +
         freq3 * integrationTmp[u + 3];
         
+        u += 4;        
         outLogLikelihoods[k] = log(sumOverI);
     }        
         
