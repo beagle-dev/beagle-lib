@@ -41,12 +41,13 @@ include $(top_srcdir)/aminclude.am
 # Support for profile-guided optimization.  Run `make profile`
 # ------------------------------------------------------------
 # currently using complextest, need one that hits all possible code paths
+OPTIMIZATIONS= -O3 -mfpmath=sse -ftree-vectorizer-verbose=5 -ftree-vectorize -fomit-frame-pointer -msse -msse2 -msse3 -funroll-loops -ffast-math
 profile:
 	make clean
-	make CXXFLAGS="$(CXXFLAGS) -fprofile-generate"
-	make -C examples/complextest/ check CXXFLAGS="$(CXXFLAGS) -static -fprofile-generate"
+	make CXXFLAGS="$(CXXFLAGS) -fprofile-generate $(OPTIMIZATIONS)"
+	make -C examples/complextest/ check CXXFLAGS="$(CXXFLAGS) -static -fprofile-generate $(OPTIMIZATIONS)"
 	make mostlyclean
-	make CXXFLAGS="$(CXXFLAGS) -fprofile-use"
+	make CXXFLAGS="$(CXXFLAGS) -fprofile-use $(OPTIMIZATIONS)"
 
 CLEANFILES = \
 libhmsbeagle/*/*.gcda libhmsbeagle/*/*.gcno \
