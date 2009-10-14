@@ -63,7 +63,7 @@ protected:
     
     long kFlags;
 
-    EigenDecomposition* gEigenDecomposition;
+    EigenDecomposition<double>* gEigenDecomposition;
 
     double* gCategoryRates;
 

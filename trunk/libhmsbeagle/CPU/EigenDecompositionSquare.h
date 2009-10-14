@@ -13,11 +13,18 @@
 namespace beagle {
 namespace cpu {
 
-class EigenDecompositionSquare: public beagle::cpu::EigenDecomposition {
+template <typename REALTYPE>
+class EigenDecompositionSquare: public EigenDecomposition<REALTYPE> {
+
+	using EigenDecomposition<REALTYPE>::gEigenValues;
+	using EigenDecomposition<REALTYPE>::kStateCount;
+	using EigenDecomposition<REALTYPE>::kEigenDecompCount;
+	using EigenDecomposition<REALTYPE>::kCategoryCount;
+	using EigenDecomposition<REALTYPE>::matrixTmp;
 
 protected:
-    double** gEMatrices; // kStateCount^2 flattened array
-    double** gIMatrices; // kStateCount^2 flattened array
+    REALTYPE** gEMatrices; // kStateCount^2 flattened array
+    REALTYPE** gIMatrices; // kStateCount^2 flattened array
     bool isComplex;
     int kEigenValuesSize;
 
@@ -40,11 +47,14 @@ public:
                                  const int* secondDervativeIndices,
                                  const double* edgeLengths,
                                  const double* categoryRates,
-                                 double** transitionMatrices,
+                                 REALTYPE** transitionMatrices,
                                  int count);
 };
 
 }
 }
+
+// Include the template implementation header
+#include "libhmsbeagle/CPU/EigenDecompositionSquare.hpp"
 
 #endif /* EIGENDECOMPOSITIONSQUARE_H_ */

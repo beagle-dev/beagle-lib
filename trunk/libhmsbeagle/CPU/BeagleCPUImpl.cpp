@@ -164,10 +164,10 @@ int BeagleCPUImpl::createInstance(int tipCount,
     	kFlags |= BEAGLE_FLAG_COMPLEX;
 
     if (kFlags & BEAGLE_FLAG_COMPLEX)
-    	gEigenDecomposition = new EigenDecompositionSquare(kEigenDecompCount,
+    	gEigenDecomposition = new EigenDecompositionSquare<double>(kEigenDecompCount,
     			kStateCount,kCategoryCount,kFlags);
     else
-    	gEigenDecomposition = new EigenDecompositionCube(kEigenDecompCount,
+    	gEigenDecomposition = new EigenDecompositionCube<double>(kEigenDecompCount,
     			kStateCount, kCategoryCount);
 
 	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
