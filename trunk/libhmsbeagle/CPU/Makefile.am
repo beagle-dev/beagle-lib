@@ -7,5 +7,5 @@ libcpu_la_SOURCES = EigenDecomposition.h \
                     BeagleCPU4StateImpl.cpp BeagleCPU4StateImpl.h \
                     BeagleCPU4StateSSEImpl.cpp BeagleCPU4StateSSEImpl.h \
                     BeagleCPU4StateGCDImpl.cpp BeagleCPU4StateGCDImpl.h
-                   
+libcpu_la_CXXFLAGS = $(OPENMP_CXXFLAGS)                   
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)

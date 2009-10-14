@@ -285,17 +285,17 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
                                          const double* partials2,
                                          const double* matrices2) {
     
-    int u = 0;
-    int v = 0;
     int w = 0;
 
     for (int l = 0; l < kCategoryCount; l++) {
+        int x=4*kPatternCount*l;
                 
         PREFETCH_MATRIX(1,matrices1,w);                
         PREFETCH_MATRIX(2,matrices2,w);
-        
+#pragma omp parallel for 
         for (int k = 0; k < kPatternCount; k++) {                   
-            
+            int u=x+k*4;
+            int v=x+k*4;
             PREFETCH_PARTIALS(1,partials1,v);
             PREFETCH_PARTIALS(2,partials2,v);
             
@@ -308,8 +308,6 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
             destP[u + 2] = sum12 * sum22;
             destP[u + 3] = sum13 * sum23;
 
-            u += 4;
-            v += 4;
         }
         w += OFFSET*4;
     }
