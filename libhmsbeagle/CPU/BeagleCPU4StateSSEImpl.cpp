@@ -163,7 +163,8 @@ typedef union 			/* for copying individual elements to and from vector floats */
 
 #endif
 
-#define DEBUG 1
+//#define DEBUG 1
+#define DEBUG 0
 
 
 #define NEWWAY 1
@@ -279,7 +280,7 @@ void BeagleCPU4StateSSEImpl::calcStatesStates(double* destP,
 void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
                                        const int* states1,
                                        const double* matrices1,
-                                       const double* partials2,
+                                       const double* partials_r,
                                        const double* matrices2) {
 
     int u = 0;
@@ -287,9 +288,9 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
     int w = 0;
     
 #if NEWWAY
- 	VecUnion vu_m1[OFFSET][2], vu_m2[OFFSET][2];
+ 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
-	V_Real dest01, dest23;
+	V_Real destr_01, destr_23;
 #endif	
    
 #if DEBUG   
@@ -300,15 +301,15 @@ fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\
                 
 #if NEWWAY//new
 		for (int i = 0; i < OFFSET; i++) {
-			vu_m1[i][0].x[0] = matrices1[w + 0*OFFSET + i];
-			vu_m1[i][0].x[1] = matrices1[w + 1*OFFSET + i];
-			vu_m1[i][1].x[0] = matrices1[w + 2*OFFSET + i];
-			vu_m1[i][1].x[1] = matrices1[w + 3*OFFSET + i];
+			vu_mq[i][0].x[0] = matrices1[w + 0*OFFSET + i];
+			vu_mq[i][0].x[1] = matrices1[w + 1*OFFSET + i];
+			vu_mq[i][1].x[0] = matrices1[w + 2*OFFSET + i];
+			vu_mq[i][1].x[1] = matrices1[w + 3*OFFSET + i];
 			
-			vu_m2[i][0].x[0] = matrices2[w + 0*OFFSET + i];
-			vu_m2[i][0].x[1] = matrices2[w + 1*OFFSET + i];
-			vu_m2[i][1].x[0] = matrices2[w + 2*OFFSET + i];
-			vu_m2[i][1].x[1] = matrices2[w + 3*OFFSET + i];
+			vu_mr[i][0].x[0] = matrices2[w + 0*OFFSET + i];
+			vu_mr[i][0].x[1] = matrices2[w + 1*OFFSET + i];
+			vu_mr[i][1].x[0] = matrices2[w + 2*OFFSET + i];
+			vu_mr[i][1].x[1] = matrices2[w + 3*OFFSET + i];
 		}
 #endif
 #if OLDWAY//
@@ -318,49 +319,34 @@ fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\
             
             const int state1 = states1[k];
  
-#if NEWWAY//new
-//			V_Real *pv01 = (V_Real *)(partials2 + v);
-//			V_Real *pv23 = pv01 + 1;
-//			
-// 			VecUnion pv01u, pv23u;
-// 			pv01u.vx = *pv01;
-// 			pv23u.vx = *pv23;
-// 			#if DEBUG
-// 			fprintf(stderr, "pv01=%g %g   pv02=%g %g\n", pv01u.x[0], pv01u.x[1], pv23u.x[0], pv23u.x[1]);
-// 			#endif
-// 			
-			
-#endif
 #if OLDWAY//orig
-            PREFETCH_PARTIALS(2,partials2,v);
+            PREFETCH_PARTIALS(2,partials_r,v);
             #if DEBUG
 			fprintf(stderr, "p2=%g %g %g %g\n", p20, p21, p22, p23);//
 			#endif
 #endif
 
 #if NEWWAY//new
-//			V_Real v01 = *pv01;
-//			V_Real v23 = *pv23;
-			V_Real vp0 = VEC_SPLAT(partials2[v + 0]);
-			V_Real vp1 = VEC_SPLAT(partials2[v + 1]);
-			V_Real vp2 = VEC_SPLAT(partials2[v + 2]);
-			V_Real vp3 = VEC_SPLAT(partials2[v + 3]);
-			dest01 = VEC_MULT(vp0, vu_m2[0][0].vx);
-			dest01 = VEC_MADD(vp1, vu_m2[1][0].vx, dest01);
-			dest01 = VEC_MADD(vp2, vu_m2[2][0].vx, dest01);
-			dest01 = VEC_MADD(vp3, vu_m2[3][0].vx, dest01);
-			dest23 = VEC_MULT(vp0, vu_m2[0][1].vx);
-			dest23 = VEC_MADD(vp1, vu_m2[1][1].vx, dest23);
-			dest23 = VEC_MADD(vp2, vu_m2[2][1].vx, dest23);
-			dest23 = VEC_MADD(vp3, vu_m2[3][1].vx, dest23);
+			V_Real vp0 = VEC_SPLAT(partials_r[v + 0]);
+			V_Real vp1 = VEC_SPLAT(partials_r[v + 1]);
+			V_Real vp2 = VEC_SPLAT(partials_r[v + 2]);
+			V_Real vp3 = VEC_SPLAT(partials_r[v + 3]);
+			destr_01 = VEC_MULT(vp0, vu_mr[0][0].vx);
+			destr_01 = VEC_MADD(vp1, vu_mr[1][0].vx, destr_01);
+			destr_01 = VEC_MADD(vp2, vu_mr[2][0].vx, destr_01);
+			destr_01 = VEC_MADD(vp3, vu_mr[3][0].vx, destr_01);
+			destr_23 = VEC_MULT(vp0, vu_mr[0][1].vx);
+			destr_23 = VEC_MADD(vp1, vu_mr[1][1].vx, destr_23);
+			destr_23 = VEC_MADD(vp2, vu_mr[2][1].vx, destr_23);
+			destr_23 = VEC_MADD(vp3, vu_mr[3][1].vx, destr_23);
 			#if DEBUG
 			VecUnion temp01, temp23;
-			temp01.vx = dest01;
-			fprintf(stderr, "dest01 = %g %g\n", temp01.x[0], temp01.x[1]);//
-			fprintf(stderr, "dest23 = %g %g\n", temp23.x[0], temp23.x[1]);//
+			temp01.vx = destr_01;
+			fprintf(stderr, "destr_01 = %g %g\n", temp01.x[0], temp01.x[1]);//
+			fprintf(stderr, "destr_23 = %g %g\n", temp23.x[0], temp23.x[1]);//
 			#endif
-            *destPvec++ = VEC_MULT(vu_m1[state1][0].vx, dest01);
-            *destPvec++ = VEC_MULT(vu_m1[state1][1].vx, dest23);
+            *destPvec++ = VEC_MULT(vu_mq[state1][0].vx, destr_01);
+            *destPvec++ = VEC_MULT(vu_mq[state1][1].vx, destr_23);
 #endif
 #if OLDWAY//orig
             DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23;
@@ -381,24 +367,88 @@ fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\
 }
 
 void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
-                                                  const double* partials1,
+                                                  const double* partials_q,
                                                   const double* matrices1,
-                                                  const double* partials2,
+                                                  const double* partials_r,
                                                   const double* matrices2) {
 
     int u = 0;
     int v = 0;
     int w = 0;
-
+    
+    V_Real	destq_01, destq_23, destr_01, destr_23;
+ #if NEWWAY
+ 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+	V_Real *destPvec = (V_Real *)destP;
+	
+//	fprintf(stderr, "++++++++++++++++ in calcPartialsPartials\n");//
+#endif
+   
     for (int l = 0; l < kCategoryCount; l++) {
 
+#define NEWWAY2 1
+#define OLDWAY2 !NEWWAY2
+#if NEWWAY2//new
+		for (int i = 0; i < OFFSET; i++) {
+			vu_mq[i][0].x[0] = matrices1[w + 0*OFFSET + i];
+			vu_mq[i][0].x[1] = matrices1[w + 1*OFFSET + i];
+			vu_mq[i][1].x[0] = matrices1[w + 2*OFFSET + i];
+			vu_mq[i][1].x[1] = matrices1[w + 3*OFFSET + i];
+			
+			vu_mr[i][0].x[0] = matrices2[w + 0*OFFSET + i];
+			vu_mr[i][0].x[1] = matrices2[w + 1*OFFSET + i];
+			vu_mr[i][1].x[0] = matrices2[w + 2*OFFSET + i];
+			vu_mr[i][1].x[1] = matrices2[w + 3*OFFSET + i];
+		}
+#endif
+
+#if OLDWAY2
         PREFETCH_MATRIX(1,matrices1,w);
         PREFETCH_MATRIX(2,matrices2,w);
+#endif
 
         for (int k = 0; k < kPatternCount; k++) {
 
-            PREFETCH_PARTIALS(1,partials1,v);
-            PREFETCH_PARTIALS(2,partials2,v);
+#if NEWWAY2//new
+			V_Real vpq_0 = VEC_SPLAT(partials_q[v + 0]);
+			V_Real vpq_1 = VEC_SPLAT(partials_q[v + 1]);
+			V_Real vpq_2 = VEC_SPLAT(partials_q[v + 2]);
+			V_Real vpq_3 = VEC_SPLAT(partials_q[v + 3]);
+
+			V_Real vpr_0 = VEC_SPLAT(partials_r[v + 0]);
+			V_Real vpr_1 = VEC_SPLAT(partials_r[v + 1]);
+			V_Real vpr_2 = VEC_SPLAT(partials_r[v + 2]);
+			V_Real vpr_3 = VEC_SPLAT(partials_r[v + 3]);
+
+			destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+			destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+			destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+			destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+			destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+			destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+			destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+			destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+			destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+			destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+			destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+			destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+			destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+			destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+			#if DEBUG
+			VecUnion temp01, temp23;
+			temp01.vx = destr_01;
+			fprintf(stderr, "destr_01 = %g %g\n", temp01.x[0], temp01.x[1]);//
+			fprintf(stderr, "destr_23 = %g %g\n", temp23.x[0], temp23.x[1]);//
+			#endif
+            *destPvec++ = VEC_MULT(destq_01, destr_01);
+            *destPvec++ = VEC_MULT(destq_23, destr_23);
+#endif
+#if OLDWAY2
+            PREFETCH_PARTIALS(1,partials_q,v);
+            PREFETCH_PARTIALS(2,partials_r,v);
 
             DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
             DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
@@ -408,6 +458,7 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
             destP[u + 1] = sum11 * sum21;
             destP[u + 2] = sum12 * sum22;
             destP[u + 3] = sum13 * sum23;
+#endif
 
             u += 4;
             v += 4;
