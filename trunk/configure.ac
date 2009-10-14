@@ -74,7 +74,7 @@ dnl Check for OpenMP
 AC_ARG_WITH([openmp],
    [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
    [],
-   [with_openmp=yes])
+   [with_openmp=no])
 if test "x$with_openmp" != "xno"
 then
    AX_OPENMP()
