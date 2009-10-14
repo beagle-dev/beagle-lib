@@ -163,7 +163,11 @@ typedef union 			/* for copying individual elements to and from vector floats */
 
 #endif
 
-#define DEBUG 0
+#define DEBUG 1
+
+
+#define NEWWAY 1
+#define OLDWAY 0
 
 using namespace beagle;
 using namespace beagle::cpu;
@@ -282,11 +286,6 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
     int v = 0;
     int w = 0;
     
-    
-#define NEWWAY 1
-#define OLDWAY 0
-
-
 #if NEWWAY
  	VecUnion vu_m1[OFFSET][2], vu_m2[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
@@ -387,10 +386,36 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
                                                   const double* partials2,
                                                   const double* matrices2) {
 
-    BeagleCPU4StateImpl::calcPartialsPartials(destP,
-                                              partials1,matrices1,
-                                              partials2,matrices2);
+    int u = 0;
+    int v = 0;
+    int w = 0;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+
+        PREFETCH_MATRIX(1,matrices1,w);
+        PREFETCH_MATRIX(2,matrices2,w);
+
+        for (int k = 0; k < kPatternCount; k++) {
+
+            PREFETCH_PARTIALS(1,partials1,v);
+            PREFETCH_PARTIALS(2,partials2,v);
+
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
+
+            // Final results
+            destP[u    ] = sum10 * sum20;
+            destP[u + 1] = sum11 * sum21;
+            destP[u + 2] = sum12 * sum22;
+            destP[u + 3] = sum13 * sum23;
+
+            u += 4;
+            v += 4;
+        }
+        w += OFFSET*4;
+    }
 }
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
