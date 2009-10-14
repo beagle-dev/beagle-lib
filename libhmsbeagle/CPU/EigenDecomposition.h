@@ -21,24 +21,26 @@
 namespace beagle {
 namespace cpu {
 
+template <typename REALTYPE>
 class EigenDecomposition {
 	
 protected:
-    double** gEigenValues;
+    REALTYPE** gEigenValues;
     int kStateCount;
     int kEigenDecompCount;
     int kCategoryCount;
-    double* matrixTmp;
+    REALTYPE* matrixTmp;
 	
-public:	
+public:
 	EigenDecomposition(int decompositionCount,
 					   int stateCount,
-					   int categoryCount) {
-		
-		kEigenDecompCount = decompositionCount;
-		kStateCount = stateCount;
-		kCategoryCount = categoryCount;
-	}
+					   int categoryCount)
+					   {
+
+					   		kEigenDecompCount = decompositionCount;
+					   		kStateCount = stateCount;
+					   		kCategoryCount = categoryCount;
+					   	};
 	
 	virtual ~EigenDecomposition() {};
 	
@@ -65,7 +67,7 @@ public:
                                  const int* secondDervativeIndices,
                                  const double* edgeLengths,
                                  const double* categoryRates,
-                                 double** transitionMatrices,                                 
+                                 REALTYPE** transitionMatrices,
                                  int count) = 0;
 
 };

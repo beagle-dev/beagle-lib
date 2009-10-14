@@ -8,15 +8,22 @@
 #ifndef EIGENDECOMPOSITIONCUBE_H_
 #define EIGENDECOMPOSITIONCUBE_H_
 
-#include "EigenDecomposition.h"
+#include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 namespace beagle {
 namespace cpu {
 
-class EigenDecompositionCube : public EigenDecomposition {
+template <class REALTYPE>
+class EigenDecompositionCube : public EigenDecomposition<REALTYPE> {
+
+	using EigenDecomposition<REALTYPE>::gEigenValues;
+	using EigenDecomposition<REALTYPE>::kStateCount;
+	using EigenDecomposition<REALTYPE>::kEigenDecompCount;
+	using EigenDecomposition<REALTYPE>::kCategoryCount;
+	using EigenDecomposition<REALTYPE>::matrixTmp;
 
 protected:
-    double** gCMatrices;
+    REALTYPE** gCMatrices;
 
 public:
 	EigenDecompositionCube(int decompositionCount, 
@@ -36,12 +43,15 @@ public:
                                  const int* secondDervativeIndices,
                                  const double* edgeLengths,
                                  const double* categoryRates,
-                                 double** transitionMatrices,                                 
+                                 REALTYPE** transitionMatrices,
                                  int count);
 	
 };
 
 }
 }
+
+// Include the template implementation
+#include "libhmsbeagle/CPU/EigenDecompositionCube.hpp"
 
 #endif /* EIGENDECOMPOSITIONCUBE_H_ */
