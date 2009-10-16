@@ -269,7 +269,7 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
 	V_Real destr_01, destr_23;
 #endif	
    
-#if DEBUG || 1//  
+#if DEBUG
 fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\n");//
 #endif
 
@@ -476,7 +476,7 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
         const int* statesChild = gTipStates[childIndex];    
         int v = 0; // Index for parent partials
         
-fprintf(stderr, "+++++++++++++++++ A: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
+//fprintf(stderr, "+++++++++++++++++ A: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
         for(int l = 0; l < kCategoryCount; l++) {
             int u = 0; // Index in resulting product-partials (summed over categories)
             const double weight = wt[l];
@@ -500,7 +500,7 @@ fprintf(stderr, "+++++++++++++++++ A: in BeagleCPU4StateSSEImpl::calcEdgeLogLike
         
     } else { // Integrate against a partial at the child
         
-fprintf(stderr, "+++++++++++++++++ B: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
+//fprintf(stderr, "+++++++++++++++++ B: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
         const double* partialsChild = gPartials[childIndex];
         int v = 0;
         
