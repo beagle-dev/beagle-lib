@@ -384,7 +384,7 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
 			V_Real vpr_2 = VEC_SPLAT(partials_r[v + 2]);
 			V_Real vpr_3 = VEC_SPLAT(partials_r[v + 3]);
 
-#			if 0	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
+#			if 1	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
 			           vector instruction */
 			
 			destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
