@@ -26,7 +26,7 @@
  * @author Aaron Darling
  */
 
-//#define EXPERIMENTAL
+#define EXPERIMENTAL	/* define this for new SSE code */
 
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
