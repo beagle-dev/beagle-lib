@@ -713,7 +713,6 @@ void BeagleCPUImpl::calcEdgeLogLikelihoods(const int parIndex,
                                            double* outFirstDerivatives,
                                            double* outSecondDerivatives) {
     // TODO: implement derivatives for calculateEdgeLnL
-    // TODO: implement rate categories for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);
 
