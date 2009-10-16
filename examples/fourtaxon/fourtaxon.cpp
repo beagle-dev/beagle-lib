@@ -353,7 +353,7 @@ void FourTaxonExample::initBeagleLib()
 #endif
 
     for (int i = 0; i < nrates; i++) {
-        rates[i] = 1.0;
+        rates[i] = 0.1 + 2.0 * i;
     }
         
     beagleSetCategoryRates(instance_handle,

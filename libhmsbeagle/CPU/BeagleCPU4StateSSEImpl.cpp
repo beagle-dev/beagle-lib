@@ -48,7 +48,6 @@
 #	include <xmmintrin.h>
 #endif
 typedef double VecEl_t;
-
 #define USE_DOUBLE_PREC
 #if defined(USE_DOUBLE_PREC)
 	typedef double RealType;
@@ -259,23 +258,15 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
                                        const double* partials_r,
                                        const double* matrices_r) {
 
-    int u = 0;
     int v = 0;
     int w = 0;
     
-#if NEWWAY
  	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
 	V_Real destr_01, destr_23;
-#endif	
-   
-#if DEBUG
-fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\n");//
-#endif
 
     for (int l = 0; l < kCategoryCount; l++) {
                 
-#if NEWWAY//new
 		for (int i = 0; i < OFFSET; i++) {
 			vu_mq[i][0].x[0] = matrices_q[w + 0*OFFSET + i];
 			vu_mq[i][0].x[1] = matrices_q[w + 1*OFFSET + i];
@@ -287,27 +278,15 @@ fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\
 			vu_mr[i][1].x[0] = matrices_r[w + 2*OFFSET + i];
 			vu_mr[i][1].x[1] = matrices_r[w + 3*OFFSET + i];
 		}
-#endif
-#if OLDWAY//
-        PREFETCH_MATRIX(2,matrices_r,w);
-#endif
         for (int k = 0; k < kPatternCount; k++) {
             
             const int state_q = states_q[k];
  
-#if OLDWAY//orig
-            PREFETCH_PARTIALS(2,partials_r,v);
-            #if DEBUG
-			fprintf(stderr, "p2=%g %g %g %g\n", p20, p21, p22, p23);//
-			#endif
-#endif
-
-#if NEWWAY//new
 			V_Real vp0 = VEC_SPLAT(partials_r[v + 0]);
 			V_Real vp1 = VEC_SPLAT(partials_r[v + 1]);
 			V_Real vp2 = VEC_SPLAT(partials_r[v + 2]);
 			V_Real vp3 = VEC_SPLAT(partials_r[v + 3]);
-			#if 1//
+
 			destr_01 = VEC_MULT(vp0, vu_mr[0][0].vx);
 			destr_01 = VEC_MADD(vp1, vu_mr[1][0].vx, destr_01);
 			destr_01 = VEC_MADD(vp2, vu_mr[2][0].vx, destr_01);
@@ -316,39 +295,21 @@ fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++in calcStatesPartials\
 			destr_23 = VEC_MADD(vp1, vu_mr[1][1].vx, destr_23);
 			destr_23 = VEC_MADD(vp2, vu_mr[2][1].vx, destr_23);
 			destr_23 = VEC_MADD(vp3, vu_mr[3][1].vx, destr_23);
-			#endif//
-			#if DEBUG
-			VecUnion temp01, temp23;
-			temp01.vx = destr_01;
-			fprintf(stderr, "destr_01 = %g %g\n", temp01.x[0], temp01.x[1]);//
-			fprintf(stderr, "destr_23 = %g %g\n", temp23.x[0], temp23.x[1]);//
-			#endif
+
             *destPvec++ = VEC_MULT(vu_mq[state_q][0].vx, destr_01);
             *destPvec++ = VEC_MULT(vu_mq[state_q][1].vx, destr_23);
-#endif
-#if OLDWAY//orig
-            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23;
-            destP[u    ] = matrices_q[w            + state_q] * sum20;
-            destP[u + 1] = matrices_q[w + OFFSET*1 + state_q] * sum21;
-            destP[u + 2] = matrices_q[w + OFFSET*2 + state_q] * sum22;
-            destP[u + 3] = matrices_q[w + OFFSET*3 + state_q] * sum23;
-            #if DEBUG
-            fprintf(stderr, "%g %g %g %g\n", sum20, sum21, sum22, sum23);
-            #endif
-#endif                        
             
             v += 4;
-            u += 4;
         }
         w += OFFSET*4;
     }
 }
 
-void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
-                                                  const double* partials_q,
-                                                  const double* matrices_q,
-                                                  const double* partials_r,
-                                                  const double* matrices_r) {
+void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
+                                                  const double* RESTRICT partials_q,
+                                                  const double* RESTRICT matrices_q,
+                                                  const double* RESTRICT partials_r,
+                                                  const double* RESTRICT matrices_r) {
 
     int v = 0;
     int w = 0;
@@ -409,8 +370,8 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
             destPvec[1] = VEC_MULT(destq_23, destr_23);
             destPvec += 2;
 			
-#			else	/* SSE doesn't have a fused multiply-add, so a slight speed gain can possibly
-					   be achieved by decoupling these operations to avoid dependency stalls */
+#			else	/* SSE doesn't have a fused multiply-add, so a slight speed gain should be
+                       achieved by decoupling these operations to avoid dependency stalls */
 
 			V_Real a, b, c, d;
 			
@@ -461,69 +422,97 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
                                            double* outFirstDerivatives,
                                            double* outSecondDerivatives) {
     // TODO: implement derivatives for calculateEdgeLnL
-    // TODO: implement rate categories for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);
 
-    const double* partialsParent = gPartials[parIndex];
+    const double* cl_r = gPartials[parIndex];
+    double* cl_p = integrationTmp;
     const double* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
 
-    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(double));
+    memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
     
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
         
         const int* statesChild = gTipStates[childIndex];    
         int v = 0; // Index for parent partials
         
-//fprintf(stderr, "+++++++++++++++++ A: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
-        for(int l = 0; l < kCategoryCount; l++) {
+		int w = 0;
+		V_Real *vcl_r = (V_Real *)cl_r;
+		for(int l = 0; l < kCategoryCount; l++) {
             int u = 0; // Index in resulting product-partials (summed over categories)
-            const double weight = wt[l];
-            for(int k = 0; k < kPatternCount; k++) {
+
+ 			VecUnion vu_m[OFFSET][2];
+			const double *m = transMatrix + w;
+			for (int i = 0; i < OFFSET; i++, m++) {
+				vu_m[i][0].x[0] = m[0*OFFSET];
+				vu_m[i][0].x[1] = m[1*OFFSET];
+				vu_m[i][1].x[0] = m[2*OFFSET];
+				vu_m[i][1].x[1] = m[3*OFFSET];			
+			}
+
+           V_Real *vcl_p = (V_Real *)cl_p;
+           
+           for(int k = 0; k < kPatternCount; k++) {
                 
-                const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
-                                                        // so we can interchange the patterCount and categoryCount loop order?
-                int w =  l * kMatrixSize;
-                for(int i = 0; i < kStateCount; i++) {
-                    integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
-                    u++;
-#ifdef PAD_MATRICES
-                    w += (kStateCount + 1);
-#else
-                    w += kStateCount;
-#endif
-                }
-                v += kStateCount;
+                const int stateChild = statesChild[k];
+				V_Real vwt = VEC_SPLAT(wt[l]);
+               
+				V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
+                *vcl_p++ = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+                
+				wtdPartials = VEC_MULT(*vcl_r++, vwt);
+                *vcl_p++ = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
             }
+        w += OFFSET*4;
         }
-        
     } else { // Integrate against a partial at the child
         
-//fprintf(stderr, "+++++++++++++++++ B: in BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods with kCategoryCount=%d\n", kCategoryCount);//        
-        const double* partialsChild = gPartials[childIndex];
+        const double* cl_q = gPartials[childIndex];
+        V_Real * vcl_r = (V_Real *)cl_r;
         int v = 0;
+        int w = 0;
         
         for(int l = 0; l < kCategoryCount; l++) {
+
+	        V_Real * vcl_p = (V_Real *)cl_p;
+ 			VecUnion vu_m[OFFSET][2];
+			const double *m = transMatrix + w;
+			for (int i = 0; i < OFFSET; i++, m++) {
+				vu_m[i][0].x[0] = m[0*OFFSET];
+				vu_m[i][0].x[1] = m[1*OFFSET];
+				vu_m[i][1].x[0] = m[2*OFFSET];
+				vu_m[i][1].x[1] = m[3*OFFSET];			
+			}
+
             int u = 0;
             const double weight = wt[l];
             for(int k = 0; k < kPatternCount; k++) {                
-                int w = l * kMatrixSize;                 
-                for(int i = 0; i < kStateCount; i++) {
-                    double sumOverJ = 0.0;
-                    for(int j = 0; j < kStateCount; j++) {
-                        sumOverJ += transMatrix[w] * partialsChild[v + j];
-                        w++;
-                    }
-#ifdef PAD_MATRICES
-                    // increment for the extra column at the end
-                    w++;
-#endif
-                    integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
-                    u++;
-                }
+                V_Real vclp_01, vclp_23;
+				V_Real vwt = VEC_SPLAT(wt[l]);
+                
+				V_Real vcl_q0 = VEC_SPLAT(cl_q[v + 0]);
+				V_Real vcl_q1 = VEC_SPLAT(cl_q[v + 1]);
+				V_Real vcl_q2 = VEC_SPLAT(cl_q[v + 2]);
+				V_Real vcl_q3 = VEC_SPLAT(cl_q[v + 3]);
+				
+				vclp_01 = VEC_MULT(vcl_q0, vu_m[0][0].vx);
+				vclp_01 = VEC_MADD(vcl_q1, vu_m[1][0].vx, vclp_01);
+				vclp_01 = VEC_MADD(vcl_q2, vu_m[2][0].vx, vclp_01);
+				vclp_01 = VEC_MADD(vcl_q3, vu_m[3][0].vx, vclp_01);
+				vclp_23 = VEC_MULT(vcl_q0, vu_m[0][1].vx);
+				vclp_23 = VEC_MADD(vcl_q1, vu_m[1][1].vx, vclp_23);
+				vclp_23 = VEC_MADD(vcl_q2, vu_m[2][1].vx, vclp_23);
+				vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
+				vclp_01 = VEC_MULT(vclp_01, vwt);
+				vclp_23 = VEC_MULT(vclp_23, vwt);
+	
+				*vcl_p++ = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+				*vcl_p++ = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);                
+                
                 v += kStateCount;
             }
+            w += 4*OFFSET;
         }
     }
         
@@ -531,7 +520,7 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
     for(int k = 0; k < kPatternCount; k++) {
         double sumOverI = 0.0;
         for(int i = 0; i < kStateCount; i++) {
-            sumOverI += inStateFrequencies[i] * integrationTmp[u];
+            sumOverI += inStateFrequencies[i] * cl_p[u];
             u++;
         }
         outLogLikelihoods[k] = log(sumOverI);

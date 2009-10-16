@@ -34,6 +34,8 @@
 
 #include <vector>
 
+#define RESTRICT __restrict		/* may need to define this instead to 'restrict' */
+
 namespace beagle {
 namespace cpu {
 
@@ -56,11 +58,11 @@ private:
                                     const double* matrices1,
                                     const double* partials2,
                                     const double* matrices2);
-    virtual void calcPartialsPartials(double* destP,
-                                      const double* partials1,
-                                      const double* matrices1,
-                                      const double* partials2,
-                                      const double* matrices2);
+    virtual void calcPartialsPartials(double* __restrict destP,
+                                      const double* __restrict partials1,
+                                      const double* __restrict matrices1,
+                                      const double* __restrict partials2,
+                                      const double* __restrict matrices2);
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
