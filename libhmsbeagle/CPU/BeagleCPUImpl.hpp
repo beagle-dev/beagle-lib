@@ -238,9 +238,11 @@ const char* BeagleCPUImpl<REALTYPE>::getName() {
 	if (DOUBLE_PRECISION)
 //		return beagleCPUImplDoubleName; // TODO: Define once in header.  Currently double-loaded libcp and libbeagle.a
 		return "CPU-Double";
+//		return nameString;
 	else
 //		return beagleCPUImplSingleName;
 		return "CPU-Single";
+//		return nameString;
 }
 
 template <typename REALTYPE>
@@ -1162,6 +1164,7 @@ const char* BeagleCPUImplFactory<REALTYPE>::getName() {
 	else
 //		return beagleCPUImplSingleName;
 		return "CPU-Single";
+//	return BeagleCPUImpl<REALTYPE>::getName();
 }
 
 template <typename REALTYPE>

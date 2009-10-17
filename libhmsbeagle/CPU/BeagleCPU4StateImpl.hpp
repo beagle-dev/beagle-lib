@@ -50,7 +50,7 @@
 #endif
 
 #define PREFETCH_MATRIX(num,matrices,w) \
-    double m##num##00, m##num##01, m##num##02, m##num##03, \
+    REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
            m##num##10, m##num##11, m##num##12, m##num##13, \
            m##num##20, m##num##21, m##num##22, m##num##23, \
            m##num##30, m##num##31, m##num##32, m##num##33; \
@@ -72,14 +72,14 @@
     m##num##33 = matrices[w + OFFSET*3 + 3];
 
 #define PREFETCH_PARTIALS(num,partials,v) \
-    double p##num##0, p##num##1, p##num##2, p##num##3; \
+    REALTYPE p##num##0, p##num##1, p##num##2, p##num##3; \
     p##num##0 = partials[v + 0]; \
     p##num##1 = partials[v + 1]; \
     p##num##2 = partials[v + 2]; \
     p##num##3 = partials[v + 3];
 
 //#define DO_INTEGRATION(num) \
-//    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
+//    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
 //    sum##num##0  = m##num##00 * p##num##0; \
 //    sum##num##1  = m##num##10 * p##num##0; \
 //    sum##num##2  = m##num##20 * p##num##0; \
@@ -101,7 +101,7 @@
 //    sum##num##3 += m##num##33 * p##num##3;
 
 #define DO_INTEGRATION(num) \
-    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
+    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
     sum##num##0  = m##num##00 * p##num##0 + \
                    m##num##01 * p##num##1 + \
                    m##num##02 * p##num##2 + \
@@ -131,7 +131,8 @@ const bool DEBUGGING_OUTPUT = true;
 const bool DEBUGGING_OUTPUT = false;
 #endif
 
-BeagleCPU4StateImpl::~BeagleCPU4StateImpl() {
+template <typename REALTYPE>
+BeagleCPU4StateImpl<REALTYPE>::~BeagleCPU4StateImpl() {
     // free all that stuff...
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
@@ -143,11 +144,12 @@ BeagleCPU4StateImpl::~BeagleCPU4StateImpl() {
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
-void BeagleCPU4StateImpl::calcStatesStates(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
                                      const int* states1,
-                                     const double* matrices1,
+                                     const REALTYPE* matrices1,
                                      const int* states2,
-                                     const double* matrices2) {
+                                     const REALTYPE* matrices2) {
 
     int v = 0;
     int w = 0;
@@ -174,12 +176,13 @@ void BeagleCPU4StateImpl::calcStatesStates(double* destP,
     }
 }
 
-void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP,
                                      const int* states1,
-                                     const double* matrices1,
+                                     const REALTYPE* matrices1,
                                      const int* states2,
-                                     const double* matrices2,
-                                     const double* scaleFactors) {
+                                     const REALTYPE* matrices2,
+                                     const REALTYPE* scaleFactors) {
     
     int v = 0;
     int w = 0;
@@ -190,7 +193,7 @@ void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
             
             const int state1 = states1[k];
             const int state2 = states2[k];
-            const double scaleFactor = scaleFactors[k];
+            const REALTYPE scaleFactor = scaleFactors[k];
             
             destP[v    ] = matrices1[w            + state1] * 
                            matrices2[w            + state2] / scaleFactor;
@@ -210,11 +213,12 @@ void BeagleCPU4StateImpl::calcStatesStatesFixedScaling(double* destP,
 /*
  * Calculates partial likelihoods at a node when one child has states and one has partials.
  */
-void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
                                        const int* states1,
-                                       const double* matrices1,
-                                       const double* partials2,
-                                       const double* matrices2) {
+                                       const REALTYPE* matrices1,
+                                       const REALTYPE* partials2,
+                                       const REALTYPE* matrices2) {
 
     int u = 0;
     int v = 0;
@@ -244,12 +248,13 @@ void BeagleCPU4StateImpl::calcStatesPartials(double* destP,
     }
 }
 
-void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* destP,
                                        const int* states1,
-                                       const double* matrices1,
-                                       const double* partials2,
-                                       const double* matrices2,
-                                       const double* scaleFactors) {
+                                       const REALTYPE* matrices1,
+                                       const REALTYPE* partials2,
+                                       const REALTYPE* matrices2,
+                                       const REALTYPE* scaleFactors) {
     
     int u = 0;
     int v = 0;
@@ -262,7 +267,7 @@ void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
         for (int k = 0; k < kPatternCount; k++) {
             
             const int state1 = states1[k];
-            const double scaleFactor = scaleFactors[k];
+            const REALTYPE scaleFactor = scaleFactors[k];
             
             PREFETCH_PARTIALS(2,partials2,v);
             
@@ -280,11 +285,12 @@ void BeagleCPU4StateImpl::calcStatesPartialsFixedScaling(double* destP,
     }   
 }
 
-void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
-                                         const double* partials1,
-                                         const double* matrices1,
-                                         const double* partials2,
-                                         const double* matrices2) {
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2) {
     
     int w = 0;
 
@@ -314,12 +320,13 @@ void BeagleCPU4StateImpl::calcPartialsPartials(double* destP,
     }
 }
 
-void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
-                                         const double* partials1,
-                                         const double* matrices1,
-                                         const double* partials2,
-                                         const double* matrices2,
-                                         const double* scaleFactors) {
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         const REALTYPE* scaleFactors) {
     
     int u = 0;
     int v = 0;
@@ -333,7 +340,7 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
         for (int k = 0; k < kPatternCount; k++) {
                         
             // Prefetch scale factor
-            const double scaleFactor = scaleFactors[k];
+            const REALTYPE scaleFactor = scaleFactors[k];
             
             PREFETCH_PARTIALS(1,partials1,v);
             PREFETCH_PARTIALS(2,partials2,v);
@@ -354,12 +361,13 @@ void BeagleCPU4StateImpl::calcPartialsPartialsFixedScaling(double* destP,
     }    
 }
 
-void inline BeagleCPU4StateImpl::integrateOutStatesAndScale(const double* integrationTmp,
+template <typename REALTYPE>
+void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REALTYPE* integrationTmp,
                                                             const double* inStateFrequencies,
                                                             const int scalingFactorsIndex,
                                                             double* outLogLikelihoods) {
     
-    register double freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
+    register REALTYPE freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
     freq0 = inStateFrequencies[0];   
     freq1 = inStateFrequencies[1];
     freq2 = inStateFrequencies[2];
@@ -367,7 +375,7 @@ void inline BeagleCPU4StateImpl::integrateOutStatesAndScale(const double* integr
     
     int u = 0;
     for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI =
+        REALTYPE sumOverI =
         freq0 * integrationTmp[u    ] +
         freq1 * integrationTmp[u + 1] +
         freq2 * integrationTmp[u + 2] +
@@ -378,13 +386,14 @@ void inline BeagleCPU4StateImpl::integrateOutStatesAndScale(const double* integr
     }        
         
     if (scalingFactorsIndex != BEAGLE_OP_NONE) {
-        const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+        const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
         for(int k=0; k < kPatternCount; k++)
             outLogLikelihoods[k] += scalingFactors[k];
     }             
 }
 
-void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                                                  const int childIndex,
                                                  const int probIndex,
                                                  const int firstDerivativeIndex,
@@ -400,11 +409,11 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
     
     assert(parIndex >= kTipCount);
     
-    const double* partialsParent = gPartials[parIndex];
-    const double* transMatrix = gTransitionMatrices[probIndex];
+    const REALTYPE* partialsParent = gPartials[parIndex];
+    const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
     
-    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(double));
+    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
     
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
       
@@ -413,7 +422,7 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
         int w = 0;
         for(int l = 0; l < kCategoryCount; l++) {
             int u = 0; // Index in resulting product-partials (summed over categories)
-            const double weight = wt[l];
+            const REALTYPE weight = wt[l];
             for(int k = 0; k < kPatternCount; k++) {
                 
                 const int stateChild = statesChild[k]; 
@@ -431,18 +440,18 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
         
     } else { // Integrate against a partial at the child
         
-        const double* partialsChild = gPartials[childIndex];
+        const REALTYPE* partialsChild = gPartials[childIndex];
         int v = 0;
         int w = 0;
         for(int l = 0; l < kCategoryCount; l++) {            
             int u = 0;
-            const double weight = wt[l];        
+            const REALTYPE weight = wt[l];
             
             PREFETCH_MATRIX(1,transMatrix,w);
             
             for(int k = 0; k < kPatternCount; k++) {                
                                  
-                const double* partials1 = partialsChild;
+                const REALTYPE* partials1 = partialsChild;
                 
                 PREFETCH_PARTIALS(1,partials1,v);
                 
@@ -463,19 +472,20 @@ void BeagleCPU4StateImpl::calcEdgeLogLikelihoods(const int parIndex,
     integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
-void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
                                                 const double* inWeights,
                                                 const double* inStateFrequencies,
                                                 const int scalingFactorsIndex,
                                                 double* outLogLikelihoods) {
 
-    const double* rootPartials = gPartials[bufferIndex];
+    const REALTYPE* rootPartials = gPartials[bufferIndex];
     assert(rootPartials);
     const double* wt = inWeights;
     
     int u = 0;
     int v = 0;
-    const double wt0 = wt[0];
+    const REALTYPE wt0 = wt[0];
     for (int k = 0; k < kPatternCount; k++) {
         integrationTmp[v    ] = rootPartials[v    ] * wt0;
         integrationTmp[v + 1] = rootPartials[v + 1] * wt0;
@@ -485,7 +495,7 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
     }
     for (int l = 1; l < kCategoryCount; l++) {
         u = 0;
-        const double wtl = wt[l];
+        const REALTYPE wtl = wt[l];
         for (int k = 0; k < kPatternCount; k++) {
             integrationTmp[u    ] += rootPartials[v    ] * wtl;
             integrationTmp[u + 1] += rootPartials[v + 1] * wtl;
@@ -500,14 +510,18 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
     integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
-const char* BeagleCPU4StateImpl::getName() {
-//	return beagleCPU4StateImplDoubleName;
-	return "CPU-4State-Double";
+template <typename REALTYPE>
+const char* BeagleCPU4StateImpl<REALTYPE>::getName() {
+	if (DOUBLE_PRECISION)
+		return "CPU-4State-Double";
+	else
+		return "CPU-4State-Single";
 }
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
-BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
+template <typename REALTYPE>
+BeagleImpl* BeagleCPU4StateImplFactory<REALTYPE>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -525,7 +539,7 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
         return NULL;
     }
 
-    BeagleImpl* impl = new BeagleCPU4StateImpl();
+    BeagleImpl* impl = new BeagleCPU4StateImpl<REALTYPE>();
 
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
@@ -546,12 +560,22 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
     return NULL;
 }
 
-const char* BeagleCPU4StateImplFactory::getName() {
+template <typename REALTYPE>
+const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
 //    return beagleCPU4StateImplDoubleName;
-	return "CPU-4State-Double"; // TODO Define once.
+	if (DOUBLE_PRECISION)
+		return "CPU-4State-Double"; // TODO Define once.
+	else
+		return "CPU-4State-Single";
 }
 
-const long BeagleCPU4StateImplFactory::getFlags() {
-    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE;
+template <typename REALTYPE>
+const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
+    long flags =  BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
+    if (DOUBLE_PRECISION)
+    	flags |= BEAGLE_FLAG_DOUBLE;
+    else
+    	flags |= BEAGLE_FLAG_SINGLE;
+    return flags;
 }
 

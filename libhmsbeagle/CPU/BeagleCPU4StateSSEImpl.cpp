@@ -21,6 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  *
  * @author Marc Suchard
+ * @author David Swofford
  */
 
 #ifdef HAVE_CONFIG_H
@@ -174,11 +175,11 @@ typedef union 			/* for copying individual elements to and from vector floats */
 using namespace beagle;
 using namespace beagle::cpu;
 
-#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
-const bool DEBUGGING_OUTPUT = true;
-#else
-const bool DEBUGGING_OUTPUT = false;
-#endif
+//#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
+//const bool DEBUGGING_OUTPUT = true;
+//#else
+//const bool DEBUGGING_OUTPUT = false;
+//#endif
 
 BeagleCPU4StateSSEImpl::~BeagleCPU4StateSSEImpl() {
 }

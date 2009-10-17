@@ -39,7 +39,7 @@
 namespace beagle {
 namespace cpu {
 
-class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl {
+class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl<double> {
     
 public:
     virtual ~BeagleCPU4StateSSEImpl();

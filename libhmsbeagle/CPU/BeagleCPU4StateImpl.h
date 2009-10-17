@@ -42,29 +42,40 @@ namespace cpu {
 //const char* beagleCPU4StateImplDoubleName = "CPU-4State-Double";
 //const char* beagleCPU4StateImplSingleName = "CPU-4State-Single";
 
-class BeagleCPU4StateImpl : public BeagleCPUImpl<double> {
+template <typename REALTYPE>
+class BeagleCPU4StateImpl : public BeagleCPUImpl<REALTYPE> {
+
+	using BeagleCPUImpl<REALTYPE>::kTipCount;
+	using BeagleCPUImpl<REALTYPE>::gPartials;
+	using BeagleCPUImpl<REALTYPE>::integrationTmp;
+	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
+	using BeagleCPUImpl<REALTYPE>::kPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kStateCount;
+	using BeagleCPUImpl<REALTYPE>::gTipStates;
+	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
+	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
 
 public:
     virtual ~BeagleCPU4StateImpl();
 
 protected:
-    virtual void calcStatesStates(double* destP,
+    virtual void calcStatesStates(REALTYPE* destP,
                                     const int* states1,
-                                    const double* matrices1,
+                                    const REALTYPE* matrices1,
                                     const int* states2,
-                                    const double* matrices2);
+                                    const REALTYPE* matrices2);
     
-    virtual void calcStatesPartials(double* destP,
+    virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
-                                    const double* matrices1,
-                                    const double* partials2,
-                                    const double* matrices2);
+                                    const REALTYPE* matrices1,
+                                    const REALTYPE* partials2,
+                                    const REALTYPE* matrices2);
     
-    virtual void calcPartialsPartials(double* destP,
-                                    const double* partials1,
-                                    const double* matrices1,
-                                    const double* partials2,
-                                    const double* matrices2);
+    virtual void calcPartialsPartials(REALTYPE* destP,
+                                    const REALTYPE* partials1,
+                                    const REALTYPE* matrices1,
+                                    const REALTYPE* partials2,
+                                    const REALTYPE* matrices2);
     
     virtual void calcRootLogLikelihoods(const int bufferIndex,
                                     const double* inWeights,
@@ -84,28 +95,28 @@ protected:
                                         double* outFirstDerivatives,
                                         double* outSecondDerivatives);
     
-    virtual void calcStatesStatesFixedScaling(double *destP,
+    virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                            const int *child0States,
-                                        const double *child0TransMat,
+                                        const REALTYPE *child0TransMat,
                                            const int *child1States,
-                                        const double *child1TransMat,
-                                        const double *scaleFactors);
+                                        const REALTYPE *child1TransMat,
+                                        const REALTYPE *scaleFactors);
 
-    virtual void calcStatesPartialsFixedScaling(double *destP,
+    virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
                                              const int *child0States,
-                                          const double *child0TransMat,
-                                          const double *child1Partials,
-                                          const double *child1TransMat,
-                                          const double *scaleFactors);
+                                          const REALTYPE *child0TransMat,
+                                          const REALTYPE *child1Partials,
+                                          const REALTYPE *child1TransMat,
+                                          const REALTYPE *scaleFactors);
 
-    virtual void calcPartialsPartialsFixedScaling(double *destP,
-                                            const double *child0Partials,
-                                            const double *child0TransMat,
-                                            const double *child1Partials,
-                                            const double *child1TransMat,
-                                            const double *scaleFactors);
+    virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
+                                            const REALTYPE *child0Partials,
+                                            const REALTYPE *child0TransMat,
+                                            const REALTYPE *child1Partials,
+                                            const REALTYPE *child1TransMat,
+                                            const REALTYPE *scaleFactors);
     
-    inline void integrateOutStatesAndScale(const double* integrationTmp,
+    inline void integrateOutStatesAndScale(const REALTYPE* integrationTmp,
                                            const double* inStateFrequencies,
                                            const int scalingFactorsIndex,
                                            double* outLogLikelihoods);
@@ -113,6 +124,7 @@ protected:
     virtual const char* getName();
 };
 
+template <typename REALTYPE>
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,
@@ -135,5 +147,11 @@ public:
 
 }	// namespace cpu
 }	// namespace beagle
+
+
+#ifndef BEAGLE_CPU_4STATE_IMPL_HPP
+	#define BEAGLE_CPU_4STATE_IMPL_HPP
+	#include "libhmsbeagle/CPU/BeagleCPU4StateImpl.hpp"
+#endif BEAGLE_CPU_4STATE_IMPL_HPP
 
 #endif // __BeagleCPU4StateImpl__
