@@ -41,11 +41,11 @@
 using namespace beagle;
 using namespace beagle::cpu;
 
-#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
-const bool DEBUGGING_OUTPUT = true;
-#else
-const bool DEBUGGING_OUTPUT = false;
-#endif
+//#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
+//const bool DEBUGGING_OUTPUT = true;
+//#else
+//const bool DEBUGGING_OUTPUT = false;
+//#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods

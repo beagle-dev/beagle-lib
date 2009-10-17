@@ -45,11 +45,12 @@
 namespace beagle {
 namespace cpu {
 
-//const char* beagleCPUImplDoubleName = "CPU-Double";
-//const char* beagleCPUImplSingleName = "CPU-Single";
-
 template <typename REALTYPE>
 class BeagleCPUImpl : public BeagleImpl {
+//public:
+//static const char* beagleCPUImplDoubleName = "CPU-Double";
+//static const char* beagleCPUImplSingleName = "CPU-Single";
+//	static const char* nameString;
 
 protected:
     int kBufferCount; /// after initialize this will be partials.size()
@@ -296,6 +297,12 @@ protected:
     virtual const char* getName();
 
 };
+
+//template <>
+//const char* BeagleCPUImpl<double>::nameString = "CPU-Double";
+
+//template <>
+//const char* BeagleCPUImpl<float>::nameString = "CPU-Single";
 
 template <typename REALTYPE>
 class BeagleCPUImplFactory : public BeagleImplFactory {

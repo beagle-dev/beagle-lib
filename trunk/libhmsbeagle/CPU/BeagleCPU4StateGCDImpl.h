@@ -38,7 +38,7 @@
 namespace beagle {
 namespace cpu {
 
-class BeagleCPU4StateGCDImpl : public BeagleCPU4StateImpl {
+class BeagleCPU4StateGCDImpl : public BeagleCPU4StateImpl<double> {
 
 };
 

@@ -97,7 +97,8 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 #if defined(EXPERIMENTAL)
         implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory());
 #endif
-		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<double>());
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
 	}
