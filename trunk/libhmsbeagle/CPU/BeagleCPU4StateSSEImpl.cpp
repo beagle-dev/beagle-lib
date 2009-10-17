@@ -534,6 +534,10 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
     }
 }
 
+const char* BeagleCPU4StateSSEImpl::getName() {
+    return "CPU-4State-Double-SSE"; // TODO: Define once!
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
@@ -556,13 +560,9 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
         return NULL;
     }
     
-    fprintf(stderr,"EXPERIMENTAL FACTORY -- SSE!!\n");
-    
     BeagleCPU4StateSSEImpl* impl = new BeagleCPU4StateSSEImpl();
     
-    if (impl->CPUSupportsSSE()) {        
-        fprintf(stderr,"CPU supports SSE!\n");
-    } else {
+    if (!impl->CPUSupportsSSE()) {
         delete impl;
         return NULL;            
     }
@@ -586,7 +586,7 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
 }
 
 const char* BeagleCPU4StateSSEImplFactory::getName() {
-    return "CPU-4StateSSE";
+    return "CPU-4State-Double-SSE";
 }
 
 const long BeagleCPU4StateSSEImplFactory::getFlags() {

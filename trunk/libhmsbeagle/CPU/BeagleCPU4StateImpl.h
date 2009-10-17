@@ -39,7 +39,10 @@
 namespace beagle {
 namespace cpu {
 
-class BeagleCPU4StateImpl : public BeagleCPUImpl {
+//const char* beagleCPU4StateImplDoubleName = "CPU-4State-Double";
+//const char* beagleCPU4StateImplSingleName = "CPU-4State-Single";
+
+class BeagleCPU4StateImpl : public BeagleCPUImpl<double> {
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -106,6 +109,8 @@ protected:
                                            const double* inStateFrequencies,
                                            const int scalingFactorsIndex,
                                            double* outLogLikelihoods);
+
+    virtual const char* getName();
 };
 
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {

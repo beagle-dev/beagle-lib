@@ -33,6 +33,7 @@
 #endif
 
 #include "libhmsbeagle/BeagleImpl.h"
+#include "libhmsbeagle/CPU/Precision.h"
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 #include <vector>
@@ -44,6 +45,10 @@
 namespace beagle {
 namespace cpu {
 
+//const char* beagleCPUImplDoubleName = "CPU-Double";
+//const char* beagleCPUImplSingleName = "CPU-Single";
+
+template <typename REALTYPE>
 class BeagleCPUImpl : public BeagleImpl {
 
 protected:
@@ -63,27 +68,27 @@ protected:
     
     long kFlags;
 
-    EigenDecomposition<double>* gEigenDecomposition;
+    EigenDecomposition<REALTYPE>* gEigenDecomposition;
 
-    double* gCategoryRates;
+    double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
 
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
-    double** gPartials;
+    REALTYPE** gPartials;
     int** gTipStates;
-    double** gScaleBuffers;
+    REALTYPE** gScaleBuffers;
 
     // There will be kMatrixCount transitionMatrices.
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
-    double** gTransitionMatrices;
+    REALTYPE** gTransitionMatrices;
 
-    double* integrationTmp;
+    REALTYPE* integrationTmp;
 //    double* matrixTmp;
 
-    double* ones;
-    double* zeros;
+    REALTYPE* ones;
+    REALTYPE* zeros;
 
 public:
     virtual ~BeagleCPUImpl();
@@ -191,8 +196,8 @@ public:
 							  int cumulativeScalingIndex);
 
     int removeScaleFactors(const int* scalingIndices,
-                               int count,
-                               int cumulativeScalingIndex);
+                           int count,
+                           int cumulativeScalingIndex);
 
     int resetScaleFactors(int cumulativeScalingIndex);
 
@@ -225,30 +230,30 @@ public:
     int block(void);
 
 protected:
-    virtual void calcStatesStates(double* destP,
+    virtual void calcStatesStates(REALTYPE* destP,
                                     const int* states1,
-                                    const double* matrices1,
+                                    const REALTYPE* matrices1,
                                     const int* states2,
-                                    const double* matrices2);
+                                    const REALTYPE* matrices2);
 
 
-    virtual void calcStatesPartials(double* destP,
+    virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
-                                    const double* matrices1,
-                                    const double* partials2,
-                                    const double* matrices2);
+                                    const REALTYPE* matrices1,
+                                    const REALTYPE* partials2,
+                                    const REALTYPE* matrices2);
 
-    virtual void calcPartialsPartials(double* destP,
-                                    const double* partials1,
-                                    const double* matrices1,
-                                    const double* partials2,
-                                    const double* matrices2);
+    virtual void calcPartialsPartials(REALTYPE* destP,
+                                      const REALTYPE* partials1,
+                                      const REALTYPE* matrices1,
+                                      const REALTYPE* partials2,
+                                      const REALTYPE* matrices2);
 
     virtual void calcRootLogLikelihoods(const int bufferIndex,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int scaleBufferIndex,
-                                    double* outLogLikelihoods);
+                                        const double* inWeights,
+                                        const double* inStateFrequencies,
+                                        const int scaleBufferIndex,
+                                        double* outLogLikelihoods);
     
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
@@ -262,34 +267,37 @@ protected:
                                         double* outFirstDerivatives,
                                         double* outSecondDerivatives);
 
-    virtual void calcStatesStatesFixedScaling(double *destP,
-                                           const int *child0States,
-                                        const double *child0TransMat,
-                                           const int *child1States,
-                                        const double *child1TransMat,
-                                        const double *scaleFactors);
+    virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
+                                              const int *child0States,
+                                              const REALTYPE *child0TransMat,
+                                              const int *child1States,
+                                              const REALTYPE *child1TransMat,
+                                              const REALTYPE *scaleFactors);
 
-    virtual void calcStatesPartialsFixedScaling(double *destP,
-                                             const int *child0States,
-                                          const double *child0TransMat,
-                                          const double *child1Partials,
-                                          const double *child1TransMat,
-                                          const double *scaleFactors);
+    virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
+                                                const int *child0States,
+                                                const REALTYPE *child0TransMat,
+                                                const REALTYPE *child1Partials,
+                                                const REALTYPE *child1TransMat,
+                                                const REALTYPE *scaleFactors);
 
-    virtual void calcPartialsPartialsFixedScaling(double *destP,
-                                            const double *child0States,
-                                            const double *child0TransMat,
-                                            const double *child1Partials,
-                                            const double *child1TransMat,
-                                            const double *scaleFactors);
+    virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
+                                            const REALTYPE *child0States,
+                                            const REALTYPE *child0TransMat,
+                                            const REALTYPE *child1Partials,
+                                            const REALTYPE *child1TransMat,
+                                            const REALTYPE *scaleFactors);
 
-    virtual void rescalePartials(double *destP,
-                                 double *scaleFactors,
-                                 double *cumulativeScaleFactors,
+    virtual void rescalePartials(REALTYPE *destP,
+    		                     REALTYPE *scaleFactors,
+                                 REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
     
+    virtual const char* getName();
+
 };
 
+template <typename REALTYPE>
 class BeagleCPUImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,
@@ -310,7 +318,14 @@ public:
     virtual const long getFlags();
 };
 
+//typedef BeagleCPUImplGeneral<double> BeagleCPUImpl;
+
 }	// namespace cpu
 }	// namespace beagle
+
+#ifndef BEAGLE_CPU_IMPL_GENERAL_HPP
+	#define BEAGLE_CPU_IMPL_GENERAL_HPP
+	#include "libhmsbeagle/CPU/BeagleCPUImpl.hpp"
+#endif BEAGLE_CPU_IMPL_GENERAL_HPP
 
 #endif // __BeagleCPUImpl__

@@ -98,7 +98,8 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
         implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory());
 #endif
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory());
-		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory());
+		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
+		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
 	}
 	return implFactory;
 }
@@ -305,6 +306,9 @@ int beagleCreateInstance(int tipCount,
             for (std::list<beagle::BeagleImplFactory*>::iterator factory =
                         implFactory->begin(); factory != implFactory->end(); factory++) {
                 long factoryFlags = (*factory)->getFlags();
+#ifdef BEAGLE_DEBUG_FLOW
+                fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
+#endif
                 if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Meets requirementFlags
                   && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Meets resourceFlags
                     ) {
@@ -369,7 +373,7 @@ int beagleInitializeInstance(int instance,
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->getInstanceDetails(returnInfo);
-        fprintf(stderr,"Beagle initializeInstance returnValue: %d\n",returnValue);
+        returnInfo->resourceName = rsrcList->list[returnInfo->resourceNumber].name;
         return returnValue;
     }
     catch (std::bad_alloc &) {
