@@ -109,7 +109,11 @@ enum BeagleOpCodes {
 typedef struct {
     int resourceNumber; /**< Resource upon which instance is running */
     long flags;         /**< Bit-flags that characterize the activate
-                         *   capabilities of the resource for this instance */
+                         *   capabilities of the resource and implementation for this instance */
+    char* resourceName; /**< Name of resource on which this instance is running as a NULL-terminated
+					     *   character string */
+    char* implName;     /**< Name of implementation on which this instance is running as a
+                         *   NULL-terminated character string */
 } BeagleInstanceDetails;
 
 /**

@@ -53,16 +53,19 @@ private:
                                      const double* matrices1,
                                      const int* states2,
                                      const double* matrices2);
+
     virtual void calcStatesPartials(double* destP,
                                     const int* states1,
                                     const double* matrices1,
                                     const double* partials2,
                                     const double* matrices2);
+
     virtual void calcPartialsPartials(double* __restrict destP,
                                       const double* __restrict partials1,
                                       const double* __restrict matrices1,
                                       const double* __restrict partials2,
                                       const double* __restrict matrices2);
+
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
@@ -74,6 +77,8 @@ private:
                                         double* outLogLikelihoods,
                                         double* outFirstDerivatives,
                                         double* outSecondDerivatives);
+
+    virtual const char* getName();
 };
 
 class BeagleCPU4StateSSEImplFactory : public BeagleImplFactory {

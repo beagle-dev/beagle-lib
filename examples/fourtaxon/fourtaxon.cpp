@@ -293,7 +293,7 @@ void FourTaxonExample::initBeagleLib()
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
 				0L,			// preferenceFlags
-				0L			// requirementFlags
+				BEAGLE_FLAG_SINGLE			// requirementFlags
 				);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
@@ -711,7 +711,8 @@ void FourTaxonExample::run()
 void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
-	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>] [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>]\n\n";
+	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]";
+	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";

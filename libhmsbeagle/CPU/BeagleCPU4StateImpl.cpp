@@ -41,6 +41,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
 
+#define EXPERIMENTAL_OPENMP
 
 #ifdef PAD_MATRICES
     #define OFFSET    5    // For easy conversion between 4/5
@@ -499,6 +500,10 @@ void BeagleCPU4StateImpl::calcRootLogLikelihoods(const int bufferIndex,
     integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
+const char* BeagleCPU4StateImpl::getName() {
+//	return beagleCPU4StateImplDoubleName;
+	return "CPU-4State-Double";
+}
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
@@ -542,7 +547,8 @@ BeagleImpl* BeagleCPU4StateImplFactory::createImpl(int tipCount,
 }
 
 const char* BeagleCPU4StateImplFactory::getName() {
-    return "CPU-4State";
+//    return beagleCPU4StateImplDoubleName;
+	return "CPU-4State-Double"; // TODO Define once.
 }
 
 const long BeagleCPU4StateImplFactory::getFlags() {
