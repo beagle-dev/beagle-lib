@@ -35,14 +35,14 @@ END;
 
 BEGIN PAUP;
 
-[JC]
+[JC-G]
 lscores  1/
 	nst=1
 	basefreq=equal
-	rates=equal
+	rates=gamma
+	shape=0.5
+	reprate=mean
 	pinv=0
-	reprate=median
 	userbrlens=yes;
-
 
 END;
