@@ -1,9 +1,8 @@
 /*
- *  tinyTest.c
+ *  tinyTest.cpp
  *  BEAGLE
  *
  *  Created by Andrew Rambaut on 20/03/2009.
- *  Copyright 2009 __MyCompanyName__. All rights reserved.
  *
  */
 #include <stdio.h>
@@ -189,14 +188,15 @@ int main( int argc, const char* argv[] )
 	beagleSetTipPartials(instance, 1, chimpPartials);
 	beagleSetTipPartials(instance, 2, gorillaPartials);
     
-#ifdef _WIN32
-	std::vector<double> rates(rateCategoryCount);
-#else
-	double rates[rateCategoryCount];
-#endif
-    for (int i = 0; i < rateCategoryCount; i++) {
-        rates[i] = 1.0;
-    }
+//#ifdef _WIN32
+//	std::vector<double> rates(rateCategoryCount);
+//#else
+//	double rates[rateCategoryCount];
+//#endif
+//    for (int i = 0; i < rateCategoryCount; i++) {
+//        rates[i] = 1.0;
+//    }
+	double rates[4] = { 0.03338775, 0.25191592, 0.82026848, 2.89442785 };
     
 	beagleSetCategoryRates(instance, &rates[0]);
 	
@@ -293,7 +293,9 @@ int main( int argc, const char* argv[] )
 		logL += patternLogLik[i];
 	}
     
-	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
+	fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n\n", logL);
+// no rate heterogeneity:	
+//	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
 	
 	free(patternLogLik);
 	free(humanPartials);
