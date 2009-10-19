@@ -285,6 +285,7 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
                                          const REALTYPE* partials2,
                                          const REALTYPE* matrices2) {
     
+ 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int u = l*4*kPatternCount;
@@ -305,6 +306,9 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
             destP[u + 1] = sum11 * sum21;
             destP[u + 2] = sum12 * sum22;
             destP[u + 3] = sum13 * sum23;
+
+	    u += 4;
+	    v += 4;
 
         }
     }
