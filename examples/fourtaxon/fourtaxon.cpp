@@ -293,7 +293,7 @@ void FourTaxonExample::initBeagleLib()
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
 				0L,			// preferenceFlags
-				BEAGLE_FLAG_SINGLE			// requirementFlags
+				0L			// requirementFlags
 				);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
@@ -309,10 +309,10 @@ void FourTaxonExample::initBeagleLib()
     }
         
     int rNumber = instDetails.resourceNumber;
-    BeagleResourceList* rList = beagleGetResourceList();
+    //BeagleResourceList* rList = beagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
-    fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
-    fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
+    fprintf(stdout, "\tRsrc Name : %s\n", instDetails.resourceName);
+    fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     fprintf(stdout, "\n");        
         
 	brlens.resize(5);
