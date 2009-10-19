@@ -330,9 +330,6 @@ public:
 }	// namespace cpu
 }	// namespace beagle
 
-#ifndef BEAGLE_CPU_IMPL_GENERAL_HPP
-	#define BEAGLE_CPU_IMPL_GENERAL_HPP
-	#include "libhmsbeagle/CPU/BeagleCPUImpl.hpp"
-#endif BEAGLE_CPU_IMPL_GENERAL_HPP
+#include "libhmsbeagle/CPU/BeagleCPUImpl.hpp"
 
 #endif // __BeagleCPUImpl__

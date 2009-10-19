@@ -24,7 +24,11 @@
  * @author Marc Suchard
  * @author Daniel Ayres
  * @author Mark Holder
+ * @author Aaron Darling
  */
+
+#ifndef BEAGLE_CPU_4STATE_IMPL_HPP
+#define BEAGLE_CPU_4STATE_IMPL_HPP
 
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
@@ -122,14 +126,9 @@
                    m##num##32 * p##num##2 + \
                    m##num##33 * p##num##3;
 
-using namespace beagle;
-using namespace beagle::cpu;
 
-#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
-const bool DEBUGGING_OUTPUT = true;
-#else
-const bool DEBUGGING_OUTPUT = false;
-#endif
+namespace beagle {
+namespace cpu {
 
 template <typename REALTYPE>
 BeagleCPU4StateImpl<REALTYPE>::~BeagleCPU4StateImpl() {
@@ -151,10 +150,10 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
                                      const int* states2,
                                      const REALTYPE* matrices2) {
 
-    int v = 0;
-    int w = 0;
-
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
 
         for (int k = 0; k < kPatternCount; k++) {
 
@@ -171,8 +170,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
                            matrices2[w + OFFSET*3 + state2];
            v += 4;
         }
-        
-        w += OFFSET*4;
     }
 }
 
@@ -184,10 +181,10 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP
                                      const REALTYPE* matrices2,
                                      const REALTYPE* scaleFactors) {
     
-    int v = 0;
-    int w = 0;
-    
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
         
         for (int k = 0; k < kPatternCount; k++) {
             
@@ -205,8 +202,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP
                            matrices2[w + OFFSET*3 + state2] / scaleFactor;
             v += 4;
         }
-        
-        w += OFFSET*4;
     }
 }
 
@@ -220,11 +215,11 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
                                        const REALTYPE* partials2,
                                        const REALTYPE* matrices2) {
 
-    int u = 0;
-    int v = 0;
-    int w = 0;
-    
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPatternCount;
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
@@ -244,7 +239,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
             v += 4;
             u += 4;
         }
-        w += OFFSET*4;
     }
 }
 
@@ -256,11 +250,11 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* des
                                        const REALTYPE* matrices2,
                                        const REALTYPE* scaleFactors) {
     
-    int u = 0;
-    int v = 0;
-    int w = 0;
-    
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPatternCount;
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
@@ -281,7 +275,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* des
             v += 4;
             u += 4;            
         }
-        w += OFFSET*4;
     }   
 }
 
@@ -292,17 +285,15 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
                                          const REALTYPE* partials2,
                                          const REALTYPE* matrices2) {
     
-    int w = 0;
-
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int x=4*kPatternCount*l;
+        int u = l*4*kPatternCount;
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(1,matrices1,w);                
         PREFETCH_MATRIX(2,matrices2,w);
-#pragma omp parallel for 
         for (int k = 0; k < kPatternCount; k++) {                   
-            int u=x+k*4;
-            int v=x+k*4;
             PREFETCH_PARTIALS(1,partials1,v);
             PREFETCH_PARTIALS(2,partials2,v);
             
@@ -316,7 +307,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
             destP[u + 3] = sum13 * sum23;
 
         }
-        w += OFFSET*4;
     }
 }
 
@@ -328,11 +318,11 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* d
                                          const REALTYPE* matrices2,
                                          const REALTYPE* scaleFactors) {
     
-    int u = 0;
-    int v = 0;
-    int w = 0;
-    
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPatternCount;
+        int v = l*4*kPatternCount;
+        int w = l*4*OFFSET;
         
         PREFETCH_MATRIX(1,matrices1,w);
         PREFETCH_MATRIX(2,matrices2,w);
@@ -357,7 +347,6 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* d
             u += 4;
             v += 4;            
         }
-        w += OFFSET*4;
     }    
 }
 
@@ -578,4 +567,9 @@ const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
     	flags |= BEAGLE_FLAG_SINGLE;
     return flags;
 }
+
+}	// namespace cpu
+}	// namespace beagle
+
+#endif // BEAGLE_CPU_4STATE_IMPL_HPP
 

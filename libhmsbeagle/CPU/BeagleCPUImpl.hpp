@@ -65,6 +65,9 @@
 //      write a wrapper geared toward MCMC (during a move, cache the old data
 //      in an unused array, after a rejection swap back to the cached copy)
 
+#ifndef BEAGLE_CPU_IMPL_GENERAL_HPP
+#define BEAGLE_CPU_IMPL_GENERAL_HPP
+
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
@@ -83,8 +86,8 @@
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
 #include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 
-using namespace beagle;
-using namespace beagle::cpu;
+namespace beagle {
+namespace cpu {
 
 //#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
 //const bool DEBUGGING_OUTPUT = true;
@@ -1177,4 +1180,8 @@ const long BeagleCPUImplFactory<REALTYPE>::getFlags() {
     return flags;
 }
 
+}	// namespace cpu
+}	// namespace beagle
+
+#endif // BEAGLE_CPU_IMPL_GENERAL_HPP
 
