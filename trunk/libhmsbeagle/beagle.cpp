@@ -26,8 +26,6 @@
  * @author Aaron Darling
  */
 
-//#define EXPERIMENTAL	/* define this for new SSE code */
-
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
@@ -54,10 +52,7 @@
 #endif
 #include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
-
-#if defined(EXPERIMENTAL)
-    #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
-#endif
+#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
 
 typedef std::list< std::pair<int,int> > PairedList;
 
@@ -94,13 +89,11 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		if (rsrcList->length > 1)
 			implFactory->push_back(new beagle::gpu::BeagleGPUImplFactory());
 #endif
-#if defined(EXPERIMENTAL)
-        implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory());
-#endif
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory());
 	}
 	return implFactory;
 }

@@ -414,6 +414,7 @@ int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
         if (kStoreLogScalers)
             returnInfo->flags |= BEAGLE_FLAG_LSCALER;
     }
+    returnInfo->implName = "CUDA";
     return BEAGLE_SUCCESS;
 }
 

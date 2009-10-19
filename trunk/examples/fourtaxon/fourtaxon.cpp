@@ -292,7 +292,7 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				0L,			// preferenceFlags
+				BEAGLE_FLAG_SSE,	// preferenceFlags
 				0L			// requirementFlags
 				);
 	
