@@ -50,7 +50,8 @@ private:
     int kHostMemoryUsed;
     int kInitialized;
     
-    int kStoreLogScalers;
+//    int kStoreLogScalers;
+    long kFlags;
     
     int kTipCount;
     int kPartialsBufferCount;
@@ -79,6 +80,7 @@ private:
     GPUPtr* dEigenValues;
     GPUPtr* dEvec;
     GPUPtr* dIevc;
+    GPUPtr  dComplex;
     
     GPUPtr dWeights;
     GPUPtr dFrequencies; 

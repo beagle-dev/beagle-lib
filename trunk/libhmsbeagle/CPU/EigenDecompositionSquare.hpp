@@ -15,6 +15,8 @@
 //const bool DEBUGGING_OUTPUT = false;
 //#endif
 
+//#define DEBUG_COMPLEX
+
 namespace beagle {
 namespace cpu {
 
@@ -130,6 +132,15 @@ void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex
         			i++; // processed two conjugate rows
         		}
         	}
+
+#ifdef DEBUG_COMPLEX
+           	fprintf(stderr,"[");
+            	for(int i=0; i<16; i++)
+            		fprintf(stderr," %7.5e,",matrixTmp[i]);
+            	fprintf(stderr,"] -- complex debug\n");
+            	exit(0);
+#endif
+
 
             for (int i = 0; i < kStateCount; i++) {
                 for (int j = 0; j < kStateCount; j++) {

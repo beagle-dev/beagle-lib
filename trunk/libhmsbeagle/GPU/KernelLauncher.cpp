@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
 
@@ -38,7 +39,6 @@
 REAL* ones = NULL; // TODO: Memory leak, need to free at some point.
 
 KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
-    // TODO: copy the gpu instance?
     gpu = inGpu;
     SetupKernelBlocksAndGrids(); // Delegate, so can be overridden as necessary
     LoadKernels(); // Delegate, so can be overridden as necessary
@@ -56,6 +56,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     kPatternBlockSize = gpu->kernelResource->patternBlockSize;
     kSlowReweighing = gpu->kernelResource->slowReweighing;
     kMatrixBlockSize = gpu->kernelResource->matrixBlockSize;
+    kFlags = gpu->kernelResource->flags;
     
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
@@ -125,7 +126,14 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 }
 
 void KernelLauncher::LoadKernels() {
-    fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
+	
+	if (kFlags & BEAGLE_FLAG_COMPLEX) {
+		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB"); // TODO Remove
+		fMatrixMulAB = gpu->GetFunction("kernelMatrixMulAB");
+		fMatrixMulDComplexB = gpu->GetFunction("kernelMatrixMulDComplexB");
+	} else {
+		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
+	}
 
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelPartialsPartialsNoScale");
@@ -205,6 +213,46 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
+#endif
+}
+
+void KernelLauncher::GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
+                                                       GPUPtr dEvec,
+                                                       GPUPtr dIevc,
+                                                       GPUPtr dEigenValues,
+                                                       GPUPtr distanceQueue,
+                                                       GPUPtr dComplex,
+                                                       int totalMatrix) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesComplex\n");
+#endif
+
+    bgTransitionProbabilitiesGrid.x *= totalMatrix; 
+    
+    gpu->LaunchKernelIntParams(fMatrixMulDComplexB,
+                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+                                5,
+                                dComplex, dEigenValues, dEvec, distanceQueue,                               
+                                totalMatrix);
+    
+    int kMatrixSize = kPaddedStateCount * kPaddedStateCount;
+    gpu->PrintfDeviceVector(dComplex, kMatrixSize);
+//    fprintf(stderr,"Right exit\n");
+//    exit(0);
+    
+    gpu->LaunchKernelIntParams(fMatrixMulAB,
+                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+                                4,
+                                dPtrQueue, dIevc, dComplex,
+                                totalMatrix);
+    
+//    gpu->PrintfDeviceVector(dPtrQueue[0],kMatrixSize);
+  //  exit(0);
+
+    bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesComplex\n");
 #endif
 }
 

@@ -148,6 +148,345 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
+//#define MAKE_COMPLEX_KERNELS
+
+#ifdef MAKE_COMPLEX_KERNELS
+__global__ void kernelMatrixComplex(REAL* Cstart,
+									REAL* D,
+									REAL* distanceQueue,
+									int totalMatrix) {
+
+	__shared__ REAL* C;
+	__shared__ REAL distance;
+
+	int wMatrix = blockIdx.x;
+	int tx = threadIdx.x;
+	int ty = threadIdx.y;
+
+	__shared__ REAL Ds[PADDED_STATE_COUNT];
+	__shared__ REAL Cs[PADDED_STATE_COUNT];
+	__shared__ REAL CsM1[PADDED_STATE_COUNT];
+
+	Ds[tx] = D[tx];
+	Cs[tx] = D[PADDED_STATE_COUNT + tx];
+	CsM1[tx] = D[PADDED_STATE_COUNT - 1 + tx];
+
+    if (tx == 0) {
+    	C = Cstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        distance = distanceQueue[wMatrix]; // Non-coalescent read
+        CsM1[tx] = 0;
+    }
+
+    __syncthreads();
+
+    REAL expat = exp(Ds[tx] * distance);
+    REAL cosbt = 1;
+    REAL sinbt = 0;
+    if (Cs[tx]) {
+    	cosbt = cos(Cs[tx] * distance);
+    	sinbt = sin(Cs[tx] * distance);
+    }
+
+    C[tx * PADDED_STATE_COUNT + tx] = expat * cosbt;
+    if (Cs[tx]) {
+
+    }
+
+//REAL cosbt = 1;
+//if (Cs[tx])
+//	cosbt = cos(Cs[tx]);
+////
+//Es[tx][tx] = Ds[tx] * cosbt; // * cosbt;
+//if (Cs[tx]) { // has a complex value
+//	REAL sinbt = sin(Cs[tx]);
+//	if (CsM1[tx]) { // add to lower
+//		Es[tx][tx-1] = -Ds[tx] * sinbt;
+//	} else { // add to upper
+//		Es[tx][tx+1] = -Ds[tx] * sinbt;
+//	}
+//}
+//
+
+}
+
+__global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
+									     REAL* D,
+//									     REAL* Eimag,
+									     REAL* B,
+									     REAL* distanceQueue,
+									     int totalMatrix) {
+	 
+    __shared__ REAL* C;
+    __shared__ REAL distance;
+    
+    int wMatrix = blockIdx.x % totalMatrix;
+ 
+    // Block index
+    int bx = blockIdx.x / totalMatrix;
+    int by = blockIdx.y;
+
+    // Thread index
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int BLOCKS = gridDim.y;
+
+    if (tx == 0 && ty == 0) {
+    	C = Cstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        distance = distanceQueue[wMatrix]; // Non-coalescent read
+    }
+
+    __syncthreads();
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; // also acts as the i-index offset for each block
+    
+    int indexI = by * MULTIPLY_BLOCK_SIZE + ty;
+    int indexJ = bx * MULTIPLY_BLOCK_SIZE + tx;
+    int indexIm1 = indexI - 1;
+    int indexIp1 = indexI + 1;
+
+    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];//[MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL CsM1[MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Es[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+
+    Es[ty][tx] = 0;
+
+//    __shared__ REAL CsUpper[MULTIPLY_BLOCK_SIZE+1];
+    
+    for (int i = 0; i < BLOCKS - 1; i++) {
+
+        if (ty == 0) {
+            Ds[tx] = exp(D[d + tx] * distance);
+//            DsSin[tx] = D[d + PADDED_STATE_COUNT + tx];
+//            DsSin[tx] = 0;
+//            DsCos[tx] = cos(DsSin[tx]);
+//            DsSin[tx] = sin(DsSin[tx]);
+//            Cs[tx] = D[d + PADDED_STATE_COUNT - 1 + tx];
+//            if (tx < 2)
+//            	Cs[MULTIPLY_BLOCK_SIZE + tx] = D[d + PADDED_STATE_COUNT + MULTIPLY_BLOCK_SIZE - 1 + tx];
+            // Add here!!!
+        }
+        __syncthreads();
+
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        __syncthreads();
+
+        int k = indexI - i*MULTIPLY_BLOCK_SIZE;
+        if (indexI >= d && k < MULTIPLY_BLOCK_SIZE)
+        	Csub += Ds[k] * Bs[k][tx];
+
+        __syncthreads();
+
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;      
+    }
+
+    // Last block is too long
+    if (tx < EDGE && ty < EDGE) {
+        if (ty == 0) {
+            Ds[tx] = exp(D[d + tx] * distance);
+//        	Ds[tx] = D[d + tx];
+            Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance;  // {0,1,\ldots,S-1}
+//            CsM1[tx] = D[d + PADDED_STATE_COUNT + tx - 1]; // * distance;
+//            if (indexI == 0)
+//            	CsM1[0] = 0;
+
+            __syncthreads();
+
+//            REAL ibt = D[d + PADDED_STATE_COUNT + tx]; // * distance;
+//            REAL cosbt = 1;
+//            REAL psinbt = 0;
+//            REAL msinbt = 0;
+//            if (ibt) {
+//            	cosbt = cos(ibt);
+//            	psinbt = sin(ibt);
+//            	msinbt = -psinbt;
+//            }
+
+
+            if (Cs[tx]) {
+            	REAL expat = Ds[tx];
+            	REAL cosbt = cos(Cs[tx]);
+            	Cs[tx] = -expat * sin(Cs[tx]);
+            	Ds[tx] *= cosbt;
+            }
+
+//            Es[tx][tx] = Ds[tx] * cosbt; // * cosbt;
+//            	if (!CsM1[tx] && Cs[tx]) { // add to lower
+//            		Es[tx][tx+1] = -Ds[tx] * sin(Cs[tx]);
+//            	} else if (CsM1[tx] && Cs[tx])
+//
+//            	{ // add to upper
+//            		Es[tx][tx-1] = -Ds[tx] * sin(CsM1[tx]);
+//            	}
+        }
+
+        __syncthreads();
+
+        // Fill in Es
+//        if (indexI == indexJ) { // diagonal
+//        	Es[ty][tx] = Ds[tx]; // * cos(Cs[tx+1]);
+//        }
+//        else if (indexI == indexJ + 1) { // below
+////        	Es[ty][tx] = -Ds[tx] * sin(Cs[tx]);
+//        	Es[ty][tx] = Cs[tx];
+//        } else if (Cs[tx+1] && indexJ == indexI + 1 ) { // above
+////        	Es[ty][tx] = +Ds[tx] * sin(Cs[tx+1]);
+//        	Es[ty][tx] = Cs[tx];
+//        }
+
+        __syncthreads();
+
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+
+//        if (ty == 0) {
+//            Ds[tx] = 0;
+//        }
+
+        Bs[ty][tx] = 0;
+    }
+
+    __syncthreads();
+    
+    for(int k=0; k < EDGE; k++) {
+    	if (indexI == d + k)
+    		Csub += Ds[k] * Bs[k][tx];
+
+    	if (indexIm1 == d + k)
+    		Csub += Cs[k] * Bs[k][tx];
+
+    	if (indexIp1 == d + k)
+    		Csub += Cs[k] * Bs[k][tx];
+
+//    	Csub += Es[ty][k] * Bs[k][tx];
+//    	Csub += Bs[ty][k] * Es[k][tx];
+    } // Faster to loop at end
+   
+    __syncthreads();
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+    	C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] =
+            		  Csub;
+//            		  Es[ty][tx];
+    }
+}
+
+__global__ void kernelMatrixMulAB(REAL** listC,
+                                  REAL* A,                                   
+                                  REAL* Bstart,     
+                                  int totalMatrix) {
+
+    __shared__ REAL* C;
+    __shared__ REAL* B;
+
+    int wMatrix = blockIdx.x % totalMatrix;
+
+    // Block index
+    int bx = blockIdx.x / totalMatrix;
+    int by = blockIdx.y;
+
+    // Thread index
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int BLOCKS = gridDim.y;
+
+    if (tx == 0 && ty == 0) {
+        C = listC[wMatrix]; // Non-coalescent read
+        B = Bstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    }
+
+    __syncthreads();
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+
+    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+
+    for (int i = 0; i < BLOCKS - 1; i++) {
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        __syncthreads();
+
+        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
+            Csub += As[ty][k] * Bs[k][tx];
+
+        __syncthreads();
+
+        a += aStep;
+        b += bStep;
+    }
+
+    // Last block is too long
+    if (tx < EDGE && ty < EDGE) {
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+    	
+        As[ty][tx] = 0;
+        Bs[ty][tx] = 0;
+    }
+
+    __syncthreads();
+
+    for (int k = 0; k < EDGE; k++)
+        Csub += As[ty][k] * Bs[k][tx];
+
+    __syncthreads();
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+        if (Csub < 0)
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = 0;
+        else
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = Csub;
+    }
+}
+#endif
+
 __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
