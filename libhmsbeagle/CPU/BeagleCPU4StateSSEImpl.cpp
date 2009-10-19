@@ -50,9 +50,6 @@
 #endif
 typedef double VecEl_t;
 
-#define PREFETCH_T0(addr,nrOfBytesAhead) _mm_prefetch(((char *)(addr))+nrOfBytesAhead,_MM_HINT_T0)
-
-
 #define USE_DOUBLE_PREC
 #if defined(USE_DOUBLE_PREC)
 	typedef double RealType;
@@ -90,12 +87,47 @@ typedef union 			/* for copying individual elements to and from vector floats */
 
 #endif
 
-//#define DEBUG 1
-#define DEBUG 0
+/* Loads partials into SSE vectors */
+#if 0
+#define SSE_PREFETCH_PARTIALS(dest, src, v) \
+		dest##0 = VEC_SPLAT(src[v + 0]); \
+		dest##1 = VEC_SPLAT(src[v + 1]); \
+		dest##2 = VEC_SPLAT(src[v + 2]); \
+		dest##3 = VEC_SPLAT(src[v + 3]);
+#else // Load four partials in two 128-bit memory transactions
+#define SSE_PREFETCH_PARTIALS(dest, src, v) \
+		V_Real tmp_##dest##01, tmp_##dest##23; \
+		tmp_##dest##01 = _mm_load_pd(&src[v + 0]); \
+		tmp_##dest##23 = _mm_load_pd(&src[v + 2]); \
+		dest##0 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(0,0)); \
+		dest##1 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(1,1)); \
+		dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
+		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
+#endif
 
+/* Loads (transposed) finite-time transition matrices into SSE vectors */
+#define SSE_PREFETCH_MATRICES(src_m1, src_m2, dest_vu_m1, dest_vu_m2) \
+	const double *m1 = (src_m1); \
+	const double *m2 = (src_m2); \
+	for (int i = 0; i < OFFSET; i++, m1++, m2++) { \
+		dest_vu_m1[i][0].x[0] = m1[0*OFFSET]; \
+		dest_vu_m1[i][0].x[1] = m1[1*OFFSET]; \
+		dest_vu_m2[i][0].x[0] = m2[0*OFFSET]; \
+		dest_vu_m2[i][0].x[1] = m2[1*OFFSET]; \
+		dest_vu_m1[i][1].x[0] = m1[2*OFFSET]; \
+		dest_vu_m1[i][1].x[1] = m1[3*OFFSET]; \
+		dest_vu_m2[i][1].x[0] = m2[2*OFFSET]; \
+		dest_vu_m2[i][1].x[1] = m2[3*OFFSET]; \
+	}
 
-#define NEWWAY 1
-#define OLDWAY 0
+#define SSE_PREFETCH_MATRIX(src_m1, dest_vu_m1) \
+	const double *m1 = (src_m1); \
+	for (int i = 0; i < OFFSET; i++, m1++) { \
+		dest_vu_m1[i][0].x[0] = m1[0*OFFSET]; \
+		dest_vu_m1[i][0].x[1] = m1[1*OFFSET]; \
+		dest_vu_m1[i][1].x[0] = m1[2*OFFSET]; \
+		dest_vu_m1[i][1].x[1] = m1[3*OFFSET]; \
+	}
 
 using namespace beagle;
 using namespace beagle::cpu;
@@ -119,51 +151,25 @@ void BeagleCPU4StateSSEImpl::calcStatesStates(double* destP,
                                      const int* states_r,
                                      const double* matrices_r) {
 
-	VecUnion vu_1[OFFSET][2], vu_2[OFFSET][2];
-	
-    int v = 0;
+	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+
     int w = 0;
 	V_Real *destPvec = (V_Real *)destP;
-	
-#if DEBUG	
-    fprintf(stderr,"EXPERIMENTAL calcStatesStates -- SSE!!\n");
-#endif    
-    for (int l = 0; l < kCategoryCount; l++) {
-    
-		for (int i = 0; i < OFFSET; i++) {
-			vu_1[i][0].x[0] = matrices_q[w + 0*OFFSET + i];
-			vu_1[i][0].x[1] = matrices_q[w + 1*OFFSET + i];
-			
-			vu_1[i][1].x[0] = matrices_q[w + 2*OFFSET + i];
-			vu_1[i][1].x[1] = matrices_q[w + 3*OFFSET + i];
-			
-			vu_2[i][0].x[0] = matrices_r[w + 0*OFFSET + i];
-			vu_2[i][0].x[1] = matrices_r[w + 1*OFFSET + i];
-			
-			vu_2[i][1].x[0] = matrices_r[w + 2*OFFSET + i];
-			vu_2[i][1].x[1] = matrices_r[w + 3*OFFSET + i];
-			
-		}
 
-		int w = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+
+    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
         for (int k = 0; k < kPatternCount; k++) {
 
             const int state_q = states_q[k];
             const int state_r = states_r[k];
 
-            *destPvec++ = VEC_MULT(vu_1[state_q][0].vx, vu_2[state_r][0].vx);
-            *destPvec++ = VEC_MULT(vu_1[state_q][1].vx, vu_2[state_r][1].vx);
-            
-             #if DEBUG
-             fprintf(stderr,"Second = %5.3e\n",destP[v + 0]);
-             fprintf(stderr,"Second = %5.3e\n",destP[v + 1]);
-             fprintf(stderr,"Second = %5.3e\n",destP[v + 2]);
-             fprintf(stderr,"Second = %5.3e\n",destP[v + 3]);
-             #endif
-            
-             v += 4;            
+            *destPvec++ = VEC_MULT(vu_mq[state_q][0].vx, vu_mr[state_r][0].vx);
+            *destPvec++ = VEC_MULT(vu_mq[state_q][1].vx, vu_mr[state_r][1].vx);
+
         }
-        
+
         w += OFFSET*4;
     }
 }
@@ -180,32 +186,20 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
 
     int v = 0;
     int w = 0;
-    
+
  	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
 	V_Real destr_01, destr_23;
 
     for (int l = 0; l < kCategoryCount; l++) {
-                
-		for (int i = 0; i < OFFSET; i++) {
-			vu_mq[i][0].x[0] = matrices_q[w + 0*OFFSET + i];
-			vu_mq[i][0].x[1] = matrices_q[w + 1*OFFSET + i];
-			vu_mq[i][1].x[0] = matrices_q[w + 2*OFFSET + i];
-			vu_mq[i][1].x[1] = matrices_q[w + 3*OFFSET + i];
-			
-			vu_mr[i][0].x[0] = matrices_r[w + 0*OFFSET + i];
-			vu_mr[i][0].x[1] = matrices_r[w + 1*OFFSET + i];
-			vu_mr[i][1].x[0] = matrices_r[w + 2*OFFSET + i];
-			vu_mr[i][1].x[1] = matrices_r[w + 3*OFFSET + i];
-		}
+
+    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
         for (int k = 0; k < kPatternCount; k++) {
-            
+
             const int state_q = states_q[k];
- 
-			V_Real vp0 = VEC_SPLAT(partials_r[v + 0]);
-			V_Real vp1 = VEC_SPLAT(partials_r[v + 1]);
-			V_Real vp2 = VEC_SPLAT(partials_r[v + 2]);
-			V_Real vp3 = VEC_SPLAT(partials_r[v + 3]);
+            V_Real vp0, vp1, vp2, vp3;
+            SSE_PREFETCH_PARTIALS(vp,partials_r,v);
 
 			destr_01 = VEC_MULT(vp0, vu_mr[0][0].vx);
 			destr_01 = VEC_MADD(vp1, vu_mr[1][0].vx, destr_01);
@@ -218,7 +212,7 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
 
             *destPvec++ = VEC_MULT(vu_mq[state_q][0].vx, destr_01);
             *destPvec++ = VEC_MULT(vu_mq[state_q][1].vx, destr_23);
-            
+
             v += 4;
         }
         w += OFFSET*4;
@@ -241,54 +235,15 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
     for (int l = 0; l < kCategoryCount; l++) {
 
 		/* Load transition-probability matrices into vectors */
-		const double *mq = matrices_q + w;
-		const double *mr = matrices_r + w;
-		for (int i = 0; i < OFFSET; i++, mq++, mr++) {
-			vu_mq[i][0].x[0] = mq[0*OFFSET];
-			vu_mq[i][0].x[1] = mq[1*OFFSET];
-			vu_mr[i][0].x[0] = mr[0*OFFSET];
-			vu_mr[i][0].x[1] = mr[1*OFFSET];
-			vu_mq[i][1].x[0] = mq[2*OFFSET];
-			vu_mq[i][1].x[1] = mq[3*OFFSET];			
-			vu_mr[i][1].x[0] = mr[2*OFFSET];
-			vu_mr[i][1].x[1] = mr[3*OFFSET];
-		}
+    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 		
         for (int k = 0; k < kPatternCount; k++) {
 
-#			if 0
+        	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+        	SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
 
-			V_Real vpq_0 = VEC_SPLAT(partials_q[v + 0]);
-			V_Real vpq_1 = VEC_SPLAT(partials_q[v + 1]);
-			V_Real vpq_2 = VEC_SPLAT(partials_q[v + 2]);
-			V_Real vpq_3 = VEC_SPLAT(partials_q[v + 3]);
-
-			V_Real vpr_0 = VEC_SPLAT(partials_r[v + 0]);
-			V_Real vpr_1 = VEC_SPLAT(partials_r[v + 1]);
-			V_Real vpr_2 = VEC_SPLAT(partials_r[v + 2]);
-			V_Real vpr_3 = VEC_SPLAT(partials_r[v + 3]);
-
-#			else /* Attempting to read all four partials in just two 128-bit reads */
-
-			V_Real tmp01, tmp23;
-
-			tmp01 = _mm_load_pd(&partials_q[v + 0]); // Loads 0 and 1
-			tmp23 = _mm_load_pd(&partials_q[v + 2]); // Loads 2 and 3
-
-			V_Real vpq_0 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(0,0));
-			V_Real vpq_1 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(1,1));
-			V_Real vpq_2 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(0,0));
-			V_Real vpq_3 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(1,1));
-
-			tmp01 = _mm_load_pd(&partials_r[v + 0]); // Loads 0 and 1
-			tmp23 = _mm_load_pd(&partials_r[v + 2]); // Loads 2 and 3
-
-			V_Real vpr_0 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(0,0));
-			V_Real vpr_1 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(1,1));
-			V_Real vpr_2 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(0,0));
-			V_Real vpr_3 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(1,1));
-
-#			endif
+        	V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+        	SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
 
 #			if 1	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
 			           vector instruction */
@@ -394,13 +349,7 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
             int u = 0; // Index in resulting product-partials (summed over categories)
 
  			VecUnion vu_m[OFFSET][2];
-			const double *m = transMatrix + w;
-			for (int i = 0; i < OFFSET; i++, m++) {
-				vu_m[i][0].x[0] = m[0*OFFSET];
-				vu_m[i][0].x[1] = m[1*OFFSET];
-				vu_m[i][1].x[0] = m[2*OFFSET];
-				vu_m[i][1].x[1] = m[3*OFFSET];			
-			}
+ 			SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
 
            V_Real *vcl_p = (V_Real *)cl_p;
            
@@ -427,14 +376,9 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
         for(int l = 0; l < kCategoryCount; l++) {
 
 	        V_Real * vcl_p = (V_Real *)cl_p;
+
  			VecUnion vu_m[OFFSET][2];
-			const double *m = transMatrix + w;
-			for (int i = 0; i < OFFSET; i++, m++) {
-				vu_m[i][0].x[0] = m[0*OFFSET];
-				vu_m[i][0].x[1] = m[1*OFFSET];
-				vu_m[i][1].x[0] = m[2*OFFSET];
-				vu_m[i][1].x[1] = m[3*OFFSET];			
-			}
+			SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
 
             int u = 0;
             const double weight = wt[l];
@@ -442,11 +386,9 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
                 V_Real vclp_01, vclp_23;
 				V_Real vwt = VEC_SPLAT(wt[l]);
                 
-				V_Real vcl_q0 = VEC_SPLAT(cl_q[v + 0]);
-				V_Real vcl_q1 = VEC_SPLAT(cl_q[v + 1]);
-				V_Real vcl_q2 = VEC_SPLAT(cl_q[v + 2]);
-				V_Real vcl_q3 = VEC_SPLAT(cl_q[v + 3]);
-				
+				V_Real vcl_q0, vcl_q1, vcl_q2, vcl_q3;
+				SSE_PREFETCH_PARTIALS(vcl_q,cl_q,v);
+
 				vclp_01 = VEC_MULT(vcl_q0, vu_m[0][0].vx);
 				vclp_01 = VEC_MADD(vcl_q1, vu_m[1][0].vx, vclp_01);
 				vclp_01 = VEC_MADD(vcl_q2, vu_m[2][0].vx, vclp_01);
@@ -461,7 +403,7 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
 				*vcl_p++ = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
 				*vcl_p++ = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);                
                 
-                v += kStateCount;
+                v += 4;
             }
             w += 4*OFFSET;
         }
