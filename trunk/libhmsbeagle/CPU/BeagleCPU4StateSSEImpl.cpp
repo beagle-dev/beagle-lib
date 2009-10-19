@@ -49,11 +49,17 @@
 #	include <xmmintrin.h>
 #endif
 typedef double VecEl_t;
+
+#define PREFETCH_T0(addr,nrOfBytesAhead) _mm_prefetch(((char *)(addr))+nrOfBytesAhead,_MM_HINT_T0)
+
+
 #define USE_DOUBLE_PREC
 #if defined(USE_DOUBLE_PREC)
 	typedef double RealType;
 	typedef __m128d	V_Real;
 #	define REALS_PER_VEC	2	/* number of elements per vector */
+#	define VEC_LOAD(a)			_mm_load_pd(a)
+#	define VEC_STORE(a, b)		_mm_store_pd((a), (b))
 #	define VEC_MULT(a, b)		_mm_mul_pd((a), (b))
 #	define VEC_MADD(a, b, c)	_mm_add_pd(_mm_mul_pd((a), (b)), (c))
 #	define VEC_SPLAT(a)			_mm_set1_pd(a)
@@ -74,87 +80,6 @@ typedef union 			/* for copying individual elements to and from vector floats */
 	}
 	VecUnion;
 
-#define PREFETCH_MATRIX(num,matrices,w) \
-    double m##num##00, m##num##01, m##num##02, m##num##03, \
-           m##num##10, m##num##11, m##num##12, m##num##13, \
-           m##num##20, m##num##21, m##num##22, m##num##23, \
-           m##num##30, m##num##31, m##num##32, m##num##33; \
-    m##num##00 = matrices[w + OFFSET*0 + 0]; \
-    m##num##01 = matrices[w + OFFSET*0 + 1]; \
-    m##num##02 = matrices[w + OFFSET*0 + 2]; \
-    m##num##03 = matrices[w + OFFSET*0 + 3]; \
-    m##num##10 = matrices[w + OFFSET*1 + 0]; \
-    m##num##11 = matrices[w + OFFSET*1 + 1]; \
-    m##num##12 = matrices[w + OFFSET*1 + 2]; \
-    m##num##13 = matrices[w + OFFSET*1 + 3]; \
-    m##num##20 = matrices[w + OFFSET*2 + 0]; \
-    m##num##21 = matrices[w + OFFSET*2 + 1]; \
-    m##num##22 = matrices[w + OFFSET*2 + 2]; \
-    m##num##23 = matrices[w + OFFSET*2 + 3]; \
-    m##num##30 = matrices[w + OFFSET*3 + 0]; \
-    m##num##31 = matrices[w + OFFSET*3 + 1]; \
-    m##num##32 = matrices[w + OFFSET*3 + 2]; \
-    m##num##33 = matrices[w + OFFSET*3 + 3];
-
-#define PREFETCH_PARTIALS(num,partials,v) \
-    double p##num##0, p##num##1, p##num##2, p##num##3; \
-    p##num##0 = partials[v + 0]; \
-    p##num##1 = partials[v + 1]; \
-    p##num##2 = partials[v + 2]; \
-    p##num##3 = partials[v + 3];
-
-#if 0//
-#define PREFETCH_PARTIALS_VEC(num,partials,v, vu) \
-    vu[0].x[0] = partials[v + 0]; \
-    vu[0].x[1] = partials[v + 1]; \
-    vu[1].x[0] = partials[v + 2]; \
-    vu[1].x[1] = partials[v + 3];
-#endif//
-
-//#define DO_INTEGRATION(num) \
-//    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
-//    sum##num##0  = m##num##00 * p##num##0; \
-//    sum##num##1  = m##num##10 * p##num##0; \
-//    sum##num##2  = m##num##20 * p##num##0; \
-//    sum##num##3  = m##num##30 * p##num##0; \
-// \
-//    sum##num##0 += m##num##01 * p##num##1; \
-//    sum##num##1 += m##num##11 * p##num##1; \
-//    sum##num##2 += m##num##21 * p##num##1; \
-//    sum##num##3 += m##num##31 * p##num##1; \
-// \
-//    sum##num##0 += m##num##02 * p##num##2; \
-//    sum##num##1 += m##num##12 * p##num##2; \
-//    sum##num##2 += m##num##22 * p##num##2; \
-//    sum##num##3 += m##num##32 * p##num##2; \
-// \
-//    sum##num##0 += m##num##03 * p##num##3; \
-//    sum##num##1 += m##num##13 * p##num##3; \
-//    sum##num##2 += m##num##23 * p##num##3; \
-//    sum##num##3 += m##num##33 * p##num##3;
-
-#define DO_INTEGRATION(num) \
-    double sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
-    sum##num##0  = m##num##00 * p##num##0 + \
-                   m##num##01 * p##num##1 + \
-                   m##num##02 * p##num##2 + \
-                   m##num##03 * p##num##3;  \
- \
-    sum##num##1  = m##num##10 * p##num##0 + \
-                   m##num##11 * p##num##1 + \
-                   m##num##12 * p##num##2 + \
-                   m##num##13 * p##num##3;  \
- \
-    sum##num##2  = m##num##20 * p##num##0 + \
-                   m##num##21 * p##num##1 + \
-                   m##num##22 * p##num##2 + \
-                   m##num##23 * p##num##3;  \
-\
-    sum##num##3  = m##num##30 * p##num##0 + \
-                   m##num##31 * p##num##1 + \
-                   m##num##32 * p##num##2 + \
-                   m##num##33 * p##num##3;
-
 #ifdef __GNUC__
     #define cpuid(func,ax,bx,cx,dx)\
             __asm__ __volatile__ ("cpuid":\
@@ -174,12 +99,6 @@ typedef union 			/* for copying individual elements to and from vector floats */
 
 using namespace beagle;
 using namespace beagle::cpu;
-
-//#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
-//const bool DEBUGGING_OUTPUT = true;
-//#else
-//const bool DEBUGGING_OUTPUT = false;
-//#endif
 
 BeagleCPU4StateSSEImpl::~BeagleCPU4StateSSEImpl() {
 }
@@ -306,11 +225,11 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
     }
 }
 
-void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
-                                                  const double* RESTRICT partials_q,
-                                                  const double* RESTRICT matrices_q,
-                                                  const double* RESTRICT partials_r,
-                                                  const double* RESTRICT matrices_r) {
+void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
+                                                  const double*  partials_q,
+                                                  const double*  matrices_q,
+                                                  const double*  partials_r,
+                                                  const double*  matrices_r) {
 
     int v = 0;
     int w = 0;
@@ -318,7 +237,7 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
     V_Real	destq_01, destq_23, destr_01, destr_23;
  	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
-   
+
     for (int l = 0; l < kCategoryCount; l++) {
 
 		/* Load transition-probability matrices into vectors */
@@ -336,6 +255,9 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
 		}
 		
         for (int k = 0; k < kPatternCount; k++) {
+
+#			if 0
+
 			V_Real vpq_0 = VEC_SPLAT(partials_q[v + 0]);
 			V_Real vpq_1 = VEC_SPLAT(partials_q[v + 1]);
 			V_Real vpq_2 = VEC_SPLAT(partials_q[v + 2]);
@@ -345,6 +267,28 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
 			V_Real vpr_1 = VEC_SPLAT(partials_r[v + 1]);
 			V_Real vpr_2 = VEC_SPLAT(partials_r[v + 2]);
 			V_Real vpr_3 = VEC_SPLAT(partials_r[v + 3]);
+
+#			else /* Attempting to read all four partials in just two 128-bit reads */
+
+			V_Real tmp01, tmp23;
+
+			tmp01 = _mm_load_pd(&partials_q[v + 0]); // Loads 0 and 1
+			tmp23 = _mm_load_pd(&partials_q[v + 2]); // Loads 2 and 3
+
+			V_Real vpq_0 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(0,0));
+			V_Real vpq_1 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(1,1));
+			V_Real vpq_2 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(0,0));
+			V_Real vpq_3 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(1,1));
+
+			tmp01 = _mm_load_pd(&partials_r[v + 0]); // Loads 0 and 1
+			tmp23 = _mm_load_pd(&partials_r[v + 2]); // Loads 2 and 3
+
+			V_Real vpr_0 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(0,0));
+			V_Real vpr_1 = _mm_shuffle_pd(tmp01, tmp01, _MM_SHUFFLE2(1,1));
+			V_Real vpr_2 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(0,0));
+			V_Real vpr_3 = _mm_shuffle_pd(tmp23, tmp23, _MM_SHUFFLE2(1,1));
+
+#			endif
 
 #			if 1	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
 			           vector instruction */
@@ -366,10 +310,6 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
 			destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
 			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
 			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);			
-
-            destPvec[0] = VEC_MULT(destq_01, destr_01);
-            destPvec[1] = VEC_MULT(destq_23, destr_23);
-            destPvec += 2;
 			
 #			else	/* SSE doesn't have a fused multiply-add, so a slight speed gain should be
                        achieved by decoupling these operations to avoid dependency stalls */
@@ -398,12 +338,22 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* RESTRICT destP,
 			destr_01 = VEC_ADD(a, b);
 			destr_23 = VEC_ADD(c, d);
 
+#			endif
+
+#			if 1//
             destPvec[0] = VEC_MULT(destq_01, destr_01);
             destPvec[1] = VEC_MULT(destq_23, destr_23);
             destPvec += 2;
-			
-#			endif
 
+#			else	/* VEC_STORE did demonstrate a measurable performance gain as
+					   it copies all (2/4) values to memory simultaneously;
+					   I can no longer reproduce the performance gain (?) */
+
+			VEC_STORE(destP + v + 0,VEC_MULT(destq_01, destr_01));
+			VEC_STORE(destP + v + 2,VEC_MULT(destq_23, destr_23));
+
+#			endif
+			
             v += 4;
         }
         w += OFFSET*4;
