@@ -148,10 +148,7 @@ public:
 }	// namespace cpu
 }	// namespace beagle
 
-
-#ifndef BEAGLE_CPU_4STATE_IMPL_HPP
-	#define BEAGLE_CPU_4STATE_IMPL_HPP
-	#include "libhmsbeagle/CPU/BeagleCPU4StateImpl.hpp"
-#endif BEAGLE_CPU_4STATE_IMPL_HPP
+// now include the file containing template function implementations
+#include "libhmsbeagle/CPU/BeagleCPU4StateImpl.hpp"
 
 #endif // __BeagleCPU4StateImpl__
