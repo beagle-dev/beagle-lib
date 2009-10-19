@@ -77,7 +77,7 @@ public:
                    int paddedStateCount, 
                    int categoryCount, 
                    int patternCount,
-                   int storeLogScalers);
+                   long flags);
     
     void Synchronize();
     

@@ -156,7 +156,7 @@ void GPUInterface::InitializeKernelMap() {
         BLOCK_PEELING_SIZE_4,
         SLOW_REWEIGHING_4,
         MULTIPLY_BLOCK_SIZE,
-        0,0);
+        0,0,0);
     kernelMap->insert(std::make_pair(4,kernel4));
     KernelResource kernel4LS = KernelResource(kernel4, (char*) KERNELS_STRING_LS_4);
     kernelMap->insert(std::make_pair(-4,kernel4LS));
@@ -169,7 +169,7 @@ void GPUInterface::InitializeKernelMap() {
         BLOCK_PEELING_SIZE_32,
         SLOW_REWEIGHING_32,
         MULTIPLY_BLOCK_SIZE,
-        0,0);
+        0,0,0);
     kernelMap->insert(std::make_pair(32,kernel32));
     KernelResource kernel32LS = KernelResource(kernel32, (char*) KERNELS_STRING_LS_32);
     kernelMap->insert(std::make_pair(-32,kernel32LS));
@@ -182,7 +182,7 @@ void GPUInterface::InitializeKernelMap() {
         BLOCK_PEELING_SIZE_48,
         SLOW_REWEIGHING_48,
         MULTIPLY_BLOCK_SIZE,
-        0,0);
+        0,0,0);
     kernelMap->insert(std::make_pair(48,kernel48));
     KernelResource kernel48LS = KernelResource(kernel48, (char*) KERNELS_STRING_LS_48);
     kernelMap->insert(std::make_pair(-48,kernel48LS));
@@ -195,14 +195,14 @@ void GPUInterface::InitializeKernelMap() {
         BLOCK_PEELING_SIZE_64,
         SLOW_REWEIGHING_64,
         MULTIPLY_BLOCK_SIZE,
-        0,0);
+        0,0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
     KernelResource kernel64LS = KernelResource(kernel64, (char*) KERNELS_STRING_LS_64);
     kernelMap->insert(std::make_pair(-64,kernel64LS));
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
-                             int storeLogScalers) {
+                             long flags) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif            
@@ -231,6 +231,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     kernelResource = (*kernelMap)[paddedStateCount].copy();
     kernelResource->categoryCount = categoryCount;
     kernelResource->patternCount = paddedPatternCount;
+    kernelResource->flags = flags;
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
     

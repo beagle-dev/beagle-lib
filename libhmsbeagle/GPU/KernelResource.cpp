@@ -19,7 +19,8 @@ KernelResource::KernelResource(
         int inSlowReweighing,
         int inMultiplyBlockSize,
         int inCategoryCount,
-        int inPatternCount
+        int inPatternCount,
+        long inFlags
         ) {
     paddedStateCount = inPaddedStateCount;
     kernelCode = inKernelString;
@@ -30,6 +31,7 @@ KernelResource::KernelResource(
     multiplyBlockSize = inMultiplyBlockSize;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
+    flags = inFlags;
 }
 
 KernelResource::KernelResource(KernelResource krIn,
@@ -43,6 +45,7 @@ KernelResource::KernelResource(KernelResource krIn,
     multiplyBlockSize = krIn.multiplyBlockSize;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
+    flags = krIn.flags;
 }
 
 KernelResource::~KernelResource() {
@@ -58,5 +61,6 @@ KernelResource* KernelResource::copy(void) {
             slowReweighing,
             multiplyBlockSize,
             categoryCount,
-            patternCount);
+            patternCount,
+            flags);
 }

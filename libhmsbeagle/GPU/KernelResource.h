@@ -39,7 +39,8 @@ public:
         int inSlowReweighing,
         int inMultiplyBlockSize,
         int inCategoryCount,
-        int inPatternCount
+        int inPatternCount,
+        long inFlags
         );
     
     KernelResource(KernelResource krIn,
@@ -58,6 +59,7 @@ public:
     int smallestPowerOfTwo;
     int slowReweighing;
     int multiplyBlockSize;
+    long flags;
     
     KernelResource* copy();
 };

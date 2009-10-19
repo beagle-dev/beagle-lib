@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <iostream>
 
+//#define JC
+
 #ifdef _WIN32
 	#include <vector>
 #endif
@@ -89,6 +91,7 @@ double* getPartials(char *sequence) {
 	return partials;
 }
 
+#include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
 
 int main( int argc, const char* argv[] )
 {
@@ -117,6 +120,8 @@ int main( int argc, const char* argv[] )
     
     bool scaling = true;
     
+    bool doJC = true;
+
     // is nucleotides...
     int stateCount = 4;
 	
@@ -140,7 +145,7 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  0,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_GPU,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_COMPLEX                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   );
     if (instance < 0) {
@@ -214,23 +219,44 @@ int main( int argc, const char* argv[] )
         weights[i] = 1.0/rateCategoryCount;
     }    
     
+#ifndef JC
 	// an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
 	double evec[4 * 4] = {
 			 -0.5,  0.6906786606674509,   0.15153543380548623, 0.5,
 			  0.5, -0.15153543380548576,  0.6906786606674498,  0.5,
 			 -0.5, -0.6906786606674498,  -0.15153543380548617, 0.5,
 			  0.5,  0.15153543380548554, -0.6906786606674503,  0.5
-	};       
-    
+	};
+
 	double ivec[4 * 4] = {
 			 -0.5,  0.5, -0.5,  0.5,
 			  0.6906786606674505, -0.15153543380548617, -0.6906786606674507,   0.15153543380548645,
 			  0.15153543380548568, 0.6906786606674509,  -0.15153543380548584, -0.6906786606674509,
 			  0.5,  0.5,  0.5,  0.5
 	};
-    
+
 	double eval[8] = { -2.0, -1.0, -1.0, 0, 0, 1, -1, 0 };
+//	double eval[8] = { 0, 0.0, 0.0, 0, 1, 2,  3, 4 };
+#else
+	// an eigen decomposition for the JC69 model
+	double evec[4 * 4] = {
+        1.0,  2.0,  0.0,  0.5,
+        1.0,  -2.0,  0.5,  0.0,
+        1.0,  2.0, 0.0,  -0.5,
+        1.0,  -2.0,  -0.5,  0.0
+	};
     
+	double ivec[4 * 4] = {
+        0.25,  0.25,  0.25,  0.25,
+        0.125,  -0.125,  0.125,  -0.125,
+        0.0,  1.0,  0.0,  -1.0,
+        1.0,  0.0,  -1.0,  0.0
+	};
+    
+	double eval[8] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333,
+			0.0, 0.0, 0.0, 0.0 };
+//	double eval[8] = { 0, 1, 2, 3, 0, 1, 2, 3 };
+#endif
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
@@ -294,7 +320,11 @@ int main( int argc, const char* argv[] )
 		logL += patternLogLik[i];
 	}
     
+#ifndef JC
 	fprintf(stdout, "logL = %.5f (BEAST = -1665.38544)\n\n", logL);
+#else
+	fprintf(stdout, "logL = %.5f (PAUP = -1574.63624)\n\n", logL);
+#endif
 	
 	free(patternLogLik);
 	free(humanPartials);
