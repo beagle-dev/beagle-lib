@@ -159,11 +159,6 @@ __global__ void kernelMatrixMulADB(REAL** listC,
             	Ds[tx] *= cosbt; \
             } \
         }
-//#define READ_SCHUR_VALUES() \
-//		if (ty == 0) { \
-//			Ds[tx] = exp(D[d + tx] * distance); \
-//			Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance; \
-//        }
 // end READ_SCHUR_VALUES
 
 #define POPULATE_SCHUR_BAND(limit) \
@@ -176,27 +171,6 @@ __global__ void kernelMatrixMulADB(REAL** listC,
 				} \
 			} \
 		}
-//		if (ty == 0 && tx == 0) { \
-//			for(int k=0; k<limit; k++) { \
-//				if (Cs[k] != 0) { \
-//					E0[k] = Cs[k]; \
-//					k++; \
-//					E0[k] = 0; \
-//				} else { \
-//					E0[k] = 0; \
-//				} \
-//			} \
-//		}
-
-//if (ty == 0 && tx == 0) { \
-//	for(int k=0; k<limit; k++) { \
-//		E0[k] = Cs[k]; \
-//		if (k < (limit -1) && Cs[k+1] != 0) { \
-//			k++; \
-//			E0[k] = 0; \
-//		} \
-//	} \
-//}
 // end POPULATE_SCHUR_BAND(limit)
 
 #define DO_MULTIPLICATION(limit) \
@@ -207,12 +181,6 @@ __global__ void kernelMatrixMulADB(REAL** listC,
 				  - Es[k] * Bm1[k * MULTIPLY_BLOCK_SIZE + tx] \
 			); \
 		}
-//#define DO_MULTIPLICATION(limit) \
-//		for (int k = 0; k < limit; k++) { \
-//			Csub += As[ty][k] * ( \
-//					Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx] \
-//			); \
-//		}
 // end DO_MULTIPLICATION(limit)
 
 __global__ void kernelMatrixMulADBComplex(REAL** listC,

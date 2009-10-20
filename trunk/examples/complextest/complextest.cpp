@@ -228,13 +228,6 @@ int main( int argc, const char* argv[] )
 			  0.5,  0.15153543380548554, -0.6906786606674503,  0.5
 	};
 
-//	double evec[4 * 4] = {
-//			 1, 0, 0, 0,
-//			 0, 1, 0, 0,
-//			 0, 0, 1, 0,
-//			 0, 0, 0, 1
-//	};
-
 	double ivec[4 * 4] = {
 			 -0.5,  0.5, -0.5,  0.5,
 			  0.6906786606674505, -0.15153543380548617, -0.6906786606674507,   0.15153543380548645,
@@ -242,15 +235,7 @@ int main( int argc, const char* argv[] )
 			  0.5,  0.5,  0.5,  0.5
 	};
 
-//	double ivec[4 * 4] = {
-//			 1, 0, 0, 0,
-//			 0, 1, 0, 0,
-//			 0, 0, 1, 0,
-//			 0, 0, 0, 1
-//	};
-
 	double eval[8] = { -2.0, -1.0, -1.0, 0, 0, 1, -1, 0 };
-//	double eval[8] = { 0, 0.0, 0.0, 0, 1, 2,  3, 4 };
 #else
 	// an eigen decomposition for the JC69 model
 	double evec[4 * 4] = {
@@ -269,7 +254,6 @@ int main( int argc, const char* argv[] )
     
 	double eval[8] = { 0.0, -1.3333333333333333, -1.3333333333333333, -1.3333333333333333,
 			0.0, 0.0, 0.0, 0.0 };
-//	double eval[8] = { 0, 1, 2, 3, 0, 1, 2, 3 };
 #endif
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -330,7 +314,6 @@ int main( int argc, const char* argv[] )
     
 	double logL = 0.0;
 	for (int i = 0; i < nPatterns; i++) {
-//		std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
 		logL += patternLogLik[i];
 	}
     
