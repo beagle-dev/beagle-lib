@@ -39,8 +39,6 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixMulADB;
-    GPUFunction fMatrixMulAB;
-    GPUFunction fMatrixMulDComplexB;
     GPUFunction fMatrixMulADBComplex;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
