@@ -39,6 +39,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_521CF6448F73433FBF1C715E76959AE5"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_88AD2161FB86497A94C5EC7C7E994E27"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -271,6 +277,26 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_521CF6448F73433FBF1C715E76959AE5"
+            {
+            "SourcePath" = "8:setenvironment.bat"
+            "TargetName" = "8:setenvironment.bat"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:TRUE"
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
@@ -542,7 +568,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:libhmsbeagle"
         "ProductCode" = "8:{ADED6A97-DCBF-4F78-B18A-ED2985521BFD}"
-        "PackageCode" = "8:{78EDB333-6925-4048-A1AE-5E167C16B075}"
+        "PackageCode" = "8:{240F3AD1-12F6-4600-9501-D995FAE0091E}"
         "UpgradeCode" = "8:{63DAEA0D-6BE8-4C97-860D-2AA9F44C47DE}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
@@ -628,14 +654,6 @@
                                                             "Transitive" = "11:FALSE"
                                                             "ValueTypes" = "3:1"
                                                             "Value" = "8:\"[CommonFilesFolder]libhmsbeagle-1.0\""
-                                                            }
-                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_E690E1CE55B74859B245EBB61ADE65DF"
-                                                            {
-                                                            "Name" = "8:PATH"
-                                                            "Condition" = "8:"
-                                                            "Transitive" = "11:FALSE"
-                                                            "ValueTypes" = "3:1"
-                                                            "Value" = "8:\"[%PATH];[CommonFilesFolder]libhmsbeagle-1.0\""
                                                             }
                                                         }
                                                     }
