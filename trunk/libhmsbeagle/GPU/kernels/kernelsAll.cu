@@ -148,6 +148,73 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
+#define READ_SCHUR_VALUES() \
+		if (ty == 0) { \
+			Ds[tx] = exp(D[d + tx] * distance); \
+			Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance; \
+			if (Cs[tx]) { \
+            	REAL expat = Ds[tx]; \
+            	REAL cosbt = cos(Cs[tx]); \
+            	Cs[tx] = -expat * sin(Cs[tx]); \
+            	Ds[tx] *= cosbt; \
+            } \
+        }
+//#define READ_SCHUR_VALUES() \
+//		if (ty == 0) { \
+//			Ds[tx] = exp(D[d + tx] * distance); \
+//			Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance; \
+//        }
+// end READ_SCHUR_VALUES
+
+#define POPULATE_SCHUR_BAND(limit) \
+		if (ty == 0 && tx == 0) { \
+			for(int k=0; k<limit; k++) { \
+				if (Cs[k] && !Es[k]) { \
+					E0[k] = Cs[k]; \
+				} else { \
+					E0[k] = 0; \
+				} \
+			} \
+		}
+//		if (ty == 0 && tx == 0) { \
+//			for(int k=0; k<limit; k++) { \
+//				if (Cs[k] != 0) { \
+//					E0[k] = Cs[k]; \
+//					k++; \
+//					E0[k] = 0; \
+//				} else { \
+//					E0[k] = 0; \
+//				} \
+//			} \
+//		}
+
+//if (ty == 0 && tx == 0) { \
+//	for(int k=0; k<limit; k++) { \
+//		E0[k] = Cs[k]; \
+//		if (k < (limit -1) && Cs[k+1] != 0) { \
+//			k++; \
+//			E0[k] = 0; \
+//		} \
+//	} \
+//}
+// end POPULATE_SCHUR_BAND(limit)
+
+#define DO_MULTIPLICATION(limit) \
+		for (int k = 0; k < limit; k++) { \
+			Csub += As[ty][k] * ( \
+					Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx] \
+				  + E0[k] * Bp1[k * MULTIPLY_BLOCK_SIZE + tx] \
+				  - Es[k] * Bm1[k * MULTIPLY_BLOCK_SIZE + tx] \
+			); \
+		}
+//#define DO_MULTIPLICATION(limit) \
+//		for (int k = 0; k < limit; k++) { \
+//			Csub += As[ty][k] * ( \
+//					Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx] \
+//			); \
+//		}
+// end DO_MULTIPLICATION(limit)
+
 __global__ void kernelMatrixMulADBComplex(REAL** listC,
                                    REAL* A,
                                    REAL* D,
@@ -196,11 +263,9 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
 
     __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE + 2][MULTIPLY_BLOCK_SIZE];
-    
+    __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Es[MULTIPLY_BLOCK_SIZE + 2];
-    
-    __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];
     
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
@@ -216,27 +281,52 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
    	}
 
     for (int i = 0; i < BLOCKS - 1; i++) {
-		// TODO
-		
-		// Move last entries in B0 and E0 to first entries in Bs and Es
-    }
-	
-    // Last block is too long
-    if (tx < EDGE && ty < EDGE) {
-    	// Read Schur decomposition submatrices
-        if (ty == 0) {
-            Ds[tx] = exp(D[d + tx] * distance);            
-			Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance;			
-			// Conversion to real space
-			if (Cs[tx]) { 
-            	REAL expat = Ds[tx];
-            	REAL cosbt = cos(Cs[tx]);
-            	Cs[tx] = -expat * sin(Cs[tx]);
-            	Ds[tx] *= cosbt;
-            }
-        }		
+
+        READ_SCHUR_VALUES();
+
+        // Block read A and B sub-matrices
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        // Read extra row of B for Bp1
+        if (ty == 0) {
+        	B0[MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE + tx] =
+        			B[b + PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE + tx];
+        }
+
+        // All necessary values loaded
+    	__syncthreads();
+
+    	POPULATE_SCHUR_BAND(MULTIPLY_BLOCK_SIZE);
+
+    	__syncthreads();
+
+        DO_MULTIPLICATION(MULTIPLY_BLOCK_SIZE);
+
+        // Move last entries in B0 and E0 to first entries in Bs and Es
+        if (ty == 0) {
+        	Bm1[tx] = Bm1[MULTIPLY_BLOCK_SIZE*MULTIPLY_BLOCK_SIZE + tx];
+        	if (tx == 0) {
+        		Es[0] = Es[MULTIPLY_BLOCK_SIZE];
+        	}
+        }
+
+        __syncthreads();
+
+        // Increment sub-matrices
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;
+
+    }
+	
+    if (tx < EDGE && ty < EDGE) { // Last block is too long
+
+        READ_SCHUR_VALUES();
+        
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
     } else {
     	if (ty == 0) {
     		Ds[tx] = 0;
@@ -245,283 +335,32 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     	As[ty][tx] = 0;
     	B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;    
     }
-    
-    // Zero last row of Bs and Es (only for unrolled iteration at end)
+
+	// Zero last row of Bs and Es (only for unrolled iteration at end)
     if (ty == 0) {
     	Bs[MULTIPLY_BLOCK_SIZE+1][tx] = 0;
-    	Es[MULTIPLY_BLOCK_SIZE+1] = 0;
     }
-    
-    // All Schur matrix components from global memory loaded
+
+    // All necessary values loaded
 	__syncthreads();
 	
-	// Populate Schur matrix off-diagonal bands
-	if (ty == 0 && tx == 0) {			
-		for(int k=0; k<EDGE; k++) {
-			if (Cs[k] != 0) {
-				E0[k] = Cs[k];				
-				k++; // Do two entries
-				E0[k] = 0;
-			} else {
-				E0[k] = 0;				
-			}			
-		}
-	}
-	
+	POPULATE_SCHUR_BAND(EDGE);
+
 	__syncthreads();
 
-    for (int k = 0; k < EDGE; k++) {
-        Csub += As[ty][k] * (
-        	Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx]
-       	  + E0[k] * Bp1[k * MULTIPLY_BLOCK_SIZE + tx]
-       	  - Es[k] * Bm1[k * MULTIPLY_BLOCK_SIZE + tx]
-        	);
-                
-    }
+	// Do matrix multiplication
+	DO_MULTIPLICATION(EDGE);
 
     __syncthreads();
 
     // Write the block sub-matrix to device memory;
     // each thread writes one element
+    
+    if (Csub < 0)
+    	Csub = 0;
 
     if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
-//        if (Csub < 0)
-//            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
-//              PADDED_STATE_COUNT * ty + tx] = 0;
-//        else
-            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
-              PADDED_STATE_COUNT * ty + tx] = 
-              Csub;
-              //E0[tx];
-    }
-}
-
-__global__ void kernelMatrixMulDComplexB(REAL* Cstart, // a temp buffer
-									     REAL* D,
-									     REAL* B,
-									     REAL* distanceQueue,
-									     int totalMatrix) {
-	 
-    __shared__ REAL* C;
-    __shared__ REAL distance;
-    
-    int wMatrix = blockIdx.x % totalMatrix;
- 
-    // Block index
-    int bx = blockIdx.x / totalMatrix;
-    int by = blockIdx.y;
-
-    // Thread index
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
-    int BLOCKS = gridDim.y;
-
-    if (tx == 0 && ty == 0) {
-    	C = Cstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-        distance = distanceQueue[wMatrix]; // Non-coalescent read
-    }
-
-    __syncthreads();
-
-    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
-
-    // Step size used to iterate through the sub-matrices of A
-    int aStep = MULTIPLY_BLOCK_SIZE;
-
-    // Step size used to iterate through the sub-matrices of B
-    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
-
-    // Csub is used to store the element of the block sub-matrix
-    // that is computed by the thread
-    REAL Csub = 0;
-
-    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
-    int b = MULTIPLY_BLOCK_SIZE * bx;
-    int d = 0; // also acts as the i-index offset for each block
-    
-//    int indexI = by * MULTIPLY_BLOCK_SIZE + ty;
-//    int indexJ = bx * MULTIPLY_BLOCK_SIZE + tx;
-//    int indexIm1 = indexI - 1;
-//    int indexIp1 = indexI + 1;
-
-    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL Es[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-
-    Es[ty][tx] = 0;
-    
-    for (int i = 0; i < BLOCKS - 1; i++) {
-    
-    	// Load Schur matrices here
-      
-        __syncthreads();
-
-        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
-
-        __syncthreads();
-
-        // Do matrix multiplication here
-
-        __syncthreads();
-
-        a += aStep;
-        b += bStep;
-        d += MULTIPLY_BLOCK_SIZE;      
-    }
-	
-	// Only this section currently gets run (for PADDED_STATE_COUNT == 4)
-	
-	// Clear Schur matrix for last block		
-	Es[ty][tx] = 0;	
-	
-	// Load Schur components from global memory
-	if (ty == 0) {
-		// Last block is too long
-		if (tx < EDGE) {
-			Ds[tx] = exp(D[d + tx] * distance);
-			Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance;
-			
-			// Conversion to real space
-			if (Cs[tx]) { 
-            	REAL expat = Ds[tx];
-            	REAL cosbt = cos(Cs[tx]);
-            	Cs[tx] = -expat * sin(Cs[tx]);
-            	Ds[tx] *= cosbt;
-            }
-		}
-	}
-	
-	// All Schur matrix components from global memory loaded
-	__syncthreads();
-	
-	// Populate Schur matrix (currently assumes bx == by)
-	// TODO: Also write for case where Es[][] has just one non-zero corner entry
-	if (ty == 0) {
-		Es[tx][tx] = Ds[tx]; // Populate diagonal entry	
-		if (tx == 0) {		
-			for(int k=0; k<EDGE-1; k++) { // Populate off-diagonal entries
-				if (Cs[k]) {
-					Es[k][k+1] = Cs[k];
-					Es[k+1][k] = Cs[k+1];
-					k++; // Did two entries
-				}
-			}			
-		}
-	}
-	
-	// Populate B matrix 
- 	if (ty < EDGE && tx < EDGE) {       
-        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
-    } else {
-    	Bs[ty][tx] = 0;
-    }
-         
-    __syncthreads();
-    
-    // Do Schur * B multiplication
-    for(int k=0; k < EDGE; k++) {
-    	Csub += Es[ty][k] * Bs[k][tx];
-    }    
-    __syncthreads();
-
-    // Write the block sub-matrix to device memory;
-    // each thread writes one element
-
-    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
-    	C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
-              PADDED_STATE_COUNT * ty + tx] = Csub;
-    }
-}
-
-__global__ void kernelMatrixMulAB(REAL** listC,
-                                  REAL* A,                                   
-                                  REAL* Bstart,     
-                                  int totalMatrix) {
-
-    __shared__ REAL* C;
-    __shared__ REAL* B;
-
-    int wMatrix = blockIdx.x % totalMatrix;
-
-    // Block index
-    int bx = blockIdx.x / totalMatrix;
-    int by = blockIdx.y;
-
-    // Thread index
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
-    int BLOCKS = gridDim.y;
-
-    if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
-        B = Bstart + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    }
-
-    __syncthreads();
-
-    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
-
-    // Step size used to iterate through the sub-matrices of A
-    int aStep = MULTIPLY_BLOCK_SIZE;
-
-    // Step size used to iterate through the sub-matrices of B
-    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
-
-    // Csub is used to store the element of the block sub-matrix
-    // that is computed by the thread
-    REAL Csub = 0;
-
-    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
-    int b = MULTIPLY_BLOCK_SIZE * bx;
-
-    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
-
-    for (int i = 0; i < BLOCKS - 1; i++) {
-
-        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
-        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
-
-        __syncthreads();
-
-        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
-            Csub += As[ty][k] * Bs[k][tx];
-
-        __syncthreads();
-
-        a += aStep;
-        b += bStep;
-    }
-
-    // Last block is too long
-    if (tx < EDGE && ty < EDGE) {
-
-        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
-        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
-
-    } else {
-    	
-        As[ty][tx] = 0;
-        Bs[ty][tx] = 0;
-    }
-
-    __syncthreads();
-
-    for (int k = 0; k < EDGE; k++)
-        Csub += As[ty][k] * Bs[k][tx];
-
-    __syncthreads();
-
-    // Write the block sub-matrix to device memory;
-    // each thread writes one element
-
-    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
-        if (Csub < 0)
-            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
-              PADDED_STATE_COUNT * ty + tx] = 0;
-        else
-            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+        C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = Csub;
     }
 }
