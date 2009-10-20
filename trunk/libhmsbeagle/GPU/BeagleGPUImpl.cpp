@@ -781,14 +781,14 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
 #endif
     
 #ifdef BEAGLE_DEBUG_VALUES
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < 1; i++) {
         fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
         gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount);
         for(int j=0; j<kCategoryCount; j++)
         	fprintf(stderr, " %1.5f",hCategoryRates[j]);
         fprintf(stderr,"\n");
     }
-#endif    
+#endif
 
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();

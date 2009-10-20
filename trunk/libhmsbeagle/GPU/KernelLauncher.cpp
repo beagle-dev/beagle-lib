@@ -131,6 +131,7 @@ void KernelLauncher::LoadKernels() {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB"); // TODO Remove
 		fMatrixMulAB = gpu->GetFunction("kernelMatrixMulAB");
 		fMatrixMulDComplexB = gpu->GetFunction("kernelMatrixMulDComplexB");
+		fMatrixMulADBComplex = gpu->GetFunction("kernelMatrixMulADBComplex");
 	} else {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
 	}
@@ -229,22 +230,30 @@ void KernelLauncher::GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
 
     bgTransitionProbabilitiesGrid.x *= totalMatrix; 
     
-    gpu->LaunchKernelIntParams(fMatrixMulDComplexB,
+
+    int parameterCount = 8;
+     gpu->LaunchKernelIntParams(fMatrixMulADBComplex,
                                 bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
-                                5,
-                                dComplex, dEigenValues, dEvec, distanceQueue,                               
+                                parameterCount,
+                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
+                                kPaddedStateCount, kPaddedStateCount,
                                 totalMatrix);
     
+//    gpu->LaunchKernelIntParams(fMatrixMulDComplexB,
+//                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+//                                5,
+//                                dComplex, dEigenValues, dEvec, distanceQueue,
+//                                totalMatrix);
+
 //    int kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 //    gpu->PrintfDeviceVector(dComplex, kMatrixSize);
-//    fprintf(stderr,"Right exit\n");
 //    exit(0);
     
-    gpu->LaunchKernelIntParams(fMatrixMulAB,
-                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
-                                4,
-                                dPtrQueue, dIevc, dComplex,
-                                totalMatrix);
+//    gpu->LaunchKernelIntParams(fMatrixMulAB,
+//                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+//                                4,
+//                                dPtrQueue, dIevc, dComplex,
+//                                totalMatrix);
     
 //    gpu->PrintfDeviceVector(dPtrQueue[0],kMatrixSize);
   //  exit(0);
