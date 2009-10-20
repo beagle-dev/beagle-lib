@@ -41,6 +41,7 @@ private:
     GPUFunction fMatrixMulADB;
     GPUFunction fMatrixMulAB;
     GPUFunction fMatrixMulDComplexB;
+    GPUFunction fMatrixMulADBComplex;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
