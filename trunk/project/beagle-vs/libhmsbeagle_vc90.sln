@@ -22,6 +22,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fourtaxon", "fourtaxon\four
 		{74775C34-D68F-4812-AF73-7270C035DAD2} = {74775C34-D68F-4812-AF73-7270C035DAD2}
 	EndProjectSection
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "beagleinstaller", "beagleinstaller\beagleinstaller.vdproj", "{A75FE2BD-2DF0-4662-8D97-4259B0120400}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -68,6 +70,10 @@ Global
 		{E17EF598-2644-4C36-AED3-A1CAD90CCDD9}.Release|Win32.Build.0 = Release|Win32
 		{E17EF598-2644-4C36-AED3-A1CAD90CCDD9}.Release|x64.ActiveCfg = Release|x64
 		{E17EF598-2644-4C36-AED3-A1CAD90CCDD9}.Release|x64.Build.0 = Release|x64
+		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Debug|Win32.ActiveCfg = Debug
+		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Debug|x64.ActiveCfg = Debug
+		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Release|Win32.ActiveCfg = Release
+		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Release|x64.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
