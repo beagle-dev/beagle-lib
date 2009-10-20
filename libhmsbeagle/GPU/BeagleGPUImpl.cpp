@@ -754,12 +754,9 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
     
     // Set-up and call GPU kernel
-    if (kFlags & BEAGLE_FLAG_COMPLEX)
-     	kernels->GetTransitionProbabilitiesComplex(dPtrQueue, dEvec[eigenIndex],dIevc[eigenIndex],
- 												   dEigenValues[eigenIndex], dDistanceQueue, dComplex, totalCount);
-    else
-    	kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
-												  dEigenValues[eigenIndex], dDistanceQueue, totalCount);
+
+    kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+											  dEigenValues[eigenIndex], dDistanceQueue, totalCount);
     
 #else
     for (int i = 0; i < count; i++) {        
