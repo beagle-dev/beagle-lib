@@ -235,8 +235,8 @@ void KernelLauncher::GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
                                 dComplex, dEigenValues, dEvec, distanceQueue,                               
                                 totalMatrix);
     
-    int kMatrixSize = kPaddedStateCount * kPaddedStateCount;
-    gpu->PrintfDeviceVector(dComplex, kMatrixSize);
+//    int kMatrixSize = kPaddedStateCount * kPaddedStateCount;
+//    gpu->PrintfDeviceVector(dComplex, kMatrixSize);
 //    fprintf(stderr,"Right exit\n");
 //    exit(0);
     
