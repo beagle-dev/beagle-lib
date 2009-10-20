@@ -4,6 +4,7 @@
 :: (c)2008-2009 aaron darling
 :: See the file COPYING.LESSER for details
 ::
+:: Usage: set devenv and vcvars to values appropriate for your system
 ::
 
 SET devenv="devenv.exe"
