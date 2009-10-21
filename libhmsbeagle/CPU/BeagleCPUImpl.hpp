@@ -320,16 +320,23 @@ int BeagleCPUImpl<REALTYPE>::setPartials(int bufferIndex,
 
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getPartials(int bufferIndex,
-                               int scaleIndex,
+                               int cumulativeScaleIndex,
                                double* outPartials) {
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-    //TODO: unscale the partials
     if (DOUBLE_PRECISION)
     	memcpy(outPartials, gPartials[bufferIndex], sizeof(double) * kPartialsSize);
     else
-    	MEMCNV(outPartials, this->gPartials[bufferIndex], kPartialsSize, REALTYPE);
+    	MEMCNV(outPartials, gPartials[bufferIndex], kPartialsSize, REALTYPE);
+
+    if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
+    	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
+    	for(int k=0; k<kPatternCount; k++) {
+    		outPartials[k] *= exp(cumulativeScaleBuffer[k]);
+    	}
+    	// TODO: Do we assume the cumulativeScaleBuffer is on the log-scale?
+    }
 
     return BEAGLE_SUCCESS;
 }
@@ -370,58 +377,6 @@ int BeagleCPUImpl<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 												  edgeLengths,gCategoryRates,gTransitionMatrices,count);
 	return BEAGLE_SUCCESS;
 }
-
-//int BeagleCPUImpl::updateTransitionMatrices(int eigenIndex,
-//                                            const int* probabilityIndices,
-//                                            const int* firstDerivativeIndices,
-//                                            const int* secondDervativeIndices,
-//                                            const double* edgeLengths,
-//                                            int count) {
-//    for (int u = 0; u < count; u++) {
-//        double* transitionMat = gTransitionMatrices[probabilityIndices[u]];
-//        int n = 0;
-//        for (int l = 0; l < kCategoryCount; l++) {
-//
-//        	if (kFlags | BEAGLE_FLAG_COMPLEX) {
-//        		for (int i = 0; i < kStateCount; i++ ) {
-//        			if (gEigenValues[eigenIndex][i+kStateCount] == 0)
-//        				;
-//        		}        		
-//        	} else { // Only real diagonalization        	
-//        		for (int i = 0; i < kStateCount; i++) {
-//        			matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * edgeLengths[u] * gCategoryRates[l]);
-//        		}
-//        	}
-//            int m = 0;
-//            for (int i = 0; i < kStateCount; i++) {
-//                for (int j = 0; j < kStateCount; j++) {
-//                    double sum = 0.0;
-//                    for (int k = 0; k < kStateCount; k++) {
-//                        sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
-//                        m++;
-//                    }
-//                    if (sum > 0)
-//                        transitionMat[n] = sum;
-//                    else
-//                        transitionMat[n] = 0;
-//                    n++;
-//                }
-//#ifdef PAD_MATRICES
-//                transitionMat[n] = 1.0;
-//                n++;
-//#endif
-//            }
-//        }
-//
-//        if (DEBUGGING_OUTPUT) {
-//            fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
-//            for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
-//                fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
-//        }
-//    }
-//
-//    return BEAGLE_SUCCESS;
-//}
 
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
