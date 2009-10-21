@@ -209,7 +209,6 @@ case $host_os in
   AC_SUBST(CXXFLAGS)
   AC_SUBST(CFLAGS)
   AC_SUBST(LDFLAGS)
-  AM_INIT_AUTOMAKE(no-dependencies)
 esac
 
 case $host_os in
