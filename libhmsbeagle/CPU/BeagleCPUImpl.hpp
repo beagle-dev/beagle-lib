@@ -95,7 +95,17 @@ namespace cpu {
 //const bool DEBUGGING_OUTPUT = false;
 //#endif
 
-#undef REALTYPE
+//#undef REALTYPE
+
+template<typename REALTYPE>
+static const char* getBeagleCPUName(){ return "CPU-Unknown"; };
+
+template<>
+const char* getBeagleCPUName<double>(){ return "CPU-Double"; };
+
+template<>
+const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
+
 
 template <typename REALTYPE>
 BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
@@ -238,14 +248,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 
 template <typename REALTYPE>
 const char* BeagleCPUImpl<REALTYPE>::getName() {
-	if (DOUBLE_PRECISION)
-//		return beagleCPUImplDoubleName; // TODO: Define once in header.  Currently double-loaded libcp and libbeagle.a
-		return "CPU-Double";
-//		return nameString;
-	else
-//		return beagleCPUImplSingleName;
-		return "CPU-Single";
-//		return nameString;
+	return getBeagleCPUName<REALTYPE>();
 }
 
 template <typename REALTYPE>
@@ -1114,15 +1117,10 @@ BeagleImpl* BeagleCPUImplFactory<REALTYPE>::createImpl(int tipCount,
     return NULL;
 }
 
+
 template <typename REALTYPE>
 const char* BeagleCPUImplFactory<REALTYPE>::getName() {
-	if (DOUBLE_PRECISION)
-//		return beagleCPUImplDoubleName; // TODO: Define once in header.  Currently double-loaded libcpu.a and libbeagle.a
-		return "CPU-Double";
-	else
-//		return beagleCPUImplSingleName;
-		return "CPU-Single";
-//	return BeagleCPUImpl<REALTYPE>::getName();
+	return BeagleCPUImpl<REALTYPE>::getName();
 }
 
 template <typename REALTYPE>

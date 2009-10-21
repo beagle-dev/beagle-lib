@@ -47,10 +47,8 @@ namespace cpu {
 
 template <typename REALTYPE>
 class BeagleCPUImpl : public BeagleImpl {
-//public:
-//static const char* beagleCPUImplDoubleName = "CPU-Double";
-//static const char* beagleCPUImplSingleName = "CPU-Single";
-//	static const char* nameString;
+public:
+	static const char* getName();
 
 protected:
     int kBufferCount; /// after initialize this will be partials.size()
@@ -294,15 +292,8 @@ protected:
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
     
-    virtual const char* getName();
 
 };
-
-//template <>
-//const char* BeagleCPUImpl<double>::nameString = "CPU-Double";
-
-//template <>
-//const char* BeagleCPUImpl<float>::nameString = "CPU-Single";
 
 template <typename REALTYPE>
 class BeagleCPUImplFactory : public BeagleImplFactory {
@@ -330,6 +321,7 @@ public:
 }	// namespace cpu
 }	// namespace beagle
 
+// now that the interface is defined, include the implementation of template functions
 #include "libhmsbeagle/CPU/BeagleCPUImpl.hpp"
 
 #endif // __BeagleCPUImpl__
