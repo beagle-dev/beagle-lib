@@ -10,7 +10,7 @@ java/beagle/BeagleJNIWrapper.java \
 java/beagle/DependencyAwareBeagleImpl.java \
 java/beagle/FourStateBeagleImpl.java \
 java/beagle/GeneralBeagleImpl.java \
-project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj \ 
+project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj \
 project/beagle-vs/complextest/complextest.vcproj \
 project/beagle-vs/complextest/complextest_vc90.vcproj \
 project/beagle-vs/fourtaxon/fourtaxon.vcproj \
