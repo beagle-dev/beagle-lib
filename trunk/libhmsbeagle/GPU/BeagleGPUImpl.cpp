@@ -54,7 +54,6 @@ BeagleGPUImpl::BeagleGPUImpl() {
     dEigenValues = NULL;
     dEvec = NULL;
     dIevc = NULL;
-    dComplex = NULL;
     
     dWeights = NULL;
     dFrequencies = NULL; 
@@ -204,10 +203,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     if (preferenceFlags & BEAGLE_FLAG_LSCALER || requirementFlags & BEAGLE_FLAG_LSCALER)
     	kFlags |= BEAGLE_FLAG_LSCALER;
 
-    if (preferenceFlags & BEAGLE_FLAG_COMPLEX || requirementFlags & BEAGLE_FLAG_COMPLEX)
-    {
+    if (preferenceFlags & BEAGLE_FLAG_COMPLEX || requirementFlags & BEAGLE_FLAG_COMPLEX) {
     	kFlags |= BEAGLE_FLAG_COMPLEX;
-    	kMatrixCount++; // Use last set as temporary buffers for complex calculations
     }
     
     if (kStateCount <= 4)
@@ -271,12 +268,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
 #endif
     
-//    return BEAGLE_SUCCESS;
-//}
-
-//int BeagleGPUImpl::initializeInstance(BeagleInstanceDetails* returnInfo) {
-    
-    // TODO: compute device memory requirements
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::initializeInstance\n");
@@ -307,9 +298,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     unsigned int neededMemory = SIZE_REAL * (kMatrixSize * kEigenDecompCount + // dEvec
                                              kMatrixSize * kEigenDecompCount + // dIevc
                                              kEigenValuesSize * kEigenDecompCount + // dEigenValues
-                                             (kFlags & BEAGLE_FLAG_COMPLEX ?
-                                            		 kMatrixCount * kCategoryCount
-                                            		 : 0) + // dComplex
                                              kBufferCount + // dWeights
                                              kPaddedStateCount + // dFrequencies
                                              kPaddedPatternCount + // dIntegrationTmp
@@ -394,21 +382,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * ptrQueueLength);
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
-    
-    if (kFlags & BEAGLE_FLAG_COMPLEX)
-    	dComplex = gpu->AllocateRealMemory(kMatrixSize * kMatrixCount * kCategoryCount);
-		// TODO: only need one buffer per branch no matter how many matrixBuffers there are
 
 	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
-    
-//    if (returnInfo != NULL) {
-//        returnInfo->resourceNumber = resourceNumber;
-//        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
-//        if (kFlags & BEAGLE_FLAG_LSCALER)
-//            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
-//    }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
 #endif
@@ -433,15 +410,14 @@ int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
             returnInfo->flags |= BEAGLE_FLAG_LSCALER;
         if (kFlags & BEAGLE_FLAG_COMPLEX)
         	returnInfo->flags |= BEAGLE_FLAG_COMPLEX;
+        returnInfo->implName = "CUDA";
     }
-    returnInfo->implName = "CUDA";
     return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setTipStates(int tipIndex,
                                 const int* inStates) {
-    // TODO: test setTipStates
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTipStates\n");
 #endif
@@ -671,17 +647,12 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
 }
 
 int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
-    // TODO: test setCategoryRates
+
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
 #endif
 
-//#ifdef DOUBLE_PRECISION
 	const double* categoryRates = inCategoryRates;
-//#else
-//	REAL* categoryRates = hCategoryCache;
-//	MEMCNV(categoryRates, inCategoryRates, kCategoryCount, REAL);
-//#endif
 	// Can keep these in double-precision until after multiplication by (double) branch-length
 
 	memcpy(hCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
