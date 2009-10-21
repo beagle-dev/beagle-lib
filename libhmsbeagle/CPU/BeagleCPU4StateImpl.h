@@ -45,6 +45,7 @@ namespace cpu {
 template <typename REALTYPE>
 class BeagleCPU4StateImpl : public BeagleCPUImpl<REALTYPE> {
 
+protected:
 	using BeagleCPUImpl<REALTYPE>::kTipCount;
 	using BeagleCPUImpl<REALTYPE>::gPartials;
 	using BeagleCPUImpl<REALTYPE>::integrationTmp;
