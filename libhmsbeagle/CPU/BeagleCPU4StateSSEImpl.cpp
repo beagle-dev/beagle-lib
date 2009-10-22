@@ -129,8 +129,17 @@ typedef union 			/* for copying individual elements to and from vector floats */
 		dest_vu_m1[i][1].x[1] = m1[3*OFFSET]; \
 	}
 
-using namespace beagle;
-using namespace beagle::cpu;
+namespace beagle {
+namespace cpu {
+
+template<typename REALTYPE>
+inline const char* getBeagleCPU4StateSSEName(){ return "CPU-4State-SSE-Unknown"; };
+
+template<>
+inline const char* getBeagleCPU4StateSSEName<double>(){ return "CPU-4State-SSE-Double"; };
+
+template<>
+inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Single"; };
 
 BeagleCPU4StateSSEImpl::~BeagleCPU4StateSSEImpl() {
 }
@@ -428,9 +437,8 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
 }
 
 const char* BeagleCPU4StateSSEImpl::getName() {
-    return "CPU-4State-Double-SSE"; // TODO: Define once!
+	return getBeagleCPU4StateSSEName<double>();
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
@@ -479,10 +487,14 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
 }
 
 const char* BeagleCPU4StateSSEImplFactory::getName() {
-    return "CPU-4State-Double-SSE";
+	return getBeagleCPU4StateSSEName<double>();
 }
 
 const long BeagleCPU4StateSSEImplFactory::getFlags() {
     return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_SSE;
+}
+
+
+}
 }
 

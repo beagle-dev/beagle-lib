@@ -130,6 +130,15 @@
 namespace beagle {
 namespace cpu {
 
+template<typename REALTYPE>
+inline const char* getBeagleCPU4StateName(){ return "CPU-4State-Unknown"; };
+
+template<>
+inline const char* getBeagleCPU4StateName<double>(){ return "CPU-4State-Double"; };
+
+template<>
+inline const char* getBeagleCPU4StateName<float>(){ return "CPU-4State-Single"; };
+
 template <typename REALTYPE>
 BeagleCPU4StateImpl<REALTYPE>::~BeagleCPU4StateImpl() {
     // free all that stuff...
@@ -505,11 +514,9 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex
 
 template <typename REALTYPE>
 const char* BeagleCPU4StateImpl<REALTYPE>::getName() {
-	if (DOUBLE_PRECISION)
-		return "CPU-4State-Double";
-	else
-		return "CPU-4State-Single";
+	return getBeagleCPU4StateName<REALTYPE>();
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
@@ -555,11 +562,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<REALTYPE>::createImpl(int tipCount,
 
 template <typename REALTYPE>
 const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
-//    return beagleCPU4StateImplDoubleName;
-	if (DOUBLE_PRECISION)
-		return "CPU-4State-Double"; // TODO Define once.
-	else
-		return "CPU-4State-Single";
+	return getBeagleCPU4StateName<REALTYPE>();
 }
 
 template <typename REALTYPE>

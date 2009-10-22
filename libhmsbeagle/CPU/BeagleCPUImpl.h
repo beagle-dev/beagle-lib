@@ -47,8 +47,6 @@ namespace cpu {
 
 template <typename REALTYPE>
 class BeagleCPUImpl : public BeagleImpl {
-public:
-	static const char* getName();
 
 protected:
     int kBufferCount; /// after initialize this will be partials.size()
@@ -85,7 +83,6 @@ protected:
     REALTYPE** gTransitionMatrices;
 
     REALTYPE* integrationTmp;
-//    double* matrixTmp;
 
     REALTYPE* ones;
     REALTYPE* zeros;
@@ -229,6 +226,9 @@ public:
 
     int block(void);
 
+	virtual const char* getName();
+
+
 protected:
     virtual void calcStatesStates(REALTYPE* destP,
                                     const int* states1,
@@ -293,6 +293,7 @@ protected:
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
     
+    virtual int getPaddedPatternsModulus();
 
 };
 

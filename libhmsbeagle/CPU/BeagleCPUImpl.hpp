@@ -324,8 +324,13 @@ int BeagleCPUImpl<REALTYPE>::getPartials(int bufferIndex,
 
     if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
     	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
+    	int index = 0;
     	for(int k=0; k<kPatternCount; k++) {
-    		outPartials[k] *= exp(cumulativeScaleBuffer[k]);
+    		REALTYPE scaleFactor = exp(cumulativeScaleBuffer[k]);
+    		for(int i=0; i<kStateCount; i++) {
+    			outPartials[index] *= scaleFactor;
+    			index++;
+    		}
     	}
     	// TODO: Do we assume the cumulativeScaleBuffer is on the log-scale?
     }
@@ -1068,6 +1073,12 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
     }
 }
 
+template <typename REALTYPE>
+int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
+	// Padding only necessary for SSE implementations that vectorize across patterns
+	return 1;  // No padding
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 template <typename REALTYPE>
@@ -1113,7 +1124,7 @@ BeagleImpl* BeagleCPUImplFactory<REALTYPE>::createImpl(int tipCount,
 
 template <typename REALTYPE>
 const char* BeagleCPUImplFactory<REALTYPE>::getName() {
-	return BeagleCPUImpl<REALTYPE>::getName();
+	return getBeagleCPUName<REALTYPE>();
 }
 
 template <typename REALTYPE>
