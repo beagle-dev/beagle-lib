@@ -11,14 +11,14 @@
 #define DOUBLE_PRECISION (sizeof(REALTYPE) == 8)
 
 template<typename T, typename F> 
-inline void MEMCNV( T* to, F* from, unsigned int length )
+inline void beagleMemCpy( T* to, F* from, unsigned int length )
 {
 	for(unsigned int m=0; m<length; m++)
 		to[m]=(T)from[m];
 };
 
 template<typename F> 
-inline void MEMCNV( F* to, const F* from, unsigned int length )
+inline void beagleMemCpy( F* to, const F* from, unsigned int length )
 {
 	memcpy( to, from, length*sizeof(F) );
 }
