@@ -873,8 +873,9 @@ void BeagleCPUImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
                                      const int* states2,
                                      const REALTYPE* matrices2) {
 
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+        int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             const int state1 = states1[k];
             const int state2 = states2[k];
@@ -903,8 +904,9 @@ void BeagleCPUImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP,
                                               const int* child2States,
                                            const REALTYPE* child2TransMat,
                                            const REALTYPE* scaleFactors) {
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             const int state1 = child1States[k];
             const int state2 = child2States[k];
@@ -933,9 +935,10 @@ void BeagleCPUImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
                                        const REALTYPE* matrices1,
                                        const REALTYPE* partials2,
                                        const REALTYPE* matrices2) {
-    int u = 0;
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+	int u = l*kStateCount*kPatternCount;
+	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int state1 = states1[k];
             int w = l * kMatrixSize;
@@ -965,9 +968,10 @@ void BeagleCPUImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* destP,
                                              const REALTYPE* partials2,
                                              const REALTYPE* matrices2,
                                              const REALTYPE* scaleFactors) {
-    int u = 0;
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+	int u = l*kStateCount*kPatternCount;
+	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int state1 = states1[k];
             int w = l * kMatrixSize;
@@ -1000,14 +1004,14 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
                                          const REALTYPE* matrices1,
                                          const REALTYPE* partials2,
                                          const REALTYPE* matrices2) {
-	REALTYPE sum1, sum2;
-    int u = 0;
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+	int u = l*kStateCount*kPatternCount;
+	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
-                sum1 = sum2 = 0.0;
+                REALTYPE sum1 = 0.0, sum2 = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
                     sum1 += matrices1[w] * partials1[v + j];
                     sum2 += matrices2[w] * partials2[v + j];
@@ -1038,15 +1042,15 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
                                                const REALTYPE* partials2,
                                                const REALTYPE* matrices2,
                                                const REALTYPE* scaleFactors) {
-	REALTYPE sum1, sum2;
-    int u = 0;
-    int v = 0;
+#pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
+	int u = l*kStateCount*kPatternCount;
+	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             REALTYPE scaleFactor = scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
-                sum1 = sum2 = 0.0;
+                REALTYPE sum1 = 0.0, sum2 = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
                     sum1 += matrices1[w] * partials1[v + j];
                     sum2 += matrices2[w] * partials2[v + j];
