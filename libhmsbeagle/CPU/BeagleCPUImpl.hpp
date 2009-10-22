@@ -291,13 +291,8 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++) {
-    	if (DOUBLE_PRECISION)
-    		memcpy(gPartials[tipIndex] + i * singlePartialsSize, inPartials,
-               sizeof(double) * singlePartialsSize);
-    	else {
-    		REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
-    		MEMCNV(partials, inPartials, singlePartialsSize, REALTYPE);
-    	}
+	REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
+	MEMCNV(partials, inPartials, singlePartialsSize);
     }
 
     return BEAGLE_SUCCESS;
@@ -313,10 +308,7 @@ int BeagleCPUImpl<REALTYPE>::setPartials(int bufferIndex,
         if (gPartials[bufferIndex] == 0L)
             return BEAGLE_ERROR_OUT_OF_MEMORY;
     }
-    if (DOUBLE_PRECISION) // TODO Check that compiler includes only one branch
-    	memcpy(gPartials[bufferIndex], inPartials, sizeof(double) * kPartialsSize);
-    else
-    	MEMCNV(gPartials[bufferIndex], inPartials, kPartialsSize, REALTYPE);
+	MEMCNV(gPartials[bufferIndex], inPartials, kPartialsSize);
 
     return BEAGLE_SUCCESS;
 }
@@ -328,10 +320,7 @@ int BeagleCPUImpl<REALTYPE>::getPartials(int bufferIndex,
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-    if (DOUBLE_PRECISION)
-    	memcpy(outPartials, gPartials[bufferIndex], sizeof(double) * kPartialsSize);
-    else
-    	MEMCNV(outPartials, gPartials[bufferIndex], kPartialsSize, REALTYPE);
+	MEMCNV(outPartials, gPartials[bufferIndex], kPartialsSize);
 
     if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
     	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
