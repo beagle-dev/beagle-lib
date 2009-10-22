@@ -27,6 +27,18 @@ public class InstanceDetails {
         this.flags = flags;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (BeagleFlag flag : BeagleFlag.values()) {
+            if (flag.isSet(getFlags())) {
+                sb.append(" ").append(flag.name());
+            }
+        }
+        sb.append("\n");
+        return sb.toString();
+    }
+
     private int resourceNumber;
     private long flags;
 }
