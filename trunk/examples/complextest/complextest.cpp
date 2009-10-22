@@ -91,8 +91,6 @@ double* getPartials(char *sequence) {
 	return partials;
 }
 
-#include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
-
 int main( int argc, const char* argv[] )
 {
     // print resource list
