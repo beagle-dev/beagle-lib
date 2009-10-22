@@ -98,6 +98,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getTransitionMatrix
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    updateTransitionMatrices
  * Signature: (II[I[I[I[DI)I
  */

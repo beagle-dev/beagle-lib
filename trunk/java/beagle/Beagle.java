@@ -149,6 +149,20 @@ public interface Beagle {
             final double[] inMatrix);	/**< Pointer to source transition probability matrix (input) */
 
     /**
+     * Get a finite-time transition probability matrix
+     *
+     * This function copies a finite-time transition matrix buffer into the array outMatrix. The
+     * outMatrix array should be of size stateCount * stateCount * categoryCount and will be filled
+     * with one matrix for each rate category.
+     *
+     * @param matrixIndex  Index of matrix buffer (input)
+     * @param outMatrix    Pointer to destination transition probability matrix (output)
+     *
+     */
+    void getTransitionMatrix(int matrixIndex,
+							 double[] outMatrix);
+
+    /**
      * Calculate or queue for calculation partials using a list of operations
      *
      * This function either calculates or queues for calculation a list partials. Implementations

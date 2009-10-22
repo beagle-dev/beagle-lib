@@ -1,7 +1,5 @@
 package beagle;
 
-import java.util.logging.Logger;
-
 public class FourStateBeagleImpl extends GeneralBeagleImpl {
 
     public static final boolean DEBUG = false;

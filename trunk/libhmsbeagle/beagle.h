@@ -89,6 +89,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_FPGA    = 1 << 18,   /**< FPGA */
     BEAGLE_FLAG_SSE     = 1 << 19,   /**< SSE */
     BEAGLE_FLAG_CELL    = 1 << 20,   /**< Cell */
+    BEAGLE_FLAG_OPENMP  = 1 << 21,   /**< OpenMP threading */
 };
 
 /**

@@ -278,6 +278,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
     return errCode;
 }
 
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
+  (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray outMatrix)
+{
+	jdouble *matrix = env->GetDoubleArrayElements(outMatrix, NULL);
+
+	jint errCode = (jint)beagleGetTransitionMatrix(instance, matrixIndex, (double *)matrix);
+
+	env->ReleaseDoubleArrayElements(outMatrix, matrix, 0);
+
+	return errCode;
+}
+
 
 /*
  * Class:     beagle_BeagleJNIWrapper

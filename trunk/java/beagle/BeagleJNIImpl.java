@@ -5,8 +5,6 @@
 
 package beagle;
 
-import java.util.logging.Logger;
-
 /*
  * BeagleJNIjava
  *
@@ -115,6 +113,13 @@ public class BeagleJNIImpl implements Beagle {
         if (errCode != 0) {
             throw new BeagleException("setTransitionMatrix", errCode);
         }
+    }
+
+    public void getTransitionMatrix(int matrixIndex, final double[] outMatrix) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getTransitionMatrix(instance, matrixIndex, outMatrix);
+        if (errCode != 0) {
+            throw new BeagleException("getTransitionMatrix", errCode);
+        }        
     }
 
     public void updateTransitionMatrices(int eigenIndex,
