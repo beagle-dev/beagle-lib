@@ -98,13 +98,13 @@ namespace cpu {
 //#undef REALTYPE
 
 template<typename REALTYPE>
-static const char* getBeagleCPUName(){ return "CPU-Unknown"; };
+inline const char* getBeagleCPUName(){ return "CPU-Unknown"; };
 
 template<>
-const char* getBeagleCPUName<double>(){ return "CPU-Double"; };
+inline const char* getBeagleCPUName<double>(){ return "CPU-Double"; };
 
 template<>
-const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
+inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
 
 template <typename REALTYPE>
