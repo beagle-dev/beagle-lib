@@ -26,7 +26,11 @@ project/beagle-vs/libhmsbeagle/libhmsbeagle_vc90.vcproj \
 project/beagle-vs/libhmsbeagle.sln \
 project/beagle-vs/libhmsbeagle_vc90.sln \
 project/beagle-vs/tinytest/tinytest.vcproj \
-project/beagle-vs/tinytest/tinytest_vc90.vcproj
+project/beagle-vs/tinytest/tinytest_vc90.vcproj \
+project/beagle-vs/beagleinstaller/banner.jpg \
+project/beagle-vs/beagleinstaller/beagleinstaller.vdproj \
+project/beagle-vs/beagleinstaller/COPYING.LESSER.rtf \
+project/beagle-vs/build_installer.bat
 
 AM_CFLAGS=-I$(top_builddir) -I$(top_srcdir)
 AM_CPPFLAGS=-I$(top_builddir) -I$(top_srcdir)
