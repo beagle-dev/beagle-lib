@@ -148,6 +148,9 @@ public:
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
 
+    int getTransitionMatrix(int matrixIndex,
+    						double* outMatrix);
+
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //

@@ -80,6 +80,9 @@ public:
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix) = 0;
     
+    virtual int getTransitionMatrix(int matrixIndex,
+                                    double* outMatrix) = 0;
+
     virtual int updateTransitionMatrices(int eigenIndex,
                                          const int* probabilityIndices,
                                          const int* firstDerivativeIndices,

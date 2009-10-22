@@ -95,8 +95,6 @@ namespace cpu {
 //const bool DEBUGGING_OUTPUT = false;
 //#endif
 
-//#undef REALTYPE
-
 template<typename REALTYPE>
 inline const char* getBeagleCPUName(){ return "CPU-Unknown"; };
 
@@ -372,11 +370,20 @@ int BeagleCPUImpl<REALTYPE>::setCategoryRates(const double* inCategoryRates) {
 }
 
 template <typename REALTYPE>
+int BeagleCPUImpl<REALTYPE>::getTransitionMatrix(int matrixIndex,
+												 double* outMatrix) {
+	beagleMemCpy(outMatrix,gTransitionMatrices[matrixIndex],
+			kMatrixSize * kCategoryCount);
+	return BEAGLE_SUCCESS;
+}
+
+
+template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
     // TODO: test CPU setTransitionMatrix
-    memcpy(gTransitionMatrices[matrixIndex], inMatrix,
-           sizeof(double) * kMatrixSize * kCategoryCount);
+	beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
+			kMatrixSize * kCategoryCount);
     return BEAGLE_SUCCESS;
 }
 

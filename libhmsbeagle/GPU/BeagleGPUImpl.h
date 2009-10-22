@@ -159,6 +159,9 @@ public:
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix);
     
+    int getTransitionMatrix(int matrixIndex,
+                            double* outMatrix);
+
     int updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,

@@ -664,6 +664,12 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
     return BEAGLE_SUCCESS;
 }
 
+int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
+									   double* outMatrix) {
+	fprintf(stderr,"BeagleGPUImpl::getTransitionMatrix is not yet implemeneted!");
+	exit(-1);
+}
+
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
     // TODO: test setTransitionMatrix
