@@ -23,7 +23,7 @@ public class BeagleFactory {
 
     public static ResourceDetails getResourceDetails(int resourceNumber) {
         getBeagleJNIWrapper();
-        System.err.println("resourceNumber = "+resourceNumber);
+//        System.err.println("resourceNumber = "+resourceNumber);
         return resourceDetailsMap.get(resourceNumber);
     }
 
@@ -97,7 +97,7 @@ public class BeagleFactory {
 
             } catch (BeagleException beagleException) {
                 Logger.getLogger("beagle").info("  "+beagleException.getMessage());
-            }                
+            }
         }
 
         if (stateCount == 4) {
