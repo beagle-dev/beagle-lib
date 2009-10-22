@@ -332,10 +332,22 @@ template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getPartials(int bufferIndex,
                                int cumulativeScaleIndex,
                                double* outPartials) {
+	// TODO: Test with and without padding
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-	beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
+    if (kPatternCount == kPaddedPatternCount) {
+    	beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
+    } else { // Need to remove padding
+    	double *offsetOutPartials;
+    	REALTYPE* offsetBeaglePartials = gPartials[bufferIndex];
+    	for(int i = 0; i < kCategoryCount; i++) {
+    		beagleMemCpy(offsetOutPartials,offsetBeaglePartials,
+    				kPatternCount * kStateCount);
+    		offsetOutPartials += kPatternCount * kStateCount;
+    		offsetBeaglePartials += kPaddedPatternCount * kStateCount;
+    	}
+    }
 
     if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
     	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
@@ -372,8 +384,21 @@ int BeagleCPUImpl<REALTYPE>::setCategoryRates(const double* inCategoryRates) {
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getTransitionMatrix(int matrixIndex,
 												 double* outMatrix) {
+	// TODO Test with multiple rate categories
+#ifdef PAD_MATRICES
+	double* offsetOutMatrix = outMatrix;
+	REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
+	for(int i = 0; i < kCategoryCount; i++) {
+		for(int j = 0; j < kStateCount; j++) {
+			beagleMemCpy(offsetOutMatrix,offsetBeagleMatrix,kStateCount);
+			offsetBeagleMatrix += kStateCount + 1; // Skip padding
+			offsetOutMatrix += kStateCount;
+		}
+	}
+#else
 	beagleMemCpy(outMatrix,gTransitionMatrices[matrixIndex],
 			kMatrixSize * kCategoryCount);
+#endif
 	return BEAGLE_SUCCESS;
 }
 
@@ -460,8 +485,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                                                  scalingFactors);
                 } else { 
                     // First compute without any scaling
-                    calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);//,
-//                                     scalingFactors, cumulativeScalingBuffer, rescale);
+                    calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);
                     if (rescale == 1) // Recompute scaleFactors
                         rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,1);
                 }
@@ -470,8 +494,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                     calcStatesPartialsFixedScaling(destPartials, tipStates1, matrices1, partials2, matrices2,
                                                    scalingFactors);
                 } else {
-                    calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2);//,
-//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2);
                     if (rescale == 1)
                         rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
@@ -482,8 +505,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                     calcStatesPartialsFixedScaling(destPartials,tipStates2,matrices2,partials1,matrices1,
                                                    scalingFactors);
                 } else {
-                    calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1);//,
-//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1);
                     if (rescale == 1)
                         rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
@@ -492,8 +514,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                     calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,matrices2,
                                                      scalingFactors);
                 } else {
-                    calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2);//,
-//                                   scalingFactors, cumulativeScalingBuffer, rescale);
+                    calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2);
                     if (rescale == 1)
                         rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
