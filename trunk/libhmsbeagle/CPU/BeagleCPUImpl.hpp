@@ -292,7 +292,7 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++) {
 	REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
-	MEMCNV(partials, inPartials, singlePartialsSize);
+	beagleMemCpy(partials, inPartials, singlePartialsSize);
     }
 
     return BEAGLE_SUCCESS;
@@ -308,7 +308,7 @@ int BeagleCPUImpl<REALTYPE>::setPartials(int bufferIndex,
         if (gPartials[bufferIndex] == 0L)
             return BEAGLE_ERROR_OUT_OF_MEMORY;
     }
-	MEMCNV(gPartials[bufferIndex], inPartials, kPartialsSize);
+	beagleMemCpy(gPartials[bufferIndex], inPartials, kPartialsSize);
 
     return BEAGLE_SUCCESS;
 }
@@ -320,7 +320,7 @@ int BeagleCPUImpl<REALTYPE>::getPartials(int bufferIndex,
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-	MEMCNV(outPartials, gPartials[bufferIndex], kPartialsSize);
+	beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
 
     if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
     	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
