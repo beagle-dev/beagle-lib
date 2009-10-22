@@ -546,6 +546,15 @@ int beagleSetTransitionMatrix(int instance,
 //    }
 }
 
+int beagleGetTransitionMatrix(int instance,
+							  int matrixIndex,
+							  double* outMatrix) {
+	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL)
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	return beagleInstance->getTransitionMatrix(matrixIndex,outMatrix);
+}
+
 int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,
                              const int* probabilityIndices,
