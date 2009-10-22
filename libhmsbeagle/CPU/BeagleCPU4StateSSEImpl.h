@@ -48,6 +48,9 @@ public:
     
     virtual const char* getName();
 
+protected:
+    virtual int getPaddedPatternsModulus();
+
 private:    
 
 	virtual void calcStatesStates(double* destP,

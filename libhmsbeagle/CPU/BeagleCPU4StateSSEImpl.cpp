@@ -436,6 +436,11 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
     }
 }
 
+int BeagleCPU4StateSSEImpl::getPaddedPatternsModulus() {
+	return 2;  // For double-precision, can operate on 2 patterns at a time
+//	return 4;  // For single-precision, can operate on 4 patterns at a time
+}
+
 const char* BeagleCPU4StateSSEImpl::getName() {
 	return getBeagleCPU4StateSSEName<double>();
 }

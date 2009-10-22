@@ -166,6 +166,15 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     assert(kBufferCount > kTipCount);
     kStateCount = stateCount;
     kPatternCount = patternCount;
+
+    // Handle possible padding of pattern sites for vectorization
+    int modulus = getPaddedPatternsModulus();
+    kPaddedPatternCount = kPatternCount;
+    int remainder = kPatternCount % getPaddedPatternsModulus();
+    if (remainder != 0) {
+    	kPaddedPatternCount += getPaddedPatternsModulus() - remainder;
+    }
+
     kMatrixCount = matrixCount;
     kEigenDecompCount = eigenDecompositionCount;
 	kCategoryCount = categoryCount;
@@ -189,8 +198,10 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     			kStateCount, kCategoryCount);
 
 	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
+	if (gCategoryRates == NULL)
+		throw std::bad_alloc();
 
-    kPartialsSize = kPatternCount * kStateCount * kCategoryCount;
+    kPartialsSize = kPaddedPatternCount * kStateCount * kCategoryCount;
 
     gPartials = (REALTYPE**) malloc(sizeof(REALTYPE*) * kBufferCount);
     if (gPartials == NULL)
@@ -219,7 +230,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
          throw std::bad_alloc();
 
     for (int i = 0; i < kScaleBufferCount; i++) {
-        gScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
+        gScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPaddedPatternCount);
         if (gScaleBuffers[i] == 0L)
             throw std::bad_alloc();
     }
@@ -234,11 +245,10 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     }
 
     integrationTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
-//    matrixTmp = (double*) malloc(sizeof(double) * kStateCount);
 
-    zeros = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount);
-    ones = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount);
-    for(int i = 0; i < kPatternCount; i++) {
+    zeros = (REALTYPE*) malloc(sizeof(REALTYPE) * kPaddedPatternCount);
+    ones = (REALTYPE*) malloc(sizeof(REALTYPE) * kPaddedPatternCount);
+    for(int i = 0; i < kPaddedPatternCount; i++) {
     	zeros[i] = 0.0;
         ones[i] = 1.0;
     }
@@ -272,9 +282,13 @@ int BeagleCPUImpl<REALTYPE>::setTipStates(int tipIndex,
                                 const int* inStates) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    gTipStates[tipIndex] = (int*) malloc(sizeof(int) * kPatternCount);
+    gTipStates[tipIndex] = (int*) malloc(sizeof(int) * kPaddedPatternCount);
+    // TODO: What if this throws a memory full error?
 	for (int j = 0; j < kPatternCount; j++) {
 		gTipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
+	}
+	for (int j = kPatternCount; j < kPaddedPatternCount; j++) {
+		gTipStates[tipIndex][j] = kStateCount;
 	}
 
     return BEAGLE_SUCCESS;
@@ -287,12 +301,15 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
         return BEAGLE_ERROR_OUT_OF_RANGE;
     assert(gPartials[tipIndex] == 0L);
     gPartials[tipIndex] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
+    // TODO: What if this throws a memory full error?
     if (gPartials[tipIndex] == 0L)
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     int singlePartialsSize = kPatternCount * kStateCount;
     for (int i = 0; i < kCategoryCount; i++) {
-	REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
-	beagleMemCpy(partials, inPartials, singlePartialsSize);
+    	REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
+    	beagleMemCpy(partials, inPartials, singlePartialsSize);
+    	for (int k = kPatternCount; k < kPaddedPatternCount; k++)
+    		partials[k] = 0;
     }
 
     return BEAGLE_SUCCESS;
