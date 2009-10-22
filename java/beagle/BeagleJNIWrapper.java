@@ -67,6 +67,8 @@ public class BeagleJNIWrapper {
 
     public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
 
+    public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
+
     public native int updateTransitionMatrices(int instance, int eigenIndex,
                                                final int[] probabilityIndices,
                                                final int[] firstDerivativeIndices,
@@ -122,7 +124,7 @@ public class BeagleJNIWrapper {
 
     /* Library loading routines */
 
-    private static final String getPlatformSpecificLibraryName()
+    private static String getPlatformSpecificLibraryName()
     {
         String osName = System.getProperty("os.name").toLowerCase();
         String osArch = System.getProperty("os.arch").toLowerCase();

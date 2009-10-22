@@ -175,6 +175,10 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(inMatrix, 0, this.matrices[matrixIndex], 0, this.matrixSize);
     }
 
+    public void getTransitionMatrix(final int matrixIndex, final double[] outMatrix) {
+        System.arraycopy(this.matrices[matrixIndex],0,outMatrix,0,outMatrix.length);
+    }
+
     public void updateTransitionMatrices(final int eigenIndex,
                                          final int[] probabilityIndices,
                                          final int[] firstDerivativeIndices,

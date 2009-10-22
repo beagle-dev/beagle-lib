@@ -16,7 +16,8 @@ public enum BeagleFlag {
     GPU(1 << 17, "Request/require GPU"),
     FPGA(1 << 18, "Request/require FPGA"),
     SSE(1 << 19, "Request/require SSE"),
-    CELL(1 << 20, "Request/require Cell");
+    CELL(1 << 20, "Request/require Cell"),
+    OPENMP(1 << 21, "Request/require OpenMP");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
