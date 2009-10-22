@@ -51,9 +51,7 @@ double uniform()
 
 	unsigned	x, y;
 
-#ifdef _WIN32
-	typedef unsigned __int64 uint64_t;
-#endif
+	typedef unsigned long long uint64_t;
 
 	uint64_t	w;
 
