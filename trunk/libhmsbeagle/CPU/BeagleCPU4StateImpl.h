@@ -58,6 +58,7 @@ protected:
 
 public:
     virtual ~BeagleCPU4StateImpl();
+    virtual const char* getName();
 
 protected:
     virtual void calcStatesStates(REALTYPE* destP,
@@ -122,7 +123,6 @@ protected:
                                            const int scalingFactorsIndex,
                                            double* outLogLikelihoods);
 
-    virtual const char* getName();
 };
 
 template <typename REALTYPE>

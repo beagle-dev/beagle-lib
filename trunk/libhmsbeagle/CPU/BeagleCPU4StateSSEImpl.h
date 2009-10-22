@@ -46,6 +46,8 @@ public:
     
     int CPUSupportsSSE();
     
+    virtual const char* getName();
+
 private:    
 
 	virtual void calcStatesStates(double* destP,
@@ -78,7 +80,6 @@ private:
                                         double* outFirstDerivatives,
                                         double* outSecondDerivatives);
 
-    virtual const char* getName();
 };
 
 class BeagleCPU4StateSSEImplFactory : public BeagleImplFactory {
