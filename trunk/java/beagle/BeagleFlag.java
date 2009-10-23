@@ -36,6 +36,16 @@ public enum BeagleFlag {
         return (flags & mask) != 0;
     }
 
+    public static String toString(long flags) {
+        StringBuilder sb = new StringBuilder();
+        for (BeagleFlag flag : BeagleFlag.values()) {
+            if (flag.isSet(flags)) {
+                sb.append(" ").append(flag.name());
+            }
+        }
+        return sb.toString();
+    }
+
     private final long mask;
     private final String meaning;
 }

@@ -53,11 +53,7 @@ public class ResourceDetails {
             }
         }
         sb.append("    Flags:");
-        for (BeagleFlag flag : BeagleFlag.values()) {
-            if (flag.isSet(getFlags())) {
-                sb.append(" ").append(flag.name());
-            }
-        }
+        sb.append(BeagleFlag.toString(getFlags()));
         sb.append("\n");
         return sb.toString();
     }
