@@ -39,7 +39,19 @@
 namespace beagle {
 namespace cpu {
 
-class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl<double> {
+template <typename REALTYPE>
+class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl<REALTYPE> {
+
+protected:
+	using BeagleCPUImpl<REALTYPE>::kTipCount;
+	using BeagleCPUImpl<REALTYPE>::gPartials;
+	using BeagleCPUImpl<REALTYPE>::integrationTmp;
+	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
+	using BeagleCPUImpl<REALTYPE>::kPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kStateCount;
+	using BeagleCPUImpl<REALTYPE>::gTipStates;
+	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
+	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
     
 public:
     virtual ~BeagleCPU4StateSSEImpl();
@@ -85,6 +97,7 @@ private:
 
 };
 
+template <typename REALTYPE>
 class BeagleCPU4StateSSEImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,
@@ -107,5 +120,9 @@ public:
 
 }	// namespace cpu
 }	// namespace beagle
+
+// now include the file containing template function implementations
+#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.cpp"
+
 
 #endif // __BeagleCPU4StateSSEImpl__
