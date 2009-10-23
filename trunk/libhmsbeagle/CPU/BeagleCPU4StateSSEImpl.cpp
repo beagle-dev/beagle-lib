@@ -24,6 +24,10 @@
  * @author David Swofford
  */
 
+#ifndef BEAGLE_CPU_4STATE_SSE_IMPL_HPP
+#define BEAGLE_CPU_4STATE_SSE_IMPL_HPP
+
+
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
@@ -141,10 +145,12 @@ inline const char* getBeagleCPU4StateSSEName<double>(){ return "CPU-4State-SSE-D
 template<>
 inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Single"; };
 
-BeagleCPU4StateSSEImpl::~BeagleCPU4StateSSEImpl() {
+template <typename REALTYPE>
+BeagleCPU4StateSSEImpl<REALTYPE>::~BeagleCPU4StateSSEImpl() {
 }
 
-int BeagleCPU4StateSSEImpl::CPUSupportsSSE() {
+template <typename REALTYPE>
+int BeagleCPU4StateSSEImpl<REALTYPE>::CPUSupportsSSE() {
     //int a,b,c,d;
     //cpuid(0,a,b,c,d);
     //fprintf(stderr,"a = %d\nb = %d\nc = %d\nd = %d\n",a,b,c,d);
@@ -154,7 +160,8 @@ int BeagleCPU4StateSSEImpl::CPUSupportsSSE() {
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
-void BeagleCPU4StateSSEImpl::calcStatesStates(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesStates(double* destP,
                                      const int* states_q,
                                      const double* matrices_q,
                                      const int* states_r,
@@ -187,7 +194,8 @@ void BeagleCPU4StateSSEImpl::calcStatesStates(double* destP,
  * Calculates partial likelihoods at a node when one child has states and one has partials.
    SSE version
  */
-void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesPartials(double* destP,
                                        const int* states_q,
                                        const double* matrices_q,
                                        const double* partials_r,
@@ -228,7 +236,8 @@ void BeagleCPU4StateSSEImpl::calcStatesPartials(double* destP,
     }
 }
 
-void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
+template <typename REALTYPE>
+void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
                                                   const double*  partials_q,
                                                   const double*  matrices_q,
                                                   const double*  partials_r,
@@ -324,8 +333,8 @@ void BeagleCPU4StateSSEImpl::calcPartialsPartials(double* destP,
     }
 }
 
-
-void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
+template <typename REALTYPE>
+void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                                            const int childIndex,
                                            const int probIndex,
                                            const int firstDerivativeIndex,
@@ -436,19 +445,22 @@ void BeagleCPU4StateSSEImpl::calcEdgeLogLikelihoods(const int parIndex,
     }
 }
 
-int BeagleCPU4StateSSEImpl::getPaddedPatternsModulus() {
+template <typename REALTYPE>
+int BeagleCPU4StateSSEImpl<REALTYPE>::getPaddedPatternsModulus() {
 	return 2;  // For double-precision, can operate on 2 patterns at a time
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
 }
 
-const char* BeagleCPU4StateSSEImpl::getName() {
-	return getBeagleCPU4StateSSEName<double>();
+template <typename REALTYPE>
+const char* BeagleCPU4StateSSEImpl<REALTYPE>::getName() {
+	return getBeagleCPU4StateSSEName<REALTYPE>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
 
-BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
+template <typename REALTYPE>
+BeagleImpl* BeagleCPU4StateSSEImplFactory<REALTYPE>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -466,7 +478,8 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
         return NULL;
     }
     
-    BeagleCPU4StateSSEImpl* impl = new BeagleCPU4StateSSEImpl();
+    BeagleCPU4StateSSEImpl<REALTYPE>* impl =
+    		new BeagleCPU4StateSSEImpl<REALTYPE>();
     
     if (!impl->CPUSupportsSSE()) {
         delete impl;
@@ -491,11 +504,13 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory::createImpl(int tipCount,
     return NULL;
 }
 
-const char* BeagleCPU4StateSSEImplFactory::getName() {
-	return getBeagleCPU4StateSSEName<double>();
+template <typename REALTYPE>
+const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
+	return getBeagleCPU4StateSSEName<REALTYPE>();
 }
 
-const long BeagleCPU4StateSSEImplFactory::getFlags() {
+template <typename REALTYPE>
+const long BeagleCPU4StateSSEImplFactory<REALTYPE>::getFlags() {
     return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_SSE;
 }
 
@@ -503,3 +518,4 @@ const long BeagleCPU4StateSSEImplFactory::getFlags() {
 }
 }
 
+#endif //BEAGLE_CPU_4STATE_SSE_IMPL_HPP
