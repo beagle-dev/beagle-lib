@@ -419,7 +419,8 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 
 unsigned int GPUInterface::GetAvailableMemory() {
     unsigned int availableMem = 0;
-    SAFE_CUPP(cuMemGetInfo(&availableMem, NULL));
+    unsigned int totalMem = 0;
+    SAFE_CUPP(cuMemGetInfo(&availableMem, &totalMem));
     return availableMem;
 }
 
