@@ -63,7 +63,7 @@ protected:
 
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
-    
+
     long kFlags;
 
     EigenDecomposition<REALTYPE>* gEigenDecomposition;
@@ -231,6 +231,7 @@ public:
 
 	virtual const char* getName();
 
+	virtual const long getFlags();
 
 protected:
     virtual void calcStatesStates(REALTYPE* destP,
@@ -257,7 +258,7 @@ protected:
                                         const double* inStateFrequencies,
                                         const int scaleBufferIndex,
                                         double* outLogLikelihoods);
-    
+
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
@@ -295,7 +296,7 @@ protected:
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
-    
+
     virtual int getPaddedPatternsModulus();
 
 };

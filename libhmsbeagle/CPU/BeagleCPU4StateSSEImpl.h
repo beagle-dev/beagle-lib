@@ -52,18 +52,20 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
 	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
-    
+
 public:
     virtual ~BeagleCPU4StateSSEImpl();
-    
+
     int CPUSupportsSSE();
-    
+
     virtual const char* getName();
+    
+	virtual const long getFlags();
 
 protected:
     virtual int getPaddedPatternsModulus();
 
-private:    
+private:
 
 	virtual void calcStatesStates(double* destP,
                                      const int* states1,

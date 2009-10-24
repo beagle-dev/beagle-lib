@@ -104,6 +104,15 @@ inline const char* getBeagleCPUName<double>(){ return "CPU-Double"; };
 template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
+template<typename REALTYPE>
+inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU; };
+
+template<>
+inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE; };
+
+template<>
+inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SINGLE; };
+
 
 template <typename REALTYPE>
 BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
@@ -130,7 +139,7 @@ BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
 	}
     free(gPartials);
     free(gTipStates);
-    
+
     if (gScaleBuffers)
         free(gScaleBuffers);
 
@@ -182,9 +191,9 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 #else
     kMatrixSize = kStateCount * kStateCount;
 #endif
-    
+
     kFlags = 0;
-    
+
     if (requirementFlags & BEAGLE_FLAG_COMPLEX || preferenceFlags & BEAGLE_FLAG_COMPLEX)
     	kFlags |= BEAGLE_FLAG_COMPLEX;
 
@@ -260,15 +269,15 @@ const char* BeagleCPUImpl<REALTYPE>::getName() {
 }
 
 template <typename REALTYPE>
+const long BeagleCPUImpl<REALTYPE>::getFlags() {
+	return getBeagleCPUFlags<REALTYPE>();
+}
+
+template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
-        returnInfo->flags = BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
-        if (DOUBLE_PRECISION) {
-        	returnInfo->flags |= BEAGLE_FLAG_DOUBLE;
-        } else {
-        	returnInfo->flags |= BEAGLE_FLAG_SINGLE;
-        }
+        returnInfo->flags = getFlags();
         returnInfo->implName = (char*) getName();
     }
 
@@ -472,9 +481,9 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
             rescale = 0;
             scalingFactors = gScaleBuffers[readScalingIndex];
         }
-        
+
         if (DEBUGGING_OUTPUT) {
-            std::cerr << "Rescale= " << rescale << " writeIndex= " << writeScalingIndex 
+            std::cerr << "Rescale= " << rescale << " writeIndex= " << writeScalingIndex
                      << " readIndex = " << readScalingIndex << "\n";
         }
 
@@ -483,7 +492,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                 if (rescale == 0) { // Use fixed scaleFactors
                     calcStatesStatesFixedScaling(destPartials, tipStates1, matrices1, tipStates2, matrices2,
                                                  scalingFactors);
-                } else { 
+                } else {
                     // First compute without any scaling
                     calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);
                     if (rescale == 1) // Recompute scaleFactors
@@ -565,10 +574,10 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
         //              we need operation 1 and 3 in the preceding list.  This is not
         //              a problem, though as we deal with count == 1 in the previous
         //              branch.
-        
+
         int indexMaxScale;
 		std::vector<int> maxScaleFactor(kPatternCount);
-        
+
         for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
             const int rootPartialIndex = bufferIndices[subsetIndex];
             const REALTYPE* rootPartials = gPartials[rootPartialIndex];
@@ -600,7 +609,7 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
                     sum += ((REALTYPE)frequencies[i]) * integrationTmp[u];
                     u++;
                 }
-                
+
                 if (scaleBufferIndices != NULL) {
                     if (subsetIndex == 0) {
                         indexMaxScale = 0;
@@ -612,11 +621,11 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
                             }
                         }
                     }
-                    
+
                     if (subsetIndex != indexMaxScale)
                         sum *= exp((REALTYPE)(scaleBufferIndices[k] - maxScaleFactor[k]));
                 }
-                
+
                 if (subsetIndex == 0)
                     outLogLikelihoods[k] = sum;
                 else if (subsetIndex == count - 1)
@@ -625,7 +634,7 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
                     outLogLikelihoods[k] += sum;
             }
         }
-        
+
         if (scaleBufferIndices != NULL) {
             for(int i=0; i<kPatternCount; i++)
                 outLogLikelihoods[i] += maxScaleFactor[i];
@@ -672,7 +681,7 @@ void BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
         }
         outLogLikelihoods[k] = log(sum);   // take the log
     }
-    
+
     if (scalingFactorsIndex >= 0) {
     	const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scalingFactorsIndex];
     	for(int i=0; i<kPatternCount; i++)
@@ -684,14 +693,14 @@ template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::accumulateScaleFactors(const int* scalingIndices,
                                                 int  count,
                                                 int  cumulativeScalingIndex) {
-    
+
 	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
     for(int i=0; i<count; i++) {
         const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-        for(int j=0; j<kPatternCount; j++) 
+        for(int j=0; j<kPatternCount; j++)
             cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
     }
-    
+
     if (DEBUGGING_OUTPUT) {
         fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
         for(int j=0; j<kPatternCount; j++) {
@@ -708,10 +717,10 @@ int BeagleCPUImpl<REALTYPE>::removeScaleFactors(const int* scalingIndices,
 	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
     for(int i=0; i<count; i++) {
         const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-        for(int j=0; j<kPatternCount; j++) 
+        for(int j=0; j<kPatternCount; j++)
             cumulativeScaleBuffer[j] -= log(scaleBuffer[j]);
-    }    
-    
+    }
+
     return BEAGLE_SUCCESS;
 }
 
@@ -735,22 +744,22 @@ int BeagleCPUImpl<REALTYPE>::calculateEdgeLogLikelihoods(const int* parentBuffer
                                                double* outLogLikelihoods,
                                                double* outFirstDerivatives,
                                                double* outSecondDerivatives) {
-    // TODO: implement for count > 1 
-    
+    // TODO: implement for count > 1
+
     assert(count == 1);
     assert(firstDerivativeIndices == 0L);
     assert(secondDerivativeIndices == 0L);
     assert(outFirstDerivatives == 0L);
     assert(outSecondDerivatives == 0L);
-    
+
     if (count == 1) {
         calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], BEAGLE_OP_NONE, BEAGLE_OP_NONE, inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives, outSecondDerivatives);
     } else {
         fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
         return BEAGLE_ERROR_OUT_OF_RANGE;
     }
-        
-    return BEAGLE_SUCCESS;    
+
+    return BEAGLE_SUCCESS;
 }
 
 template <typename REALTYPE>
@@ -773,19 +782,19 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
     const REALTYPE* partialsParent = gPartials[parIndex];
     const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
     const double* wt = inWeights;
-        
+
     memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
-    
+
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
-        
-        const int* statesChild = gTipStates[childIndex];    
+
+        const int* statesChild = gTipStates[childIndex];
         int v = 0; // Index for parent partials
-        
+
         for(int l = 0; l < kCategoryCount; l++) {
             int u = 0; // Index in resulting product-partials (summed over categories)
             const REALTYPE weight = wt[l];
             for(int k = 0; k < kPatternCount; k++) {
-                
+
                 const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
                                                         // so we can interchange the patterCount and categoryCount loop order?
                 int w =  l * kMatrixSize;
@@ -801,17 +810,17 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                 v += kStateCount;
             }
         }
-        
+
     } else { // Integrate against a partial at the child
-        
+
         const REALTYPE* partialsChild = gPartials[childIndex];
         int v = 0;
-        
+
         for(int l = 0; l < kCategoryCount; l++) {
             int u = 0;
             const REALTYPE weight = wt[l];
-            for(int k = 0; k < kPatternCount; k++) {                
-                int w = l * kMatrixSize;                 
+            for(int k = 0; k < kPatternCount; k++) {
+                int w = l * kMatrixSize;
                 for(int i = 0; i < kStateCount; i++) {
                     double sumOverJ = 0.0;
                     for(int j = 0; j < kStateCount; j++) {
@@ -829,7 +838,7 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
             }
         }
     }
-        
+
     int u = 0;
     for(int k = 0; k < kPatternCount; k++) {
     	REALTYPE sumOverI = 0.0;
@@ -838,9 +847,9 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
             u++;
         }
         outLogLikelihoods[k] = log(sumOverI);
-    }        
+    }
 
-    
+
     if (scalingFactorsIndex != BEAGLE_OP_NONE) {
         const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
         for(int k=0; k < kPatternCount; k++)
@@ -870,7 +879,7 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
         for(int i=0; i<kPartialsSize; i++)
             fprintf(stderr,"destP[%d] = %.5f\n",i,destP[i]);
     }
-    
+
     if (kStateCount == 4 && fillWithOnes != 0) {
 //        if (ones == NULL) {
 //            ones = (double*) malloc(sizeof(double) * kPatternCount);
@@ -1144,7 +1153,7 @@ BeagleImpl* BeagleCPUImplFactory<REALTYPE>::createImpl(int tipCount,
     BeagleImpl* impl = new BeagleCPUImpl<REALTYPE>();
 
     try {
-        *errorCode = 
+        *errorCode =
             impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
                                  categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags);
