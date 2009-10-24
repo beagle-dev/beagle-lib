@@ -84,7 +84,7 @@ typedef union 			/* for copying individual elements to and from vector floats */
 #ifdef __GNUC__
     #define cpuid(func,ax,bx,cx,dx)\
             __asm__ __volatile__ ("cpuid":\
-            "=a" (ax), "=b" (bx), "=c" (cx), "=d" (dx) : "a" (func)); 
+            "=a" (ax), "=b" (bx), "=c" (cx), "=d" (dx) : "a" (func));
 #endif
 
 #ifdef _WIN32
@@ -144,6 +144,15 @@ inline const char* getBeagleCPU4StateSSEName<double>(){ return "CPU-4State-SSE-D
 
 template<>
 inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Single"; };
+
+template<typename REALTYPE>
+inline const long getBeagleCPU4StateSSEFlags(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE; };
+
+template<>
+inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE | BEAGLE_FLAG_DOUBLE; };
+
+template<>
+inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE | BEAGLE_FLAG_SINGLE; };
 
 template <typename REALTYPE>
 BeagleCPU4StateSSEImpl<REALTYPE>::~BeagleCPU4StateSSEImpl() {
@@ -245,7 +254,7 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 
     int v = 0;
     int w = 0;
-    
+
     V_Real	destq_01, destq_23, destr_01, destr_23;
  	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
@@ -254,7 +263,7 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 
 		/* Load transition-probability matrices into vectors */
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
-		
+
         for (int k = 0; k < kPatternCount; k++) {
 
         	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
@@ -265,7 +274,7 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 
 #			if 1	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
 			           vector instruction */
-			
+
 			destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
 			destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
 			destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
@@ -282,13 +291,13 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 			destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
 			destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
 			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
-			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);			
-			
+			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
 #			else	/* SSE doesn't have a fused multiply-add, so a slight speed gain should be
                        achieved by decoupling these operations to avoid dependency stalls */
 
 			V_Real a, b, c, d;
-			
+
 			a = VEC_MULT(vpq_0, vu_mq[0][0].vx);
 			b = VEC_MULT(vpq_2, vu_mq[2][0].vx);
 			c = VEC_MULT(vpq_0, vu_mq[0][1].vx);
@@ -299,7 +308,7 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 			d = VEC_MADD(vpq_3, vu_mq[3][1].vx, d);
 			destq_01 = VEC_ADD(a, b);
 			destq_23 = VEC_ADD(c, d);
-			
+
 			a = VEC_MULT(vpr_0, vu_mr[0][0].vx);
 			b = VEC_MULT(vpr_2, vu_mr[2][0].vx);
 			c = VEC_MULT(vpr_0, vu_mr[0][1].vx);
@@ -326,7 +335,7 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
 			VEC_STORE(destP + v + 2,VEC_MULT(destq_23, destr_23));
 
 #			endif
-			
+
             v += 4;
         }
         w += OFFSET*4;
@@ -355,12 +364,12 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
     const double* wt = inWeights;
 
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
-    
+
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
-        
-        const int* statesChild = gTipStates[childIndex];    
+
+        const int* statesChild = gTipStates[childIndex];
         int v = 0; // Index for parent partials
-        
+
 		int w = 0;
 		V_Real *vcl_r = (V_Real *)cl_r;
 		for(int l = 0; l < kCategoryCount; l++) {
@@ -370,27 +379,27 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
  			SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
 
            V_Real *vcl_p = (V_Real *)cl_p;
-           
+
            for(int k = 0; k < kPatternCount; k++) {
-                
+
                 const int stateChild = statesChild[k];
 				V_Real vwt = VEC_SPLAT(wt[l]);
-               
+
 				V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
                 *vcl_p++ = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
-                
+
 				wtdPartials = VEC_MULT(*vcl_r++, vwt);
                 *vcl_p++ = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
             }
         w += OFFSET*4;
         }
     } else { // Integrate against a partial at the child
-        
+
         const double* cl_q = gPartials[childIndex];
         V_Real * vcl_r = (V_Real *)cl_r;
         int v = 0;
         int w = 0;
-        
+
         for(int l = 0; l < kCategoryCount; l++) {
 
 	        V_Real * vcl_p = (V_Real *)cl_p;
@@ -400,10 +409,10 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
 
             int u = 0;
             const double weight = wt[l];
-            for(int k = 0; k < kPatternCount; k++) {                
+            for(int k = 0; k < kPatternCount; k++) {
                 V_Real vclp_01, vclp_23;
 				V_Real vwt = VEC_SPLAT(wt[l]);
-                
+
 				V_Real vcl_q0, vcl_q1, vcl_q2, vcl_q3;
 				SSE_PREFETCH_PARTIALS(vcl_q,cl_q,v);
 
@@ -417,16 +426,16 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
 				vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
 				vclp_01 = VEC_MULT(vclp_01, vwt);
 				vclp_23 = VEC_MULT(vclp_23, vwt);
-	
+
 				*vcl_p++ = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
-				*vcl_p++ = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);                
-                
+				*vcl_p++ = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+
                 v += 4;
             }
             w += 4*OFFSET;
         }
     }
-        
+
     int u = 0;
     for(int k = 0; k < kPatternCount; k++) {
         double sumOverI = 0.0;
@@ -435,9 +444,9 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
             u++;
         }
         outLogLikelihoods[k] = log(sumOverI);
-    }        
+    }
 
-    
+
     if (scalingFactorsIndex != BEAGLE_OP_NONE) {
         const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
         for(int k=0; k < kPatternCount; k++)
@@ -455,6 +464,13 @@ template <typename REALTYPE>
 const char* BeagleCPU4StateSSEImpl<REALTYPE>::getName() {
 	return getBeagleCPU4StateSSEName<REALTYPE>();
 }
+
+template <typename REALTYPE>
+const long BeagleCPU4StateSSEImpl<REALTYPE>::getFlags() {
+	return getBeagleCPU4StateSSEFlags<REALTYPE>();
+}
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
@@ -477,13 +493,13 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory<REALTYPE>::createImpl(int tipCount,
     if (stateCount != 4) {
         return NULL;
     }
-    
+
     BeagleCPU4StateSSEImpl<REALTYPE>* impl =
     		new BeagleCPU4StateSSEImpl<REALTYPE>();
-    
+
     if (!impl->CPUSupportsSSE()) {
         delete impl;
-        return NULL;            
+        return NULL;
     }
 
     try {
