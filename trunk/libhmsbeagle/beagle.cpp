@@ -94,6 +94,7 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>());
 	}
 	return implFactory;
 }

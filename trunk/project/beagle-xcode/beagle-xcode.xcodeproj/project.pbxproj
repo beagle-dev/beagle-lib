@@ -32,15 +32,15 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		33CE76DF10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E010669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E110669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E210669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E310669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E410669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E510669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E610669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
-		33CE76E710669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */; };
+		33CE76DF10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E010669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E110669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E210669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E310669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E410669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E510669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E610669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
+		33CE76E710669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */; };
 		33CE770410669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */; };
 		33CE770510669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */; };
 		33CE770610669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */; };
@@ -211,7 +211,7 @@
 
 /* Begin PBXFileReference section */
 		33CE76DD1066929700CBF579 /* BeagleCPU4StateSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateSSEImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h; sourceTree = SOURCE_ROOT; };
-		33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateSSEImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.cpp; sourceTree = SOURCE_ROOT; };
+		33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPU4StateSSEImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.hpp; sourceTree = SOURCE_ROOT; };
 		33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateGCDImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.cpp; sourceTree = SOURCE_ROOT; };
 		33CE770310669F4C00CBF579 /* BeagleCPU4StateGCDImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateGCDImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.h; sourceTree = SOURCE_ROOT; };
 		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp; sourceTree = SOURCE_ROOT; };
@@ -235,9 +235,9 @@
 		6474F592101F90D200A1A469 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; explicitFileType = sourcecode.opencl; fileEncoding = 4; name = BeagleOpenCL_kernels.cl; path = ../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = SOURCE_ROOT; };
-		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsX.cu; sourceTree = SOURCE_ROOT; };
-		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsAll.cu; sourceTree = SOURCE_ROOT; };
-		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; explicitFileType = sourcecode.cuda; fileEncoding = 4; name = kernels4.cu; path = ../../libhmsbeagle/GPU/kernels/kernels4.cu; sourceTree = SOURCE_ROOT; };
+		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsX.cu; sourceTree = SOURCE_ROOT; };
+		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsAll.cu; sourceTree = SOURCE_ROOT; };
+		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = ../../libhmsbeagle/GPU/kernels/kernels4.cu; sourceTree = SOURCE_ROOT; };
 		64835E1A10559B4B00561CFA /* KernelResource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelResource.h; path = ../../libhmsbeagle/GPU/KernelResource.h; sourceTree = SOURCE_ROOT; };
 		64835E1B10559B4B00561CFA /* KernelResource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelResource.cpp; path = ../../libhmsbeagle/GPU/KernelResource.cpp; sourceTree = SOURCE_ROOT; };
 		648DE27C102486F80022E549 /* BeagleCPU4StateImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPU4StateImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.hpp; sourceTree = SOURCE_ROOT; };
@@ -247,7 +247,7 @@
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
 		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
@@ -358,7 +358,7 @@
 		33CE76B3106690F300CBF579 /* CPU 4State SSE Impl */ = {
 			isa = PBXGroup;
 			children = (
-				33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp */,
+				33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */,
 				33CE76DD1066929700CBF579 /* BeagleCPU4StateSSEImpl.h */,
 			);
 			name = "CPU 4State SSE Impl";
@@ -500,7 +500,7 @@
 				646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */,
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
-				64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */,
+				64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
 				64C0EB441034BC820004734E /* genomicTestOpenCLXcode */,
 			);
 			name = Products;
@@ -626,7 +626,7 @@
 			);
 			name = fourTaxonOpenCLXcode;
 			productName = tinyTestGPUXcode;
-			productReference = 64D10A621033B8F4009EC5FB /* tinyTestCUDAXcode */;
+			productReference = 64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */;
 			productType = "com.apple.product-type.tool";
 		};
 		64EC49D80FE9BD0B006841E3 /* genomicTestCPUXcode */ = {
@@ -737,7 +737,7 @@
 				643430E50FD2CE1200AFC69E /* BeagleCPUImpl.hpp in Sources */,
 				643430E40FD2CDA100AFC69E /* fourtaxon.cpp in Sources */,
 				648DE27F102486F80022E549 /* BeagleCPU4StateImpl.hpp in Sources */,
-				33CE76DF10669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76DF10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770410669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670BC10751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670BD10751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -757,7 +757,7 @@
 				644D3F7B0FFEE53200774CDD /* GPUInterfaceCUDA.cpp in Sources */,
 				6420678E102623AC004AB87A /* tinytest.cpp in Sources */,
 				64835E1E10559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E210669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E210669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770710669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670B810751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670B910751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -777,7 +777,7 @@
 				646F6E8F10019AA10085DDB1 /* KernelLauncher.cpp in Sources */,
 				646F6E9010019AA10085DDB1 /* GPUInterfaceCUDA.cpp in Sources */,
 				64835E1D10559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E310669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E310669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770810669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670C010751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670C110751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -797,7 +797,7 @@
 				646F6ED210019C510085DDB1 /* KernelLauncher.cpp in Sources */,
 				646F6ED310019C510085DDB1 /* GPUInterfaceCUDA.cpp in Sources */,
 				64835E1C10559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E410669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E410669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770910669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670C210751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670C310751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -817,7 +817,7 @@
 				6474F5C7101F91BC00A1A469 /* GPUInterfaceOpenCL.cpp in Sources */,
 				6420678F102623AC004AB87A /* tinytest.cpp in Sources */,
 				64835E2010559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E510669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E510669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770A10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670C410751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670C510751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -837,7 +837,7 @@
 				64C0EB3D1034BC820004734E /* GPUInterfaceOpenCL.cpp in Sources */,
 				64C0EB461034BCC30004734E /* genomictest.cpp in Sources */,
 				64835E1F10559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E710669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E710669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770C10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670C810751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670C910751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -857,7 +857,7 @@
 				64D10A5B1033B8F4009EC5FB /* GPUInterfaceOpenCL.cpp in Sources */,
 				64D10A9C1033BEFB009EC5FB /* fourtaxon.cpp in Sources */,
 				64835E2110559B4B00561CFA /* KernelResource.cpp in Sources */,
-				33CE76E610669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E610669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770B10669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670C610751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670C710751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -872,7 +872,7 @@
 				64EC49DB0FE9BD0B006841E3 /* beagle.cpp in Sources */,
 				64EC49DC0FE9BD0B006841E3 /* BeagleCPUImpl.hpp in Sources */,
 				648DE27E102486F80022E549 /* BeagleCPU4StateImpl.hpp in Sources */,
-				33CE76E110669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E110669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770610669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670BE10751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670BF10751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
@@ -887,7 +887,7 @@
 				64F21C780FD2C10300678D0B /* BeagleCPUImpl.hpp in Sources */,
 				648DE280102486F80022E549 /* BeagleCPU4StateImpl.hpp in Sources */,
 				64206790102623AC004AB87A /* tinytest.cpp in Sources */,
-				33CE76E010669B1800CBF579 /* BeagleCPU4StateSSEImpl.cpp in Sources */,
+				33CE76E010669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp in Sources */,
 				33CE770510669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 				645670BA10751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */,
 				645670BB10751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */,
