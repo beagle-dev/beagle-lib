@@ -67,23 +67,23 @@ protected:
 
 private:
 
-	virtual void calcStatesStates(double* destP,
+	virtual void calcStatesStates(REALTYPE* destP,
                                      const int* states1,
-                                     const double* matrices1,
+                                     const REALTYPE* matrices1,
                                      const int* states2,
-                                     const double* matrices2);
+                                     const REALTYPE* matrices2);
 
-    virtual void calcStatesPartials(double* destP,
+    virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
-                                    const double* matrices1,
-                                    const double* partials2,
-                                    const double* matrices2);
+                                    const REALTYPE* matrices1,
+                                    const REALTYPE* partials2,
+                                    const REALTYPE* matrices2);
 
-    virtual void calcPartialsPartials(double* __restrict destP,
-                                      const double* __restrict partials1,
-                                      const double* __restrict matrices1,
-                                      const double* __restrict partials2,
-                                      const double* __restrict matrices2);
+    virtual void calcPartialsPartials(REALTYPE* __restrict destP,
+                                      const REALTYPE* __restrict partials1,
+                                      const REALTYPE* __restrict matrices1,
+                                      const REALTYPE* __restrict partials2,
+                                      const REALTYPE* __restrict matrices2);
 
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
@@ -124,7 +124,7 @@ public:
 }	// namespace beagle
 
 // now include the file containing template function implementations
-#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.cpp"
+#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.hpp"
 
 
 #endif // __BeagleCPU4StateSSEImpl__

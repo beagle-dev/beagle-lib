@@ -169,8 +169,25 @@ int BeagleCPU4StateSSEImpl<REALTYPE>::CPUSupportsSSE() {
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
-template <typename REALTYPE>
-void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesStates(double* destP,
+ 
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcStatesStates(float* destP,
+                                     const int* states_q,
+                                     const float* matrices_q,
+                                     const int* states_r,
+                                     const float* matrices_r) { 
+									 
+									 BeagleCPU4StateImpl<float>::calcStatesStates(destP,
+                                     states_q,
+                                     matrices_q,
+                                     states_r,
+                                     matrices_r);
+									 
+									 }
+									 
+ 
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcStatesStates(double* destP,
                                      const int* states_q,
                                      const double* matrices_q,
                                      const int* states_r,
@@ -203,8 +220,24 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesStates(double* destP,
  * Calculates partial likelihoods at a node when one child has states and one has partials.
    SSE version
  */
-template <typename REALTYPE>
-void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesPartials(double* destP,
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcStatesPartials(float* destP,
+                                       const int* states_q,
+                                       const float* matrices_q,
+                                       const float* partials_r,
+                                       const float* matrices_r) {
+	BeagleCPU4StateImpl<float>::calcStatesPartials(
+									   destP,
+									   states_q,
+									   matrices_q,
+									   partials_r,
+									   matrices_r);									   
+}
+									   
+									   
+									   
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcStatesPartials(double* destP,
                                        const int* states_q,
                                        const double* matrices_q,
                                        const double* partials_r,
@@ -245,8 +278,21 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcStatesPartials(double* destP,
     }
 }
 
-template <typename REALTYPE>
-void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcPartialsPartials(float* destP,
+                                                  const float*  partials_q,
+                                                  const float*  matrices_q,
+                                                  const float*  partials_r,
+                                                  const float*  matrices_r) {
+												  BeagleCPU4StateImpl<float>::calcPartialsPartials(destP,
+                                                  partials_q,
+                                                  matrices_q,
+                                                  partials_r,
+                                                  matrices_r);
+												  }
+
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
                                                   const double*  partials_q,
                                                   const double*  matrices_q,
                                                   const double*  partials_r,
@@ -342,8 +388,34 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcPartialsPartials(double* destP,
     }
 }
 
-template <typename REALTYPE>
-void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
+                                           const int childIndex,
+                                           const int probIndex,
+                                           const int firstDerivativeIndex,
+                                           const int secondDerivativeIndex,
+                                           const double* inWeights,
+                                           const double* inStateFrequencies,
+                                           const int scalingFactorsIndex,
+                                           double* outLogLikelihoods,
+                                           double* outFirstDerivatives,
+                                           double* outSecondDerivatives) {
+	BeagleCPU4StateImpl<float>::calcEdgeLogLikelihoods(
+	parIndex,
+	childIndex,
+	probIndex,
+    firstDerivativeIndex,
+    secondDerivativeIndex,
+	inWeights,
+	inStateFrequencies,
+	scalingFactorsIndex,
+	outLogLikelihoods,
+	outFirstDerivatives,
+	outSecondDerivatives);
+}										   
+
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
                                            const int childIndex,
                                            const int probIndex,
                                            const int firstDerivativeIndex,
@@ -453,11 +525,24 @@ void BeagleCPU4StateSSEImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex
             outLogLikelihoods[k] += scalingFactors[k];
     }
 }
-
+#if 0
 template <typename REALTYPE>
 int BeagleCPU4StateSSEImpl<REALTYPE>::getPaddedPatternsModulus() {
-	return 2;  // For double-precision, can operate on 2 patterns at a time
+// Should instead throw an exception for unhandled type
+	return 1;
+}
+#endif
+
+template <>
+int BeagleCPU4StateSSEImpl<double>::getPaddedPatternsModulus() {
+//	return 2;  // For double-precision, can operate on 2 patterns at a time
+	return 1;  // For double-precision, can operate on 2 patterns at a time	//TEMP
+}
+
+template <>
+int BeagleCPU4StateSSEImpl<float>::getPaddedPatternsModulus() {
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
+	return 1;  // For single-precision, can operate on 4 patterns at a time  BUT IT'S BROKEN
 }
 
 template <typename REALTYPE>
@@ -525,9 +610,14 @@ const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
 	return getBeagleCPU4StateSSEName<REALTYPE>();
 }
 
-template <typename REALTYPE>
-const long BeagleCPU4StateSSEImplFactory<REALTYPE>::getFlags() {
+template <>
+const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_SSE;
+}
+
+template <>
+const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
+    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_SSE;
 }
 
 

@@ -51,6 +51,7 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::integrationTmp;
 	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
 	using BeagleCPUImpl<REALTYPE>::kPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kPaddedPatternCount;
 	using BeagleCPUImpl<REALTYPE>::kStateCount;
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
@@ -60,7 +61,7 @@ public:
     virtual ~BeagleCPU4StateImpl();
     virtual const char* getName();
 
-protected:
+
     virtual void calcStatesStates(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
