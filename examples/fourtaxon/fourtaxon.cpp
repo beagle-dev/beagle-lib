@@ -4,7 +4,7 @@
 #include <numeric>	// needed for accumulate algorithm
 #include <cmath>
 #include <cstdlib>
-#include "fourtaxon.hpp"
+#include "fourtaxon.h"
 
 /*-----------------------------------------------------------------------------
 | 	Allocates a two-dimensional array of doubles as one contiguous block of
@@ -93,6 +93,7 @@ FourTaxonExample::FourTaxonExample()
   , do_rescaling(false)
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
+  , single(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -277,6 +278,12 @@ void FourTaxonExample::initBeagleLib()
 		rsrcList[0] = rsrc_number;
 		rsrcCnt = 1;
 	}
+        
+    long requirementFlags = 0;
+    if (single) {
+        requirementFlags |= BEAGLE_FLAG_SINGLE;
+    }
+        
 
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
@@ -290,8 +297,8 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				BEAGLE_FLAG_SSE,	// preferenceFlags
-				0L			// requirementFlags
+				BEAGLE_FLAG_SSE,         // preferenceFlags
+				requirementFlags			// requirementFlags
 				);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
@@ -710,7 +717,7 @@ void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
 	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]";
-	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>]\n\n";
+	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";
@@ -731,6 +738,7 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
     std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
+    std::cerr <<" If --single is specified, then run in single precision mode\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -805,6 +813,10 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			quiet = true;
 			}
+        else if (option == "--single")
+            {
+            single = true;
+            }
 		else if (option == "--likeroot")
 			{
 			expecting_likerootnode = true;

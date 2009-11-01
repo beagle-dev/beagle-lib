@@ -181,6 +181,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     if (remainder != 0) {
     	kPaddedPatternCount += getPaddedPatternsModulus() - remainder;
     }
+    kExtraPatterns = kPaddedPatternCount - kPatternCount;
 
     kMatrixCount = matrixCount;
     kEigenDecompCount = eigenDecompositionCount;
@@ -312,11 +313,14 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
     if (gPartials[tipIndex] == 0L)
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     int singlePartialsSize = kPatternCount * kStateCount;
+    REALTYPE *partials = gPartials[tipIndex];
     for (int i = 0; i < kCategoryCount; i++) {
-    	REALTYPE *partials = gPartials[tipIndex] + i * singlePartialsSize;
     	beagleMemCpy(partials, inPartials, singlePartialsSize);
-    	for (int k = kPatternCount; k < kPaddedPatternCount; k++)
-    		partials[k] = 0;
+    	partials += singlePartialsSize;
+    	// Pad extra buffer with zeros
+    	for(int k = 0; k < kStateCount * (kPaddedPatternCount - kPatternCount); k++) {
+    		*partials++ = 0;
+    	}
     }
 
     return BEAGLE_SUCCESS;
@@ -886,7 +890,7 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
 //                for(int i = 0; i < kPatternCount; i++)
 //                    ones[i] = 1.0;
 //        }
-        memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPatternCount);
+        memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPaddedPatternCount);
         // No accumulation necessary as cumulativeScaleFactors are on the log-scale
         if (DEBUGGING_OUTPUT)
             fprintf(stderr,"Ones copied!\n");
@@ -898,7 +902,7 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
     	REALTYPE max = 0;
         const int patternOffset = k * kStateCount;
         for (int l = 0; l < kCategoryCount; l++) {
-            int offset = l * kPatternCount * kStateCount + patternOffset;
+            int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
             for (int i = 0; i < kStateCount; i++) {
                 if(destP[offset] > max)
                     max = destP[offset];
@@ -906,7 +910,7 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
             }
         }
         for (int l = 0; l < kCategoryCount; l++) {
-            int offset = l * kPatternCount * kStateCount + patternOffset;
+            int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
             for (int i = 0; i < kStateCount; i++)
                 destP[offset++] /= max;
         }
