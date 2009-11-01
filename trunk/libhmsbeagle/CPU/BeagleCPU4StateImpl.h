@@ -52,6 +52,7 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
 	using BeagleCPUImpl<REALTYPE>::kPatternCount;
 	using BeagleCPUImpl<REALTYPE>::kPaddedPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kExtraPatterns;
 	using BeagleCPUImpl<REALTYPE>::kStateCount;
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;

@@ -213,6 +213,8 @@ void BeagleCPU4StateSSEImpl<double>::calcStatesStates(double* destP,
         }
 
         w += OFFSET*4;
+        if (kExtraPatterns)
+        	destPvec += kExtraPatterns * 2;
     }
 }
 
@@ -275,6 +277,10 @@ void BeagleCPU4StateSSEImpl<double>::calcStatesPartials(double* destP,
             v += 4;
         }
         w += OFFSET*4;
+        if (kExtraPatterns) {
+        	destPvec += kExtraPatterns * 2;
+        	v += kExtraPatterns * 4;
+        }
     }
 }
 
@@ -385,6 +391,10 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
             v += 4;
         }
         w += OFFSET*4;
+        if (kExtraPatterns) {
+        	destPvec += kExtraPatterns * 2;
+        	v += kExtraPatterns * 4;
+        }
     }
 }
 
@@ -463,7 +473,8 @@ void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
 				wtdPartials = VEC_MULT(*vcl_r++, vwt);
                 *vcl_p++ = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
             }
-        w += OFFSET*4;
+           w += OFFSET*4;
+           vcl_r += 2 * kExtraPatterns;
         }
     } else { // Integrate against a partial at the child
 
@@ -505,6 +516,11 @@ void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
                 v += 4;
             }
             w += 4*OFFSET;
+            if (kExtraPatterns) {
+            	vcl_r += 2 * kExtraPatterns;
+            	v += 4 * kExtraPatterns;
+            }
+
         }
     }
 
@@ -536,13 +552,14 @@ int BeagleCPU4StateSSEImpl<REALTYPE>::getPaddedPatternsModulus() {
 template <>
 int BeagleCPU4StateSSEImpl<double>::getPaddedPatternsModulus() {
 //	return 2;  // For double-precision, can operate on 2 patterns at a time
-	return 1;  // For double-precision, can operate on 2 patterns at a time	//TEMP
+	return 1;  // We currently do not vectorize across patterns
 }
 
 template <>
 int BeagleCPU4StateSSEImpl<float>::getPaddedPatternsModulus() {
+	return 1;  // For single-precision, can operate on 4 patterns at a time
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
-	return 1;  // For single-precision, can operate on 4 patterns at a time  BUT IT'S BROKEN
+	// TODO Vectorize final log operations over patterns
 }
 
 template <typename REALTYPE>

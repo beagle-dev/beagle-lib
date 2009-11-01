@@ -55,6 +55,7 @@ protected:
     ///   (we don't really need this field, but it is handy)
     int kPatternCount; /// the number of data patterns in each partial and tipStates element
     int kPaddedPatternCount; /// the number of data patterns padded to be a multiple of 2 or 4
+    int kExtraPatterns; /// kPaddedPatternCount - kPatternCount
     int kMatrixCount; /// the number of transition matrices to alloc and store
     int kStateCount; /// the number of states
     int kEigenDecompCount; /// the number of eigen solutions to alloc and store

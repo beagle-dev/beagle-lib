@@ -312,7 +312,7 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
             destP[u + 2] = sum12 * sum22;
             destP[u + 3] = sum13 * sum23;
 
-	    u += 4;
+            u += 4;
 
         }
     }
@@ -431,7 +431,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                 v += 4;                
             }
             w += OFFSET*4;
-			v += 4 * (kPaddedPatternCount - kPatternCount);
+            if (kExtraPatterns)
+            	v += 4 * kExtraPatterns;
         }
         
     } else { // Integrate against a partial at the child
@@ -468,7 +469,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
             } 
             w += OFFSET*4;
 			#if 0//
-			v += 4 * (kPaddedPatternCount - kPatternCount);
+            if (kExtraPatterns)
+            	v += 4 * kExtraPatterns;
 			#endif//
         }
     }
@@ -509,7 +511,7 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex
             u += 4;
             v += 4;
         }
-		v += 4 * (kPaddedPatternCount - kPatternCount);
+		v += 4 * kExtraPatterns;
     }
     
     integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);

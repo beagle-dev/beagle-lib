@@ -40,6 +40,7 @@ class FourTaxonExample
 		unsigned 					transmat_index;
 		std::string					data_file_name;
         bool                        scaling;
+        bool                        single;
 		const unsigned 				ntaxa;
 		unsigned 					nsites;
         unsigned                    nrates;
