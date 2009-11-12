@@ -91,7 +91,6 @@ void runBeagle(int resource,
     }
         
     int rNumber = instDetails.resourceNumber;
-    BeagleResourceList* rList = beagleGetResourceList();
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);

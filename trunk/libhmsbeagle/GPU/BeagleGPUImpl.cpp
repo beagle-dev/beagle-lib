@@ -410,7 +410,7 @@ int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
             returnInfo->flags |= BEAGLE_FLAG_LSCALER;
         if (kFlags & BEAGLE_FLAG_COMPLEX)
         	returnInfo->flags |= BEAGLE_FLAG_COMPLEX;
-        returnInfo->implName = "CUDA";
+        returnInfo->implName = (char*) "CUDA";
     }
     return BEAGLE_SUCCESS;
 }
