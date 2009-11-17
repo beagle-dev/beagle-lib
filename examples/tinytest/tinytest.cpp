@@ -115,6 +115,7 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\n");    
     
     bool scaling = true;
+	bool gRates = false; // generalized rate categories, separate root buffers
     
     // is nucleotides...
     int stateCount = 4;
@@ -123,19 +124,22 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human);
     
     int rateCategoryCount = 4;
-    
+	
+	int nRateCats = (gRates ? 1 : rateCategoryCount);
+	int nRootCount = (!gRates ? 1 : rateCategoryCount);
+	int nPartBuffs = 4 + nRootCount;
     int scaleCount = (scaling ? 3 : 0);
     
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
-                                  5,	            /**< Number of partials buffers to create (input) */
+                                  nPartBuffs,       /**< Number of partials buffers to create (input) */
                                   0,		        /**< Number of compact state representation buffers to create (input) */
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                                   4,		        /**< Number of rate matrix buffers (input) */
-                                  rateCategoryCount,/**< Number of rate categories (input) */
+								  nRateCats,		/**< Number of rate categories (input) */
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
@@ -198,10 +202,12 @@ int main( int argc, const char* argv[] )
 //    }
 	double rates[4] = { 0.03338775, 0.25191592, 0.82026848, 2.89442785 };
     
-	beagleSetCategoryRates(instance, &rates[0]);
 	
     // create base frequency array
-	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+	double freqs[16] = { 0.25, 0.25, 0.25, 0.25,
+						 0.25, 0.25, 0.25, 0.25,
+						 0.25, 0.25, 0.25, 0.25,
+		                 0.25, 0.25, 0.25, 0.25 };
     
     // create an array containing site category weights
 #ifdef _WIN32
@@ -236,31 +242,37 @@ int main( int argc, const char* argv[] )
     // a list of indices and edge lengths
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
-    
-    // tell BEAGLE to populate the transition matrices for the above edge lengths
-	beagleUpdateTransitionMatrices(instance,     // instance
-	                         0,             // eigenIndex
-	                         nodeIndices,   // probabilityIndices
-	                         NULL,          // firstDerivativeIndices
-	                         NULL,          // secondDervativeIndices
-	                         edgeLengths,   // edgeLengths
-	                         4);            // count
-    
-    // create a list of partial likelihood update operations
-    // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int operations[BEAGLE_OP_COUNT * 2] = {
-		3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
-		4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
-	};
-	int rootIndex = 4;
-    
-    // update the partials
-	beagleUpdatePartials(&instance,      // instance
-                   1,              // instanceCount
-                   operations,     // eigenIndex
-                   2,              // operationCount
-                   BEAGLE_OP_NONE);          // cumulative scaling index
-    
+	
+	int rootIndex[4] = { 4, 5, 6, 7 };
+	
+	for (int i = 0; i < nRootCount; i++) {
+		beagleSetCategoryRates(instance, &rates[i]);
+		
+		// tell BEAGLE to populate the transition matrices for the above edge lengths
+		beagleUpdateTransitionMatrices(instance,     // instance
+								 0,             // eigenIndex
+								 nodeIndices,   // probabilityIndices
+								 NULL,          // firstDerivativeIndices
+								 NULL,          // secondDervativeIndices
+								 edgeLengths,   // edgeLengths
+								 4);            // count
+		
+		// create a list of partial likelihood update operations
+		// the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+		int operations[BEAGLE_OP_COUNT * 2] = {
+			3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
+			4+i, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
+		};
+		
+		
+		// update the partials
+		beagleUpdatePartials(&instance,      // instance
+					   1,              // instanceCount
+					   operations,     // eigenIndex
+					   2,              // operationCount
+					   BEAGLE_OP_NONE);          // cumulative scaling index
+	}
+		 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
     int cumulativeScalingIndex = (scaling ? 2 : BEAGLE_OP_NONE);
@@ -280,11 +292,11 @@ int main( int argc, const char* argv[] )
     
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
-	                            (const int *)&rootIndex,// bufferIndices
-	                            &weights[0],                // weights
+	                            (const int *)rootIndex,// bufferIndices
+	                            weights,                // weights
 	                            freqs,                  // stateFrequencies
-                                &cumulativeScalingIndex,// cumulative scaling index
-	                            1,                      // count
+							    (gRates ? NULL : &cumulativeScalingIndex),// cumulative scaling index
+	                            nRootCount,                      // count
 	                            patternLogLik);         // outLogLikelihoods
     
 	double logL = 0.0;

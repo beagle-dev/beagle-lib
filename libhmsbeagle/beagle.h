@@ -165,7 +165,7 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param patternCount          Number of site patterns to be handled by the instance (input)
  * @param eigenBufferCount      Number of rate matrix eigen-decomposition buffers to allocate
  *                               (input)
- * @param matrixBufferCount     Number of transition probabilitys matrix buffers (input)
+ * @param matrixBufferCount     Number of transition probability matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
  * @param scaleBufferCount		Number of scale buffers to create (input)
  * @param resourceList          List of potential resources on which this instance is allowed
