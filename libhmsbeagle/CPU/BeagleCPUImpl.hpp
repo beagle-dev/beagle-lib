@@ -579,8 +579,8 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
         //              a problem, though as we deal with count == 1 in the previous
         //              branch.
 
-        int indexMaxScale;
-		std::vector<int> maxScaleFactor(kPatternCount);
+		std::vector<int> indexMaxScale(kPatternCount);
+		std::vector<REALTYPE> maxScaleFactor(kPatternCount);
 
         for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
             const int rootPartialIndex = bufferIndices[subsetIndex];
@@ -615,20 +615,24 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
                 }
 
 				// TODO: allow only some subsets to have scale indices
-                if (scaleBufferIndices != NULL) {
+                if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+					
+					const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scaleBufferIndices[subsetIndex]];
+
                     if (subsetIndex == 0) {
-                        indexMaxScale = 0;
-                        maxScaleFactor[k] = scaleBufferIndices[k];
+                        indexMaxScale[k] = 0;
+                        maxScaleFactor[k] = cumulativeScaleFactors[k];
                         for (int j = 1; j < count; j++) {
-                            if (scaleBufferIndices[j * kPatternCount + k] > maxScaleFactor[k]) {
-                                indexMaxScale = j;
-                                maxScaleFactor[k] = scaleBufferIndices[j * kPatternCount + k];
+							REALTYPE tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+                            if (tmpScaleFactor > maxScaleFactor[k]) {
+                                indexMaxScale[k] = j;
+                                maxScaleFactor[k] = tmpScaleFactor;
                             }
                         }
                     }
 
-                    if (subsetIndex != indexMaxScale)
-                        sum *= exp((REALTYPE)(scaleBufferIndices[k] - maxScaleFactor[k]));
+                    if (subsetIndex != indexMaxScale[k])
+                        sum *= exp((REALTYPE)(cumulativeScaleFactors[k] - maxScaleFactor[k]));
                 }
 
                 if (subsetIndex == 0)
@@ -640,7 +644,7 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
             }
         }
 
-        if (scaleBufferIndices != NULL) {
+        if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
             for(int i=0; i<kPatternCount; i++)
                 outLogLikelihoods[i] += maxScaleFactor[i];
         }

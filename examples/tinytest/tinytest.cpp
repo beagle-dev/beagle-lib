@@ -128,7 +128,7 @@ int main( int argc, const char* argv[] )
 	int nRateCats = (gRates ? 1 : rateCategoryCount);
 	int nRootCount = (!gRates ? 1 : rateCategoryCount);
 	int nPartBuffs = 4 + nRootCount;
-    int scaleCount = (scaling ? 3 : 0);
+    int scaleCount = (scaling ? 2 + nRootCount : 0);
     
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
@@ -243,9 +243,14 @@ int main( int argc, const char* argv[] )
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 	
-	int rootIndex[4] = { 4, 5, 6, 7 };
+	int rootIndex[nRootCount];
+    int cumulativeScalingIndex[nRootCount];
 	
 	for (int i = 0; i < nRootCount; i++) {
+		
+		rootIndex[i] = 4 + i;
+		cumulativeScalingIndex[i] = (scaling ? 2 + i : BEAGLE_OP_NONE);
+		
 		beagleSetCategoryRates(instance, &rates[i]);
 		
 		// tell BEAGLE to populate the transition matrices for the above edge lengths
@@ -261,41 +266,29 @@ int main( int argc, const char* argv[] )
 		// the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 		int operations[BEAGLE_OP_COUNT * 2] = {
 			3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
-			4+i, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
+			rootIndex[i], (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
 		};
 		
+		if (scaling)
+			beagleResetScaleFactors(instance, cumulativeScalingIndex[i]);
 		
 		// update the partials
 		beagleUpdatePartials(&instance,      // instance
 					   1,              // instanceCount
 					   operations,     // eigenIndex
 					   2,              // operationCount
-					   BEAGLE_OP_NONE);          // cumulative scaling index
+					   cumulativeScalingIndex[i]);// cumulative scaling index
 	}
 		 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
-
-    int cumulativeScalingIndex = (scaling ? 2 : BEAGLE_OP_NONE);
     
-    if (scaling) {
-        int scalingFactorsCount = 2;
-        int scalingFactorsIndices[2] = {0, 1};
-        
-        beagleResetScaleFactors(instance,
-                                cumulativeScalingIndex);
-        
-        beagleAccumulateScaleFactors(instance,
-                                     scalingFactorsIndices,
-                                     scalingFactorsCount,
-                                     cumulativeScalingIndex);
-    }
     
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)rootIndex,// bufferIndices
 	                            weights,                // weights
 	                            freqs,                  // stateFrequencies
-							    (gRates ? NULL : &cumulativeScalingIndex),// cumulative scaling index
+								cumulativeScalingIndex,// cumulative scaling index
 	                            nRootCount,                      // count
 	                            patternLogLik);         // outLogLikelihoods
     
