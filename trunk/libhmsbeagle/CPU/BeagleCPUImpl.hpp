@@ -614,6 +614,7 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
                     u++;
                 }
 
+				// TODO: allow only some subsets to have scale indices
                 if (scaleBufferIndices != NULL) {
                     if (subsetIndex == 0) {
                         indexMaxScale = 0;
@@ -779,7 +780,6 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                                            double* outFirstDerivatives,
                                            double* outSecondDerivatives) {
     // TODO: implement derivatives for calculateEdgeLnL
-    // TODO: implement rate categories for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);
 
