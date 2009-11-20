@@ -110,7 +110,6 @@ private:
     
     REAL* hWeightsCache;
     REAL* hFrequenciesCache;
-    REAL* hCategoryCache;
     REAL* hLogLikelihoodsCache;
     REAL* hPartialsCache;
     int* hStatesCache;

@@ -85,7 +85,6 @@ BeagleGPUImpl::BeagleGPUImpl() {
     
     hWeightsCache = NULL;
     hFrequenciesCache = NULL;
-    hCategoryCache = NULL;
     hLogLikelihoodsCache = NULL;
     hPartialsCache = NULL;
     hStatesCache = NULL;
@@ -154,8 +153,6 @@ BeagleGPUImpl::~BeagleGPUImpl() {
             free(hCategoryRates);
 		
 #ifndef DOUBLE_PRECISION
-    if (hCategoryCache)
-        free(hCategoryCache);
     if (hLogLikelihoodsCache)
         free(hLogLikelihoodsCache);
 #endif
@@ -249,13 +246,12 @@ int BeagleGPUImpl::createInstance(int tipCount,
     	kEigenValuesSize = kPaddedStateCount;
     
     // TODO: only allocate if necessary on the fly
-    hWeightsCache = (REAL*) calloc(kBufferCount, SIZE_REAL);
-    hFrequenciesCache = (REAL*) calloc(kPaddedStateCount, SIZE_REAL);
+    hWeightsCache = (REAL*) calloc(kCategoryCount * kPartialsBufferCount, SIZE_REAL);
+    hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
     hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
     hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
     hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
 #ifndef DOUBLE_PRECISION
-	hCategoryCache = (REAL*) malloc(kCategoryCount * SIZE_REAL);
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
 #endif
     
@@ -298,8 +294,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     unsigned int neededMemory = SIZE_REAL * (kMatrixSize * kEigenDecompCount + // dEvec
                                              kMatrixSize * kEigenDecompCount + // dIevc
                                              kEigenValuesSize * kEigenDecompCount + // dEigenValues
-                                             kBufferCount + // dWeights
-                                             kPaddedStateCount + // dFrequencies
+                                             kCategoryCount * kPartialsBufferCount + // dWeights
+                                             kPaddedStateCount * kPartialsBufferCount + // dFrequencies
                                              kPaddedPatternCount + // dIntegrationTmp
                                              kPartialsSize + // dPartialsTmp
                                              kScaleBufferCount * kPaddedPatternCount + // dScalingFactors
@@ -332,7 +328,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);
     }
     
-    dWeights = gpu->AllocateRealMemory(kBufferCount);
+    dWeights = gpu->AllocateRealMemory(kCategoryCount);
     
     dFrequencies = gpu->AllocateRealMemory(kPaddedStateCount);
     
@@ -1023,21 +1019,29 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
+	
+#ifdef DOUBLE_PRECISION
+	const double* tmpWeights = inWeights;        
+#else
+	REAL* tmpWeights = hWeightsCache;
+	MEMCNV(hWeightsCache, inWeights, (count * kCategoryCount), REAL);
+#endif
+	
+	REAL* tmpFrequencies = hFrequenciesCache;
+	
+	for (int i = 0; i < count; i++) {
+#ifdef DOUBLE_PRECISION
+		memcpy(tmpFrequencies, inStateFrequencies, kStateCount * SIZE_REAL);
+#else
+		MEMCNV(tmpFrequencies, inStateFrequencies, kStateCount, REAL);
+#endif
+		tmpFrequencies += kPaddedStateCount;
+	}
+	
+	gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
+	gpu->MemcpyHostToDevice(dFrequencies, hFrequenciesCache, SIZE_REAL * count * kPaddedStateCount);
 
     if (count == 1) {         
-        
-    	// MAS:  I may have introduced a bug here.
-#ifdef DOUBLE_PRECISION
-    	const double* tmpWeights = inWeights;        
-        memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
-#else
-        REAL* tmpWeights = hWeightsCache;
-        MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
-        MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
-#endif        
-        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
-        gpu->MemcpyHostToDevice(dFrequencies, hFrequenciesCache, SIZE_REAL * kPaddedStateCount);
-   
         const int rootNodeIndex = bufferIndices[0];
         
         int cumulativeScalingFactor = scalingFactorsIndices[0];
@@ -1060,8 +1064,37 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #endif
         
     } else {
-        // TODO: implement calculate root lnL for count > 1
-        assert(false);
+		
+		REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
+		gpu->MemcpyHostToDevice(dIntegrationTmp, zeroes, SIZE_REAL * kPaddedPatternCount);
+		free(zeroes);
+		
+		for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+
+			const GPUPtr tmpDWeights = dWeights + subsetIndex * kCategoryCount;
+			const GPUPtr tmpDFrequencies = dFrequencies + subsetIndex * kPaddedStateCount;
+			const int rootNodeIndex = bufferIndices[subsetIndex];
+
+			if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+				// implement rescaling for calc root lnL with count > 1
+				assert(false);
+			} else {
+                if (subsetIndex == count - 1) {
+					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 1);
+				} else { 
+					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 0);
+				}
+			}
+			
+#ifdef DOUBLE_PRECISION
+			gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
+#else
+			gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+			MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+#endif
+		}
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
@@ -1101,10 +1134,10 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * SIZE_REAL);
 #else
         REAL* tmpWeights = hWeightsCache;
-        MEMCNV(hWeightsCache, inWeights, count * kCategoryCount, REAL);
+        MEMCNV(hWeightsCache, inWeights, kCategoryCount, REAL);
         MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, REAL);
 #endif        
-        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * count * kCategoryCount);
+        gpu->MemcpyHostToDevice(dWeights, tmpWeights, SIZE_REAL * kCategoryCount);
         gpu->MemcpyHostToDevice(dFrequencies, hFrequenciesCache, SIZE_REAL * kPaddedStateCount);
         
         const int parIndex = parentBufferIndices[0];
