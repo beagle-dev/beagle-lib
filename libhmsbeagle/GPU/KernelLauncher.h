@@ -64,6 +64,7 @@ private:
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
 	GPUFunction fIntegrateLikelihoodsMulti;
+	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
     
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
@@ -203,6 +204,18 @@ public:
 								   int patternCount,
 								   int categoryCount,
 								   int takeLog);
+	
+	void IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
+											 GPUPtr dRootPartials,
+											 GPUPtr dWeights,
+											 GPUPtr dFrequencies,
+											 GPUPtr dPtrQueue,
+											 GPUPtr dMaxScalingFactors,
+											 GPUPtr dIndexMaxScalingFactors,
+											 int patternCount,
+											 int categoryCount,
+											 int subsetCount,
+											 int subsetIndex);
 	
     void SetupKernelBlocksAndGrids();
     

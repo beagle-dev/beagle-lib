@@ -184,6 +184,8 @@ void KernelLauncher::LoadKernels() {
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
 	
     fIntegrateLikelihoodsMulti = gpu->GetFunction("kernelIntegrateLikelihoodsMulti");
+	
+	fIntegrateLikelihoodsFixedScaleMulti = gpu->GetFunction("kernelIntegrateLikelihoodsFixedScaleMulti");
 }
 
 #ifdef CUDA
@@ -619,4 +621,32 @@ void KernelLauncher::IntegrateLikelihoodsMulti(GPUPtr dResult,
 #endif
     
 }
+
+void KernelLauncher::IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
+														 GPUPtr dRootPartials,
+														 GPUPtr dWeights,
+														 GPUPtr dFrequencies,
+														 GPUPtr dPtrQueue,
+														 GPUPtr dMaxScalingFactors,
+														 GPUPtr dIndexMaxScalingFactors,
+														 int patternCount,
+														 int categoryCount,
+														 int subsetCount,
+														 int subsetIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsFixedScaleMulti\n");
+#endif
+    
+    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsFixedScaleMulti,
+                               bgLikelihoodBlock, bgLikelihoodGrid,
+                               11,
+                               dResult, dRootPartials, dWeights, dFrequencies, dPtrQueue,
+							   dMaxScalingFactors, dIndexMaxScalingFactors,
+                               categoryCount, patternCount, subsetCount, subsetIndex);    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsFixedScaleMulti\n");
+#endif
+}
+
+
 

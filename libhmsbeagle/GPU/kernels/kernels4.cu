@@ -732,12 +732,101 @@ __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
     __syncthreads();
     
     if (state == 0) {
-		if (takeLog)
+		if (takeLog == 0)
+			dResult[pattern] = sum[pat][state];
+		else if (takeLog == 1)
 			dResult[pattern] = log(dResult[pattern] + sum[pat][state]);
 		else 
 			dResult[pattern] += sum[pat][state];
 	}
         
+}
+
+__global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
+											  REAL* dRootPartials,
+                                              REAL* dWeights,
+                                              REAL* dFrequencies,
+											  REAL** dPtrQueue,
+											  REAL* dMaxScalingFactors,
+											  REAL* dIndexMaxScalingFactors,
+                                              int matrixCount,
+                                              int patternCount,
+											  int subsetCount,
+											  int subsetIndex) {
+    int state   = threadIdx.x;
+    int pat = threadIdx.y;
+    int pattern = blockIdx.x * LIKE_PATTERN_BLOCK_SIZE + threadIdx.y;
+    
+    __shared__ REAL stateFreq[4];
+    
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE >= matrixCount
+    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __shared__ REAL sum[LIKE_PATTERN_BLOCK_SIZE][4];
+
+    // Load shared memory
+
+    if (pat == 0) {
+        stateFreq[state] = dFrequencies[state];
+    }
+    
+    sum[pat][state] = 0;
+    
+    // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    }
+
+    __syncthreads();
+
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;;
+
+    for(int r = 0; r < matrixCount; r++) {
+        sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
+    }
+
+    sum[pat][state] *= stateFreq[state];
+        
+    if (state < 2)
+        sum[pat][state] += sum[pat][state + 2];
+    __syncthreads();
+    if (state < 1) {
+        sum[pat][state] += sum[pat][state + 1];
+    }
+    __syncthreads();
+    
+	REAL cumulativeScalingFactor = dPtrQueue[subsetIndex][pattern];
+	
+	if (subsetIndex == 0) {
+		int indexMaxScalingFactor = 0;
+		REAL maxScalingFactor = cumulativeScalingFactor;
+		for (int j = 1; j < subsetCount; j++) {
+			REAL tmpScalingFactor = dPtrQueue[j][pattern];
+			if (tmpScalingFactor > maxScalingFactor) {
+				indexMaxScalingFactor = j;
+				maxScalingFactor = tmpScalingFactor;
+			}
+		}
+		
+		dIndexMaxScalingFactors[pattern] = indexMaxScalingFactor;
+		dMaxScalingFactors[pattern] = maxScalingFactor;	
+		
+		if (indexMaxScalingFactor != 0)
+			sum[pat][state] *= exp((REAL)(cumulativeScalingFactor - maxScalingFactor));
+			
+		if (state == 0)
+			dResult[pattern] = sum[pat][state];
+	} else {
+		if (subsetIndex != dIndexMaxScalingFactors[pattern])
+			sum[pat][state] *= exp((REAL)(cumulativeScalingFactor - dMaxScalingFactors[pattern]));
+	
+		if (state == 0) {
+			if (subsetIndex == subsetCount - 1)
+				dResult[pattern] = log(dResult[pattern] + sum[pat][state]) + dMaxScalingFactors[pattern];
+			else
+				dResult[pattern] += sum[pat][state];
+		}
+	}        
 }
 
 } // extern "C"
