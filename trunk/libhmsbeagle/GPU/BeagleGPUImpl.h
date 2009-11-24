@@ -107,6 +107,9 @@ private:
     
     GPUPtr* hPtrQueue;
     GPUPtr dPtrQueue;
+	
+	GPUPtr dMaxScalingFactors;
+	GPUPtr dIndexMaxScalingFactors;
     
     REAL* hWeightsCache;
     REAL* hFrequenciesCache;

@@ -381,6 +381,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
 
 	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
+	
+	dMaxScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
+	dIndexMaxScalingFactors = gpu->AllocateIntMemory(kPaddedPatternCount);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
@@ -1064,10 +1067,13 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #endif
         
     } else {
+		// TODO: evaluate peformance, maybe break up kernels below for each subsetIndex case
 		
-		REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
-		gpu->MemcpyHostToDevice(dIntegrationTmp, zeroes, SIZE_REAL * kPaddedPatternCount);
-		free(zeroes);
+		if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+			for(int n = 0; n < count; n++)
+				hPtrQueue[n] = dScalingFactors[scalingFactorsIndices[n]];
+			gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
+		}
 		
 		for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
 
@@ -1076,15 +1082,20 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 			const int rootNodeIndex = bufferIndices[subsetIndex];
 
 			if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
-				// implement rescaling for calc root lnL with count > 1
-				assert(false);
+				kernels->IntegrateLikelihoodsFixedScaleMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+															 tmpDFrequencies, dPtrQueue, dMaxScalingFactors,
+															 dIndexMaxScalingFactors, kPaddedPatternCount,
+															 kCategoryCount, count, subsetIndex);
 			} else {
-                if (subsetIndex == count - 1) {
-					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
-													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 1);
-				} else { 
+                if (subsetIndex == 0) {
 					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
 													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 0);
+				} else if (subsetIndex == count - 1) { 
+					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 1);
+				} else {
+					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+													   tmpDFrequencies, kPaddedPatternCount, kCategoryCount, 2);
 				}
 			}
 			
