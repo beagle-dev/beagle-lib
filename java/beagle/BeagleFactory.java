@@ -61,8 +61,7 @@ public class BeagleFactory {
                         categoryCount,
                         scaleBufferCount,
                         resourceList,
-//                        preferenceFlags,
-                        BeagleFlag.SSE.getMask(),
+                        preferenceFlags,
                         requirementFlags
                 );
 
