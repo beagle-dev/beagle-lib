@@ -1,7 +1,7 @@
 SUBDIRS=GPU CPU JNI
 
 lib_LTLIBRARIES=libhmsbeagle.la libhmsbeagle-jni.la
-libhmsbeagle_la_SOURCES=beagle.cpp BeagleImpl.h platform.h 
+libhmsbeagle_la_SOURCES=beagle.cpp BeagleImpl.h
 libhmsbeagle_la_LIBADD = CPU/libcpu.la  
 libhmsbeagle_la_CFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS) $(OPENMP_CFLAGS)
 libhmsbeagle_la_CXXFLAGS = $(CUDA_CFLAGS) $(OPENCL_CFLAGS) $(OPENMP_CXXFLAGS)
@@ -31,6 +31,6 @@ libhmsbeagle_jni_la_LIBADD += GPU/libopencl.la
 endif
 
 library_includedir=$(includedir)/$(GENERIC_LIBRARY_NAME)-$(GENERIC_API_VERSION)/$(GENERIC_LIBRARY_NAME)
-library_include_HEADERS = beagle.h
+library_include_HEADERS = beagle.h platform.h 
 
 INCLUDES = -I$(top_builddir) -I$(top_srcdir)
