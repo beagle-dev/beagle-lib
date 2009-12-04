@@ -29,7 +29,7 @@ class FourTaxonExample
 		void writeData();
 		void updateBrlen(unsigned brlen_index);
 		void defineOperations();
-		double calcLnL();
+		double calcLnL(int return_value);
 		
 	private:
 		bool						quiet;
@@ -60,4 +60,5 @@ class FourTaxonExample
         bool                        accumulate_on_the_fly;
         bool                        dynamic_scaling;
         bool                        do_rescaling;
+		bool						calculate_derivatives;
 	};

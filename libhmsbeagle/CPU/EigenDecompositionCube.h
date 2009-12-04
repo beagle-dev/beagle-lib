@@ -21,6 +21,8 @@ class EigenDecompositionCube : public EigenDecomposition<REALTYPE> {
 	using EigenDecomposition<REALTYPE>::kEigenDecompCount;
 	using EigenDecomposition<REALTYPE>::kCategoryCount;
 	using EigenDecomposition<REALTYPE>::matrixTmp;
+	using EigenDecomposition<REALTYPE>::firstDerivTmp;
+	using EigenDecomposition<REALTYPE>::secondDerivTmp;
 
 protected:
     REALTYPE** gCMatrices;
@@ -40,7 +42,7 @@ public:
     virtual void updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
-                                 const int* secondDervativeIndices,
+                                 const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  const double* categoryRates,
                                  REALTYPE** transitionMatrices,

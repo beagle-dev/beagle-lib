@@ -560,7 +560,7 @@ int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,
                              const int* probabilityIndices,
                              const int* firstDerivativeIndices,
-                             const int* secondDervativeIndices,
+                             const int* secondDerivativeIndices,
                              const double* edgeLengths,
                              int count) {
 //    try {
@@ -569,7 +569,7 @@ int beagleUpdateTransitionMatrices(int instance,
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         return beagleInstance->updateTransitionMatrices(eigenIndex, probabilityIndices,
                                                         firstDerivativeIndices,
-                                                        secondDervativeIndices, edgeLengths, count);
+                                                        secondDerivativeIndices, edgeLengths, count);
 //    }
 //    catch (std::bad_alloc &) {
 //        return BEAGLE_ERROR_OUT_OF_MEMORY;

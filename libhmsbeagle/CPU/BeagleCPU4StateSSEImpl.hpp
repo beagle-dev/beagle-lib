@@ -402,40 +402,28 @@ template <>
 void BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
                                            const int childIndex,
                                            const int probIndex,
-                                           const int firstDerivativeIndex,
-                                           const int secondDerivativeIndex,
                                            const double* inWeights,
                                            const double* inStateFrequencies,
                                            const int scalingFactorsIndex,
-                                           double* outLogLikelihoods,
-                                           double* outFirstDerivatives,
-                                           double* outSecondDerivatives) {
+                                           double* outLogLikelihoods) {
 	BeagleCPU4StateImpl<float>::calcEdgeLogLikelihoods(
 	parIndex,
 	childIndex,
 	probIndex,
-    firstDerivativeIndex,
-    secondDerivativeIndex,
 	inWeights,
 	inStateFrequencies,
 	scalingFactorsIndex,
-	outLogLikelihoods,
-	outFirstDerivatives,
-	outSecondDerivatives);
+	outLogLikelihoods);
 }										   
 
 template <>
 void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
                                            const int childIndex,
                                            const int probIndex,
-                                           const int firstDerivativeIndex,
-                                           const int secondDerivativeIndex,
                                            const double* inWeights,
                                            const double* inStateFrequencies,
                                            const int scalingFactorsIndex,
-                                           double* outLogLikelihoods,
-                                           double* outFirstDerivatives,
-                                           double* outSecondDerivatives) {
+                                           double* outLogLikelihoods) {
     // TODO: implement derivatives for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);

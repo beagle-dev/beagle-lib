@@ -391,16 +391,11 @@ template <typename REALTYPE>
 void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
                                                  const int childIndex,
                                                  const int probIndex,
-                                                 const int firstDerivativeIndex,
-                                                 const int secondDerivativeIndex,
                                                  const double* inWeights,
                                                  const double* inStateFrequencies,
                                                  const int scalingFactorsIndex,
-                                                 double* outLogLikelihoods,
-                                                 double* outFirstDerivatives,
-                                                 double* outSecondDerivatives) {
+                                                 double* outLogLikelihoods) {
     // TODO: implement derivatives for calculateEdgeLnL
-    // TODO: implement rate categories for calculateEdgeLnL
     
     assert(parIndex >= kTipCount);
     

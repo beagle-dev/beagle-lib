@@ -343,7 +343,7 @@ BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
  *                                   (input)
  * @param firstDerivativeIndices    List of indices of first derivative matrices to update
  *                                   (input, NULL implies no calculation)
- * @param secondDervativeIndices    List of indices of second derivative matrices to update
+ * @param secondDerivativeIndices    List of indices of second derivative matrices to update
  *                                   (input, NULL implies no calculation)
  * @param edgeLengths               List of edge lengths with which to perform calculations (input)
  * @param count                     Length of lists
@@ -354,7 +354,7 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int eigenIndex,
                                    const int* probabilityIndices,
                                    const int* firstDerivativeIndices,
-                                   const int* secondDervativeIndices,
+                                   const int* secondDerivativeIndices,
                                    const double* edgeLengths,
                                    int count);
 
