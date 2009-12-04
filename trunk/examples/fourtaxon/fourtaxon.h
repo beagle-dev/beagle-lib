@@ -61,4 +61,5 @@ class FourTaxonExample
         bool                        dynamic_scaling;
         bool                        do_rescaling;
 		bool						calculate_derivatives;
+        bool                        empirical_derivatives;
 	};
