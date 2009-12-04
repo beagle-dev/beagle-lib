@@ -95,6 +95,7 @@ FourTaxonExample::FourTaxonExample()
   , dynamic_scaling(false)
   , single(false)
   , calculate_derivatives(false)
+  , empirical_derivatives(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -704,29 +705,41 @@ void FourTaxonExample::run()
 		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length";
 		if (calculate_derivatives)
 			std::cout << std::setw(24) << "first derivative" << std::setw(24) << "second derivative";
+        if (empirical_derivatives)
+            std::cout << std::setw(24) << "first deriv (emp)" << std::setw(24) << "second deriv (emp)";
 		std::cout << std::endl;
-        
-        // Print initial state
-        std::cout << std::setw(12) << 0;
-		std::cout << std::setw(24) << std::setprecision(5) << calcLnL(0);
-        std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
-		if (calculate_derivatives)
-			std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1) << std::setw(24) << calcLnL(2);
-        std::cout << std::endl;
 		}
 		
-	for (unsigned rep = 1; rep <= niters; ++rep)
+	for (unsigned rep = 0; rep <= niters; ++rep)
 		{
-		for (unsigned b = 0; b < 5; ++b)
-			updateBrlen(b);
+        if (rep > 0)
+            {
+            for (unsigned b = 0; b < 5; ++b)
+                updateBrlen(b);
+            }
 			
 		if (!quiet)
 			{
 			std::cout << std::setw(12) << rep;
 			std::cout << std::setw(24) << std::setprecision(5) << calcLnL(0);
 			std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
-			if (calculate_derivatives)
+            if (calculate_derivatives)
 				std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1) << std::setw(24) << calcLnL(2);
+            if (empirical_derivatives)
+                {
+                double startBrlens = brlens[transmat_index];
+                double incr = startBrlens * 0.001;
+                double startLnL = calcLnL(0);
+                brlens[transmat_index] = startBrlens - incr;
+                double deltaMinus = ((calcLnL(0) - startLnL) / -incr);
+                brlens[transmat_index] = startBrlens + incr;
+                double deltaPlus = ((calcLnL(0) - startLnL) / incr);
+                double empD1 = (deltaMinus + deltaPlus) /  2;                
+                double empD2 = (deltaPlus - deltaMinus) / incr;
+                std::cout << std::setw(24) << std::setprecision(5) << empD1 << std::setw(24) << empD2;
+                brlens[transmat_index] = startBrlens;
+                }
+                
 			std::cout << std::endl;
 			}
 		}
@@ -768,6 +781,7 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
     std::cerr << "If --single is specified, then run in single precision mode\n\n";
     std::cerr << "If --calcderivs is specified, then calculate first and second order edge likelihood derivatives\n\n";
+    std::cerr << "If --empiricalderivs is specified, then empirically calculate first and second order edge likelihood derivatives\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -874,6 +888,10 @@ void FourTaxonExample::interpretCommandLineParameters(
 			{
 			calculate_derivatives = true;
 			}
+        else if (option == "--empiricalderivs")
+            {
+            empirical_derivatives = true;
+            }
 		else 
 			{
 			std::string msg("Unknown command line parameter \"");

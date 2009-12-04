@@ -572,87 +572,97 @@ int BeagleCPUImpl<REALTYPE>::calculateRootLogLikelihoods(const int* bufferIndice
     }
     else
     {
-        // Here we do the 3 similar operations:
-        //              1. to set the lnL to the contribution of the first subset,
-        //              2. to add the lnL for other subsets up to the penultimate
-        //              3. to add the final subset and take the lnL
-        //      This form of the calc would not work when count == 1 because
-        //              we need operation 1 and 3 in the preceding list.  This is not
-        //              a problem, though as we deal with count == 1 in the previous
-        //              branch.
+        calcRootLogLikelihoodsMulti(bufferIndices, inWeights, inStateFrequencies, scaleBufferIndices, count, outLogLikelihoods);
+    }
+    
+    return BEAGLE_SUCCESS;
+}
+    
+template <typename REALTYPE>
+void BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndices,
+                                                         const double* inWeights,
+                                                         const double* inStateFrequencies,
+                                                         const int* scaleBufferIndices,
+                                                         int count,
+                                                         double* outLogLikelihoods) {
+    // Here we do the 3 similar operations:
+    //              1. to set the lnL to the contribution of the first subset,
+    //              2. to add the lnL for other subsets up to the penultimate
+    //              3. to add the final subset and take the lnL
+    //      This form of the calc would not work when count == 1 because
+    //              we need operation 1 and 3 in the preceding list.  This is not
+    //              a problem, though as we deal with count == 1 in the previous
+    //              branch.
 
-		std::vector<int> indexMaxScale(kPatternCount);
-		std::vector<REALTYPE> maxScaleFactor(kPatternCount);
+    std::vector<int> indexMaxScale(kPatternCount);
+    std::vector<REALTYPE> maxScaleFactor(kPatternCount);
 
-        for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
-            const int rootPartialIndex = bufferIndices[subsetIndex];
-            const REALTYPE* rootPartials = gPartials[rootPartialIndex];
-            const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
-            const double* wt = inWeights + subsetIndex * kCategoryCount;
-            int u = 0;
-            int v = 0;
+    for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+        const int rootPartialIndex = bufferIndices[subsetIndex];
+        const REALTYPE* rootPartials = gPartials[rootPartialIndex];
+        const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
+        const double* wt = inWeights + subsetIndex * kCategoryCount;
+        int u = 0;
+        int v = 0;
+        for (int k = 0; k < kPatternCount; k++) {
+            for (int i = 0; i < kStateCount; i++) {
+                integrationTmp[u] = rootPartials[v] * (REALTYPE) wt[0];
+                u++;
+                v++;
+            }
+        }
+        for (int l = 1; l < kCategoryCount; l++) {
+            u = 0;
             for (int k = 0; k < kPatternCount; k++) {
                 for (int i = 0; i < kStateCount; i++) {
-                    integrationTmp[u] = rootPartials[v] * (REALTYPE) wt[0];
+                    integrationTmp[u] += rootPartials[v] * (REALTYPE) wt[l];
                     u++;
                     v++;
                 }
             }
-            for (int l = 1; l < kCategoryCount; l++) {
-                u = 0;
-                for (int k = 0; k < kPatternCount; k++) {
-                    for (int i = 0; i < kStateCount; i++) {
-                        integrationTmp[u] += rootPartials[v] * (REALTYPE) wt[l];
-                        u++;
-                        v++;
-                    }
-                }
+        }
+        u = 0;
+        for (int k = 0; k < kPatternCount; k++) {
+            REALTYPE sum = 0.0;
+            for (int i = 0; i < kStateCount; i++) {
+                sum += ((REALTYPE)frequencies[i]) * integrationTmp[u];
+                u++;
             }
-            u = 0;
-            for (int k = 0; k < kPatternCount; k++) {
-                REALTYPE sum = 0.0;
-                for (int i = 0; i < kStateCount; i++) {
-                    sum += ((REALTYPE)frequencies[i]) * integrationTmp[u];
-                    u++;
-                }
 
-				// TODO: allow only some subsets to have scale indices
-                if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
-					
-					const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scaleBufferIndices[subsetIndex]];
+            // TODO: allow only some subsets to have scale indices
+            if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+                
+                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scaleBufferIndices[subsetIndex]];
 
-                    if (subsetIndex == 0) {
-                        indexMaxScale[k] = 0;
-                        maxScaleFactor[k] = cumulativeScaleFactors[k];
-                        for (int j = 1; j < count; j++) {
-							REALTYPE tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
-                            if (tmpScaleFactor > maxScaleFactor[k]) {
-                                indexMaxScale[k] = j;
-                                maxScaleFactor[k] = tmpScaleFactor;
-                            }
+                if (subsetIndex == 0) {
+                    indexMaxScale[k] = 0;
+                    maxScaleFactor[k] = cumulativeScaleFactors[k];
+                    for (int j = 1; j < count; j++) {
+                        REALTYPE tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+                        if (tmpScaleFactor > maxScaleFactor[k]) {
+                            indexMaxScale[k] = j;
+                            maxScaleFactor[k] = tmpScaleFactor;
                         }
                     }
-
-                    if (subsetIndex != indexMaxScale[k])
-                        sum *= exp((REALTYPE)(cumulativeScaleFactors[k] - maxScaleFactor[k]));
                 }
 
-                if (subsetIndex == 0)
-                    outLogLikelihoods[k] = sum;
-                else if (subsetIndex == count - 1)
-                    outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum);
-                else
-                    outLogLikelihoods[k] += sum;
+                if (subsetIndex != indexMaxScale[k])
+                    sum *= exp((REALTYPE)(cumulativeScaleFactors[k] - maxScaleFactor[k]));
             }
-        }
 
-        if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
-            for(int i=0; i<kPatternCount; i++)
-                outLogLikelihoods[i] += maxScaleFactor[i];
+            if (subsetIndex == 0)
+                outLogLikelihoods[k] = sum;
+            else if (subsetIndex == count - 1)
+                outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum);
+            else
+                outLogLikelihoods[k] += sum;
         }
     }
 
-    return BEAGLE_SUCCESS;
+    if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+        for(int i=0; i<kPatternCount; i++)
+            outLogLikelihoods[i] += maxScaleFactor[i];
+    }
 }
 
 template <typename REALTYPE>
@@ -1064,7 +1074,7 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInd
 		}
 		outLogLikelihoods[k] = log(sumOverI);
 		outFirstDerivatives[k] = sumOverID1 / sumOverI;
-		outSecondDerivatives[k] = sumOverID2 / sumOverI - sumOverID1 * sumOverID1;
+		outSecondDerivatives[k] = sumOverID2 / sumOverI - outFirstDerivatives[k] * outFirstDerivatives[k];
 	}
 	
 	
