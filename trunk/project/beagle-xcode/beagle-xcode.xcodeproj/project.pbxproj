@@ -328,8 +328,8 @@
 		33CE76B3106690F300CBF579 /* CPU 4State SSE Impl */ = {
 			isa = PBXGroup;
 			children = (
-				33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */,
 				33CE76DD1066929700CBF579 /* BeagleCPU4StateSSEImpl.h */,
+				33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */,
 			);
 			name = "CPU 4State SSE Impl";
 			sourceTree = SOURCE_ROOT;
@@ -337,8 +337,8 @@
 		33CE770110669F1B00CBF579 /* CPU 4State GCD Impl */ = {
 			isa = PBXGroup;
 			children = (
-				33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */,
 				33CE770310669F4C00CBF579 /* BeagleCPU4StateGCDImpl.h */,
+				33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */,
 			);
 			name = "CPU 4State GCD Impl";
 			sourceTree = SOURCE_ROOT;

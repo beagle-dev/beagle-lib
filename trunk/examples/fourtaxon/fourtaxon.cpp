@@ -94,6 +94,7 @@ FourTaxonExample::FourTaxonExample()
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
   , single(false)
+  , calculate_derivatives(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -284,6 +285,10 @@ void FourTaxonExample::initBeagleLib()
         requirementFlags |= BEAGLE_FLAG_SINGLE;
     }
         
+	int mtrxCount = ntaxa + 1; 
+		
+	if (calculate_derivatives)
+		mtrxCount *= 3;
 
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
@@ -292,7 +297,7 @@ void FourTaxonExample::initBeagleLib()
 				4, 			// stateCount
 				nsites,		// patternCount
 				1,			// eigenBufferCount
-				ntaxa + 1,	// matrixBufferCount,
+				mtrxCount,	// matrixBufferCount,
                 nrates,     // categoryCount
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
@@ -321,11 +326,13 @@ void FourTaxonExample::initBeagleLib()
     fprintf(stdout, "\n");        
         
 	brlens.resize(5);
-	transition_matrix_index.resize(5);
+	transition_matrix_index.resize(5 * 3);
 	for (unsigned i = 0; i < 5; ++i)
 		{
 		brlens[i] = 0.01;
 		transition_matrix_index[i] = i;
+		transition_matrix_index[i + 5] = i + 5; // first derivative indices
+		transition_matrix_index[i + 10] = i + 10; // second derivative indices
 		}
 
 	for (unsigned i = 0; i < ntaxa; ++i)
@@ -410,14 +417,14 @@ void FourTaxonExample::initBeagleLib()
 |	Calculates the log likelihood by calling the beagle functions
 |	beagleUpdateTransitionMatrices, beagleUpdatePartials and beagleCalculateEdgeLogLikelihoods.
 */
-double FourTaxonExample::calcLnL()
+double FourTaxonExample::calcLnL(int return_value)
 	{
 	int code = beagleUpdateTransitionMatrices(
 			instance_handle,				// instance,
 			0,								// eigenIndex,
 			&transition_matrix_index[0],	// probabilityIndices,
-			NULL, 							// firstDerivativeIndices,
-			NULL,							// secondDervativeIndices,
+			(calculate_derivatives ? &transition_matrix_index[5] : NULL),	// firstDerivativeIndices,
+			(calculate_derivatives ? &transition_matrix_index[10] : NULL),	// secondDerivativeIndices,
 			&brlens[0],						// edgeLengths,
 			5);								// count
 
@@ -443,6 +450,8 @@ double FourTaxonExample::calcLnL()
 	int parentBufferIndex = like_parent_index;
 	int childBufferIndex  = like_child_index;
 	int transitionMatrixIndex  = transmat_index;
+	int firstDerivMatrixIndex  = transmat_index + 5;
+	int secondDerivMatrixIndex  = transmat_index + 10;
         
 #ifdef _WIN32
 	std::vector<double> relativeRateProb(nrates);
@@ -465,14 +474,16 @@ double FourTaxonExample::calcLnL()
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
 
 	std::vector<double> lnL(nsites);
-        
+	std::vector<double> firstDeriv(nsites);
+	std::vector<double> secondDeriv(nsites);
+
 	code = beagleCalculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
 		 &parentBufferIndex,				// parentBufferIndices
 		 &childBufferIndex,					// childBufferIndices
 		 &transitionMatrixIndex,			// probabilityIndices
-		 NULL,								// firstDerivativeIndices
-		 NULL,								// secondDerivativeIndices
+		 (calculate_derivatives ? &firstDerivMatrixIndex : NULL),	// firstDerivativeIndices
+		 (calculate_derivatives ? &secondDerivMatrixIndex : NULL),	// secondDerivativeIndices
 #ifdef _WIN32
 		 &relativeRateProb[0],
 #else
@@ -482,8 +493,8 @@ double FourTaxonExample::calcLnL()
          &cumulativeScalingFactorIndex,
 		 1,									// count
 		 &lnL[0],							// outLogLikelihoods,
-		 NULL,								// outFirstDerivatives,
-		 NULL);								// outSecondDerivatives
+		 (calculate_derivatives ? &firstDeriv[0] : NULL),	  // outFirstDerivatives,
+		 (calculate_derivatives ? &secondDeriv[0] : NULL));	  // outSecondDerivatives
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
@@ -495,8 +506,18 @@ double FourTaxonExample::calcLnL()
         operations[9] = 2;              // Set read scale buffer (op2)
         do_rescaling = false;           // Turn off calculating of scale factors
     }
+	
+	double return_sum = 0;
+		
+	if (return_value == 0)
+		return_sum = std::accumulate(lnL.begin(), lnL.end(), 0.0);
+	else if (return_value == 1)
+		return_sum = std::accumulate(firstDeriv.begin(), firstDeriv.end(), 0.0);
+	else if (return_value == 2)
+		return_sum = std::accumulate(secondDeriv.begin(), secondDeriv.end(), 0.0);
 
-	return std::accumulate(lnL.begin(), lnL.end(), 0.0);
+
+	return return_sum;
 	}
 
 /*-----------------------------------------------------------------------------
@@ -526,9 +547,9 @@ void FourTaxonExample::updateBrlen(
 	// compute log-likelihood before and after move
 	// (not being particularly efficient here because we are testing the beagle library
 	// so the more calls to calcLnL the better)
-	double log_like_before = calcLnL();
+	double log_like_before = calcLnL(0);
 	brlens[brlen_index] = x;
-	double log_like_after = calcLnL();
+	double log_like_after = calcLnL(0);
 
 	double log_accept_ratio = log_prior_after + log_like_after - log_prior_before - log_like_before;
 	double u = log(uniform());
@@ -680,12 +701,17 @@ void FourTaxonExample::run()
 		{
 		std::cout.setf(std::ios::showpoint);
 		std::cout.setf(std::ios::floatfield, std::ios::fixed);
-		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length" << std::endl;
+		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length";
+		if (calculate_derivatives)
+			std::cout << std::setw(24) << "first derivative" << std::setw(24) << "second derivative";
+		std::cout << std::endl;
         
         // Print initial state
         std::cout << std::setw(12) << 0;
-        std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
+		std::cout << std::setw(24) << std::setprecision(5) << calcLnL(0);
         std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
+		if (calculate_derivatives)
+			std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1) << std::setw(24) << calcLnL(2);
         std::cout << std::endl;
 		}
 		
@@ -697,8 +723,10 @@ void FourTaxonExample::run()
 		if (!quiet)
 			{
 			std::cout << std::setw(12) << rep;
-			std::cout << std::setw(24) << std::setprecision(5) << calcLnL();
+			std::cout << std::setw(24) << std::setprecision(5) << calcLnL(0);
 			std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
+			if (calculate_derivatives)
+				std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1) << std::setw(24) << calcLnL(2);
 			std::cout << std::endl;
 			}
 		}
@@ -717,7 +745,7 @@ void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
 	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]";
-	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single]\n\n";
+	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single] [--calcderivs]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";
@@ -738,7 +766,8 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
     std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
-    std::cerr <<" If --single is specified, then run in single precision mode\n\n";
+    std::cerr << "If --single is specified, then run in single precision mode\n\n";
+    std::cerr << "If --calcderivs is specified, then calculate first and second order edge likelihood derivatives\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
 	}
@@ -837,8 +866,13 @@ void FourTaxonExample::interpretCommandLineParameters(
             {
             expecting_scaling_number = true;
             }
-		else if (option == "--usetipstates") {
+		else if (option == "--usetipstates") 
+			{
 			use_tip_partials = false;
+			}
+		else if (option == "--calcderivs")
+			{
+			calculate_derivatives = true;
 			}
 		else 
 			{

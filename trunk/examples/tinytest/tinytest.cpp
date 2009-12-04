@@ -258,7 +258,7 @@ int main( int argc, const char* argv[] )
 								 0,             // eigenIndex
 								 nodeIndices,   // probabilityIndices
 								 NULL,          // firstDerivativeIndices
-								 NULL,          // secondDervativeIndices
+								 NULL,          // secondDerivativeIndices
 								 edgeLengths,   // edgeLengths
 								 4);            // count
 		

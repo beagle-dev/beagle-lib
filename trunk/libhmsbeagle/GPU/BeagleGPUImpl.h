@@ -167,7 +167,7 @@ public:
     int updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
-                                 const int* secondDervativeIndices,
+                                 const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
     

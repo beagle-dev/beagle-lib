@@ -90,14 +90,10 @@ private:
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const int firstDerivativeIndex,
-                                        const int secondDerivativeIndex,
                                         const double* inWeights,
                                         const double* inStateFrequencies,
                                         const int scalingFactorsIndex,
-                                        double* outLogLikelihoods,
-                                        double* outFirstDerivatives,
-                                        double* outSecondDerivatives);
+                                        double* outLogLikelihoods);
 
 };
 

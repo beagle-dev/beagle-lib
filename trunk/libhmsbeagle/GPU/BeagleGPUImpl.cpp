@@ -706,7 +706,7 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
 int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                             const int* probabilityIndices,
                                             const int* firstDerivativeIndices,
-                                            const int* secondDervativeIndices,
+                                            const int* secondDerivativeIndices,
                                             const double* edgeLengths,
                                             int count) {
 #ifdef BEAGLE_DEBUG_FLOW

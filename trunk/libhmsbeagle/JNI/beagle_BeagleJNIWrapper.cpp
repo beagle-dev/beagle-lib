@@ -297,7 +297,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
  * Signature: (II[I[I[I[DI)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
-  (JNIEnv *env, jobject obj, jint instance, jint eigenIndex, jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDervativeIndices, jdoubleArray inEdgeLengths, jint count)
+  (JNIEnv *env, jobject obj, jint instance, jint eigenIndex, jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDerivativeIndices, jdoubleArray inEdgeLengths, jint count)
 {
     jint errCode;
 
@@ -310,13 +310,13 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
         env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
     } else {
         jint *firstDerivativeIndices = env->GetIntArrayElements(inFirstDerivativeIndices, NULL);
-        jint *secondDervativeIndices = env->GetIntArrayElements(inSecondDervativeIndices, NULL);
+        jint *secondDerivativeIndices = env->GetIntArrayElements(inSecondDerivativeIndices, NULL);
         jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
 
-        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDervativeIndices, (double *)edgeLengths, count);
+        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDerivativeIndices, (double *)edgeLengths, count);
 
         env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
-        env->ReleaseIntArrayElements(inSecondDervativeIndices, secondDervativeIndices, JNI_ABORT);
+        env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
         env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
     }
     env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);

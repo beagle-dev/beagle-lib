@@ -84,6 +84,8 @@ protected:
     REALTYPE** gTransitionMatrices;
 
     REALTYPE* integrationTmp;
+    REALTYPE* firstDerivTmp;
+    REALTYPE* secondDerivTmp;
 
     REALTYPE* ones;
     REALTYPE* zeros;
@@ -161,7 +163,7 @@ public:
     int updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
-                                 const int* secondDervativeIndices,
+                                 const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
 
@@ -263,14 +265,32 @@ protected:
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
+                                        const double* inWeights,
+                                        const double* inStateFrequencies,
+                                        const int scalingFactorsIndex,
+                                        double* outLogLikelihoods);
+	
+    virtual void calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
+                                        const int childBufferIndex,
+                                        const int probabilityIndex,
                                         const int firstDerivativeIndex,
-                                        const int secondDerivativeIndex,
                                         const double* inWeights,
                                         const double* inStateFrequencies,
                                         const int scalingFactorsIndex,
                                         double* outLogLikelihoods,
-                                        double* outFirstDerivatives,
-                                        double* outSecondDerivatives);
+                                        double* outFirstDerivatives);
+	
+    virtual void calcEdgeLogLikelihoodsSecondDeriv(const int parentBufferIndex,
+												  const int childBufferIndex,
+												  const int probabilityIndex,
+												  const int firstDerivativeIndex,
+												  const int secondDerivativeIndex,
+												  const double* inWeights,
+												  const double* inStateFrequencies,
+												  const int scalingFactorsIndex,
+												  double* outLogLikelihoods,
+												  double* outFirstDerivatives,
+												  double* outSecondDerivatives);
 
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                               const int *child0States,

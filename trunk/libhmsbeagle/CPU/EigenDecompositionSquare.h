@@ -44,7 +44,7 @@ public:
     virtual void updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
-                                 const int* secondDervativeIndices,
+                                 const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  const double* categoryRates,
                                  REALTYPE** transitionMatrices,

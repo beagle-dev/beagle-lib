@@ -224,7 +224,7 @@ void runBeagle(int resource,
                                    0,             // eigenIndex
                                    nodeIndices,   // probabilityIndices
                                    NULL,          // firstDerivativeIndices
-                                   NULL,          // secondDervativeIndices
+                                   NULL,          // secondDerivativeIndices
                                    edgeLengths,   // edgeLengths
                                    ntaxa*2-2);            // count    
 
