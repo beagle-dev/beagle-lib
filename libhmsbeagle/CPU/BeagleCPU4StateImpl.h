@@ -87,6 +87,13 @@ public:
                                     const int scalingFactorsIndex,
                                     double* outLogLikelihoods);
     
+    virtual void calcRootLogLikelihoodsMulti(const int* bufferIndices,
+                                             const double* inWeights,
+                                             const double* inStateFrequencies,
+                                             const int* scaleBufferIndices,
+                                             int count,
+                                             double* outLogLikelihoods);
+        
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
