@@ -766,8 +766,6 @@ int BeagleCPUImpl<REALTYPE>::calculateEdgeLogLikelihoods(const int* parentBuffer
                                                double* outFirstDerivatives,
                                                double* outSecondDerivatives) {
     // TODO: implement for count > 1
-	// TODO: test derivatives for calculateEdgeLnL
-
 
     if (count == 1) {
 		if (firstDerivativeIndices != NULL && secondDerivativeIndices != NULL)
