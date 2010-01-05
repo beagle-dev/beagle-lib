@@ -39,6 +39,7 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixMulADB;
+    GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
@@ -94,6 +95,13 @@ public:
 // Kernel links
 #ifdef CUDA
     void GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
+                                          GPUPtr dEvec,
+                                          GPUPtr dIevc,
+                                          GPUPtr dEigenValues,
+                                          GPUPtr distanceQueue,
+                                          int totalMatrix);
+
+    void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,

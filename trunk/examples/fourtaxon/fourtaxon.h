@@ -60,6 +60,6 @@ class FourTaxonExample
         bool                        accumulate_on_the_fly;
         bool                        dynamic_scaling;
         bool                        do_rescaling;
-		bool						calculate_derivatives;
+		int                         calculate_derivatives;
         bool                        empirical_derivatives;
 	};

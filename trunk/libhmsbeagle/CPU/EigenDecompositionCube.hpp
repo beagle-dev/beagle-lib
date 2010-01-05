@@ -89,51 +89,47 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
                                                       const double* categoryRates,
                                                       REALTYPE** transitionMatrices,
                                                       int count) {
-	if (firstDerivativeIndices != NULL && secondDerivativeIndices != NULL) {
+	if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
 		for (int u = 0; u < count; u++) {
 			REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
-			REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
-			REALTYPE* secondDerivMat = transitionMatrices[secondDerivativeIndices[u]];
 			int n = 0;
 			for (int l = 0; l < kCategoryCount; l++) {
 				
-				for (int i = 0; i < kStateCount; i++) {
-					REALTYPE scaledEigenValue = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
-					matrixTmp[i] = exp(scaledEigenValue * ((REALTYPE)edgeLengths[u]));
-					firstDerivTmp[i] = scaledEigenValue * matrixTmp[i];
-					secondDerivTmp[i] = scaledEigenValue * firstDerivTmp[i];
-				}
+                for (int i = 0; i < kStateCount; i++) {
+					matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l]));
+                }
 				
 				int m = 0;
 				for (int i = 0; i < kStateCount; i++) {
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
-						REALTYPE sumD1 = 0.0;
-						REALTYPE sumD2 = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
 							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
-							sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
-							sumD2 += gCMatrices[eigenIndex][m] * secondDerivTmp[k];
 							m++;
 						}
 						if (sum > 0)
 							transitionMat[n] = sum;
 						else
 							transitionMat[n] = 0;
-						firstDerivMat[n] = sumD1;
-						secondDerivMat[n] = sumD2;
 						n++;
 					}
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
-                    firstDerivMat[n] = 0.0;
-                    secondDerivMat[n] = 0.0;
 					n++;
 #endif
 				}
 			}
+			
+			if (DEBUGGING_OUTPUT) {
+                int kMatrixSize = kStateCount * kStateCount;
+				fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
+				for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
+					fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
+			}
 		}
-	} else if (firstDerivativeIndices != NULL) {
+        
+
+	} else if (secondDerivativeIndices == NULL) {
 		for (int u = 0; u < count; u++) {
 			REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
 			REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
@@ -175,39 +171,45 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 	} else {		
 		for (int u = 0; u < count; u++) {
 			REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
+			REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
+			REALTYPE* secondDerivMat = transitionMatrices[secondDerivativeIndices[u]];
 			int n = 0;
 			for (int l = 0; l < kCategoryCount; l++) {
 				
-                for (int i = 0; i < kStateCount; i++) {
-					matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l]));
-                }
+				for (int i = 0; i < kStateCount; i++) {
+					REALTYPE scaledEigenValue = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
+					matrixTmp[i] = exp(scaledEigenValue * ((REALTYPE)edgeLengths[u]));
+					firstDerivTmp[i] = scaledEigenValue * matrixTmp[i];
+					secondDerivTmp[i] = scaledEigenValue * firstDerivTmp[i];
+				}
 				
 				int m = 0;
 				for (int i = 0; i < kStateCount; i++) {
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
+						REALTYPE sumD1 = 0.0;
+						REALTYPE sumD2 = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
 							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
+							sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
+							sumD2 += gCMatrices[eigenIndex][m] * secondDerivTmp[k];
 							m++;
 						}
 						if (sum > 0)
 							transitionMat[n] = sum;
 						else
 							transitionMat[n] = 0;
+						firstDerivMat[n] = sumD1;
+						secondDerivMat[n] = sumD2;
 						n++;
 					}
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
+                    firstDerivMat[n] = 0.0;
+                    secondDerivMat[n] = 0.0;
 					n++;
 #endif
 				}
-			}
-			
-			if (DEBUGGING_OUTPUT) {
-                int kMatrixSize = kStateCount * kStateCount;
-				fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
-				for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
-					fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
 			}
 		}
 	}

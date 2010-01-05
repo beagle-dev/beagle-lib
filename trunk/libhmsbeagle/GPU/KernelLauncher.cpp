@@ -133,6 +133,8 @@ void KernelLauncher::LoadKernels() {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
 	}
 
+    fMatrixMulADBSecondDeriv = gpu->GetFunction("kernelMatrixMulADBSecondDeriv");
+    
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelPartialsPartialsNoScale");
 
@@ -217,6 +219,36 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
 #endif
 }
+
+void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueue,
+                                                      GPUPtr dEvec,
+                                                      GPUPtr dIevc,
+                                                      GPUPtr dEigenValues,
+                                                      GPUPtr distanceQueue,
+                                                      int totalMatrix) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
+#endif
+    
+    bgTransitionProbabilitiesGrid.x *= totalMatrix;
+    
+    // Transposed (interchanged Ievc and Evec)    
+    int parameterCount = 8;
+    gpu->LaunchKernelIntParams(fMatrixMulADBSecondDeriv,
+                               bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+                               parameterCount,
+                               dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
+                               kPaddedStateCount, kPaddedStateCount,
+                               totalMatrix);
+    
+    bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
+    
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
+#endif
+}
+
 
 #else //OpenCL
 void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtr,
