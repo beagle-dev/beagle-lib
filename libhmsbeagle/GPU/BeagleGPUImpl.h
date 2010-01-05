@@ -83,7 +83,11 @@ private:
     GPUPtr dWeights;
     GPUPtr dFrequencies; 
     GPUPtr dIntegrationTmp;
+    GPUPtr dOutFirstDeriv;
+    GPUPtr dOutSecondDeriv;
     GPUPtr dPartialsTmp;
+    GPUPtr dFirstDerivTmp;
+    GPUPtr dSecondDerivTmp;
     
 	double* hCategoryRates; // Can keep in double-precision
     

@@ -39,6 +39,7 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixMulADB;
+    GPUFunction fMatrixMulADBFirstDeriv;
     GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
@@ -48,22 +49,19 @@ private:
     GPUFunction fStatesStatesByPatternBlockCoherent;
     GPUFunction fStatesStatesByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsEdgeLikelihoods;
+    GPUFunction fPartialsPartialsEdgeLikelihoodsSecondDeriv;
     GPUFunction fStatesPartialsEdgeLikelihoods;
-    
-    GPUFunction fPartialsPartialsByPatternBlockCoherentSmall;
-    GPUFunction fPartialsPartialsByPatternBlockSmallFixedScaling;
-    GPUFunction fStatesPartialsByPatternBlockCoherentSmall;
-    GPUFunction fStatesStatesByPatternBlockCoherentSmall;
-    GPUFunction fPartialsPartialsEdgeLikelihoodsSmall;
-    GPUFunction fStatesPartialsEdgeLikelihoodsSmall;
-    
+    GPUFunction fStatesPartialsEdgeLikelihoodsSecondDeriv;
+        
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
+    GPUFunction fIntegrateLikelihoodsDynamicScalingSecondDeriv;
     GPUFunction fAccumulateFactorsDynamicScaling;
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingAccumulate;
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
+    GPUFunction fIntegrateLikelihoodsSecondDeriv;
 	GPUFunction fIntegrateLikelihoodsMulti;
 	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
     
@@ -101,6 +99,13 @@ public:
                                           GPUPtr distanceQueue,
                                           int totalMatrix);
 
+    void GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dPtrQueue,
+                                                     GPUPtr dEvec,
+                                                     GPUPtr dIevc,
+                                                     GPUPtr dEigenValues,
+                                                     GPUPtr distanceQueue,
+                                                     int totalMatrix);    
+    
     void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
@@ -167,6 +172,18 @@ public:
                                             int patternCount,
                                             int categoryCount);
     
+    void IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResult,
+                                                       GPUPtr dFirstDerivResult,
+                                                       GPUPtr dSecondDerivResult,
+                                                       GPUPtr dRootPartials,
+                                                       GPUPtr dRootFirstDeriv,
+                                                       GPUPtr dRootSecondDeriv,
+                                                       GPUPtr dWeights,
+                                                       GPUPtr dFrequencies,
+                                                       GPUPtr dRootScalingFactors,
+                                                       int patternCount,
+                                                       int categoryCount);
+    
     void PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                          GPUPtr dParentPartials,
                                          GPUPtr dChildParials,
@@ -174,12 +191,35 @@ public:
                                          int patternCount,
                                          int categoryCount);
     
+    void PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
+                                                    GPUPtr dFirstDerivTmp,
+                                                    GPUPtr dSecondDerivTmp,
+                                                    GPUPtr dParentPartials,
+                                                    GPUPtr dChildParials,
+                                                    GPUPtr dTransMatrix,
+                                                    GPUPtr dFirstDerivMatrix,
+                                                    GPUPtr dSecondDerivMatrix,
+                                                    int patternCount,
+                                                    int categoryCount);
+    
+    
     void StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                        GPUPtr dParentPartials,
                                        GPUPtr dChildStates,
                                        GPUPtr dTransMatrix,
                                        int patternCount,
                                        int categoryCount);
+    
+    void StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
+                                                  GPUPtr dFirstDerivTmp,
+                                                  GPUPtr dSecondDerivTmp,
+                                                  GPUPtr dParentPartials,
+                                                  GPUPtr dChildStates,
+                                                  GPUPtr dTransMatrix,
+                                                  GPUPtr dFirstDerivMatrix,
+                                                  GPUPtr dSecondDerivMatrix,
+                                                  int patternCount,
+                                                  int categoryCount);
     
     void AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
                                          GPUPtr dRootScalingFactors,
@@ -197,13 +237,24 @@ public:
                          int patternCount,
                          int categoryCount,
                          int fillWithOnes);
-        
+
     void IntegrateLikelihoods(GPUPtr dResult,
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,
                               GPUPtr dFrequencies,
                               int patternCount,
                               int categoryCount);
+    
+    void IntegrateLikelihoodsSecondDeriv(GPUPtr dResult,
+                                         GPUPtr dFirstDerivResult,
+                                         GPUPtr dSecondDerivResult,
+                                         GPUPtr dRootPartials,
+                                         GPUPtr dRootFirstDeriv,
+                                         GPUPtr dRootSecondDeriv,
+                                         GPUPtr dWeights,
+                                         GPUPtr dFrequencies,
+                                         int patternCount,
+                                         int categoryCount);
     
 	void IntegrateLikelihoodsMulti(GPUPtr dResult,
 								   GPUPtr dRootPartials,

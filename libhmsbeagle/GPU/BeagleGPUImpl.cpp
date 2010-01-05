@@ -58,7 +58,11 @@ BeagleGPUImpl::BeagleGPUImpl() {
     dWeights = NULL;
     dFrequencies = NULL; 
     dIntegrationTmp = NULL;
+    dOutFirstDeriv = NULL;
+    dOutSecondDeriv = NULL;
     dPartialsTmp = NULL;
+    dFirstDerivTmp = NULL;
+    dSecondDerivTmp = NULL;
     
 	hCategoryRates = NULL;
     
@@ -94,6 +98,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
 BeagleGPUImpl::~BeagleGPUImpl() {
 		
 	// free GPU memory
+    
+    // TODO: free all GPU memory (some allocations seem to be missing here)
 	
 	if (kInitialized) {
 		for (int i=0; i < kScaleBufferCount; i++)
@@ -297,12 +303,16 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                              kCategoryCount * kPartialsBufferCount + // dWeights
                                              kPaddedStateCount * kPartialsBufferCount + // dFrequencies
                                              kPaddedPatternCount + // dIntegrationTmp
+                                             kPaddedPatternCount + // dOutFirstDeriv
+                                             kPaddedPatternCount + // dOutSecondDeriv
                                              kPartialsSize + // dPartialsTmp
+                                             kPartialsSize + // dFirstDerivTmp
+                                             kPartialsSize + // dSecondDerivTmp
                                              kScaleBufferCount * kPaddedPatternCount + // dScalingFactors
                                              kPartialsBufferCount * kPartialsSize + // dTipPartialsBuffers + dPartials
                                              kMatrixCount * kMatrixSize * kCategoryCount + // dMatrices
                                              kBufferCount + // dBranchLengths
-                                             kMatrixCount * kCategoryCount) + // dDistanceQueue
+                                             kMatrixCount * kCategoryCount * 2) + // dDistanceQueue
     SIZE_INT * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
     sizeof(GPUPtr) * ptrQueueLength; // dPtrQueue
     
@@ -333,7 +343,12 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dFrequencies = gpu->AllocateRealMemory(kPaddedStateCount);
     
     dIntegrationTmp = gpu->AllocateRealMemory(kPaddedPatternCount);
+    dOutFirstDeriv = gpu->AllocateRealMemory(kPaddedPatternCount);
+    dOutSecondDeriv = gpu->AllocateRealMemory(kPaddedPatternCount);
+    
     dPartialsTmp = gpu->AllocateRealMemory(kPartialsSize);
+    dFirstDerivTmp = gpu->AllocateRealMemory(kPartialsSize);
+    dSecondDerivTmp = gpu->AllocateRealMemory(kPartialsSize);
     
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount);
@@ -371,8 +386,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     // No execution has more no kBufferCount events
     dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
     
-    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount * kCategoryCount);
-    hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount * kCategoryCount);
+    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount * kCategoryCount * 2);
+    hDistanceQueue = (REAL*) malloc(SIZE_REAL * kMatrixCount * kCategoryCount * 2);
     checkHostMemory(hDistanceQueue);
     
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * ptrQueueLength);
@@ -713,9 +728,7 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     fprintf(stderr,"\tEntering BeagleGPUImpl::updateTransitionMatrices\n");
 #endif
     
-    // TODO: implement calculation of derivatives
-    // TODO: correctly set GPU derivative matrices for extra ambiguity column
-    
+    // TODO: improve performance of calculation of derivatives
     int totalCount = 0;
     
 #ifdef CUDA
@@ -736,6 +749,25 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
         kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
                                                   dEigenValues[eigenIndex], dDistanceQueue, totalCount);
 	} else if (secondDerivativeIndices == NULL) {        
+        
+        totalCount = count * kCategoryCount;
+        int ptrIndex = 0;
+        for (int i = 0; i < count; i++) {        
+            for (int j = 0; j < kCategoryCount; j++) {
+                hPtrQueue[ptrIndex] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
+                hPtrQueue[ptrIndex + totalCount] = dMatrices[firstDerivativeIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
+                hDistanceQueue[ptrIndex] = (REAL) (edgeLengths[i]);
+                hDistanceQueue[ptrIndex + totalCount] = (REAL) (hCategoryRates[j]);
+                ptrIndex++;
+            }
+        }
+        
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount * 2);
+        gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount * 2);
+        
+        kernels->GetTransitionProbabilitiesSquareFirstDeriv(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+                                                             dEigenValues[eigenIndex], dDistanceQueue, totalCount);        
+        
     } else {
         totalCount = count * kCategoryCount;
         int ptrIndex = 0;
@@ -744,13 +776,14 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                 hPtrQueue[ptrIndex] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
                 hPtrQueue[ptrIndex + totalCount] = dMatrices[firstDerivativeIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
                 hPtrQueue[ptrIndex + totalCount * 2] = dMatrices[secondDerivativeIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
-                hDistanceQueue[ptrIndex] = (REAL) (edgeLengths[i] * hCategoryRates[j]);
+                hDistanceQueue[ptrIndex] = (REAL) (edgeLengths[i]);
+                hDistanceQueue[ptrIndex + totalCount] = (REAL) (hCategoryRates[j]);
                 ptrIndex++;
             }
         }
         
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount * 3);
-        gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
+        gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount * 2);
         
         kernels->GetTransitionProbabilitiesSquareSecondDeriv(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
                                                   dEigenValues[eigenIndex], dDistanceQueue, totalCount);        
@@ -1180,44 +1213,134 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         const int childIndex = childBufferIndices[0];
         const int probIndex = probabilityIndices[0];
         
-        // TODO: implement derivatives for calculateEdgeLnL
-        //        const int firstDerivIndex = firstDerivativeIndices[0];
-        //        const int secondDerivIndex = secondDerivativeIndices[0];
         
         GPUPtr partialsParent = dPartials[parIndex];
         GPUPtr partialsChild = dPartials[childIndex];        
         GPUPtr statesChild = dStates[childIndex];
         GPUPtr transMatrix = dMatrices[probIndex];
-        //        REAL* firstDerivMatrix = 0L;
-        //        REAL* secondDerivMatrix = 0L;
         
-        if (statesChild != 0) {
-            // TODO: test calculateEdgeLnL when child is of tipStates kind
-            kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
-                                                   transMatrix, kPaddedPatternCount,
-                                                   kCategoryCount);
-        } else {
-            kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
-                                                     transMatrix, kPaddedPatternCount,
-                                                     kCategoryCount);
-        }        
+        if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
+            if (statesChild != 0) {
+                kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                       transMatrix, kPaddedPatternCount,
+                                                       kCategoryCount);
+            } else {
+                kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                         transMatrix, kPaddedPatternCount,
+                                                         kCategoryCount);
+            }        
+            
+            int cumulativeScalingFactor = scalingFactorsIndices[0];
+            if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
+                kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
+                                                            dFrequencies, dScalingFactors[cumulativeScalingFactor],
+                                                            kPaddedPatternCount, kCategoryCount);
+            } else {
+                kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
+                                              kPaddedPatternCount, kCategoryCount);
+            }
+            
+#ifdef DOUBLE_PRECISION
+            gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
+#else
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+            MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+#endif            
+		} else if (secondDerivativeIndices == NULL) {
+            // TODO: remove this "hack" for a proper version that only calculates firstDeriv
+            
+            const int firstDerivIndex = firstDerivativeIndices[0];
+            GPUPtr firstDerivMatrix = dMatrices[firstDerivIndex];
+            GPUPtr secondDerivMatrix = dMatrices[firstDerivIndex];
+            
+            if (statesChild != 0) {
+                // TODO: test GPU derivative matrices for statesPartials (including extra ambiguity column)
+                kernels->StatesPartialsEdgeLikelihoodsSecondDeriv(dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                  partialsParent, statesChild,
+                                                                  transMatrix, firstDerivMatrix, secondDerivMatrix,
+                                                                  kPaddedPatternCount, kCategoryCount);
+            } else {
+                kernels->PartialsPartialsEdgeLikelihoodsSecondDeriv(dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                    partialsParent, partialsChild,
+                                                                    transMatrix, firstDerivMatrix, secondDerivMatrix,
+                                                                    kPaddedPatternCount, kCategoryCount);
+                
+            }
+            
+            int cumulativeScalingFactor = scalingFactorsIndices[0];
+            if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
+                kernels->IntegrateLikelihoodsDynamicScalingSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
+                                                                       dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                       dWeights, dFrequencies,
+                                                                       dScalingFactors[cumulativeScalingFactor],
+                                                                       kPaddedPatternCount, kCategoryCount);
+            } else {
+                kernels->IntegrateLikelihoodsSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
+                                                         dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                         dWeights, dFrequencies,
+                                                         kPaddedPatternCount, kCategoryCount);
+            }
+            
+#ifdef DOUBLE_PRECISION
+            gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
+#else
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+            MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+            
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, SIZE_REAL * kPatternCount);
+            MEMCNV(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount, double);            
+#endif                        
+            
+		} else {
+            // TODO: improve performance of GPU implementation of derivatives for calculateEdgeLnL
 
-        int cumulativeScalingFactor = scalingFactorsIndices[0];
-        if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
-            kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights,
-                                                        dFrequencies, dScalingFactors[cumulativeScalingFactor],
-                                                        kPaddedPatternCount, kCategoryCount);
-        } else {
-            kernels->IntegrateLikelihoods(dIntegrationTmp, dPartialsTmp, dWeights, dFrequencies,
-                                          kPaddedPatternCount, kCategoryCount);
+            const int firstDerivIndex = firstDerivativeIndices[0];
+            const int secondDerivIndex = secondDerivativeIndices[0];
+            GPUPtr firstDerivMatrix = dMatrices[firstDerivIndex];
+            GPUPtr secondDerivMatrix = dMatrices[secondDerivIndex];
+            
+            if (statesChild != 0) {
+                // TODO: test GPU derivative matrices for statesPartials (including extra ambiguity column)
+                kernels->StatesPartialsEdgeLikelihoodsSecondDeriv(dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                  partialsParent, statesChild,
+                                                                  transMatrix, firstDerivMatrix, secondDerivMatrix,
+                                                                  kPaddedPatternCount, kCategoryCount);
+            } else {
+                kernels->PartialsPartialsEdgeLikelihoodsSecondDeriv(dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                    partialsParent, partialsChild,
+                                                                    transMatrix, firstDerivMatrix, secondDerivMatrix,
+                                                                    kPaddedPatternCount, kCategoryCount);
+                
+            }
+
+            int cumulativeScalingFactor = scalingFactorsIndices[0];
+            if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
+                kernels->IntegrateLikelihoodsDynamicScalingSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
+                                                                       dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                                       dWeights, dFrequencies,
+                                                                       dScalingFactors[cumulativeScalingFactor],
+                                                                       kPaddedPatternCount, kCategoryCount);
+            } else {
+                kernels->IntegrateLikelihoodsSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
+                                                         dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
+                                                         dWeights, dFrequencies,
+                                                         kPaddedPatternCount, kCategoryCount);
+            }
+            
+#ifdef DOUBLE_PRECISION
+            gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
+#else
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
+            MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+            
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, SIZE_REAL * kPatternCount);
+            MEMCNV(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount, double);
+            
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutSecondDeriv, SIZE_REAL * kPatternCount);
+            MEMCNV(outSecondDerivatives, hLogLikelihoodsCache, kPatternCount, double);
+#endif                                    
         }
         
-#ifdef DOUBLE_PRECISION
-        gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, SIZE_REAL * kPatternCount);
-#else
-        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, SIZE_REAL * kPatternCount);
-        MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
-#endif
         
     } else {
         // TODO: implement calculateEdgeLnL for count > 1

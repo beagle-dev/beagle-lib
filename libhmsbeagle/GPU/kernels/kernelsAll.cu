@@ -148,6 +148,137 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
+__global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
+                                           REAL* A,
+                                           REAL* D,
+                                           REAL* B,
+                                           REAL* distanceQueue,
+                                           int length,
+                                           int wB,
+                                           int totalMatrix) {
+
+    __shared__ REAL* C;
+    __shared__ REAL* CFirstDeriv;
+    __shared__ REAL distanceLength;
+    __shared__ REAL distanceRate;
+
+    int wMatrix = blockIdx.x % totalMatrix;
+
+    // Block index
+    int bx = blockIdx.x / totalMatrix;
+    int by = blockIdx.y;
+
+    // Thread index
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int BLOCKS = gridDim.y;
+
+    if (tx == 0 && ty == 0) {
+        C = listC[wMatrix]; // Non-coalescent read
+        CFirstDeriv = listC[wMatrix + totalMatrix]; // Non-coalescent read
+        distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
+        distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
+    }
+
+    __syncthreads();
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+    REAL CFirstDerivSub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
+
+    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE][2];
+
+    for (int i = 0; i < BLOCKS - 1; i++) {
+
+        if (ty == 0) {
+            REAL scaledEigenTmp = D[d + tx] * distanceRate;
+            Ds[tx][0] = exp(scaledEigenTmp * distanceLength);
+            Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
+        }
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        __syncthreads();
+
+        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k) {
+            Csub += As[ty][k] * Ds[k][0] * Bs[k][tx];
+            CFirstDerivSub += As[ty][k] * Ds[k][1] * Bs[k][tx];
+        }
+
+        __syncthreads();
+
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;
+    }
+
+    // Last block is too long
+    if (tx < EDGE && ty < EDGE) {
+        if (ty == 0) {
+            REAL scaledEigenTmp = D[d + tx] * distanceRate;
+            Ds[tx][0] = exp(scaledEigenTmp * distanceLength);
+            Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
+                }
+
+#ifndef KERNEL_PRINT_ENABLED
+        __syncthreads();
+#endif
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+
+        if (ty == 0) {
+            Ds[tx][0] = 0;
+            Ds[tx][1] = 0;
+        }
+
+        As[ty][tx] = 0;
+        Bs[ty][tx] = 0;
+    }
+
+    __syncthreads();
+
+    for (int k = 0; k < EDGE; k++) {
+        Csub += As[ty][k] * Ds[k][0] * Bs[k][tx];
+        CFirstDerivSub += As[ty][k] * Ds[k][1] * Bs[k][tx];
+    }
+
+    __syncthreads();
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+        if (Csub < 0)
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = 0;
+        else
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = Csub;
+
+        CFirstDeriv[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+          PADDED_STATE_COUNT * ty + tx] = CFirstDerivSub;
+    }
+}
+
 __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
                                            REAL* A,
                                            REAL* D,
@@ -160,7 +291,8 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
     __shared__ REAL* C;
     __shared__ REAL* CFirstDeriv;
     __shared__ REAL* CSecondDeriv;
-    __shared__ REAL distance;
+    __shared__ REAL distanceLength;
+    __shared__ REAL distanceRate;
 
     int wMatrix = blockIdx.x % totalMatrix;
 
@@ -177,7 +309,8 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
         C = listC[wMatrix]; // Non-coalescent read
         CFirstDeriv = listC[wMatrix + totalMatrix]; // Non-coalescent read
         CSecondDeriv = listC[wMatrix + totalMatrix * 2]; // Non-coalescent read
-        distance = distanceQueue[wMatrix]; // Non-coalescent read
+        distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
+        distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
 
     __syncthreads();
@@ -207,9 +340,10 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
     for (int i = 0; i < BLOCKS - 1; i++) {
 
         if (ty == 0) {
-            Ds[tx][0] = exp(D[d + tx] * distance);
-            Ds[tx][1] = D[d + tx] * Ds[tx][0];
-            Ds[tx][2] = D[d + tx] * Ds[tx][1];
+            REAL scaledEigenTmp = D[d + tx] * distanceRate;
+            Ds[tx][0] = exp(scaledEigenTmp * distanceLength);
+            Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
+            Ds[tx][2] = scaledEigenTmp * Ds[tx][1];
         }
 
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
@@ -233,10 +367,11 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
     // Last block is too long
     if (tx < EDGE && ty < EDGE) {
         if (ty == 0) {
-            Ds[tx][0] = exp(D[d + tx] * distance);
-            Ds[tx][1] = D[d + tx] * Ds[tx][0];
-            Ds[tx][2] = D[d + tx] * Ds[tx][1];
-        }
+            REAL scaledEigenTmp = D[d + tx] * distanceRate;
+            Ds[tx][0] = exp(scaledEigenTmp * distanceLength);
+            Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
+            Ds[tx][2] = scaledEigenTmp * Ds[tx][1];
+                }
 
 #ifndef KERNEL_PRINT_ENABLED
         __syncthreads();
@@ -280,12 +415,11 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
 
         CFirstDeriv[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
           PADDED_STATE_COUNT * ty + tx] = CFirstDerivSub;
+          
         CSecondDeriv[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
           PADDED_STATE_COUNT * ty + tx] = CSecondDerivSub;
-        
     }
 }
-
 
 #define READ_SCHUR_VALUES() \
 		if (ty == 0) { \
