@@ -94,7 +94,7 @@ FourTaxonExample::FourTaxonExample()
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
   , single(false)
-  , calculate_derivatives(false)
+  , calculate_derivatives(0)
   , empirical_derivatives(false)
     {
 	data_file_name = "fourtaxon.dat";
@@ -288,8 +288,10 @@ void FourTaxonExample::initBeagleLib()
         
 	int mtrxCount = ntaxa + 1; 
 		
-	if (calculate_derivatives)
-		mtrxCount *= 3;
+	if (calculate_derivatives == 1)
+		mtrxCount *= 2;
+    else if (calculate_derivatives == 2)
+        mtrxCount *= 3;
 
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
@@ -424,8 +426,8 @@ double FourTaxonExample::calcLnL(int return_value)
 			instance_handle,				// instance,
 			0,								// eigenIndex,
 			&transition_matrix_index[0],	// probabilityIndices,
-			(calculate_derivatives ? &transition_matrix_index[5] : NULL),	// firstDerivativeIndices,
-			(calculate_derivatives ? &transition_matrix_index[10] : NULL),	// secondDerivativeIndices,
+			(calculate_derivatives > 0 ? &transition_matrix_index[5] : NULL),	// firstDerivativeIndices,
+			(calculate_derivatives > 1 ? &transition_matrix_index[10] : NULL),	// secondDerivativeIndices,
 			&brlens[0],						// edgeLengths,
 			5);								// count
 
@@ -483,8 +485,8 @@ double FourTaxonExample::calcLnL(int return_value)
 		 &parentBufferIndex,				// parentBufferIndices
 		 &childBufferIndex,					// childBufferIndices
 		 &transitionMatrixIndex,			// probabilityIndices
-		 (calculate_derivatives ? &firstDerivMatrixIndex : NULL),	// firstDerivativeIndices
-		 (calculate_derivatives ? &secondDerivMatrixIndex : NULL),	// secondDerivativeIndices
+		 (calculate_derivatives > 0 ? &firstDerivMatrixIndex : NULL),	// firstDerivativeIndices
+		 (calculate_derivatives > 1 ? &secondDerivMatrixIndex : NULL),	// secondDerivativeIndices
 #ifdef _WIN32
 		 &relativeRateProb[0],
 #else
@@ -494,8 +496,8 @@ double FourTaxonExample::calcLnL(int return_value)
          &cumulativeScalingFactorIndex,
 		 1,									// count
 		 &lnL[0],							// outLogLikelihoods,
-		 (calculate_derivatives ? &firstDeriv[0] : NULL),	  // outFirstDerivatives,
-		 (calculate_derivatives ? &secondDeriv[0] : NULL));	  // outSecondDerivatives
+		 (calculate_derivatives > 0 ? &firstDeriv[0] : NULL),	  // outFirstDerivatives,
+		 (calculate_derivatives > 1 ? &secondDeriv[0] : NULL));	  // outSecondDerivatives
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
@@ -703,8 +705,10 @@ void FourTaxonExample::run()
 		std::cout.setf(std::ios::showpoint);
 		std::cout.setf(std::ios::floatfield, std::ios::fixed);
 		std::cout << std::setw(12) << "iter" << std::setw(24) << "log-likelihood" << std::setw(24) << "tree length";
-		if (calculate_derivatives)
-			std::cout << std::setw(24) << "first derivative" << std::setw(24) << "second derivative";
+		if (calculate_derivatives > 0)
+			std::cout << std::setw(24) << "first derivative";
+        if (calculate_derivatives > 1)
+            std::cout << std::setw(24) << "second derivative";
         if (empirical_derivatives)
             std::cout << std::setw(24) << "first deriv (emp)" << std::setw(24) << "second deriv (emp)";
 		std::cout << std::endl;
@@ -723,8 +727,10 @@ void FourTaxonExample::run()
 			std::cout << std::setw(12) << rep;
 			std::cout << std::setw(24) << std::setprecision(5) << calcLnL(0);
 			std::cout << std::setw(24) << std::setprecision(5) << std::accumulate(brlens.begin(), brlens.end(), 0.0);
-            if (calculate_derivatives)
-				std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1) << std::setw(24) << calcLnL(2);
+            if (calculate_derivatives > 0)
+				std::cout << std::setw(24) << std::setprecision(5) << calcLnL(1);
+            if (calculate_derivatives > 1)
+                std::cout << std::setw(24) << std::setprecision(5) << calcLnL(2);
             if (empirical_derivatives)
                 {
                 double startBrlens = brlens[transmat_index];
@@ -780,7 +786,9 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
     std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
     std::cerr << "If --single is specified, then run in single precision mode\n\n";
-    std::cerr << "If --calcderivs is specified, then calculate first and second order edge likelihood derivatives\n\n";
+    std::cerr << "If --calcderivs is specified, 0 = no calculation of edge likelihood derivatives\n";
+    std::cerr << "                              1 = calculate first order edge likelihood derivatives\n";
+    std::cerr << "                              2 = calculate first and second order edge likelihood derivatives\n\n";
     std::cerr << "If --empiricalderivs is specified, then empirically calculate first and second order edge likelihood derivatives\n\n";
 	std::cerr << std::endl;
 	std::exit(0);
@@ -798,6 +806,7 @@ void FourTaxonExample::interpretCommandLineParameters(
 	bool expecting_rsrc_number = false;
 	bool expecting_likerootnode = false;
     bool expecting_scaling_number = false;
+    bool expecting_calculate_derivatives = false;
 	for (unsigned i = 1; i < argc; ++i)
 		{
 		std::string option = argv[i];
@@ -848,6 +857,13 @@ void FourTaxonExample::interpretCommandLineParameters(
             if (noption < 0 || noption > 3)
                 abort("invalid scaling option supplied on the command line");
              }
+		else if (expecting_calculate_derivatives)
+            {
+			std::cerr << "calcderivs option: " << option << std::endl;
+			calculate_derivatives = (unsigned)atoi(option.c_str());
+			std::cerr << "calculate_derivatives = " << calculate_derivatives << std::endl;
+			expecting_calculate_derivatives = false;
+            }
 		else if (option == "--help")
 			{
 			helpMessage();
@@ -886,7 +902,7 @@ void FourTaxonExample::interpretCommandLineParameters(
 			}
 		else if (option == "--calcderivs")
 			{
-			calculate_derivatives = true;
+			expecting_calculate_derivatives = true;
 			}
         else if (option == "--empiricalderivs")
             {
