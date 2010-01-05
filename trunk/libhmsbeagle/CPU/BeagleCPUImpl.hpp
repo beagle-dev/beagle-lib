@@ -768,12 +768,12 @@ int BeagleCPUImpl<REALTYPE>::calculateEdgeLogLikelihoods(const int* parentBuffer
     // TODO: implement for count > 1
 
     if (count == 1) {
-		if (firstDerivativeIndices != NULL && secondDerivativeIndices != NULL)
-			calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], firstDerivativeIndices[0], secondDerivativeIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives, outSecondDerivatives);
-		else if (firstDerivativeIndices != NULL)
+		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL)
+			calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
+		else if (secondDerivativeIndices == NULL)
 			calcEdgeLogLikelihoodsFirstDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], firstDerivativeIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives);
 		else 
-			calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
+			calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], firstDerivativeIndices[0], secondDerivativeIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives, outSecondDerivatives);
     } else {
         fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
         return BEAGLE_ERROR_OUT_OF_RANGE;
@@ -996,7 +996,7 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInd
 	memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 	memset(firstDerivTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 	memset(secondDerivTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
-	
+    
 	if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
 		
 		const int* statesChild = gTipStates[childIndex];
