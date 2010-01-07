@@ -456,6 +456,88 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
 }
 
+__global__ void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartialsTmp,
+                                                              REAL* dFirstDerivTmp,
+                                                              REAL* dSecondDerivTmp,
+                                                              REAL* dParentPartials,
+                                                              REAL* dChildParials,
+                                                              REAL* dTransMatrix,
+                                                              REAL* dFirstDerivMatrix,
+                                                              REAL* dSecondDerivMatrix,
+                                                              int patternCount) {
+    REAL sum1 = 0;
+    REAL sumFirstDeriv = 0;
+    REAL sumSecondDeriv = 0;
+
+    int i;
+
+    int state = threadIdx.x;
+    int patIdx = threadIdx.y;
+    int pattern = __umul24(blockIdx.x,PATTERN_BLOCK_SIZE) + patIdx;
+    int matrix = blockIdx.y;
+    int totalPatterns = patternCount;
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+
+    REAL* matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
+    REAL* matrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;
+    REAL* matrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __shared__ REAL sMatrixFirstDeriv[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __shared__ REAL sMatrixSecondDeriv[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+
+    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        // These are all coherent global memory reads; checked in Profiler
+        sPartials1[patIdx][state] = dParentPartials[y + state];
+        sPartials2[patIdx][state] = dChildParials[y + state];
+    } else {
+        sPartials1[patIdx][state] = 0;
+        sPartials2[patIdx][state] = 0;
+    }
+
+    for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        // load one row of matrices
+        if (patIdx < BLOCK_PEELING_SIZE) {
+            // These are all coherent global memory reads.
+            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+	        sMatrixFirstDeriv[patIdx][state] = matrixFirstDeriv[patIdx * PADDED_STATE_COUNT + state];
+	        sMatrixSecondDeriv[patIdx][state] = matrixSecondDeriv[patIdx * PADDED_STATE_COUNT + state];
+
+            // sMatrix now filled with starting in state and ending in i
+            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            matrixFirstDeriv += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            matrixSecondDeriv += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+        }
+        __syncthreads();
+
+        int j;
+        for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            sum1 += sMatrix1[j][state] * sPartials1[patIdx][i + j];
+            sumFirstDeriv += sMatrixFirstDeriv[j][state] * sPartials1[patIdx][i + j];
+            sumSecondDeriv += sMatrixSecondDeriv[j][state] * sPartials1[patIdx][i + j];
+        }
+
+        __syncthreads(); // GTX280 FIX HERE
+
+    }
+
+    if (pattern < totalPatterns) {
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
+        dFirstDerivTmp[u] = sumFirstDeriv * sPartials2[patIdx][state];
+        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];
+    }
+}
+
 __global__ void kernelStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
                                                     REAL* dParentPartials,
                                                     int* dChildStates,
@@ -499,6 +581,69 @@ __global__ void kernelStatesPartialsEdgeLikelihoods(REAL* dPartialsTmp,
     if (pattern < totalPatterns)
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];                         
 }
+
+__global__ void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartialsTmp,
+                                                              REAL* dFirstDerivTmp,
+                                                              REAL* dSecondDerivTmp,
+                                                              REAL* dParentPartials,
+                                                              int* dChildStates,
+                                                              REAL* dTransMatrix,
+                                                              REAL* dFirstDerivMatrix,
+                                                              REAL* dSecondDerivMatrix,
+                                                              int patternCount) {
+    REAL sum1 = 0;
+    REAL sumFirstDeriv = 0;
+    REAL sumSecondDeriv = 0;
+
+    int state = threadIdx.x;
+    int patIdx = threadIdx.y;
+    int pattern = __umul24(blockIdx.x,PATTERN_BLOCK_SIZE) + patIdx;
+    int matrix = blockIdx.y;
+    int totalPatterns = patternCount;
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+
+    // Load values into shared memory
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials2[patIdx][state] = dParentPartials[y + state];
+    } else {
+        sPartials2[patIdx][state] = 0;
+    }
+
+    if (pattern < totalPatterns) {
+        int state1 = dChildStates[pattern]; // Coalesced; no need to share
+
+        REAL* matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
+        REAL* matrixFirstDeriv = dFirstDerivMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
+        REAL* matrixSecondDeriv = dSecondDerivMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
+
+        if (state1 < PADDED_STATE_COUNT) {
+            sum1 = matrix1[state];
+            sumFirstDeriv = matrixFirstDeriv[state];
+            sumSecondDeriv = matrixSecondDeriv[state];
+        } else {
+            sum1 = 1.0;
+            sumFirstDeriv = 0.0;
+            sumSecondDeriv = 0.0;
+        }
+    }
+
+    if (pattern < totalPatterns) {
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
+        dFirstDerivTmp[u] = sumFirstDeriv * sPartials2[patIdx][state];
+        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];
+        
+    }
+}
+
+
 
 /*
  * Find a scaling factor for each pattern
@@ -705,6 +850,87 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
         dResult[pattern] = log(sum[state]) + dRootScalingFactors[pattern];
 }
 
+__global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
+                                              REAL* dFirstDerivResult,
+                                              REAL* dSecondDerivResult,
+                                              REAL* dRootPartials,
+                                              REAL* dRootFirstDeriv,
+                                              REAL* dRootSecondDeriv,
+                                              REAL* dWeights,
+                                              REAL* dFrequencies,
+                                              REAL *dRootScalingFactors,
+                                              int matrixCount,
+                                              int patternCount) {
+    int state   = threadIdx.x;
+    int pattern = blockIdx.x;
+//    int patternCount = gridDim.x;
+
+    REAL tmpLogLike = 0.0;
+    REAL tmpFirstDeriv = 0.0;
+
+    __shared__ REAL stateFreq[PADDED_STATE_COUNT];
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
+    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __shared__ REAL sum[PADDED_STATE_COUNT];
+    __shared__ REAL sumD1[PADDED_STATE_COUNT];
+    __shared__ REAL sumD2[PADDED_STATE_COUNT];
+
+    // Load shared memory
+
+    stateFreq[state] = dFrequencies[state];
+    sum[state] = 0;
+    sumD1[state] = 0;
+    sumD2[state] = 0;
+
+    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {
+        int x = matrixEdge + state;
+        if (x < matrixCount)
+            matrixProp[x] = dWeights[x];
+    }
+
+    __syncthreads();
+
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;;
+
+    for(int r = 0; r < matrixCount; r++) {
+        sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
+        sumD1[state] += dRootFirstDeriv[u + delta * r] * matrixProp[r];
+        sumD2[state] += dRootSecondDeriv[u + delta * r] * matrixProp[r];
+    }
+
+    sum[state] *= stateFreq[state];
+    sumD1[state] *= stateFreq[state];
+    sumD2[state] *= stateFreq[state];    
+    __syncthreads();
+
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+            sum[state] += sum[state + i];
+            sumD1[state] += sumD1[state + i];
+            sumD2[state] += sumD2[state + i];
+        }
+        __syncthreads();
+    }
+
+    if (state == 0) {
+        tmpLogLike = sum[state];
+        dResult[pattern] = log(tmpLogLike) + dRootScalingFactors[pattern];
+        
+        tmpFirstDeriv = sumD1[state] / tmpLogLike;
+        dFirstDerivResult[pattern] = tmpFirstDeriv;
+        
+        dSecondDerivResult[pattern] = sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv;
+    }
+}
+
+
 __global__ void kernelIntegrateLikelihoods(REAL* dResult,
                                               REAL* dRootPartials,
                                               REAL* dWeights,
@@ -759,6 +985,86 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
     if (state == 0)
         dResult[pattern] = log(sum[state]);
 }
+
+__global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
+                                              REAL* dFirstDerivResult,
+                                              REAL* dSecondDerivResult,
+                                              REAL* dRootPartials,
+                                              REAL* dRootFirstDeriv,
+                                              REAL* dRootSecondDeriv,
+                                              REAL* dWeights,
+                                              REAL* dFrequencies,
+                                              int matrixCount,
+                                              int patternCount) {
+    int state   = threadIdx.x;
+    int pattern = blockIdx.x;
+//    int patternCount = gridDim.x;
+
+    REAL tmpLogLike = 0.0;
+    REAL tmpFirstDeriv = 0.0;
+
+    __shared__ REAL stateFreq[PADDED_STATE_COUNT];
+    // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
+    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
+    __shared__ REAL sum[PADDED_STATE_COUNT];
+    __shared__ REAL sumD1[PADDED_STATE_COUNT];
+    __shared__ REAL sumD2[PADDED_STATE_COUNT];
+
+    // Load shared memory
+
+    stateFreq[state] = dFrequencies[state];
+    sum[state] = 0;
+    sumD1[state] = 0;
+    sumD2[state] = 0;
+
+    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {
+        int x = matrixEdge + state;
+        if (x < matrixCount)
+            matrixProp[x] = dWeights[x];
+    }
+
+    __syncthreads();
+
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;
+
+    for(int r = 0; r < matrixCount; r++) {
+        sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
+        sumD1[state] += dRootFirstDeriv[u + delta * r] * matrixProp[r];
+        sumD2[state] += dRootSecondDeriv[u + delta * r] * matrixProp[r];
+    }
+
+    sum[state] *= stateFreq[state];
+    sumD1[state] *= stateFreq[state];
+    sumD2[state] *= stateFreq[state];
+    __syncthreads();
+
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+            sum[state] += sum[state + i];
+            sumD1[state] += sumD1[state + i];
+            sumD2[state] += sumD2[state + i];
+        }
+        __syncthreads();
+    }
+
+    if (state == 0) {
+        tmpLogLike = sum[state];
+        dResult[pattern] = log(tmpLogLike);
+        
+        tmpFirstDeriv = sumD1[state] / tmpLogLike;
+        dFirstDerivResult[pattern] = tmpFirstDeriv;
+        
+        dSecondDerivResult[pattern] = sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv;
+    }
+}
+
 
 __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
                                               REAL* dRootPartials,

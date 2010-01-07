@@ -396,8 +396,8 @@ __global__ void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartials
 
 	    if (patIdx == 0 ) {
 	        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
-	        sMatrixFirstDeriv[tx] = matrixFirstDeriv[tx]; // All coalesced memory reads
-	        sMatrixSecondDeriv[tx] = matrixSecondDeriv[tx]; // All coalesced memory reads
+	        sMatrixFirstDeriv[tx] = matrixFirstDeriv[tx];
+	        sMatrixSecondDeriv[tx] = matrixSecondDeriv[tx];
 	    }
 
 	    __syncthreads();
