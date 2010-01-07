@@ -195,6 +195,9 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 
     kFlags = 0;
 
+    if (preferenceFlags & BEAGLE_FLAG_LSCALER || requirementFlags & BEAGLE_FLAG_LSCALER)
+    	kFlags |= BEAGLE_FLAG_LSCALER;
+    
     if (requirementFlags & BEAGLE_FLAG_COMPLEX || preferenceFlags & BEAGLE_FLAG_COMPLEX)
     	kFlags |= BEAGLE_FLAG_COMPLEX;
 
@@ -281,6 +284,10 @@ int BeagleCPUImpl<REALTYPE>::getInstanceDetails(BeagleInstanceDetails* returnInf
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
         returnInfo->flags = getFlags();
+        if (kFlags & BEAGLE_FLAG_LSCALER)
+            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
+        if (kFlags & BEAGLE_FLAG_COMPLEX)
+        	returnInfo->flags |= BEAGLE_FLAG_COMPLEX;
         returnInfo->implName = (char*) getName();
     }
 
@@ -718,8 +725,12 @@ int BeagleCPUImpl<REALTYPE>::accumulateScaleFactors(const int* scalingIndices,
 	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
     for(int i=0; i<count; i++) {
         const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-        for(int j=0; j<kPatternCount; j++)
-            cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+        for(int j=0; j<kPatternCount; j++) {
+            if (kFlags & BEAGLE_FLAG_LSCALER)
+                cumulativeScaleBuffer[j] += scaleBuffer[j];
+            else
+                cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+        }
     }
 
     if (DEBUGGING_OUTPUT) {
@@ -738,8 +749,12 @@ int BeagleCPUImpl<REALTYPE>::removeScaleFactors(const int* scalingIndices,
 	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
     for(int i=0; i<count; i++) {
         const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-        for(int j=0; j<kPatternCount; j++)
-            cumulativeScaleBuffer[j] -= log(scaleBuffer[j]);
+        for(int j=0; j<kPatternCount; j++) {
+            if (kFlags & BEAGLE_FLAG_LSCALER)
+                cumulativeScaleBuffer[j] -= scaleBuffer[j];
+            else
+                cumulativeScaleBuffer[j] -= log(scaleBuffer[j]);
+        }
     }
 
     return BEAGLE_SUCCESS;
@@ -1140,9 +1155,17 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
         }
         if (max == 0)
             max = 1.0;
-        scaleFactors[k] = max;
-        if( cumulativeScaleFactors != NULL )
-            cumulativeScaleFactors[k] += log(max);
+        
+        if (kFlags & BEAGLE_FLAG_LSCALER) {
+            REALTYPE logMax = log(max);
+            scaleFactors[k] = logMax;
+            if( cumulativeScaleFactors != NULL )
+                cumulativeScaleFactors[k] += logMax;
+        } else {
+            scaleFactors[k] = max;
+            if( cumulativeScaleFactors != NULL )
+                cumulativeScaleFactors[k] += log(max);
+        }
     }
     if (DEBUGGING_OUTPUT) {
         for(int i=0; i<kPatternCount; i++)
@@ -1411,7 +1434,7 @@ const char* BeagleCPUImplFactory<REALTYPE>::getName() {
 
 template <typename REALTYPE>
 const long BeagleCPUImplFactory<REALTYPE>::getFlags() {
-	long flags = BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_COMPLEX;
+	long flags = BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_COMPLEX | BEAGLE_FLAG_LSCALER;
 	if (DOUBLE_PRECISION)
 		flags |= BEAGLE_FLAG_DOUBLE;
 	else
