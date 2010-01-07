@@ -211,7 +211,7 @@ BeagleResourceList* beagleGetResourceList() {
         rsrcList->list[0].supportFlags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_DOUBLE |
                                          BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_SYNCH |
                                          BEAGLE_FLAG_COMPLEX | BEAGLE_FLAG_CPU |
-                                         BEAGLE_FLAG_SSE;
+                                         BEAGLE_FLAG_SSE | BEAGLE_FLAG_LSCALER;
         rsrcList->list[0].requiredFlags = BEAGLE_FLAG_CPU;
      }
 

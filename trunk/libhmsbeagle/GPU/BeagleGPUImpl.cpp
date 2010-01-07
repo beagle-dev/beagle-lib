@@ -613,7 +613,7 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     
 #ifdef DOUBLE_PRECISION
     memcpy(Eval, inEigenValues, SIZE_REAL * kStateCount);
-    if (kFlags & BEAGLE_FLAGS_COMPLEX)
+    if (kFlags & BEAGLE_FLAG_COMPLEX)
     	memcpy(Eval+kPaddedStateCount,inEigenValues+kStateCount,SIZE_REAL*kStateCount);
 #else
     MEMCNV(Eval, inEigenValues, kStateCount, REAL);
