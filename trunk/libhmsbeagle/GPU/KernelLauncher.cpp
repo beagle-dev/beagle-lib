@@ -219,7 +219,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
     // Transposed (interchanged Ievc and Evec)    
     int parameterCountV = 5;
     int totalParameterCount = 8;
-    gpu->LaunchKernelIntParams(fMatrixMulADB,
+    gpu->LaunchKernel(fMatrixMulADB,
                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
                                parameterCountV, totalParameterCount,
                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
@@ -249,7 +249,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dPtrQueue
     // Transposed (interchanged Ievc and Evec)    
     int parameterCountV = 5;
     int totalParameterCount = 8;
-    gpu->LaunchKernelIntParams(fMatrixMulADBFirstDeriv,
+    gpu->LaunchKernel(fMatrixMulADBFirstDeriv,
                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
                                parameterCountV, totalParameterCount,
                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
@@ -279,7 +279,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueu
     // Transposed (interchanged Ievc and Evec)    
     int parameterCountV = 5;
     int totalParameterCount = 8;
-    gpu->LaunchKernelIntParams(fMatrixMulADBSecondDeriv,
+    gpu->LaunchKernel(fMatrixMulADBSecondDeriv,
                                bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
                                parameterCountV, totalParameterCount,
                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
@@ -320,7 +320,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtr,
     // Transposed (interchanged Ievc and Evec)    
     int parameterCountV = 5;
     int totalParameterCount = 9;
-    gpu->LaunchKernelIntParams(fMatrixMulADB,
+    gpu->LaunchKernel(fMatrixMulADB,
                                block, grid,
                                parameterCountV, totalParameterCount,
                                dPtr, dIevc, dEigenValues, dEvec, distanceQueue,
@@ -351,7 +351,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     if (doRescaling != 0)    {
         
         // Compute partials without any rescaling        
-        gpu->LaunchKernelIntParams(fPartialsPartialsByPatternBlockCoherent,
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
                                    bgPeelingBlock, bgPeelingGrid,
                                    5, 6,
                                    partials1, partials2, partials3, matrices1, matrices2,
@@ -367,7 +367,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     } else {
         
         // Compute partials with known rescalings        
-        gpu->LaunchKernelIntParams(fPartialsPartialsByPatternBlockFixedScaling,
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedScaling,
                                    bgPeelingBlock, bgPeelingGrid,
                                    6, 7,
                                    partials1, partials2, partials3, matrices1, matrices2,
@@ -399,7 +399,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
     if (doRescaling != 0)    {
         
         // Compute partials without any rescaling
-        gpu->LaunchKernelIntParams(fStatesPartialsByPatternBlockCoherent,
+        gpu->LaunchKernel(fStatesPartialsByPatternBlockCoherent,
                                    bgPeelingBlock, bgPeelingGrid,
                                    5, 6,
                                    states1, partials2, partials3, matrices1, matrices2,
@@ -416,14 +416,14 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         // Compute partials with known rescalings
         if (kPaddedStateCount == 4) { // Ignore rescaling
             
-            gpu->LaunchKernelIntParams(fStatesPartialsByPatternBlockCoherent,
+            gpu->LaunchKernel(fStatesPartialsByPatternBlockCoherent,
                                        bgPeelingBlock, bgPeelingGrid,
                                        5, 6,
                                        states1, partials2, partials3, matrices1, matrices2,
                                        patternCount);
         } else {       
 
-            gpu->LaunchKernelIntParams(fStatesPartialsByPatternBlockFixedScaling,
+            gpu->LaunchKernel(fStatesPartialsByPatternBlockFixedScaling,
                                    bgPeelingBlock, bgPeelingGrid,
                                    6, 7,
                                    states1, partials2, partials3, matrices1, matrices2,
@@ -455,7 +455,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
     if (doRescaling != 0)    {
         
         // Compute partials without any rescaling
-        gpu->LaunchKernelIntParams(fStatesStatesByPatternBlockCoherent,
+        gpu->LaunchKernel(fStatesStatesByPatternBlockCoherent,
                                    bgPeelingBlock, bgPeelingGrid,
                                    5, 6,
                                    states1, states2, partials3, matrices1, matrices2,
@@ -473,14 +473,14 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         // Compute partials with known rescalings
         if (kPaddedStateCount == 4) {
 
-            gpu->LaunchKernelIntParams(fStatesStatesByPatternBlockCoherent,
+            gpu->LaunchKernel(fStatesStatesByPatternBlockCoherent,
                                    bgPeelingBlock, bgPeelingGrid,
                                    5, 6,
                                    states1, states2, partials3, matrices1, matrices2,
                                    patternCount);
         } else {
 
-            gpu->LaunchKernelIntParams(fStatesStatesByPatternBlockFixedScaling,
+            gpu->LaunchKernel(fStatesStatesByPatternBlockFixedScaling,
                                    bgPeelingBlock, bgPeelingGrid,
                                    6, 7,
                                    states1, states2, partials3, matrices1, matrices2,
@@ -505,7 +505,7 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsDynamicScaling\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsDynamicScaling,
+    gpu->LaunchKernel(fIntegrateLikelihoodsDynamicScaling,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                5, 7,
                                dResult, dRootPartials, dWeights, dFrequencies, dRootScalingFactors,
@@ -530,7 +530,7 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResul
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsDynamicScalingSecondDeriv,
+    gpu->LaunchKernel(fIntegrateLikelihoodsDynamicScalingSecondDeriv,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                9, 11,
                                dResult, dFirstDerivResult, dSecondDerivResult,
@@ -552,7 +552,7 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
 #endif
         
-    gpu->LaunchKernelIntParams(fPartialsPartialsEdgeLikelihoods,
+    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoods,
                                bgPeelingBlock, bgPeelingGrid,
                                4, 5,
                                dPartialsTmp, dParentPartials, dChildParials, dTransMatrix,
@@ -578,7 +578,7 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartials
     fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fPartialsPartialsEdgeLikelihoodsSecondDeriv,
+    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoodsSecondDeriv,
                                bgPeelingBlock, bgPeelingGrid,
                                8, 9,
                                dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
@@ -602,7 +602,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoods\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fStatesPartialsEdgeLikelihoods,
+    gpu->LaunchKernel(fStatesPartialsEdgeLikelihoods,
                                bgPeelingBlock, bgPeelingGrid,
                                4, 5,
                                dPartialsTmp, dParentPartials, dChildStates, dTransMatrix,
@@ -628,7 +628,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
     fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fStatesPartialsEdgeLikelihoodsSecondDeriv,
+    gpu->LaunchKernel(fStatesPartialsEdgeLikelihoodsSecondDeriv,
                                bgPeelingBlock, bgPeelingGrid,
                                8, 9,
                                dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
@@ -652,7 +652,7 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
     
     int parameterCountV = 2;
     int totalParameterCount = 4;
-    gpu->LaunchKernelIntParams(fAccumulateFactorsDynamicScaling,
+    gpu->LaunchKernel(fAccumulateFactorsDynamicScaling,
                                bgAccumulateBlock, bgAccumulateGrid,
                                parameterCountV, totalParameterCount,
                                dNodePtrQueue, dRootScalingFactors,
@@ -674,7 +674,7 @@ void KernelLauncher::RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
        
     int parameterCountV = 2;
     int totalParameterCount = 4;
-    gpu->LaunchKernelIntParams(fRemoveFactorsDynamicScaling,
+    gpu->LaunchKernel(fRemoveFactorsDynamicScaling,
                                bgAccumulateBlock, bgAccumulateGrid,
                                parameterCountV, totalParameterCount,
                                dNodePtrQueue, dRootScalingFactors,
@@ -725,7 +725,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
         
         int parameterCountV = 3;
         int totalParameterCount = 4;
-        gpu->LaunchKernelIntParams(fPartialsDynamicScalingAccumulate,
+        gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
                                    bgScaleBlock, bgScaleGrid,
                                    parameterCountV, totalParameterCount,
                                    partials3, scalingFactors, cumulativeScaling,
@@ -733,7 +733,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     } else {
         int parameterCountV = 2;
         int totalParameterCount = 3;
-        gpu->LaunchKernelIntParams(fPartialsDynamicScaling,
+        gpu->LaunchKernel(fPartialsDynamicScaling,
                                    bgScaleBlock, bgScaleGrid,
                                    parameterCountV, totalParameterCount,
                                    partials3, scalingFactors,
@@ -757,7 +757,7 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
    
     int parameterCountV = 4;
     int totalParameterCount = 6;
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoods,
+    gpu->LaunchKernel(fIntegrateLikelihoods,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                parameterCountV, totalParameterCount,
                                dResult, dRootPartials, dWeights, dFrequencies, 
@@ -785,7 +785,7 @@ void KernelLauncher::IntegrateLikelihoodsSecondDeriv(GPUPtr dResult,
     
     int parameterCountV = 8;
     int totalParameterCount = 10;
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsSecondDeriv,
+    gpu->LaunchKernel(fIntegrateLikelihoodsSecondDeriv,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                parameterCountV, totalParameterCount,
                                dResult, dFirstDerivResult, dSecondDerivResult,
@@ -813,7 +813,7 @@ void KernelLauncher::IntegrateLikelihoodsMulti(GPUPtr dResult,
 	
     int parameterCountV = 4;
     int totalParameterCount = 7;
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsMulti,
+    gpu->LaunchKernel(fIntegrateLikelihoodsMulti,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                parameterCountV, totalParameterCount,
                                dResult, dRootPartials, dWeights, dFrequencies, 
@@ -840,7 +840,7 @@ void KernelLauncher::IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsFixedScaleMulti\n");
 #endif
     
-    gpu->LaunchKernelIntParams(fIntegrateLikelihoodsFixedScaleMulti,
+    gpu->LaunchKernel(fIntegrateLikelihoodsFixedScaleMulti,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                7, 11,
                                dResult, dRootPartials, dWeights, dFrequencies, dPtrQueue,

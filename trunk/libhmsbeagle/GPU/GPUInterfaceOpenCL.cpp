@@ -153,7 +153,7 @@ GPUFunction GPUInterface::GetFunction(const char* functionName) {
     return openClFunction;
 }
 
-void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
+void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
                                          int totalParameterCount,
