@@ -83,7 +83,7 @@ public:
     
     GPUFunction GetFunction(const char* functionName);
     
-    void LaunchKernelIntParams(GPUFunction deviceFunction,
+    void LaunchKernel(GPUFunction deviceFunction,
                                Dim3Int block,
                                Dim3Int grid,
                                int parameterCountV,

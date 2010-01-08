@@ -273,14 +273,14 @@ GPUFunction GPUInterface::GetFunction(const char* functionName) {
     return cudaFunction;
 }
 
-void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
+void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
                                          int parameterCountV,
                                          int totalParameterCount,
                                          ...) { // parameters
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelIntParams\n");
+    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif                
     
     
@@ -291,27 +291,28 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     int offset = 0;
     va_list parameters;
     va_start(parameters, totalParameterCount);  
-    for(int i = 0; i < totalParameterCount; i++) {
-        if (i < parameterCountV) {
-            GPUPtr param = va_arg(parameters, GPUPtr);
-            
-             // adjust offset alignment requirements
-            offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
-
-            SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
-            
-            offset += sizeof(param);
-        } else {
-            unsigned int param = va_arg(parameters, unsigned int);
-            
-            // adjust offset alignment requirements
-            offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
-            
-            SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
-            
-            offset += sizeof(param);
-        }
+    for(int i = 0; i < parameterCountV; i++) {
+        GPUPtr param = va_arg(parameters, GPUPtr);
+        
+        // adjust offset alignment requirements
+        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        
+        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
+        
+        offset += sizeof(param);
     }
+    for(int i = parameterCountV; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+        
+        // adjust offset alignment requirements
+        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        
+        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
+        
+        offset += sizeof(param);
+        
+    }
+
     va_end(parameters);
     
     SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
@@ -321,7 +322,7 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernelIntParams\n");
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
 #endif                
     
 }
