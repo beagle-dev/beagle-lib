@@ -76,13 +76,13 @@ private:
     Dim3Int bgScaleBlock;
     Dim3Int bgScaleGrid;
     
-    int kPaddedStateCount;
-    int kCategoryCount;
-    int kPatternCount;
-    int kPatternBlockSize;
-    int kMatrixBlockSize;
-    int kSlowReweighing;  
-    int kMultiplyBlockSize;
+    unsigned int kPaddedStateCount;
+    unsigned int kCategoryCount;
+    unsigned int kPatternCount;
+    unsigned int kPatternBlockSize;
+    unsigned int kMatrixBlockSize;
+    unsigned int kSlowReweighing;  
+    unsigned int kMultiplyBlockSize;
     long kFlags;
     
 public:
@@ -140,7 +140,7 @@ public:
                                                GPUPtr cumulativeScaling,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
-                                               unsigned int doRescaling);
+                                               int doRescaling);
     
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,
@@ -151,7 +151,7 @@ public:
                                              GPUPtr cumulativeScaling,
                                              unsigned int patternCount,
                                              unsigned int categoryCount,
-                                             unsigned int doRescaling);
+                                             int doRescaling);
     
     void StatesStatesPruningDynamicScaling(GPUPtr states1,
                                            GPUPtr states2,
@@ -162,7 +162,7 @@ public:
                                            GPUPtr cumulativeScaling,
                                            unsigned int patternCount,
                                            unsigned int categoryCount,
-                                           unsigned int doRescaling);
+                                           int doRescaling);
     
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,
