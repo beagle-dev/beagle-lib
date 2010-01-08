@@ -276,8 +276,9 @@ GPUFunction GPUInterface::GetFunction(const char* functionName) {
 void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
-                                         int totalParameterCount,
-                                         ...) { // unsigned int parameters
+                                         int parameterCountV,
+                                         int parameterCountI,
+                                         ...) { // parameters
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelIntParams\n");
 #endif                
@@ -287,18 +288,31 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     
     SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
     
+    int totalParameterCount = parameterCountV + parameterCountI;
+    
     int offset = 0;
     va_list parameters;
     va_start(parameters, totalParameterCount);  
     for(int i = 0; i < totalParameterCount; i++) {
-        unsigned int param = va_arg(parameters, unsigned int);
-        
-         // adjust offset alignment requirements
-        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        if (i < parameterCountV) {
+            GPUPtr param = va_arg(parameters, GPUPtr);
+            
+             // adjust offset alignment requirements
+            offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
 
-        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
-        
-        offset += sizeof(param);
+            SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
+            
+            offset += sizeof(param);
+        } else {
+            unsigned int param = va_arg(parameters, unsigned int);
+            
+            // adjust offset alignment requirements
+            offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+            
+            SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
+            
+            offset += sizeof(param);
+        }
     }
     va_end(parameters);
     

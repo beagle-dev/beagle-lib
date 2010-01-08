@@ -86,8 +86,9 @@ public:
     void LaunchKernelIntParams(GPUFunction deviceFunction,
                                Dim3Int block,
                                Dim3Int grid,
-                               int totalParameterCount,
-                               ...); // unsigned int parameters
+                               int parameterCountV,
+                               int parameterCountI,
+                               ...); // parameters
     
     GPUPtr AllocateMemory(int memSize);
     
