@@ -277,7 +277,7 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
                                          int parameterCountV,
-                                         int parameterCountI,
+                                         int totalParameterCount,
                                          ...) { // parameters
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelIntParams\n");
@@ -287,8 +287,6 @@ void GPUInterface::LaunchKernelIntParams(GPUFunction deviceFunction,
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
     
     SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
-    
-    int totalParameterCount = parameterCountV + parameterCountI;
     
     int offset = 0;
     va_list parameters;

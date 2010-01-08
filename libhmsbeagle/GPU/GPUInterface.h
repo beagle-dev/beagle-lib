@@ -87,7 +87,7 @@ public:
                                Dim3Int block,
                                Dim3Int grid,
                                int parameterCountV,
-                               int parameterCountI,
+                               int totalParameterCount,
                                ...); // parameters
     
     GPUPtr AllocateMemory(int memSize);
