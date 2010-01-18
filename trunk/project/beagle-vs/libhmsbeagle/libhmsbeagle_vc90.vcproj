@@ -407,43 +407,151 @@
 				Name="CPU"
 				>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.cpp"
-					>
-				</File>
-				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecomposition.h"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecomposition.h"
 					>
 				</File>
 				<File
@@ -451,12 +559,72 @@
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.h"
 					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter

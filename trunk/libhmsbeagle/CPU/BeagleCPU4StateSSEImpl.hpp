@@ -44,7 +44,6 @@
 
 #define OFFSET 5
 #define DLS_USE_SSE2
-#define DLS_MACOS		/* this should be done at the configure stage */
 
 #if defined(DLS_USE_SSE2)
 #	if !defined(DLS_MACOS)
