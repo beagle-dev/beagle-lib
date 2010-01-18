@@ -192,6 +192,10 @@ AC_SUBST(NVCCFLAGS)
 # ------------------------------------------------------------------------------
 case $host_os in
 *darwin*)
+  
+  CXXFLAGS+=" -DDLS_MACOS"
+  CFLAGS+=" -DDLS_MACOS"
+  
   # CUDA will only work with i386
   if( test ! x$NVCC = xno )
   then

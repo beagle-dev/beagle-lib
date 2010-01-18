@@ -8,7 +8,7 @@
 ::
 
 SET devenv="devenv.exe"
-SET vcvars="C:\Progra~2\Microsoft Visual Studio 9.0\VC\vcvarsall.bat"
+SET vcvars="C:\Program Files\Microsoft Visual Studio 9.0\VC\vcvarsall.bat"
 
 del errlog.txt
 

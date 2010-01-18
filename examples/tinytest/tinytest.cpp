@@ -210,11 +210,9 @@ int main( int argc, const char* argv[] )
 		                 0.25, 0.25, 0.25, 0.25 };
     
     // create an array containing site category weights
-#ifdef _WIN32
-	std::vector<double> weights(rateCategoryCount);
-#else
-	double weights[rateCategoryCount];
-#endif
+
+	double* weights = (double*) malloc(sizeof(double) * rateCategoryCount);
+
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     }    
@@ -243,8 +241,8 @@ int main( int argc, const char* argv[] )
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 	
-	int rootIndex[nRootCount];
-    int cumulativeScalingIndex[nRootCount];
+	int* rootIndex = (int*) malloc(sizeof(int) * nRootCount);
+	int* cumulativeScalingIndex = (int*) malloc(sizeof(int) * nRootCount);
 	
 	for (int i = 0; i < nRootCount; i++) {
 		
