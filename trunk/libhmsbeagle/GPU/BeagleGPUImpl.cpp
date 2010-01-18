@@ -328,9 +328,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     kernels = new KernelLauncher(gpu);
     
-    dEvec = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
-    dIevc = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
-    dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr*),kEigenDecompCount);
+    dEvec = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
+    dIevc = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
+    dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
