@@ -25,12 +25,15 @@ Proposed changes:
 Specific proposed changes to API:
 
 Add flags to BeagleFlags enum:
-
+<pre>
     BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /**< beagle autoscaling on */
     BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /**< beagle scales at every update */
+</pre>
 
 Change to contract for 'beagleCreateInstance':
+<pre>
  * @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
+</pre>
 
 Discuss further:
 
