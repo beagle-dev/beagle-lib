@@ -80,8 +80,8 @@ enum BeagleReturnCodes {
 enum BeagleFlags {
     BEAGLE_FLAG_DOUBLE  = 1 << 0,    /**< double precision computation */
     BEAGLE_FLAG_SINGLE  = 1 << 1,    /**< single precision computation */
-    BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous computation */
-    BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous computation */
+    BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous (serial) computation */
+    BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous (parallel) computation */
     BEAGLE_FLAG_COMPLEX = 1 << 4,    /**< complex eigenvalue computation */
     BEAGLE_FLAG_LSCALER = 1 << 5,    /**< save log scalers */
     BEAGLE_FLAG_CPU     = 1 << 16,   /**< CPU */
@@ -397,7 +397,7 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * @brief Calculate or queue for calculation partials using a list of operations
  *
  * This function either calculates or queues for calculation a list partials. Implementations
- * supporting ASYNCH may queue these calculations while other implementations perform these
+ * supporting SYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
  *
  * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
