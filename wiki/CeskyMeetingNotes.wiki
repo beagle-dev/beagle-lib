@@ -22,6 +22,16 @@ Proposed changes:
 
   * Break up *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* so that *inWeights* and *inStateFrequencies* are set in separate calls
 
+Specific proposed changes to API:
+
+Add flags to BeagleFlags enum:
+
+    BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /**< beagle autoscaling on */
+    BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /**< beagle scales at every update */
+
+Change to contract for 'beagleCreateInstance':
+ * @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
+
 Discuss further:
 
   * Have  *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods*  optionally return the total likelihood and derivatives
