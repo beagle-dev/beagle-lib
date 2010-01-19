@@ -105,13 +105,13 @@ template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
 template<typename REALTYPE>
-inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_CPU; };
+inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU; };
 
 template<>
-inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE; };
+inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE; };
 
 template<>
-inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SINGLE; };
+inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SINGLE; };
 
 
 template <typename REALTYPE>
@@ -1434,7 +1434,7 @@ const char* BeagleCPUImplFactory<REALTYPE>::getName() {
 
 template <typename REALTYPE>
 const long BeagleCPUImplFactory<REALTYPE>::getFlags() {
-	long flags = BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_COMPLEX | BEAGLE_FLAG_LSCALER;
+	long flags = BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_COMPLEX | BEAGLE_FLAG_LSCALER;
 	if (DOUBLE_PRECISION)
 		flags |= BEAGLE_FLAG_DOUBLE;
 	else
