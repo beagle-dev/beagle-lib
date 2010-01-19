@@ -21,6 +21,7 @@ Proposed changes:
     * later implementation would involve check for a threshold value which would trigger rescaling
 
   * Break up *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* so that *inWeights* and *inStateFrequencies* are set in separate calls
+  * Change *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* to return the sum log likelihoods. If the individual site likelihoods/derivatives are required these can be obtained by calling getters after the calculate calls.
 
 == Specific proposed changes to API: ==
 
