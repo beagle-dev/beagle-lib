@@ -27,12 +27,12 @@ Proposed changes:
   * small changes to allow selection of autoscaling
   Add flags to BeagleFlags enum:
   {{{
-BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /`*``*`< beagle autoscaling on `*`/
-BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /`*``*`< beagle scales at every update `*`/
+BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /**< beagle autoscaling on */
+BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /**< beagle scales at every update */
   }}}
   Change to contract for 'beagleCreateInstance':
   {{{
-`*` @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
+* @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
   }}}
   * suggested changes to beagleCalculateRootLogLikelihoods and beagleCalculateEdgeLogLikelihoods:
   Require setting of state frequencies and category rates before call:
