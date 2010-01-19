@@ -419,7 +419,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
 int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = resourceNumber;
-        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
+        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_GPU;
         if (kFlags & BEAGLE_FLAG_LSCALER)
             returnInfo->flags |= BEAGLE_FLAG_LSCALER;
         if (kFlags & BEAGLE_FLAG_COMPLEX)
@@ -1399,5 +1399,5 @@ const char* BeagleGPUImplFactory::getName() {
 }
 
 const long BeagleGPUImplFactory::getFlags() {
-   return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_LSCALER | BEAGLE_FLAG_COMPLEX;
+   return BEAGLE_FLAG_SYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_LSCALER | BEAGLE_FLAG_COMPLEX;
 }
