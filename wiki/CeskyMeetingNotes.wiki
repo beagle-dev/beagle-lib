@@ -1,0 +1,25 @@
+#summary Meeting notes from Cesky Krumlov 2010/19/01.
+
+= Introduction =
+
+Participants:
+
+- Daniel Ayres
+
+- Peter Beerli
+
+- Michael Cummings
+
+- Paul Lewis
+
+- Andrew Rambaut
+
+- Fredrik Ronquist
+
+- David Swofford
+
+= Details =
+
+Proposed changes:
+
+Discuss further:
