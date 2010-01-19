@@ -11,14 +11,14 @@ STATE_COUNT_LIST = 32 48 64
 BeagleCUDA_kernels.h: Makefile
 	echo "// auto-generated header file with CUDA kernels PTX code" > $(BUILT_SOURCES)
 # 	Compile 4-state model
-	$(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 \
+	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 \
 		$(srcdir)/kernels4.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
 	echo "#define KERNELS_STRING_4 \"\\" >> $(BUILT_SOURCES)
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES)
 	echo "\"" >> $(BUILT_SOURCES)
 	
 # 	Compile 4-state model with log scaler storage
-	$(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER \
+	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER \
 		$(srcdir)/kernels4.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
 	echo "#define KERNELS_STRING_LS_4 \"\\" >> $(BUILT_SOURCES)
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES)
@@ -28,12 +28,12 @@ BeagleCUDA_kernels.h: Makefile
 #
 	for s in $(STATE_COUNT_LIST); do \
 		echo "Making state count = $$s \n" ; \
-		($(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$$s \
+		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$$s \
 			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)) || exit; \
 		echo "#define KERNELS_STRING_$$s \"\\" >> $(BUILT_SOURCES); \
 		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES); \
 		echo "\"" >> $(BUILT_SOURCES); \
-		($(NVCC) -m32 -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DLSCALER -DSTATE_COUNT=$$s \
+		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DLSCALER -DSTATE_COUNT=$$s \
 			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)) || exit; \
 		echo "#define KERNELS_STRING_LS_$$s \"\\" >> $(BUILT_SOURCES); \
 		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES); \

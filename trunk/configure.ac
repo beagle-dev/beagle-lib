@@ -201,6 +201,7 @@ case $host_os in
   then
      CXXFLAGS+=" -arch i386"
      CFLAGS+=" -arch i386"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   # OpenCL requires the 10.6 SDK
   if( test ! x$with_opencl = xno )

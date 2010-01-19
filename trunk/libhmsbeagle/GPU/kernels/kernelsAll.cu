@@ -61,7 +61,7 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -174,8 +174,8 @@ __global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
-        CFirstDeriv = listC[wMatrix + totalMatrix]; // Non-coalescent read
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -306,9 +306,9 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
-        CFirstDeriv = listC[wMatrix + totalMatrix]; // Non-coalescent read
-        CSecondDeriv = listC[wMatrix + totalMatrix * 2]; // Non-coalescent read
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
+        CSecondDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix * 2); // Non-coalescent read
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -480,7 +480,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = listC[wMatrix]; // Non-coalescent read
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -618,7 +618,7 @@ __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = dNodePtrQueue[n];
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -651,7 +651,7 @@ __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = dNodePtrQueue[n];
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED

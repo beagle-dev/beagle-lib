@@ -295,11 +295,11 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
         GPUPtr param = va_arg(parameters, GPUPtr);
         
         // adjust offset alignment requirements
-        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        offset = (offset + __alignof(void*) - 1) & ~(__alignof(void*) - 1);
         
-        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
+        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(void*)));
         
-        offset += sizeof(param);
+        offset += sizeof(void*);
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);

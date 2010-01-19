@@ -1103,13 +1103,13 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
     }
     __syncthreads();
     
-	REAL cumulativeScalingFactor = dPtrQueue[subsetIndex][pattern];
+	REAL cumulativeScalingFactor = ((REAL*) *((int*)dPtrQueue + subsetIndex))[pattern];
 	
 	if (subsetIndex == 0) {
 		int indexMaxScalingFactor = 0;
 		REAL maxScalingFactor = cumulativeScalingFactor;
 		for (int j = 1; j < subsetCount; j++) {
-			REAL tmpScalingFactor = dPtrQueue[j][pattern];
+			REAL tmpScalingFactor = ((REAL*) *((int*)dPtrQueue + j))[pattern];
 			if (tmpScalingFactor > maxScalingFactor) {
 				indexMaxScalingFactor = j;
 				maxScalingFactor = tmpScalingFactor;
