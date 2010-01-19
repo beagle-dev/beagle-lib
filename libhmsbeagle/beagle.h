@@ -397,9 +397,8 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * @brief Calculate or queue for calculation partials using a list of operations
  *
  * This function either calculates or queues for calculation a list partials. Implementations
- * supporting SYNCH may queue these calculations while other implementations perform these
- * operations immediately.  Implementations supporting GPU may perform all operations in the list
- * simultaneously.
+ * supporting ASYNCH may queue these calculations while other implementations perform these
+ * operations immediately and in order.
  *
  * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
  * Format of 7-tuple operation: {destinationPartials,
