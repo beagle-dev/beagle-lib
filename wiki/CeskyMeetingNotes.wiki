@@ -16,7 +16,7 @@ Participants:
 
 Proposed changes:
   * Add auto-scale and always-scale flags to beagle
-    * auto-scale should report back its scaling method at initialization
+    * auto-scale should report back its scaling method at *beagleInitializeInstance* via *BeagleInstanceDetails*
     * initial auto-scale implementation will be equivalent to always-scale
     * later implementation would involve check for a threshold value which would trigger rescaling
 
