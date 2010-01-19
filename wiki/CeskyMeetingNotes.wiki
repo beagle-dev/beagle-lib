@@ -4,22 +4,24 @@
 
 Participants:
 
-- Daniel Ayres
-
-- Peter Beerli
-
-- Michael Cummings
-
-- Paul Lewis
-
-- Andrew Rambaut
-
-- Fredrik Ronquist
-
-- David Swofford
+* Daniel Ayres
+* Peter Beerli
+* Michael Cummings
+* Paul Lewis
+* Andrew Rambaut
+* Fredrik Ronquist
+* David Swofford
 
 = Details =
 
 Proposed changes:
+* Add auto-scale and always-scale flags to beagle
+** auto-scale should report back its scaling method at initialization
+** initial auto-scale implementation will be equivalent to always-scale
+** later implementation would involve check for a threshold value which would trigger rescaling
+
+* Break up *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* so that *inWeights* and *inStateFrequencies* are set in separate calls
 
 Discuss further:
+
+* Have  *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods*  optionally return the total likelihood and derivatives
