@@ -85,14 +85,18 @@ BEAGLE_DLLEXPORT int getLogLikelihoods(double* outLogLikelihoods);
   * changes to resource and preference flag functionality
   {{{
 enum BeagleSettingFlags {
-    BEAGLE_FLAG_DOUBLE  = 1 << 0,    /**< double precision computation */
-    BEAGLE_FLAG_SINGLE  = 1 << 1,    /**< single precision computation */
-    BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous computation */
-    BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous computation */
-    BEAGLE_FLAG_COMPLEX = 1 << 4,    /**< complex eigenvalue computation */
-    BEAGLE_FLAG_LSCALER = 1 << 5,    /**< save log scalers */
-    BEAGLE_FLAG_SSE     = 1 << 6,   /**< SSE computation */
-    BEAGLE_FLAG_OPENMP  = 1 << 7,   /**< OpenMP threading */
+    BEAGLE_FLAG_SINGLE  = 1 << 0,    /**< single precision computation */
+    BEAGLE_FLAG_DOUBLE  = 1 << 1,    /**< double precision computation */
+    BEAGLE_FLAG_SYNCH   = 1 << 2,    /**< synchronous computation */
+    BEAGLE_FLAG_ASYNCH  = 1 << 3,    /**< asynchronous computation */
+    BEAGLE_FLAG_REAL_EIGEN = 1 << 4,    /**< real eigenvalue computation */
+    BEAGLE_FLAG_COMPLEX_EIGEN = 1 << 5,    /**< complex eigenvalue computation */
+    BEAGLE_FLAG_SAVE_RAW_SCALER = 1 << 6,    /**< save raw scalers */
+    BEAGLE_FLAG_SAVE_LOG_SCALER = 1 << 7,    /**< save log scalers */
+    BEAGLE_FLAG_SSE     = 1 << 8,   /**< SSE computation */
+    BEAGLE_FLAG_NO_SSE     = 1 << 9,   /**< No SSE computation */
+    BEAGLE_FLAG_OPENMP  = 1 << 10,   /**< OpenMP threading */
+    BEAGLE_FLAG_NO_OPENMP  = 1 << 11,   /**< No OpenMP threading */
 };
 
 typedef struct {
