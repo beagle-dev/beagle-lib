@@ -24,7 +24,7 @@ Proposed changes:
 
 == Specific proposed changes to API: ==
 
-  # small changes to allow selection of autoscaling
+  * small changes to allow selection of autoscaling
   Add flags to BeagleFlags enum:
   {{{
 BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /`*``*`< beagle autoscaling on `*`/
@@ -34,7 +34,7 @@ BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /`*``*`< beagle scales at every update `*`/
   {{{
 `*` @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
   }}}
-  # suggested changes to beagleCalculateRootLogLikelihoods and beagleCalculateEdgeLogLikelihoods:
+  * suggested changes to beagleCalculateRootLogLikelihoods and beagleCalculateEdgeLogLikelihoods:
   Require setting of state frequencies and category rates before call:
   {{{
 BEAGLE_DLLEXPORT int setCategoryWeights(int categoryWeightsIndex, const double* inWeights);
@@ -44,7 +44,7 @@ BEAGLE_DLLEXPORT int setStateFrequencies(int stateFrequenciesIndex,  const doubl
   {{{
 BEAGLE_DLLEXPORT int setPatternWeights(const double* inPatternWeights);
   }}}
-  * *beagleCalculateRootLogLikelihoods* then takes indices that refer to the above. This also just returns the sum of log likelihoods.
+  beagleCalculateRootLogLikelihoods then takes indices that refer to the above. This also just returns the sum of log likelihoods.
   {{{
 BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* bufferIndices,
