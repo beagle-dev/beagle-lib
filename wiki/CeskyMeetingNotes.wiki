@@ -45,7 +45,7 @@ BEAGLE_DLLEXPORT int setStateFrequencies(int stateFrequenciesIndex,  const doubl
 We set the weights for each pattern so the sum log likelihood can be returned:
   <pre>
 BEAGLE_DLLEXPORT int setPatternWeights(const double* inPatternWeights);
-<pre>
+</pre>
 
 *beagleCalculateRootLogLikelihoods* then takes indices that refer to the above. This also just returns the sum of log likelihoods.
   <pre>
