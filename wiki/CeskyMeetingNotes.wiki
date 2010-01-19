@@ -23,6 +23,8 @@ Proposed changes:
   * Break up *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* so that *inWeights* and *inStateFrequencies* are set in separate calls
   * Change *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* to return the sum log likelihoods. If the individual site likelihoods/derivatives are required these can be obtained by calling getters after the calculate calls.
 
+  * Simplify resource selection by requiring a specific resource at createInstance time. The implementation for the resource is chosen via settingFlags.
+
 Considerations:
   The auto-scaling will require a shadow scaling buffer for each partialsBuffer. This will result in high memory usage which will be the cost of client implementation simplicity. 
 
@@ -38,6 +40,22 @@ BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /**< beagle scales at every update */
   {{{
 * @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
   }}}
+  Change to instanceDetails to allow returning of information on how auto scaling was performed:
+  {{{
+typedef struct {
+    int resourceNumber; /**< Resource upon which instance is running */
+    long flags;         /**< Bit-flags that characterize the activate
+                         *   capabilities of the resource and implementation for this instance */
+    char* resourceName; /**< Name of resource on which this instance is running as a NULL-terminated
+					     *   character string */
+    char* implName;     /**< Name of implementation on which this instance is running as a
+                         *   NULL-terminated character string */
+    char* implDescription; /**< Description of implementation with details such as how aut scaling is performed
+} BeagleInstanceDetails;
+  }}}
+
+----
+
   * suggested changes to beagleCalculateRootLogLikelihoods and beagleCalculateEdgeLogLikelihoods:
   Require setting of state frequencies and category rates before call:
   {{{
@@ -60,4 +78,42 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
   Finally, if available, the individual site log likelihoods can be obtained:
   {{{
 BEAGLE_DLLEXPORT int getLogLikelihoods(double* outLogLikelihoods);
+  }}}
+
+----
+
+  * changes to resource and preference flag functionality
+  {{{
+enum BeagleSettingFlags {
+    BEAGLE_FLAG_DOUBLE  = 1 << 0,    /**< double precision computation */
+    BEAGLE_FLAG_SINGLE  = 1 << 1,    /**< single precision computation */
+    BEAGLE_FLAG_ASYNCH  = 1 << 2,    /**< asynchronous computation */
+    BEAGLE_FLAG_SYNCH   = 1 << 3,    /**< synchronous computation */
+    BEAGLE_FLAG_COMPLEX = 1 << 4,    /**< complex eigenvalue computation */
+    BEAGLE_FLAG_LSCALER = 1 << 5,    /**< save log scalers */
+    BEAGLE_FLAG_SSE     = 1 << 6,   /**< SSE computation */
+    BEAGLE_FLAG_OPENMP  = 1 << 7,   /**< OpenMP threading */
+};
+
+typedef struct {
+    char* name;         /**< Name of resource as a NULL-terminated character string */
+    char* description;  /**< Description of resource as a NULL-terminated character string */
+    int totalCores;          /**< Total number floating-point unit cores */
+    int usedCores;          /**< Number floating-point unit cores to be used by resource */
+    int totalMemory;      /**< Total memory associated with resource */
+    long  supportFlags; /**< Bit-flags of supported capabilities on resource */
+} BeagleResource;
+
+BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
+                         int partialsBufferCount,
+                         int compactBufferCount,
+                         int stateCount,
+                         int patternCount,
+                         int eigenBufferCount,
+                         int matrixBufferCount,
+                         int categoryCount,
+                         int scaleBufferCount,
+                         int resourceIndex,
+                         long settingFlags);
+
   }}}
