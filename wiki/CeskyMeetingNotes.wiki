@@ -29,25 +29,22 @@ Proposed changes:
   <pre>
 BEAGLE_FLAG_AUTO_SCALE = 1 << 6,    /`*``*`< beagle autoscaling on `*`/
 BEAGLE_FLAG_ALWAYS_SCALE = 1 <<7,    /`*``*`< beagle scales at every update `*`/
-</pre>
+  </pre>
   Change to contract for 'beagleCreateInstance':
   <pre>
 `*` @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
-</pre>
-
+  </pre>
   # suggested changes to beagleCalculateRootLogLikelihoods and beagleCalculateEdgeLogLikelihoods:
   Require setting of state frequencies and category rates before call:
   <pre>
 BEAGLE_DLLEXPORT int setCategoryWeights(int categoryWeightsIndex, const double* inWeights);
 BEAGLE_DLLEXPORT int setStateFrequencies(int stateFrequenciesIndex,  const double* inStateFrequencies);
 </pre>
-  
-We set the weights for each pattern so the sum log likelihood can be returned:
+  We set the weights for each pattern so the sum log likelihood can be returned:
   <pre>
 BEAGLE_DLLEXPORT int setPatternWeights(const double* inPatternWeights);
-</pre>
-
-*beagleCalculateRootLogLikelihoods* then takes indices that refer to the above. This also just returns the sum of log likelihoods.
+  </pre>
+  *beagleCalculateRootLogLikelihoods* then takes indices that refer to the above. This also just returns the sum of log likelihoods.
   <pre>
 BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* bufferIndices,
@@ -55,13 +52,12 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* stateFrequenciesIndices,
                                       int count,
                                       double* outSumLogLikelihood);
-</pre>
-
-Finally, if available, the individual site log likelihoods can be obtained:
+  </pre>
+  Finally, if available, the individual site log likelihoods can be obtained:
   <pre>
 BEAGLE_DLLEXPORT int getLogLikelihoods(double* outLogLikelihoods);
-</pre>
+  </pre>
 
-Discuss further:
+== Discuss further: ==
 
   * Have  *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods*  optionally return the total likelihood and derivatives
