@@ -57,7 +57,3 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
   {{{
 BEAGLE_DLLEXPORT int getLogLikelihoods(double* outLogLikelihoods);
   }}}
-
-== Discuss further: ==
-
-  * Have  *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods*  optionally return the total likelihood and derivatives
