@@ -23,6 +23,9 @@ Proposed changes:
   * Break up *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* so that *inWeights* and *inStateFrequencies* are set in separate calls
   * Change *beagleCalculateRootLogLikelihoods* and *beagleCalculateEdgeLogLikelihoods* to return the sum log likelihoods. If the individual site likelihoods/derivatives are required these can be obtained by calling getters after the calculate calls.
 
+Considerations:
+  The auto-scaling will require a shadow scaling buffer for each partialsBuffer. This will result in high memory usage which will be the cost of client implementation simplicity. 
+
 == Specific proposed changes to API: ==
 
   * small changes to allow selection of autoscaling
