@@ -170,7 +170,7 @@ enum BeagleSettingFlags {
     BEAGLE_FLAG_EIGEN_REAL          = 1 << 4,    /**< real eigenvalue computation */
     BEAGLE_FLAG_EIGEN_COMPLEX       = 1 << 5,    /**< complex eigenvalue computation */
 
-    BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< beagle autoscaling on */
+    BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< beagle manual scaling */
     BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< beagle autoscaling on */
     BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< beagle scales at every update */
     
