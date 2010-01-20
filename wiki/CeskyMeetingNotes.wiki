@@ -126,6 +126,8 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
 
 =New API=
 
+(changed back to old resource selection method, for lack of consensus on new approach)
+
 {{{
 #ifndef __beagle__
 #define __beagle__
@@ -161,27 +163,32 @@ enum BeagleReturnCodes {
  * Each setting is a bit in a 'long'
  */
 enum BeagleSettingFlags {
-    BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< single precision computation */
-    BEAGLE_FLAG_PRECISION_DOUBLE    = 1 << 1,    /**< double precision computation */
+    BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< Single precision computation */
+    BEAGLE_FLAG_PRECISION_DOUBLE    = 1 << 1,    /**< Double precision computation */
 
-    BEAGLE_FLAG_COMPUTATION_SYNCH   = 1 << 2,    /**< synchronous computation (blocking) */
-    BEAGLE_FLAG_COMPUTATION_ASYNCH  = 1 << 3,    /**< asynchronous computation (non-blocking) */
+    BEAGLE_FLAG_COMPUTATION_SYNCH   = 1 << 2,    /**< Synchronous computation (blocking) */
+    BEAGLE_FLAG_COMPUTATION_ASYNCH  = 1 << 3,    /**< Asynchronous computation (non-blocking) */
     
-    BEAGLE_FLAG_EIGEN_REAL          = 1 << 4,    /**< real eigenvalue computation */
-    BEAGLE_FLAG_EIGEN_COMPLEX       = 1 << 5,    /**< complex eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_REAL          = 1 << 4,    /**< Real eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_COMPLEX       = 1 << 5,    /**< Complex eigenvalue computation */
 
-    BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< beagle manual scaling */
-    BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< beagle autoscaling on */
-    BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< beagle scales at every update */
+    BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< Manual scaling */
+    BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< Auto-scaling on */
+    BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< Scale at every updatePartials */
     
-    BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< save raw scalers */
-    BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< save log scalers */
+    BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< Save raw scalers */
+    BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< Save log scalers */
     
     BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
     
     BEAGLE_FLAG_THREADING_OPENMP    = 1 << 13,   /**< OpenMP threading */
     BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading */
+    
+    BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,  /**< Use FPGA as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,  /**< Use Cell as main processor */
 }
 
 /**
@@ -206,20 +213,18 @@ typedef struct {
     char* implName;     /**< Name of implementation on which this instance is running as a
                          *   NULL-terminated character string */
     char* implDescription; /**< Description of implementation with details such as how auto-scaling is performed */
-    long settingFlags;  /**< Bit-flags that characterize the activate
-                         *   settings of the resource and implementation for this instance */
+    long flags;         /**< Bit-flags that characterize the activate
+                         *   capabilities of the resource and implementation for this instance */
 } BeagleInstanceDetails;
 
 /**
  * @brief Description of a hardware resource
  */
 typedef struct {
-    char* name;                  /**< Name of resource as a NULL-terminated character string */
-    char* description;           /**< Description of resource as a NULL-terminated character string */
-//    int totalCores;              /**< Total number floating-point unit cores */
-//    int usedCores;               /**< Number floating-point unit cores to be used by resource */
-//    int totalMemory;             /**< Total memory associated with resource */
-    long  supportedSettingFlags; /**< Bit-flags of supported settings on resource */
+    char* name;         /**< Name of resource as a NULL-terminated character string */
+    char* description;  /**< Description of resource as a NULL-terminated character string */
+    long  supportFlags; /**< Bit-flags of supported capabilities on resource */
+    long  requiredFlags;/**< Bit-flags of required capabilities on resource */
 } BeagleResource;
 
 /**
@@ -263,10 +268,13 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param matrixBufferCount     Number of transition probability matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
  * @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
- * @param resourceIndex         Index of resources on which this instance should run on
- *                               (input, NULL implies first available resource)
- * @param settingFlags          Bit-flags indicating settings of implementation charactertistics,
- *                               see BeagleSettingFlags (input)
+ * @param resourceList          List of potential resources on which this instance is allowed
+ *                               (input, NULL implies no restriction)
+ * @param resourceCount         Length of resourceList list (input)
+ * @param preferenceFlags       Bit-flags indicating preferred implementation charactertistics,
+ *                               see BeagleFlags (input)
+ * @param requirementFlags      Bit-flags indicating required implementation characteristics,
+ *                               see BeagleFlags (input)
  * @param returnInfo            Pointer to return implementation and resource details
  *
  * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
@@ -281,8 +289,10 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int matrixBufferCount,
                          int categoryCount,
                          int scaleBufferCount,
-                         int resourceIndex,
-                         long settingFlags,
+                         int* resourceList,
+                         int resourceCount,
+                         long preferenceFlags,
+                         long requirementFlags
                          BeagleInstanceDetails* returnInfo);
 
 /**
