@@ -157,12 +157,12 @@ enum BeagleReturnCodes {
 /**
  * @anchor BEAGLE_FLAGS
  *
- * @brief Implementation/resource setting flags
+ * @brief Hardware and implementation capability flags
  *
- * This enumerates all possible implementation and resource setting flags.
- * Each setting is a bit in a 'long'
+ * This enumerates all possible hardware and implementation capability flags.
+ * Each capability is a bit in a 'long'
  */
-enum BeagleSettingFlags {
+enum BeagleFlags {
     BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< Single precision computation */
     BEAGLE_FLAG_PRECISION_DOUBLE    = 1 << 1,    /**< Double precision computation */
 
@@ -189,7 +189,7 @@ enum BeagleSettingFlags {
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
     BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,  /**< Use FPGA as main processor */
     BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,  /**< Use Cell as main processor */
-}
+};
 
 /**
  * @anchor BEAGLE_OP_CODES
@@ -292,7 +292,7 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int* resourceList,
                          int resourceCount,
                          long preferenceFlags,
-                         long requirementFlags
+                         long requirementFlags,
                          BeagleInstanceDetails* returnInfo);
 
 /**
