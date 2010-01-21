@@ -60,6 +60,8 @@ void runBeagle(int resource,
     
     int scaleCount = (scaling ? ntaxa : 0);
 
+    BeagleInstanceDetails instDetails;
+    
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
 			    ntaxa,			  /**< Number of tip data elements (input) */
@@ -74,19 +76,10 @@ void runBeagle(int resource,
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
 				0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				0		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-				);
+				0,		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+				&instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
-	    exit(1);
-    }
-
-    // initialize the instance
-    BeagleInstanceDetails instDetails;
-    int error = beagleInitializeInstance(instance, &instDetails);
-	
-    if (error < 0) {
-	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
 	    exit(1);
     }
         
@@ -114,6 +107,14 @@ void runBeagle(int resource,
     }
     
 	beagleSetCategoryRates(instance, &rates[0]);
+    
+	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
+    
+    for (int i = 0; i < nsites; i++) {
+        patternWeights[i] = 1.0;
+    }    
+
+    beagleSetPatternWeights(instance, patternWeights);
 	
     // create base frequency array
 
@@ -127,6 +128,8 @@ void runBeagle(int resource,
         freqs[i] = 1.0 / stateCount;
     }
 
+    beagleSetStateFrequencies(instance, 0, &freqs[0]);
+    
     // create an array containing site category weights
 #ifdef _WIN32
 	std::vector<double> weights(rateCategoryCount);
@@ -137,6 +140,8 @@ void runBeagle(int resource,
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     } 
+    
+    beagleSetCategoryWeights(instance, 0, &weights[0]);
 
 	// an eigen decomposition for the general state-space JC69 model
     // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
@@ -231,13 +236,11 @@ void runBeagle(int resource,
     gettimeofday(&time2, NULL);
     
     // update the partials
-	beagleUpdatePartials( &instance,      // instance
+	beagleUpdatePartials( instance,      // instance
 	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
 	                BEAGLE_OP_NONE);             // cumulative scaling index
-
-	double *patternLogLik = (double*)malloc(sizeof(double) * nsites);
     
 
     int scalingFactorsCount = ntaxa-1;
@@ -255,22 +258,23 @@ void runBeagle(int resource,
                                cumulativeScalingFactorIndex);
     }
     
+    int categoryWeightsIndex = 0;
+    int stateFrequencyIndex = 0;
+    
+	double logL = 0.0;
+    
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
-	                            &weights[0],                // weights
-	                            &freqs[0],                 // stateFrequencies
+	                            &categoryWeightsIndex,                // weights
+	                            &stateFrequencyIndex,                 // stateFrequencies
                                 &cumulativeScalingFactorIndex,
 	                            1,                      // count
-	                            patternLogLik);         // outLogLikelihoods
+	                            &logL);         // outLogLikelihoods
 
 	// end timing!
 	gettimeofday(&time3,NULL);
 
-	double logL = 0.0;
-	for (int i = 0; i < nsites; i++) {
-		logL += patternLogLik[i];
-	}
 
 	fprintf(stdout, "logL = %.5f \n", logL);
 	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
