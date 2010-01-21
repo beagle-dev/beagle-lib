@@ -6,18 +6,32 @@ package beagle;
  * @version $Id$
  */
 public enum BeagleFlag {
-    DOUBLE(1 << 0, "Request/require double precision computation"),
-    SINGLE(1 << 1, "Request/require single precision computation"),
-    ASYNCH(1 << 2, "Request/require asynchronous computation"),
-    SYNCH(1 << 3, "Request/require synchronous computation"),
-    COMPLEX(1 <<4, "Request/require complex diagonalization capability"),
-    LSCALE(1 << 5, "Request/require storing scalars on log-scale"),
-    CPU(1 << 16, "Request/require CPU"),
-    GPU(1 << 17, "Request/require GPU"),
-    FPGA(1 << 18, "Request/require FPGA"),
-    SSE(1 << 19, "Request/require SSE"),
-    CELL(1 << 20, "Request/require Cell"),
-    OPENMP(1 << 21, "Request/require OpenMP");
+    PRECISION_SINGLE(1 << 0, "double precision computation"),
+    PRECISION_DOUBLE(1 << 1, "single precision computation"),
+
+    COMPUTATION_SYNCH(1 << 2, "synchronous computation (blocking"),
+    COMPUTATION_ASYNCH(1 << 3, "asynchronous computation (non-blocking)"),
+
+    EIGEN_REAL(1 <<4, "real eigenvalue computation"),
+    EIGEN_COMPLEX(1 <<5, "complex eigenvalue computation"),
+
+    SCALING_MANUAL(1 << 6, "manual scaling"),
+    SCALING_AUTO(1 << 7, "auto-scaling on"),
+    SCALING_ALWAYS(1 << 8, "scale at every update"),
+
+    SCALERS_RAW(1 << 9, "save raw scalers"),
+    SCALERS_LOG(1 << 10, "save log scalers"),
+
+    VECTOR_SSE(1 << 11, "SSE vector computation"),
+    VECTOR_NONE(1 << 12, "no vector computation"),
+
+    THREADING_OPENMP(1 << 13, "OpenMP threading"),
+    THREADING_NONE(1 << 14, "no threading"),
+
+    PROCESSOR_CPU(1 << 15, "use CPU as main processor"),
+    PROCESSOR_GPU(1 << 16, "use GPU as main processor"),
+    PROCESSOR_FPGA(1 << 17, "use FPGA as main processor"),
+    PROCESSOR_CELL(1 << 18, "use CELL as main processor");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
