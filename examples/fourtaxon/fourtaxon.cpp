@@ -293,6 +293,8 @@ void FourTaxonExample::initBeagleLib()
     else if (calculate_derivatives == 2)
         mtrxCount *= 3;
 
+    BeagleInstanceDetails instDetails;
+        
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
 				ntaxa + 2,	// partialsBufferCount
@@ -306,20 +308,14 @@ void FourTaxonExample::initBeagleLib()
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
 				BEAGLE_FLAG_VECTOR_SSE,         // preferenceFlags
-				requirementFlags			// requirementFlags
-				);
+				requirementFlags,			// requirementFlags
+				&instDetails);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
 		delete[] rsrcList;
 
 	if (instance_handle < 0)
 		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
-        
-    BeagleInstanceDetails instDetails;
-    code = beagleInitializeInstance(instance_handle, &instDetails);    
-    if (code != 0) {
-			abort("beagleInitializeInstance encountered a problem");
-    }
         
     int rNumber = instDetails.resourceNumber;
     //BeagleResourceList* rList = beagleGetResourceList();
@@ -379,6 +375,15 @@ void FourTaxonExample::initBeagleLib()
 #endif
 		);
 
+    double* patternWeights = (double*) malloc(sizeof(double) * nsites);
+    
+    for (int i = 0; i < nsites; i++) {
+        patternWeights[i] = 1.0;
+    }    
+        
+    beagleSetPatternWeights(instance_handle, patternWeights);
+        
+        
 	// JC69 model eigenvector matrix
 	double evec[4 * 4] = {
 		 1.0,  2.0,  0.0,  0.5,
@@ -440,7 +445,7 @@ double FourTaxonExample::calcLnL(int return_value)
         beagleResetScaleFactors(instance_handle, cumulativeScalingFactorIndex);
       
 	code = beagleUpdatePartials(
-		   &instance_handle,                                 // instance
+		   instance_handle,                                 // instance
 		   1,                                                // instanceCount
 		   &operations[0],                                   // operations
 		   2,                                                // operationCount
@@ -455,6 +460,8 @@ double FourTaxonExample::calcLnL(int return_value)
 	int transitionMatrixIndex  = transmat_index;
 	int firstDerivMatrixIndex  = transmat_index + 5;
 	int secondDerivMatrixIndex  = transmat_index + 10;
+    int stateFrequencyIndex = 0;
+    int categoryWeightsIndex = 0;
         
 #ifdef _WIN32
 	std::vector<double> relativeRateProb(nrates);
@@ -475,10 +482,14 @@ double FourTaxonExample::calcLnL(int return_value)
     }
         
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+        
+    beagleSetStateFrequencies(instance_handle, 0, stateFreqs);        
+        
+    beagleSetCategoryWeights(instance_handle, 0, relativeRateProb);
 
-	std::vector<double> lnL(nsites);
-	std::vector<double> firstDeriv(nsites);
-	std::vector<double> secondDeriv(nsites);
+    double lnL = 0.0;
+	double firstDeriv = 0.0;
+	double secondDeriv = 0.0;
 
 	code = beagleCalculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
@@ -487,17 +498,13 @@ double FourTaxonExample::calcLnL(int return_value)
 		 &transitionMatrixIndex,			// probabilityIndices
 		 (calculate_derivatives > 0 ? &firstDerivMatrixIndex : NULL),	// firstDerivativeIndices
 		 (calculate_derivatives > 1 ? &secondDerivMatrixIndex : NULL),	// secondDerivativeIndices
-#ifdef _WIN32
-		 &relativeRateProb[0],
-#else
-		 (const double*)&relativeRateProb,	// weights
-#endif
-		 (const double*)stateFreqs,			// stateFrequencies,
+		 &categoryWeightsIndex,	// weights
+		 &stateFrequencyIndex,			// stateFrequencies,
          &cumulativeScalingFactorIndex,
 		 1,									// count
-		 &lnL[0],							// outLogLikelihoods,
-		 (calculate_derivatives > 0 ? &firstDeriv[0] : NULL),	  // outFirstDerivatives,
-		 (calculate_derivatives > 1 ? &secondDeriv[0] : NULL));	  // outSecondDerivatives
+		 &lnL,							// outLogLikelihoods,
+		 (calculate_derivatives > 0 ? &firstDeriv : NULL),	  // outFirstDerivatives,
+		 (calculate_derivatives > 1 ? &secondDeriv : NULL));	  // outSecondDerivatives
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
@@ -513,11 +520,11 @@ double FourTaxonExample::calcLnL(int return_value)
 	double return_sum = 0;
 		
 	if (return_value == 0)
-		return_sum = std::accumulate(lnL.begin(), lnL.end(), 0.0);
+		return_sum = lnL;
 	else if (return_value == 1)
-		return_sum = std::accumulate(firstDeriv.begin(), firstDeriv.end(), 0.0);
+		return_sum = firstDeriv;
 	else if (return_value == 2)
-		return_sum = std::accumulate(secondDeriv.begin(), secondDeriv.end(), 0.0);
+		return_sum = secondDeriv;
 
 
 	return return_sum;
