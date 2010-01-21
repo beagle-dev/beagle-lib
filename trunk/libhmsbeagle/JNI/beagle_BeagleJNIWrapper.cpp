@@ -83,7 +83,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
     (JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
     jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
      categoryCount, jint scaleBufferCount, 
-	 jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags)
+	 jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags,
+	 jobject outInstanceDetails)
 {
     BeagleInstanceDetails instanceDetails;
 
@@ -255,7 +256,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
  * Signature: (II[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
-(JNIEnv *env, jobject obj, jint instance, jint stateFrequenciesIndex, jdoubleArray inStateFrequencies);
+(JNIEnv *env, jobject obj, jint instance, jint stateFrequenciesIndex, jdoubleArray inStateFrequencies)
 {
     jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
 	
@@ -446,7 +447,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
   (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCatagoryWeightsIndices, 
-   jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jint count, jdoubleArray outSumLogLikelihood)
+   jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jint count, jdoubleArray outSumLogLikelihoods)
 {
     jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
     jint *weightsIndices = env->GetIntArrayElements(inCatagoryWeightsIndices, NULL);
@@ -537,7 +538,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
  * Signature: (I[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getSiteLogLikelihoods
-(JNIEnv *env, jobject obj, jint instance, jdoubleArray outLogSiteLikelihoods) {
+(JNIEnv *env, jobject obj, jint instance, jdoubleArray outSiteLogLikelihoods) {
 	
 	jdouble *siteLogLikelihoods = env->GetDoubleArrayElements(outSiteLogLikelihoods, NULL);
 	

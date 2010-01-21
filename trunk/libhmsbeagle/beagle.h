@@ -457,7 +457,6 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  *                               child2TransitionMatrix}
  *
  * @param instance                  Instance number (input)
- * @param instanceCount             Length of instance list (input)
  * @param operations                List of 7-tuples specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex   	Index number of scaleBuffer to store accumulated factors (input)
@@ -465,7 +464,6 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
-                         int instanceCount,
                          const int* operations,
                          int operationCount,
                          int cumulativeScaleIndex);
@@ -480,7 +478,6 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * call.  The library will block until those partials have been calculated.
  *
  * @param instance                  Instance number (input)
- * @param instanceCount             Length of instance list (input)
  * @param destinationPartials       List of the indices of destinationPartials that must be
  *                                   calculated before the function returns
  * @param destinationPartialsCount  Number of destinationPartials (input)
@@ -488,7 +485,6 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleWaitForPartials(const int instance,
-                          int instanceCount,
                           const int* destinationPartials,
                           int destinationPartialsCount);
 
