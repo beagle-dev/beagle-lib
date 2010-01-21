@@ -446,7 +446,6 @@ double FourTaxonExample::calcLnL(int return_value)
       
 	code = beagleUpdatePartials(
 		   instance_handle,                                 // instance
-		   1,                                                // instanceCount
 		   &operations[0],                                   // operations
 		   2,                                                // operationCount
            (accumulate_on_the_fly ?                          
