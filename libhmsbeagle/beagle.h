@@ -554,6 +554,7 @@ BEAGLE_DLLEXPORT int beagleResetScaleFactors(int instance,
  *
  * @return error code
  */
+// TODO: only need one state frequency index
 BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* bufferIndices,
                                       const int* categoryWeightsIndices,

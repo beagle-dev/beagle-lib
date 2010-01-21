@@ -80,8 +80,9 @@ private:
     GPUPtr* dEvec;
     GPUPtr* dIevc;
     
-    GPUPtr dWeights;
-    GPUPtr dFrequencies; 
+    GPUPtr* dWeights;
+    GPUPtr* dFrequencies; 
+    
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
@@ -90,6 +91,7 @@ private:
     GPUPtr dSecondDerivTmp;
     
 	double* hCategoryRates; // Can keep in double-precision
+    double* hPatternWeights;
     
     GPUPtr* dPartials;
     GPUPtr* dMatrices;
