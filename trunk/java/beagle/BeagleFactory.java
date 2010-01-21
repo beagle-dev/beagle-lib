@@ -223,7 +223,7 @@ public class BeagleFactory {
                 1,              /**< Number of rate categories (input) */
                 3,               /**< Number of scale buffers (input) */
                 new int[] {1, 0},
-                BeagleFlag.GPU.getMask(),
+                BeagleFlag.PROCESSOR_GPU.getMask(),
                 0
         );
         if (instance == null) {
