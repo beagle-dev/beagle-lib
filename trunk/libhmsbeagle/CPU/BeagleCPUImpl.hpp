@@ -503,7 +503,8 @@ template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getSiteDerivatives(double* outFirstDerivatives,
                                                 double* outSecondDerivatives) {
     beagleMemCpy(outFirstDerivatives, outFirstDerivativesTmp, kPatternCount);
-    beagleMemCpy(outSecondDerivatives, outSecondDerivativesTmp, kPatternCount);
+    if (outSecondDerivatives != NULL)
+        beagleMemCpy(outSecondDerivatives, outSecondDerivativesTmp, kPatternCount);
     
     return BEAGLE_SUCCESS;
 }

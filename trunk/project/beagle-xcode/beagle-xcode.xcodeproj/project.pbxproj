@@ -233,6 +233,8 @@
 		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = ../../examples/fourtaxon/fourtaxon.dat; sourceTree = SOURCE_ROOT; };
 		64F21C4F0FD2B7B500678D0B /* fourtaxon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fourtaxon.h; path = ../../examples/fourtaxon/fourtaxon.h; sourceTree = SOURCE_ROOT; };
 		64F21C720FD2C0BA00678D0B /* tinyTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64F8EDE91108522400170901 /* complextest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = complextest.cpp; path = ../../examples/complextest/complextest.cpp; sourceTree = SOURCE_ROOT; };
+		64F8EDF31108524B00170901 /* matrixtest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = matrixtest.cpp; path = ../../examples/matrixtest/matrixtest.cpp; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -381,6 +383,8 @@
 				64F21C4F0FD2B7B500678D0B /* fourtaxon.h */,
 				64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */,
 				64EC49C00FE9BBDB006841E3 /* genomictest.cpp */,
+				64F8EDE91108522400170901 /* complextest.cpp */,
+				64F8EDF31108524B00170901 /* matrixtest.cpp */,
 			);
 			name = Examples;
 			sourceTree = SOURCE_ROOT;
