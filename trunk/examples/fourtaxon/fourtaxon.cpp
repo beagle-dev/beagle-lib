@@ -283,7 +283,7 @@ void FourTaxonExample::initBeagleLib()
         
     long requirementFlags = 0;
     if (single) {
-        requirementFlags |= BEAGLE_FLAG_SINGLE;
+        requirementFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
     }
         
 	int mtrxCount = ntaxa + 1; 
@@ -305,7 +305,7 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				BEAGLE_FLAG_SSE,         // preferenceFlags
+				BEAGLE_FLAG_VECTOR_SSE,         // preferenceFlags
 				requirementFlags			// requirementFlags
 				);
 	

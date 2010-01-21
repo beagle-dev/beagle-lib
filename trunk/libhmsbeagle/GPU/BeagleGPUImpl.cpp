@@ -203,11 +203,11 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     kFlags = 0;
     
-    if (preferenceFlags & BEAGLE_FLAG_LSCALER || requirementFlags & BEAGLE_FLAG_LSCALER)
-    	kFlags |= BEAGLE_FLAG_LSCALER;
+    if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG)
+    	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
 
-    if (preferenceFlags & BEAGLE_FLAG_COMPLEX || requirementFlags & BEAGLE_FLAG_COMPLEX) {
-    	kFlags |= BEAGLE_FLAG_COMPLEX;
+    if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
     }
     
     if (kStateCount <= 4)
@@ -246,7 +246,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 
-    if (kFlags & BEAGLE_FLAG_COMPLEX)
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
     	kEigenValuesSize = 2 * kPaddedStateCount;
     else
     	kEigenValuesSize = kPaddedStateCount;
@@ -265,16 +265,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
         
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
-#endif
-    
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::initializeInstance\n");
-#endif
-    
+        
     gpu = new GPUInterface();
     
     gpu->Initialize();
@@ -401,7 +392,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
 	dIndexMaxScalingFactors = gpu->AllocateIntMemory(kPaddedPatternCount);
 
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::initializeInstance\n");
+    fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
 #endif
     
     kInitialized = 1;
@@ -419,11 +410,23 @@ int BeagleGPUImpl::createInstance(int tipCount,
 int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = resourceNumber;
-        returnInfo->flags = BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU;
-        if (kFlags & BEAGLE_FLAG_LSCALER)
-            returnInfo->flags |= BEAGLE_FLAG_LSCALER;
-        if (kFlags & BEAGLE_FLAG_COMPLEX)
-        	returnInfo->flags |= BEAGLE_FLAG_COMPLEX;
+        returnInfo->flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                            BEAGLE_FLAG_PRECISION_SINGLE |
+                            BEAGLE_FLAG_SCALING_MANUAL |
+                            BEAGLE_FLAG_THREADING_NONE |
+                            BEAGLE_FLAG_VECTOR_NONE |
+                            BEAGLE_FLAG_PROCESSOR_GPU;
+        
+        if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
+            returnInfo->flags |= BEAGLE_FLAG_SCALERS_LOG;
+        else
+            returnInfo->flags |= BEAGLE_FLAG_SCALERS_RAW;
+
+        if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
+        	returnInfo->flags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+        else
+            returnInfo->flags |= BEAGLE_FLAG_EIGEN_REAL;
+        
         returnInfo->implName = (char*) "CUDA";
     }
     return BEAGLE_SUCCESS;
@@ -613,11 +616,11 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     
 #ifdef DOUBLE_PRECISION
     memcpy(Eval, inEigenValues, SIZE_REAL * kStateCount);
-    if (kFlags & BEAGLE_FLAG_COMPLEX)
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
     	memcpy(Eval+kPaddedStateCount,inEigenValues+kStateCount,SIZE_REAL*kStateCount);
 #else
     MEMCNV(Eval, inEigenValues, kStateCount, REAL);
-    if (kFlags & BEAGLE_FLAG_COMPLEX)
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
     	MEMCNV((Eval+kPaddedStateCount),(inEigenValues+kStateCount),kStateCount,REAL);
 #endif
     
@@ -1071,11 +1074,11 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
 }
 
 int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
-                                               const double* inWeights,
-                                               const double* inStateFrequencies,
-                                               const int* scalingFactorsIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
                                                int count,
-                                               double* outLogLikelihoods) {
+                                               double* outSumLogLikelihood) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateRootLogLikelihoods\n");
@@ -1184,13 +1187,13 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* probabilityIndices,
                                                const int* firstDerivativeIndices,
                                                const int* secondDerivativeIndices,
-                                               const double* inWeights,
-                                               const double* inStateFrequencies,
-                                               const int* scalingFactorsIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
                                                int count,
-                                               double* outLogLikelihoods,
-                                               double* outFirstDerivatives,
-                                               double* outSecondDerivatives) {
+                                               double* outSumLogLikelihood,
+                                               double* outSumFirstDerivative,
+                                               double* outSumSecondDerivative) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
@@ -1399,5 +1402,12 @@ const char* BeagleGPUImplFactory::getName() {
 }
 
 const long BeagleGPUImplFactory::getFlags() {
-   return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_GPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_LSCALER | BEAGLE_FLAG_COMPLEX;
+   return BEAGLE_FLAG_COMPUTATION_SYNCH |
+          BEAGLE_FLAG_PRECISION_SINGLE |
+          BEAGLE_FLAG_SCALING_MANUAL |
+          BEAGLE_FLAG_THREADING_NONE |
+          BEAGLE_FLAG_VECTOR_NONE |
+          BEAGLE_FLAG_PROCESSOR_GPU |
+          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 }

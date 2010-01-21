@@ -160,6 +160,15 @@ public:
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
     
+    int setStateFrequencies(int stateFrequenciesIndex,
+                            const double* inStateFrequencies);    
+    
+    int setCategoryWeights(int categoryWeightsIndex,
+                           const double* inCategoryWeights);
+    
+    int setPatternWeights(const double* inPatternWeights);
+    
+    
     int setCategoryRates(const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
@@ -193,24 +202,29 @@ public:
     int resetScaleFactors(int cumulativeScalingIndex);
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int* scalingFactorsIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
                                     int count,
-                                    double* outLogLikelihoods);
+                                    double* outSumLogLikelihood);
     
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                     const int* childBufferIndices,
                                     const int* probabilityIndices,
                                     const int* firstDerivativeIndices,
                                     const int* secondDerivativeIndices,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int* scalingFactorsIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
                                     int count,
-                                    double* outLogLikelihoods,
-                                    double* outFirstDerivatives,
-                                    double* outSecondDerivatives);    
+                                    double* outSumLogLikelihood,
+                                    double* outSumFirstDerivative,
+                                    double* outSumSecondDerivative);
+
+    int getSiteLogLikelihoods(double* outLogLikelihoods);
+    
+    int getSiteDerivatives(double* outFirstDerivatives,
+                           double* outSecondDerivatives);
 };
 
 class BeagleGPUImplFactory : public BeagleImplFactory {

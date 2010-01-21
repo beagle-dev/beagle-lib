@@ -145,13 +145,27 @@ template<>
 inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Single"; };
 
 template<typename REALTYPE>
-inline const long getBeagleCPU4StateSSEFlags(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE; };
+inline const long getBeagleCPU4StateSSEFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                                       BEAGLE_FLAG_SCALING_MANUAL |
+                                                       BEAGLE_FLAG_THREADING_NONE |
+                                                       BEAGLE_FLAG_PROCESSOR_CPU |
+                                                       BEAGLE_FLAG_VECTOR_SSE; };
 
 template<>
-inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE | BEAGLE_FLAG_DOUBLE; };
-
+inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                                               BEAGLE_FLAG_SCALING_MANUAL |
+                                                               BEAGLE_FLAG_THREADING_NONE |
+                                                               BEAGLE_FLAG_PROCESSOR_CPU |
+                                                               BEAGLE_FLAG_PRECISION_DOUBLE |
+                                                               BEAGLE_FLAG_VECTOR_SSE; };
+    
 template<>
-inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SSE | BEAGLE_FLAG_SINGLE; };
+inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                                              BEAGLE_FLAG_SCALING_MANUAL |
+                                                              BEAGLE_FLAG_THREADING_NONE |
+                                                              BEAGLE_FLAG_PROCESSOR_CPU |
+                                                              BEAGLE_FLAG_PRECISION_SINGLE |
+                                                              BEAGLE_FLAG_VECTOR_SSE; };
 
 template <typename REALTYPE>
 BeagleCPU4StateSSEImpl<REALTYPE>::~BeagleCPU4StateSSEImpl() {
@@ -616,12 +630,26 @@ const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
 
 template <>
 const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
-    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE | BEAGLE_FLAG_SSE;
+    return BEAGLE_FLAG_COMPUTATION_SYNCH |
+           BEAGLE_FLAG_SCALING_MANUAL |
+           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_PROCESSOR_CPU |
+           BEAGLE_FLAG_VECTOR_SSE |
+           BEAGLE_FLAG_PRECISION_DOUBLE |
+           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 }
 
 template <>
 const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
-    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_SINGLE | BEAGLE_FLAG_SSE;
+    return BEAGLE_FLAG_COMPUTATION_SYNCH |
+           BEAGLE_FLAG_SCALING_MANUAL |
+           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_PROCESSOR_CPU |
+           BEAGLE_FLAG_VECTOR_SSE |
+           BEAGLE_FLAG_PRECISION_DOUBLE |
+           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 }
 
 

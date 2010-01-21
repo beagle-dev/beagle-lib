@@ -70,7 +70,11 @@ protected:
     EigenDecomposition<REALTYPE>* gEigenDecomposition;
 
     double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
-
+    double* gPatternWeights;
+    
+    REALTYPE** gCategoryWeights;
+    REALTYPE** gStateFrequencies;
+    
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
@@ -86,6 +90,10 @@ protected:
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
+    
+    REALTYPE* outLogLikelihoodsTmp;
+    REALTYPE* outFirstDerivativesTmp;
+    REALTYPE* outSecondDerivativesTmp;
 
     REALTYPE* ones;
     REALTYPE* zeros;
@@ -143,6 +151,14 @@ public:
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
 
+    int setStateFrequencies(int stateFrequenciesIndex,
+                            const double* inStateFrequencies);    
+    
+    int setCategoryWeights(int categoryWeightsIndex,
+                           const double* inCategoryWeights);
+    
+    int setPatternWeights(const double* inPatternWeights);    
+    
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers
@@ -209,11 +225,11 @@ public:
     // rootNodeIndex the index of the root
     // outLogLikelihoods an array into which the site log likelihoods will be put
     int calculateRootLogLikelihoods(const int* bufferIndices,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int* scaleBufferIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
                                     int count,
-                                    double* outLogLikelihoods);
+                                    double* outSumLogLikelihood);
 
     // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
     //                 outFirstDerivatives, outSecondDerivatives
@@ -222,13 +238,18 @@ public:
                                     const int* probabilityIndices,
                                     const int* firstDerivativeIndices,
                                     const int* secondDerivativeIndices,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int* scaleBufferIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
                                     int count,
-                                    double* outLogLikelihoods,
-                                    double* outFirstDerivatives,
-                                    double* outSecondDerivatives);
+                                    double* outSumLogLikelihood,
+                                    double* outSumFirstDerivative,
+                                    double* outSumSecondDerivative);
+    
+    int getSiteLogLikelihoods(double* outLogLikelihoods);
+    
+    int getSiteDerivatives(double* outFirstDerivatives,
+                           double* outSecondDerivatives);
 
     int block(void);
 
@@ -257,17 +278,17 @@ protected:
                                       const REALTYPE* matrices2);
 
     virtual void calcRootLogLikelihoods(const int bufferIndex,
-                                        const double* inWeights,
-                                        const double* inStateFrequencies,
+                                        const int categoryWeightsIndex,
+                                        const int stateFrequenciesIndex,
                                         const int scaleBufferIndex,
-                                        double* outLogLikelihoods);
+                                        double* outSumLogLikelihood);
     
     virtual void calcRootLogLikelihoodsMulti(const int* bufferIndices,
-                                             const double* inWeights,
-                                             const double* inStateFrequencies,
+                                             const int* categoryWeightsIndices,
+                                             const int* stateFrequenciesIndices,
                                              const int* scaleBufferIndices,
                                              int count,
-                                             double* outLogLikelihoods);
+                                             double* outSumLogLikelihood);
     
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,

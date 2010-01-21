@@ -93,6 +93,6 @@ const char* BeagleCPU4StateGCDImplFactory::getName() {
 }
 
 const long BeagleCPU4StateGCDImplFactory::getFlags() {
-    return BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU | BEAGLE_FLAG_DOUBLE;
+    return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 

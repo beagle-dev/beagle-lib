@@ -127,7 +127,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
 void KernelLauncher::LoadKernels() {
 	
-	if (kFlags & BEAGLE_FLAG_COMPLEX) {
+	if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADBComplex");
 	} else {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
