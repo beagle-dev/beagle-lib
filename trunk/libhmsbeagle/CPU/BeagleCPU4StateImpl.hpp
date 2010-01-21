@@ -387,7 +387,7 @@ void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REAL
         }
     }
     
-    *outSumLogLikelihood = 0;    
+    *outSumLogLikelihood = 0.0;    
     for(int k=0; k < kPatternCount; k++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
     }    
@@ -395,19 +395,20 @@ void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REAL
 
 template <typename REALTYPE>
 void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
-                                                 const int childIndex,
-                                                 const int probIndex,
-                                                 const double* inWeights,
-                                                 const double* inStateFrequencies,
-                                                 const int scalingFactorsIndex,
-                                                 double* outLogLikelihoods) {
+                                                           const int childIndex,
+                                                           const int probIndex,
+                                                           const int categoryWeightsIndex,
+                                                           const int stateFrequenciesIndex,
+                                                           const int scalingFactorsIndex,
+                                                           double* outSumLogLikelihood) {
     // TODO: implement derivatives for calculateEdgeLnL
     
     assert(parIndex >= kTipCount);
     
     const REALTYPE* partialsParent = gPartials[parIndex];
     const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
-    const double* wt = inWeights;
+    const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+
     
     memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
     
@@ -475,8 +476,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 			#endif//
         }
     }
-// TODO: update calcEdge4State to API changes    
-//    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
+
+    integrateOutStatesAndScale(integrationTmp, stateFrequenciesIndex, scalingFactorsIndex, outSumLogLikelihood);
 }
 
 template <typename REALTYPE>
@@ -611,7 +612,7 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffe
             outLogLikelihoodsTmp[i] += maxScaleFactor[i];
     }
     
-    *outSumLogLikelihood = 0;
+    *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }

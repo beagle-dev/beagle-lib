@@ -293,32 +293,32 @@ protected:
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const double* inWeights,
-                                        const double* inStateFrequencies,
+                                        const int categoryWeightsIndex,
+                                        const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
-                                        double* outLogLikelihoods);
+                                        double* outSumLogLikelihood);
 	
     virtual void calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
-                                        const int childBufferIndex,
-                                        const int probabilityIndex,
-                                        const int firstDerivativeIndex,
-                                        const double* inWeights,
-                                        const double* inStateFrequencies,
-                                        const int scalingFactorsIndex,
-                                        double* outLogLikelihoods,
-                                        double* outFirstDerivatives);
+                                                  const int childBufferIndex,
+                                                  const int probabilityIndex,
+                                                  const int firstDerivativeIndex,
+                                                  const int categoryWeightsIndex,
+                                                  const int stateFrequenciesIndex,
+                                                  const int scalingFactorsIndex,
+                                                  double* outSumLogLikelihood,
+                                                  double* outSumFirstDerivative);
 	
     virtual void calcEdgeLogLikelihoodsSecondDeriv(const int parentBufferIndex,
-												  const int childBufferIndex,
-												  const int probabilityIndex,
-												  const int firstDerivativeIndex,
-												  const int secondDerivativeIndex,
-												  const double* inWeights,
-												  const double* inStateFrequencies,
-												  const int scalingFactorsIndex,
-												  double* outLogLikelihoods,
-												  double* outFirstDerivatives,
-												  double* outSecondDerivatives);
+                                                   const int childBufferIndex,
+                                                   const int probabilityIndex,
+                                                   const int firstDerivativeIndex,
+                                                   const int secondDerivativeIndex,
+                                                   const int categoryWeightsIndex,
+                                                   const int stateFrequenciesIndex,
+                                                   const int scalingFactorsIndex,
+                                                   double* outSumLogLikelihood,
+                                                   double* outSumFirstDerivative,
+                                                   double* outSumSecondDerivative);
 
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                               const int *child0States,

@@ -412,31 +412,31 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
 }
 
 template <>
-void BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
-                                           const int childIndex,
-                                           const int probIndex,
-                                           const double* inWeights,
-                                           const double* inStateFrequencies,
-                                           const int scalingFactorsIndex,
-                                           double* outLogLikelihoods) {
+    void BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
+                                                               const int childIndex,
+                                                               const int probIndex,
+                                                               const int categoryWeightsIndex,
+                                                               const int stateFrequenciesIndex,
+                                                               const int scalingFactorsIndex,
+                                                               double* outSumLogLikelihood) {
 	BeagleCPU4StateImpl<float>::calcEdgeLogLikelihoods(
 	parIndex,
 	childIndex,
 	probIndex,
-	inWeights,
-	inStateFrequencies,
+	categoryWeightsIndex,
+	stateFrequenciesIndex,
 	scalingFactorsIndex,
-	outLogLikelihoods);
+	outSumLogLikelihood);
 }										   
 
 template <>
-void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
-                                           const int childIndex,
-                                           const int probIndex,
-                                           const double* inWeights,
-                                           const double* inStateFrequencies,
-                                           const int scalingFactorsIndex,
-                                           double* outLogLikelihoods) {
+    void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
+                                                                const int childIndex,
+                                                                const int probIndex,
+                                                                const int categoryWeightsIndex,
+                                                                const int stateFrequenciesIndex,
+                                                                const int scalingFactorsIndex,
+                                                                double* outSumLogLikelihood) {
     // TODO: implement derivatives for calculateEdgeLnL
 
     assert(parIndex >= kTipCount);
@@ -444,7 +444,8 @@ void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
     const double* cl_r = gPartials[parIndex];
     double* cl_p = integrationTmp;
     const double* transMatrix = gTransitionMatrices[probIndex];
-    const double* wt = inWeights;
+    const double* wt = gCategoryWeights[categoryWeightsIndex];
+    const double* freqs = gStateFrequencies[stateFrequenciesIndex];
 
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -529,18 +530,23 @@ void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
     for(int k = 0; k < kPatternCount; k++) {
         double sumOverI = 0.0;
         for(int i = 0; i < kStateCount; i++) {
-            sumOverI += inStateFrequencies[i] * cl_p[u];
+            sumOverI += freqs[i] * cl_p[u];
             u++;
         }
-        outLogLikelihoods[k] = log(sumOverI);
+        outLogLikelihoodsTmp[k] = log(sumOverI);
     }
 
 
     if (scalingFactorsIndex != BEAGLE_OP_NONE) {
         const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
         for(int k=0; k < kPatternCount; k++)
-            outLogLikelihoods[k] += scalingFactors[k];
+            outLogLikelihoodsTmp[k] += scalingFactors[k];
     }
+        
+    *outSumLogLikelihood = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+    }            
 }
 #if 0
 template <typename REALTYPE>

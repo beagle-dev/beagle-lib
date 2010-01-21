@@ -757,7 +757,7 @@ void BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndic
             outLogLikelihoodsTmp[i] += maxScaleFactor[i];
     }
     
-    *outSumLogLikelihood = 0;
+    *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
@@ -810,7 +810,7 @@ void BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
         }
     }
 
-    *outSumLogLikelihood = 0;
+    *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
@@ -883,17 +883,24 @@ template <typename REALTYPE>
                                                              double* outSumSecondDerivative) {
     // TODO: implement for count > 1
 
-//    if (count == 1) {
-//		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL)
-//			calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods);
-//		else if (secondDerivativeIndices == NULL)
-//			calcEdgeLogLikelihoodsFirstDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], firstDerivativeIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives);
-//		else 
-//			calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0], firstDerivativeIndices[0], secondDerivativeIndices[0], inWeights, inStateFrequencies, scalingFactorsIndices[0], outLogLikelihoods, outFirstDerivatives, outSecondDerivatives);
-//    } else {
-//        fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
-//        return BEAGLE_ERROR_OUT_OF_RANGE;
-//    }
+    if (count == 1) {
+		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL)
+			calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
+                                   categoryWeightsIndices[0], stateFrequenciesIndices[0], cumulativeScaleIndices[0],
+                                   outSumLogLikelihood);
+		else if (secondDerivativeIndices == NULL)
+			calcEdgeLogLikelihoodsFirstDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
+                                             firstDerivativeIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
+                                             cumulativeScaleIndices[0], outSumLogLikelihood, outSumFirstDerivative);
+		else 
+			calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
+                                              firstDerivativeIndices[0], secondDerivativeIndices[0], categoryWeightsIndices[0],
+                                              stateFrequenciesIndices[0], cumulativeScaleIndices[0], outSumLogLikelihood,
+                                              outSumFirstDerivative, outSumSecondDerivative);
+    } else {
+        fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
 
     return BEAGLE_SUCCESS;
 }
@@ -902,16 +909,17 @@ template <typename REALTYPE>
 void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 													 const int childIndex,
 													 const int probIndex,
-													 const double* inWeights,
-													 const double* inStateFrequencies,
+                                                     const int categoryWeightsIndex,
+                                                     const int stateFrequenciesIndex,
 													 const int scalingFactorsIndex,
-													 double* outLogLikelihoods) {
+                                                     double* outSumLogLikelihood) {
 	
 	assert(parIndex >= kTipCount);
 	
 	const REALTYPE* partialsParent = gPartials[parIndex];
 	const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
-	const double* wt = inWeights;
+    const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+    const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
 	
 	memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 	
@@ -973,37 +981,44 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 	for(int k = 0; k < kPatternCount; k++) {
 		REALTYPE sumOverI = 0.0;
 		for(int i = 0; i < kStateCount; i++) {
-			sumOverI += inStateFrequencies[i] * integrationTmp[u];
+			sumOverI += freqs[i] * integrationTmp[u];
 			u++;
 		}
-		outLogLikelihoods[k] = log(sumOverI);
+		outLogLikelihoodsTmp[k] = log(sumOverI);
 	}
 	
 	
 	if (scalingFactorsIndex != BEAGLE_OP_NONE) {
 		const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
 		for(int k=0; k < kPatternCount; k++)
-			outLogLikelihoods[k] += scalingFactors[k];
+			outLogLikelihoodsTmp[k] += scalingFactors[k];
 	}
+    
+    *outSumLogLikelihood = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+    }    
 }
 
 template <typename REALTYPE>
 void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parIndex,
-																const int childIndex,
-																const int probIndex,
-																const int firstDerivativeIndex,
-																const double* inWeights,
-																const double* inStateFrequencies,
-																const int scalingFactorsIndex,
-																double* outLogLikelihoods,
-																double* outFirstDerivatives) {
+                                                               const int childIndex,
+                                                               const int probIndex,
+                                                               const int firstDerivativeIndex,
+                                                               const int categoryWeightsIndex,
+                                                               const int stateFrequenciesIndex,
+                                                               const int scalingFactorsIndex,
+                                                               double* outSumLogLikelihood,
+                                                               double* outSumFirstDerivative) {
 	
 	assert(parIndex >= kTipCount);
 	
 	const REALTYPE* partialsParent = gPartials[parIndex];
 	const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
 	const REALTYPE* firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
-	const double* wt = inWeights;
+    const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+    const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
+
 	
 	memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 	memset(firstDerivTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
@@ -1072,34 +1087,42 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parInde
 		REALTYPE sumOverID1 = 0.0;
 		REALTYPE sumOverID2 = 0.0;
 		for(int i = 0; i < kStateCount; i++) {
-			sumOverI += inStateFrequencies[i] * integrationTmp[u];
-			sumOverID1 += inStateFrequencies[i] * firstDerivTmp[u];
+			sumOverI += freqs[i] * integrationTmp[u];
+			sumOverID1 += freqs[i] * firstDerivTmp[u];
 			u++;
 		}
-		outLogLikelihoods[k] = log(sumOverI);
-		outFirstDerivatives[k] = sumOverID1 / sumOverI;
+		outLogLikelihoodsTmp[k] = log(sumOverI);
+		outFirstDerivativesTmp[k] = sumOverID1 / sumOverI;
 	}
 	
 	
 	if (scalingFactorsIndex != BEAGLE_OP_NONE) {
 		const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
 		for(int k=0; k < kPatternCount; k++)
-			outLogLikelihoods[k] += scalingFactors[k];
+			outLogLikelihoodsTmp[k] += scalingFactors[k];
 	}
+    
+    *outSumLogLikelihood = 0.0;
+    *outSumFirstDerivative = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+        *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
+    }    
+    
 }
 	
 template <typename REALTYPE>
 void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parIndex,
-													 const int childIndex,
-													 const int probIndex,
-													 const int firstDerivativeIndex,
-													 const int secondDerivativeIndex,
-													 const double* inWeights,
-													 const double* inStateFrequencies,
-													 const int scalingFactorsIndex,
-													 double* outLogLikelihoods,
-													 double* outFirstDerivatives,
-													 double* outSecondDerivatives) {
+                                                                const int childIndex,
+                                                                const int probIndex,
+                                                                const int firstDerivativeIndex,
+                                                                const int secondDerivativeIndex,
+                                                                const int categoryWeightsIndex,
+                                                                const int stateFrequenciesIndex,
+                                                                const int scalingFactorsIndex,
+                                                                double* outSumLogLikelihood,
+                                                                double* outSumFirstDerivative,
+                                                                double* outSumSecondDerivative) {
 	
 	assert(parIndex >= kTipCount);
 	
@@ -1107,7 +1130,9 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInd
 	const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
 	const REALTYPE* firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
 	const REALTYPE* secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
-	const double* wt = inWeights;
+    const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+    const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
+
 	
 	memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 	memset(firstDerivTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
@@ -1181,22 +1206,32 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInd
 		REALTYPE sumOverID1 = 0.0;
 		REALTYPE sumOverID2 = 0.0;
 		for(int i = 0; i < kStateCount; i++) {
-			sumOverI += inStateFrequencies[i] * integrationTmp[u];
-			sumOverID1 += inStateFrequencies[i] * firstDerivTmp[u];
-			sumOverID2 += inStateFrequencies[i] * secondDerivTmp[u];
+			sumOverI += freqs[i] * integrationTmp[u];
+			sumOverID1 += freqs[i] * firstDerivTmp[u];
+			sumOverID2 += freqs[i] * secondDerivTmp[u];
 			u++;
 		}
-		outLogLikelihoods[k] = log(sumOverI);
-		outFirstDerivatives[k] = sumOverID1 / sumOverI;
-		outSecondDerivatives[k] = sumOverID2 / sumOverI - outFirstDerivatives[k] * outFirstDerivatives[k];
+		outLogLikelihoodsTmp[k] = log(sumOverI);
+		outFirstDerivativesTmp[k] = sumOverID1 / sumOverI;
+		outSecondDerivativesTmp[k] = sumOverID2 / sumOverI - outFirstDerivativesTmp[k] * outFirstDerivativesTmp[k];
 	}
 	
 	
 	if (scalingFactorsIndex != BEAGLE_OP_NONE) {
 		const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
 		for(int k=0; k < kPatternCount; k++)
-			outLogLikelihoods[k] += scalingFactors[k];
+			outLogLikelihoodsTmp[k] += scalingFactors[k];
 	}
+    
+    *outSumLogLikelihood = 0.0;
+    *outSumFirstDerivative = 0.0;
+    *outSumSecondDerivative = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+        *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
+        *outSumSecondDerivative += outSecondDerivativesTmp[i] * gPatternWeights[i];
+    }    
+    
 }
 
 
