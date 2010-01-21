@@ -54,6 +54,8 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
 	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
+	using BeagleCPUImpl<REALTYPE>::gCategoryWeights;
+	using BeagleCPUImpl<REALTYPE>::gStateFrequencies;
 
 public:
     virtual ~BeagleCPU4StateSSEImpl();
@@ -90,10 +92,10 @@ private:
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const double* inWeights,
-                                        const double* inStateFrequencies,
+                                        const int categoryWeightsIndex,
+                                        const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
-                                        double* outLogLikelihoods);
+                                        double* outSumLogLikelihood);
 
 };
 

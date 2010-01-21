@@ -101,10 +101,10 @@ public:
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const double* inWeights,
-                                        const double* inStateFrequencies,
+                                        const int categoryWeightsIndex,
+                                        const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
-                                        double* outLogLikelihoods);
+                                        double* outSumLogLikelihood);
     
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                            const int *child0States,
