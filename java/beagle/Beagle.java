@@ -19,6 +19,7 @@ package beagle;
  */
 
 public interface Beagle {
+
     public static int OPERATION_TUPLE_SIZE = 7;
     public static int NONE = -1;
 
@@ -29,6 +30,13 @@ public interface Beagle {
      * This function finalizes the instance by releasing allocated memory
      */
     void finalize() throws Throwable;
+
+
+    /**
+     * Set the weights for each pattern
+     * @param patternWeights    Array containing patternCount weights
+     */
+    void setPatternWeights(final double[] patternWeights);
 
     /**
      * Set the compressed state representation for tip node
@@ -64,7 +72,7 @@ public interface Beagle {
      * Set an instance partials buffer
      *
      * This function copies an array of partials into an instance buffer. The inPartials array should
-     * be stateCount * patternCount * categoryCount in length. 
+     * be stateCount * patternCount * categoryCount in length.
      *
      * @param bufferIndex   Index of destination partialsBuffer (input)
      * @param  inPartials   Pointer to partials values to set (input)
@@ -103,6 +111,26 @@ public interface Beagle {
             final double[] inEigenVectors,
             final double[] inInverseEigenVectors,
             final double[] inEigenValues);
+
+    /**
+     * Set a set of state frequences. These will probably correspond to an
+     * eigen-system.
+     *
+     * @param stateFrequenciesIndex the index of the frequency buffer
+     * @param stateFrequencies the array of frequences (stateCount)
+     */
+    void setStateFrequencies(int stateFrequenciesIndex,
+                             final double[] stateFrequencies);
+
+    /**
+     * Set a set of category weights. These will probably correspond to an
+     * eigen-system.
+     *
+     * @param categoryWeightsIndex the index of the buffer
+     * @param categoryWeights the array of weights
+     */
+    void setCategoryWeights(int categoryWeightsIndex,
+                            final double[] categoryWeights);
 
     /**
      * Set category rates
@@ -160,7 +188,7 @@ public interface Beagle {
      *
      */
     void getTransitionMatrix(int matrixIndex,
-							 double[] outMatrix);
+                             double[] outMatrix);
 
     /**
      * Calculate or queue for calculation partials using a list of operations
@@ -236,26 +264,24 @@ public interface Beagle {
      * This function integrates a list of partials at a node with respect to a set of partials-weights and
      * state frequencies to return the log likelihoods for each site
      *
-     * @param bufferIndices         List of partialsBuffer indices to integrate (input)
-     * @param inWeights             List of weights to apply to each partialsBuffer (input). There
-     *                               should be one categoryCount sized set for each of
-     *                               parentBufferIndices
-     * @param inStateFrequencies    List of state frequencies for each partialsBuffer (input). There
-     *                               should be one set for each of parentBufferIndices
-     * @param scaleIndices          List of scalingFactors indices to accumulate over (input). There
-     *                               should be one set for each of parentBufferIndices
-     * @param count                 Number of partialsBuffer to integrate (input)
-     * @param outLogLikelihoods     Pointer to destination for resulting log likelihoods (output)
+     * @param bufferIndices             List of partialsBuffer indices to integrate (input)
+     * @param categoryWeightsIndices    List of indices of category weights to apply to each partialsBuffer (input)
+     *                                      should be one categoryCount sized set for each of
+     *                                      parentBufferIndices
+     * @param stateFrequenciesIndices   List of indices of state frequencies for each partialsBuffer (input)
+     *                                      should be one set for each of parentBufferIndices
+     * @param cumulativeScaleIndices    List of scalingFactors indices to accumulate over (input). There
+     *                                      should be one set for each of parentBufferIndices
+     * @param count                     Number of partialsBuffer to integrate (input)
+     * @param outSumLogLikelihood       Pointer to destination for resulting sum of log likelihoods (output)
      */
 
-    void calculateRootLogLikelihoods(
-            final int[] bufferIndices,
-            final double[] inWeights,
-            final double[] inStateFrequencies,
-            final int[] scaleIndices,
-            int count,
-            final double[] outLogLikelihoods
-    );
+    void calculateRootLogLikelihoods(int[] bufferIndices,
+                                     int[] categoryWeightsIndices,
+                                     int[] stateFrequenciesIndices,
+                                     int[] cumulativeScaleIndices,
+                                     int count,
+                                     double[] outSumLogLikelihood);
 
     /**
      * Calculate site log likelihoods and derivatives along an edge
@@ -264,33 +290,45 @@ public interface Beagle {
      * to a set of partials-weights and state frequencies to return the log likelihoods
      * and first and second derivatives for each site
      *
-     * @param parentBufferIndices List of indices of parent partialsBuffers (input)
+     * @param parentBufferIndices       List of indices of parent partialsBuffers (input)
      * @param childBufferIndices        List of indices of child partialsBuffers (input)
      * @param probabilityIndices        List indices of transition probability matrices for this edge (input)
      * @param firstDerivativeIndices    List indices of first derivative matrices (input)
      * @param secondDerivativeIndices   List indices of second derivative matrices (input)
-     * @param inWeights                 List of weights to apply to each partialsBuffer (input)
-     * @param inStateFrequencies        List of state frequencies for each partialsBuffer (input)
+     * @param categoryWeightsIndices    List of indices of category weights to apply to each partialsBuffer (input)
+     * @param stateFrequenciesIndices   List of indices of state frequencies for each partialsBuffer (input)
      *                                      There should be one set for each of parentBufferIndices
-     * @param scaleIndices              List of scalingFactors indices to accumulate over (input). There
+     * @param cumulativeScaleIndices    List of scalingFactors indices to accumulate over (input). There
      *                                      There should be one set for each of parentBufferIndices
      * @param count                     Number of partialsBuffers (input)
-     * @param outLogLikelihoods         Pointer to destination for resulting log likelihoods (output)
-     * @param outFirstDerivatives       Pointer to destination for resulting first derivatives (output)
-     * @param outSecondDerivatives      Pointer to destination for resulting second derivatives (output)
+     * @param outSumLogLikelihood       Pointer to destination for resulting sum of log likelihoods (output)
+     * @param outSumFirstDerivative     Pointer to destination for resulting sum of first derivatives (output)
+     * @param outSumSecondDerivative    Pointer to destination for resulting sum of second derivatives (output)
      */
-    public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
-                                            final int[] childBufferIndices,
-                                            final int[] probabilityIndices,
-                                            final int[] firstDerivativeIndices,
-                                            final int[] secondDerivativeIndices,
-                                            final double[] inWeights,
-                                            final double[] inStateFrequencies,
-                                            final int[] scaleIndices,
-                                            int count,
-                                            final double[] outLogLikelihoods,
-                                            final double[] outFirstDerivatives,
-                                            final double[] outSecondDerivatives);
 
+    void calculateEdgeLogLikelihoods(int[] parentBufferIndices,
+                                     int[] childBufferIndices,
+                                     int[] probabilityIndices,
+                                     int[] firstDerivativeIndices,
+                                     int[] secondDerivativeIndices,
+                                     int[] categoryWeightsIndices,
+                                     int[] stateFrequenciesIndices,
+                                     int[] cumulativeScaleIndices,
+                                     int count,
+                                     double[] outSumLogLikelihood,
+                                     double[] outSumFirstDerivative,
+                                     double[] outSumSecondDerivative);
+
+    /**
+     * Return the individual log likelihoods for each site pattern.
+     *
+     * @param outLogLikelihoods an array in which the likelihoods will be put
+     */
+    void getSiteLogLikelihoods(double[] outLogLikelihoods);
+
+    /**
+     * Get a details class for this instance
+     * @return
+     */
     public InstanceDetails getDetails();
 }

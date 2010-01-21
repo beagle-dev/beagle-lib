@@ -18,18 +18,10 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
- * Signature: (IIIIIIIII[IIJJ)I
+ * Signature: (IIIIIIIII[IIJJLbeagle/InstanceDetails;)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
-  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint, jint, jint, jint, jintArray, jint, jlong, jlong);
-
-/*
- * Class:     beagle_BeagleJNIWrapper
- * Method:    initializeInstance
- * Signature: (ILbeagle/InstanceDetails;)I
- */
-JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
-  (JNIEnv *, jobject, jint, jobject);
+  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint, jint, jint, jint, jintArray, jint, jlong, jlong, jobject);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -38,23 +30,30 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_initializeInstance
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
   (JNIEnv *, jobject, jint);
-    
-    
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setPatternWeights
+ * Signature: (I[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternWeights
+  (JNIEnv *, jobject, jint, jdoubleArray);
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipStates
  * Signature: (II[I)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
-(JNIEnv *, jobject, jint, jint, jintArray);
-    
+  (JNIEnv *, jobject, jint, jint, jintArray);
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipPartials
  * Signature: (II[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
-(JNIEnv *, jobject, jint, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -79,6 +78,22 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
   (JNIEnv *, jobject, jint, jint, jdoubleArray, jdoubleArray, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setStateFrequencies
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setCategoryWeights
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryWeights
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -115,18 +130,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePartials
- * Signature: ([II[III)I
+ * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
-  (JNIEnv *, jobject, jintArray, jint, jintArray, jint, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    waitForPartials
- * Signature: ([II[II)I
+ * Signature: (I[II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
-  (JNIEnv *, jobject, jintArray, jint, jintArray, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -142,31 +157,39 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
  * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
-(JNIEnv *, jobject, jint, jintArray, jint, jint);
-    
+  (JNIEnv *, jobject, jint, jintArray, jint, jint);
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    resetScaleFactors
  * Signature: (II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
-(JNIEnv *, jobject, jint, jint);
-    
+  (JNIEnv *, jobject, jint, jint);
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoods
- * Signature: (I[I[D[D[II[D)I
+ * Signature: (I[I[I[I[II[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
-  (JNIEnv *, jobject, jint, jintArray, jdoubleArray, jdoubleArray, jintArray, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateEdgeLogLikelihoods
- * Signature: (I[I[I[I[I[I[D[D[II[D[D[D)I
+ * Signature: (I[I[I[I[I[I[I[I[II[D[D[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
-  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jintArray, jdoubleArray, jdoubleArray, jintArray, jint, jdoubleArray, jdoubleArray, jdoubleArray);
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jintArray, jintArray, jintArray, jintArray, jint, jdoubleArray, jdoubleArray, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getSiteLogLikelihoods
+ * Signature: (I[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getSiteLogLikelihoods
+  (JNIEnv *, jobject, jint, jdoubleArray);
 
 #ifdef __cplusplus
 }

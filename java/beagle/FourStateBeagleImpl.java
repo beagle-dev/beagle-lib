@@ -237,9 +237,11 @@ public class FourStateBeagleImpl extends GeneralBeagleImpl {
     }
 
     @Override
-    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scaleIndices, int count, double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood) {
 
         double[] rootPartials = partials[bufferIndices[0]];
+        double[] weights = categoryWeights[categoryWeightsIndices[0]];
+        double[] freqs = stateFrequencies[stateFrequenciesIndices[0]];
 
         int u = 0;
         int v = 0;
@@ -263,14 +265,16 @@ public class FourStateBeagleImpl extends GeneralBeagleImpl {
             }
         }
 
+        outSumLogLikelihood[0] = 0.0;
+        
         v = 0;
         for (int k = 0; k < patternCount; k++) {
-            double sum = stateFrequencies[0] * tmpPartials[v];	v++;
-            sum += stateFrequencies[1] * tmpPartials[v];	v++;
-            sum += stateFrequencies[2] * tmpPartials[v];	v++;
-            sum += stateFrequencies[3] * tmpPartials[v];	v++;
-            outLogLikelihoods[k] = Math.log(sum);
+            double sum = freqs[0] * tmpPartials[v];	v++;
+            sum += freqs[1] * tmpPartials[v];	v++;
+            sum += freqs[2] * tmpPartials[v];	v++;
+            sum += freqs[3] * tmpPartials[v];	v++;
+            outSumLogLikelihood[0] += Math.log(sum);
         }
-        
+
     }
 }

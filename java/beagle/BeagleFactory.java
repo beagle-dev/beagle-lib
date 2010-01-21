@@ -72,26 +72,7 @@ public class BeagleFactory {
                 // to make the instance and then override it...
 
                 InstanceDetails details = beagle.getDetails();
-                if (stateCount == 4 && details != null && BeagleFlag.CPU.isSet(details.getFlags()) &&
-                        forceHybrid) {
 
-                    try {
-                        beagle.finalize();
-                    } catch (Throwable throwable) {
-                        System.err.println("Error releasing BEAGLE implementation:\n" + throwable.getMessage());
-                    }
-                    Logger.getLogger("beagle").info("Using BeagleNative4StateImpl");
-                    beagle = new BeagleNative4StateImpl(
-                            tipCount,
-                            partialsBufferCount,
-                            compactBufferCount,
-                            patternCount,
-                            eigenBufferCount,
-                            matrixBufferCount,
-                            categoryCount,
-                            scaleBufferCount
-                    );
-                }
                 if (details != null) // If resourceList/requirements not met, details == null here
                     return beagle;
 
@@ -258,6 +239,12 @@ public class BeagleFactory {
         }
         System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
 
+        double[] patternWeights = new double[nPatterns];
+        for (int i = 0; i < nPatterns; i++) {
+            patternWeights[i] = 1.0;
+        }
+        instance.setPatternWeights(patternWeights);
+        
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
@@ -270,11 +257,13 @@ public class BeagleFactory {
         final double[] rates = { 1.0 };
         instance.setCategoryRates(rates);
 
-        // create base frequency array
-        final double[] freqs = { 0.25, 0.25, 0.25, 0.25 };
-
         // create an array containing site category weights
         final double[] weights = { 1.0 };
+        instance.setCategoryWeights(0, weights);
+
+        // create base frequency array
+        final double[] freqs = { 0.25, 0.25, 0.25, 0.25 };
+        instance.setStateFrequencies(0, freqs);
 
         // an eigen decomposition for the JC69 model
         final double[] evec = {
@@ -325,28 +314,25 @@ public class BeagleFactory {
                 2,              // operationCount
                 2);             // rescale ?
 
-        double[] patternLogLik = new double[nPatterns];
-
         int[] scalingFactorsIndices = {2}; // internal nodes
 
         // TODO Need to call accumulateScaleFactors if scaling is enabled
 
+        int[] weightIndices = { 0 };
+        int[] freqIndices = { 0 };
+
+        double[] sumLogLik = new double[1];
+
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(
                 rootIndices,            // bufferIndices
-                weights,                // weights
-                freqs,                 // stateFrequencies
+                weightIndices,                // weights
+                freqIndices,                 // stateFrequencies
                 scalingFactorsIndices,
                 1,
-                patternLogLik);         // outLogLikelihoods
+                sumLogLik);         // outLogLikelihoods
 
-        double logL = 0.0;
-        for (int i = 0; i < nPatterns; i++) {
-//            System.out.println("site lnL[" + i + "] = " + patternLogLik[i]);
-            logL += patternLogLik[i];
-        }
-
-        System.out.println("logL = " + logL + " (PAUP logL = -1574.63623)");
+        System.out.println("logL = " + sumLogLik[0] + " (PAUP logL = -1574.63623)");
     }
 
 }
