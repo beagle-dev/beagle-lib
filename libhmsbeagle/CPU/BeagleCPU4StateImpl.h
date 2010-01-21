@@ -57,6 +57,10 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
 	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
+	using BeagleCPUImpl<REALTYPE>::gStateFrequencies;
+	using BeagleCPUImpl<REALTYPE>::gCategoryWeights;
+	using BeagleCPUImpl<REALTYPE>::gPatternWeights;
+	using BeagleCPUImpl<REALTYPE>::outLogLikelihoodsTmp;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -82,17 +86,17 @@ public:
                                     const REALTYPE* matrices2);
     
     virtual void calcRootLogLikelihoods(const int bufferIndex,
-                                    const double* inWeights,
-                                    const double* inStateFrequencies,
-                                    const int scalingFactorsIndex,
-                                    double* outLogLikelihoods);
+                                        const int categoryWeightsIndex,
+                                        const int stateFrequenciesIndex,
+                                        const int scalingFactorsIndex,
+                                        double* outSumLogLikelihood);
     
     virtual void calcRootLogLikelihoodsMulti(const int* bufferIndices,
-                                             const double* inWeights,
-                                             const double* inStateFrequencies,
+                                             const int* categoryWeightsIndices,
+                                             const int* stateFrequenciesIndices,
                                              const int* scaleBufferIndices,
                                              int count,
-                                             double* outLogLikelihoods);
+                                             double* outSumLogLikelihood);    
         
     virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
@@ -124,9 +128,9 @@ public:
                                             const REALTYPE *scaleFactors);
     
     inline void integrateOutStatesAndScale(const REALTYPE* integrationTmp,
-                                           const double* inStateFrequencies,
+                                           const int stateFrequenciesIndex,
                                            const int scalingFactorsIndex,
-                                           double* outLogLikelihoods);
+                                           double* outSumLogLikelihood);
 
 };
 

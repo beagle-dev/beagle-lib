@@ -27,7 +27,7 @@ EigenDecompositionSquare<REALTYPE>::EigenDecompositionSquare(int decompositionCo
 											       long flags)
 	: EigenDecomposition<REALTYPE>(decompositionCount,stateCount,categoryCount) {
 
-	isComplex = flags & BEAGLE_FLAG_COMPLEX;
+	isComplex = flags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
 	if (isComplex)
 		kEigenValuesSize = 2 * kStateCount;

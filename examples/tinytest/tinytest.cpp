@@ -99,17 +99,25 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_RAW");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
         fprintf(stdout, "\n");
     }    
     fprintf(stdout, "\n");    
@@ -130,6 +138,9 @@ int main( int argc, const char* argv[] )
 	int nPartBuffs = 4 + nRootCount;
     int scaleCount = (scaling ? 2 + nRootCount : 0);
     
+    // initialize the instance
+    BeagleInstanceDetails instDetails;
+    
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -143,39 +154,39 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  BEAGLE_FLAG_GPU,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  0                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-                                  );
+                                  0,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  0,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                                  &instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
     }
-    
-    // initialize the instance
-    BeagleInstanceDetails instDetails;
-    int error = beagleInitializeInstance(instance, &instDetails);
-	
-    if (error < 0) {
-	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
-	    exit(1);
-    }
-    
+        
     int rNumber = instDetails.resourceNumber;
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
+    fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
     fprintf(stdout, "\tFlags:");
-    if (instDetails.flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
-    if (instDetails.flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
-    if (instDetails.flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
-    if (instDetails.flags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
-    if (instDetails.flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
-    if (instDetails.flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
-    if (instDetails.flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
-    if (instDetails.flags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
-    if (instDetails.flags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
+    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
+    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
+    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
+    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
+    if (instDetails.flags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
+    if (instDetails.flags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
+    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_RAW");
+    if (instDetails.flags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
+    if (instDetails.flags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
+    if (instDetails.flags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
+    if (instDetails.flags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
+    if (instDetails.flags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
+    if (instDetails.flags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
+    if (instDetails.flags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
+    if (instDetails.flags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
+    if (instDetails.flags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
+    if (instDetails.flags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
     fprintf(stdout, "\n\n");
     
     
@@ -216,6 +227,13 @@ int main( int argc, const char* argv[] )
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     }    
+
+	double* patternWeights = (double*) malloc(sizeof(double) * nPatterns);
+    
+    for (int i = 0; i < nPatterns; i++) {
+        patternWeights[i] = 1.0;
+    }    
+    
     
 	// an eigen decomposition for the JC69 model
 	double evec[4 * 4] = {
@@ -237,16 +255,26 @@ int main( int argc, const char* argv[] )
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
+    beagleSetStateFrequencies(instance, 0, freqs);
+    
+    beagleSetCategoryWeights(instance, 0, weights);
+    
+    beagleSetPatternWeights(instance, patternWeights);
+    
     // a list of indices and edge lengths
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 	
 	int* rootIndex = (int*) malloc(sizeof(int) * nRootCount);
+    int* categoryWeightsIndex = (int*) malloc(sizeof(int) * nRootCount);
+    int* stateFrequencyIndex = (int*) malloc(sizeof(int) * nRootCount);
 	int* cumulativeScalingIndex = (int*) malloc(sizeof(int) * nRootCount);
 	
 	for (int i = 0; i < nRootCount; i++) {
 		
 		rootIndex[i] = 4 + i;
+        categoryWeightsIndex[i] = 0;
+        stateFrequencyIndex[i] = 0;
 		cumulativeScalingIndex[i] = (scaling ? 2 + i : BEAGLE_OP_NONE);
 		
 		beagleSetCategoryRates(instance, &rates[i]);
@@ -271,7 +299,7 @@ int main( int argc, const char* argv[] )
 			beagleResetScaleFactors(instance, cumulativeScalingIndex[i]);
 		
 		// update the partials
-		beagleUpdatePartials(&instance,      // instance
+		beagleUpdatePartials(instance,      // instance
 					   1,              // instanceCount
 					   operations,     // eigenIndex
 					   2,              // operationCount
@@ -279,24 +307,27 @@ int main( int argc, const char* argv[] )
 	}
 		 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
-    
+	double logL = 0.0;    
     
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)rootIndex,// bufferIndices
-	                            weights,                // weights
-	                            freqs,                  // stateFrequencies
+	                            (const int *)categoryWeightsIndex,                // weights
+	                            (const int *)stateFrequencyIndex,                  // stateFrequencies
 								cumulativeScalingIndex,// cumulative scaling index
 	                            nRootCount,                      // count
-	                            patternLogLik);         // outLogLikelihoods
+	                            &logL);         // outLogLikelihoods
     
-	double logL = 0.0;
-	for (int i = 0; i < nPatterns; i++) {
-//		std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
-		logL += patternLogLik[i];
-	}
-    
-	fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n\n", logL);
+
+    beagleGetSiteLogLikelihoods(instance, patternLogLik);
+    double sumLogL = 0.0;
+    for (int i = 0; i < nPatterns; i++) {
+		sumLogL += patternLogLik[i];
+//        std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
+    }
+  
+	fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n", logL);
+	fprintf(stdout, "sumLogL = %.5f\n", sumLogL);  
 // no rate heterogeneity:	
 //	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
 	

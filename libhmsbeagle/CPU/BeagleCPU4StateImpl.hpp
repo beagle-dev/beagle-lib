@@ -358,15 +358,15 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* d
 
 template <typename REALTYPE>
 void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REALTYPE* integrationTmp,
-                                                            const double* inStateFrequencies,
+                                                                      const int stateFrequenciesIndex,
                                                             const int scalingFactorsIndex,
-                                                            double* outLogLikelihoods) {
+                                                            double* outSumLogLikelihood) {
     
     register REALTYPE freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
-    freq0 = inStateFrequencies[0];   
-    freq1 = inStateFrequencies[1];
-    freq2 = inStateFrequencies[2];
-    freq3 = inStateFrequencies[3];
+    freq0 = gStateFrequencies[stateFrequenciesIndex][0];   
+    freq1 = gStateFrequencies[stateFrequenciesIndex][1];
+    freq2 = gStateFrequencies[stateFrequenciesIndex][2];
+    freq3 = gStateFrequencies[stateFrequenciesIndex][3];
     
     int u = 0;
     for(int k = 0; k < kPatternCount; k++) {
@@ -377,14 +377,20 @@ void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REAL
         freq3 * integrationTmp[u + 3];
         
         u += 4;        
-        outLogLikelihoods[k] = log(sumOverI);
+        outLogLikelihoodsTmp[k] = log(sumOverI);
     }        
-        
+
     if (scalingFactorsIndex != BEAGLE_OP_NONE) {
         const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
-        for(int k=0; k < kPatternCount; k++)
-            outLogLikelihoods[k] += scalingFactors[k];
-    }             
+        for(int k=0; k < kPatternCount; k++) {
+            outLogLikelihoodsTmp[k] += scalingFactors[k];
+        }
+    }
+    
+    *outSumLogLikelihood = 0;    
+    for(int k=0; k < kPatternCount; k++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
+    }    
 }
 
 template <typename REALTYPE>
@@ -469,20 +475,20 @@ void BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 			#endif//
         }
     }
-    
-    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
+// TODO: update calcEdge4State to API changes    
+//    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
 }
 
 template <typename REALTYPE>
 void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
-                                                const double* inWeights,
-                                                const double* inStateFrequencies,
+                                                           const int categoryWeightsIndex,
+                                                           const int stateFrequenciesIndex,
                                                 const int scalingFactorsIndex,
-                                                double* outLogLikelihoods) {
+                                                double* outSumLogLikelihood) {
 
     const REALTYPE* rootPartials = gPartials[bufferIndex];
     assert(rootPartials);
-    const double* wt = inWeights;
+    const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
     
     int u = 0;
     int v = 0;
@@ -509,16 +515,16 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex
 		v += 4 * kExtraPatterns;
     }
     
-    integrateOutStatesAndScale(integrationTmp, inStateFrequencies, scalingFactorsIndex, outLogLikelihoods);
+    integrateOutStatesAndScale(integrationTmp, stateFrequenciesIndex, scalingFactorsIndex, outSumLogLikelihood);
 }
 
 template <typename REALTYPE>
 void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndices,
-                                                                const double* inWeights,
-                                                                const double* inStateFrequencies,
+                                                                const int* categoryWeightsIndices,
+                                                                const int* stateFrequenciesIndices,
                                                                 const int* scaleBufferIndices,
                                                                 int count,
-                                                                double* outLogLikelihoods) {
+                                                                double* outSumLogLikelihood) {
     
     std::vector<int> indexMaxScale(kPatternCount);
     std::vector<REALTYPE> maxScaleFactor(kPatternCount);
@@ -526,8 +532,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffe
     for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
         const int rootPartialIndex = bufferIndices[subsetIndex];
         const REALTYPE* rootPartials = gPartials[rootPartialIndex];
-        const double* frequencies = inStateFrequencies + (subsetIndex * kStateCount);
-        const double* wt = inWeights + subsetIndex * kCategoryCount;
+        const REALTYPE* frequencies = gStateFrequencies[stateFrequenciesIndices[subsetIndex]];
+        const REALTYPE* wt = gCategoryWeights[categoryWeightsIndices[subsetIndex]];
         int u = 0;
         int v = 0;
         
@@ -592,18 +598,24 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffe
             }
             
             if (subsetIndex == 0)
-                outLogLikelihoods[k] = sum;
+                outLogLikelihoodsTmp[k] = sum;
             else if (subsetIndex == count - 1)
-                outLogLikelihoods[k] = log(outLogLikelihoods[k] + sum);
+                outLogLikelihoodsTmp[k] = log(outLogLikelihoodsTmp[k] + sum);
             else
-                outLogLikelihoods[k] += sum;
+                outLogLikelihoodsTmp[k] += sum;
         }
     }
     
     if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
         for(int i=0; i<kPatternCount; i++)
-            outLogLikelihoods[i] += maxScaleFactor[i];
+            outLogLikelihoodsTmp[i] += maxScaleFactor[i];
     }
+    
+    *outSumLogLikelihood = 0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+    }
+    
 }
     
 
@@ -662,11 +674,18 @@ const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
 
 template <typename REALTYPE>
 const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
-    long flags =  BEAGLE_FLAG_ASYNCH | BEAGLE_FLAG_CPU;
+    long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
+                  BEAGLE_FLAG_SCALING_MANUAL |
+                  BEAGLE_FLAG_THREADING_NONE |
+                  BEAGLE_FLAG_PROCESSOR_CPU |
+                  BEAGLE_FLAG_VECTOR_NONE |
+                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                  BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+    
     if (DOUBLE_PRECISION)
-    	flags |= BEAGLE_FLAG_DOUBLE;
+    	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else
-    	flags |= BEAGLE_FLAG_SINGLE;
+    	flags |= BEAGLE_FLAG_PRECISION_SINGLE;
     return flags;
 }
 

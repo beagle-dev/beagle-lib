@@ -199,6 +199,7 @@
 		645748DD0FFF28CB00603261 /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelLauncher.h; path = ../../libhmsbeagle/GPU/KernelLauncher.h; sourceTree = SOURCE_ROOT; };
 		645749640FFF2AE300603261 /* GPUImplHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplHelper.h; path = ../../libhmsbeagle/GPU/GPUImplHelper.h; sourceTree = SOURCE_ROOT; };
 		645749650FFF2AE300603261 /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUImplHelper.cpp; path = ../../libhmsbeagle/GPU/GPUImplHelper.cpp; sourceTree = SOURCE_ROOT; };
+		646A4C3411079EE6000D8ED2 /* Precision.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Precision.h; path = ../../libhmsbeagle/CPU/Precision.h; sourceTree = SOURCE_ROOT; };
 		646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = ../../libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp; sourceTree = SOURCE_ROOT; };
@@ -389,6 +390,7 @@
 			children = (
 				64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */,
 				64F21C380FD2B74900678D0B /* BeagleCPUImpl.hpp */,
+				646A4C3411079EE6000D8ED2 /* Precision.h */,
 			);
 			name = "CPU Impl";
 			sourceTree = SOURCE_ROOT;
