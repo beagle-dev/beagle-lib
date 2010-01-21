@@ -24,8 +24,12 @@ public class GeneralBeagleImpl implements Beagle {
     protected double[][] cMatrices;
     protected double[][] eigenValues;
 
-    protected double[] categoryRates;
+    protected double[][] stateFrequencies;
 
+    protected double[] categoryRates;
+    protected double[][] categoryWeights;
+
+    protected double[] patternWeights;
     protected double[][] partials;
 
     protected int[][] tipStates;
@@ -78,9 +82,14 @@ public class GeneralBeagleImpl implements Beagle {
 
         eigenValues = new double[eigenBufferCount][stateCount];
 
+        stateFrequencies = new double[eigenBufferCount][stateCount];
+
+        categoryWeights = new double[eigenBufferCount][categoryCount];
         categoryRates = new double[categoryCount];
 
         partialsSize = patternCount * stateCount * categoryCount;
+
+        patternWeights = new double[patternCount];
 
         tipStates = new int[compactBufferCount][];
         partials = new double[partialsBufferCount][];
@@ -111,6 +120,10 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void finalize() throws Throwable {
         super.finalize();
+    }
+
+    public void setPatternWeights(final double[] patternWeights) {
+        System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);
     }
 
     /**
@@ -165,6 +178,14 @@ public class GeneralBeagleImpl implements Beagle {
             }
         }
         System.arraycopy(eigenValues, 0, this.eigenValues[eigenIndex], 0, eigenValues.length);
+    }
+
+    public void setStateFrequencies(final int stateFrequenciesIndex, final double[] stateFrequencies) {
+        System.arraycopy(stateFrequencies, 0, this.stateFrequencies[stateFrequenciesIndex], 0, stateCount);
+    }
+
+    public void setCategoryWeights(final int categoryWeightsIndex, final double[] categoryWeights) {
+        System.arraycopy(categoryWeights, 0, this.categoryWeights[categoryWeightsIndex], 0, categoryCount);
     }
 
     public void setCategoryRates(double[] categoryRates) {
@@ -483,7 +504,7 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void calculateRootLogLikelihoods(int[] bufferIndices, double[] weights, double[] stateFrequencies, int[] scaleIndices, int count, double[] outLogLikelihoods) {
+    public void calculateRootLogLikelihoods(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood) {
 
         assert(count == 1); // @todo implement integration across multiple subtrees
 
@@ -496,7 +517,7 @@ public class GeneralBeagleImpl implements Beagle {
 
             for (int i = 0; i < stateCount; i++) {
 
-                tmpPartials[u] = rootPartials[v] * weights[0];
+                tmpPartials[u] = rootPartials[v] * categoryWeights[categoryWeightsIndices[0]][0];
                 u++;
                 v++;
             }
@@ -510,7 +531,7 @@ public class GeneralBeagleImpl implements Beagle {
 
                 for (int i = 0; i < stateCount; i++) {
 
-                    tmpPartials[u] += rootPartials[v] * weights[l];
+                    tmpPartials[u] += rootPartials[v] *  categoryWeights[categoryWeightsIndices[0]][l];
                     u++;
                     v++;
                 }
@@ -528,33 +549,38 @@ public class GeneralBeagleImpl implements Beagle {
 //        }
 
         u = 0;
+        outSumLogLikelihood[0] = 0.0;
         for (int k = 0; k < patternCount; k++) {
 
             double sum = 0.0;
             for (int i = 0; i < stateCount; i++) {
 
-                sum += stateFrequencies[i] * tmpPartials[u];
+                sum += stateFrequencies[stateFrequenciesIndices[0]][i] * tmpPartials[u];
                 u++;
             }
 
             if (SCALING) {
 //                    outLogLikelihoods[k] = Math.log(sum) + rootScalingFactors[k];
             } else {
-                outLogLikelihoods[k] = Math.log(sum);
+                outSumLogLikelihood[0] += Math.log(sum) * patternWeights[k];
             }
 
-            if (DEBUG) {
-                System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
-            }
+//            if (DEBUG) {
+//                System.err.println("log lik "+k+" = " + outLogLikelihoods[k]);
+//            }
         }
 //        if (DEBUG) System.exit(-1);
     }
 
-    public void calculateEdgeLogLikelihoods(int[] parentBufferIndices, int[] childBufferIndices, int[] probabilityIndices, int[] firstDerivativeIndices, int[] secondDerivativeIndices,
-                                            double[] weights, double[] stateFrequencies, int[] scaleIndices, int count,
-                                            double[] outLogLikelihoods, double[] outFirstDerivatives, double[] outSecondDerivatives) {
+
+    public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices, final int[] childBufferIndices, final int[] probabilityIndices, final int[] firstDerivativeIndices, final int[] secondDerivativeIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood, final double[] outSumFirstDerivative, final double[] outSumSecondDerivative) {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
     }
+
+    public void getSiteLogLikelihoods(final double[] outLogLikelihoods) {
+        throw new UnsupportedOperationException("getSiteLogLikelihoods not implemented in GeneralBeagleImpl");
+    }
+
 
     public InstanceDetails getDetails() {
 //        InstanceDetails details = new InstanceDetails();

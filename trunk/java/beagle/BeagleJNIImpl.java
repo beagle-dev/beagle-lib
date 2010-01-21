@@ -31,7 +31,7 @@ public class BeagleJNIImpl implements Beagle {
                          long preferenceFlags,
                          long requirementFlags) {
 
-        int errCode = BeagleJNIWrapper.INSTANCE.createInstance(
+        int instance = BeagleJNIWrapper.INSTANCE.createInstance(
                 tipCount,
                 partialsBufferCount,
                 compactBufferCount,
@@ -44,14 +44,12 @@ public class BeagleJNIImpl implements Beagle {
                 resourceList,
                 (resourceList != null? resourceList.length: 0),
                 preferenceFlags,
-                requirementFlags);
+                requirementFlags,
+                details);
 
-        if (errCode >= 0) {
-            instance = errCode;
-            BeagleJNIWrapper.INSTANCE.initializeInstance(instance, details);
-        } else {
-            details = null; // To communicate that no instance would be created!
-            throw new BeagleException("create",errCode);
+        if (instance < 0) {
+            details = null; // To communicate that no instance has been created!
+            throw new BeagleException("create", instance);
         }
     }
 
@@ -63,8 +61,15 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setPatternWeights(final double[] patternWeights) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setPatternWeights(instance, patternWeights);
+        if (errCode != 0) {
+            throw new BeagleException("setPatternWeights", errCode);
+        }
+    }
+
     public void setTipStates(int tipIndex, final int[] states) {
-       int errCode = BeagleJNIWrapper.INSTANCE.setTipStates(instance, tipIndex, states);
+        int errCode = BeagleJNIWrapper.INSTANCE.setTipStates(instance, tipIndex, states);
         if (errCode != 0) {
             throw new BeagleException("setTipStates", errCode);
         }
@@ -101,6 +106,24 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setStateFrequencies(int stateFrequenciesIndex,
+                                    final double[] stateFrequencies) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setStateFrequencies(instance,
+                stateFrequenciesIndex, stateFrequencies);
+        if (errCode != 0) {
+            throw new BeagleException("setStateFrequencies", errCode);
+        }
+    }
+
+    public void setCategoryWeights( int categoryWeightsIndex,
+                                    final double[] categoryWeights) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setCategoryWeights(instance,
+                categoryWeightsIndex, categoryWeights);
+        if (errCode != 0) {
+            throw new BeagleException("setCategoryWeights", errCode);
+        }
+    }
+
     public void setCategoryRates(double[] inCategoryRates) {
         int errCode = BeagleJNIWrapper.INSTANCE.setCategoryRates(instance, inCategoryRates);
         if (errCode != 0) {
@@ -119,7 +142,7 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.getTransitionMatrix(instance, matrixIndex, outMatrix);
         if (errCode != 0) {
             throw new BeagleException("getTransitionMatrix", errCode);
-        }        
+        }
     }
 
     public void updateTransitionMatrices(int eigenIndex,
@@ -139,8 +162,7 @@ public class BeagleJNIImpl implements Beagle {
 
 
     public void updatePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
-        int[] instances = { instance };
-        int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instances, instances.length, operations, operationCount, cumulativeScaleIndex);
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("updatePartials", errCode);
         }
@@ -168,13 +190,18 @@ public class BeagleJNIImpl implements Beagle {
     }
 
     public void calculateRootLogLikelihoods(int[] bufferIndices,
-                                            double[] inWeights,
-                                            double[] inStateFrequencies,
-                                            int[] scaleIndices,
+                                            final int[] categoryWeightsIndices,
+                                            final int[] stateFrequenciesIndices,
+                                            final int[] cumulativeScaleIndices,
                                             int count,
-                                            double[] outLogLikelihoods) {
-        int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance, bufferIndices, inWeights,
-                inStateFrequencies, scaleIndices, count, outLogLikelihoods);
+                                            final double[] outSumLogLikelihood) {
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoods(instance,
+                bufferIndices,
+                categoryWeightsIndices,
+                stateFrequenciesIndices,
+                cumulativeScaleIndices,
+                count,
+                outSumLogLikelihood);
         if (errCode != 0) {
             throw new BeagleException("calculateRootLogLikelihoods", errCode);
         }
@@ -185,28 +212,36 @@ public class BeagleJNIImpl implements Beagle {
                                             final int[] probabilityIndices,
                                             final int[] firstDerivativeIndices,
                                             final int[] secondDerivativeIndices,
-                                            final double[] weights,
-                                            final double[] stateFrequencies,
-                                            final int[] scaleIndices,
+                                            final int[] categoryWeightsIndices,
+                                            final int[] stateFrequenciesIndices,
+                                            final int[] cumulativeScaleIndices,
                                             int count,
-                                            final double[] outLogLikelihoods,
-                                            final double[] outFirstDerivatives,
-                                            final double[] outSecondDerivatives) {
+                                            final double[] outSumLogLikelihood,
+                                            final double[] outSumFirstDerivative,
+                                            final double[] outSumSecondDerivative) {
         int errCode = BeagleJNIWrapper.INSTANCE.calculateEdgeLogLikelihoods(instance,
                 parentBufferIndices,
                 childBufferIndices,
                 probabilityIndices,
                 firstDerivativeIndices,
                 secondDerivativeIndices,
-                weights,
-                stateFrequencies,
-                scaleIndices,
+                categoryWeightsIndices,
+                stateFrequenciesIndices,
+                cumulativeScaleIndices,
                 count,
-                outLogLikelihoods,
-                outFirstDerivatives,
-                outSecondDerivatives);
+                outSumLogLikelihood,
+                outSumFirstDerivative,
+                outSumSecondDerivative);
         if (errCode != 0) {
             throw new BeagleException("calculateEdgeLogLikelihoods", errCode);
+        }
+    }
+
+    public void getSiteLogLikelihoods(final double[] outLogLikelihoods) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getSiteLogLikelihoods(instance,
+                outLogLikelihoods);
+        if (errCode != 0) {
+            throw new BeagleException("getSiteLogLikelihoods", errCode);
         }
     }
 

@@ -124,6 +124,12 @@ public class BenchmarkBeagle {
         }
         System.out.println("Instance on resource #" + instance.getDetails().getResourceNumber() + " flags:" + sb.toString());
 
+        double[] patternWeights = new double[nPatterns];
+        for (int i = 0; i < nPatterns; i++) {
+            patternWeights[i] = 1.0;
+        }
+        instance.setPatternWeights(patternWeights);
+        
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
@@ -138,9 +144,11 @@ public class BenchmarkBeagle {
 
         // create base frequency array
         final double[] freqs = { 0.25, 0.25, 0.25, 0.25 };
+        instance.setStateFrequencies(0, freqs);
 
         // create an array containing site category weights
         final double[] weights = { 1.0 };
+        instance.setCategoryWeights(0, weights);
 
         // an eigen decomposition for the JC69 model
         final double[] evec = {
@@ -212,28 +220,27 @@ public class BenchmarkBeagle {
         long time1 = System.nanoTime();
         System.out.println("Time = " + ((double)(time1 - time0) / 1000000000));
 
-        double[] patternLogLik = new double[nPatterns];
+        double[] sumLogLik = new double[1];
 
         int[] scalingFactorsIndices = {(scalingOn ? 2 : -1)}; // internal nodes
 
         int[] rootIndices = { 4 };
 
+
+        int[] weightIndices = { 0 };
+        int[] freqIndices = { 0 };
+
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(
                 rootIndices,            // bufferIndices
-                weights,                // weights
-                freqs,                 // stateFrequencies
+                weightIndices,                // weights
+                freqIndices,                 // stateFrequencies
                 scalingFactorsIndices,
                 1,
-                patternLogLik);         // outLogLikelihoods
+                sumLogLik);         // outLogLikelihoods
 
-        double logL = 0.0;
-        for (int i = 0; i < nPatterns; i++) {
-//            System.out.println("site lnL[" + i + "] = " + patternLogLik[i]);
-            logL += patternLogLik[i];
-        }
 
         System.out.println();
-        System.out.println("logL = " + logL + " (PAUP logL = -1574.63623)");
+        System.out.println("logL = " + sumLogLik[0] + " (PAUP logL = -1574.63623)");
     }
 }
