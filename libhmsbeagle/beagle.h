@@ -195,6 +195,8 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @return the unique instance identifier (<0 if failed, see @ref BEAGLE_RETURN_CODES
  * "BeagleReturnCodes")
  */
+// TODO: if setting your own matrices, might not need eigen buffers allocated, but still need
+//        category weight and state frequency buffers
 BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int partialsBufferCount,
                          int compactBufferCount,
