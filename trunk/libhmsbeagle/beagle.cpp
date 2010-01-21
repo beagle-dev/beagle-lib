@@ -633,7 +633,6 @@ int beagleUpdateTransitionMatrices(int instance,
 }
 
 int beagleUpdatePartials(const int instance,
-                   int instanceCount,
                    const int* operations,
                    int operationCount,
                    int cumulativeScalingIndex) {
@@ -656,7 +655,6 @@ int beagleUpdatePartials(const int instance,
 }
 
 int beagleWaitForPartials(const int instance,
-                    int instanceCount,
                     const int* destinationPartials,
                     int destinationPartialsCount) {
 //    try {

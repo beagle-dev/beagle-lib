@@ -237,7 +237,6 @@ void runBeagle(int resource,
     
     // update the partials
 	beagleUpdatePartials( instance,      // instance
-	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
 	                BEAGLE_OP_NONE);             // cumulative scaling index

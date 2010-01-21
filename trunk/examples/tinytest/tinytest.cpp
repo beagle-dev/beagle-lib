@@ -300,7 +300,6 @@ int main( int argc, const char* argv[] )
 		
 		// update the partials
 		beagleUpdatePartials(instance,      // instance
-					   1,              // instanceCount
 					   operations,     // eigenIndex
 					   2,              // operationCount
 					   cumulativeScalingIndex[i]);// cumulative scaling index
