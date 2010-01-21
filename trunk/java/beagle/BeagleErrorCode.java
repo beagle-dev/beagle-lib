@@ -11,7 +11,9 @@ public enum BeagleErrorCode {
     OUT_OF_MEMORY_ERROR(-2, "out of memory error"),
     UNIDENTIFIED_EXCEPTION_ERROR(-3, "unidentified exception error"),
     UNINITIALIZED_INSTANCE_ERROR(-4, "uninitialized instance error"),
-    OUT_OF_RANGE_ERROR(-5, "index out of bounds error");
+    OUT_OF_RANGE_ERROR(-5, "One of the indices specified exceeded the range of the array"),
+    NO_RESOURCE_ERROR(-6, "No resource matches requirements"),
+    NO_IMPLEMENTATION_ERROR(-7, "No implementation matches requirements");
 
     BeagleErrorCode(int errCode, String meaning) {
         this.errCode = errCode;
@@ -29,3 +31,4 @@ public enum BeagleErrorCode {
     private final int errCode;
     private final String meaning;
 }
+
