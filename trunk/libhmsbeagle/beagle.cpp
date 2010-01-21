@@ -325,7 +325,7 @@ int beagleCreateInstance(int tipCount,
                             (*factory)->getName(),totalScore);
 #endif
                     if (totalScore < bestScore) { // Looking for lowest
-                        
+                        // TODO: should only initialize impl after finding the best one
                         beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
                                                                             compactBufferCount, stateCount,
                                                                             patternCount, eigenBufferCount,
