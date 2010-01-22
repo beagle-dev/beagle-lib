@@ -43,7 +43,7 @@ public class BeagleFactory {
     ) {
 
         boolean forceJava = Boolean.valueOf(System.getProperty("java.only"));
-        boolean forceHybrid = Boolean.valueOf(System.getProperty("force.hybrid"));
+//        boolean forceHybrid = Boolean.valueOf(System.getProperty("force.hybrid"));
 
         getBeagleJNIWrapper();
 
@@ -64,9 +64,6 @@ public class BeagleFactory {
                         preferenceFlags,
                         requirementFlags
                 );
-
-                // From Java we allow the opton of overriding the default CPU BEAGLE implementation in favour
-                // of a hybrid Java/Native C version.
 
                 // In order to know that it was a CPU instance created, we have to let BEAGLE
                 // to make the instance and then override it...
@@ -211,6 +208,8 @@ public class BeagleFactory {
 
         BeagleInfo.printResourceList();
 
+        System.setProperty("java.only", "true");
+
         // create an instance of the BEAGLE library
         Beagle instance = loadBeagleInstance(
                 3,				/**< Number of tip data elements (input) */
@@ -223,7 +222,8 @@ public class BeagleFactory {
                 1,              /**< Number of rate categories (input) */
                 3,               /**< Number of scale buffers (input) */
                 new int[] {1, 0},
-                BeagleFlag.PROCESSOR_GPU.getMask(),
+                0,
+//                BeagleFlag.PROCESSOR_GPU.getMask(),
                 0
         );
         if (instance == null) {
