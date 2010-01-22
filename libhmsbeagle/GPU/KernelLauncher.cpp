@@ -175,23 +175,44 @@ void KernelLauncher::LoadKernels() {
     fIntegrateLikelihoodsDynamicScalingSecondDeriv = gpu->GetFunction(
             "kernelIntegrateLikelihoodsFixedScaleSecondDeriv");
     
-    fAccumulateFactorsDynamicScaling = gpu->GetFunction(
-            "kernelAccumulateFactors");
-
-    fRemoveFactorsDynamicScaling = gpu->GetFunction("kernelRemoveFactors");
+    if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+        fAccumulateFactorsDynamicScaling = gpu->GetFunction(
+                                                            "kernelAccumulateFactorsScalersLog");
+        fRemoveFactorsDynamicScaling = gpu->GetFunction("kernelRemoveFactorsScalersLog");
+    } else {
+        fAccumulateFactorsDynamicScaling = gpu->GetFunction(
+                                                            "kernelAccumulateFactors");
+        fRemoveFactorsDynamicScaling = gpu->GetFunction("kernelRemoveFactors");
+    }
 
     if (!kSlowReweighing) {
-        fPartialsDynamicScaling = gpu->GetFunction(
-                "kernelPartialsDynamicScaling");
+        if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+            fPartialsDynamicScaling = gpu->GetFunction(
+                   "kernelPartialsDynamicScalingScalersLog");
+            
+            fPartialsDynamicScalingAccumulate = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingAccumulateScalersLog");            
+        } else {
+            fPartialsDynamicScaling = gpu->GetFunction(
+                    "kernelPartialsDynamicScaling");
 
-        fPartialsDynamicScalingAccumulate = gpu->GetFunction(
-                "kernelPartialsDynamicScalingAccumulate");
+            fPartialsDynamicScalingAccumulate = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingAccumulate");
+        }
     } else {
-        fPartialsDynamicScaling = gpu->GetFunction(
-                "kernelPartialsDynamicScalingSlow");
+        if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+            fPartialsDynamicScaling = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingSlowScalersLog");
 
-        fPartialsDynamicScalingAccumulate = gpu->GetFunction(
-                "kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
+            fPartialsDynamicScalingAccumulate = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingAccumulateScalersLog");            
+        } else {
+            fPartialsDynamicScaling = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingSlow");
+
+            fPartialsDynamicScalingAccumulate = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
+        }
     }
 
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
