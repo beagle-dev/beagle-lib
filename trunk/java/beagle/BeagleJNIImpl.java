@@ -31,7 +31,7 @@ public class BeagleJNIImpl implements Beagle {
                          long preferenceFlags,
                          long requirementFlags) {
 
-        int instance = BeagleJNIWrapper.INSTANCE.createInstance(
+        instance = BeagleJNIWrapper.INSTANCE.createInstance(
                 tipCount,
                 partialsBufferCount,
                 compactBufferCount,
