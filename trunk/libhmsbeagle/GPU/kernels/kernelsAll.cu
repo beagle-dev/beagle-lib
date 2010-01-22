@@ -627,17 +627,43 @@ __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
 #endif
         REAL factor = nodeScales[pattern];
         if (factor != 1.0) {
-#ifdef LSCALER
-            total += factor;
-#else
             total += log(factor);
-#endif
         }
     }
 
     if (pattern < patternCount)
         rootScaling[pattern] += total;
 }
+
+__global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
+                                                 REAL* rootScaling,
+                                                 int nodeCount,
+                                                 int patternCount) {
+    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+//      if (threadIdx.x == 0) // TODO Why does this not work???
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+//      __syncthreads();
+
+#ifdef KERNEL_PRINT_ENABLED
+        if (pattern == 1)
+            printf("added %1.2e\n", nodeScales[pattern]);
+#endif
+        REAL factor = nodeScales[pattern];
+        if (factor != 1.0) {
+            total += factor;
+        }
+    }
+
+    if (pattern < patternCount)
+        rootScaling[pattern] += total;
+}
+
 
 __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
@@ -660,11 +686,36 @@ __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
 #endif
         REAL factor = nodeScales[pattern];
         if (factor != 1.0) {
-#ifdef LSCALER
-            total += factor;
-#else
             total += log(factor);
+        }
+    }
+
+    if (pattern < patternCount)
+        rootScaling[pattern] -= total;
+} 
+
+__global__ void kernelRemoveFactorsScalersLog(REAL** dNodePtrQueue,
+                                             REAL* rootScaling,
+                                             int nodeCount,
+                                             int patternCount) {
+    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+//      if (threadIdx.x == 0) // TODO Why does this not work???
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+//      __syncthreads();
+
+#ifdef KERNEL_PRINT_ENABLED
+        if (pattern == 1)
+            printf("added %1.2e\n", nodeScales[pattern]);
 #endif
+        REAL factor = nodeScales[pattern];
+        if (factor != 1.0) {
+            total += factor;
         }
     }
 
@@ -719,11 +770,7 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
     if(state == 0) {
         if (max == 0)
         	max = 1.0;
-#ifdef LSCALER
-        scalingFactors[pattern] = log(max);
-#else
         scalingFactors[pattern] = max;
-#endif
     }
 
 
@@ -734,6 +781,66 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
                     state] /= max;
 
 }
+
+__global__ void kernelPartialsDynamicScalingSlowScalersLog(REAL* allPartials,
+                                                          REAL* scalingFactors,
+                                                          int matrixCount) {
+    int state = threadIdx.x;
+    int matrix = threadIdx.y;
+    int pattern = blockIdx.x;
+    int patternCount = gridDim.x;
+
+    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
+
+    __shared__ REAL partials[PADDED_STATE_COUNT];
+
+    __shared__ REAL max;
+
+    if (state == 0)
+        max = 0.0;
+
+    int m;
+    for(m = 0; m < matrixCount; m++) {
+        partials[state] = allPartials[m * patternCount * PADDED_STATE_COUNT + pattern *
+                                      PADDED_STATE_COUNT + state];
+        __syncthreads();
+
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+                REAL compare1 = partials[state];
+                REAL compare2 = partials[state + i];
+                if(compare2 > compare1)
+                    partials[state] = compare2;
+            }
+            __syncthreads();
+        }
+        if(state == 0) {
+            if( partials[0] > max)
+                max = partials[0];
+        }
+    }
+
+    if(state == 0) {
+        if (max == 0)
+        	max = 1.0;
+        scalingFactors[pattern] = log(max);
+    }
+
+
+    __syncthreads();
+
+    for(m = 0; m < matrixCount; m++)
+        allPartials[m * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
+                    state] /= max;
+
+}
+
 
 } // extern "C"
 
