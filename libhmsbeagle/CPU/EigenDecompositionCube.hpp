@@ -59,6 +59,8 @@ EigenDecompositionCube<REALTYPE>::~EigenDecompositionCube() {
 	free(gCMatrices);
 	free(gEigenValues);
 	free(matrixTmp);
+	free(firstDerivTmp);
+	free(secondDerivTmp);
 }
 
 template <typename REALTYPE>

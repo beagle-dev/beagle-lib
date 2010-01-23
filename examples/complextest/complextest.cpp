@@ -342,6 +342,8 @@ int main( int argc, const char* argv[] )
 	fprintf(stdout, "logL = %.5f (PAUP = -1574.63624)\n\n", logL);
 #endif
 	
+    free(patternWeights);
+    
 	free(patternLogLik);
 	free(humanPartials);
 	free(chimpPartials);

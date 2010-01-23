@@ -131,6 +131,13 @@ BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 
+    for(unsigned int i=0; i<kEigenDecompCount; i++) {
+	    if (gCategoryWeights[i] != NULL)
+		    free(gCategoryWeights[i]);
+        if (gStateFrequencies[i] != NULL)
+		    free(gStateFrequencies[i]);
+	}
+    
 	for(unsigned int i=0; i<kMatrixCount; i++) {
 	    if (gTransitionMatrices[i] != NULL)
 		    free(gTransitionMatrices[i]);
@@ -155,7 +162,15 @@ BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
         free(gScaleBuffers);
 
 	free(gCategoryRates);
+    free(gPatternWeights);
+    
 	free(integrationTmp);
+    free(firstDerivTmp);
+    free(secondDerivTmp);
+    
+    free(outLogLikelihoodsTmp);
+    free(outFirstDerivativesTmp); 
+    free(outSecondDerivativesTmp);
 
 	free(ones);
 	free(zeros);
@@ -238,11 +253,11 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     if (gPartials == NULL)
      throw std::bad_alloc();
 
-    gStateFrequencies = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    gStateFrequencies = (REALTYPE**) calloc(sizeof(REALTYPE*), kEigenDecompCount);
     if (gStateFrequencies == NULL)
         throw std::bad_alloc();
 
-    gCategoryWeights = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    gCategoryWeights = (REALTYPE**) calloc(sizeof(REALTYPE*), kEigenDecompCount);
     if (gCategoryWeights == NULL)
         throw std::bad_alloc();
     
@@ -348,11 +363,12 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
                                   const double* inPartials) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    assert(gPartials[tipIndex] == 0L);
-    gPartials[tipIndex] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
-    // TODO: What if this throws a memory full error?
-    if (gPartials[tipIndex] == 0L)
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    if(gPartials[tipIndex] == NULL) {
+        gPartials[tipIndex] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
+        // TODO: What if this throws a memory full error?
+        if (gPartials[tipIndex] == 0L)
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
     int singlePartialsSize = kPatternCount * kStateCount;
     REALTYPE *partials = gPartials[tipIndex];
     for (int i = 0; i < kCategoryCount; i++) {

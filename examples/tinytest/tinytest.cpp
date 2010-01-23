@@ -330,6 +330,13 @@ int main( int argc, const char* argv[] )
 // no rate heterogeneity:	
 //	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
 	
+    free(weights);
+    free(patternWeights);    
+    free(rootIndex);
+    free(categoryWeightsIndex);
+    free(stateFrequencyIndex);
+    free(cumulativeScalingIndex);    
+    
 	free(patternLogLik);
 	free(humanPartials);
 	free(chimpPartials);
