@@ -74,6 +74,9 @@
 /* Table of pre-optimized compiler definitions
  */
 
+// state count independent
+#define SUM_SITES_BLOCK_SIZE 128
+
 // PADDED_STATE_COUNT == 4
 #define PATTERN_BLOCK_SIZE_4          16
 #define MATRIX_BLOCK_SIZE_4           8

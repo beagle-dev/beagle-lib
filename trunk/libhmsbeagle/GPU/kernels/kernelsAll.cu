@@ -606,6 +606,112 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     }
 }
 
+__global__ void kernelSumSites1(REAL* dArray,
+                                REAL* dSum,
+                                int patternCount) {
+
+    __shared__ REAL sum[SUM_SITES_BLOCK_SIZE];
+
+    int tx = threadIdx.x;
+    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
+    
+    if (pattern < patternCount)
+        sum[tx] = dArray[pattern];
+    else
+        sum[tx] = 0.0;
+        
+    __syncthreads();
+    
+    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+        if (tx < s)
+            sum[tx] += sum[tx + s];
+        __syncthreads();
+    }
+    
+    if (tx == 0)
+        dSum[blockIdx.x] = sum[0];
+}
+
+__global__ void kernelSumSites2(REAL* dArray1,
+                                REAL* dSum1,
+                                REAL* dArray2,
+                                REAL* dSum2,
+                                int patternCount) {
+
+    __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
+    __shared__ REAL sum2[SUM_SITES_BLOCK_SIZE];
+
+    int tx = threadIdx.x;
+    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
+    
+    if (pattern < patternCount) {
+        sum1[tx] = dArray1[pattern];
+        sum2[tx] = dArray2[pattern];
+    } else {
+        sum1[tx] = 0.0;
+        sum2[tx] = 0.0;
+    }
+        
+    __syncthreads();
+    
+    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+        if (tx < s) {
+            sum1[tx] += sum1[tx + s];
+            sum2[tx] += sum2[tx + s];
+        }
+        __syncthreads();
+    }
+    
+    if (tx == 0) {
+        dSum1[blockIdx.x] = sum1[0];
+        dSum2[blockIdx.x] = sum2[0];
+    }
+}
+
+__global__ void kernelSumSites3(REAL* dArray1,
+                                REAL* dSum1,
+                                REAL* dArray2,
+                                REAL* dSum2,
+                                REAL* dArray3,
+                                REAL* dSum3,
+                                int patternCount) {
+
+    __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
+    __shared__ REAL sum2[SUM_SITES_BLOCK_SIZE];
+    __shared__ REAL sum3[SUM_SITES_BLOCK_SIZE];
+
+    int tx = threadIdx.x;
+    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
+    
+    if (pattern < patternCount) {
+        sum1[tx] = dArray1[pattern];
+        sum2[tx] = dArray2[pattern];
+        sum3[tx] = dArray3[pattern];
+    } else {
+        sum1[tx] = 0.0;
+        sum2[tx] = 0.0;
+        sum3[tx] = 0.0;
+    }
+        
+    __syncthreads();
+    
+    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+        if (tx < s) {
+            sum1[tx] += sum1[tx + s];
+            sum2[tx] += sum2[tx + s];
+            sum3[tx] += sum3[tx + s];
+        }
+        __syncthreads();
+    }
+    
+    if (tx == 0) {
+        dSum1[blockIdx.x] = sum1[0];
+        dSum2[blockIdx.x] = sum2[0];
+        dSum3[blockIdx.x] = sum3[0];
+    }
+}
+
+
 __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,

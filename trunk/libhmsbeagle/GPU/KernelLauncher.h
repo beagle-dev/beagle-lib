@@ -64,6 +64,10 @@ private:
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
 	GPUFunction fIntegrateLikelihoodsMulti;
 	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
+
+    GPUFunction fSumSites1;
+    GPUFunction fSumSites2;
+    GPUFunction fSumSites3;
     
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
@@ -75,6 +79,8 @@ private:
     Dim3Int bgAccumulateGrid;
     Dim3Int bgScaleBlock;
     Dim3Int bgScaleGrid;
+    Dim3Int bgSumSitesBlock;
+    Dim3Int bgSumSitesGrid;
     
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -83,6 +89,7 @@ private:
     unsigned int kMatrixBlockSize;
     unsigned int kSlowReweighing;  
     unsigned int kMultiplyBlockSize;
+    unsigned int kSumSitesBlockSize;
     long kFlags;
     
 public:
@@ -169,6 +176,7 @@ public:
                                             GPUPtr dWeights,
                                             GPUPtr dFrequencies,
                                             GPUPtr dRootScalingFactors,
+                                            GPUPtr dPatternWeights,
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
     
@@ -181,6 +189,7 @@ public:
                                                        GPUPtr dWeights,
                                                        GPUPtr dFrequencies,
                                                        GPUPtr dRootScalingFactors,
+                                                       GPUPtr dPatternWeights,
                                                        unsigned int patternCount,
                                                        unsigned int categoryCount);
     
@@ -242,6 +251,7 @@ public:
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,
                               GPUPtr dFrequencies,
+                              GPUPtr dPatternWeights,
                               unsigned int patternCount,
                               unsigned int categoryCount);
     
@@ -253,6 +263,7 @@ public:
                                          GPUPtr dRootSecondDeriv,
                                          GPUPtr dWeights,
                                          GPUPtr dFrequencies,
+                                         GPUPtr dPatternWeights,                                         
                                          unsigned int patternCount,
                                          unsigned int categoryCount);
     
@@ -260,6 +271,7 @@ public:
 								   GPUPtr dRootPartials,
 								   GPUPtr dWeights,
 								   GPUPtr dFrequencies,
+                                   GPUPtr dPatternWeights,
 								   unsigned int patternCount,
 								   unsigned int categoryCount,
 								   unsigned int takeLog);
@@ -271,10 +283,19 @@ public:
 											 GPUPtr dPtrQueue,
 											 GPUPtr dMaxScalingFactors,
 											 GPUPtr dIndexMaxScalingFactors,
+                                             GPUPtr dPatternWeights,
 											 unsigned int patternCount,
 											 unsigned int categoryCount,
 											 unsigned int subsetCount,
 											 unsigned int subsetIndex);
+    
+    void SumSites(GPUPtr dArray1,
+                  GPUPtr dSum1,
+                  GPUPtr dArray2,
+                  GPUPtr dSum2,
+                  GPUPtr dArray3,
+                  GPUPtr dSum3,
+                  unsigned int patternCount);
 	
     void SetupKernelBlocksAndGrids();
     
