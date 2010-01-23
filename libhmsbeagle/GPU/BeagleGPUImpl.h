@@ -68,7 +68,8 @@ private:
     int kPaddedStateCount;
     int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
                                 //   * kPaddedStateCount is a multiple of 16
-
+    int kSumSitesBlockCount;
+    
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
@@ -90,8 +91,14 @@ private:
     GPUPtr dFirstDerivTmp;
     GPUPtr dSecondDerivTmp;
     
+    GPUPtr dSumLogLikelihood;
+    GPUPtr dSumFirstDeriv;
+    GPUPtr dSumSecondDeriv;
+    
 	double* hCategoryRates; // Can keep in double-precision
-    double* hPatternWeights;
+
+    REAL* hPatternWeightsCache;
+    GPUPtr dPatternWeights;
     
     GPUPtr* dPartials;
     GPUPtr* dMatrices;

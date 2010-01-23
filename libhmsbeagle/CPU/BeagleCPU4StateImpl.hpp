@@ -389,7 +389,8 @@ void inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REAL
     
     *outSumLogLikelihood = 0.0;    
     for(int k=0; k < kPatternCount; k++) {
-        *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
+        outLogLikelihoodsTmp[k] *= gPatternWeights[k];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[k];
     }    
 }
 
@@ -614,7 +615,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffe
     
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
     }
     
 }

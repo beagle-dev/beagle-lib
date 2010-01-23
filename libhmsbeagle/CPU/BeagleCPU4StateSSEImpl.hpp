@@ -545,7 +545,8 @@ template <>
         
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
     }            
 }
 #if 0
