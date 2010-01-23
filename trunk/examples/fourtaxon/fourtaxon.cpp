@@ -375,13 +375,17 @@ void FourTaxonExample::initBeagleLib()
 #endif
 		);
 
-    double* patternWeights = (double*) malloc(sizeof(double) * nsites);
-    
+#ifdef _WIN32
+        std::vector<double> patternWeights(nsites);
+#else
+        double patternWeights[nsites];
+#endif
+        
     for (int i = 0; i < nsites; i++) {
         patternWeights[i] = 1.0;
     }    
         
-    beagleSetPatternWeights(instance_handle, patternWeights);
+    beagleSetPatternWeights(instance_handle, &patternWeights[0]);
         
         
 	// JC69 model eigenvector matrix

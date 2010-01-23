@@ -47,7 +47,6 @@ private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
     
-    int kHostMemoryUsed;
     int kInitialized;
     
     long kFlags;
@@ -77,13 +76,6 @@ private:
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
     
-    GPUPtr* dEigenValues;
-    GPUPtr* dEvec;
-    GPUPtr* dIevc;
-    
-    GPUPtr* dWeights;
-    GPUPtr* dFrequencies; 
-    
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
@@ -95,34 +87,41 @@ private:
     GPUPtr dSumFirstDeriv;
     GPUPtr dSumSecondDeriv;
     
-	double* hCategoryRates; // Can keep in double-precision
-
-    REAL* hPatternWeightsCache;
-    GPUPtr dPatternWeights;
-    
-    GPUPtr* dPartials;
-    GPUPtr* dMatrices;
-    
-    REAL** hTmpTipPartials;
-    int** hTmpStates;
-    
-    GPUPtr* dScalingFactors;
-    
-    GPUPtr* dStates;
-    
-    GPUPtr* dCompactBuffers;
-    GPUPtr* dTipPartialsBuffers;
-    
+    GPUPtr dPatternWeights;    
+	
     GPUPtr dBranchLengths;
     
-    REAL* hDistanceQueue;
     GPUPtr dDistanceQueue;
     
-    GPUPtr* hPtrQueue;
     GPUPtr dPtrQueue;
 	
 	GPUPtr dMaxScalingFactors;
 	GPUPtr dIndexMaxScalingFactors;
+    
+    GPUPtr* dEigenValues;
+    GPUPtr* dEvec;
+    GPUPtr* dIevc;
+    
+    GPUPtr* dWeights;
+    GPUPtr* dFrequencies; 
+
+    GPUPtr* dScalingFactors;
+    
+    GPUPtr* dStates;
+    
+    GPUPtr* dPartials;
+    GPUPtr* dMatrices;
+    
+    GPUPtr* dCompactBuffers;
+    GPUPtr* dTipPartialsBuffers;
+    
+    GPUPtr* hPtrQueue;
+    
+    double* hCategoryRates; // Can keep in double-precision
+
+    REAL* hPatternWeightsCache;
+        
+    REAL* hDistanceQueue;
     
     REAL* hWeightsCache;
     REAL* hFrequenciesCache;

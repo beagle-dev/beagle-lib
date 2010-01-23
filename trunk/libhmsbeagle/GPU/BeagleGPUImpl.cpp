@@ -51,12 +51,6 @@ BeagleGPUImpl::BeagleGPUImpl() {
     gpu = NULL;
     kernels = NULL;
     
-    dEigenValues = NULL;
-    dEvec = NULL;
-    dIevc = NULL;
-    
-    dWeights = NULL;
-    dFrequencies = NULL; 
     dIntegrationTmp = NULL;
     dOutFirstDeriv = NULL;
     dOutSecondDeriv = NULL;
@@ -64,28 +58,45 @@ BeagleGPUImpl::BeagleGPUImpl() {
     dFirstDerivTmp = NULL;
     dSecondDerivTmp = NULL;
     
-	hCategoryRates = NULL;
+    dSumLogLikelihood = NULL;
+    dSumFirstDeriv = NULL;
+    dSumSecondDeriv = NULL;
     
-    dPartials = NULL;
-    dMatrices = NULL;
+    dPatternWeights = NULL;    
+	
+    dBranchLengths = NULL;
     
-    hTmpTipPartials = NULL;
-    hTmpStates = NULL;
+    dDistanceQueue = NULL;
+    
+    dPtrQueue = NULL;
+	
+    dMaxScalingFactors = NULL;
+    dIndexMaxScalingFactors = NULL;
+    
+    dEigenValues = NULL;
+    dEvec = NULL;
+    dIevc = NULL;
+    
+    dWeights = NULL;
+    dFrequencies = NULL; 
     
     dScalingFactors = NULL;
     
     dStates = NULL;
     
+    dPartials = NULL;
+    dMatrices = NULL;
+    
     dCompactBuffers = NULL;
     dTipPartialsBuffers = NULL;
     
-    dBranchLengths = NULL;
+    hPtrQueue = NULL;
+    
+    hCategoryRates = NULL;
+    
+    hPatternWeightsCache = NULL;
     
     hDistanceQueue = NULL;
-    dDistanceQueue = NULL;
-    
-    hPtrQueue = NULL;
-    dPtrQueue = NULL;
     
     hWeightsCache = NULL;
     hFrequenciesCache = NULL;
@@ -96,12 +107,17 @@ BeagleGPUImpl::BeagleGPUImpl() {
 }
 
 BeagleGPUImpl::~BeagleGPUImpl() {
-		
-	// free GPU memory
-    
-    // TODO: free all GPU memory (some allocations seem to be missing here)
-	
+    	
 	if (kInitialized) {
+        for (int i=0; i < kEigenDecompCount; i++) {
+            gpu->FreeMemory(dEigenValues[i]);
+            gpu->FreeMemory(dEvec[i]);
+            gpu->FreeMemory(dIevc[i]);
+            gpu->FreeMemory(dWeights[i]);
+            gpu->FreeMemory(dFrequencies[i]);
+        }
+        for (int i=0; i < kMatrixCount; i++)
+            gpu->FreeMemory(dMatrices[i]);
 		for (int i=0; i < kScaleBufferCount; i++)
 			gpu->FreeMemory(dScalingFactors[i]);
 		for (int i = 0; i < kBufferCount; i++) {        
@@ -114,56 +130,67 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 				gpu->FreeMemory(dPartials[i]);        
 			}
 		}
-	}
-	
-//	if (kHostMemoryUsed) {
-		// free memory
-        if (kernels)
-            delete kernels;        
-        if (gpu) 
-            delete gpu;
-		
-        if (dPartials)
-            free(dPartials);
-        if (dTipPartialsBuffers)                    
-            free(dTipPartialsBuffers);
-        if (dStates)
-            free(dStates);
-        if (dCompactBuffers)
-            free(dCompactBuffers);
-        if (dMatrices)
-            free(dMatrices);
-        if (dEigenValues)
-            free(dEigenValues);
-        if (dEvec)
-            free(dEvec);
-        if (dIevc)
-            free(dIevc);
-        if (dScalingFactors)
-            free(dScalingFactors);
-        if (hDistanceQueue)
-            free(hDistanceQueue);
-        if (hPtrQueue)
-            free(hPtrQueue);
-        if (hWeightsCache)
-            free(hWeightsCache);
-        if (hFrequenciesCache)
-            free(hFrequenciesCache);
-        if (hPartialsCache)
-            free(hPartialsCache);
-        if (hStatesCache)
-            free(hStatesCache);
-        if (hMatrixCache)
-            free(hMatrixCache);
-        if (hCategoryRates)
-            free(hCategoryRates);
-		
-#ifndef DOUBLE_PRECISION
-    if (hLogLikelihoodsCache)
-        free(hLogLikelihoodsCache);
-#endif
+        
+        gpu->FreeMemory(dIntegrationTmp);
+        gpu->FreeMemory(dOutFirstDeriv);
+        gpu->FreeMemory(dOutSecondDeriv);
+        gpu->FreeMemory(dPartialsTmp);
+        gpu->FreeMemory(dFirstDerivTmp);
+        gpu->FreeMemory(dSecondDerivTmp);
+        
+        gpu->FreeMemory(dSumLogLikelihood);
+        gpu->FreeMemory(dSumFirstDeriv);
+        gpu->FreeMemory(dSumSecondDeriv);
+        
+        gpu->FreeMemory(dPatternWeights);
+
+        gpu->FreeMemory(dBranchLengths);
+        
+        gpu->FreeMemory(dDistanceQueue);
+        
+        gpu->FreeMemory(dPtrQueue);
+        
+        gpu->FreeMemory(dMaxScalingFactors);
+        gpu->FreeMemory(dIndexMaxScalingFactors);
+	        
+        free(dEigenValues);
+        free(dEvec);
+        free(dIevc);
     
-//	}
+        free(dWeights);
+        free(dFrequencies);
+
+        free(dScalingFactors);
+
+        free(dStates);
+
+        free(dPartials);
+        free(dMatrices);
+
+        free(dCompactBuffers);
+        free(dTipPartialsBuffers);
+
+        free(hPtrQueue);
+    
+        free(hCategoryRates);
+        
+        free(hPatternWeightsCache);
+    
+        free(hDistanceQueue);
+    
+        free(hWeightsCache);
+        free(hFrequenciesCache);
+        free(hLogLikelihoodsCache);
+        free(hPartialsCache);
+        free(hStatesCache);
+        free(hMatrixCache);
+    }
+    
+    if (kernels)
+        delete kernels;        
+    if (gpu) 
+        delete gpu;    
+    
 }
 
 int BeagleGPUImpl::createInstance(int tipCount,
@@ -183,7 +210,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
 #endif
     
-    kHostMemoryUsed = 0;
     kInitialized = 0;
     
     kTipCount = tipCount;
@@ -254,18 +280,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     	kEigenValuesSize = 2 * kPaddedStateCount;
     else
     	kEigenValuesSize = kPaddedStateCount;
-    
-    // TODO: only allocate if necessary on the fly
-    hWeightsCache = (REAL*) calloc(kCategoryCount * kPartialsBufferCount, SIZE_REAL);
-    hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
-    hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
-    hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
-    hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
-#ifndef DOUBLE_PRECISION
-    hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
-#endif
-    
-    kHostMemoryUsed = 1;
         
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
@@ -322,6 +336,14 @@ int BeagleGPUImpl::createInstance(int tipCount,
 #endif    
     
     kernels = new KernelLauncher(gpu);
+    
+    // TODO: only allocate if necessary on the fly
+    hWeightsCache = (REAL*) calloc(kCategoryCount * kPartialsBufferCount, SIZE_REAL);
+    hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
+    hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
+    hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
+    hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
+    hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
     
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dIevc = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);

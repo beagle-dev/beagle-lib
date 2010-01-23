@@ -93,7 +93,9 @@ void runBeagle(int resource,
 	srand(42);	// fix the random seed...
 	for(int i=0; i<ntaxa; i++)
 	{
-		beagleSetTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
+        double* tmpPartials = getRandomTipPartials(nsites, stateCount);
+		beagleSetTipPartials(instance, i, tmpPartials);
+        free(tmpPartials);
 	}
     
 #ifdef _WIN32
@@ -115,6 +117,8 @@ void runBeagle(int resource,
     }    
 
     beagleSetPatternWeights(instance, patternWeights);
+    
+    free(patternWeights);
 	
     // create base frequency array
 
