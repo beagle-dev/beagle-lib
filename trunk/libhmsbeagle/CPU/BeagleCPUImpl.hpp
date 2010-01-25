@@ -203,9 +203,9 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     // Handle possible padding of pattern sites for vectorization
     int modulus = getPaddedPatternsModulus();
     kPaddedPatternCount = kPatternCount;
-    int remainder = kPatternCount % getPaddedPatternsModulus();
+    int remainder = kPatternCount % modulus;
     if (remainder != 0) {
-    	kPaddedPatternCount += getPaddedPatternsModulus() - remainder;
+    	kPaddedPatternCount += modulus - remainder;
     }
     kExtraPatterns = kPaddedPatternCount - kPatternCount;
 
@@ -1105,7 +1105,6 @@ void BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parInde
 	for(int k = 0; k < kPatternCount; k++) {
 		REALTYPE sumOverI = 0.0;
 		REALTYPE sumOverID1 = 0.0;
-		REALTYPE sumOverID2 = 0.0;
 		for(int i = 0; i < kStateCount; i++) {
 			sumOverI += freqs[i] * integrationTmp[u];
 			sumOverID1 += freqs[i] * firstDerivTmp[u];
