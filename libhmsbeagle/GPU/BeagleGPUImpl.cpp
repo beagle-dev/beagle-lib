@@ -1217,7 +1217,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         }
         
         
-        kernels->SumSites(dIntegrationTmp, dSumLogLikelihood, NULL, NULL, NULL, NULL,
+        kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood,
                                     kPatternCount);
 
         gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, SIZE_REAL * kSumSitesBlockCount);
@@ -1265,7 +1265,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 			}
 			
 
-            kernels->SumSites(dIntegrationTmp, dSumLogLikelihood, NULL, NULL, NULL, NULL,
+            kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood,
                                         kPatternCount);
                         
             gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, SIZE_REAL * kSumSitesBlockCount);
@@ -1347,7 +1347,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                               kPaddedPatternCount, kCategoryCount);
             }
             
-            kernels->SumSites(dIntegrationTmp, dSumLogLikelihood, NULL, NULL, NULL, NULL,
+            kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood,
                                         kPatternCount);
             
             gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, SIZE_REAL * kSumSitesBlockCount);
@@ -1396,7 +1396,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             }
             
 
-            kernels->SumSites(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv, NULL, NULL,
+            kernels->SumSites2(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv,
                                         kPatternCount);
             
             gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, SIZE_REAL * kSumSitesBlockCount);
@@ -1453,7 +1453,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                          kPaddedPatternCount, kCategoryCount);
             }
             
-            kernels->SumSites(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv, dOutSecondDeriv, dSumSecondDeriv,
+            kernels->SumSites3(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv, dOutSecondDeriv, dSumSecondDeriv,
                               kPatternCount);
             
             gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, SIZE_REAL * kSumSitesBlockCount);

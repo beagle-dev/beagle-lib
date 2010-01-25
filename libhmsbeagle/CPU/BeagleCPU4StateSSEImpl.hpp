@@ -452,12 +452,10 @@ template <>
     if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
 
         const int* statesChild = gTipStates[childIndex];
-        int v = 0; // Index for parent partials
 
 		int w = 0;
 		V_Real *vcl_r = (V_Real *)cl_r;
 		for(int l = 0; l < kCategoryCount; l++) {
-            int u = 0; // Index in resulting product-partials (summed over categories)
 
  			VecUnion vu_m[OFFSET][2];
  			SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
@@ -492,8 +490,6 @@ template <>
  			VecUnion vu_m[OFFSET][2];
 			SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
 
-            int u = 0;
-            const double weight = wt[l];
             for(int k = 0; k < kPatternCount; k++) {
                 V_Real vclp_01, vclp_23;
 				V_Real vwt = VEC_SPLAT(wt[l]);

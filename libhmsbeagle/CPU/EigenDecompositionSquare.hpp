@@ -109,7 +109,6 @@ void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
 			const REALTYPE distance = categoryRates[l] * edgeLength;
-        	int tmpIndex = 0;
         	for(int i=0; i<kStateCount; i++) {
         		if (!isComplex || EvalImag[i] == 0) {
         			const REALTYPE tmp = exp(Eval[i] * distance);

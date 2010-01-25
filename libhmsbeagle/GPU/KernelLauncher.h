@@ -289,7 +289,17 @@ public:
 											 unsigned int subsetCount,
 											 unsigned int subsetIndex);
     
-    void SumSites(GPUPtr dArray1,
+    void SumSites1(GPUPtr dArray1,
+                  GPUPtr dSum1,
+                  unsigned int patternCount);
+    
+    void SumSites2(GPUPtr dArray1,
+                  GPUPtr dSum1,
+                  GPUPtr dArray2,
+                  GPUPtr dSum2,
+                  unsigned int patternCount);
+    
+    void SumSites3(GPUPtr dArray1,
                   GPUPtr dSum1,
                   GPUPtr dArray2,
                   GPUPtr dSum2,

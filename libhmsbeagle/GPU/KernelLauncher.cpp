@@ -890,7 +890,52 @@ void KernelLauncher::IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
 #endif
 }
 
-void KernelLauncher::SumSites(GPUPtr dArray1,
+void KernelLauncher::SumSites1(GPUPtr dArray1,
+                              GPUPtr dSum1,
+                              unsigned int patternCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::SumSites1\n");
+#endif
+    
+    int parameterCountV = 2;
+    int totalParameterCount = 3;
+    gpu->Synchronize();  
+    gpu->LaunchKernel(fSumSites1,
+                      bgSumSitesBlock, bgSumSitesGrid,
+                      parameterCountV, totalParameterCount,
+                      dArray1, dSum1,
+                      patternCount);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites1\n");
+#endif
+    
+}
+
+void KernelLauncher::SumSites2(GPUPtr dArray1,
+                              GPUPtr dSum1,
+                              GPUPtr dArray2,
+                              GPUPtr dSum2,
+                              unsigned int patternCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::SumSites2\n");
+#endif
+    int parameterCountV = 4;
+    int totalParameterCount = 5;
+    gpu->Synchronize();
+    gpu->LaunchKernel(fSumSites2,
+                      bgSumSitesBlock, bgSumSitesGrid,
+                      parameterCountV, totalParameterCount,
+                      dArray1, dSum1, dArray2, dSum2,
+                      patternCount);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites2\n");
+#endif
+    
+}
+
+void KernelLauncher::SumSites3(GPUPtr dArray1,
                               GPUPtr dSum1,
                               GPUPtr dArray2,
                               GPUPtr dSum2,
@@ -898,40 +943,20 @@ void KernelLauncher::SumSites(GPUPtr dArray1,
                               GPUPtr dSum3,
                               unsigned int patternCount) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::SumSites\n");
+    fprintf(stderr, "\t\tEntering KernelLauncher::SumSites3\n");
 #endif
     
-    if (dArray2 == NULL && dArray3 == NULL) {        
-        int parameterCountV = 2;
-        int totalParameterCount = 3;
-        gpu->Synchronize();  
-        gpu->LaunchKernel(fSumSites1,
-                          bgSumSitesBlock, bgSumSitesGrid,
-                          parameterCountV, totalParameterCount,
-                          dArray1, dSum1,
-                          patternCount);
-    } else if (dArray3 == NULL) {
-        int parameterCountV = 4;
-        int totalParameterCount = 5;
-        gpu->Synchronize();
-        gpu->LaunchKernel(fSumSites2,
-                          bgSumSitesBlock, bgSumSitesGrid,
-                          parameterCountV, totalParameterCount,
-                          dArray1, dSum1, dArray2, dSum2,
-                          patternCount);
-    } else {
-        int parameterCountV = 6;
-        int totalParameterCount = 7;
-        gpu->Synchronize();
-        gpu->LaunchKernel(fSumSites3,
-                          bgSumSitesBlock, bgSumSitesGrid,
-                          parameterCountV, totalParameterCount,
-                          dArray1, dSum1, dArray2, dSum2, dArray3, dSum3,
-                          patternCount);        
-    }
+    int parameterCountV = 6;
+    int totalParameterCount = 7;
+    gpu->Synchronize();
+    gpu->LaunchKernel(fSumSites3,
+                      bgSumSitesBlock, bgSumSitesGrid,
+                      parameterCountV, totalParameterCount,
+                      dArray1, dSum1, dArray2, dSum2, dArray3, dSum3,
+                      patternCount);        
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites\n");
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites3\n");
 #endif
     
 }

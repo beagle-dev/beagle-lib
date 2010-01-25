@@ -149,7 +149,6 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
 						REALTYPE sumD1 = 0.0;
-						REALTYPE sumD2 = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
 							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
 							sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
