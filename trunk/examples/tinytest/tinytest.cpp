@@ -307,9 +307,10 @@ int main( int argc, const char* argv[] )
 		 
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 	double logL = 0.0;    
+    int returnCode = 0;
     
     // calculate the site likelihoods at the root node
-	beagleCalculateRootLogLikelihoods(instance,               // instance
+	returnCode = beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)rootIndex,// bufferIndices
 	                            (const int *)categoryWeightsIndex,                // weights
 	                            (const int *)stateFrequencyIndex,                  // stateFrequencies
@@ -317,16 +318,21 @@ int main( int argc, const char* argv[] )
 	                            nRootCount,                      // count
 	                            &logL);         // outLogLikelihoods
     
+    if (returnCode < 0) {
+	    fprintf(stderr, "Failed to calculate root likelihood\n\n");
+    } else {
 
-    beagleGetSiteLogLikelihoods(instance, patternLogLik);
-    double sumLogL = 0.0;
-    for (int i = 0; i < nPatterns; i++) {
-		sumLogL += patternLogLik[i];
-//        std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
+        beagleGetSiteLogLikelihoods(instance, patternLogLik);
+        double sumLogL = 0.0;
+        for (int i = 0; i < nPatterns; i++) {
+            sumLogL += patternLogLik[i];
+    //        std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
+        }
+      
+        fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n", logL);
+        fprintf(stdout, "sumLogL = %.5f\n", sumLogL);  
     }
-  
-	fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n", logL);
-	fprintf(stdout, "sumLogL = %.5f\n", sumLogL);  
+    
 // no rate heterogeneity:	
 //	fprintf(stdout, "logL = %.5f (PAUP logL = -1574.63623)\n\n", logL);
 	

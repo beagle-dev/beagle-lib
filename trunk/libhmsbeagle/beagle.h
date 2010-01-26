@@ -57,7 +57,7 @@
  * This enumerates all possible BEAGLE return codes.  Error codes are always negative.
  */
 enum BeagleReturnCodes {
-    BEAGLE_SUCCESS                      = 0,   /**< Success */
+    BEAGLE_SUCCESS                      =  0,  /**< Success */
     BEAGLE_ERROR_GENERAL                = -1,  /**< Unspecified error */
     BEAGLE_ERROR_OUT_OF_MEMORY          = -2,  /**< Not enough memory could be allocated */
     BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION = -3,  /**< Unspecified exception */
@@ -66,7 +66,8 @@ enum BeagleReturnCodes {
     BEAGLE_ERROR_OUT_OF_RANGE           = -5,  /**< One of the indices specified exceeded the range of the
                                                 *   array */
     BEAGLE_ERROR_NO_RESOURCE            = -6,  /**< No resource matches requirements */
-    BEAGLE_ERROR_NO_IMPLEMENTATION      = -7   /**< No implementation matches requirements */
+    BEAGLE_ERROR_NO_IMPLEMENTATION      = -7,  /**< No implementation matches requirements */
+    BEAGLE_ERROR_FLOATING_POINT         = -8   /**< Floating-point range exceeded */
 };
 
 /**

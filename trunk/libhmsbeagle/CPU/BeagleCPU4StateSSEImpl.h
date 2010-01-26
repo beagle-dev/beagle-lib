@@ -56,6 +56,7 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
 	using BeagleCPUImpl<REALTYPE>::gCategoryWeights;
 	using BeagleCPUImpl<REALTYPE>::gStateFrequencies;
+	using BeagleCPUImpl<REALTYPE>::realtypeMin;
 
 public:
     virtual ~BeagleCPU4StateSSEImpl();
@@ -89,7 +90,7 @@ private:
                                       const REALTYPE* __restrict partials2,
                                       const REALTYPE* __restrict matrices2);
 
-    virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
+    virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
                                         const int categoryWeightsIndex,

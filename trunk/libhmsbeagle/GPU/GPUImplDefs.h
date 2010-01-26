@@ -29,6 +29,8 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <cfloat>
+
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH
@@ -36,8 +38,12 @@
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
     #define REAL    double
+    #define REAL_MIN    DBL_MIN
+    #define REAL_MAX    DBL_MAX
 #else
     #define REAL    float
+    #define REAL_MIN    FLT_MIN
+    #define REAL_MAX    FLT_MAX
 #endif
 
 #define SIZE_REAL   sizeof(REAL)
