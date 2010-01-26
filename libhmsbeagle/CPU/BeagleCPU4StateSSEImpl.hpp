@@ -412,14 +412,14 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
 }
 
 template <>
-    void BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
+    int BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
                                                                const int childIndex,
                                                                const int probIndex,
                                                                const int categoryWeightsIndex,
                                                                const int stateFrequenciesIndex,
                                                                const int scalingFactorsIndex,
                                                                double* outSumLogLikelihood) {
-	BeagleCPU4StateImpl<float>::calcEdgeLogLikelihoods(
+	return BeagleCPU4StateImpl<float>::calcEdgeLogLikelihoods(
 	parIndex,
 	childIndex,
 	probIndex,
@@ -430,7 +430,7 @@ template <>
 }										   
 
 template <>
-    void BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
+    int BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
                                                                 const int childIndex,
                                                                 const int probIndex,
                                                                 const int categoryWeightsIndex,
@@ -439,6 +439,8 @@ template <>
                                                                 double* outSumLogLikelihood) {
     // TODO: implement derivatives for calculateEdgeLnL
 
+    int returnCode = BEAGLE_SUCCESS;
+        
     assert(parIndex >= kTipCount);
 
     const double* cl_r = gPartials[parIndex];
@@ -529,6 +531,10 @@ template <>
             sumOverI += freqs[i] * cl_p[u];
             u++;
         }
+        
+        if (!(sumOverI >= realtypeMin))
+            returnCode = BEAGLE_ERROR_FLOATING_POINT;
+        
         outLogLikelihoodsTmp[k] = log(sumOverI);
     }
 
@@ -543,7 +549,9 @@ template <>
     for (int i = 0; i < kPatternCount; i++) {
         outLogLikelihoodsTmp[i] *= gPatternWeights[i];
         *outSumLogLikelihood += outLogLikelihoodsTmp[i];
-    }            
+    }
+        
+    return returnCode;
 }
 #if 0
 template <typename REALTYPE>

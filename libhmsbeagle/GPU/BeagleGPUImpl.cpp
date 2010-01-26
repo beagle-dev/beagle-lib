@@ -1193,6 +1193,8 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
+    
+    int returnCode = BEAGLE_SUCCESS;
 		
     if (count == 1) {         
         const int rootNodeIndex = bufferIndices[0];
@@ -1224,6 +1226,9 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 
         *outSumLogLikelihood = 0.0;
         for (int i = 0; i < kSumSitesBlockCount; i++) {
+            if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            
             *outSumLogLikelihood += hLogLikelihoodsCache[i];
         }    
         
@@ -1272,6 +1277,9 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
+                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
 		}
@@ -1287,7 +1295,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
     
-    return BEAGLE_SUCCESS;
+    return returnCode;
 }
 
 int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
@@ -1306,6 +1314,8 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
+    
+    int returnCode = BEAGLE_SUCCESS;
     
     if (count == 1) { 
                  
@@ -1354,6 +1364,9 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
+                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
 		} else if (secondDerivativeIndices == NULL) {
@@ -1403,6 +1416,9 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
+                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
             
@@ -1460,6 +1476,9 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
+                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
             
@@ -1489,7 +1508,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
     
-    return BEAGLE_SUCCESS;
+    return returnCode;
 }
 
 int BeagleGPUImpl::getSiteLogLikelihoods(double* outLogLikelihoods) {

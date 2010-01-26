@@ -66,6 +66,8 @@ protected:
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
 
     long kFlags;
+    
+    REALTYPE realtypeMin;
 
     EigenDecomposition<REALTYPE>* gEigenDecomposition;
 
@@ -277,20 +279,20 @@ protected:
                                       const REALTYPE* partials2,
                                       const REALTYPE* matrices2);
 
-    virtual void calcRootLogLikelihoods(const int bufferIndex,
+    virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
     
-    virtual void calcRootLogLikelihoodsMulti(const int* bufferIndices,
+    virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
                                              const int* stateFrequenciesIndices,
                                              const int* scaleBufferIndices,
                                              int count,
                                              double* outSumLogLikelihood);
     
-    virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
+    virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
                                         const int categoryWeightsIndex,
@@ -298,7 +300,7 @@ protected:
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
 	
-    virtual void calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
+    virtual int calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
                                                   const int childBufferIndex,
                                                   const int probabilityIndex,
                                                   const int firstDerivativeIndex,
@@ -308,7 +310,7 @@ protected:
                                                   double* outSumLogLikelihood,
                                                   double* outSumFirstDerivative);
 	
-    virtual void calcEdgeLogLikelihoodsSecondDeriv(const int parentBufferIndex,
+    virtual int calcEdgeLogLikelihoodsSecondDeriv(const int parentBufferIndex,
                                                    const int childBufferIndex,
                                                    const int probabilityIndex,
                                                    const int firstDerivativeIndex,
