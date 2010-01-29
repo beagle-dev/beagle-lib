@@ -909,8 +909,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -974,8 +974,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
     sumD2[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1044,8 +1044,8 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1109,8 +1109,8 @@ __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
     sumD2[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1180,8 +1180,8 @@ __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1245,8 +1245,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
-        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
+    if (pat * 4 + state < matrixCount) {
+        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
