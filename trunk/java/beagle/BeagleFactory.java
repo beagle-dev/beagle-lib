@@ -78,18 +78,18 @@ public class BeagleFactory {
             }
         }
 
-        if (stateCount == 4) {
-            return new FourStateBeagleImpl(
-                    tipCount,
-                    partialsBufferCount,
-                    compactBufferCount,
-                    patternCount,
-                    eigenBufferCount,
-                    matrixBufferCount,
-                    categoryCount,
-                    scaleBufferCount
-            );
-        }
+//        if (stateCount == 4) {
+//            return new FourStateBeagleImpl(
+//                    tipCount,
+//                    partialsBufferCount,
+//                    compactBufferCount,
+//                    patternCount,
+//                    eigenBufferCount,
+//                    matrixBufferCount,
+//                    categoryCount,
+//                    scaleBufferCount
+//            );
+//        }
 
         return new GeneralBeagleImpl(tipCount,
                 partialsBufferCount,
@@ -244,7 +244,7 @@ public class BeagleFactory {
             patternWeights[i] = 1.0;
         }
         instance.setPatternWeights(patternWeights);
-        
+
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
@@ -254,11 +254,11 @@ public class BeagleFactory {
 //        instance.setPartials(1, getPartials(chimp));
 //        instance.setPartials(2, getPartials(gorilla));
 
-        final double[] rates = { 1.0 };
+        final double[] rates = { 1.0, 1.0 };
         instance.setCategoryRates(rates);
 
         // create an array containing site category weights
-        final double[] weights = { 1.0 };
+        final double[] weights = { 0.5, 0.5 };
         instance.setCategoryWeights(0, weights);
 
         // create base frequency array

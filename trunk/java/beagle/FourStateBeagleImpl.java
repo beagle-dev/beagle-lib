@@ -357,7 +357,7 @@ public class FourStateBeagleImpl extends GeneralBeagleImpl {
             sum += freqs[1] * tmpPartials[v];	v++;
             sum += freqs[2] * tmpPartials[v];	v++;
             sum += freqs[3] * tmpPartials[v];	v++;
-            outSumLogLikelihood[0] += Math.log(sum);
+            outSumLogLikelihood[0] += Math.log(sum) * patternWeights[k];
         }
 
         if (SCALING) {
