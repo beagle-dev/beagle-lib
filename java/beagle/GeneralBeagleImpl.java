@@ -9,7 +9,7 @@ public class GeneralBeagleImpl implements Beagle {
     // The single precision exponents go from -126 to 127 (2 ^ x)
     public static final int SCALING_FACTOR_COUNT = 254; // -126, 127
     public static final int SCALING_FACTOR_OFFSET = 126; // the zero point
-    private static final int SCALING_EXPONENT_THRESHOLD = 20;
+    private static final int SCALING_EXPONENT_THRESHOLD = 2;
 
     protected final int tipCount;
     protected final int partialsBufferCount;
@@ -19,7 +19,6 @@ public class GeneralBeagleImpl implements Beagle {
     protected final int eigenBufferCount;
     protected final int matrixBufferCount;
     protected final int categoryCount;
-    protected final int scaleBufferCount;
 
     protected int partialsSize;
     protected int matrixSize;
@@ -69,7 +68,6 @@ public class GeneralBeagleImpl implements Beagle {
         this.eigenBufferCount = eigenBufferCount;
         this.matrixBufferCount = matrixBufferCount;
         this.categoryCount = categoryCount;
-        this.scaleBufferCount = scaleBufferCount;
 
 //        Logger.getLogger("beagle").info("Constructing double-precision Java BEAGLE implementation.");
 
@@ -96,21 +94,28 @@ public class GeneralBeagleImpl implements Beagle {
 
         tipStates = new int[compactBufferCount][];
         partials = new double[partialsBufferCount][];
-        scalingFactorCounts = new int[partialsBufferCount][];
         for (int i = 0; i < partialsBufferCount; i++) {
             partials[i] = new double[partialsSize];
-            scalingFactorCounts[i] = new int[SCALING_FACTOR_COUNT];
         }
 
-        // Create the scaling factor look up tables. These
-        // could be statics I guess.
-        scalingFactors = new double[SCALING_FACTOR_COUNT];
-        logScalingFactors = new double[SCALING_FACTOR_COUNT];
-        int exponent = -126;
-        for (int i = 0; i < SCALING_FACTOR_COUNT; i++) {
-            scalingFactors[i] = Math.pow(2.0, exponent);
-            logScalingFactors[i] = Math.log(scalingFactors[i]);
-            exponent ++;
+        if (SCALING) {
+            // create the scaling factor accumulation counts.
+            // These mirror each partials buffer
+            scalingFactorCounts = new int[partialsBufferCount][];
+            for (int i = 0; i < partialsBufferCount; i++) {
+                scalingFactorCounts[i] = new int[SCALING_FACTOR_COUNT];
+            }
+
+            // Create the scaling factor look up tables. These
+            // could be statics I guess.
+            scalingFactors = new double[SCALING_FACTOR_COUNT];
+            logScalingFactors = new double[SCALING_FACTOR_COUNT];
+            int exponent = -126;
+            for (int i = 0; i < SCALING_FACTOR_COUNT; i++) {
+                scalingFactors[i] = Math.pow(2.0, exponent);
+                logScalingFactors[i] = Math.log(scalingFactors[i]);
+                exponent ++;
+            }
         }
 
         tmpPartials = new double[patternCount * stateCount];
@@ -329,7 +334,7 @@ public class GeneralBeagleImpl implements Beagle {
                     double scalingFactor = scalingFactors[index];
 
                     // increment the count of how many times this factor has been used
-                    counts[index] ++;
+                    counts[index] += patternWeights[k];
                     if (DEBUG) {
                         System.err.println("exponent "+ exponent + ", index " + index + ", factor " + scalingFactor);
                     }
@@ -509,7 +514,7 @@ public class GeneralBeagleImpl implements Beagle {
                         if (SCALING) {
                             exponent |= Math.abs(Math.getExponent(partials3[u]));
                         }
-                        
+
                         u++;
                     }
 
@@ -644,7 +649,7 @@ public class GeneralBeagleImpl implements Beagle {
             int[] rootCounts = scalingFactorCounts[bufferIndices[0]];
             for (int i = 0; i < SCALING_FACTOR_COUNT; i++) {
                 // we multiplied the scaling factors in so now subtract the logs
-                outSumLogLikelihood[0] -= rootCounts[i] * logScalingFactors[i];
+                outSumLogLikelihood[0] -= (logScalingFactors[i] * rootCounts[i]);
             }
         }
 
