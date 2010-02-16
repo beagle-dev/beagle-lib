@@ -488,7 +488,7 @@ double FourTaxonExample::calcLnL(int return_value)
         
     beagleSetStateFrequencies(instance_handle, 0, stateFreqs);        
         
-    beagleSetCategoryWeights(instance_handle, 0, relativeRateProb);
+    beagleSetCategoryWeights(instance_handle, 0, &relativeRateProb[0]);
 
     double lnL = 0.0;
 	double firstDeriv = 0.0;

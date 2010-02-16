@@ -266,11 +266,6 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     gCategoryWeights = (REALTYPE**) calloc(sizeof(REALTYPE*), kEigenDecompCount);
     if (gCategoryWeights == NULL)
         throw std::bad_alloc();
-    for (int i = 0; i < kEigenDecompCount; i++) {
-        gCategoryWeights[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kCategoryCount);
-        if (gCategoryWeights[i] == 0L)
-            throw std::bad_alloc();
-    }
 
     // assigning kBufferCount to this array so that we can just check if a tipStateBuffer is
     // allocated
