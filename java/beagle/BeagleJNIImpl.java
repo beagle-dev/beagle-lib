@@ -202,7 +202,8 @@ public class BeagleJNIImpl implements Beagle {
                 cumulativeScaleIndices,
                 count,
                 outSumLogLikelihood);
-        if (errCode != 0) {
+        // We probably don't want the Floating Point error to throw an exception...
+        if (errCode != 0 && errCode != BeagleErrorCode.FLOATING_POINT_ERROR.getErrCode()) {
             throw new BeagleException("calculateRootLogLikelihoods", errCode);
         }
     }
