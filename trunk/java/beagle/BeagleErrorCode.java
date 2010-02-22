@@ -13,7 +13,8 @@ public enum BeagleErrorCode {
     UNINITIALIZED_INSTANCE_ERROR(-4, "uninitialized instance error"),
     OUT_OF_RANGE_ERROR(-5, "One of the indices specified exceeded the range of the array"),
     NO_RESOURCE_ERROR(-6, "No resource matches requirements"),
-    NO_IMPLEMENTATION_ERROR(-7, "No implementation matches requirements");
+    NO_IMPLEMENTATION_ERROR(-7, "No implementation matches requirements"),
+    FLOATING_POINT_ERROR(-8, "Floating-point range exceeded");
 
     BeagleErrorCode(int errCode, String meaning) {
         this.errCode = errCode;
