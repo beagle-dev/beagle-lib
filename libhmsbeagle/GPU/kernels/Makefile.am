@@ -5,7 +5,7 @@ if BUILDCUDA
 BUILT_SOURCES = BeagleCUDA_kernels.h
 CLEANFILES = BeagleCUDA_kernels.h
 
-STATE_COUNT_LIST = 32 48 64
+STATE_COUNT_LIST = 32 48 64 128 192
 
 # rules for building cuda files
 BeagleCUDA_kernels.h: Makefile

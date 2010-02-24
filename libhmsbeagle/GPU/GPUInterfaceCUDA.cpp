@@ -191,6 +191,28 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
+
+    KernelResource kernel128 = KernelResource(
+           128,
+           (char*) KERNELS_STRING_128,
+           PATTERN_BLOCK_SIZE_128,
+           MATRIX_BLOCK_SIZE_128,
+           BLOCK_PEELING_SIZE_128,
+           SLOW_REWEIGHING_128,
+           MULTIPLY_BLOCK_SIZE,
+           0,0,0);
+       kernelMap->insert(std::make_pair(128,kernel128));
+
+    KernelResource kernel192 = KernelResource(
+           192,
+           (char*) KERNELS_STRING_192,
+           PATTERN_BLOCK_SIZE_192,
+           MATRIX_BLOCK_SIZE_192,
+           BLOCK_PEELING_SIZE_192,
+           SLOW_REWEIGHING_192,
+           MULTIPLY_BLOCK_SIZE,
+           0,0,0);
+       kernelMap->insert(std::make_pair(192,kernel192));
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
