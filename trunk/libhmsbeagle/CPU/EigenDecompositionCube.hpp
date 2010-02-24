@@ -101,13 +101,12 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l]));
                 }
 				
-				int m = 0;
+                REALTYPE* tmpCMatrices = gCMatrices[eigenIndex];
 				for (int i = 0; i < kStateCount; i++) {
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
-							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
-							m++;
+							sum += (*tmpCMatrices++) * matrixTmp[k];
 						}
 						if (sum > 0)
 							transitionMat[n] = sum;
