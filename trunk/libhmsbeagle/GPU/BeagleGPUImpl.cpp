@@ -342,7 +342,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
     hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
     hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
-    hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
+    if ((2 * kMatrixSize + kEigenValuesSize) > (kMatrixSize * kCategoryCount))
+        hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
+    else
+        hMatrixCache = (REAL*) calloc(kMatrixSize * kCategoryCount, SIZE_REAL);
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
     
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
