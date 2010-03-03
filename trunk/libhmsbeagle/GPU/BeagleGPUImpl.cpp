@@ -252,14 +252,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
         kPaddedStateCount = 192;
     else
         kPaddedStateCount = kStateCount + kStateCount % 16;
-    
-    // Abort for mismatched stateCount; remove when run-time stateCounts are complete
-    if (kPaddedStateCount == 16) {
-    	fprintf(stderr,"\tMismatch in model size in GPU implementation!\n\t\tkPaddedStateCount = %d (not yet implemented)\n",
-    			kPaddedStateCount);    	
-        return BEAGLE_ERROR_GENERAL;
-    }
-    
+        
     // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
     int paddedPatterns = 0;
     if (kPaddedStateCount == 4 && kPatternCount % 4 != 0)
