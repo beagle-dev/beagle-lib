@@ -260,6 +260,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     else
         paddedPatterns = 0;
     
+    // TODO Should do something similar for 4 < kStateCount <= 8 as well
+    
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
     kSumSitesBlockCount = kPatternCount / SUM_SITES_BLOCK_SIZE;
@@ -294,7 +296,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     // TODO: recompiling kernels for every instance, probably not ideal
     gpu->SetDevice(resourceNumber-1,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kFlags);
-    
+      
     int ptrQueueLength = kMatrixCount * kCategoryCount * 3;
     if (kPartialsBufferCount > ptrQueueLength)
         ptrQueueLength = kPartialsBufferCount;
@@ -320,13 +322,14 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     
     int availableMem = gpu->GetAvailableMemory();
-    if (availableMem < neededMemory) 
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
-
+    
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "     needed memory: %d\n", neededMemory);
     fprintf(stderr, "  available memory: %d\n", availableMem);
-#endif    
+#endif     
+    
+    if (availableMem < neededMemory) 
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
     
     kernels = new KernelLauncher(gpu);
     
