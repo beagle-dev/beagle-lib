@@ -732,7 +732,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\n\ncd $PROJECT_DIR/../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n# \tCompile 4-state model with log scaler storage\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=16 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_16 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=32 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_32 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=48 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=64 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=128 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_128 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=192 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_192 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\n# \tCompile with log scaler storage\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=16 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_16 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=32 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_32 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=48 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=64 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=128 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_128 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=192 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_192 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\n\n\n";
+			shellScript = "\n\ncd $PROJECT_DIR/../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n# \tCompile 4-state model with log scaler storage\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_LS_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=16 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_16 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=32 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_32 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=48 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=64 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=128 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_128 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=192 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA 2>&1 | grep -v \"Cannot tell what pointer points to, assuming global memory space\" 1>&2\necho \"#define KERNELS_STRING_192 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n";
 			showEnvVarsInLog = 0;
 		};
 		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */ = {
@@ -987,7 +987,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = "";
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonCPUXcode;
@@ -1004,6 +1004,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonCPUXcode;
@@ -1018,14 +1019,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1046,13 +1046,12 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1075,14 +1074,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1103,13 +1101,12 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1132,14 +1129,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1160,13 +1156,12 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1189,14 +1184,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1217,13 +1211,12 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
-				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					ENABLE_SSE,
 					CUDA,
-					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1453,7 +1446,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
@@ -1471,6 +1464,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = genomicTestCPUXcode;
@@ -1489,7 +1483,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
@@ -1507,6 +1501,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestCPUXcode;

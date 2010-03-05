@@ -2,6 +2,8 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
 
+: ${CXXFLAGS=" -O2"}
+
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
 dnl -----------------------------------------------
@@ -143,7 +145,7 @@ then
 
 
 AC_ARG_ENABLE([emu],
-   [  --enable-emu    Turn on device emulation for CUDA],
+    AC_HELP_STRING([--enable-emu],[turn on device emulation for CUDA]),
    [case "${enableval}" in
        yes) EMULATION=true;;
        no)  EMULATION=false;;
@@ -184,6 +186,16 @@ then
 fi
 AC_SUBST(NVCCFLAGS)
 
+# ------------------------------------------------------------------------------
+# Setup SSE
+# ------------------------------------------------------------------------------
+
+AC_ARG_ENABLE(sse,
+	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
+
+if test  "$enable_sse" = yes; then
+	CXXFLAGS+=" -msse2 -DENABLE_SSE"
+fi
 
 # ------------------------------------------------------------------------------
 # Setup Mac multi-architecture flags

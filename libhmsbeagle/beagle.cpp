@@ -52,7 +52,9 @@
 #endif
 #include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
-#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
+#if defined(ENABLE_SSE)
+    #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
+#endif
 
 typedef std::list< std::pair<int,int> > PairedList;
 
@@ -93,8 +95,10 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
+#if defined(ENABLE_SSE)
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>());
+#endif
 	}
 	return implFactory;
 }
@@ -218,9 +222,12 @@ BeagleResourceList* beagleGetResourceList() {
                                          BEAGLE_FLAG_THREADING_NONE |
                                          BEAGLE_FLAG_PROCESSOR_CPU |
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
-                                         BEAGLE_FLAG_VECTOR_NONE | BEAGLE_FLAG_VECTOR_SSE |
+                                         BEAGLE_FLAG_VECTOR_NONE |
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+#if defined(ENABLE_SSE)
+        rsrcList->list[0].supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
+#endif
         rsrcList->list[0].requiredFlags = BEAGLE_FLAG_PROCESSOR_CPU;
      }
 
