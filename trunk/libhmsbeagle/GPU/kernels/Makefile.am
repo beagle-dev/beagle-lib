@@ -17,12 +17,6 @@ BeagleCUDA_kernels.h: Makefile
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES)
 	echo "\"" >> $(BUILT_SOURCES)
 	
-# 	Compile 4-state model with log scaler storage
-	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER \
-		$(srcdir)/kernels4.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)
-	echo "#define KERNELS_STRING_LS_4 \"\\" >> $(BUILT_SOURCES)
-	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES)
-	echo "\"" >> $(BUILT_SOURCES)
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
@@ -31,11 +25,6 @@ BeagleCUDA_kernels.h: Makefile
 		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$$s \
 			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)) || exit; \
 		echo "#define KERNELS_STRING_$$s \"\\" >> $(BUILT_SOURCES); \
-		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES); \
-		echo "\"" >> $(BUILT_SOURCES); \
-		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DLSCALER -DSTATE_COUNT=$$s \
-			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDES)) || exit; \
-		echo "#define KERNELS_STRING_LS_$$s \"\\" >> $(BUILT_SOURCES); \
 		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> $(BUILT_SOURCES); \
 		echo "\"" >> $(BUILT_SOURCES); \
 	done
