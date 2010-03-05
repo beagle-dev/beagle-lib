@@ -158,7 +158,7 @@ inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_COMPU
                                                                BEAGLE_FLAG_PROCESSOR_CPU |
                                                                BEAGLE_FLAG_PRECISION_DOUBLE |
                                                                BEAGLE_FLAG_VECTOR_SSE; };
-    
+
 template<>
 inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                               BEAGLE_FLAG_SCALING_MANUAL |
@@ -182,23 +182,23 @@ int BeagleCPU4StateSSEImpl<REALTYPE>::CPUSupportsSSE() {
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
- 
+
 template <>
 void BeagleCPU4StateSSEImpl<float>::calcStatesStates(float* destP,
                                      const int* states_q,
                                      const float* matrices_q,
                                      const int* states_r,
-                                     const float* matrices_r) { 
-									 
+                                     const float* matrices_r) {
+
 									 BeagleCPU4StateImpl<float>::calcStatesStates(destP,
                                      states_q,
                                      matrices_q,
                                      states_r,
                                      matrices_r);
-									 
+
 									 }
-									 
- 
+
+
 template <>
 void BeagleCPU4StateSSEImpl<double>::calcStatesStates(double* destP,
                                      const int* states_q,
@@ -246,11 +246,11 @@ void BeagleCPU4StateSSEImpl<float>::calcStatesPartials(float* destP,
 									   states_q,
 									   matrices_q,
 									   partials_r,
-									   matrices_r);									   
+									   matrices_r);
 }
-									   
-									   
-									   
+
+
+
 template <>
 void BeagleCPU4StateSSEImpl<double>::calcStatesPartials(double* destP,
                                        const int* states_q,
@@ -427,7 +427,7 @@ template <>
 	stateFrequenciesIndex,
 	scalingFactorsIndex,
 	outSumLogLikelihood);
-}										   
+}
 
 template <>
     int BeagleCPU4StateSSEImpl<double>::calcEdgeLogLikelihoods(const int parIndex,
@@ -440,7 +440,7 @@ template <>
     // TODO: implement derivatives for calculateEdgeLnL
 
     int returnCode = BEAGLE_SUCCESS;
-        
+
     assert(parIndex >= kTipCount);
 
     const double* cl_r = gPartials[parIndex];
@@ -531,10 +531,10 @@ template <>
             sumOverI += freqs[i] * cl_p[u];
             u++;
         }
-        
+
         if (!(sumOverI >= realtypeMin))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        
+
         outLogLikelihoodsTmp[k] = log(sumOverI);
     }
 
@@ -544,13 +544,13 @@ template <>
         for(int k=0; k < kPatternCount; k++)
             outLogLikelihoodsTmp[k] += scalingFactors[k];
     }
-        
+
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
         outLogLikelihoodsTmp[i] *= gPatternWeights[i];
         *outSumLogLikelihood += outLogLikelihoodsTmp[i];
     }
-        
+
     return returnCode;
 }
 #if 0
@@ -658,7 +658,7 @@ const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
            BEAGLE_FLAG_THREADING_NONE |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
-           BEAGLE_FLAG_PRECISION_DOUBLE |
+           BEAGLE_FLAG_PRECISION_SINGLE |
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 }
