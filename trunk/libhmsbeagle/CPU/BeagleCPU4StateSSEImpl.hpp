@@ -146,14 +146,12 @@ inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Si
 
 template<typename REALTYPE>
 inline const long getBeagleCPU4StateSSEFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                       BEAGLE_FLAG_SCALING_MANUAL |
                                                        BEAGLE_FLAG_THREADING_NONE |
                                                        BEAGLE_FLAG_PROCESSOR_CPU |
                                                        BEAGLE_FLAG_VECTOR_SSE; };
 
 template<>
 inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                               BEAGLE_FLAG_SCALING_MANUAL |
                                                                BEAGLE_FLAG_THREADING_NONE |
                                                                BEAGLE_FLAG_PROCESSOR_CPU |
                                                                BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -161,7 +159,6 @@ inline const long getBeagleCPU4StateSSEFlags<double>(){ return BEAGLE_FLAG_COMPU
 
 template<>
 inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                              BEAGLE_FLAG_SCALING_MANUAL |
                                                               BEAGLE_FLAG_THREADING_NONE |
                                                               BEAGLE_FLAG_PROCESSOR_CPU |
                                                               BEAGLE_FLAG_PRECISION_SINGLE |
@@ -642,7 +639,7 @@ const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
 template <>
 const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
-           BEAGLE_FLAG_SCALING_MANUAL |
+           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
@@ -654,7 +651,7 @@ const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
 template <>
 const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
-           BEAGLE_FLAG_SCALING_MANUAL |
+           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |

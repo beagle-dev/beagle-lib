@@ -229,13 +229,28 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     kFlags = 0;
     
-    if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG)
+//    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
+//    	kFlags |= BEAGLE_FLAG_SCALING_AUTO;
+//      kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+//    } else
+    if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-
-    if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
-    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+        kScaleBufferCount = kBufferCount - kTipCount + 1; // +1 for temp buffer used by edgelikelihood
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
+    	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+    } else {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
+        kFlags |= BEAGLE_FLAG_SCALERS_RAW;
     }
     
+    if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+    } else {
+        kFlags |= BEAGLE_FLAG_EIGEN_REAL;
+    }
+
     if (kStateCount <= 4)
         kPaddedStateCount = 4;
     else if (kStateCount <= 16)
@@ -447,20 +462,11 @@ int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
         returnInfo->resourceNumber = resourceNumber;
         returnInfo->flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                             BEAGLE_FLAG_PRECISION_SINGLE |
-                            BEAGLE_FLAG_SCALING_MANUAL |
                             BEAGLE_FLAG_THREADING_NONE |
                             BEAGLE_FLAG_VECTOR_NONE |
                             BEAGLE_FLAG_PROCESSOR_GPU;
         
-        if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
-            returnInfo->flags |= BEAGLE_FLAG_SCALERS_LOG;
-        else
-            returnInfo->flags |= BEAGLE_FLAG_SCALERS_RAW;
-
-        if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-        	returnInfo->flags |= BEAGLE_FLAG_EIGEN_COMPLEX;
-        else
-            returnInfo->flags |= BEAGLE_FLAG_EIGEN_REAL;
+        returnInfo->flags |= kFlags;        
         
         returnInfo->implName = (char*) "CUDA";
     }
@@ -979,7 +985,10 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = NULL;
-        if (writeScalingIndex >= 0) {
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            rescale = 1;
+            scalingFactors = dScalingFactors[parIndex - kTipCount];
+        } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
         } else if (readScalingIndex >= 0) {
@@ -1033,6 +1042,22 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                                                cumulativeScalingBuffer, 
                                                                kPaddedPatternCount, kCategoryCount,
                                                                rescale);
+            }
+        }
+        
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            int parScalingIndex = parIndex - kTipCount;
+            int child1ScalingIndex = child1Index - kTipCount;
+            int child2ScalingIndex = child2Index - kTipCount;
+            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 2, parScalingIndex);
+            } else if (child1ScalingIndex >= 0) {
+                int scalingIndices[1] = {child1ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+            } else if (child2ScalingIndex >= 0) {
+                int scalingIndices[1] = {child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
             }
         }
 
@@ -1200,7 +1225,13 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         const int categoryWeightsIndex = categoryWeightsIndices[0];
         const int stateFrequenciesIndex = stateFrequenciesIndices[0];
         
-        int cumulativeScalingFactor = cumulativeScaleIndices[0];
+        int cumulativeScalingFactor;
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+            cumulativeScalingFactor = bufferIndices[0] - kTipCount; 
+        else
+            cumulativeScalingFactor = cumulativeScaleIndices[0];
+
+        
         if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                         dWeights[categoryWeightsIndex],
@@ -1234,7 +1265,13 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     } else {
 		// TODO: evaluate peformance, maybe break up kernels below for each subsetIndex case
 		
-		if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+			for(int n = 0; n < count; n++) {
+                int cumulativeScalingFactor = bufferIndices[n] - kTipCount; 
+				hPtrQueue[n] = dScalingFactors[cumulativeScalingFactor];
+            }
+			gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);    
+        } else if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
 			for(int n = 0; n < count; n++)
 				hPtrQueue[n] = dScalingFactors[cumulativeScaleIndices[n]];
 			gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
@@ -1246,7 +1283,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
 			const GPUPtr tmpDFrequencies = dFrequencies[stateFrequenciesIndices[subsetIndex]];
 			const int rootNodeIndex = bufferIndices[subsetIndex];
 
-			if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+			if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
 				kernels->IntegrateLikelihoodsFixedScaleMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
 															 tmpDFrequencies, dPtrQueue, dMaxScalingFactors,
 															 dIndexMaxScalingFactors, dPatternWeights,
@@ -1332,6 +1369,26 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         GPUPtr statesChild = dStates[childIndex];
         GPUPtr transMatrix = dMatrices[probIndex];
         
+        int cumulativeScalingFactor;
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            cumulativeScalingFactor = kBufferCount - kTipCount;
+            int child1ScalingIndex = parIndex - kTipCount;
+            int child2ScalingIndex = childIndex - kTipCount;
+            resetScaleFactors(cumulativeScalingFactor);
+            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 2, cumulativeScalingFactor);
+            } else if (child1ScalingIndex >= 0) {
+                int scalingIndices[1] = {child1ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, cumulativeScalingFactor);
+            } else if (child2ScalingIndex >= 0) {
+                int scalingIndices[1] = {child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, cumulativeScalingFactor);
+            }
+        } else {
+            cumulativeScalingFactor = cumulativeScaleIndices[0];
+        }
+        
         if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
             if (statesChild != 0) {
                 kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
@@ -1343,7 +1400,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                          kCategoryCount);
             }        
             
-            int cumulativeScalingFactor = cumulativeScaleIndices[0];
+            
             if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
                 kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartialsTmp, dWeights[categoryWeightsIndex],
                                                             dFrequencies[stateFrequenciesIndex],
@@ -1388,8 +1445,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                                     kPaddedPatternCount, kCategoryCount);
                 
             }
-            
-            int cumulativeScalingFactor = cumulativeScaleIndices[0];
+                        
             if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
                 kernels->IntegrateLikelihoodsDynamicScalingSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
                                                                        dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
@@ -1449,8 +1505,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                                     kPaddedPatternCount, kCategoryCount);
                 
             }
-
-            int cumulativeScalingFactor = cumulativeScaleIndices[0];
+            
             if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
                 kernels->IntegrateLikelihoodsDynamicScalingSecondDeriv(dIntegrationTmp, dOutFirstDeriv, dOutSecondDeriv,
                                                                        dPartialsTmp, dFirstDerivTmp, dSecondDerivTmp,
@@ -1607,7 +1662,7 @@ const char* BeagleGPUImplFactory::getName() {
 const long BeagleGPUImplFactory::getFlags() {
    return BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_PRECISION_SINGLE |
-          BEAGLE_FLAG_SCALING_MANUAL |
+          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | // BEAGLE_FLAG_SCALING_AUTO |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_PROCESSOR_GPU |
