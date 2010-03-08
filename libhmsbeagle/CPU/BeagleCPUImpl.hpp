@@ -110,7 +110,6 @@ inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
 
 template<>
 inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                      BEAGLE_FLAG_SCALING_MANUAL |
                                                       BEAGLE_FLAG_THREADING_NONE |
                                                       BEAGLE_FLAG_PROCESSOR_CPU |
                                                       BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -118,7 +117,6 @@ inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SY
 
 template<>
 inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                     BEAGLE_FLAG_SCALING_MANUAL |
                                                      BEAGLE_FLAG_THREADING_NONE |
                                                      BEAGLE_FLAG_PROCESSOR_CPU |
                                                      BEAGLE_FLAG_PRECISION_SINGLE |
@@ -227,11 +225,22 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 
     kFlags = 0;
 
-    if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG)
+    //    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
+    //    	kFlags |= BEAGLE_FLAG_SCALING_AUTO;
+    //      kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+    //    } else
+    if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-    else
+        kScaleBufferCount = kBufferCount - kTipCount + 1; // +1 for temp buffer used by edgelikelihood
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
+    	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+    } else {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
         kFlags |= BEAGLE_FLAG_SCALERS_RAW;
-
+    }
+    
     if (requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX || preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
     	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
     else
@@ -337,10 +346,8 @@ int BeagleCPUImpl<REALTYPE>::getInstanceDetails(BeagleInstanceDetails* returnInf
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = 0;
         returnInfo->flags = getFlags();
-        if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
-            returnInfo->flags |= BEAGLE_FLAG_SCALERS_LOG;
-        if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-        	returnInfo->flags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+        returnInfo->flags |= kFlags;
+
         returnInfo->implName = (char*) getName();
     }
 
@@ -606,7 +613,10 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
 
         int rescale = BEAGLE_OP_NONE;
         REALTYPE* scalingFactors = NULL;
-        if (writeScalingIndex >= 0) {
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            rescale = 1;
+            scalingFactors = gScaleBuffers[parIndex - kTipCount];
+        } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = gScaleBuffers[writeScalingIndex];
         } else if (readScalingIndex >= 0) {
@@ -661,6 +671,23 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                 }
             }
         }
+        
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            int parScalingIndex = parIndex - kTipCount;
+            int child1ScalingIndex = child1Index - kTipCount;
+            int child2ScalingIndex = child2Index - kTipCount;
+            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 2, parScalingIndex);
+            } else if (child1ScalingIndex >= 0) {
+                int scalingIndices[1] = {child1ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+            } else if (child2ScalingIndex >= 0) {
+                int scalingIndices[1] = {child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+            }
+        }
+        
         if (DEBUGGING_OUTPUT) {
             if (scalingFactors != NULL && rescale == 0) {
                 for(int i=0; i<kPatternCount; i++)
@@ -694,8 +721,13 @@ template <typename REALTYPE>
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
+        int cumulativeScalingFactorIndex;
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+            cumulativeScalingFactorIndex = bufferIndices[0] - kTipCount; 
+        else
+            cumulativeScalingFactorIndex = cumulativeScaleIndices[0];
         return calcRootLogLikelihoods(bufferIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
-                               cumulativeScaleIndices[0], outSumLogLikelihood);
+                               cumulativeScalingFactorIndex, outSumLogLikelihood);
     }
     else
     {
@@ -758,15 +790,25 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndice
             }
 
             // TODO: allow only some subsets to have scale indices
-            if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
-
-                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scaleBufferIndices[subsetIndex]];
+            if (scaleBufferIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
+                int cumulativeScalingFactorIndex;
+                if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+                    cumulativeScalingFactorIndex = rootPartialIndex - kTipCount; 
+                else
+                    cumulativeScalingFactorIndex = scaleBufferIndices[subsetIndex];
+                
+                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[cumulativeScalingFactorIndex];
 
                 if (subsetIndex == 0) {
                     indexMaxScale[k] = 0;
                     maxScaleFactor[k] = cumulativeScaleFactors[k];
                     for (int j = 1; j < count; j++) {
-                        REALTYPE tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+                        REALTYPE tmpScaleFactor;
+                        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+                            tmpScaleFactor = gScaleBuffers[bufferIndices[j] - kTipCount][k]; 
+                        else
+                            tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+
                         if (tmpScaleFactor > maxScaleFactor[k]) {
                             indexMaxScale[k] = j;
                             maxScaleFactor[k] = tmpScaleFactor;
@@ -793,7 +835,7 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndice
         }
     }
 
-    if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+    if (scaleBufferIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
         for(int i=0; i<kPatternCount; i++)
             outLogLikelihoodsTmp[i] += maxScaleFactor[i];
     }
@@ -937,18 +979,38 @@ template <typename REALTYPE>
     // TODO: implement for count > 1
 
     if (count == 1) {
+        int cumulativeScalingFactorIndex;
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+            cumulativeScalingFactorIndex = kBufferCount - kTipCount;
+            int child1ScalingIndex = parentBufferIndices[0] - kTipCount;
+            int child2ScalingIndex = childBufferIndices[0] - kTipCount;
+            resetScaleFactors(cumulativeScalingFactorIndex);
+            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 2, cumulativeScalingFactorIndex);
+            } else if (child1ScalingIndex >= 0) {
+                int scalingIndices[1] = {child1ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, cumulativeScalingFactorIndex);
+            } else if (child2ScalingIndex >= 0) {
+                int scalingIndices[1] = {child2ScalingIndex};
+                accumulateScaleFactors(scalingIndices, 1, cumulativeScalingFactorIndex);
+            }
+        } else {
+            cumulativeScalingFactorIndex = cumulativeScaleIndices[0];
+        }
+        
 		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL)
 			return calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
-                                   categoryWeightsIndices[0], stateFrequenciesIndices[0], cumulativeScaleIndices[0],
+                                   categoryWeightsIndices[0], stateFrequenciesIndices[0], cumulativeScalingFactorIndex,
                                    outSumLogLikelihood);
 		else if (secondDerivativeIndices == NULL)
 			return calcEdgeLogLikelihoodsFirstDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
                                              firstDerivativeIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
-                                             cumulativeScaleIndices[0], outSumLogLikelihood, outSumFirstDerivative);
+                                             cumulativeScalingFactorIndex, outSumLogLikelihood, outSumFirstDerivative);
 		else
 			return calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
                                               firstDerivativeIndices[0], secondDerivativeIndices[0], categoryWeightsIndices[0],
-                                              stateFrequenciesIndices[0], cumulativeScaleIndices[0], outSumLogLikelihood,
+                                              stateFrequenciesIndices[0], cumulativeScalingFactorIndex, outSumLogLikelihood,
                                               outSumFirstDerivative, outSumSecondDerivative);
     } else {
         fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
@@ -1653,7 +1715,7 @@ const char* BeagleCPUImplFactory<REALTYPE>::getName() {
 template <typename REALTYPE>
 const long BeagleCPUImplFactory<REALTYPE>::getFlags() {
     long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                 BEAGLE_FLAG_SCALING_MANUAL |
+                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
                  BEAGLE_FLAG_THREADING_NONE |
                  BEAGLE_FLAG_PROCESSOR_CPU |
                  BEAGLE_FLAG_VECTOR_NONE |

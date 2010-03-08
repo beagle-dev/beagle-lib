@@ -589,15 +589,25 @@ int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffer
             u += 4;     
             
             // TODO: allow only some subsets to have scale indices
-            if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+            if (scaleBufferIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
+                int cumulativeScalingFactorIndex;
+                if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+                    cumulativeScalingFactorIndex = rootPartialIndex - kTipCount; 
+                else
+                    cumulativeScalingFactorIndex = scaleBufferIndices[subsetIndex];
                 
-                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scaleBufferIndices[subsetIndex]];
+                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[cumulativeScalingFactorIndex];
                 
                 if (subsetIndex == 0) {
                     indexMaxScale[k] = 0;
                     maxScaleFactor[k] = cumulativeScaleFactors[k];
                     for (int j = 1; j < count; j++) {
-                        REALTYPE tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+                        REALTYPE tmpScaleFactor;
+                        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+                            tmpScaleFactor = gScaleBuffers[bufferIndices[j] - kTipCount][k]; 
+                        else
+                            tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
+                        
                         if (tmpScaleFactor > maxScaleFactor[k]) {
                             indexMaxScale[k] = j;
                             maxScaleFactor[k] = tmpScaleFactor;
@@ -624,7 +634,7 @@ int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffer
         }
     }
     
-    if (scaleBufferIndices[0] != BEAGLE_OP_NONE) {
+    if (scaleBufferIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
         for(int i=0; i<kPatternCount; i++)
             outLogLikelihoodsTmp[i] += maxScaleFactor[i];
     }
@@ -695,7 +705,7 @@ const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
 template <typename REALTYPE>
 const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
     long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
-                  BEAGLE_FLAG_SCALING_MANUAL |
+                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE |
                   BEAGLE_FLAG_PROCESSOR_CPU |
                   BEAGLE_FLAG_VECTOR_NONE |
