@@ -736,11 +736,19 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32.cu"
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels128.cu"
 						>
 					</File>
 					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32ls.cu"
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels16.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32.cu"
 						>
 					</File>
 					<File
@@ -752,19 +760,7 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels48ls.cu"
-						>
-					</File>
-					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels4ls.cu"
-						>
-					</File>
-					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64.cu"
-						>
-					</File>
-					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64ls.cu"
 						>
 					</File>
 					<File
