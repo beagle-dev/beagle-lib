@@ -43,6 +43,7 @@ private:
     GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
@@ -56,6 +57,7 @@ private:
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
     GPUFunction fIntegrateLikelihoodsDynamicScalingSecondDeriv;
     GPUFunction fAccumulateFactorsDynamicScaling;
+    GPUFunction fAccumulateFactorsAutoScaling;
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingAccumulate;
@@ -64,6 +66,7 @@ private:
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
 	GPUFunction fIntegrateLikelihoodsMulti;
 	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
+    GPUFunction fIntegrateLikelihoodsAutoScaling;
 
     GPUFunction fSumSites1;
     GPUFunction fSumSites2;
@@ -180,6 +183,15 @@ public:
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
     
+    void IntegrateLikelihoodsAutoScaling(GPUPtr dResult,
+                                            GPUPtr dRootPartials,
+                                            GPUPtr dWeights,
+                                            GPUPtr dFrequencies,
+                                            GPUPtr dRootScalingFactors,
+                                            GPUPtr dPatternWeights,
+                                            unsigned int patternCount,
+                                            unsigned int categoryCount);
+    
     void IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResult,
                                                        GPUPtr dFirstDerivResult,
                                                        GPUPtr dSecondDerivResult,
@@ -235,6 +247,11 @@ public:
                                          unsigned int nodeCount,
                                          unsigned int patternCount);
 
+    void AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
+                                      GPUPtr dRootScalingFactors,
+                                      unsigned int nodeCount,
+                                      unsigned int patternCount);
+    
     void RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
                                      GPUPtr dRootScalingFactors,
                                      unsigned int nodeCount,

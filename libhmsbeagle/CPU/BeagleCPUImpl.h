@@ -64,6 +64,8 @@ protected:
 
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
+    
+    int kInternalPartialsBufferCount; 
 
     long kFlags;
     

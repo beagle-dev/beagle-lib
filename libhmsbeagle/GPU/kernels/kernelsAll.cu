@@ -760,14 +760,37 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
         if (pattern == 1)
             printf("added %1.2e\n", nodeScales[pattern]);
 #endif
-        REAL factor = nodeScales[pattern];
-        if (factor != 1.0) {
-            total += factor;
-        }
+        total += nodeScales[pattern];
     }
 
     if (pattern < patternCount)
         rootScaling[pattern] += total;
+}
+
+__global__ void kernelAccumulateFactorsAutoScaling(REAL** dNodePtrQueue,
+                                                   REAL* rootScaling,
+                                                   int nodeCount,
+                                                   int patternCount) {
+    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+//      if (threadIdx.x == 0) // TODO Why does this not work???
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+//      __syncthreads();
+
+#ifdef KERNEL_PRINT_ENABLED
+        if (pattern == 1)
+            printf("added %1.2e\n", nodeScales[pattern]);
+#endif
+        total += nodeScales[pattern];
+    }
+
+    if (pattern < patternCount)
+        rootScaling[pattern] = total;
 }
 
 
@@ -819,10 +842,8 @@ __global__ void kernelRemoveFactorsScalersLog(REAL** dNodePtrQueue,
         if (pattern == 1)
             printf("added %1.2e\n", nodeScales[pattern]);
 #endif
-        REAL factor = nodeScales[pattern];
-        if (factor != 1.0) {
-            total += factor;
-        }
+
+        total += nodeScales[pattern];
     }
 
     if (pattern < patternCount)
@@ -933,9 +954,12 @@ __global__ void kernelPartialsDynamicScalingSlowScalersLog(REAL* allPartials,
     }
 
     if(state == 0) {
-        if (max == 0)
+        if (max == 0) {
         	max = 1.0;
-        scalingFactors[pattern] = log(max);
+            scalingFactors[pattern] = 0.0;
+        } else {
+            scalingFactors[pattern] = log(max);
+        }
     }
 
 

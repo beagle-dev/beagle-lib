@@ -61,6 +61,7 @@ private:
     int kCategoryCount;
  
     int kTipPartialsBufferCount;
+    int kInternalPartialsBufferCount;
     int kBufferCount;
     int kScaleBufferCount;
     
@@ -98,6 +99,8 @@ private:
 	GPUPtr dMaxScalingFactors;
 	GPUPtr dIndexMaxScalingFactors;
     
+    GPUPtr dActiveScalingFactors;
+    
     GPUPtr* dEigenValues;
     GPUPtr* dEvec;
     GPUPtr* dIevc;
@@ -129,6 +132,9 @@ private:
     REAL* hPartialsCache;
     int* hStatesCache;
     REAL* hMatrixCache;
+    
+    int* hActiveScalingFactors;
+    int* hTmpActiveScalingFactors;
     
 public:    
     BeagleGPUImpl();

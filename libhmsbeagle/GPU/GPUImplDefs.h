@@ -40,10 +40,12 @@
     #define REAL    double
     #define REAL_MIN    DBL_MIN
     #define REAL_MAX    DBL_MAX
+    #define SCALING_THRESHOLD 1e-14 // TODO: find optimal value for SCALING_THRESHOLD
 #else
     #define REAL    float
     #define REAL_MIN    FLT_MIN
     #define REAL_MAX    FLT_MAX
+    #define SCALING_THRESHOLD 1e-7 // TODO: find optimal value for SCALING_THRESHOLD
 #endif
 
 #define SIZE_REAL   sizeof(REAL)
