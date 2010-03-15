@@ -203,6 +203,8 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     assert(kBufferCount > kTipCount);
     kStateCount = stateCount;
     kPatternCount = patternCount;
+    
+    kInternalPartialsBufferCount = kBufferCount - kTipCount;
 
     // Handle possible padding of pattern sites for vectorization
     int modulus = getPaddedPatternsModulus();
@@ -232,7 +234,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
         kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-        kScaleBufferCount = kBufferCount - kTipCount + 1; // +1 for temp buffer used by edgelikelihood
+        kScaleBufferCount = kInternalPartialsBufferCount + 1; // +1 for temp buffer used by edgelikelihood
     } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
         kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
@@ -981,7 +983,7 @@ template <typename REALTYPE>
     if (count == 1) {
         int cumulativeScalingFactorIndex;
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
-            cumulativeScalingFactorIndex = kBufferCount - kTipCount;
+            cumulativeScalingFactorIndex = kInternalPartialsBufferCount;
             int child1ScalingIndex = parentBufferIndices[0] - kTipCount;
             int child2ScalingIndex = childBufferIndices[0] - kTipCount;
             resetScaleFactors(cumulativeScalingFactorIndex);

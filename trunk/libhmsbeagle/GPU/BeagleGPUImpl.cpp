@@ -226,31 +226,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
 
     kTipPartialsBufferCount = kTipCount - kCompactBufferCount;
     kBufferCount = kPartialsBufferCount + kCompactBufferCount;
-    
-    kFlags = 0;
-    
-//    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
-//    	kFlags |= BEAGLE_FLAG_SCALING_AUTO;
-//      kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-//    } else
-    if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
-        kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
-    	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-        kScaleBufferCount = kBufferCount - kTipCount + 1; // +1 for temp buffer used by edgelikelihood
-    } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
-        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
-    	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-    } else {
-        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
-        kFlags |= BEAGLE_FLAG_SCALERS_RAW;
-    }
-    
-    if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
-    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
-    } else {
-        kFlags |= BEAGLE_FLAG_EIGEN_REAL;
-    }
 
+    kInternalPartialsBufferCount = kBufferCount - kTipCount;
+    
     if (kStateCount <= 4)
         kPaddedStateCount = 4;
     else if (kStateCount <= 16)
@@ -278,6 +256,33 @@ int BeagleGPUImpl::createInstance(int tipCount,
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
+    
+    int scaleBufferSize = kPaddedPatternCount;
+    
+    kFlags = 0;
+    
+    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        kFlags |= BEAGLE_FLAG_SCALING_AUTO;
+        kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+        kScaleBufferCount = kInternalPartialsBufferCount + 1; // +1 for cumulative buffer
+        scaleBufferSize *= kCategoryCount;
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
+        kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+        kScaleBufferCount = kInternalPartialsBufferCount + 1; // +1 for temp buffer used by edgelikelihood
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
+        kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+    } else {
+        kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
+        kFlags |= BEAGLE_FLAG_SCALERS_RAW;
+    }
+    
+    if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+    } else {
+        kFlags |= BEAGLE_FLAG_EIGEN_REAL;
+    }    
     
     kSumSitesBlockCount = kPatternCount / SUM_SITES_BLOCK_SIZE;
     if (kPatternCount % SUM_SITES_BLOCK_SIZE != 0)
@@ -399,7 +404,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
     for (int i=0; i < kScaleBufferCount; i++)
-    	dScalingFactors[i] = gpu->AllocateRealMemory(kPaddedPatternCount);
+    	dScalingFactors[i] = gpu->AllocateRealMemory(scaleBufferSize);
     
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
@@ -440,6 +445,14 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
 	dMaxScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
 	dIndexMaxScalingFactors = gpu->AllocateIntMemory(kPaddedPatternCount);
+    
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        dActiveScalingFactors = gpu->AllocateIntMemory(kInternalPartialsBufferCount);
+        hActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
+        hTmpActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
+        
+        gpu->MemcpyHostToDevice(dActiveScalingFactors, hActiveScalingFactors, sizeof(int) * kInternalPartialsBufferCount);
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
@@ -985,7 +998,15 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = NULL;
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+            rescale = 2;
+            int sIndex = parIndex - kTipCount;
+            scalingFactors = dScalingFactors[sIndex];
+            
+            // small hack; passing activeScalingFactors GPU pointer via cumulativeScalingBuffer parameter
+            cumulativeScalingBuffer = dActiveScalingFactors + (sIndex * sizeof(GPUPtr));
+        } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
         } else if (writeScalingIndex >= 0) {
@@ -1115,21 +1136,43 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateScaleFactors\n");
 #endif
     
-    for(int n = 0; n < count; n++)
-        hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
-    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
-    
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        
+        gpu->MemcpyDeviceToHost(hTmpActiveScalingFactors, dActiveScalingFactors, sizeof(int) * kInternalPartialsBufferCount);
+        
+        int activeCount = 0;
+        
+        for(int n = 0; n < count; n++) {
+            int sIndex = scalingIndices[n] - kTipCount;
+            if (hActiveScalingFactors[sIndex] != hTmpActiveScalingFactors[sIndex]) {
+                hPtrQueue[activeCount++] = dScalingFactors[sIndex];
+                hActiveScalingFactors[sIndex] = hTmpActiveScalingFactors[sIndex];
+            }
+        }
+        if (activeCount > 0) {
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * activeCount);
+            kernels->AccumulateFactorsAutoScaling(dPtrQueue, dScalingFactors[kInternalPartialsBufferCount], activeCount, kPaddedPatternCount);
+        } else {
+            // reset cumulative buffer if there were no rescaling events
+            resetScaleFactors(kInternalPartialsBufferCount);
+        }
+        
+    } else {        
+        for(int n = 0; n < count; n++)
+            hPtrQueue[n] = dScalingFactors[scalingIndices[n]];
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
+        
 
-#ifdef CUDA    
-    // Compute scaling factors at the root
-    kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex],
-                                             count, kPaddedPatternCount);
-#else // OpenCL
-    for (int i = 0; i < count; i++) {
-        kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
-                                                 1, kPaddedPatternCount);
-    }
-#endif
+    #ifdef CUDA    
+        // Compute scaling factors at the root
+        kernels->AccumulateFactorsDynamicScaling(dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
+    #else // OpenCL
+        for (int i = 0; i < count; i++) {
+            kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
+                                                     1, kPaddedPatternCount);
+        }
+    #endif
+}
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
@@ -1225,29 +1268,39 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         const int categoryWeightsIndex = categoryWeightsIndices[0];
         const int stateFrequenciesIndex = stateFrequenciesIndices[0];
         
-        int cumulativeScalingFactor;
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
-            cumulativeScalingFactor = bufferIndices[0] - kTipCount; 
-        else
-            cumulativeScalingFactor = cumulativeScaleIndices[0];
-
-        
-        if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
-            kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+            kernels->IntegrateLikelihoodsAutoScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                         dWeights[categoryWeightsIndex],
                                                         dFrequencies[stateFrequenciesIndex],
-                                                        dScalingFactors[cumulativeScalingFactor],
+                                                        dScalingFactors[kInternalPartialsBufferCount],
                                                         dPatternWeights,
                                                         kPaddedPatternCount,
                                                         kCategoryCount);
         } else {
-            kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
-                                          dWeights[categoryWeightsIndex],
-                                          dFrequencies[stateFrequenciesIndex],
-                                          dPatternWeights,
-                                          kPaddedPatternCount, kCategoryCount);
-        }
-        
+            int cumulativeScalingFactor;
+            
+            if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+                cumulativeScalingFactor = bufferIndices[0] - kTipCount; 
+            else
+                cumulativeScalingFactor = cumulativeScaleIndices[0];
+
+            
+            if (cumulativeScalingFactor != BEAGLE_OP_NONE) {
+                kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
+                                                            dWeights[categoryWeightsIndex],
+                                                            dFrequencies[stateFrequenciesIndex],
+                                                            dScalingFactors[cumulativeScalingFactor],
+                                                            dPatternWeights,
+                                                            kPaddedPatternCount,
+                                                            kCategoryCount);
+            } else {
+                kernels->IntegrateLikelihoods(dIntegrationTmp, dPartials[rootNodeIndex],
+                                              dWeights[categoryWeightsIndex],
+                                              dFrequencies[stateFrequenciesIndex],
+                                              dPatternWeights,
+                                              kPaddedPatternCount, kCategoryCount);
+            }
+        }        
         
         kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood,
                                     kPatternCount);
@@ -1371,7 +1424,7 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
         
         int cumulativeScalingFactor;
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
-            cumulativeScalingFactor = kBufferCount - kTipCount;
+            cumulativeScalingFactor = kInternalPartialsBufferCount;
             int child1ScalingIndex = parIndex - kTipCount;
             int child2ScalingIndex = childIndex - kTipCount;
             resetScaleFactors(cumulativeScalingFactor);
@@ -1662,7 +1715,7 @@ const char* BeagleGPUImplFactory::getName() {
 const long BeagleGPUImplFactory::getFlags() {
    return BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_PRECISION_SINGLE |
-          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | // BEAGLE_FLAG_SCALING_AUTO |
+          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_PROCESSOR_GPU |

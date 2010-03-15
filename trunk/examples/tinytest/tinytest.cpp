@@ -122,7 +122,8 @@ int main( int argc, const char* argv[] )
     }    
     fprintf(stdout, "\n");    
     
-    bool scaling = true;
+    bool manualScaling = true;
+    bool autoScaling = false;
 	bool gRates = false; // generalized rate categories, separate root buffers
     
     // is nucleotides...
@@ -136,7 +137,7 @@ int main( int argc, const char* argv[] )
 	int nRateCats = (gRates ? 1 : rateCategoryCount);
 	int nRootCount = (!gRates ? 1 : rateCategoryCount);
 	int nPartBuffs = 4 + nRootCount;
-    int scaleCount = (scaling ? 2 + nRootCount : 0);
+    int scaleCount = (manualScaling ? 2 + nRootCount : 0);
     
     // initialize the instance
     BeagleInstanceDetails instDetails;
@@ -154,7 +155,7 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  BEAGLE_FLAG_PROCESSOR_GPU,	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   0,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
@@ -265,17 +266,17 @@ int main( int argc, const char* argv[] )
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 	
-	int* rootIndex = (int*) malloc(sizeof(int) * nRootCount);
-    int* categoryWeightsIndex = (int*) malloc(sizeof(int) * nRootCount);
-    int* stateFrequencyIndex = (int*) malloc(sizeof(int) * nRootCount);
-	int* cumulativeScalingIndex = (int*) malloc(sizeof(int) * nRootCount);
+	int* rootIndices = (int*) malloc(sizeof(int) * nRootCount);
+    int* categoryWeightsIndices = (int*) malloc(sizeof(int) * nRootCount);
+    int* stateFrequencyIndices = (int*) malloc(sizeof(int) * nRootCount);
+	int* cumulativeScalingIndices = (int*) malloc(sizeof(int) * nRootCount);
 	
 	for (int i = 0; i < nRootCount; i++) {
 		
-		rootIndex[i] = 4 + i;
-        categoryWeightsIndex[i] = 0;
-        stateFrequencyIndex[i] = 0;
-		cumulativeScalingIndex[i] = (scaling ? 2 + i : BEAGLE_OP_NONE);
+		rootIndices[i] = 4 + i;
+        categoryWeightsIndices[i] = 0;
+        stateFrequencyIndices[i] = 0;
+		cumulativeScalingIndices[i] = (manualScaling ? 2 + i : BEAGLE_OP_NONE);
 		
 		beagleSetCategoryRates(instance, &rates[i]);
 		
@@ -291,30 +292,35 @@ int main( int argc, const char* argv[] )
 		// create a list of partial likelihood update operations
 		// the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 		int operations[BEAGLE_OP_COUNT * 2] = {
-			3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
-			rootIndex[i], (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
+			3, (manualScaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
+			rootIndices[i], (manualScaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
 		};
 		
-		if (scaling)
-			beagleResetScaleFactors(instance, cumulativeScalingIndex[i]);
+		if (manualScaling)
+			beagleResetScaleFactors(instance, cumulativeScalingIndices[i]);
 		
 		// update the partials
 		beagleUpdatePartials(instance,      // instance
 					   operations,     // eigenIndex
 					   2,              // operationCount
-					   cumulativeScalingIndex[i]);// cumulative scaling index
+					   cumulativeScalingIndices[i]);// cumulative scaling index
 	}
 		 
+    if (autoScaling) {
+        int scaleIndices[2] = {3, 4};
+        beagleAccumulateScaleFactors(instance, scaleIndices, 2, BEAGLE_OP_NONE);
+    }
+    
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 	double logL = 0.0;    
     int returnCode = 0;
     
     // calculate the site likelihoods at the root node
 	returnCode = beagleCalculateRootLogLikelihoods(instance,               // instance
-	                            (const int *)rootIndex,// bufferIndices
-	                            (const int *)categoryWeightsIndex,                // weights
-	                            (const int *)stateFrequencyIndex,                  // stateFrequencies
-								cumulativeScalingIndex,// cumulative scaling index
+	                            (const int *)rootIndices,// bufferIndices
+	                            (const int *)categoryWeightsIndices,                // weights
+	                            (const int *)stateFrequencyIndices,                  // stateFrequencies
+								cumulativeScalingIndices,// cumulative scaling index
 	                            nRootCount,                      // count
 	                            &logL);         // outLogLikelihoods
     
@@ -338,10 +344,10 @@ int main( int argc, const char* argv[] )
 	
     free(weights);
     free(patternWeights);    
-    free(rootIndex);
-    free(categoryWeightsIndex);
-    free(stateFrequencyIndex);
-    free(cumulativeScalingIndex);    
+    free(rootIndices);
+    free(categoryWeightsIndices);
+    free(stateFrequencyIndices);
+    free(cumulativeScalingIndices);    
     
 	free(patternLogLik);
 	free(humanPartials);

@@ -770,10 +770,12 @@ __global__ void kernelPartialsDynamicScalingScalersLog(REAL* allPartials,
                 max = partials[m][0];
         }
         
-        if (max == 0)
+        if (max == 0) {
         	max = 1.0;
-
-        scalingFactors[pattern] = log(max);
+            scalingFactors[pattern] = 0.0;
+        } else {
+            scalingFactors[pattern] = log(max);
+        }
     }
 
     __syncthreads();
@@ -906,12 +908,14 @@ __global__ void kernelPartialsDynamicScalingAccumulateScalersLog(REAL* allPartia
                 max = partials[m][0];
         }
         
-        if (max == 0)
+        if (max == 0) {
         	max = 1.0;
-
-        REAL logMax = log(max);
-        scalingFactors[pattern] = logMax;
-        cumulativeScaling[pattern] += logMax;
+            scalingFactors[pattern] = 0.0;
+        } else {
+            REAL logMax = log(max);
+            scalingFactors[pattern] = logMax;
+            cumulativeScaling[pattern] += logMax;
+        }
 
     }
 
