@@ -153,7 +153,7 @@ void KernelLauncher::LoadKernels() {
             "kernelPartialsPartialsNoScale");
     
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
-            "kernelPartialsPartialsAutoScale");
+                "kernelPartialsPartialsAutoScale");
 
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
             "kernelPartialsPartialsFixedScale");
@@ -184,14 +184,15 @@ void KernelLauncher::LoadKernels() {
     fStatesPartialsEdgeLikelihoodsSecondDeriv = gpu->GetFunction(
             "kernelStatesPartialsEdgeLikelihoodsSecondDeriv");
     
-    fIntegrateLikelihoodsDynamicScaling = gpu->GetFunction(
-            "kernelIntegrateLikelihoodsFixedScale");
-
     fIntegrateLikelihoodsDynamicScalingSecondDeriv = gpu->GetFunction(
             "kernelIntegrateLikelihoodsFixedScaleSecondDeriv");
     
-    fIntegrateLikelihoodsAutoScaling = gpu->GetFunction("kernelIntegrateLikelihoodsAutoScaling");
-    
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
+        fIntegrateLikelihoodsDynamicScaling = gpu->GetFunction("kernelIntegrateLikelihoodsAutoScaling");
+    else
+        fIntegrateLikelihoodsDynamicScaling = gpu->GetFunction(
+                                                               "kernelIntegrateLikelihoodsFixedScale");    
+        
     if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
         fAccumulateFactorsDynamicScaling = gpu->GetFunction(
                                                             "kernelAccumulateFactorsScalersLog");
@@ -563,28 +564,6 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                categoryCount,patternCount);    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsDynamicScaling\n");
-#endif
-}
-
-void KernelLauncher::IntegrateLikelihoodsAutoScaling(GPUPtr dResult,
-                                                        GPUPtr dRootPartials,
-                                                        GPUPtr dWeights,
-                                                        GPUPtr dFrequencies,
-                                                        GPUPtr dRootScalingFactors,
-                                                        GPUPtr dPatternWeights,
-                                                        unsigned int patternCount,
-                                                        unsigned int categoryCount) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsAutoScaling\n");
-#endif
-    
-    gpu->LaunchKernel(fIntegrateLikelihoodsAutoScaling,
-                      bgLikelihoodBlock, bgLikelihoodGrid,
-                      6, 8,
-                      dResult, dRootPartials, dWeights, dFrequencies, dRootScalingFactors, dPatternWeights,
-                      categoryCount,patternCount);    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsAutoScaling\n");
 #endif
 }
 
