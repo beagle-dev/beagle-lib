@@ -55,6 +55,7 @@ void runBeagle(int resource,
                int ntaxa, 
                int nsites, 
                bool scaling, 
+               bool autoScaling,
                int rateCategoryCount)
 {
     
@@ -75,7 +76,7 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-				0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				(autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
 				0,		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
@@ -88,6 +89,9 @@ void runBeagle(int resource,
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     fprintf(stdout, "\n");      
+    
+    if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
+        autoScaling = false;
     
     // set the sequences for each tip using partial likelihood arrays
 	srand(42);	// fix the random seed...
@@ -218,8 +222,11 @@ void runBeagle(int resource,
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
 		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
 		operations[BEAGLE_OP_COUNT*i+6] = i*2+1;
-        
+
         scalingFactorsIndices[i] = i;
+        
+        if (autoScaling)
+            scalingFactorsIndices[i] += ntaxa;
 	}	
 
 	int rootIndex = ntaxa*2-2;
@@ -260,6 +267,9 @@ void runBeagle(int resource,
                                scalingFactorsCount,
                                cumulativeScalingFactorIndex);
     }
+    
+    if (autoScaling)
+        beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
     
     int categoryWeightsIndex = 0;
     int stateFrequencyIndex = 0;
@@ -380,10 +390,12 @@ int main( int argc, const char* argv[] )
     int stateCount = 4;
     int ntaxa = 29;
     int nsites = 10000;
-    bool scaling = false;
+    bool manualScaling = false;
+    bool autoScaling = true;
+    
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &scaling, &rateCategoryCount);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &rateCategoryCount);
     
 	std::cout << "Simulating genomic ";
     if (stateCount == 4)
@@ -399,7 +411,8 @@ int main( int argc, const char* argv[] )
                       stateCount,
                       ntaxa,
                       nsites,
-                      scaling,
+                      manualScaling,
+                      autoScaling,
                       rateCategoryCount);                      
 		}
 	}else{
@@ -407,7 +420,8 @@ int main( int argc, const char* argv[] )
                   stateCount,
                   ntaxa,
                   nsites,
-                  scaling,
+                  manualScaling,
+                  autoScaling,
                   rateCategoryCount);
 	}
 

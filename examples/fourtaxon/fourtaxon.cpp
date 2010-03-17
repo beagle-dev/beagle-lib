@@ -93,6 +93,7 @@ FourTaxonExample::FourTaxonExample()
   , do_rescaling(false)
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
+  , auto_scaling(false)
   , single(false)
   , calculate_derivatives(0)
   , empirical_derivatives(false)
@@ -307,7 +308,7 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				BEAGLE_FLAG_VECTOR_SSE,         // preferenceFlags
+				BEAGLE_FLAG_VECTOR_SSE | (auto_scaling ? BEAGLE_FLAG_SCALING_AUTO : 0),         // preferenceFlags
 				requirementFlags,			// requirementFlags
 				&instDetails);
 	
@@ -417,7 +418,11 @@ void FourTaxonExample::initBeagleLib()
 	if (code != 0)
 		abort("beagleSetEigenDecomposition encountered a problem");
         
-    if (scaling && !accumulate_on_the_fly) {
+    if (auto_scaling) {
+        scaleIndices.resize(2);
+        scaleIndices[0] = 4;
+        scaleIndices[1] = 5;        
+    } else if (scaling && !accumulate_on_the_fly) {
         scaleIndices.resize(2);
         scaleIndices[0] = 1;
         scaleIndices[1] = 2;
@@ -476,7 +481,9 @@ double FourTaxonExample::calcLnL(int return_value)
         relativeRateProb[i] = 1.0 / nrates;
     }
         
-    if (do_rescaling && !accumulate_on_the_fly) { // Accumulate scale factors if not on-the-fly
+    if (auto_scaling) {
+        code = beagleAccumulateScaleFactors(instance_handle, &scaleIndices[0], 2, BEAGLE_OP_NONE);
+    } else if (do_rescaling && !accumulate_on_the_fly) { // Accumulate scale factors if not on-the-fly
         code = beagleAccumulateScaleFactors(
              instance_handle,
              &scaleIndices[0],
@@ -794,7 +801,8 @@ void FourTaxonExample::helpMessage()
     std::cerr << "If --scaling is specified, 0 = no rescaling,\n";
     std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
-    std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
+    std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n";
+    std::cerr << "                           4 = automatically rescale when necessary\n\n";
     std::cerr << "If --single is specified, then run in single precision mode\n\n";
     std::cerr << "If --calcderivs is specified, 0 = no calculation of edge likelihood derivatives\n";
     std::cerr << "                              1 = calculate first order edge likelihood derivatives\n";
@@ -853,18 +861,21 @@ void FourTaxonExample::interpretCommandLineParameters(
             int noption = (unsigned)atoi(option.c_str());
             scaling = false;
             accumulate_on_the_fly = true;
-            do_rescaling = false;                
-            if (noption >= 1)
+            do_rescaling = false;
+            auto_scaling = false;
+            if (noption >= 1 && noption < 4)
                 {                
                 scaling = true;
                 do_rescaling = true;
                 }
-            if (noption >= 2)
+            if (noption >= 2 && noption < 4)
                 accumulate_on_the_fly = false;
             if (noption == 3)                 
-                dynamic_scaling = true;                
+                dynamic_scaling = true;
+            if (noption == 4)
+                auto_scaling = true;
             expecting_scaling_number = false;
-            if (noption < 0 || noption > 3)
+            if (noption < 0 || noption > 4)
                 abort("invalid scaling option supplied on the command line");
              }
 		else if (expecting_calculate_derivatives)

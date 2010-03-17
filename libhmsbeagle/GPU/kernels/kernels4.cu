@@ -121,7 +121,7 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
                                                 REAL* partials3,
                                                 REAL* matrices1,
                                                 REAL* matrices2,
-                                                short* scalingFactors,
+                                                signed char* scalingFactors,
                                                 unsigned short* activeScalingFactors,
                                                 int totalPatterns) {
     REAL sum1;
@@ -1061,9 +1061,9 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
 
 __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
                                                      REAL* dRootPartials,
-                                                     REAL *dWeights,
-                                                     REAL *dFrequencies,
-                                                     short *dRootScalingFactors,
+                                                     REAL* dWeights,
+                                                     REAL* dFrequencies,
+                                                     int* dRootScalingFactors,
                                                      REAL* dPatternWeights,
                                                      int matrixCount,
                                                      int patternCount) {

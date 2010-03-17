@@ -767,8 +767,8 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelAccumulateFactorsAutoScaling(short** dNodePtrQueue,
-                                                   short* rootScaling,
+__global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
+                                                   int* rootScaling,
                                                    unsigned short* activeScalingFactors,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -776,12 +776,12 @@ __global__ void kernelAccumulateFactorsAutoScaling(short** dNodePtrQueue,
     int index = pattern + blockIdx.y * patternCount;
 
     int total = 0;
-    short* nodeScales;
+    signed char* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
         if (activeScalingFactors[n]) {
-            nodeScales = (short*) *((int*)dNodePtrQueue + n);
+            nodeScales = (signed char*) *((int*)dNodePtrQueue + n);
 
             total += nodeScales[index];
         }

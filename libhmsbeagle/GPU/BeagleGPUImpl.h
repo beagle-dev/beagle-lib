@@ -101,6 +101,8 @@ private:
     
     GPUPtr dActiveScalingFactors;
     
+    GPUPtr dAccumulatedScalingFactors;
+    
     GPUPtr* dEigenValues;
     GPUPtr* dEvec;
     GPUPtr* dIevc;

@@ -190,6 +190,8 @@ int main( int argc, const char* argv[] )
     if (instDetails.flags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
     fprintf(stdout, "\n\n");
     
+    if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
+        autoScaling = false;
     
 //    beagleSetTipStates(instance, 0, getStates(human));
 //    beagleSetTipStates(instance, 1, getStates(chimp));
