@@ -1007,13 +1007,15 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         GPUPtr scalingFactors = NULL;
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
-            rescale = 2;
             int sIndex = parIndex - kTipCount;
-            scalingFactors = dScalingFactors[sIndex];
-            
             // small hack; passing activeScalingFactors GPU pointer via cumulativeScalingBuffer parameter
             cumulativeScalingBuffer = dActiveScalingFactors + (sIndex * sizeof(unsigned short));
             gpu->MemsetShort(cumulativeScalingBuffer, 0, 1);
+            
+            if (tipStates1 == 0 && tipStates2 == 0) {
+                rescale = 2;
+                scalingFactors = dScalingFactors[sIndex];
+            }
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
