@@ -152,6 +152,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         
         gpu->FreeMemory(dMaxScalingFactors);
         gpu->FreeMemory(dIndexMaxScalingFactors);
+        
+        gpu->FreeMemory(dActiveScalingFactors);
 	        
         free(dEigenValues);
         free(dEvec);
@@ -403,8 +405,13 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
     dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-    for (int i=0; i < kScaleBufferCount; i++)
-    	dScalingFactors[i] = gpu->AllocateRealMemory(scaleBufferSize);
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        for (int i=0; i < kScaleBufferCount; i++)
+            dScalingFactors[i] = gpu->AllocateMemory(sizeof(short) * scaleBufferSize);
+    } else {
+        for (int i=0; i < kScaleBufferCount; i++)
+            dScalingFactors[i] = gpu->AllocateRealMemory(scaleBufferSize);
+    }
     
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
@@ -446,13 +453,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
 	dMaxScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
 	dIndexMaxScalingFactors = gpu->AllocateIntMemory(kPaddedPatternCount);
     
-    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
-        dActiveScalingFactors = gpu->AllocateIntMemory(kInternalPartialsBufferCount);
-        hActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
-        hTmpActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
-        
-        gpu->MemcpyHostToDevice(dActiveScalingFactors, hActiveScalingFactors, sizeof(int) * kInternalPartialsBufferCount);
-    }
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
+        dActiveScalingFactors = gpu->AllocateMemory(sizeof(unsigned short) * kInternalPartialsBufferCount);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
@@ -1005,7 +1007,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
             scalingFactors = dScalingFactors[sIndex];
             
             // small hack; passing activeScalingFactors GPU pointer via cumulativeScalingBuffer parameter
-            cumulativeScalingBuffer = dActiveScalingFactors + (sIndex * sizeof(GPUPtr));
+            cumulativeScalingBuffer = dActiveScalingFactors + (sIndex * sizeof(unsigned short));
+            gpu->MemsetShort(cumulativeScalingBuffer, 0, 1);
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
@@ -1081,7 +1084,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                 accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
             }
         }
-
         
 #ifdef BEAGLE_DEBUG_VALUES            
         if (rescale > -1) {
@@ -1138,24 +1140,30 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         
-        gpu->MemcpyDeviceToHost(hTmpActiveScalingFactors, dActiveScalingFactors, sizeof(int) * kInternalPartialsBufferCount);
+        for(int n = 0; n < count; n++)
+            hPtrQueue[n] = dScalingFactors[scalingIndices[n] - kTipCount];
         
-        int activeCount = 0;
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
         
-        for(int n = 0; n < count; n++) {
-            int sIndex = scalingIndices[n] - kTipCount;
-            if (hActiveScalingFactors[sIndex] != hTmpActiveScalingFactors[sIndex]) {
-                hPtrQueue[activeCount++] = dScalingFactors[sIndex];
-                hActiveScalingFactors[sIndex] = hTmpActiveScalingFactors[sIndex];
-            }
-        }
-        if (activeCount > 0) {
-            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * activeCount);
-            kernels->AccumulateFactorsAutoScaling(dPtrQueue, dScalingFactors[kInternalPartialsBufferCount], activeCount, kPaddedPatternCount);
-        } else {
-            // reset cumulative buffer if there were no rescaling events
-            resetScaleFactors(kInternalPartialsBufferCount);
-        }
+//        REAL tmpScalings[kPaddedPatternCount];
+//        gpu->MemcpyDeviceToHost(tmpScalings, dScalingFactors[1], sizeof(GPUPtr) * kPaddedPatternCount);
+//        for (int i = 0; i < kPaddedPatternCount; i++) {
+//            if (tmpScalings[i] != 0)
+//                printf("tmpScalings[%d] = %f\n", i, tmpScalings[i]);
+//        }
+//        
+//        gpu->MemcpyHostToDevice(dScalingFactors[0], tmpScalings, sizeof(GPUPtr) * kPaddedPatternCount);
+        
+//        gpu->MemsetShort(dActiveScalingFactors, 1, 1);
+//        gpu->MemsetShort(dActiveScalingFactors + 2, 1, 1);
+        
+        kernels->AccumulateFactorsAutoScaling(dPtrQueue, dScalingFactors[kInternalPartialsBufferCount], dActiveScalingFactors, count, kPaddedPatternCount);        
+        
+//        unsigned short tmpFactors[kInternalPartialsBufferCount];
+//        gpu->MemcpyDeviceToHost(tmpFactors, dActiveScalingFactors, sizeof(unsigned short) * kInternalPartialsBufferCount);
+//        for (int i = 0; i < kInternalPartialsBufferCount; i++) {
+//            printf("tmpFactors[%d] = %d\n", i, tmpFactors[i]);
+//        }
         
     } else {        
         for(int n = 0; n < count; n++)

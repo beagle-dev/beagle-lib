@@ -96,10 +96,14 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     
     // Set up block/grid for scale factor accumulation
     bgAccumulateBlock = Dim3Int(kPatternBlockSize);
-    bgAccumulateGrid  = Dim3Int(kPatternCount / kPatternBlockSize);
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
+        bgAccumulateGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+    else
+        bgAccumulateGrid  = Dim3Int(kPatternCount / kPatternBlockSize);
+
     if (kPatternCount % kPatternBlockSize != 0)
-        bgAccumulateGrid.x += 1;
- 
+        bgAccumulateGrid.x += 1;        
+    
     // Set up block/grid for scaling partials
     if (kSlowReweighing) {
         bgScaleBlock = Dim3Int(kPaddedStateCount);
@@ -713,9 +717,9 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
 }
 
 void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
-                                               GPUPtr dRootScalingFactors,
-                                               unsigned int nodeCount,
-                                               unsigned int patternCount) {
+                                                     GPUPtr dRootScalingFactors,
+                                                     unsigned int nodeCount,
+                                                     unsigned int patternCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsDynamicScaling\n");
 #endif
@@ -736,20 +740,21 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
 
 void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
                                                   GPUPtr dRootScalingFactors,
-                                                     unsigned int nodeCount,
-                                                     unsigned int patternCount) {
+                                                  GPUPtr dActiveFactors,
+                                                  unsigned int nodeCount,
+                                                  unsigned int patternCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif
     
-    int parameterCountV = 2;
-    int totalParameterCount = 4;
+    int parameterCountV = 3;
+    int totalParameterCount = 5;
     gpu->LaunchKernel(fAccumulateFactorsAutoScaling,
                       bgAccumulateBlock, bgAccumulateGrid,
                       parameterCountV, totalParameterCount,
-                      dNodePtrQueue, dRootScalingFactors,
+                      dNodePtrQueue, dRootScalingFactors, dActiveFactors,
                       nodeCount, patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif

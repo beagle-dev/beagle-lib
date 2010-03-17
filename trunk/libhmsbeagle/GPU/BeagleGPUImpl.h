@@ -133,9 +133,6 @@ private:
     int* hStatesCache;
     REAL* hMatrixCache;
     
-    int* hActiveScalingFactors;
-    int* hTmpActiveScalingFactors;
-    
 public:    
     BeagleGPUImpl();
     

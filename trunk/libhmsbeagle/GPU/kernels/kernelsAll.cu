@@ -767,30 +767,28 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelAccumulateFactorsAutoScaling(REAL** dNodePtrQueue,
-                                                   REAL* rootScaling,
+__global__ void kernelAccumulateFactorsAutoScaling(short** dNodePtrQueue,
+                                                   short* rootScaling,
+                                                   unsigned short* activeScalingFactors,
                                                    int nodeCount,
                                                    int patternCount) {
     int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
+    int index = pattern + blockIdx.y * patternCount;
 
-    REAL total = 0;
-    REAL* nodeScales;
+    int total = 0;
+    short* nodeScales;
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-//      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
-//      __syncthreads();
+        if (activeScalingFactors[n]) {
+            nodeScales = (short*) *((int*)dNodePtrQueue + n);
 
-#ifdef KERNEL_PRINT_ENABLED
-        if (pattern == 1)
-            printf("added %1.2e\n", nodeScales[pattern]);
-#endif
-        total += nodeScales[pattern];
+            total += nodeScales[index];
+        }
     }
 
     if (pattern < patternCount)
-        rootScaling[pattern] = total;
+        rootScaling[index] = total;
 }
 
 
