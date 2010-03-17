@@ -121,8 +121,8 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
                                                 REAL* partials3,
                                                 REAL* matrices1,
                                                 REAL* matrices2,
-                                                REAL* scalingFactors,
-                                                int* activeScalingFactors,
+                                                short* scalingFactors,
+                                                unsigned short* activeScalingFactors,
                                                 int totalPatterns) {
     REAL sum1;
     REAL sum2;
@@ -186,14 +186,17 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
         
         REAL tmpPartial = sum1 * sum2;
         
-        if ((tmpPartial < SCALING_THRESHOLD) && (tmpPartial > 0)) {
+        int expTmp;
+        REAL sigTmp = frexp(tmpPartial, &expTmp);
+        
+        if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD) {
             // now using sPartials2 to hold scaling trigger boolean
             sPartials2[patIdx16pat4] = 1;
-            *activeScalingFactors += 1;
+            *activeScalingFactors = 1;
         } else {
             partials3[u] = tmpPartial;
             sPartials2[patIdx16pat4] = 0;
-            scalingFactors[pattern] = 0.0;
+            scalingFactors[pattern + (matrix * totalPatterns)] = 0;
         }
         
         __syncthreads();
@@ -214,18 +217,19 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
             __syncthreads();
             
             if (state < 1) {
-                REAL compare = sPartials1[myIdx + 1];
-                if (compare > sPartials1[myIdx]) {
-                    sPartials1[myIdx] = compare;
-                    scalingFactors[pattern] = log(compare);
-                } else {
-                    scalingFactors[pattern] = log(sPartials1[myIdx]);
-                }
+                REAL maxPartial = sPartials1[myIdx + 1];
+                if (maxPartial < sPartials1[myIdx])
+                    maxPartial = sPartials1[myIdx];
+                int expMax;
+                frexp(maxPartial, &expMax);
+                sPartials1[myIdx] = expMax;
+                scalingFactors[pattern + (matrix * totalPatterns)] = expMax;
             }
 
             __syncthreads();
-                 
-            partials3[u] = tmpPartial / sPartials1[patIdx16pat4];
+            
+            partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx16pat4]);
+
         }
     }
 
@@ -1059,7 +1063,7 @@ __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
                                                      REAL* dRootPartials,
                                                      REAL *dWeights,
                                                      REAL *dFrequencies,
-                                                     REAL *dRootScalingFactors,
+                                                     short *dRootScalingFactors,
                                                      REAL* dPatternWeights,
                                                      int matrixCount,
                                                      int patternCount) {
@@ -1089,10 +1093,25 @@ __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
     __syncthreads();
 
     int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;;
+    int delta = patternCount * PADDED_STATE_COUNT;
+
+    short maxScaleFactor = dRootScalingFactors[pattern];
+    for(int r = 1; r < matrixCount; r++) {
+        int tmpFactor = dRootScalingFactors[pattern + (r * patternCount)];
+        if (tmpFactor > maxScaleFactor)
+            maxScaleFactor = tmpFactor;
+    }
 
     for(int r = 0; r < matrixCount; r++) {
-        sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
+        int tmpFactor = dRootScalingFactors[pattern + (r * patternCount)];
+        if (tmpFactor != maxScaleFactor) {
+            // TODO: verify which of the two methods below is faster
+            int expTmp;
+            sum[pat][state] += ldexp(frexp(dRootPartials[u + delta * r], &expTmp), expTmp + (tmpFactor - maxScaleFactor)) * matrixProp[r];
+//            sum[pat][state] += dRootPartials[u + delta * r] * pow(2.0, tmpFactor - maxScaleFactor) * matrixProp[r];
+        } else {
+            sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
+        }
     }
 
     sum[pat][state] *= stateFreq[state];
@@ -1106,29 +1125,7 @@ __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
     __syncthreads();
     
     if (state == 0)
-        dResult[pattern] = (log(sum[pat][state]) + dRootScalingFactors[pattern]) * dPatternWeights[pattern];
-        
-//    REAL tmpResult = 0;
-//    
-//    for(int r = 0; r < matrixCount; r++) {
-//        sum[pat][state] = dRootPartials[u + delta * r];
-//
-//
-//        sum[pat][state] *= stateFreq[state];
-//            
-//        if (state < 2)
-//            sum[pat][state] += sum[pat][state + 2];
-//        __syncthreads();
-//        if (state < 1) {
-//            sum[pat][state] += sum[pat][state + 1];
-//            
-//            tmpResult += (log(sum[pat][state]) + dRootScalingFactors[pattern + (patternCount)]) * matrixProp[r];
-//        }
-//    }
-//    
-//    __syncthreads();
-//    if (state == 0)
-//        dResult[pattern] = tmpResult * dPatternWeights[pattern];
+        dResult[pattern] = (log(sum[pat][state]) + (M_LN2 * maxScaleFactor)) * dPatternWeights[pattern];
 }
 
 

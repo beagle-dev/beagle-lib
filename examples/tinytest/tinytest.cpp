@@ -122,8 +122,8 @@ int main( int argc, const char* argv[] )
     }    
     fprintf(stdout, "\n");    
     
-    bool manualScaling = true;
-    bool autoScaling = false;
+    bool manualScaling = false;
+    bool autoScaling = true;
 	bool gRates = false; // generalized rate categories, separate root buffers
     
     // is nucleotides...
@@ -332,7 +332,7 @@ int main( int argc, const char* argv[] )
         double sumLogL = 0.0;
         for (int i = 0; i < nPatterns; i++) {
             sumLogL += patternLogLik[i];
-    //        std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
+//            std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
         }
       
         fprintf(stdout, "logL = %.5f (PAUP logL = -1498.89812)\n", logL);

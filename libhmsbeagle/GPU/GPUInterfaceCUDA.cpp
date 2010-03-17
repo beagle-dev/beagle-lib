@@ -413,6 +413,21 @@ GPUPtr GPUInterface::AllocateIntMemory(int length) {
     return data;
 }
 
+void GPUInterface::MemsetShort(GPUPtr dest,
+                               unsigned short val,
+                               unsigned int count) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetShort\n");
+#endif    
+    
+    SAFE_CUPP(cuMemsetD16(dest, val, count));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetShort\n");
+#endif    
+    
+}
+
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
                                       int memSize) {
