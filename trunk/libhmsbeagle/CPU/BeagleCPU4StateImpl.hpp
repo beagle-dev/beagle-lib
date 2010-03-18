@@ -317,6 +317,59 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
         }
     }
 }
+    
+template <typename REALTYPE>
+void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
+                                                                    const REALTYPE* partials1,
+                                                                    const REALTYPE* matrices1,
+                                                                    const REALTYPE* partials2,
+                                                                    const REALTYPE* matrices2,
+                                                                    int* activateScaling) {
+    
+    
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPaddedPatternCount;
+        int w = l*4*OFFSET;
+        
+        PREFETCH_MATRIX(1,matrices1,w);                
+        PREFETCH_MATRIX(2,matrices2,w);
+        for (int k = 0; k < kPatternCount; k++) {                   
+            PREFETCH_PARTIALS(1,partials1,u);
+            PREFETCH_PARTIALS(2,partials2,u);
+            
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
+            
+            // Final results
+            destP[u    ] = sum10 * sum20;
+            destP[u + 1] = sum11 * sum21;
+            destP[u + 2] = sum12 * sum22;
+            destP[u + 3] = sum13 * sum23;
+            
+            if (*activateScaling == 0) {
+                int expTmp;
+                int expMax;
+                frexp(destP[u], &expMax);
+                frexp(destP[u + 1], &expTmp);
+                if (abs(expTmp) > abs(expMax))
+                    expMax = expTmp;
+                frexp(destP[u + 2], &expTmp);
+                if (abs(expTmp) > abs(expMax))
+                    expMax = expTmp;
+                frexp(destP[u + 3], &expTmp);
+                if (abs(expTmp) > abs(expMax))
+                    expMax = expTmp;
+                if(abs(expMax) > scalingExponentThreshhold)
+                    *activateScaling = 1;
+            }
+            
+            u += 4;
+            
+        }
+    }
+}
+    
 
 template <typename REALTYPE>
 void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
@@ -705,7 +758,7 @@ const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
 template <typename REALTYPE>
 const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
     long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
-                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
+                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE |
                   BEAGLE_FLAG_PROCESSOR_CPU |
                   BEAGLE_FLAG_VECTOR_NONE |

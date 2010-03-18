@@ -89,6 +89,13 @@ private:
                                       const REALTYPE* __restrict matrices1,
                                       const REALTYPE* __restrict partials2,
                                       const REALTYPE* __restrict matrices2);
+    
+    virtual void calcPartialsPartialsAutoScaling(REALTYPE* __restrict destP,
+                                                 const REALTYPE* __restrict partials1,
+                                                 const REALTYPE* __restrict matrices1,
+                                                 const REALTYPE* __restrict partials2,
+                                                 const REALTYPE* __restrict matrices2,
+                                                 int* activateScaling);
 
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,

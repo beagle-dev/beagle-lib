@@ -407,7 +407,38 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
         }
     }
 }
+    
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcPartialsPartialsAutoScaling(float* destP,
+                                                         const float*  partials_q,
+                                                         const float*  matrices_q,
+                                                         const float*  partials_r,
+                                                         const float*  matrices_r,
+                                                                    int* activateScaling) {
+    BeagleCPU4StateImpl<float>::calcPartialsPartialsAutoScaling(destP,
+                                                     partials_q,
+                                                     matrices_q,
+                                                     partials_r,
+                                                     matrices_r,
+                                                     activateScaling);
+}
 
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcPartialsPartialsAutoScaling(double* destP,
+                                                                    const double*  partials_q,
+                                                                    const double*  matrices_q,
+                                                                    const double*  partials_r,
+                                                                    const double*  matrices_r,
+                                                                    int* activateScaling) {
+    // TODO: implement calcPartialsPartialsAutoScaling with SSE
+    BeagleCPU4StateImpl<double>::calcPartialsPartialsAutoScaling(destP,
+                                                                partials_q,
+                                                                matrices_q,
+                                                                partials_r,
+                                                                matrices_r,
+                                                                activateScaling);
+}
+    
 template <>
     int BeagleCPU4StateSSEImpl<float>::calcEdgeLogLikelihoods(const int parIndex,
                                                                const int childIndex,
@@ -639,7 +670,7 @@ const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
 template <>
 const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
-           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
+           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
@@ -651,7 +682,7 @@ const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
 template <>
 const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
-           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
+           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
