@@ -218,7 +218,7 @@ BeagleResourceList* beagleGetResourceList() {
         rsrcList->list[0].name = (char*) "CPU";
         rsrcList->list[0].description = (char*) "";
         rsrcList->list[0].supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                         BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | // BEAGLE_FLAG_SCALING_AUTO |
+                                         BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                                          BEAGLE_FLAG_THREADING_NONE |
                                          BEAGLE_FLAG_PROCESSOR_CPU |
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |

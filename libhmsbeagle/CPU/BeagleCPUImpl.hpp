@@ -143,11 +143,6 @@ BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
 	}
     free(gTransitionMatrices);
 
-	for(unsigned int i=0; i<kScaleBufferCount; i++) {
-	    if (gScaleBuffers[i] != NULL)
-		    free(gScaleBuffers[i]);
-	}
-
 	for(unsigned int i=0; i<kBufferCount; i++) {
 	    if (gPartials[i] != NULL)
 		    free(gPartials[i]);
@@ -156,7 +151,24 @@ BeagleCPUImpl<REALTYPE>::~BeagleCPUImpl() {
 	}
     free(gPartials);
     free(gTipStates);
-
+    
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        for(unsigned int i=0; i<kScaleBufferCount; i++) {
+            if (gAutoScaleBuffers[i] != NULL)
+                free(gAutoScaleBuffers[i]);
+        }
+        if (gAutoScaleBuffers)
+            free(gAutoScaleBuffers);
+        free(gActiveScalingFactors);
+        if (gScaleBuffers[0] != NULL)
+            free(gScaleBuffers[0]);
+    } else {
+        for(unsigned int i=0; i<kScaleBufferCount; i++) {
+            if (gScaleBuffers[i] != NULL)
+                free(gScaleBuffers[i]);
+        }        
+    }
+    
     if (gScaleBuffers)
         free(gScaleBuffers);
 
@@ -195,8 +207,11 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 
     if (DOUBLE_PRECISION) {
         realtypeMin = DBL_MIN;
-    } else
+        scalingExponentThreshhold = 200;
+    } else {
         realtypeMin = FLT_MIN;
+        scalingExponentThreshhold = 20;
+    }
 
     kBufferCount = partialsBufferCount + compactBufferCount;
     kTipCount = tipCount;
@@ -225,12 +240,15 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     kMatrixSize = kStateCount * kStateCount;
 #endif
 
+    int scaleBufferSize = kPaddedPatternCount;
+    
     kFlags = 0;
 
-    //    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
-    //    	kFlags |= BEAGLE_FLAG_SCALING_AUTO;
-    //      kFlags |= BEAGLE_FLAG_SCALERS_LOG;
-    //    } else
+    if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        kFlags |= BEAGLE_FLAG_SCALING_AUTO;
+        kFlags |= BEAGLE_FLAG_SCALERS_LOG;
+        kScaleBufferCount = kInternalPartialsBufferCount;
+    } else
     if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
         kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
@@ -296,15 +314,33 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     }
 
     gScaleBuffers = NULL;
-    gScaleBuffers = (REALTYPE**) malloc(sizeof(REALTYPE*) * kScaleBufferCount);
-    if (gScaleBuffers == NULL)
-         throw std::bad_alloc();
 
-    for (int i = 0; i < kScaleBufferCount; i++) {
-        gScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPaddedPatternCount);
-        if (gScaleBuffers[i] == 0L)
+    gAutoScaleBuffers = NULL;
+
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        gAutoScaleBuffers = (signed short**) malloc(sizeof(signed short*) * kScaleBufferCount);
+        if (gAutoScaleBuffers == NULL)
+            throw std::bad_alloc();        
+        for (int i = 0; i < kScaleBufferCount; i++) {
+            gAutoScaleBuffers[i] = (signed short*) malloc(sizeof(signed short) * scaleBufferSize);
+            if (gAutoScaleBuffers[i] == 0L)
+                throw std::bad_alloc();
+        }
+        gActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
+        gScaleBuffers = (REALTYPE**) malloc(sizeof(REALTYPE*));
+        gScaleBuffers[0] = (REALTYPE*) malloc(sizeof(REALTYPE) * scaleBufferSize);
+    } else {
+        gScaleBuffers = (REALTYPE**) malloc(sizeof(REALTYPE*) * kScaleBufferCount);
+        if (gScaleBuffers == NULL)
             throw std::bad_alloc();
+        
+        for (int i = 0; i < kScaleBufferCount; i++) {
+            gScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * scaleBufferSize);
+            if (gScaleBuffers[i] == 0L)
+                throw std::bad_alloc();
+        }
     }
+        
 
     gTransitionMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kMatrixCount);
     if (gTransitionMatrices == NULL)
@@ -615,7 +651,12 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
 
         int rescale = BEAGLE_OP_NONE;
         REALTYPE* scalingFactors = NULL;
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+            gActiveScalingFactors[parIndex - kTipCount] = 0;
+            if (tipStates1 == 0 && tipStates2 == 0)
+                rescale = 2;
+        } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = gScaleBuffers[parIndex - kTipCount];
         } else if (writeScalingIndex >= 0) {
@@ -663,7 +704,14 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                         rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
             } else {
-                if (rescale == 0) {
+                if (rescale == 2) {
+                    int sIndex = parIndex - kTipCount;
+                    calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
+                                                     &gActiveScalingFactors[sIndex]);
+                    if (gActiveScalingFactors[sIndex])
+                        autoRescalePartials(destPartials, gAutoScaleBuffers[sIndex]);
+
+                } else if (rescale == 0) {
                     calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,matrices2,
                                                      scalingFactors);
                 } else {
@@ -724,7 +772,9 @@ template <typename REALTYPE>
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
         int cumulativeScalingFactorIndex;
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
+            cumulativeScalingFactorIndex = 0;
+        else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
             cumulativeScalingFactorIndex = bufferIndices[0] - kTipCount; 
         else
             cumulativeScalingFactorIndex = cumulativeScaleIndices[0];
@@ -919,24 +969,39 @@ template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::accumulateScaleFactors(const int* scalingIndices,
                                                 int  count,
                                                 int  cumulativeScalingIndex) {
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+        REALTYPE* cumulativeScaleBuffer = gScaleBuffers[0];
+        for(int j=0; j<kPatternCount; j++)
+            cumulativeScaleBuffer[j] =  0;
+        for(int i=0; i<count; i++) {
+            if (gActiveScalingFactors[i]) {
+                const signed short* scaleBuffer = gAutoScaleBuffers[scalingIndices[i] - kTipCount];
+                for(int j=0; j<kPatternCount; j++) {
+                    cumulativeScaleBuffer[j] += M_LN2 * scaleBuffer[j];
+                }
+            }
+        }
+                
+    } else {
+        REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+        for(int i=0; i<count; i++) {
+            const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
+            for(int j=0; j<kPatternCount; j++) {
+                if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
+                    cumulativeScaleBuffer[j] += scaleBuffer[j];
+                else
+                    cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+            }
+        }
 
-	REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
-    for(int i=0; i<count; i++) {
-        const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
-        for(int j=0; j<kPatternCount; j++) {
-            if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
-                cumulativeScaleBuffer[j] += scaleBuffer[j];
-            else
-                cumulativeScaleBuffer[j] += log(scaleBuffer[j]);
+        if (DEBUGGING_OUTPUT) {
+            fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
+            for(int j=0; j<kPatternCount; j++) {
+                fprintf(stderr,"cumulativeScaleBuffer[%d] = %2.5e\n",j,cumulativeScaleBuffer[j]);
+            }
         }
     }
-
-    if (DEBUGGING_OUTPUT) {
-        fprintf(stderr,"Accumulating %d scale buffers into #%d\n",count,cumulativeScalingIndex);
-        for(int j=0; j<kPatternCount; j++) {
-            fprintf(stderr,"cumulativeScaleBuffer[%d] = %2.5e\n",j,cumulativeScaleBuffer[j]);
-        }
-    }
+    
     return BEAGLE_SUCCESS;
 }
 
@@ -982,7 +1047,9 @@ template <typename REALTYPE>
 
     if (count == 1) {
         int cumulativeScalingFactorIndex;
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+            cumulativeScalingFactorIndex = 0;
+        } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             cumulativeScalingFactorIndex = kInternalPartialsBufferCount;
             int child1ScalingIndex = parentBufferIndices[0] - kTipCount;
             int child2ScalingIndex = childBufferIndices[0] - kTipCount;
@@ -1454,6 +1521,37 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
             fprintf(stderr,"new scaleFactor[%d] = %.5f\n",i,scaleFactors[i]);
     }
 }
+    
+template <typename REALTYPE>
+void BeagleCPUImpl<REALTYPE>::autoRescalePartials(REALTYPE* destP,
+                                              signed short* scaleFactors) {
+    
+    
+    for (int k = 0; k < kPatternCount; k++) {
+        REALTYPE max = 0;
+        const int patternOffset = k * kStateCount;
+        for (int l = 0; l < kCategoryCount; l++) {
+            int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
+            for (int i = 0; i < kStateCount; i++) {
+                if(destP[offset] > max)
+                    max = destP[offset];
+                offset++;
+            }
+        }
+        
+        int expMax;
+        frexp(max, &expMax);
+        scaleFactors[k] = expMax;
+        
+        if (expMax != 0) {
+            for (int l = 0; l < kCategoryCount; l++) {
+                int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
+                for (int i = 0; i < kStateCount; i++)
+                    destP[offset++] *= pow(2.0, -expMax);
+            }
+        }
+    }
+}
 
 /*
  * Calculates partial likelihoods at a node when both children have states.
@@ -1659,6 +1757,47 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
         }
     }
 }
+    
+template <typename REALTYPE>
+void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
+                                                               const REALTYPE* partials1,
+                                                               const REALTYPE* matrices1,
+                                                               const REALTYPE* partials2,
+                                                               const REALTYPE* matrices2,
+                                                               int* activateScaling) {
+    
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*kStateCount*kPatternCount;
+        int v = l*kStateCount*kPatternCount;
+        for (int k = 0; k < kPatternCount; k++) {
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+                REALTYPE sum1 = 0.0, sum2 = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sum1 += matrices1[w] * partials1[v + j];
+                    sum2 += matrices2[w] * partials2[v + j];
+                    w++;
+                }
+#ifdef PAD_MATRICES
+                // increment for the extra column at the end
+                w++;
+#endif
+                destP[u] = sum1 * sum2;
+
+                if (*activateScaling == 0) {
+                    int expTmp;
+                    frexp(destP[u], &expTmp);
+                    if (abs(expTmp) > scalingExponentThreshhold) 
+                        *activateScaling = 1;
+                }
+                
+                u++;
+            }
+            v += kStateCount;
+        }
+    }
+}
 
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
@@ -1717,7 +1856,7 @@ const char* BeagleCPUImplFactory<REALTYPE>::getName() {
 template <typename REALTYPE>
 const long BeagleCPUImplFactory<REALTYPE>::getFlags() {
     long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | //BEAGLE_FLAG_SCALING_AUTO |
+                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                  BEAGLE_FLAG_THREADING_NONE |
                  BEAGLE_FLAG_PROCESSOR_CPU |
                  BEAGLE_FLAG_VECTOR_NONE |

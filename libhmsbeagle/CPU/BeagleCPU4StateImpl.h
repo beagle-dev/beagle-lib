@@ -63,6 +63,7 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gPatternWeights;
 	using BeagleCPUImpl<REALTYPE>::outLogLikelihoodsTmp;
 	using BeagleCPUImpl<REALTYPE>::realtypeMin;
+    using BeagleCPUImpl<REALTYPE>::scalingExponentThreshhold;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -128,6 +129,14 @@ public:
                                             const REALTYPE *child1Partials,
                                             const REALTYPE *child1TransMat,
                                             const REALTYPE *scaleFactors);
+    
+    virtual void calcPartialsPartialsAutoScaling(REALTYPE *destP,
+                                                  const REALTYPE *child0Partials,
+                                                  const REALTYPE *child0TransMat,
+                                                  const REALTYPE *child1Partials,
+                                                  const REALTYPE *child1TransMat,
+                                                  int *activateScaling);
+    
     
     inline int integrateOutStatesAndScale(const REALTYPE* integrationTmp,
                                            const int stateFrequenciesIndex,

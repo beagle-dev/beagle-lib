@@ -70,6 +70,7 @@ protected:
     long kFlags;
     
     REALTYPE realtypeMin;
+    int scalingExponentThreshhold;
 
     EigenDecomposition<REALTYPE>* gEigenDecomposition;
 
@@ -85,6 +86,10 @@ protected:
     REALTYPE** gPartials;
     int** gTipStates;
     REALTYPE** gScaleBuffers;
+    
+    signed short** gAutoScaleBuffers;
+    
+    int* gActiveScalingFactors;
 
     // There will be kMatrixCount transitionMatrices.
     // Each kStateCount x (kStateCount+1) matrix that is flattened
@@ -344,11 +349,21 @@ protected:
                                             const REALTYPE *child1Partials,
                                             const REALTYPE *child1TransMat,
                                             const REALTYPE *scaleFactors);
+    
+    virtual void calcPartialsPartialsAutoScaling(REALTYPE* destP,
+                                                  const REALTYPE* partials1,
+                                                  const REALTYPE* matrices1,
+                                                  const REALTYPE* partials2,
+                                                  const REALTYPE* matrices2,
+                                                  int* activateScaling);
 
     virtual void rescalePartials(REALTYPE *destP,
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
+    
+    virtual void autoRescalePartials(REALTYPE *destP,
+    		                     signed short *scaleFactors);
 
     virtual int getPaddedPatternsModulus();
 
