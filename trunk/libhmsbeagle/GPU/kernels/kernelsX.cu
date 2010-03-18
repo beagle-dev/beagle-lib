@@ -171,7 +171,6 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
         } else {
             partials3[u] = tmpPartial;
             sPartials2[patIdx][0] = 0;
-            scalingFactors[pattern + (matrix * totalPatterns)] = 0;
         }
         
         __syncthreads();
@@ -204,6 +203,9 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
             
             partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
 
+        } else {
+            if (state == 0)
+                scalingFactors[pattern + (matrix * totalPatterns)] = 0;
         }
 
     }
