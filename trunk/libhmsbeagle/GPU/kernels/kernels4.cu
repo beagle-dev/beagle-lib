@@ -132,6 +132,7 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
 
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
     int y = deltaPartialsByState + deltaPartialsByMatrix;
+    int myIdx = multBy16(patIdx) + tx; // threadId in block
     
     REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
     REAL* matrix2 = matrices2 + x2;
@@ -164,77 +165,76 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
 
     __syncthreads();
 
-    if (pattern < totalPatterns) { // Remove padded threads!
+    i = pat;
+    sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-        i = pat;
-        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
+    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
+    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
+    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    
+    REAL tmpPartial = sum1 * sum2;
+    int expTmp;
+    REAL sigTmp = frexp(tmpPartial, &expTmp);        
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-        __syncthreads();
-        
-        REAL tmpPartial = sum1 * sum2;
-        
-        int expTmp;
-        REAL sigTmp = frexp(tmpPartial, &expTmp);
-        
+    __syncthreads();
+    
+    if (pattern < totalPatterns) {
         if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD) {
             // now using sPartials2 to hold scaling trigger boolean
             sPartials2[patIdx16pat4] = 1;
-            *activeScalingFactors = 1;
         } else {
             partials3[u] = tmpPartial;
             sPartials2[patIdx16pat4] = 0;
+            sPartials1[myIdx] = 0;
         }
+    } 
+    
+    __syncthreads();
+    
+    int scalingActive = sPartials2[patIdx16pat4];
         
-        __syncthreads();
+    if (scalingActive) {
+        // now using sPartials1 to store max unscaled partials3
+        sPartials1[myIdx] = tmpPartial;
+    }
         
-        if (sPartials2[patIdx16pat4]) {
-            // now using sPartials1 to store max unscaled partials3
-            int myIdx = multBy16(patIdx) + tx; // threadId in block
-            sPartials1[myIdx] = tmpPartial;
+    __syncthreads();
+        
+    // Unrolled parallel max-reduction
+    if (scalingActive && state < 2) {
+        REAL compare = sPartials1[myIdx + 2];
+        if (compare >  sPartials1[myIdx])
+            sPartials1[myIdx] = compare;
+    }
+     
+    __syncthreads();
             
-            __syncthreads();
-            
-            // Unrolled parallel max-reduction
-            if (state < 2) {
-                REAL compare = sPartials1[myIdx + 2];
-                if (compare >  sPartials1[myIdx])
-                    sPartials1[myIdx] = compare;
-            }
-            __syncthreads();
-            
-            if (state < 1) {
-                REAL maxPartial = sPartials1[myIdx + 1];
-                if (maxPartial < sPartials1[myIdx])
-                    maxPartial = sPartials1[myIdx];
-                int expMax;
-                frexp(maxPartial, &expMax);
-                sPartials1[myIdx] = expMax;
-                scalingFactors[pattern + (matrix * totalPatterns)] = expMax;
-            }
-
-            __syncthreads();
-            
-            partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx16pat4]);
-
-        } else {
-            if (state == 0)
-                scalingFactors[pattern + (matrix * totalPatterns)] = 0;
-        }
+    if (scalingActive && state < 1) {
+        REAL maxPartial = sPartials1[myIdx + 1];
+        if (maxPartial < sPartials1[myIdx])
+            maxPartial = sPartials1[myIdx];
+        int expMax;
+        frexp(maxPartial, &expMax);
+        sPartials1[myIdx] = expMax;
+        *activeScalingFactors = 1;
     }
 
+    __syncthreads();
+            
+    if (scalingActive) 
+        partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx16pat4]);
+        
+    if (myIdx < PATTERN_BLOCK_SIZE * 4)
+        scalingFactors[(blockIdx.x * PATTERN_BLOCK_SIZE * 4) + (matrix * totalPatterns) + myIdx] = sPartials1[multBy4(myIdx)];
 }
 
 __global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
