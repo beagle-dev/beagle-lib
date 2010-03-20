@@ -158,57 +158,60 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
 
     }
 
+    REAL tmpPartial = sum1 * sum2;
+    int expTmp;
+    REAL sigTmp = frexp(tmpPartial, &expTmp);
+
     if (pattern < totalPatterns) {
-        REAL tmpPartial = sum1 * sum2;
-        
-        int expTmp;
-        REAL sigTmp = frexp(tmpPartial, &expTmp);
-        
         if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD) {
             // now using sPartials2 to hold scaling trigger boolean
             sPartials2[patIdx][0] = 1;
-            *activeScalingFactors = 1;
         } else {
             partials3[u] = tmpPartial;
             sPartials2[patIdx][0] = 0;
+            sPartials1[patIdx][0] = 0;
         }
-        
-        __syncthreads();
-        
-        if (sPartials2[patIdx][0]) {
-            // now using sPartials1 to store max unscaled partials3
-            sPartials1[patIdx][state] = tmpPartial;
-            
-            __syncthreads();
-            
-            // Unrolled parallel max-reduction
-            if (state < 2) {
-                REAL compare = sPartials1[patIdx][state + 2];
-                if (compare >  sPartials1[patIdx][state])
-                    sPartials1[patIdx][state] = compare;
-            }
-            __syncthreads();
-            
-            if (state < 1) {
-                REAL maxPartial = sPartials1[patIdx][1];
-                if (maxPartial < sPartials1[patIdx][0])
-                    maxPartial = sPartials1[patIdx][0];
-                int expMax;
-                frexp(maxPartial, &expMax);
-                sPartials1[patIdx][0] = expMax;
-                scalingFactors[pattern + (matrix * totalPatterns)] = expMax;
-            }
-
-            __syncthreads();
-            
-            partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
-
-        } else {
-            if (state == 0)
-                scalingFactors[pattern + (matrix * totalPatterns)] = 0;
-        }
-
     }
+        
+    __syncthreads();
+    
+    int scalingActive = sPartials2[patIdx][0];
+        
+    if (scalingActive) {
+        // now using sPartials1 to store max unscaled partials3
+        sPartials1[patIdx][state] = tmpPartial;
+    }
+            
+    __syncthreads();
+            
+    // Unrolled parallel max-reduction
+    if (scalingActive && state < 2) {
+        REAL compare = sPartials1[patIdx][state + 2];
+        if (compare >  sPartials1[patIdx][state])
+            sPartials1[patIdx][state] = compare;
+    }
+    
+    __syncthreads();
+            
+    if (scalingActive && state < 1) {
+        REAL maxPartial = sPartials1[patIdx][1];
+        if (maxPartial < sPartials1[patIdx][0])
+            maxPartial = sPartials1[patIdx][0];
+        int expMax;
+        frexp(maxPartial, &expMax);
+        sPartials1[patIdx][0] = expMax;
+        *activeScalingFactors = 1;
+    }
+
+    __syncthreads();
+    
+    if (scalingActive)
+        partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
+
+    int myIdx = (patIdx * PADDED_STATE_COUNT) + state; // threadId in block
+    if (myIdx < PATTERN_BLOCK_SIZE)
+        scalingFactors[(blockIdx.x * PATTERN_BLOCK_SIZE) + (matrix * totalPatterns) + myIdx] = sPartials1[myIdx][0];
+
 }
 
 __global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
