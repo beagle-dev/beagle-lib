@@ -28,6 +28,7 @@
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
+#include "libhmsbeagle/platform.h"
 
 #include <cfloat>
 
