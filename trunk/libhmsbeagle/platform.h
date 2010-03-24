@@ -47,6 +47,11 @@
 	#endif
 */
 
+#ifndef M_LN2
+/* math.h in VC++ doesn't seem to have this (how Microsoft is that?) */
+#define M_LN2 0.69314718055994530942
+#endif
+
 #else // not windows
 #define BEAGLE_DLLEXPORT
 #endif
