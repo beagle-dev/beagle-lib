@@ -3,7 +3,7 @@
 = Introduction =
 
 This is still a draft document.  Any instructions found here may not work at all.  You've been warned!
-Current builds of libhmsbeagle require the Nvidia CUDA hardware driver to be installed.
+Current builds of libhmsbeagle require the Nvidia CUDA hardware driver to be installed.  Thanks to Chris Drummond for suggestions and testing.
 
 = Details =
 
