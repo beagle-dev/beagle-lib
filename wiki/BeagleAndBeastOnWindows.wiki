@@ -7,16 +7,21 @@ Current builds of libhmsbeagle require the Nvidia CUDA hardware driver to be ins
 
 = Details =
 
-Step 1.  Get a beagle windows installer.  Currently available from:
+Step 1.  Download and use the beagle windows installer, *reboot when done*.  Installer currently available from:
 http://edhar.genomecenter.ucdavis.edu/~koadman/libhmsbeagle-20100325.msi
 
 Step 2.  Get a current beast.
+{{{
 svn co http://beast-mcmc.googlecode.com/trunk/ beast-mcmc
+}}}
 
 Step 3.  Build beast
+{{{
 cd beast-mcmc
 ant
+}}}
 
 Step 4.  Run beast
-java -Xmx500m -jar bin\beast.jar -Djava.library.path %LIBHMSBEAGLE-1.0% -beagle
-
+{{{
+java -Xmx500m -cp build\dist\beast.jar;%LIBHMSBEAGLE-1.0%\beagle.jar -Djava.library.path=%LIBHMSBEAGLE-1.0% dr.app.beast.BeastMain -beagle -beagle_GPU -beagle_order 1,1,2,2,0,0 name.of.your.input.file.xml
+}}}
