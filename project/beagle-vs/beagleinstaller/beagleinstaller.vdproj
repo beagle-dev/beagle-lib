@@ -21,6 +21,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_1C85F80EA6024823BC8B3AC4F07FAC97"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_36FFB5FE7D174A45BEF4781ABDCC6464"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -204,6 +210,26 @@
             {
             "SourcePath" = "8:..\\Debug\\hmsbeagle64D.lib"
             "TargetName" = "8:hmsbeagle64D.lib"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1C85F80EA6024823BC8B3AC4F07FAC97"
+            {
+            "SourcePath" = "8:..\\..\\..\\lib\\beagle.jar"
+            "TargetName" = "8:beagle.jar"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
