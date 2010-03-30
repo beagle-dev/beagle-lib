@@ -43,6 +43,7 @@
 				Include="&quot;../../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
+				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -224,6 +225,7 @@
 				Include="&quot;../../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
+				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
