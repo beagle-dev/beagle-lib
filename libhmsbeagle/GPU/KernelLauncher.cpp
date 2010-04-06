@@ -782,8 +782,13 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
         if (fillWithOnes != 0) {
             if (ones == NULL) {
                 ones = (REAL*) malloc(SIZE_REAL * patternCount);
-                for(int i = 0; i < patternCount; i++)
-                    ones[i] = 1.0;
+                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+                    for(int i = 0; i < patternCount; i++) 
+                        ones[i] = 0.0;
+                } else {
+                    for(int i = 0; i < patternCount; i++) 
+                        ones[i] = 1.0;
+                }
             }
             gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
             return;

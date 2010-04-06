@@ -1478,7 +1478,10 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
 //                for(int i = 0; i < kPatternCount; i++)
 //                    ones[i] = 1.0;
 //        }
-        memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPaddedPatternCount);
+        if (kFlags & BEAGLE_FLAG_SCALERS_LOG
+            memcpy(scaleFactors,zeros,sizeof(REALTYPE) * kPaddedPatternCount);
+        else
+            memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPaddedPatternCount);
         // No accumulation necessary as cumulativeScaleFactors are on the log-scale
         if (DEBUGGING_OUTPUT)
             fprintf(stderr,"Ones copied!\n");
@@ -1497,13 +1500,15 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
                 offset++;
             }
         }
+        
+        if (max == 0)
+            max = 1.0;
+        
         for (int l = 0; l < kCategoryCount; l++) {
             int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
             for (int i = 0; i < kStateCount; i++)
                 destP[offset++] /= max;
         }
-        if (max == 0)
-            max = 1.0;
 
         if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
             REALTYPE logMax = log(max);
