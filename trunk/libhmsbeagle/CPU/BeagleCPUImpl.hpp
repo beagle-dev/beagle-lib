@@ -1478,7 +1478,7 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
 //                for(int i = 0; i < kPatternCount; i++)
 //                    ones[i] = 1.0;
 //        }
-        if (kFlags & BEAGLE_FLAG_SCALERS_LOG
+        if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
             memcpy(scaleFactors,zeros,sizeof(REALTYPE) * kPaddedPatternCount);
         else
             memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPaddedPatternCount);
