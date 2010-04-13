@@ -1049,7 +1049,6 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
                                                             REAL *dWeights,
                                                             REAL *dFrequencies,
                                                             REAL *dRootScalingFactors,
-                                                            REAL* dPatternWeights,
                                                             int matrixCount,
                                                             int patternCount) {
     int state   = threadIdx.x;
@@ -1098,7 +1097,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
     }
 
     if (state == 0)
-        dResult[pattern] = (log(sum[state]) + dRootScalingFactors[pattern]) * dPatternWeights[pattern];
+        dResult[pattern] = (log(sum[state]) + dRootScalingFactors[pattern]);
 }
 
 __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
@@ -1106,7 +1105,6 @@ __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
                                                      REAL* dWeights,
                                                      REAL* dFrequencies,
                                                      int* dRootScalingFactors,
-                                                     REAL* dPatternWeights,
                                                      int matrixCount,
                                                      int patternCount) {
     int state   = threadIdx.x;
@@ -1171,7 +1169,7 @@ __global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
     }
 
     if (state == 0)
-        dResult[pattern] = (log(sum[state]) + (M_LN2 * maxScaleFactor)) * dPatternWeights[pattern];
+        dResult[pattern] = (log(sum[state]) + (M_LN2 * maxScaleFactor));
 }
 
 
@@ -1184,7 +1182,6 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
                                               REAL *dRootScalingFactors,
-                                              REAL* dPatternWeights,
                                               int matrixCount,
                                               int patternCount) {
     int state   = threadIdx.x;
@@ -1247,12 +1244,12 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
 
     if (state == 0) {
         tmpLogLike = sum[state];
-        dResult[pattern] = (log(tmpLogLike) + dRootScalingFactors[pattern]) * dPatternWeights[pattern];
+        dResult[pattern] = (log(tmpLogLike) + dRootScalingFactors[pattern]);
         
         tmpFirstDeriv = sumD1[state] / tmpLogLike;
-        dFirstDerivResult[pattern] = tmpFirstDeriv * dPatternWeights[pattern];
+        dFirstDerivResult[pattern] = tmpFirstDeriv;
         
-        dSecondDerivResult[pattern] = (sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv) * dPatternWeights[pattern];
+        dSecondDerivResult[pattern] = (sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv);
     }
 }
 
@@ -1261,7 +1258,6 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
                                               REAL* dRootPartials,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
-                                              REAL* dPatternWeights,
                                               int matrixCount,
                                               int patternCount) {
     int state   = threadIdx.x;
@@ -1310,7 +1306,7 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
     }
 
     if (state == 0)
-        dResult[pattern] = log(sum[state]) * dPatternWeights[pattern];
+        dResult[pattern] = log(sum[state]);
 }
 
 __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
@@ -1321,7 +1317,6 @@ __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
                                               REAL* dRootSecondDeriv,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
-                                              REAL* dPatternWeights,
                                               int matrixCount,
                                               int patternCount) {
     int state   = threadIdx.x;
@@ -1384,12 +1379,12 @@ __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
 
     if (state == 0) {
         tmpLogLike = sum[state];
-        dResult[pattern] = log(tmpLogLike) * dPatternWeights[pattern];
+        dResult[pattern] = log(tmpLogLike);
         
         tmpFirstDeriv = sumD1[state] / tmpLogLike;
-        dFirstDerivResult[pattern] = tmpFirstDeriv * dPatternWeights[pattern];
+        dFirstDerivResult[pattern] = tmpFirstDeriv;
         
-        dSecondDerivResult[pattern] = (sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv) * dPatternWeights[pattern];
+        dSecondDerivResult[pattern] = (sumD2[state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv);
     }
 }
 
@@ -1398,7 +1393,6 @@ __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
                                               REAL* dRootPartials,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
-                                              REAL* dPatternWeights,
                                               int matrixCount,
                                               int patternCount,
 											  int takeLog) {
@@ -1451,7 +1445,7 @@ __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
 		if (takeLog == 0)
 			dResult[pattern] = sum[state]; 
 		else if (takeLog == 1)
-			dResult[pattern] = log(dResult[pattern] + sum[state]) * dPatternWeights[pattern];
+			dResult[pattern] = log(dResult[pattern] + sum[state]);
 		else
 			dResult[pattern] += sum[state]; 
 	}
@@ -1465,7 +1459,6 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
 											  REAL** dPtrQueue,
 											  REAL* dMaxScalingFactors,
 											  REAL* dIndexMaxScalingFactors,
-                                              REAL* dPatternWeights,
                                               int matrixCount,
                                               int patternCount,
 											  int subsetCount,
@@ -1542,7 +1535,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
 	
 		if (state == 0) {
 			if (subsetIndex == subsetCount - 1)
-				dResult[pattern] = (log(dResult[pattern] + sum[state]) + dMaxScalingFactors[pattern]) * dPatternWeights[pattern];
+				dResult[pattern] = (log(dResult[pattern] + sum[state]) + dMaxScalingFactors[pattern]);
 			else
 				dResult[pattern] += sum[state];
 		}
