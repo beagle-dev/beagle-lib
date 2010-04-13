@@ -179,7 +179,6 @@ public:
                                             GPUPtr dWeights,
                                             GPUPtr dFrequencies,
                                             GPUPtr dRootScalingFactors,
-                                            GPUPtr dPatternWeights,
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
     
@@ -188,7 +187,6 @@ public:
                                             GPUPtr dWeights,
                                             GPUPtr dFrequencies,
                                             GPUPtr dRootScalingFactors,
-                                            GPUPtr dPatternWeights,
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
     
@@ -201,7 +199,6 @@ public:
                                                        GPUPtr dWeights,
                                                        GPUPtr dFrequencies,
                                                        GPUPtr dRootScalingFactors,
-                                                       GPUPtr dPatternWeights,
                                                        unsigned int patternCount,
                                                        unsigned int categoryCount);
     
@@ -269,7 +266,6 @@ public:
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,
                               GPUPtr dFrequencies,
-                              GPUPtr dPatternWeights,
                               unsigned int patternCount,
                               unsigned int categoryCount);
     
@@ -281,7 +277,6 @@ public:
                                          GPUPtr dRootSecondDeriv,
                                          GPUPtr dWeights,
                                          GPUPtr dFrequencies,
-                                         GPUPtr dPatternWeights,                                         
                                          unsigned int patternCount,
                                          unsigned int categoryCount);
     
@@ -289,7 +284,6 @@ public:
 								   GPUPtr dRootPartials,
 								   GPUPtr dWeights,
 								   GPUPtr dFrequencies,
-                                   GPUPtr dPatternWeights,
 								   unsigned int patternCount,
 								   unsigned int categoryCount,
 								   unsigned int takeLog);
@@ -301,7 +295,6 @@ public:
 											 GPUPtr dPtrQueue,
 											 GPUPtr dMaxScalingFactors,
 											 GPUPtr dIndexMaxScalingFactors,
-                                             GPUPtr dPatternWeights,
 											 unsigned int patternCount,
 											 unsigned int categoryCount,
 											 unsigned int subsetCount,
@@ -309,12 +302,14 @@ public:
     
     void SumSites1(GPUPtr dArray1,
                   GPUPtr dSum1,
+                  GPUPtr dPatternWeights,
                   unsigned int patternCount);
     
     void SumSites2(GPUPtr dArray1,
                   GPUPtr dSum1,
                   GPUPtr dArray2,
                   GPUPtr dSum2,
+                  GPUPtr dPatternWeights,
                   unsigned int patternCount);
     
     void SumSites3(GPUPtr dArray1,
@@ -323,6 +318,7 @@ public:
                   GPUPtr dSum2,
                   GPUPtr dArray3,
                   GPUPtr dSum3,
+                  GPUPtr dPatternWeights,
                   unsigned int patternCount);
 	
     void SetupKernelBlocksAndGrids();

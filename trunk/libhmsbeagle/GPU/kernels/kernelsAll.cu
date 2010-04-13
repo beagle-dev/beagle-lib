@@ -608,6 +608,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
 
 __global__ void kernelSumSites1(REAL* dArray,
                                 REAL* dSum,
+                                REAL* dPatternWeights,
                                 int patternCount) {
 
     __shared__ REAL sum[SUM_SITES_BLOCK_SIZE];
@@ -616,7 +617,7 @@ __global__ void kernelSumSites1(REAL* dArray,
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
     
     if (pattern < patternCount)
-        sum[tx] = dArray[pattern];
+        sum[tx] = dArray[pattern] * dPatternWeights[pattern];
     else
         sum[tx] = 0.0;
         
@@ -636,6 +637,7 @@ __global__ void kernelSumSites2(REAL* dArray1,
                                 REAL* dSum1,
                                 REAL* dArray2,
                                 REAL* dSum2,
+                                REAL* dPatternWeights,
                                 int patternCount) {
 
     __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
@@ -645,8 +647,9 @@ __global__ void kernelSumSites2(REAL* dArray1,
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
     
     if (pattern < patternCount) {
-        sum1[tx] = dArray1[pattern];
-        sum2[tx] = dArray2[pattern];
+        REAL pWeight = dPatternWeights[pattern];
+        sum1[tx] = dArray1[pattern] * pWeight;
+        sum2[tx] = dArray2[pattern] * pWeight;
     } else {
         sum1[tx] = 0.0;
         sum2[tx] = 0.0;
@@ -674,6 +677,7 @@ __global__ void kernelSumSites3(REAL* dArray1,
                                 REAL* dSum2,
                                 REAL* dArray3,
                                 REAL* dSum3,
+                                REAL* dPatternWeights,
                                 int patternCount) {
 
     __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
@@ -684,9 +688,10 @@ __global__ void kernelSumSites3(REAL* dArray1,
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
     
     if (pattern < patternCount) {
-        sum1[tx] = dArray1[pattern];
-        sum2[tx] = dArray2[pattern];
-        sum3[tx] = dArray3[pattern];
+        REAL pWeight = dPatternWeights[pattern];
+        sum1[tx] = dArray1[pattern] * pWeight;
+        sum2[tx] = dArray2[pattern] * pWeight;
+        sum3[tx] = dArray3[pattern] * pWeight;
     } else {
         sum1[tx] = 0.0;
         sum2[tx] = 0.0;

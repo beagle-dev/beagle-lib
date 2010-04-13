@@ -894,8 +894,7 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndice
 
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
     return returnCode;
@@ -956,8 +955,7 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
 
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
     // TODO: merge the three kPatternCount loops above into one
@@ -1185,8 +1183,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
     return returnCode;
@@ -1302,11 +1299,9 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parIndex
     *outSumLogLikelihood = 0.0;
     *outSumFirstDerivative = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
 
-        outFirstDerivativesTmp[i] *= gPatternWeights[i];
-        *outSumFirstDerivative += outFirstDerivativesTmp[i];
+        *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
     }
 
     return returnCode;
@@ -1434,14 +1429,11 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInde
     *outSumFirstDerivative = 0.0;
     *outSumSecondDerivative = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
-        outLogLikelihoodsTmp[i] *= gPatternWeights[i];
-        *outSumLogLikelihood += outLogLikelihoodsTmp[i];
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
 
-        outFirstDerivativesTmp[i] *= gPatternWeights[i];
-        *outSumFirstDerivative += outFirstDerivativesTmp[i];
+        *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
 
-        outSecondDerivativesTmp[i] *= gPatternWeights[i];
-        *outSumSecondDerivative += outSecondDerivativesTmp[i];
+        *outSumSecondDerivative += outSecondDerivativesTmp[i] * gPatternWeights[i];
     }
 
     return returnCode;
