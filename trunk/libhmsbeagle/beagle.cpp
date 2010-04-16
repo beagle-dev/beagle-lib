@@ -290,8 +290,9 @@ int beagleCreateInstance(int tipCount,
                 it != possibleResources->end(); ++it) {
                 int resource = (*it).second;
                 long resourceFlag = rsrcList->list[resource].supportFlags;
-                if ( (resourceFlag & requirementFlags) < requirementFlags)
-                    possibleResources->remove(*it);
+                if ( (resourceFlag & requirementFlags) < requirementFlags) {
+                    possibleResources->remove(*(it--));
+                }
             }
         }
         
