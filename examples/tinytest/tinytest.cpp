@@ -333,7 +333,7 @@ int main( int argc, const char* argv[] )
         beagleGetSiteLogLikelihoods(instance, patternLogLik);
         double sumLogL = 0.0;
         for (int i = 0; i < nPatterns; i++) {
-            sumLogL += patternLogLik[i];
+            sumLogL += patternLogLik[i] * patternWeights[i];
 //            std::cerr << "site lnL[" << i << "] = " << patternLogLik[i] << '\n';
         }
       
