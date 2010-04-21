@@ -353,7 +353,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     fprintf(stderr, "  available memory: %d\n", availableMem);
 #endif     
     
-    if (availableMem < neededMemory) 
+    if (availableMem < (int) neededMemory) 
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     
     kernels = new KernelLauncher(gpu);
@@ -1125,8 +1125,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::waitForPartials(const int* destinationPartials,
-                                   int destinationPartialsCount) {
+int BeagleGPUImpl::waitForPartials(const int* /*destinationPartials*/,
+                                   int /*destinationPartialsCount*/) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::waitForPartials\n");
 #endif
