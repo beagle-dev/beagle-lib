@@ -582,18 +582,19 @@ int BeagleCPUImpl<REALTYPE>::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix) {
 
 #ifdef PAD_MATRICES
-	const double* offsetInMatrix = inMatrix;
-	REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
-	for(int i = 0; i < kCategoryCount; i++) {
-		for(int j = 0; j < kStateCount; j++) {
-			beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
-			offsetBeagleMatrix += kStateCount + 1; // Skip padding
-			offsetInMatrix += kStateCount;
-		}
-	}
+    const double* offsetInMatrix = inMatrix;
+    REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
+    for(int i = 0; i < kCategoryCount; i++) {
+        for(int j = 0; j < kStateCount; j++) {
+            beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
+            offsetBeagleMatrix[kStateCount] = 1.0;
+            offsetBeagleMatrix += kStateCount + 1; // Skip padding
+            offsetInMatrix += kStateCount;
+        }
+    }
 #else
-	beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
-			kMatrixSize * kCategoryCount);
+    beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
+                 kMatrixSize * kCategoryCount);
 #endif
     return BEAGLE_SUCCESS;
 }
