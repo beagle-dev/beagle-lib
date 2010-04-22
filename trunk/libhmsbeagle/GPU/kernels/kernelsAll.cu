@@ -521,7 +521,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
    		}
    	}
 
-    while (d + MULTIPLY_BLOCK_SIZE < PADDED_STATE_COUNT) {
+    while (d + MULTIPLY_BLOCK_SIZE <= PADDED_STATE_COUNT) {
 
         READ_SCHUR_VALUES();
 
