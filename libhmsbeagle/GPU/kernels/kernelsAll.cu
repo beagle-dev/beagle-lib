@@ -473,11 +473,11 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     // Block index
     int bx = blockIdx.x / totalMatrix;
     int by = blockIdx.y;
+    int BLOCKS = gridDim.y;
 
     // Thread index
     int tx = threadIdx.x;
     int ty = threadIdx.y;
-    int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
         C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
@@ -507,21 +507,21 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Es[MULTIPLY_BLOCK_SIZE + 2];
-    
+
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
-   	REAL* Bp1 = &Bs[2][0];    	
+   	REAL* Bp1 = &Bs[2][0];
    	REAL* E0  = &Es[1];
-   	
+
    	// Zero first row of Bs and Es
    	if (ty == 0) {
    		Bs[0][tx] = 0;
    		if (tx == 0) {
-   			Es[0] = 0;	
+   			Es[0] = 0;
    		}
    	}
 
-    for (int i = 0; i < BLOCKS - 1; i++) {
+    while (d + MULTIPLY_BLOCK_SIZE < PADDED_STATE_COUNT) {
 
         READ_SCHUR_VALUES();
 
@@ -560,11 +560,11 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
         d += MULTIPLY_BLOCK_SIZE;
 
     }
-	
+
     if (tx < EDGE && ty < EDGE) { // Last block is too long
 
         READ_SCHUR_VALUES();
-        
+
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
@@ -574,7 +574,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     		Cs[tx] = 0;
     	}
     	As[ty][tx] = 0;
-    	B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;    
+    	B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;
     }
 
 	// Zero last row of Bs and Es (only for unrolled iteration at end)
@@ -584,7 +584,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
 
     // All necessary values loaded
 	__syncthreads();
-	
+
 	POPULATE_SCHUR_BAND(EDGE);
 
 	__syncthreads();
@@ -596,7 +596,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
 
     // Write the block sub-matrix to device memory;
     // each thread writes one element
-    
+
     if (Csub < 0)
     	Csub = 0;
 
