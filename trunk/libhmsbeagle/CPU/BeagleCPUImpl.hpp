@@ -318,15 +318,15 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     gAutoScaleBuffers = NULL;
 
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
-        gAutoScaleBuffers = (signed short**) malloc(sizeof(signed short*) * kScaleBufferCount);
+        gAutoScaleBuffers = (signed short**) malloc(sizeof(signed short*) * kBufferCount);
         if (gAutoScaleBuffers == NULL)
             throw std::bad_alloc();        
-        for (int i = 0; i < kScaleBufferCount; i++) {
+        for (int i = kTipCount; i < kBufferCount; i++) {
             gAutoScaleBuffers[i] = (signed short*) malloc(sizeof(signed short) * scaleBufferSize);
             if (gAutoScaleBuffers[i] == 0L)
                 throw std::bad_alloc();
         }
-        gActiveScalingFactors = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount);
+        gActiveScalingFactors = (int*) malloc(sizeof(int) * kBufferCount);
         gScaleBuffers = (REALTYPE**) malloc(sizeof(REALTYPE*));
         gScaleBuffers[0] = (REALTYPE*) malloc(sizeof(REALTYPE) * scaleBufferSize);
     } else {
@@ -654,7 +654,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
         REALTYPE* scalingFactors = NULL;
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
-            gActiveScalingFactors[parIndex - kTipCount] = 0;
+            gActiveScalingFactors[parIndex] = 0;
             if (tipStates1 == 0 && tipStates2 == 0)
                 rescale = 2;
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
@@ -706,7 +706,7 @@ int BeagleCPUImpl<REALTYPE>::updatePartials(const int* operations,
                 }
             } else {
                 if (rescale == 2) {
-                    int sIndex = parIndex - kTipCount;
+                    int sIndex = parIndex;
                     calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
                                                      &gActiveScalingFactors[sIndex]);
                     if (gActiveScalingFactors[sIndex])
@@ -846,7 +846,7 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndice
             if (scaleBufferIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
                 int cumulativeScalingFactorIndex;
                 if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
-                    cumulativeScalingFactorIndex = rootPartialIndex - kTipCount; 
+                    cumulativeScalingFactorIndex = rootPartialIndex - kTipCount;
                 else
                     cumulativeScalingFactorIndex = scaleBufferIndices[subsetIndex];
                 
@@ -858,7 +858,7 @@ int BeagleCPUImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndice
                     for (int j = 1; j < count; j++) {
                         REALTYPE tmpScaleFactor;
                         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
-                            tmpScaleFactor = gScaleBuffers[bufferIndices[j] - kTipCount][k]; 
+                            tmpScaleFactor = gScaleBuffers[bufferIndices[j] - kTipCount][k];
                         else
                             tmpScaleFactor = gScaleBuffers[scaleBufferIndices[j]][k];
 
@@ -973,8 +973,8 @@ int BeagleCPUImpl<REALTYPE>::accumulateScaleFactors(const int* scalingIndices,
         for(int j=0; j<kPatternCount; j++)
             cumulativeScaleBuffer[j] =  0;
         for(int i=0; i<count; i++) {
-            if (gActiveScalingFactors[i]) {
-                const signed short* scaleBuffer = gAutoScaleBuffers[scalingIndices[i] - kTipCount];
+            if (gActiveScalingFactors[scalingIndices[i]]) {
+                const signed short* scaleBuffer = gAutoScaleBuffers[scalingIndices[i]];
                 for(int j=0; j<kPatternCount; j++) {
                     cumulativeScaleBuffer[j] += M_LN2 * scaleBuffer[j];
                 }
@@ -1523,7 +1523,6 @@ void BeagleCPUImpl<REALTYPE>::rescalePartials(REALTYPE* destP,
 template <typename REALTYPE>
 void BeagleCPUImpl<REALTYPE>::autoRescalePartials(REALTYPE* destP,
                                               signed short* scaleFactors) {
-    
     
     for (int k = 0; k < kPatternCount; k++) {
         REALTYPE max = 0;
