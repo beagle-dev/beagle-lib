@@ -360,10 +360,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* de
                 frexp(destP[u + 3], &expTmp);
                 if (abs(expTmp) > abs(expMax))
                     expMax = expTmp;
-#ifndef BEAGLE_DEBUG_FORCE_RESCALING_IN_AUTO
-                if(abs(expMax) > scalingExponentThreshhold)
-#endif
-                {
+
+                if(abs(expMax) > scalingExponentThreshhold) {
                     *activateScaling = 1;
                 }
             }

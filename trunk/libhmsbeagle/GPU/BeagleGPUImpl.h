@@ -95,9 +95,11 @@ private:
     GPUPtr dDistanceQueue;
     
     GPUPtr dPtrQueue;
+    
+    GPUPtr dIntQueue;
 	
-	GPUPtr dMaxScalingFactors;
-	GPUPtr dIndexMaxScalingFactors;
+    GPUPtr dMaxScalingFactors;
+    GPUPtr dIndexMaxScalingFactors;
     
     GPUPtr dActiveScalingFactors;
     
@@ -121,6 +123,8 @@ private:
     GPUPtr* dTipPartialsBuffers;
     
     GPUPtr* hPtrQueue;
+    
+    int* hIntQueue;
     
     double* hCategoryRates; // Can keep in double-precision
 

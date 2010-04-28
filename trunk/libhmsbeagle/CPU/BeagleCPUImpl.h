@@ -38,7 +38,6 @@
 
 #include <vector>
 
-//#define BEAGLE_DEBUG_FORCE_RESCALING_IN_AUTO
 #define PAD_MATRICES // Pad transition matrix rows with an extra 1.0 for ambiguous characters
                      // None of the calcStates* currently work correctly when PAD_MATRICES
                      // is not defined.  This is flag for development-purposes only

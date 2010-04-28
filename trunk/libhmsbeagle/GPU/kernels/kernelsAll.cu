@@ -773,6 +773,7 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
 }
 
 __global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
+                                                   int* dIntQueue,
                                                    int* rootScaling,
                                                    unsigned short* activeScalingFactors,
                                                    int nodeCount,
@@ -785,7 +786,8 @@ __global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-        if (activeScalingFactors[n]) {
+        int sIndex = dIntQueue[n];
+        if (activeScalingFactors[sIndex]) {
             nodeScales = (signed char*) *((int*)dNodePtrQueue + n);
 
             total += nodeScales[index];
