@@ -367,6 +367,8 @@ protected:
 
     virtual int getPaddedPatternsModulus();
 
+    void* mallocAligned(size_t size);
+
 };
 
 template <typename REALTYPE>
