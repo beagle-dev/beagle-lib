@@ -1829,8 +1829,6 @@ void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
 	return ptr;
 }
 
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 template <typename REALTYPE>
