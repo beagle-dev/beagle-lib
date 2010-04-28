@@ -70,6 +70,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
     
     dPtrQueue = NULL;
 	
+    dIntQueue = NULL;
+    
     dMaxScalingFactors = NULL;
     dIndexMaxScalingFactors = NULL;
     
@@ -97,6 +99,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
     hPatternWeightsCache = NULL;
     
     hDistanceQueue = NULL;
+    
+    hIntQueue = NULL;
     
     hWeightsCache = NULL;
     hFrequenciesCache = NULL;
@@ -150,14 +154,14 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         
         gpu->FreeMemory(dPtrQueue);
         
-        gpu->FreeMemory(dIntQueue);
-        
         gpu->FreeMemory(dMaxScalingFactors);
         gpu->FreeMemory(dIndexMaxScalingFactors);
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             gpu->FreeMemory(dActiveScalingFactors);
             gpu->FreeMemory(dAccumulatedScalingFactors);
+            gpu->FreeMemory(dIntQueue);
+            free(hIntQueue);
         }
 	        
         free(dEigenValues);
@@ -178,8 +182,6 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         free(dTipPartialsBuffers);
 
         free(hPtrQueue);
-    
-        free(hIntQueue);
         
         free(hCategoryRates);
         
@@ -416,7 +418,11 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
     dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
+        dIntQueue = gpu->AllocateIntMemory(intQueueLength);
+        hIntQueue = (int*) malloc(sizeof(int) * intQueueLength);
+        checkHostMemory(hIntQueue);    
+        
         for (int i=0; i < kScaleBufferCount; i++)
             dScalingFactors[i] = gpu->AllocateMemory(sizeof(signed char) * scaleBufferSize); // TODO: char won't work for double-precision
     } else {
@@ -454,10 +460,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dPtrQueue = gpu->AllocateMemory(sizeof(GPUPtr) * ptrQueueLength);
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
-
-    dIntQueue = gpu->AllocateIntMemory(intQueueLength);
-    hIntQueue = (int*) malloc(sizeof(int) * intQueueLength);
-    checkHostMemory(hIntQueue);    
     
 	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
