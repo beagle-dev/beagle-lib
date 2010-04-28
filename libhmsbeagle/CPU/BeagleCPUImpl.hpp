@@ -1804,6 +1804,33 @@ int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
 	return 1;  // No padding
 }
 
+template<typename REALTYPE>
+void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
+	void *ptr = (void *) NULL;
+	const size_t align = 16;
+	int res;
+
+#if defined (__APPLE__)
+	/*
+	 presumably malloc on OS X always returns
+	 a 16-byte aligned pointer
+	 */
+	ptr = malloc(size);
+	if(ptr == (void*)NULL) {
+		assert(0);
+	}
+#else
+	res = posix_memalign(&ptr, align, size);
+	if (res != 0) {
+		assert(0);
+	}
+#endif
+
+	return ptr;
+}
+
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 template <typename REALTYPE>
