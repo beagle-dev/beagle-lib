@@ -716,6 +716,7 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
 }
 
 void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
+                                                  GPUPtr dIntQueue,
                                                   GPUPtr dRootScalingFactors,
                                                   GPUPtr dActiveFactors,
                                                   unsigned int nodeCount,
@@ -724,12 +725,12 @@ void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif
     
-    int parameterCountV = 3;
-    int totalParameterCount = 5;
+    int parameterCountV = 4;
+    int totalParameterCount = 6;
     gpu->LaunchKernel(fAccumulateFactorsAutoScaling,
                       bgAccumulateBlock, bgAccumulateGrid,
                       parameterCountV, totalParameterCount,
-                      dNodePtrQueue, dRootScalingFactors, dActiveFactors,
+                      dNodePtrQueue, dIntQueue, dRootScalingFactors, dActiveFactors,
                       nodeCount, patternCount);
 
 #ifdef BEAGLE_DEBUG_FLOW

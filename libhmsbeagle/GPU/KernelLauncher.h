@@ -245,6 +245,7 @@ public:
                                          unsigned int patternCount);
 
     void AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
+                                      GPUPtr dIntQueue,
                                       GPUPtr dRootScalingFactors,
                                       GPUPtr dActiveFactors,
                                       unsigned int nodeCount,

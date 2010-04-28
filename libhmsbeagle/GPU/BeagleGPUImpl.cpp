@@ -150,6 +150,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         
         gpu->FreeMemory(dPtrQueue);
         
+        gpu->FreeMemory(dIntQueue);
+        
         gpu->FreeMemory(dMaxScalingFactors);
         gpu->FreeMemory(dIndexMaxScalingFactors);
         
@@ -177,6 +179,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 
         free(hPtrQueue);
     
+        free(hIntQueue);
+        
         free(hCategoryRates);
         
         free(hPatternWeightsCache);
@@ -266,11 +270,14 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     kFlags = 0;
     
+    int intQueueLength = 0;
+    
     if (preferenceFlags & BEAGLE_FLAG_SCALING_AUTO || requirementFlags & BEAGLE_FLAG_SCALING_AUTO) {
         kFlags |= BEAGLE_FLAG_SCALING_AUTO;
         kFlags |= BEAGLE_FLAG_SCALERS_LOG;
         kScaleBufferCount = kInternalPartialsBufferCount;
         scaleBufferSize *= kCategoryCount;
+        intQueueLength = kScaleBufferCount;
     } else if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
         kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
         kFlags |= BEAGLE_FLAG_SCALERS_LOG;
@@ -343,7 +350,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
                                              kBufferCount + // dBranchLengths
                                              kMatrixCount * kCategoryCount * 2) + // dDistanceQueue
     SIZE_INT * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
-    sizeof(GPUPtr) * ptrQueueLength; // dPtrQueue
+    sizeof(GPUPtr) * ptrQueueLength +  // dPtrQueue
+    sizeof(int) * intQueueLength; // dIntQueue
     
     
     int availableMem = gpu->GetAvailableMemory();
@@ -447,6 +455,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hPtrQueue = (GPUPtr*) malloc(sizeof(GPUPtr) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
 
+    dIntQueue = gpu->AllocateIntMemory(intQueueLength);
+    hIntQueue = (int*) malloc(sizeof(int) * intQueueLength);
+    checkHostMemory(hIntQueue);    
+    
 	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
 
@@ -1147,12 +1159,16 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         
-        for(int n = 0; n < count; n++)
-            hPtrQueue[n] = dScalingFactors[scalingIndices[n] - kTipCount];
+        for(int n = 0; n < count; n++) {
+            int sIndex = scalingIndices[n] - kTipCount;
+            hPtrQueue[n] = dScalingFactors[sIndex];
+            hIntQueue[n] = sIndex;
+        }
         
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * count);
+        gpu->MemcpyHostToDevice(dIntQueue, hIntQueue, sizeof(int) * count);
         
-        kernels->AccumulateFactorsAutoScaling(dPtrQueue, dAccumulatedScalingFactors, dActiveScalingFactors, count, kPaddedPatternCount);        
+        kernels->AccumulateFactorsAutoScaling(dPtrQueue, dIntQueue, dAccumulatedScalingFactors, dActiveScalingFactors, count, kPaddedPatternCount);        
                 
     } else {        
         for(int n = 0; n < count; n++)
