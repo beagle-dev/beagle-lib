@@ -154,7 +154,7 @@ void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex
                 }
 #ifdef PAD_MATRICES
                 transitionMat[n] = 1.0;
-                n++;
+                n += PAD;
 #endif
             }
         }

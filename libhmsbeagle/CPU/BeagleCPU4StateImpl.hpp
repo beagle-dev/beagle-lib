@@ -49,7 +49,7 @@
 #define EXPERIMENTAL_OPENMP
 
 #ifdef PAD_MATRICES
-    #define OFFSET    5    // For easy conversion between 4/5
+    #define OFFSET    (4 + PAD)    // For easy conversion between 4/5
 #else
     #define OFFSET    4
 #endif

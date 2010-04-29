@@ -42,7 +42,6 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
 
-#define OFFSET 5
 #define DLS_USE_SSE2
 
 #if defined(DLS_USE_SSE2)
