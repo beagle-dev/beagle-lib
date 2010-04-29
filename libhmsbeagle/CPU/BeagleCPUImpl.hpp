@@ -308,7 +308,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     }
 
     for (int i = kTipCount; i < kBufferCount; i++) {
-        gPartials[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
+        gPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
         if (gPartials[i] == NULL)
             throw std::bad_alloc();
     }
@@ -346,12 +346,12 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
     if (gTransitionMatrices == NULL)
         throw std::bad_alloc();
     for (int i = 0; i < kMatrixCount; i++) {
-        gTransitionMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
+        gTransitionMatrices[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
         if (gTransitionMatrices[i] == 0L)
             throw std::bad_alloc();
     }
 
-    integrationTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
+    integrationTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kStateCount);
     firstDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
     secondDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
 
@@ -397,7 +397,7 @@ int BeagleCPUImpl<REALTYPE>::setTipStates(int tipIndex,
                                 const int* inStates) {
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-    gTipStates[tipIndex] = (int*) malloc(sizeof(int) * kPaddedPatternCount);
+    gTipStates[tipIndex] = (int*) mallocAligned(sizeof(int) * kPaddedPatternCount);
     // TODO: What if this throws a memory full error?
 	for (int j = 0; j < kPatternCount; j++) {
 		gTipStates[tipIndex][j] = (inStates[j] < kStateCount ? inStates[j] : kStateCount);
@@ -415,7 +415,7 @@ int BeagleCPUImpl<REALTYPE>::setTipPartials(int tipIndex,
     if (tipIndex < 0 || tipIndex >= kTipCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
     if(gPartials[tipIndex] == NULL) {
-        gPartials[tipIndex] = (REALTYPE*) malloc(sizeof(REALTYPE) * kPartialsSize);
+        gPartials[tipIndex] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
         // TODO: What if this throws a memory full error?
         if (gPartials[tipIndex] == 0L)
             return BEAGLE_ERROR_OUT_OF_MEMORY;
@@ -1807,7 +1807,7 @@ int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
 template<typename REALTYPE>
 void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
 	void *ptr = (void *) NULL;
-	const size_t align = 16;
+	const size_t align = 32; // TODO Why does this not work for 16?
 	int res;
 
 #if defined (__APPLE__)
