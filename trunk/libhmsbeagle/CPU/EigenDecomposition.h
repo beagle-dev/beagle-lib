@@ -16,8 +16,6 @@
 #include <cassert>
 #include <vector>
 
-#define PAD_MATRICES
-
 namespace beagle {
 namespace cpu {
 

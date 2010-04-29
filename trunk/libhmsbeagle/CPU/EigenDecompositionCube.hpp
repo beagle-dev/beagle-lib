@@ -116,7 +116,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					}
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
-					n++;
+					n += PAD;
 #endif
 				}
 			}
@@ -163,7 +163,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
-					n++;
+					n += PAD;
 #endif
 				}
 			}
@@ -207,7 +207,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
                     secondDerivMat[n] = 0.0;
-					n++;
+					n += PAD;
 #endif
 				}
 			}

@@ -41,6 +41,9 @@
 #define PAD_MATRICES // Pad transition matrix rows with an extra 1.0 for ambiguous characters
                      // None of the calcStates* currently work correctly when PAD_MATRICES
                      // is not defined.  This is flag for development-purposes only
+#ifdef PAD_MATRICES
+	#define PAD	1
+#endif
 
 namespace beagle {
 namespace cpu {

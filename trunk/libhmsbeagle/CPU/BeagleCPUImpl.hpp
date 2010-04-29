@@ -235,7 +235,7 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
 	kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
 #ifdef PAD_MATRICES
-    kMatrixSize = (1 + kStateCount) * kStateCount;
+    kMatrixSize = (PAD + kStateCount) * kStateCount;
 #else
     kMatrixSize = kStateCount * kStateCount;
 #endif
@@ -548,7 +548,7 @@ int BeagleCPUImpl<REALTYPE>::getTransitionMatrix(int matrixIndex,
 	for(int i = 0; i < kCategoryCount; i++) {
 		for(int j = 0; j < kStateCount; j++) {
 			beagleMemCpy(offsetOutMatrix,offsetBeagleMatrix,kStateCount);
-			offsetBeagleMatrix += kStateCount + 1; // Skip padding
+			offsetBeagleMatrix += kStateCount + PAD; // Skip padding
 			offsetOutMatrix += kStateCount;
 		}
 	}
@@ -588,7 +588,7 @@ int BeagleCPUImpl<REALTYPE>::setTransitionMatrix(int matrixIndex,
         for(int j = 0; j < kStateCount; j++) {
             beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
             offsetBeagleMatrix[kStateCount] = 1.0;
-            offsetBeagleMatrix += kStateCount + 1; // Skip padding
+            offsetBeagleMatrix += kStateCount + PAD; // Skip padding
             offsetInMatrix += kStateCount;
         }
     }
@@ -1125,7 +1125,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 					integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
 					u++;
 #ifdef PAD_MATRICES
-					w += (kStateCount + 1);
+					w += (kStateCount + PAD);
 #else
 					w += kStateCount;
 #endif
@@ -1152,7 +1152,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
 					}
 #ifdef PAD_MATRICES
 					// increment for the extra column at the end
-					w++;
+					w += PAD;
 #endif
 					integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
 					u++;
@@ -1234,7 +1234,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parIndex
 					firstDerivTmp[u] += firstDerivMatrix[w + stateChild] * partialsParent[v + i] * weight;
 					u++;
 #ifdef PAD_MATRICES
-					w += (kStateCount + 1);
+					w += (kStateCount + PAD);
 #else
 					w += kStateCount;
 #endif
@@ -1263,7 +1263,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsFirstDeriv(const int parIndex
 					}
 #ifdef PAD_MATRICES
 					// increment for the extra column at the end
-					w++;
+					w += PAD;
 #endif
 					integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
 					firstDerivTmp[u] += sumOverJD1 * partialsParent[v + i] * weight;
@@ -1357,7 +1357,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInde
 					secondDerivTmp[u] += secondDerivMatrix[w + stateChild] * partialsParent[v + i] * weight;
 					u++;
 #ifdef PAD_MATRICES
-					w += (kStateCount + 1);
+					w += (kStateCount + PAD);
 #else
 					w += kStateCount;
 #endif
@@ -1388,7 +1388,7 @@ int BeagleCPUImpl<REALTYPE>::calcEdgeLogLikelihoodsSecondDeriv(const int parInde
 					}
 #ifdef PAD_MATRICES
 					// increment for the extra column at the end
-					w++;
+					w += PAD;
 #endif
 					integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
 					firstDerivTmp[u] += sumOverJD1 * partialsParent[v + i] * weight;
@@ -1577,7 +1577,7 @@ void BeagleCPUImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
                 destP[v] = matrices1[w + state1] * matrices2[w + state2];
                 v++;
 #ifdef PAD_MATRICES
-                w += (kStateCount + 1);
+                w += (kStateCount + PAD);
 #else
                 w += kStateCount;
 #endif
@@ -1606,7 +1606,7 @@ void BeagleCPUImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP,
                            child2TransMat[w + state2] / scaleFactor;
                 v++;
 #ifdef PAD_MATRICES
-                w += (kStateCount + 1);
+                w += (kStateCount + PAD);
 #else
                 w += kStateCount;
 #endif
@@ -1640,7 +1640,7 @@ void BeagleCPUImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
                 }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w++;
+                w += PAD;
 #endif
                 destP[u] = tmp * sum;
                 u++;
@@ -1674,7 +1674,7 @@ void BeagleCPUImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* destP,
                 }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w++;
+                w += PAD;
 #endif
                 destP[u] = tmp * sum / scaleFactor;
                 u++;
@@ -1714,7 +1714,7 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
                 }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w++;
+                w += PAD;
 #endif
                 destP[u] = sum1 * sum2;
                 u++;
@@ -1747,7 +1747,7 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
                 }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w++;
+                w += PAD;
 #endif
                 destP[u] = sum1 * sum2 / scaleFactor;
                 u++;
@@ -1780,7 +1780,7 @@ void BeagleCPUImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
                 }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w++;
+                w += PAD;
 #endif
                 destP[u] = sum1 * sum2;
 
@@ -1807,7 +1807,11 @@ int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
 template<typename REALTYPE>
 void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
 	void *ptr = (void *) NULL;
-	const size_t align = 32; // TODO Why does this not work for 16?
+#if (PAD == 1)	
+	const size_t align = 32;
+#else // PAD == 2
+	const size_t align = 16;
+#endif
 	int res;
 
 #if defined (__APPLE__)
