@@ -602,6 +602,7 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
             tmpRealPartialsOffset += kPaddedStateCount;
             inPartialsOffset += kStateCount;
         }
+        tmpRealPartialsOffset += kPaddedStateCount * (kPaddedPatternCount - kPatternCount);
     }
     
     if (bufferIndex < kTipCount) {
