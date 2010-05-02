@@ -259,15 +259,17 @@ int BeagleGPUImpl::createInstance(int tipCount,
         
     // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
     int paddedPatterns = 0;
-    if (kPaddedStateCount == 4 && kPatternCount % 4 != 0)
+    if (kPaddedStateCount == 4 && kPatternCount % 4 != 0) 
         paddedPatterns = 4 - kPatternCount % 4;
-    else
-        paddedPatterns = 0;
-    
+            
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
+    int resultPaddedPatterns = 0;
+    if (kPaddedStateCount == 4 && kPaddedPatternCount % PATTERN_BLOCK_SIZE_4 != 0) 
+        resultPaddedPatterns = PATTERN_BLOCK_SIZE_4 - kPaddedPatternCount % PATTERN_BLOCK_SIZE_4;
+        
     int scaleBufferSize = kPaddedPatternCount;
     
     kFlags = 0;
@@ -394,9 +396,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
     }
     
     
-    dIntegrationTmp = gpu->AllocateRealMemory(kPaddedPatternCount);
-    dOutFirstDeriv = gpu->AllocateRealMemory(kPaddedPatternCount);
-    dOutSecondDeriv = gpu->AllocateRealMemory(kPaddedPatternCount);
+    dIntegrationTmp = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
+    dOutFirstDeriv = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
+    dOutSecondDeriv = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
 
     dPatternWeights = gpu->AllocateRealMemory(kPatternCount);
     
