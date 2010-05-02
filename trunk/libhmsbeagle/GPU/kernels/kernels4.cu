@@ -233,7 +233,7 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
     if (scalingActive) 
         partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx16pat4]);
         
-    if (myIdx < PATTERN_BLOCK_SIZE * 4)
+    if ((myIdx < PATTERN_BLOCK_SIZE * 4) && (myIdx + __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) < totalPatterns))
         scalingFactors[(blockIdx.x * PATTERN_BLOCK_SIZE * 4) + (matrix * totalPatterns) + myIdx] = sPartials1[multBy4(myIdx)];
 }
 

@@ -209,7 +209,7 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
         partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
 
     int myIdx = (patIdx * PADDED_STATE_COUNT) + state; // threadId in block
-    if (myIdx < PATTERN_BLOCK_SIZE)
+    if ((myIdx < PATTERN_BLOCK_SIZE) && (myIdx + __umul24(blockIdx.x, PATTERN_BLOCK_SIZE) < totalPatterns))
         scalingFactors[(blockIdx.x * PATTERN_BLOCK_SIZE) + (matrix * totalPatterns) + myIdx] = sPartials1[myIdx][0];
 
 }
