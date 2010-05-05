@@ -1807,12 +1807,6 @@ int BeagleCPUImpl<REALTYPE>::getPaddedPatternsModulus() {
 template<typename REALTYPE>
 void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
 	void *ptr = (void *) NULL;
-#if (PAD == 1)	
-	const size_t align = 32;
-#else // PAD == 2
-	const size_t align = 16;
-#endif
-	int res;
 
 #if defined (__APPLE__)
 	/*
@@ -1824,6 +1818,12 @@ void* BeagleCPUImpl<REALTYPE>::mallocAligned(size_t size) {
 		assert(0);
 	}
 #else
+    #if (PAD == 1)	
+        const size_t align = 32;
+    #else // PAD == 2
+        const size_t align = 16;
+    #endif
+	int res;
 	res = posix_memalign(&ptr, align, size);
 	if (res != 0) {
 		assert(0);

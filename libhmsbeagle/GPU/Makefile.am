@@ -9,8 +9,7 @@ BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp \
 KernelLauncher.h KernelResource.cpp KernelResource.h
 
-libcuda_la_CFLAGS = $(CUDA_CFLAGS)
-libcuda_la_CXXFLAGS = $(CUDA_CFLAGS)
+libcuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS)
 
 endif
 
@@ -35,8 +34,7 @@ BeagleOpenCL_Kernels.h: Makefile
 
 EXTRA_DIST = BeagleOpenCL_kernels.cu
 
-libopencl_la_CFLAGS = $(OPENCL_CFLAGS)
-libopencl_la_CXXFLAGS = $(OPENCL_CFLAGS)
+libopencl_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENCL_CFLAGS)
 
 endif
 
