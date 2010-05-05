@@ -32,7 +32,6 @@ BeagleCUDA_kernels.h: Makefile
 
 EXTRA_DIST = kernels4.cu kernelsX.cu kernelsAll.cu
 
-libcuda_kernels_la_CFLAGS = $(CUDA_CFLAGS)
 libcuda_kernels_la_CXXFLAGS = $(CUDA_CFLAGS)
 
 endif

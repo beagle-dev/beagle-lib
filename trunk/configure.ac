@@ -107,9 +107,6 @@ fi
 
 AM_CONDITIONAL(BUILDOPENCL, test ! x$with_opencl = xno)
 
-AC_SUBST(OPENCL_CFLAGS)
-AC_SUBST(OPENCL_LIBS)
-
 if( test ! x$with_opencl = xno ) 
 then
 	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
@@ -162,8 +159,6 @@ then
 fi
 
 AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
-AC_SUBST(CUDA_CFLAGS)
-AC_SUBST(CUDA_LIBS)
 AC_SUBST(NVCC)
 
 if( test ! x$NVCC = xno ) 
@@ -184,7 +179,6 @@ if test x$EMULATION = xtrue
 then
    NVCCFLAGS+=" -deviceemu"
 fi
-AC_SUBST(NVCCFLAGS)
 
 # ------------------------------------------------------------------------------
 # Setup SSE
@@ -193,8 +187,10 @@ AC_SUBST(NVCCFLAGS)
 AC_ARG_ENABLE(sse,
 	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
 
+SSE_CFLAGS=
 if test  "$enable_sse" = yes; then
-	CXXFLAGS+=" -msse2 -DENABLE_SSE"
+	SSE_CFLAGS+="-DENABLE_SSE"
+    AM_CXXFLAGS="$AM_CXXFLAGS -msse2"
 fi
 
 # ------------------------------------------------------------------------------
@@ -205,14 +201,12 @@ fi
 case $host_os in
 *darwin*)
   
-  CXXFLAGS+=" -DDLS_MACOS"
-  CFLAGS+=" -DDLS_MACOS"
+  AM_CXXFLAGS="$AM_CXXFLAGS -DDLS_MACOS"
   
   # CUDA will only work with i386
   if( test ! x$NVCC = xno )
   then
-     CXXFLAGS+=" -arch i386"
-     CFLAGS+=" -arch i386"
+     AM_CXXFLAGS="$AM_CXXFLAGS -arch i386"
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   # OpenCL requires the 10.6 SDK
@@ -223,19 +217,12 @@ case $host_os in
         [AC_MSG_ERROR([OpenCL builds require Mac OS X 10.6 and Xcode])])
   fi
 
-  AC_SUBST(CXXFLAGS)
-  AC_SUBST(CFLAGS)
-  AC_SUBST(LDFLAGS)
 esac
 
 case $host_os in
   *cygwin*)
-  CXXFLAGS+=" -D__int64=\"long long\""
-  CFLAGS+=" -D__int64=\"long long\""
+  AM_CXXFLAGS="$AM_CXXFLAGS -D__int64=\"long long\""
   LDFLAGS+=" -mno-cygwin -Wl,-add-stdcall-alias -shared -no-undefined"
-  AC_SUBST(CXXFLAGS)
-  AC_SUBST(CFLAGS)
-  AC_SUBST(LDFLAGS)
 esac
 
 # ------------------------------------------------------------------------------
@@ -259,6 +246,19 @@ case $host_os in
 esac 
 AC_SUBST(JNI_EXTRA_LDFLAGS)
 
+
+# ------------------------------------------------------------------------------
+# Distribute common variables
+# ------------------------------------------------------------------------------
+
+AC_SUBST(NVCCFLAGS)
+AC_SUBST(CUDA_CFLAGS)
+AC_SUBST(CUDA_LIBS)
+AC_SUBST(OPENCL_CFLAGS)
+AC_SUBST(OPENCL_LIBS)
+AC_SUBST(SSE_CFLAGS)
+AC_SUBST(AM_CXXFLAGS)
+AC_SUBST(LDFLAGS)
 
 # ------------------------------------------------------------------------------
 # Doxygen support 

@@ -29,6 +29,18 @@
 			name = OpenCL_kernels;
 			productName = OpenCL_kernels2;
 		};
+		64B0E83311923743002715F8 /* libhmsbeagle install */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 64B0E83811923770002715F8 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */;
+			buildPhases = (
+				64B0E83211923743002715F8 /* ShellScript */,
+			);
+			dependencies = (
+				64B0E83711923747002715F8 /* PBXTargetDependency */,
+			);
+			name = "libhmsbeagle install";
+			productName = "libhmsbeagle install";
+		};
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
@@ -127,13 +139,6 @@
 			remoteGlobalIDString = 649B46E11024035300FC2C85;
 			remoteInfo = CUDA_kernels;
 		};
-		64507528113C46DD0057F416 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 64507513113C46C30057F416;
-			remoteInfo = matrixTestCUDAXcode;
-		};
 		649B46E5102403CA00FC2C85 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
@@ -161,6 +166,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 649B470E1024050D00FC2C85;
 			remoteInfo = OpenCL_kernels;
+		};
+		64B0E83611923747002715F8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 643E276B1191EDFE0018C69A /* libhmsbeagle */;
+			remoteInfo = libhmsbeagle;
 		};
 		64C0EB351034BC820004734E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -219,6 +231,14 @@
 		6425A1A4114AD3E80056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/GPU/Makefile.am; sourceTree = SOURCE_ROOT; };
 		6425A1A5114AD4550056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/GPU/kernels/Makefile.am; sourceTree = SOURCE_ROOT; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		643E284611921D3A0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E284811921D7B0018C69A /* beagle.dox */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = beagle.dox; path = ../../beagle.dox; sourceTree = SOURCE_ROOT; };
+		643E284D11921DC90018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/complextest/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E284E11921DDD0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/fourtaxon/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E284F11921DEB0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/genomictest/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E285011921DF80018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/matrixtest/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E285111921E070018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/tinytest/Makefile.am; sourceTree = SOURCE_ROOT; };
+		643E286A119224460018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/JNI/Makefile.am; sourceTree = SOURCE_ROOT; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64507523113C46C30057F416 /* matrixTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = matrixTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		645670B310751CAC00E9CDF0 /* EigenDecomposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecomposition.h; path = ../../libhmsbeagle/CPU/EigenDecomposition.h; sourceTree = SOURCE_ROOT; };
@@ -402,8 +422,11 @@
 				6425A199114AD36F0056D2EA /* CPU */,
 				6425A19A114AD3740056D2EA /* GPU */,
 				6425A1A0114AD3AE0056D2EA /* kernels */,
+				643E28691192242B0018C69A /* JNI */,
+				643E284411921D100018C69A /* examples */,
 				6425A18E114AD1620056D2EA /* aminclude.am */,
 				6425A18F114AD1620056D2EA /* autogen.sh */,
+				643E284811921D7B0018C69A /* beagle.dox */,
 				6425A18A114AD1050056D2EA /* configure.ac */,
 				6425A190114AD1620056D2EA /* hmsbeagle-1.0.pc.in */,
 				6425A191114AD1620056D2EA /* Makefile.am */,
@@ -441,6 +464,67 @@
 				6425A1A5114AD4550056D2EA /* Makefile.am */,
 			);
 			name = kernels;
+			sourceTree = "<group>";
+		};
+		643E284411921D100018C69A /* examples */ = {
+			isa = PBXGroup;
+			children = (
+				643E284A11921D9E0018C69A /* complextest */,
+				643E284B11921DA40018C69A /* fourtaxon */,
+				643E284911921D910018C69A /* genomictest */,
+				643E284C11921DA90018C69A /* matrixtest */,
+				643E284511921D1E0018C69A /* tinytest */,
+				643E284611921D3A0018C69A /* Makefile.am */,
+			);
+			name = examples;
+			sourceTree = "<group>";
+		};
+		643E284511921D1E0018C69A /* tinytest */ = {
+			isa = PBXGroup;
+			children = (
+				643E285111921E070018C69A /* Makefile.am */,
+			);
+			name = tinytest;
+			sourceTree = "<group>";
+		};
+		643E284911921D910018C69A /* genomictest */ = {
+			isa = PBXGroup;
+			children = (
+				643E284F11921DEB0018C69A /* Makefile.am */,
+			);
+			name = genomictest;
+			sourceTree = "<group>";
+		};
+		643E284A11921D9E0018C69A /* complextest */ = {
+			isa = PBXGroup;
+			children = (
+				643E284D11921DC90018C69A /* Makefile.am */,
+			);
+			name = complextest;
+			sourceTree = "<group>";
+		};
+		643E284B11921DA40018C69A /* fourtaxon */ = {
+			isa = PBXGroup;
+			children = (
+				643E284E11921DDD0018C69A /* Makefile.am */,
+			);
+			name = fourtaxon;
+			sourceTree = "<group>";
+		};
+		643E284C11921DA90018C69A /* matrixtest */ = {
+			isa = PBXGroup;
+			children = (
+				643E285011921DF80018C69A /* Makefile.am */,
+			);
+			name = matrixtest;
+			sourceTree = "<group>";
+		};
+		643E28691192242B0018C69A /* JNI */ = {
+			isa = PBXGroup;
+			children = (
+				643E286A119224460018C69A /* Makefile.am */,
+			);
+			name = JNI;
 			sourceTree = "<group>";
 		};
 		645670DF10751D0F00E9CDF0 /* CPU Complex */ = {
@@ -571,6 +655,23 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXLegacyTarget section */
+		643E276B1191EDFE0018C69A /* libhmsbeagle */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(BEAGLE_CXXFLAGS) $(ACTION)";
+			buildConfigurationList = 643E27791191EE310018C69A /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/make;
+			buildWorkingDirectory = ../..;
+			dependencies = (
+			);
+			name = libhmsbeagle;
+			passBuildSettingsInEnvironment = 0;
+			productName = libhmsbeagle;
+		};
+/* End PBXLegacyTarget section */
+
 /* Begin PBXNativeTarget section */
 		643430DD0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {
 			isa = PBXNativeTarget;
@@ -651,7 +752,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				64507529113C46DD0057F416 /* PBXTargetDependency */,
 				649B46EA102403D800FC2C85 /* PBXTargetDependency */,
 			);
 			name = genomicTestCUDAXcode;
@@ -767,6 +867,8 @@
 				64C0EB331034BC820004734E /* genomicTestOpenCLXcode */,
 				649B46E11024035300FC2C85 /* CUDA_kernels */,
 				649B470E1024050D00FC2C85 /* OpenCL_kernels */,
+				643E276B1191EDFE0018C69A /* libhmsbeagle */,
+				64B0E83311923743002715F8 /* libhmsbeagle install */,
 			);
 		};
 /* End PBXProject section */
@@ -807,6 +909,19 @@
 			shellPath = /bin/sh;
 			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\necho \"// auto-generated header file with OpenCL kernels code\" > BeagleOpenCL_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleOpenCL_kernels.h\n\ncat BeagleOpenCL_kernels.cl | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels.h\n\necho \"\\\"\" >> BeagleOpenCL_kernels.h\n\nexit 0";
 			showEnvVarsInLog = 0;
+		};
+		64B0E83211923743002715F8 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "cd $PROJECT_DIR/../..\n\nmake install";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -969,11 +1084,6 @@
 			target = 649B46E11024035300FC2C85 /* CUDA_kernels */;
 			targetProxy = 64507515113C46C30057F416 /* PBXContainerItemProxy */;
 		};
-		64507529113C46DD0057F416 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 64507513113C46C30057F416 /* matrixTestCUDAXcode */;
-			targetProxy = 64507528113C46DD0057F416 /* PBXContainerItemProxy */;
-		};
 		649B46E6102403CA00FC2C85 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 649B46E11024035300FC2C85 /* CUDA_kernels */;
@@ -993,6 +1103,11 @@
 			isa = PBXTargetDependency;
 			target = 649B470E1024050D00FC2C85 /* OpenCL_kernels */;
 			targetProxy = 649B47121024056E00FC2C85 /* PBXContainerItemProxy */;
+		};
+		64B0E83711923747002715F8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 643E276B1191EDFE0018C69A /* libhmsbeagle */;
+			targetProxy = 64B0E83611923747002715F8 /* PBXContainerItemProxy */;
 		};
 		64C0EB341034BC820004734E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1066,6 +1181,19 @@
 				PRODUCT_NAME = fourTaxonCPUXcode;
 				USER_HEADER_SEARCH_PATHS = ../../;
 				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		643E276C1191EDFE0018C69A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BEAGLE_CXXFLAGS = "CXXFLAGS=-g";
+			};
+			name = Debug;
+		};
+		643E276D1191EDFE0018C69A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 			};
 			name = Release;
 		};
@@ -1385,6 +1513,27 @@
 			};
 			name = Release;
 		};
+		64B0E83411923743002715F8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				PRODUCT_NAME = "libhmsbeagle install";
+			};
+			name = Debug;
+		};
+		64B0E83511923743002715F8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				PRODUCT_NAME = "libhmsbeagle install";
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
 		64C0EB421034BC820004734E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1587,6 +1736,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		643E27791191EE310018C69A /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				643E276C1191EDFE0018C69A /* Debug */,
+				643E276D1191EDFE0018C69A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		644D3EC90FFDBD8300774CDD /* Build configuration list for PBXNativeTarget "tinyTestCUDAXcode" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1646,6 +1804,15 @@
 			buildConfigurations = (
 				649B470F1024050D00FC2C85 /* Debug */,
 				649B47101024050D00FC2C85 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64B0E83811923770002715F8 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64B0E83411923743002715F8 /* Debug */,
+				64B0E83511923743002715F8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
