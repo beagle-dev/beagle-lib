@@ -106,10 +106,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTransitionMatrix
- * Signature: (II[D)I
+ * Signature: (II[DD)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
-  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jint, jdoubleArray, jdouble);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
