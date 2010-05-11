@@ -199,7 +199,7 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(categoryRates, 0, this.categoryRates, 0, this.categoryRates.length);
     }
 
-    public void setTransitionMatrix(final int matrixIndex, final double[] inMatrix) {
+    public void setTransitionMatrix(final int matrixIndex, final double[] inMatrix, final double paddedValue) {
         System.arraycopy(inMatrix, 0, this.matrices[matrixIndex], 0, this.matrixSize);
     }
 

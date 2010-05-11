@@ -131,8 +131,8 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-    public void setTransitionMatrix(int matrixIndex, final double[] inMatrix) {
-        int errCode = BeagleJNIWrapper.INSTANCE.setTransitionMatrix(instance, matrixIndex, inMatrix);
+    public void setTransitionMatrix(int matrixIndex, final double[] inMatrix, double paddedValue) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setTransitionMatrix(instance, matrixIndex, inMatrix, paddedValue);
         if (errCode != 0) {
             throw new BeagleException("setTransitionMatrix", errCode);
         }

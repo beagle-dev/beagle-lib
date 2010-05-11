@@ -218,6 +218,19 @@
 		33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPU4StateSSEImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.hpp; sourceTree = SOURCE_ROOT; };
 		33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateGCDImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.cpp; sourceTree = SOURCE_ROOT; };
 		33CE770310669F4C00CBF579 /* BeagleCPU4StateGCDImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateGCDImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.h; sourceTree = SOURCE_ROOT; };
+		640D70B21199CF800068947E /* Beagle.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = Beagle.java; path = ../../java/beagle/Beagle.java; sourceTree = SOURCE_ROOT; };
+		640D70B31199CF800068947E /* BeagleErrorCode.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleErrorCode.java; path = ../../java/beagle/BeagleErrorCode.java; sourceTree = SOURCE_ROOT; };
+		640D70B41199CF800068947E /* BeagleException.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleException.java; path = ../../java/beagle/BeagleException.java; sourceTree = SOURCE_ROOT; };
+		640D70B51199CF800068947E /* BeagleFactory.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleFactory.java; path = ../../java/beagle/BeagleFactory.java; sourceTree = SOURCE_ROOT; };
+		640D70B61199CF800068947E /* BeagleFlag.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleFlag.java; path = ../../java/beagle/BeagleFlag.java; sourceTree = SOURCE_ROOT; };
+		640D70B71199CF800068947E /* BeagleInfo.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleInfo.java; path = ../../java/beagle/BeagleInfo.java; sourceTree = SOURCE_ROOT; };
+		640D70B81199CF800068947E /* BeagleJNIImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleJNIImpl.java; path = ../../java/beagle/BeagleJNIImpl.java; sourceTree = SOURCE_ROOT; };
+		640D70B91199CF800068947E /* BeagleJNIWrapper.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleJNIWrapper.java; path = ../../java/beagle/BeagleJNIWrapper.java; sourceTree = SOURCE_ROOT; };
+		640D70BA1199CF800068947E /* DependencyAwareBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = DependencyAwareBeagleImpl.java; path = ../../java/beagle/DependencyAwareBeagleImpl.java; sourceTree = SOURCE_ROOT; };
+		640D70BB1199CF800068947E /* FourStateBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = FourStateBeagleImpl.java; path = ../../java/beagle/FourStateBeagleImpl.java; sourceTree = SOURCE_ROOT; };
+		640D70BC1199CF800068947E /* GeneralBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = GeneralBeagleImpl.java; path = ../../java/beagle/GeneralBeagleImpl.java; sourceTree = SOURCE_ROOT; };
+		640D70BD1199CF800068947E /* InstanceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = InstanceDetails.java; path = ../../java/beagle/InstanceDetails.java; sourceTree = SOURCE_ROOT; };
+		640D70BE1199CF800068947E /* ResourceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = ResourceDetails.java; path = ../../java/beagle/ResourceDetails.java; sourceTree = SOURCE_ROOT; };
 		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp; sourceTree = SOURCE_ROOT; };
 		64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle_BeagleJNIWrapper.h; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h; sourceTree = SOURCE_ROOT; };
 		6420678D102623AC004AB87A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = ../../examples/tinytest/tinytest.cpp; sourceTree = SOURCE_ROOT; };
@@ -379,6 +392,7 @@
 				649C825E1027A26000B21A29 /* GPU OpenCL */,
 				649C82461027866E00B21A29 /* Examples */,
 				64206723102618CE004AB87A /* JNI */,
+				640D70B01199CEC70068947E /* java */,
 				6425A17D114AD0EF0056D2EA /* Makefiles */,
 				6474F594101F90EB00A1A469 /* Frameworks */,
 				649E82EE0FD703EA0044891D /* Other */,
@@ -404,6 +418,27 @@
 			);
 			name = "CPU 4State GCD Impl";
 			sourceTree = SOURCE_ROOT;
+		};
+		640D70B01199CEC70068947E /* java */ = {
+			isa = PBXGroup;
+			children = (
+				640D70B21199CF800068947E /* Beagle.java */,
+				640D70B31199CF800068947E /* BeagleErrorCode.java */,
+				640D70B41199CF800068947E /* BeagleException.java */,
+				640D70B51199CF800068947E /* BeagleFactory.java */,
+				640D70B61199CF800068947E /* BeagleFlag.java */,
+				640D70B71199CF800068947E /* BeagleInfo.java */,
+				640D70B81199CF800068947E /* BeagleJNIImpl.java */,
+				640D70B91199CF800068947E /* BeagleJNIWrapper.java */,
+				640D70BA1199CF800068947E /* DependencyAwareBeagleImpl.java */,
+				640D70BB1199CF800068947E /* FourStateBeagleImpl.java */,
+				640D70BC1199CF800068947E /* GeneralBeagleImpl.java */,
+				640D70BD1199CF800068947E /* InstanceDetails.java */,
+				640D70BE1199CF800068947E /* ResourceDetails.java */,
+			);
+			name = java;
+			path = ../../libhmsbeagle/JNI;
+			sourceTree = "<group>";
 		};
 		64206723102618CE004AB87A /* JNI */ = {
 			isa = PBXGroup;
