@@ -304,14 +304,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    setTransitionMatrix
- * Signature: (II[D)I
+ * Signature: (II[DD)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
-  (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray inMatrix)
+  (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray inMatrix, jdouble paddedValue)
 {
     jdouble *matrix = env->GetDoubleArrayElements(inMatrix, NULL);
 
-	jint errCode = (jint)beagleSetTransitionMatrix(instance, matrixIndex, (double *)matrix);
+	jint errCode = (jint)beagleSetTransitionMatrix(instance, matrixIndex, (double *)matrix, paddedValue);
 
     env->ReleaseDoubleArrayElements(inMatrix, matrix, JNI_ABORT);
 
