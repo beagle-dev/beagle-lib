@@ -171,11 +171,12 @@ public interface Beagle {
      * This function copies a finite-time transition probability matrix into a matrix buffer.
      * @param matrixIndex   Index of matrix buffer (input)
      * @param inMatrix          Pointer to source transition probability matrix (input)
+     * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
      */
     void setTransitionMatrix(
             int matrixIndex,			/**< Index of matrix buffer (input) */
-            final double[] inMatrix);	/**< Pointer to source transition probability matrix (input) */
-
+            final double[] inMatrix, 	/**< Pointer to source transition probability matrix (input) */
+            double paddedValue);
     /**
      * Get a finite-time transition probability matrix
      *

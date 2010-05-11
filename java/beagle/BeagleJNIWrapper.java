@@ -74,7 +74,7 @@ public class BeagleJNIWrapper {
     public native int setCategoryRates(int instance,
                                        final double[] inCategoryRates);
 
-    public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
+    public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix, double paddedValue);
 
     public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
 
