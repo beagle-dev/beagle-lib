@@ -189,7 +189,8 @@ public:
     int setCategoryRates(const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
-                            const double* inMatrix);
+                            const double* inMatrix,
+                            double paddedValue);
     
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);

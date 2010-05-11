@@ -357,7 +357,8 @@ int main( int argc, const char* argv[] )
 													   edgeLengths[b]);
 		beagleSetTransitionMatrix(instance,
 								  nodeIndices[b],
-								  transitionMatrix);
+								  transitionMatrix,
+                                  1.0);
 		free(transitionMatrix);
 	}
     

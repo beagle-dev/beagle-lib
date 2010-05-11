@@ -840,7 +840,8 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
 }
 
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
-                                       const double* inMatrix) {
+                                       const double* inMatrix,
+                                       double paddedValue) {
     // TODO: test setTransitionMatrix
     
 #ifdef BEAGLE_DEBUG_FLOW
