@@ -579,7 +579,8 @@ int BeagleCPUImpl<REALTYPE>::getSiteDerivatives(double* outFirstDerivatives,
 
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::setTransitionMatrix(int matrixIndex,
-                                       const double* inMatrix) {
+                                       const double* inMatrix,
+                                       double paddedValue) {
 
 #ifdef PAD_MATRICES
     const double* offsetInMatrix = inMatrix;
@@ -587,7 +588,7 @@ int BeagleCPUImpl<REALTYPE>::setTransitionMatrix(int matrixIndex,
     for(int i = 0; i < kCategoryCount; i++) {
         for(int j = 0; j < kStateCount; j++) {
             beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
-            offsetBeagleMatrix[kStateCount] = 1.0;
+            offsetBeagleMatrix[kStateCount] = paddedValue;
             offsetBeagleMatrix += kStateCount + PAD; // Skip padding
             offsetInMatrix += kStateCount;
         }

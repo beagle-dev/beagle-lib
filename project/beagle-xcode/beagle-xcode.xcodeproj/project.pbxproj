@@ -171,7 +171,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 643E276B1191EDFE0018C69A /* libhmsbeagle */;
+			remoteGlobalIDString = 643E276B1191EDFE0018C69A;
 			remoteInfo = libhmsbeagle;
 		};
 		64C0EB351034BC820004734E /* PBXContainerItemProxy */ = {

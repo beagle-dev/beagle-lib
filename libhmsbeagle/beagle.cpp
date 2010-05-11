@@ -586,13 +586,14 @@ int beagleSetCategoryRates(int instance,
 
 int beagleSetTransitionMatrix(int instance,
                         int matrixIndex,
-                        const double* inMatrix) {
+                        const double* inMatrix,
+                        double paddedValue) {
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 
-        return beagleInstance->setTransitionMatrix(matrixIndex, inMatrix);
+        return beagleInstance->setTransitionMatrix(matrixIndex, inMatrix, paddedValue);
 //    }
 //    catch (std::bad_alloc &) {
 //        return BEAGLE_ERROR_OUT_OF_MEMORY;

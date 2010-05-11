@@ -417,12 +417,14 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
  * @param inMatrix      Pointer to source transition probability matrix (input)
+ * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
                               int matrixIndex,
-                              const double* inMatrix);
+                              const double* inMatrix,
+                              double paddedValue);
 
 /**
  * @brief Get a finite-time transition probability matrix

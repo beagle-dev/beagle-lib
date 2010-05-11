@@ -86,7 +86,8 @@ public:
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,
-                                    const double* inMatrix) = 0;
+                                    const double* inMatrix,
+                                    double paddedValue) = 0;
     
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
