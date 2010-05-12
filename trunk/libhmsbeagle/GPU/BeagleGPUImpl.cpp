@@ -379,6 +379,26 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dWeights = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     
+    dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
+    dMatrices[0] = gpu->AllocateRealMemory(kMatrixCount * kMatrixSize * kCategoryCount);
+    
+    for (int i = 1; i < kMatrixCount; i++) {
+        dMatrices[i] = dMatrices[i-1] + kMatrixSize * kCategoryCount * SIZE_REAL;
+    }
+    
+    if (kScaleBufferCount > 0) {
+        dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
+        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
+            dScalingFactors[0] =  gpu->AllocateMemory(sizeof(signed char) * kScaleBufferSize * kScaleBufferCount); // TODO: char won't work for double-precision
+            for (int i=1; i < kScaleBufferCount; i++)
+                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
+        } else {
+            dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
+            for (int i=1; i < kScaleBufferCount; i++)
+                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * SIZE_REAL;
+        }
+    }
+    
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
     	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);
@@ -411,19 +431,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
-    if (kScaleBufferCount > 0) {
-        dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
-            dScalingFactors[0] =  gpu->AllocateMemory(sizeof(signed char) * kScaleBufferSize * kScaleBufferCount); // TODO: char won't work for double-precision
-            for (int i=1; i < kScaleBufferCount; i++)
-                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
-        } else {
-            dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
-            for (int i=1; i < kScaleBufferCount; i++)
-                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * SIZE_REAL;
-        }
-    }
-    
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
@@ -437,13 +444,6 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     kLastCompactBufferIndex = kCompactBufferCount - 1;
     kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
-    
-    dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
-    dMatrices[0] = gpu->AllocateRealMemory(kMatrixCount * kMatrixSize * kCategoryCount);
-
-    for (int i = 1; i < kMatrixCount; i++) {
-        dMatrices[i] = dMatrices[i-1] + kMatrixSize * kCategoryCount * SIZE_REAL;
-    }
         
     // No execution has more no kBufferCount events
     dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
