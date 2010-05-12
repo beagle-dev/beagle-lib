@@ -37,7 +37,8 @@
 
 extern "C" {
 
-__global__ void kernelMatrixMulADB(REAL** listC,
+__global__ void kernelMatrixMulADB(REAL* dMatrices,
+                                   int* listC,
                                    REAL* A,
                                    REAL* D,
                                    REAL* B,
@@ -61,7 +62,7 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        C = (REAL*)((int)dMatrices + listC[wMatrix]); // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -148,7 +149,8 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     }
 }
 
-__global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
+__global__ void kernelMatrixMulADBFirstDeriv(REAL* dMatrices,
+                                           int* listC,
                                            REAL* A,
                                            REAL* D,
                                            REAL* B,
@@ -174,8 +176,8 @@ __global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
-        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
+        C = (REAL*)((int)dMatrices + listC[wMatrix]);
+        CFirstDeriv = (REAL*)((int)dMatrices + listC[wMatrix + totalMatrix]);
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -279,7 +281,8 @@ __global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
     }
 }
 
-__global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
+__global__ void kernelMatrixMulADBSecondDeriv(REAL* dMatrices,
+                                           int* listC,
                                            REAL* A,
                                            REAL* D,
                                            REAL* B,
@@ -306,9 +309,9 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
-        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
-        CSecondDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix * 2); // Non-coalescent read
+        C = (REAL*)((int)dMatrices + listC[wMatrix]);
+        CFirstDeriv = (REAL*)((int)dMatrices + listC[wMatrix + totalMatrix]);
+        CSecondDeriv = (REAL*)((int)dMatrices + listC[wMatrix + totalMatrix * 2]);
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -456,7 +459,8 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
 		}
 // end DO_MULTIPLICATION(limit)
 
-__global__ void kernelMatrixMulADBComplex(REAL** listC,
+__global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
+                                   int* listC,
                                    REAL* A,
                                    REAL* D,
                                    REAL* B,
@@ -480,7 +484,7 @@ __global__ void kernelMatrixMulADBComplex(REAL** listC,
     int ty = threadIdx.y;
 
     if (tx == 0 && ty == 0) {
-        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        C = (REAL*)((int)dMatrices + listC[wMatrix]);
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -717,7 +721,8 @@ __global__ void kernelSumSites3(REAL* dArray1,
 }
 
 
-__global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
+__global__ void kernelAccumulateFactors(REAL* dScalingFactors,
+                                        int* dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -729,7 +734,7 @@ __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+        nodeScales = (REAL*)((int)dScalingFactors + dNodePtrQueue[n]);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -746,7 +751,8 @@ __global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
+__global__ void kernelAccumulateFactorsScalersLog(REAL* dScalingFactors,
+                                                 int* dNodePtrQueue,
                                                  REAL* rootScaling,
                                                  int nodeCount,
                                                  int patternCount) {
@@ -758,7 +764,7 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+        nodeScales = (REAL*)((int)dScalingFactors + dNodePtrQueue[n]);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -772,12 +778,13 @@ __global__ void kernelAccumulateFactorsScalersLog(REAL** dNodePtrQueue,
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
-                                                   int* dIntQueue,
+__global__ void kernelAccumulateFactorsAutoScaling(signed char* dScalingFactors,
+                                                   int* dNodePtrQueue,
                                                    int* rootScaling,
                                                    unsigned short* activeScalingFactors,
                                                    int nodeCount,
-                                                   int patternCount) {
+                                                   int patternCount,
+                                                   int scaleBufferSize) {
     int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
     int index = pattern + blockIdx.y * patternCount;
 
@@ -786,9 +793,9 @@ __global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-        int sIndex = dIntQueue[n];
+        int sIndex = dNodePtrQueue[n];
         if (activeScalingFactors[sIndex]) {
-            nodeScales = (signed char*) *((int*)dNodePtrQueue + n);
+            nodeScales = (signed char*)((int)dScalingFactors + dNodePtrQueue[n] * scaleBufferSize);
 
             total += nodeScales[index];
         }
@@ -799,7 +806,8 @@ __global__ void kernelAccumulateFactorsAutoScaling(signed char** dNodePtrQueue,
 }
 
 
-__global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
+__global__ void kernelRemoveFactors(REAL* dScalingFactors,
+                                    int* dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -811,7 +819,7 @@ __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+        nodeScales = (REAL*)((int)dScalingFactors + dNodePtrQueue[n]);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -828,7 +836,8 @@ __global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
         rootScaling[pattern] -= total;
 } 
 
-__global__ void kernelRemoveFactorsScalersLog(REAL** dNodePtrQueue,
+__global__ void kernelRemoveFactorsScalersLog(REAL* dScalingFactors,
+                                             int* dNodePtrQueue,
                                              REAL* rootScaling,
                                              int nodeCount,
                                              int patternCount) {
@@ -840,7 +849,7 @@ __global__ void kernelRemoveFactorsScalersLog(REAL** dNodePtrQueue,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
+        nodeScales = (REAL*)((int)dScalingFactors + dNodePtrQueue[n]);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
