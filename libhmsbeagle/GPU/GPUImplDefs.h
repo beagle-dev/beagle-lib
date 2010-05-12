@@ -36,8 +36,6 @@
 //#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH
 
-//#define FLAT_MEMORY_SPACE
-
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
     #define REAL    double
