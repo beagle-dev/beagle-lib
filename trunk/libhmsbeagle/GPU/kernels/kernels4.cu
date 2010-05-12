@@ -1410,7 +1410,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
                                               REAL* dScalingFactors,
-											  int* dPtrQueue,
+											  unsigned int* dPtrQueue,
 											  REAL* dMaxScalingFactors,
 											  REAL* dIndexMaxScalingFactors,
                                               int matrixCount,
@@ -1459,13 +1459,13 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
     }
     __syncthreads();
 
-	REAL cumulativeScalingFactor = ((REAL*) ((int)dScalingFactors + dPtrQueue[subsetIndex]))[pattern];
+	REAL cumulativeScalingFactor = (dScalingFactors + dPtrQueue[subsetIndex])[pattern];
 	
 	if (subsetIndex == 0) {
 		int indexMaxScalingFactor = 0;
 		REAL maxScalingFactor = cumulativeScalingFactor;
 		for (int j = 1; j < subsetCount; j++) {
-			REAL tmpScalingFactor = ((REAL*) ((int)dScalingFactors + dPtrQueue[j]))[pattern];
+			REAL tmpScalingFactor = (dScalingFactors + dPtrQueue[j])[pattern];
 			if (tmpScalingFactor > maxScalingFactor) {
 				indexMaxScalingFactor = j;
 				maxScalingFactor = tmpScalingFactor;
