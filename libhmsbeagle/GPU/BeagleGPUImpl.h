@@ -121,7 +121,7 @@ private:
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
-    int* hPtrQueue;
+    unsigned int* hPtrQueue;
     
     double* hCategoryRates; // Can keep in double-precision
 
