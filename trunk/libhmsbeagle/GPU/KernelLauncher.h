@@ -102,34 +102,29 @@ public:
     
 // Kernel links
 #ifdef CUDA
-    void GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
+                                          GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
                                           unsigned int totalMatrix);
 
-    void GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dMatrices,
+                                                    GPUPtr dPtrQueue,
                                                      GPUPtr dEvec,
                                                      GPUPtr dIevc,
                                                      GPUPtr dEigenValues,
                                                      GPUPtr distanceQueue,
                                                      unsigned int totalMatrix);    
     
-    void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrices,
+                                                     GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
                                           unsigned int totalMatrix);
-
-    void GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
-                                           GPUPtr dEvec,
-                                           GPUPtr dIevc,
-                                           GPUPtr dEigenValues,
-                                           GPUPtr distanceQueue,
-                                           GPUPtr dComplex,
-                                           unsigned int totalMatrix);
 
 #else //OpenCL
     void GetTransitionProbabilitiesSquare(GPUPtr dPtr,
@@ -239,19 +234,22 @@ public:
                                                   unsigned int patternCount,
                                                   unsigned int categoryCount);
     
-    void AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
+    void AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
+                                         GPUPtr dNodePtrQueue,
                                          GPUPtr dRootScalingFactors,
                                          unsigned int nodeCount,
                                          unsigned int patternCount);
 
-    void AccumulateFactorsAutoScaling(GPUPtr dNodePtrQueue,
-                                      GPUPtr dIntQueue,
+    void AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
+                                      GPUPtr dNodePtrQueue,
                                       GPUPtr dRootScalingFactors,
                                       GPUPtr dActiveFactors,
                                       unsigned int nodeCount,
-                                      unsigned int patternCount);
+                                      unsigned int patternCount,
+                                      unsigned int scaleBufferSize);
     
-    void RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
+    void RemoveFactorsDynamicScaling(GPUPtr dScalingFactors,
+                                     GPUPtr dNodePtrQueue,
                                      GPUPtr dRootScalingFactors,
                                      unsigned int nodeCount,
                                      unsigned int patternCount);    
@@ -293,6 +291,7 @@ public:
 											 GPUPtr dRootPartials,
 											 GPUPtr dWeights,
 											 GPUPtr dFrequencies,
+                                             GPUPtr dScalingFactors,
 											 GPUPtr dPtrQueue,
 											 GPUPtr dMaxScalingFactors,
 											 GPUPtr dIndexMaxScalingFactors,

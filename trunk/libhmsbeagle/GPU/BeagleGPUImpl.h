@@ -73,6 +73,7 @@ private:
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
+    int kScaleBufferSize;
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
@@ -95,8 +96,6 @@ private:
     GPUPtr dDistanceQueue;
     
     GPUPtr dPtrQueue;
-    
-    GPUPtr dIntQueue;
 	
     GPUPtr dMaxScalingFactors;
     GPUPtr dIndexMaxScalingFactors;
@@ -122,9 +121,7 @@ private:
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
-    GPUPtr* hPtrQueue;
-    
-    int* hIntQueue;
+    int* hPtrQueue;
     
     double* hCategoryRates; // Can keep in double-precision
 
