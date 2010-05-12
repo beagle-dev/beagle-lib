@@ -102,11 +102,7 @@ public:
     
 // Kernel links
 #ifdef CUDA
-    void GetTransitionProbabilitiesSquare(
-#ifdef FLAT_MEMORY_SPACE
-										   GPUPtr dMatrices,
-#endif										       		
-										  GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,

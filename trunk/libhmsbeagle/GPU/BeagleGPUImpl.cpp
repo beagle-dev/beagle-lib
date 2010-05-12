@@ -120,12 +120,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
             gpu->FreeMemory(dWeights[i]);
             gpu->FreeMemory(dFrequencies[i]);
         }
-#ifdef FLAT_MEMORY_SPACE
-        gpu->FreeMemory(dMatrices[0]);
-#else
         for (int i=0; i < kMatrixCount; i++)
             gpu->FreeMemory(dMatrices[i]);
-#endif
 		for (int i=0; i < kScaleBufferCount; i++)
 			gpu->FreeMemory(dScalingFactors[i]);
 		for (int i = 0; i < kBufferCount; i++) {        
@@ -452,16 +448,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
     
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     
-#ifdef FLAT_MEMORY_SPACE
-    dMatrices[0] = gpu->AllocateRealMemory(kMatrixSize * kCategoryCount * kMatrixCount);
-    for (int i = 1; i < kMatrixCount; i++) {
-    	dMatrices[i] = dMatrices[i - 1] + kMatrixSize * kCategoryCount * sizeof(REAL);
-    }
-#else
     for (int i = 0; i < kMatrixCount; i++) {
         dMatrices[i] = gpu->AllocateRealMemory(kMatrixSize * kCategoryCount);
     }
-#endif
     
     // No execution has more no kBufferCount events
     dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
@@ -903,29 +892,17 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
 	if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
         for (int i = 0; i < count; i++) {        
             for (int j = 0; j < kCategoryCount; j++) {
-#ifdef FLAT_MEMORY_SPACE
-				hPtrQueue[totalCount] = (probabilityIndices[i] * kCategoryCount + j) * kMatrixSize; // No need to multiply by sizeof(REAL)
-#else
-                hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr)); // TODO Should this not be sizeof(REAL)???
-#endif
+                hPtrQueue[totalCount] = dMatrices[probabilityIndices[i]] + (j * kMatrixSize * sizeof(GPUPtr));
                 hDistanceQueue[totalCount] = (REAL) (edgeLengths[i] * hCategoryRates[j]);
                 totalCount++;
             }
         }
-      
-#ifdef FLAT_MEMORY_SPACE 
-        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(int) * totalCount);
-#else
+        
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(GPUPtr) * totalCount);
-#endif
         gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, SIZE_REAL * totalCount);
         
         // Set-up and call GPU kernel
-        kernels->GetTransitionProbabilitiesSquare(
-#ifdef FLAT_MEMORY_SPACE
-        		dMatrices[0],
-#endif
-        		dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+        kernels->GetTransitionProbabilitiesSquare(dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
                                                   dEigenValues[eigenIndex], dDistanceQueue, totalCount);
 	} else if (secondDerivativeIndices == NULL) {        
         
