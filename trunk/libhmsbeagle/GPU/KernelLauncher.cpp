@@ -249,7 +249,11 @@ void KernelLauncher::LoadKernels() {
 }
 
 #ifdef CUDA
-void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
+void KernelLauncher::GetTransitionProbabilitiesSquare(
+#ifdef FLAT_MEMORY_SPACE
+													  GPUPtr dMatrices,
+#endif
+													  GPUPtr dPtrQueue,
                                                       GPUPtr dEvec,
                                                       GPUPtr dIevc,
                                                       GPUPtr dEigenValues,
@@ -261,7 +265,18 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
 
    bgTransitionProbabilitiesGrid.x *= totalMatrix;
 
-    // Transposed (interchanged Ievc and Evec)    
+    // Transposed (interchanged Ievc and Evec)  
+#ifdef FLAT_MEMORY_SPACE
+   int parameterCountV = 6;
+   int totalParameterCount = 9;
+   gpu->LaunchKernel(fMatrixMulADB,
+                              bgTransitionProbabilitiesBlock, bgTransitionProbabilitiesGrid,
+                              parameterCountV, totalParameterCount,
+                              dMatrices, dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
+                              kPaddedStateCount, kPaddedStateCount,
+                              totalMatrix);   
+   
+#else
     int parameterCountV = 5;
     int totalParameterCount = 8;
     gpu->LaunchKernel(fMatrixMulADB,
@@ -270,6 +285,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
                                dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
                                kPaddedStateCount, kPaddedStateCount,
                                totalMatrix);
+#endif
 
     bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
 

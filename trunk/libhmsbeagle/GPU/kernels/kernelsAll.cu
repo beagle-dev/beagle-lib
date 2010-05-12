@@ -37,7 +37,13 @@
 
 extern "C" {
 
-__global__ void kernelMatrixMulADB(REAL** listC,
+__global__ void kernelMatrixMulADB(
+#ifdef FLAT_MEMORY_SPACE
+		REAL* C0,
+		int* offset,
+#else
+		REAL** listC,
+#endif
                                    REAL* A,
                                    REAL* D,
                                    REAL* B,
@@ -61,7 +67,11 @@ __global__ void kernelMatrixMulADB(REAL** listC,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
+#ifdef FLAT_MEMORY_SPACE
+    	C = C0 + offset[wMatrix]; // Non-coalesced read
+#else    
         C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+#endif
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -145,7 +155,7 @@ __global__ void kernelMatrixMulADB(REAL** listC,
         else
             C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = Csub;
-    }
+    }   
 }
 
 __global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
