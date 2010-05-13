@@ -1027,7 +1027,12 @@ int BeagleCPUImpl<REALTYPE>::removeScaleFactors(const int* scalingIndices,
 template <typename REALTYPE>
 int BeagleCPUImpl<REALTYPE>::resetScaleFactors(int cumulativeScalingIndex) {
     //memcpy(gScaleBuffers[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
-    memset(gScaleBuffers[cumulativeScalingIndex], 0, sizeof(REALTYPE) * kPatternCount);
+	
+	 if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+		 memset(gScaleBuffers[cumulativeScalingIndex], 0, sizeof(signed short) * kPaddedPatternCount);
+	 } else {	        
+		 memset(gScaleBuffers[cumulativeScalingIndex], 0, sizeof(REALTYPE) * kPaddedPatternCount);
+	 }
     return BEAGLE_SUCCESS;
 }
 

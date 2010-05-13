@@ -394,8 +394,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
         } else {
             dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
-            for (int i=1; i < kScaleBufferCount; i++)
-                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * SIZE_REAL;
+            for (int i=1; i < kScaleBufferCount; i++) {
+                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * SIZE_REAL;               
+            }
         }
     }
     
