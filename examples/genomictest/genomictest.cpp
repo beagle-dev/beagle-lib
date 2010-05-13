@@ -60,7 +60,7 @@ void runBeagle(int resource,
 {
     
     int scaleCount = (scaling ? ntaxa : 0);
-
+    
     BeagleInstanceDetails instDetails;
     
     // create an instance of the BEAGLE library
@@ -258,7 +258,7 @@ void runBeagle(int resource,
     int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
     
     
-    if (scaling) {
+    if (scaling && !autoScaling) {
         beagleResetScaleFactors(instance,
                                cumulativeScalingFactorIndex);
         
@@ -317,6 +317,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* ntaxa,
                                     int* nsites,
                                     bool* scaling,
+                                    bool* autoScaling,
                                     int* rateCategoryCount)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
@@ -342,6 +343,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 			helpMessage();
         } else if (option == "--scale") {
             *scaling = true;
+        } else if (option == "--autoscale") {
+        	*scaling = true;
+        	*autoScaling = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
         } else if (option == "--taxa") {
@@ -391,11 +395,11 @@ int main( int argc, const char* argv[] )
     int ntaxa = 29;
     int nsites = 10000;
     bool manualScaling = false;
-    bool autoScaling = true;
+    bool autoScaling = false;
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &rateCategoryCount);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &rateCategoryCount);
     
 	std::cout << "Simulating genomic ";
     if (stateCount == 4)
