@@ -880,6 +880,8 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
             inMatrixOffset += kStateCount;
         }
     }
+    
+    transposeSquareMatrix(hMatrixCache, kPaddedStateCount);
         
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache,
