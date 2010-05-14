@@ -835,6 +835,8 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
         
     gpu->MemcpyDeviceToHost(hMatrixCache, dMatrices[matrixIndex], SIZE_REAL * kMatrixSize * kCategoryCount);
     
+    transposeSquareMatrix(hMatrixCache, kPaddedStateCount);
+    
     double* outMatrixOffset = outMatrix;
     REAL* tmpRealMatrixOffset = hMatrixCache;
     
