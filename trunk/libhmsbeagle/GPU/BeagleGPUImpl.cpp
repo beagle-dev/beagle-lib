@@ -829,8 +829,32 @@ int BeagleGPUImpl::setPatternWeights(const double* inPatternWeights) {
 
 int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
 									   double* outMatrix) {
-	fprintf(stderr,"BeagleGPUImpl::getTransitionMatrix is not yet implemeneted!");
-	exit(-1);
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getTransitionMatrix\n");
+#endif
+        
+    gpu->MemcpyDeviceToHost(hMatrixCache, dMatrices[matrixIndex], SIZE_REAL * kMatrixSize * kCategoryCount);
+    
+    double* outMatrixOffset = outMatrix;
+    REAL* tmpRealMatrixOffset = hMatrixCache;
+    
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int i = 0; i < kStateCount; i++) {
+#ifdef DOUBLE_PRECISION
+            memcpy(outMatrixOffset, tmpRealMatrixOffset, SIZE_REAL * kStateCount);
+#else
+            MEMCNV(outMatrixOffset, tmpRealMatrixOffset, kStateCount, double);
+#endif
+            tmpRealMatrixOffset += kPaddedStateCount;
+            outMatrixOffset += kStateCount;
+        }
+    }
+        
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getTransitionMatrix\n");
+#endif
+    
+    return BEAGLE_SUCCESS;
 }
 
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
