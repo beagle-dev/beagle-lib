@@ -851,6 +851,7 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
             tmpRealMatrixOffset += kPaddedStateCount;
             outMatrixOffset += kStateCount;
         }
+        tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
     }
         
 #ifdef BEAGLE_DEBUG_FLOW
@@ -886,6 +887,7 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
         }
         
         transposeSquareMatrix(transposeOffset, kStateCount);
+        tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
     }
         
     // Copy to GPU device
