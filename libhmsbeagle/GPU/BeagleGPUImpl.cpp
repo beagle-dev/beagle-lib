@@ -840,7 +840,7 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
     
     for (int l = 0; l < kCategoryCount; l++) {
         
-        transposeSquareMatrix(tmpRealMatrixOffset, kStateCount);
+        transposeSquareMatrix(tmpRealMatrixOffset, kPaddedStateCount);
         
         for (int i = 0; i < kStateCount; i++) {
 #ifdef DOUBLE_PRECISION
@@ -886,7 +886,7 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
             inMatrixOffset += kStateCount;
         }
         
-        transposeSquareMatrix(transposeOffset, kStateCount);
+        transposeSquareMatrix(transposeOffset, kPaddedStateCount);
         tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
     }
         
