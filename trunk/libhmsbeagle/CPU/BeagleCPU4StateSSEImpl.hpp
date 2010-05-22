@@ -41,53 +41,7 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
-
-#define DLS_USE_SSE2
-
-#if defined(DLS_USE_SSE2)
-#	if !defined(DLS_MACOS)
-#		include <emmintrin.h>
-#	endif
-#	include <xmmintrin.h>
-#endif
-typedef double VecEl_t;
-
-#define USE_DOUBLE_PREC
-#if defined(USE_DOUBLE_PREC)
-	typedef double RealType;
-	typedef __m128d	V_Real;
-#	define REALS_PER_VEC	2	/* number of elements per vector */
-#	define VEC_LOAD(a)			_mm_load_pd(a)
-#	define VEC_STORE(a, b)		_mm_store_pd((a), (b))
-#	define VEC_MULT(a, b)		_mm_mul_pd((a), (b))
-#	define VEC_MADD(a, b, c)	_mm_add_pd(_mm_mul_pd((a), (b)), (c))
-#	define VEC_SPLAT(a)			_mm_set1_pd(a)
-#	define VEC_ADD(a, b)		_mm_add_pd(a, b)
-#else
-	typedef float RealType;
-	typedef __m128	V_Real;
-#	define REALS_PER_VEC	4	/* number of elements per vector */
-#	define VEC_MULT(a, b)		_mm_mul_ps((a), (b))
-#	define VEC_MADD(a, b, c)	_mm_add_ps(_mm_mul_ps((a), (b)), (c))
-#	define VEC_SPLAT(a)			_mm_set1_ps(a)
-#	define VEC_ADD(a, b)		_mm_add_ps(a, b)
-#endif
-typedef union 			/* for copying individual elements to and from vector floats */
-	{
-	RealType	x[REALS_PER_VEC];
-	V_Real		vx;
-	}
-	VecUnion;
-
-#ifdef __GNUC__
-    #define cpuid(func,ax,bx,cx,dx)\
-            __asm__ __volatile__ ("cpuid":\
-            "=a" (ax), "=b" (bx), "=c" (cx), "=d" (dx) : "a" (func));
-#endif
-
-#ifdef _WIN32
-
-#endif
+#include "libhmsbeagle/CPU/SSEDefinitions.h"
 
 /* Loads partials into SSE vectors */
 #if 0
