@@ -54,6 +54,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #if defined(ENABLE_SSE)
     #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
+	#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
 #endif
 
 typedef std::list< std::pair<int,int> > PairedList;
@@ -97,7 +98,8 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
 #if defined(ENABLE_SSE)
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
-		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>());
+//		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
+		implFactory->push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing
 #endif
 	}
 	return implFactory;
