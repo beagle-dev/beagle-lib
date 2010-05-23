@@ -366,6 +366,10 @@ int BeagleCPUImpl<REALTYPE>::createInstance(int tipCount,
         ones[i] = 1.0;
     }
 
+    if (createInstanceExtraFunctionalityHook() != BEAGLE_SUCCESS) {
+    	throw std::bad_alloc();
+    }
+
     return BEAGLE_SUCCESS;
 }
 

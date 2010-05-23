@@ -90,6 +90,13 @@ private:
                                       const REALTYPE* __restrict partials2,
                                       const REALTYPE* __restrict matrices2);
     
+    virtual void calcPartialsPartialsFixedScaling(REALTYPE* __restrict destP,
+                                            const REALTYPE* __restrict child0Partials,
+                                            const REALTYPE* __restrict child0TransMat,
+                                            const REALTYPE* __restrict child1Partials,
+                                            const REALTYPE* __restrict child1TransMat,
+                                            const REALTYPE* __restrict scaleFactors);
+
     virtual void calcPartialsPartialsAutoScaling(REALTYPE* __restrict destP,
                                                  const REALTYPE* __restrict partials1,
                                                  const REALTYPE* __restrict matrices1,

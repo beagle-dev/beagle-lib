@@ -253,12 +253,13 @@ void BeagleCPU4StateSSEImpl<float>::calcPartialsPartials(float* destP,
                                                   const float*  matrices_q,
                                                   const float*  partials_r,
                                                   const float*  matrices_r) {
-												  BeagleCPU4StateImpl<float>::calcPartialsPartials(destP,
+
+	BeagleCPU4StateImpl<float>::calcPartialsPartials(destP,
                                                   partials_q,
                                                   matrices_q,
                                                   partials_r,
                                                   matrices_r);
-												  }
+}
 
 template <>
 void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
@@ -360,6 +361,90 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
         }
     }
 }
+
+template <>
+void BeagleCPU4StateSSEImpl<float>::calcPartialsPartialsFixedScaling(float* destP,
+                                        const float*  child0Partials,
+                                        const float*  child0TransMat,
+                                        const float*  child1Partials,
+                                        const float*  child1TransMat,
+                                        const float*  scaleFactors) {
+
+	BeagleCPU4StateImpl<float>::calcPartialsPartialsFixedScaling(
+			destP,
+			child0Partials,
+			child0TransMat,
+			child1Partials,
+			child1TransMat,
+			scaleFactors);
+}
+
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcPartialsPartialsFixedScaling(double* destP,
+		                                                        const double* partials_q,
+		                                                        const double* matrices_q,
+		                                                        const double* partials_r,
+		                                                        const double* matrices_r,
+		                                                        const double* scaleFactors) {
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23, destr_01, destr_23;
+ 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+	V_Real *destPvec = (V_Real *)destP;
+
+	for (int l = 0; l < kCategoryCount; l++) {
+
+		/* Load transition-probability matrices into vectors */
+    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = 0; k < kPatternCount; k++) {
+
+            // Prefetch scale factor
+//            const V_Real scaleFactor = VEC_LOAD_SCALAR(scaleFactors + k);
+        	// Option below appears faster, why?
+        	const V_Real scaleFactor = VEC_SPLAT(scaleFactors[k]);
+
+        	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+        	SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+        	V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+        	SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
+
+        	// TODO Make below into macro since this repeats from other calcPPs
+			destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+			destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+			destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+			destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+			destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+			destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+			destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+			destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+			destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+			destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+			destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+			destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+			destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+			destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
+            destPvec[0] = VEC_DIV(VEC_MULT(destq_01, destr_01), scaleFactor);
+            destPvec[1] = VEC_DIV(VEC_MULT(destq_23, destr_23), scaleFactor);
+
+            destPvec += 2;
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+        	destPvec += kExtraPatterns * 2;
+        	v += kExtraPatterns * 4;
+        }
+    }
+}
+
     
 template <>
 void BeagleCPU4StateSSEImpl<float>::calcPartialsPartialsAutoScaling(float* destP,
@@ -367,7 +452,7 @@ void BeagleCPU4StateSSEImpl<float>::calcPartialsPartialsAutoScaling(float* destP
                                                          const float*  matrices_q,
                                                          const float*  partials_r,
                                                          const float*  matrices_r,
-                                                                    int* activateScaling) {
+                                                                 int* activateScaling) {
     BeagleCPU4StateImpl<float>::calcPartialsPartialsAutoScaling(destP,
                                                      partials_q,
                                                      matrices_q,
@@ -549,7 +634,7 @@ int BeagleCPU4StateSSEImpl<double>::getPaddedPatternsModulus() {
 
 template <>
 int BeagleCPU4StateSSEImpl<float>::getPaddedPatternsModulus() {
-	return 1;  // For single-precision, can operate on 4 patterns at a time
+	return 1;  // We currently do not vectorize across patterns
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
 	// TODO Vectorize final log operations over patterns
 }
