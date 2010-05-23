@@ -40,6 +40,12 @@
 #endif
 typedef double VecEl_t;
 
+#ifdef __GNUC__
+#define ALIGN16 __attribute__((aligned(16)))
+#else
+#define ALIGN16 __declspec(align(16))
+#endif
+
 #define USE_DOUBLE_PREC
 #if defined(USE_DOUBLE_PREC)
 	typedef double RealType;
