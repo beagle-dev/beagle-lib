@@ -87,6 +87,16 @@ int BeagleCPUSSEImpl<REALTYPE>::CPUSupportsSSE() {
     return 1;
 }
 
+template <typename REALTYPE>
+int BeagleCPUSSEImpl<REALTYPE>::createInstanceExtraFunctionalityHook() {
+	if (kStateCount % 2 != 0) {
+		kOddStateCount = true;
+		kLastStateCount = kStateCount - 1;
+	} else {
+		kOddStateCount = false;
+	}
+}
+
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
@@ -493,7 +503,6 @@ template <>
 
 template <>
 int BeagleCPUSSEImpl<double>::getPaddedPatternsModulus() {
-//	return 2;  // For double-precision, can operate on 2 patterns at a time
 	return 1;  // We currently do not vectorize across patterns
 }
 
@@ -524,10 +533,6 @@ BeagleImpl* BeagleCPUSSEImplFactory<REALTYPE>::createImpl(int tipCount,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
-
-    if (stateCount != 4) {
-        return NULL;
-    }
 
     BeagleCPUSSEImpl<REALTYPE>* impl =
     		new BeagleCPUSSEImpl<REALTYPE>();

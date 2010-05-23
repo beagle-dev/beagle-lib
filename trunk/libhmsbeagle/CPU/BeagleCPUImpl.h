@@ -371,6 +371,10 @@ protected:
 
     virtual int getPaddedPatternsModulus();
 
+    virtual int createInstanceExtraFunctionalityHook() {
+    	return BEAGLE_SUCCESS;
+    };
+
     void* mallocAligned(size_t size);
 
 };

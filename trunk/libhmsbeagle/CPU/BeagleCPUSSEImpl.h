@@ -70,7 +70,12 @@ public:
 protected:
     virtual int getPaddedPatternsModulus();
 
+    virtual int createInstanceExtraFunctionalityHook();
+
 private:
+
+    bool kOddStateCount;
+    int kLastStateCount;
 
 	virtual void calcStatesStates(REALTYPE* destP,
                                      const int* states1,
