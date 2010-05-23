@@ -99,7 +99,7 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 #if defined(ENABLE_SSE)
 		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
 //		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
-		implFactory->push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing
+//		implFactory->push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing
 #endif
 	}
 	return implFactory;

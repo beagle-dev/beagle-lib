@@ -89,12 +89,14 @@ int BeagleCPUSSEImpl<REALTYPE>::CPUSupportsSSE() {
 
 template <typename REALTYPE>
 int BeagleCPUSSEImpl<REALTYPE>::createInstanceExtraFunctionalityHook() {
+
 	if (kStateCount % 2 != 0) {
 		kOddStateCount = true;
-		kLastStateCount = kStateCount - 1;
 	} else {
 		kOddStateCount = false;
 	}
+	kHalfStateCount = kStateCount / 2;
+	return BEAGLE_SUCCESS;
 }
 
 /*
@@ -216,15 +218,79 @@ void BeagleCPUSSEImpl<double>::calcStatesPartials(double* destP,
 
 template <>
 void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* destP,
-                                                  const double*  partials_q,
-                                                  const double*  matrices_q,
-                                                  const double*  partials_r,
-                                                  const double*  matrices_r) {
-	BeagleCPUImpl<double>::calcPartialsPartials(destP,
-                                                  partials_q,
-                                                  matrices_q,
-                                                  partials_r,
-                                                  matrices_r);
+                                              const double* partials1,
+                                              const double* matrices1,
+                                              const double* partials2,
+                                              const double* matrices2) {
+	if (kOddStateCount || (kStateCount + PAD) % 2) {
+		fprintf(stderr,"Not yet implemented for odd state counts or odd padded state counts!\n");
+		exit(-1);
+	}
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+    	int u = l*kStateCount*kPatternCount;
+    	int v = l*kStateCount*kPatternCount;
+        for (int k = 0; k < kPatternCount; k++) {
+            int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount; i++) {
+
+//               	VecUnion vu_m1, vu_m2;
+            	register V_Real vu_m1, vu_m2;
+
+               	VecUnion vu_sum1, vu_sum2;
+//               	register V_Real vu_sum1, vu_sum2;
+
+#define VU_SUM1	vu_sum1.vx
+#define	VU_SUM2	vu_sum2.vx
+//#define VU_SUM1	vu_sum1
+//#define	VU_SUM2	vu_sum2
+
+            	VU_SUM1 = VEC_SPLAT(0.0);
+            	VU_SUM2 = VEC_SPLAT(0.0);
+
+            	double* partials1_vec = (double*)(partials1 + v); // TODO This only works if v is even
+            	double* partials2_vec = (double*)(partials2 + v);
+
+//            	double* matrices1_vec = (double*)(matrices1 + w);
+//            	double* matrices2_vec = (double*)(matrices2 + w);
+
+            	for (int j = 0; j < kHalfStateCount; j++) {
+            		VU_SUM1 = VEC_MADD(
+								 VEC_LOAD(matrices1 + w),  // TODO This only works if w is even
+								 VEC_LOAD(partials1_vec),
+								 VU_SUM1);
+            		VU_SUM2 = VEC_MADD(
+								 VEC_LOAD(matrices1 + w),
+								 VEC_LOAD(partials2_vec),
+								 VU_SUM2);
+            		partials1_vec += 2;
+            		partials2_vec += 2;
+            		w += 2;
+            	}
+
+//                double sum1 = 0.0, sum2 = 0.0;
+//                for (int j = 0; j < kStateCount; j++) {
+//                    sum1 += matrices1[w] * partials1[v + j];
+//                    sum2 += matrices2[w] * partials2[v + j];
+//                    w++;
+//                }
+#ifdef PAD_MATRICES
+                // increment for the extra column at the end
+                w += PAD;
+#endif
+
+//                double ALIGN16 t1[2], t2[2];
+//                _mm_store_pd(t1, VU_SUM1);
+//                _mm_store_pd(t2, VU_SUM2);
+//                destP[u] = (t1[0] + t1[1]) * (t2[0] + t2[1]);
+
+                destP[u] = (vu_sum1.x[0] + vu_sum1.x[1]) * (vu_sum2.x[0] + vu_sum2.x[1]);
+                u++;
+            }
+            v += kStateCount;
+        }
+    }
 }
 
 //template <>

@@ -75,7 +75,7 @@ protected:
 private:
 
     bool kOddStateCount;
-    int kLastStateCount;
+    int kHalfStateCount;
 
 	virtual void calcStatesStates(REALTYPE* destP,
                                      const int* states1,
