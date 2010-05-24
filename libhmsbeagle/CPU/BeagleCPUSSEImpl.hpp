@@ -217,11 +217,11 @@ void BeagleCPUSSEImpl<double>::calcStatesPartials(double* destP,
 //}
 
 template <>
-void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* destP,
-                                              const double* partials1,
-                                              const double* matrices1,
-                                              const double* partials2,
-                                              const double* matrices2) {
+void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
+                                              const double* __restrict partials1,
+                                              const double* __restrict matrices1,
+                                              const double* __restrict partials2,
+                                              const double* __restrict matrices2) {
 	if (kOddStateCount || (kStateCount + PAD) % 2) {
 		fprintf(stderr,"Not yet implemented for odd state counts or odd padded state counts!\n");
 		exit(-1);
@@ -235,164 +235,38 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* destP,
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
 
-//               	VecUnion vu_m1, vu_m2;
-            	register V_Real vu_m1, vu_m2;
+              	register V_Real sum1 = VEC_SETZERO();
+                register V_Real sum2 = VEC_SETZERO();
 
-               	VecUnion vu_sum1, vu_sum2;
-//               	register V_Real vu_sum1, vu_sum2;
-
-#define VU_SUM1	vu_sum1.vx
-#define	VU_SUM2	vu_sum2.vx
-//#define VU_SUM1	vu_sum1
-//#define	VU_SUM2	vu_sum2
-
-            	VU_SUM1 = VEC_SPLAT(0.0);
-            	VU_SUM2 = VEC_SPLAT(0.0);
-
-            	double* partials1_vec = (double*)(partials1 + v); // TODO This only works if v is even
-            	double* partials2_vec = (double*)(partials2 + v);
-
-//            	double* matrices1_vec = (double*)(matrices1 + w);
-//            	double* matrices2_vec = (double*)(matrices2 + w);
-
-            	for (int j = 0; j < kHalfStateCount; j++) {
-            		VU_SUM1 = VEC_MADD(
-								 VEC_LOAD(matrices1 + w),  // TODO This only works if w is even
-								 VEC_LOAD(partials1_vec),
-								 VU_SUM1);
-            		VU_SUM2 = VEC_MADD(
-								 VEC_LOAD(matrices1 + w),
-								 VEC_LOAD(partials2_vec),
-								 VU_SUM2);
-            		partials1_vec += 2;
-            		partials2_vec += 2;
-            		w += 2;
+            	for (int j = 0; j < kStateCount; j += 2) {
+            		sum1 = VEC_MADD(
+								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
+								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
+								 sum1);
+            		sum2 = VEC_MADD(
+								 VEC_LOAD(matrices1 + w + j),
+								 VEC_LOAD(partials2 + v + j),
+								 sum2);
             	}
 
-//                double sum1 = 0.0, sum2 = 0.0;
-//                for (int j = 0; j < kStateCount; j++) {
-//                    sum1 += matrices1[w] * partials1[v + j];
-//                    sum2 += matrices2[w] * partials2[v + j];
-//                    w++;
-//                }
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
-                w += PAD;
+                w += kStateCount + PAD;
+#else
+                w += kStateCount;
 #endif
 
-//                double ALIGN16 t1[2], t2[2];
-//                _mm_store_pd(t1, VU_SUM1);
-//                _mm_store_pd(t2, VU_SUM2);
-//                destP[u] = (t1[0] + t1[1]) * (t2[0] + t2[1]);
-
-                destP[u] = (vu_sum1.x[0] + vu_sum1.x[1]) * (vu_sum2.x[0] + vu_sum2.x[1]);
+                VEC_STORE_SCALAR(destP + u,
+                		VEC_MULT(
+                				VEC_ADD(sum1, VEC_SWAP(sum1)),
+                				VEC_ADD(sum2, VEC_SWAP(sum2))
+                		));
                 u++;
             }
             v += kStateCount;
         }
     }
 }
-
-//template <>
-//void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* destP,
-//                                                  const double*  partials_q,
-//                                                  const double*  matrices_q,
-//                                                  const double*  partials_r,
-//                                                  const double*  matrices_r) {
-//
-//    int v = 0;
-//    int w = 0;
-//
-//    V_Real	destq_01, destq_23, destr_01, destr_23;
-// 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
-//	V_Real *destPvec = (V_Real *)destP;
-//
-//    for (int l = 0; l < kCategoryCount; l++) {
-//
-//		/* Load transition-probability matrices into vectors */
-//    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
-//
-//        for (int k = 0; k < kPatternCount; k++) {
-//
-//        	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
-//        	SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
-//
-//        	V_Real vpr_0, vpr_1, vpr_2, vpr_3;
-//        	SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
-//
-//#			if 1	/* This would probably be faster on PPC/Altivec, which has a fused multiply-add
-//			           vector instruction */
-//
-//			destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
-//			destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
-//			destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
-//			destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
-//			destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
-//			destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
-//			destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
-//			destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
-//
-//			destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
-//			destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
-//			destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
-//			destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
-//			destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
-//			destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
-//			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
-//			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
-//
-//#			else	/* SSE doesn't have a fused multiply-add, so a slight speed gain should be
-//                       achieved by decoupling these operations to avoid dependency stalls */
-//
-//			V_Real a, b, c, d;
-//
-//			a = VEC_MULT(vpq_0, vu_mq[0][0].vx);
-//			b = VEC_MULT(vpq_2, vu_mq[2][0].vx);
-//			c = VEC_MULT(vpq_0, vu_mq[0][1].vx);
-//			d = VEC_MULT(vpq_2, vu_mq[2][1].vx);
-//			a = VEC_MADD(vpq_1, vu_mq[1][0].vx, a);
-//			b = VEC_MADD(vpq_3, vu_mq[3][0].vx, b);
-//			c = VEC_MADD(vpq_1, vu_mq[1][1].vx, c);
-//			d = VEC_MADD(vpq_3, vu_mq[3][1].vx, d);
-//			destq_01 = VEC_ADD(a, b);
-//			destq_23 = VEC_ADD(c, d);
-//
-//			a = VEC_MULT(vpr_0, vu_mr[0][0].vx);
-//			b = VEC_MULT(vpr_2, vu_mr[2][0].vx);
-//			c = VEC_MULT(vpr_0, vu_mr[0][1].vx);
-//			d = VEC_MULT(vpr_2, vu_mr[2][1].vx);
-//			a = VEC_MADD(vpr_1, vu_mr[1][0].vx, a);
-//			b = VEC_MADD(vpr_3, vu_mr[3][0].vx, b);
-//			c = VEC_MADD(vpr_1, vu_mr[1][1].vx, c);
-//			d = VEC_MADD(vpr_3, vu_mr[3][1].vx, d);
-//			destr_01 = VEC_ADD(a, b);
-//			destr_23 = VEC_ADD(c, d);
-//
-//#			endif
-//
-//#			if 1//
-//            destPvec[0] = VEC_MULT(destq_01, destr_01);
-//            destPvec[1] = VEC_MULT(destq_23, destr_23);
-//            destPvec += 2;
-//
-//#			else	/* VEC_STORE did demonstrate a measurable performance gain as
-//					   it copies all (2/4) values to memory simultaneously;
-//					   I can no longer reproduce the performance gain (?) */
-//
-//			VEC_STORE(destP + v + 0,VEC_MULT(destq_01, destr_01));
-//			VEC_STORE(destP + v + 2,VEC_MULT(destq_23, destr_23));
-//
-//#			endif
-//
-//            v += 4;
-//        }
-//        w += OFFSET*4;
-//        if (kExtraPatterns) {
-//        	destPvec += kExtraPatterns * 2;
-//        	v += kExtraPatterns * 4;
-//        }
-//    }
-//}
     
 template <>
 void BeagleCPUSSEImpl<double>::calcPartialsPartialsAutoScaling(double* destP,
