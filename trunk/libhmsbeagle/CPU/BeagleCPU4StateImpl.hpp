@@ -131,7 +131,7 @@
 namespace beagle {
 namespace cpu {
 
-template<typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 inline const char* getBeagleCPU4StateName(){ return "CPU-4State-Unknown"; };
 
 template<>
@@ -140,8 +140,8 @@ inline const char* getBeagleCPU4StateName<double>(){ return "CPU-4State-Double";
 template<>
 inline const char* getBeagleCPU4StateName<float>(){ return "CPU-4State-Single"; };
 
-template <typename REALTYPE>
-BeagleCPU4StateImpl<REALTYPE>::~BeagleCPU4StateImpl() {
+BEAGLE_CPU_TEMPLATE
+BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::~BeagleCPU4StateImpl() {
     // free all that stuff...
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
@@ -153,8 +153,8 @@ BeagleCPU4StateImpl<REALTYPE>::~BeagleCPU4StateImpl() {
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
                                      const int* states1,
                                      const REALTYPE* matrices1,
                                      const int* states2,
@@ -183,8 +183,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStates(REALTYPE* destP,
     }
 }
 
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALTYPE* destP,
                                      const int* states1,
                                      const REALTYPE* matrices1,
                                      const int* states2,
@@ -218,8 +218,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesStatesFixedScaling(REALTYPE* destP
 /*
  * Calculates partial likelihoods at a node when one child has states and one has partials.
  */
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
                                        const int* states1,
                                        const REALTYPE* matrices1,
                                        const REALTYPE* partials2,
@@ -250,8 +250,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartials(REALTYPE* destP,
     }
 }
 
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE* destP,
                                        const int* states1,
                                        const REALTYPE* matrices1,
                                        const REALTYPE* partials2,
@@ -284,8 +284,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcStatesPartialsFixedScaling(REALTYPE* des
     }   
 }
 
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
                                          const REALTYPE* partials1,
                                          const REALTYPE* matrices1,
                                          const REALTYPE* partials2,
@@ -318,8 +318,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartials(REALTYPE* destP,
     }
 }
     
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                                     const REALTYPE* partials1,
                                                                     const REALTYPE* matrices1,
                                                                     const REALTYPE* partials2,
@@ -373,8 +373,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsAutoScaling(REALTYPE* de
 }
     
 
-template <typename REALTYPE>
-void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
                                          const REALTYPE* partials1,
                                          const REALTYPE* matrices1,
                                          const REALTYPE* partials2,
@@ -411,8 +411,8 @@ void BeagleCPU4StateImpl<REALTYPE>::calcPartialsPartialsFixedScaling(REALTYPE* d
     }    
 }
 
-template <typename REALTYPE>
-int inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REALTYPE* integrationTmp,
+BEAGLE_CPU_TEMPLATE
+int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(const REALTYPE* integrationTmp,
                                                                       const int stateFrequenciesIndex,
                                                             const int scalingFactorsIndex,
                                                             double* outSumLogLikelihood) {
@@ -456,8 +456,8 @@ int inline BeagleCPU4StateImpl<REALTYPE>::integrateOutStatesAndScale(const REALT
     return returnCode;
 }
 
-template <typename REALTYPE>
-int BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
+BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex,
                                                            const int childIndex,
                                                            const int probIndex,
                                                            const int categoryWeightsIndex,
@@ -543,8 +543,8 @@ int BeagleCPU4StateImpl<REALTYPE>::calcEdgeLogLikelihoods(const int parIndex,
     return integrateOutStatesAndScale(integrationTmp, stateFrequenciesIndex, scalingFactorsIndex, outSumLogLikelihood);
 }
 
-template <typename REALTYPE>
-int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
+BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIndex,
                                                            const int categoryWeightsIndex,
                                                            const int stateFrequenciesIndex,
                                                 const int scalingFactorsIndex,
@@ -582,8 +582,8 @@ int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoods(const int bufferIndex,
     return integrateOutStatesAndScale(integrationTmp, stateFrequenciesIndex, scalingFactorsIndex, outSumLogLikelihood);
 }
 
-template <typename REALTYPE>
-int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* bufferIndices,
+BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                                                 const int* categoryWeightsIndices,
                                                                 const int* stateFrequenciesIndices,
                                                                 const int* scaleBufferIndices,
@@ -702,16 +702,16 @@ int BeagleCPU4StateImpl<REALTYPE>::calcRootLogLikelihoodsMulti(const int* buffer
 }
     
 
-template <typename REALTYPE>
-const char* BeagleCPU4StateImpl<REALTYPE>::getName() {
-	return getBeagleCPU4StateName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPU4StateName<BEAGLE_CPU_GENERIC>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
-template <typename REALTYPE>
-BeagleImpl* BeagleCPU4StateImplFactory<REALTYPE>::createImpl(int tipCount,
+BEAGLE_CPU_TEMPLATE
+BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -729,7 +729,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<REALTYPE>::createImpl(int tipCount,
         return NULL;
     }
 
-    BeagleImpl* impl = new BeagleCPU4StateImpl<REALTYPE>();
+    BeagleImpl* impl = new BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>();
 
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
@@ -750,13 +750,13 @@ BeagleImpl* BeagleCPU4StateImplFactory<REALTYPE>::createImpl(int tipCount,
     return NULL;
 }
 
-template <typename REALTYPE>
-const char* BeagleCPU4StateImplFactory<REALTYPE>::getName() {
-	return getBeagleCPU4StateName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPU4StateName<BEAGLE_CPU_GENERIC>();
 }
 
-template <typename REALTYPE>
-const long BeagleCPU4StateImplFactory<REALTYPE>::getFlags() {
+BEAGLE_CPU_TEMPLATE
+const long BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::getFlags() {
     long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
                   BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE |

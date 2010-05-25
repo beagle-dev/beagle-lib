@@ -1,8 +1,10 @@
 /*
- *  genomictest.cpp
- *  Created by Aaron Darling on 14/06/2009.
- *  Based on tinyTest.cpp by Andrew Rambaut.
+ *  oddstatetest.cpp
+ *
+ *  @author Marc A. Suchard
+ *  @author Aaron Darling
  */
+
 #include <cstdio>
 #include <string>
 #include <cstdlib>
@@ -152,44 +154,57 @@ void runBeagle(int resource,
     
     beagleSetCategoryWeights(instance, 0, &weights[0]);
 
-	// an eigen decomposition for the general state-space JC69 model
-    // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
-    // the eigendecomposition of the infinitesimal rate matrix
-     
-    double* Hn = (double*)malloc(sizeof(double)*stateCount*stateCount);
-    Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
-    Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
- 
-    for (int k=2; k < stateCount; k <<= 1) {
-        // H_n = H_1 (Kronecker product) H_{n-1}
-        for (int i=0; i<k; i++) {
-            for (int j=i; j<k; j++) {
-                double Hijold = Hn[i*stateCount + j];
-                Hn[i    *stateCount + j + k] =  Hijold;
-                Hn[(i+k)*stateCount + j    ] =  Hijold;
-                Hn[(i+k)*stateCount + j + k] = -Hijold;
-                
-                Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
-                Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
-                Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
-            }
-        }        
-    }
-    double* evec = Hn;
-    
-    // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
-#ifdef _WIN32
-	std::vector<double> ivec(stateCount * stateCount);
-#else
-    double ivec[stateCount * stateCount];
-#endif
+    // an eigen decomposition for the general state-space JC69 model
+	double evec[5 * 5] = {
+   -1,  0.000000,  2.0,  0.000000,  0.0000000,
+   -1,  0.830091, -0.5,  0.000000,  1.7495568,
+   -1,  1.372801, -0.5,  0.000000, -1.3658029,
+   -1, -1.101446, -0.5, -1.581139, -0.1918769,
+   -1, -1.101446, -0.5,  1.581139, -0.1918769
+	};
 
-    for (int i=0; i<stateCount; i++) {
-        for (int j=i; j<stateCount; j++) {
-            ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
-            ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
-        }
-    }
+	double ivec[5 * 5] = {
+ -0.2, -0.2,          -0.2,          -0.2,        -0.2,
+  0.0,  1.660182e-01,  2.745602e-01, -0.22028920, -0.22028920,
+  0.4, -1.000000e-01, -1.000000e-01, -0.10000000, -0.10000000,
+  0.0,  0.0,           0.0,          -0.31622777,  0.31622777,
+  0.0,  3.499114e-01, -2.731606e-01, -0.03837538, -0.03837538
+	};
+
+//    double* Hn = (double*)malloc(sizeof(double)*stateCount*stateCount);
+//    Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0;
+//    Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
+//
+//    for (int k=2; k < stateCount; k <<= 1) {
+//        // H_n = H_1 (Kronecker product) H_{n-1}
+//        for (int i=0; i<k; i++) {
+//            for (int j=i; j<k; j++) {
+//                double Hijold = Hn[i*stateCount + j];
+//                Hn[i    *stateCount + j + k] =  Hijold;
+//                Hn[(i+k)*stateCount + j    ] =  Hijold;
+//                Hn[(i+k)*stateCount + j + k] = -Hijold;
+//
+//                Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
+//                Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
+//                Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];
+//            }
+//        }
+//    }
+//    double* evec = Hn;
+    
+//     Since evec is Hadamard, ivec = (evec)^t / stateCount;
+//#ifdef _WIN32
+//	std::vector<double> ivec(stateCount * stateCount);
+//#else
+//    double ivec[stateCount * stateCount];
+//#endif
+
+//    for (int i=0; i<stateCount; i++) {
+//        for (int j=i; j<stateCount; j++) {
+//            ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
+//            ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+//        }
+//    }
 
 #ifdef _WIN32
 	std::vector<double> eval(stateCount);
@@ -296,7 +311,7 @@ void runBeagle(int resource,
 	std::cout << "Took " << timediff1 << " and\n";
     std::cout << "     " << timediff2 << " seconds\n\n";
 	beagleFinalizeInstance(instance);
-    free(evec);
+//    free(evec);
 }
 
 void abort(std::string msg) {
@@ -306,7 +321,7 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale]\n\n";
+	std::cerr << "oddstatetest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --scale is specified, BEAGLE will rescale the partials during computation\n\n";
 	std::exit(0);
@@ -374,9 +389,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	if (expecting_rateCategoryCount)
 		abort("read last command line option without finding value associated with --rates");
 	
-	if (*stateCount < 2 || 
-        (*stateCount & (*stateCount-1)) != 0)
-		abort("invalid number of states (must be a power-of-two) supplied on the command line");
+	if (*stateCount != 5)
+		abort("invalid number of states (must be 5 currently) supplied on the command line");
         
 	if (*ntaxa < 2)
 		abort("invalid number of taxa supplied on the command line");
@@ -392,7 +406,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 int main( int argc, const char* argv[] )
 {
     // Default values
-    int stateCount = 4;
+    int stateCount = 5;
     int ntaxa = 29;
     int nsites = 10000;
     bool manualScaling = false;
@@ -410,17 +424,17 @@ int main( int argc, const char* argv[] )
     std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns\n";
 
 	BeagleResourceList* rl = beagleGetResourceList();
-	if(rl != NULL){
-		for(int i=0; i<rl->length; i++){
-			runBeagle(i,
-                      stateCount,
-                      ntaxa,
-                      nsites,
-                      manualScaling,
-                      autoScaling,
-                      rateCategoryCount);                      
-		}
-	}else{
+//	if(rl != NULL){
+//		for(int i=0; i<rl->length; i++){
+//			runBeagle(i,
+//                      stateCount,
+//                      ntaxa,
+//                      nsites,
+//                      manualScaling,
+//                      autoScaling,
+//                      rateCategoryCount);
+//		}
+//	}else{
 		runBeagle(NULL,
                   stateCount,
                   ntaxa,
@@ -428,7 +442,7 @@ int main( int argc, const char* argv[] )
                   manualScaling,
                   autoScaling,
                   rateCategoryCount);
-	}
+//	}
 
 #ifdef _WIN32
     std::cout << "\nPress ENTER to exit...\n";

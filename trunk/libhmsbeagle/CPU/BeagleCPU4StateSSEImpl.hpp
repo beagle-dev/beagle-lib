@@ -117,12 +117,12 @@ inline const long getBeagleCPU4StateSSEFlags<float>(){ return BEAGLE_FLAG_COMPUT
                                                               BEAGLE_FLAG_PRECISION_SINGLE |
                                                               BEAGLE_FLAG_VECTOR_SSE; };
 
-template <typename REALTYPE>
-BeagleCPU4StateSSEImpl<REALTYPE>::~BeagleCPU4StateSSEImpl() {
+BEAGLE_CPU_TEMPLATE
+BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>::~BeagleCPU4StateSSEImpl() {
 }
 
-template <typename REALTYPE>
-int BeagleCPU4StateSSEImpl<REALTYPE>::CPUSupportsSSE() {
+BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>::CPUSupportsSSE() {
     //int a,b,c,d;
     //cpuid(0,a,b,c,d);
     //fprintf(stderr,"a = %d\nb = %d\nc = %d\nd = %d\n",a,b,c,d);
@@ -619,8 +619,8 @@ template <>
     return returnCode;
 }
 #if 0
-template <typename REALTYPE>
-int BeagleCPU4StateSSEImpl<REALTYPE>::getPaddedPatternsModulus() {
+BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>::getPaddedPatternsModulus() {
 // Should instead throw an exception for unhandled type
 	return 1;
 }
@@ -639,14 +639,14 @@ int BeagleCPU4StateSSEImpl<float>::getPaddedPatternsModulus() {
 	// TODO Vectorize final log operations over patterns
 }
 
-template <typename REALTYPE>
-const char* BeagleCPU4StateSSEImpl<REALTYPE>::getName() {
-	return getBeagleCPU4StateSSEName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPU4StateSSEName<BEAGLE_CPU_GENERIC>();
 }
 
-template <typename REALTYPE>
-const long BeagleCPU4StateSSEImpl<REALTYPE>::getFlags() {
-	return getBeagleCPU4StateSSEFlags<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>::getFlags() {
+	return getBeagleCPU4StateSSEFlags<BEAGLE_CPU_GENERIC>();
 }
 
 
@@ -654,8 +654,8 @@ const long BeagleCPU4StateSSEImpl<REALTYPE>::getFlags() {
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
 
-template <typename REALTYPE>
-BeagleImpl* BeagleCPU4StateSSEImplFactory<REALTYPE>::createImpl(int tipCount,
+BEAGLE_CPU_TEMPLATE
+BeagleImpl* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -673,8 +673,8 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory<REALTYPE>::createImpl(int tipCount,
         return NULL;
     }
 
-    BeagleCPU4StateSSEImpl<REALTYPE>* impl =
-    		new BeagleCPU4StateSSEImpl<REALTYPE>();
+    BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>* impl =
+    		new BeagleCPU4StateSSEImpl<BEAGLE_CPU_GENERIC>();
 
     if (!impl->CPUSupportsSSE()) {
         delete impl;
@@ -699,9 +699,9 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory<REALTYPE>::createImpl(int tipCount,
     return NULL;
 }
 
-template <typename REALTYPE>
-const char* BeagleCPU4StateSSEImplFactory<REALTYPE>::getName() {
-	return getBeagleCPU4StateSSEName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPU4StateSSEName<BEAGLE_CPU_GENERIC>();
 }
 
 template <>

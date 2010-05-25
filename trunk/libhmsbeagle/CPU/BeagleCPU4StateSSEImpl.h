@@ -39,7 +39,7 @@
 namespace beagle {
 namespace cpu {
 
-template <typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl<REALTYPE> {
 
 protected:
@@ -114,7 +114,7 @@ private:
 
 };
 
-template <typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 class BeagleCPU4StateSSEImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

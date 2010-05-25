@@ -39,7 +39,7 @@
 namespace beagle {
 namespace cpu {
 
-template <typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 class BeagleCPUSSEImpl : public BeagleCPUImpl<REALTYPE> {
 
 protected:
@@ -75,6 +75,7 @@ protected:
 private:
 
     bool kOddStateCount;
+    int kStateCountMinusOne;
     int kHalfStateCount;
 
 	virtual void calcStatesStates(REALTYPE* destP,
@@ -112,7 +113,7 @@ private:
 
 };
 
-template <typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 class BeagleCPUSSEImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

@@ -42,28 +42,28 @@ namespace cpu {
 //const char* beagleCPU4StateImplDoubleName = "CPU-4State-Double";
 //const char* beagleCPU4StateImplSingleName = "CPU-4State-Single";
 
-template <typename REALTYPE>
-class BeagleCPU4StateImpl : public BeagleCPUImpl<REALTYPE> {
+BEAGLE_CPU_TEMPLATE
+class BeagleCPU4StateImpl : public BeagleCPUImpl<BEAGLE_CPU_GENERIC> {
 
 protected:
-	using BeagleCPUImpl<REALTYPE>::kFlags;
-	using BeagleCPUImpl<REALTYPE>::kTipCount;
-	using BeagleCPUImpl<REALTYPE>::gPartials;
-	using BeagleCPUImpl<REALTYPE>::integrationTmp;
-	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
-	using BeagleCPUImpl<REALTYPE>::kPatternCount;
-	using BeagleCPUImpl<REALTYPE>::kPaddedPatternCount;
-	using BeagleCPUImpl<REALTYPE>::kExtraPatterns;
-	using BeagleCPUImpl<REALTYPE>::kStateCount;
-	using BeagleCPUImpl<REALTYPE>::gTipStates;
-	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
-	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
-	using BeagleCPUImpl<REALTYPE>::gStateFrequencies;
-	using BeagleCPUImpl<REALTYPE>::gCategoryWeights;
-	using BeagleCPUImpl<REALTYPE>::gPatternWeights;
-	using BeagleCPUImpl<REALTYPE>::outLogLikelihoodsTmp;
-	using BeagleCPUImpl<REALTYPE>::realtypeMin;
-    using BeagleCPUImpl<REALTYPE>::scalingExponentThreshhold;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kFlags;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kTipCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartials;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTransitionMatrices;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPatternCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPaddedPatternCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kExtraPatterns;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kStateCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTipStates;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kCategoryCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gScaleBuffers;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gStateFrequencies;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryWeights;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshhold;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -145,7 +145,7 @@ public:
 
 };
 
-template <typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

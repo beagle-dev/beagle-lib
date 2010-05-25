@@ -40,13 +40,14 @@
 #include <cassert>
 
 #include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
 #include "libhmsbeagle/CPU/SSEDefinitions.h"
 
 namespace beagle {
 namespace cpu {
 
-template<typename REALTYPE>
+BEAGLE_CPU_TEMPLATE
 inline const char* getBeagleCPUSSEName(){ return "CPU-SSE-Unknown"; };
 
 template<>
@@ -75,20 +76,20 @@ inline const long getBeagleCPUSSEFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_
                                                               BEAGLE_FLAG_PRECISION_SINGLE |
                                                               BEAGLE_FLAG_VECTOR_SSE; };
 
-template <typename REALTYPE>
-BeagleCPUSSEImpl<REALTYPE>::~BeagleCPUSSEImpl() {
+BEAGLE_CPU_TEMPLATE
+BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUSSEImpl() {
 }
 
-template <typename REALTYPE>
-int BeagleCPUSSEImpl<REALTYPE>::CPUSupportsSSE() {
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>::CPUSupportsSSE() {
     //int a,b,c,d;
     //cpuid(0,a,b,c,d);
     //fprintf(stderr,"a = %d\nb = %d\nc = %d\nd = %d\n",a,b,c,d);
     return 1;
 }
 
-template <typename REALTYPE>
-int BeagleCPUSSEImpl<REALTYPE>::createInstanceExtraFunctionalityHook() {
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>::createInstanceExtraFunctionalityHook() {
 
 	if (kStateCount % 2 != 0) {
 		kOddStateCount = true;
@@ -96,6 +97,7 @@ int BeagleCPUSSEImpl<REALTYPE>::createInstanceExtraFunctionalityHook() {
 		kOddStateCount = false;
 	}
 	kHalfStateCount = kStateCount / 2;
+	kStateCountMinusOne = kStateCount - 1;
 	return BEAGLE_SUCCESS;
 }
 
@@ -222,10 +224,6 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
                                               const double* __restrict matrices1,
                                               const double* __restrict partials2,
                                               const double* __restrict matrices2) {
-	if (kOddStateCount || (kStateCount + PAD) % 2) {
-		fprintf(stderr,"Not yet implemented for odd state counts or odd padded state counts!\n");
-		exit(-1);
-	}
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
@@ -235,20 +233,47 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount; i++) {
 
-              	register V_Real sum1 = VEC_SETZERO();
-                register V_Real sum2 = VEC_SETZERO();
+            	register V_Real sum1_vec;
+            	register V_Real sum2_vec;
 
-            	for (int j = 0; j < kStateCount; j += 2) {
-            		sum1 = VEC_MADD(
+              	int j = 0;
+//              	fprintf(stderr,"v = %d, w = %d\n",v,w);
+//            	if (kOddStateCount) { // TODO Template for compiler-time optimization
+//            		// Need to either unroll first or last entry
+//            		double sum1_end;
+//            		double sum2_end;
+//            		if (w & 1) { // v and w are odd, unroll first element
+//            			fprintf(stderr,"unroll head\n");
+//            			sum1_end = matrices1[w] * partials1[v];
+//            			sum2_end = matrices2[w] * partials2[v];
+//            			j++;
+//            		} else { // unroll last element
+//            			fprintf(stderr,"unroll tail\n");
+//               			sum1_end = matrices1[w + kStateCountMinusOne] *
+//               					   partials1[v + kStateCountMinusOne];
+//                		sum2_end = matrices2[w + kStateCountMinusOne] *
+//               					   partials2[v + kStateCountMinusOne];
+//            		}
+//            		sum1_vec = VEC_SET1(sum1_end);
+//            		sum2_vec = VEC_SET1(sum2_end);
+//            	} else {
+            		sum1_vec = VEC_SETZERO();
+            		sum2_vec = VEC_SETZERO();
+//            	}
+//            	fprintf(stderr,"Done with head/tail\n");
+//            	fprintf(stderr,"starting SSE at %d:%d\n",(v+j),(w+j));
+            	for ( ; j < kStateCountMinusOne; j += 2) {
+            		sum1_vec = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
 								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
-								 sum1);
-            		sum2 = VEC_MADD(
+								 sum1_vec);
+            		sum2_vec = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),
 								 VEC_LOAD(partials2 + v + j),
-								 sum2);
+								 sum2_vec);
             	}
 
+//            	fprintf(stderr,"Done with loop\n");
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
                 w += kStateCount + PAD;
@@ -256,11 +281,19 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
                 w += kStateCount;
 #endif
 
+#if 1
                 VEC_STORE_SCALAR(destP + u,
                 		VEC_MULT(
-                				VEC_ADD(sum1, VEC_SWAP(sum1)),
-                				VEC_ADD(sum2, VEC_SWAP(sum2))
+                				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
+                				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
                 		));
+#else
+                VecUnion t1, t2;
+                t1.vx = sum1;
+                t2.vx = sum2;
+                destP[u] = (t1.x[0] + t1.x[1] + endSum1) * (t2.x[0] + t2.x[1] + endSum2);
+#endif
+
                 u++;
             }
             v += kStateCount;
@@ -446,21 +479,21 @@ int BeagleCPUSSEImpl<double>::getPaddedPatternsModulus() {
 	return 1;  // We currently do not vectorize across patterns
 }
 
-template <typename REALTYPE>
-const char* BeagleCPUSSEImpl<REALTYPE>::getName() {
-	return getBeagleCPUSSEName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPUSSEName<BEAGLE_CPU_GENERIC>();
 }
 
-template <typename REALTYPE>
-const long BeagleCPUSSEImpl<REALTYPE>::getFlags() {
-	return getBeagleCPUSSEFlags<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const long BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>::getFlags() {
+	return getBeagleCPUSSEFlags<BEAGLE_CPU_GENERIC>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleImplFactory public methods
 
-template <typename REALTYPE>
-BeagleImpl* BeagleCPUSSEImplFactory<REALTYPE>::createImpl(int tipCount,
+BEAGLE_CPU_TEMPLATE
+BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -474,8 +507,12 @@ BeagleImpl* BeagleCPUSSEImplFactory<REALTYPE>::createImpl(int tipCount,
                                              long requirementFlags,
                                              int* errorCode) {
 
-    BeagleCPUSSEImpl<REALTYPE>* impl =
-    		new BeagleCPUSSEImpl<REALTYPE>();
+	if (stateCount & 1) {
+		return NULL;
+	}
+
+    BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>* impl =
+    		new BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>();
 
     if (!impl->CPUSupportsSSE()) {
         delete impl;
@@ -500,9 +537,9 @@ BeagleImpl* BeagleCPUSSEImplFactory<REALTYPE>::createImpl(int tipCount,
     return NULL;
 }
 
-template <typename REALTYPE>
-const char* BeagleCPUSSEImplFactory<REALTYPE>::getName() {
-	return getBeagleCPUSSEName<REALTYPE>();
+BEAGLE_CPU_TEMPLATE
+const char* BeagleCPUSSEImplFactory<BEAGLE_CPU_GENERIC>::getName() {
+	return getBeagleCPUSSEName<BEAGLE_CPU_GENERIC>();
 }
 
 template <>

@@ -123,7 +123,7 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\n");    
     
     bool manualScaling = false;
-    bool autoScaling = true;
+    bool autoScaling = false;
 	bool gRates = false; // generalized rate categories, separate root buffers
     
     // is nucleotides...
@@ -155,8 +155,9 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
-                                  BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  0,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                            //      BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_PROCESSOR_CPU,
+                                  BEAGLE_FLAG_VECTOR_SSE,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
