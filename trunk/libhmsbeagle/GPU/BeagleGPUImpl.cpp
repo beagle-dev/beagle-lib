@@ -350,14 +350,14 @@ int BeagleGPUImpl::createInstance(int tipCount,
     sizeof(GPUPtr) * ptrQueueLength;  // dPtrQueue
     
     
-    int availableMem = gpu->GetAvailableMemory();
+    unsigned int availableMem = gpu->GetAvailableMemory();
     
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "     needed memory: %d\n", neededMemory);
     fprintf(stderr, "  available memory: %d\n", availableMem);
 #endif     
     
-    if (availableMem < (int) neededMemory) 
+    if (availableMem < neededMemory) 
         return BEAGLE_ERROR_OUT_OF_MEMORY;
     
     kernels = new KernelLauncher(gpu);
