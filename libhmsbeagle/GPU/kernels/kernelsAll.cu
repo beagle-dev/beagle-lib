@@ -37,8 +37,7 @@
 
 extern "C" {
 
-__global__ void kernelMatrixMulADB(REAL* dMatrices,
-                                   unsigned int* listC,
+__global__ void kernelMatrixMulADB(REAL** listC,
                                    REAL* A,
                                    REAL* D,
                                    REAL* B,
@@ -62,7 +61,7 @@ __global__ void kernelMatrixMulADB(REAL* dMatrices,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = dMatrices + listC[wMatrix]; // Non-coalescent read
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -149,8 +148,7 @@ __global__ void kernelMatrixMulADB(REAL* dMatrices,
     }
 }
 
-__global__ void kernelMatrixMulADBFirstDeriv(REAL* dMatrices,
-                                           unsigned int* listC,
+__global__ void kernelMatrixMulADBFirstDeriv(REAL** listC,
                                            REAL* A,
                                            REAL* D,
                                            REAL* B,
@@ -176,8 +174,8 @@ __global__ void kernelMatrixMulADBFirstDeriv(REAL* dMatrices,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = dMatrices + listC[wMatrix];
-        CFirstDeriv = dMatrices + listC[wMatrix + totalMatrix];
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -281,8 +279,7 @@ __global__ void kernelMatrixMulADBFirstDeriv(REAL* dMatrices,
     }
 }
 
-__global__ void kernelMatrixMulADBSecondDeriv(REAL* dMatrices,
-                                           unsigned int* listC,
+__global__ void kernelMatrixMulADBSecondDeriv(REAL** listC,
                                            REAL* A,
                                            REAL* D,
                                            REAL* B,
@@ -309,9 +306,9 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL* dMatrices,
     int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = dMatrices + listC[wMatrix];
-        CFirstDeriv = dMatrices + listC[wMatrix + totalMatrix];
-        CSecondDeriv = dMatrices + listC[wMatrix + totalMatrix * 2];
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
+        CFirstDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix); // Non-coalescent read
+        CSecondDeriv = (REAL*) *((int*)listC + wMatrix + totalMatrix * 2); // Non-coalescent read
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
@@ -459,8 +456,7 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL* dMatrices,
 		}
 // end DO_MULTIPLICATION(limit)
 
-__global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
-                                   unsigned int* listC,
+__global__ void kernelMatrixMulADBComplex(REAL** listC,
                                    REAL* A,
                                    REAL* D,
                                    REAL* B,
@@ -477,14 +473,14 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
     // Block index
     int bx = blockIdx.x / totalMatrix;
     int by = blockIdx.y;
-    int BLOCKS = gridDim.y;
 
     // Thread index
     int tx = threadIdx.x;
     int ty = threadIdx.y;
+    int BLOCKS = gridDim.y;
 
     if (tx == 0 && ty == 0) {
-        C = dMatrices + listC[wMatrix];
+        C = (REAL*) *((int*)listC + wMatrix); // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
 
@@ -511,21 +507,21 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
     __shared__ REAL Cs[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Ds[MULTIPLY_BLOCK_SIZE];
     __shared__ REAL Es[MULTIPLY_BLOCK_SIZE + 2];
-
+    
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
-   	REAL* Bp1 = &Bs[2][0];
+   	REAL* Bp1 = &Bs[2][0];    	
    	REAL* E0  = &Es[1];
-
+   	
    	// Zero first row of Bs and Es
    	if (ty == 0) {
    		Bs[0][tx] = 0;
    		if (tx == 0) {
-   			Es[0] = 0;
+   			Es[0] = 0;	
    		}
    	}
 
-    while (d + MULTIPLY_BLOCK_SIZE < PADDED_STATE_COUNT) {
+    for (int i = 0; i < BLOCKS - 1; i++) {
 
         READ_SCHUR_VALUES();
 
@@ -564,11 +560,11 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
         d += MULTIPLY_BLOCK_SIZE;
 
     }
-
+	
     if (tx < EDGE && ty < EDGE) { // Last block is too long
 
         READ_SCHUR_VALUES();
-
+        
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
@@ -578,7 +574,7 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
     		Cs[tx] = 0;
     	}
     	As[ty][tx] = 0;
-    	B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;
+    	B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;    
     }
 
 	// Zero last row of Bs and Es (only for unrolled iteration at end)
@@ -588,7 +584,7 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
 
     // All necessary values loaded
 	__syncthreads();
-
+	
 	POPULATE_SCHUR_BAND(EDGE);
 
 	__syncthreads();
@@ -600,7 +596,7 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
 
     // Write the block sub-matrix to device memory;
     // each thread writes one element
-
+    
     if (Csub < 0)
     	Csub = 0;
 
@@ -610,119 +606,7 @@ __global__ void kernelMatrixMulADBComplex(REAL* dMatrices,
     }
 }
 
-__global__ void kernelSumSites1(REAL* dArray,
-                                REAL* dSum,
-                                REAL* dPatternWeights,
-                                int patternCount) {
-
-    __shared__ REAL sum[SUM_SITES_BLOCK_SIZE];
-
-    int tx = threadIdx.x;
-    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
-    if (pattern < patternCount)
-        sum[tx] = dArray[pattern] * dPatternWeights[pattern];
-    else
-        sum[tx] = 0.0;
-        
-    __syncthreads();
-    
-    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
-        if (tx < s)
-            sum[tx] += sum[tx + s];
-        __syncthreads();
-    }
-    
-    if (tx == 0)
-        dSum[blockIdx.x] = sum[0];
-}
-
-__global__ void kernelSumSites2(REAL* dArray1,
-                                REAL* dSum1,
-                                REAL* dArray2,
-                                REAL* dSum2,
-                                REAL* dPatternWeights,
-                                int patternCount) {
-
-    __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
-    __shared__ REAL sum2[SUM_SITES_BLOCK_SIZE];
-
-    int tx = threadIdx.x;
-    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
-    if (pattern < patternCount) {
-        REAL pWeight = dPatternWeights[pattern];
-        sum1[tx] = dArray1[pattern] * pWeight;
-        sum2[tx] = dArray2[pattern] * pWeight;
-    } else {
-        sum1[tx] = 0.0;
-        sum2[tx] = 0.0;
-    }
-        
-    __syncthreads();
-    
-    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
-        if (tx < s) {
-            sum1[tx] += sum1[tx + s];
-            sum2[tx] += sum2[tx + s];
-        }
-        __syncthreads();
-    }
-    
-    if (tx == 0) {
-        dSum1[blockIdx.x] = sum1[0];
-        dSum2[blockIdx.x] = sum2[0];
-    }
-}
-
-__global__ void kernelSumSites3(REAL* dArray1,
-                                REAL* dSum1,
-                                REAL* dArray2,
-                                REAL* dSum2,
-                                REAL* dArray3,
-                                REAL* dSum3,
-                                REAL* dPatternWeights,
-                                int patternCount) {
-
-    __shared__ REAL sum1[SUM_SITES_BLOCK_SIZE];
-    __shared__ REAL sum2[SUM_SITES_BLOCK_SIZE];
-    __shared__ REAL sum3[SUM_SITES_BLOCK_SIZE];
-
-    int tx = threadIdx.x;
-    int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
-    if (pattern < patternCount) {
-        REAL pWeight = dPatternWeights[pattern];
-        sum1[tx] = dArray1[pattern] * pWeight;
-        sum2[tx] = dArray2[pattern] * pWeight;
-        sum3[tx] = dArray3[pattern] * pWeight;
-    } else {
-        sum1[tx] = 0.0;
-        sum2[tx] = 0.0;
-        sum3[tx] = 0.0;
-    }
-        
-    __syncthreads();
-    
-    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
-        if (tx < s) {
-            sum1[tx] += sum1[tx + s];
-            sum2[tx] += sum2[tx + s];
-            sum3[tx] += sum3[tx + s];
-        }
-        __syncthreads();
-    }
-    
-    if (tx == 0) {
-        dSum1[blockIdx.x] = sum1[0];
-        dSum2[blockIdx.x] = sum2[0];
-        dSum3[blockIdx.x] = sum3[0];
-    }
-}
-
-
-__global__ void kernelAccumulateFactors(REAL* dScalingFactors,
-                                        unsigned int* dNodePtrQueue,
+__global__ void kernelAccumulateFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -734,7 +618,7 @@ __global__ void kernelAccumulateFactors(REAL* dScalingFactors,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-        nodeScales = dScalingFactors + dNodePtrQueue[n];
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -743,71 +627,19 @@ __global__ void kernelAccumulateFactors(REAL* dScalingFactors,
 #endif
         REAL factor = nodeScales[pattern];
         if (factor != 1.0) {
+#ifdef LSCALER
+            total += factor;
+#else
             total += log(factor);
-        }
-    }
-
-    if (pattern < patternCount)
-        rootScaling[pattern] += total;
-}
-
-__global__ void kernelAccumulateFactorsScalersLog(REAL* dScalingFactors,
-                                                 unsigned int* dNodePtrQueue,
-                                                 REAL* rootScaling,
-                                                 int nodeCount,
-                                                 int patternCount) {
-    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
-
-    REAL total = 0;
-    REAL* nodeScales;
-
-    int n;
-    for(n = 0; n < nodeCount; n++) {
-//      if (threadIdx.x == 0) // TODO Why does this not work???
-        nodeScales = dScalingFactors + dNodePtrQueue[n];
-//      __syncthreads();
-
-#ifdef KERNEL_PRINT_ENABLED
-        if (pattern == 1)
-            printf("added %1.2e\n", nodeScales[pattern]);
 #endif
-        total += nodeScales[pattern];
+        }
     }
 
     if (pattern < patternCount)
         rootScaling[pattern] += total;
 }
 
-__global__ void kernelAccumulateFactorsAutoScaling(signed char* dScalingFactors,
-                                                   unsigned int* dNodePtrQueue,
-                                                   int* rootScaling,
-                                                   unsigned short* activeScalingFactors,
-                                                   int nodeCount,
-                                                   int patternCount,
-                                                   int scaleBufferSize) {
-    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
-    int index = pattern + blockIdx.y * patternCount;
-
-    int total = 0;
-    signed char* nodeScales;
-
-    int n;
-    for(n = 0; n < nodeCount; n++) {
-        int sIndex = dNodePtrQueue[n];
-        if (activeScalingFactors[sIndex]) {
-            nodeScales = dScalingFactors + dNodePtrQueue[n] * scaleBufferSize;
-
-            total += nodeScales[index];
-        }
-    }
-
-    if (pattern < patternCount)
-        rootScaling[index] = total;
-}
-
-
-__global__ void kernelRemoveFactors(REAL* dScalingFactors,
-                                    unsigned int* dNodePtrQueue,
+__global__ void kernelRemoveFactors(REAL** dNodePtrQueue,
                                                    REAL* rootScaling,
                                                    int nodeCount,
                                                    int patternCount) {
@@ -819,7 +651,7 @@ __global__ void kernelRemoveFactors(REAL* dScalingFactors,
     int n;
     for(n = 0; n < nodeCount; n++) {
 //      if (threadIdx.x == 0) // TODO Why does this not work???
-        nodeScales = dScalingFactors + dNodePtrQueue[n];
+            nodeScales = (REAL*) *((int*)dNodePtrQueue + n);
 //      __syncthreads();
 
 #ifdef KERNEL_PRINT_ENABLED
@@ -828,36 +660,12 @@ __global__ void kernelRemoveFactors(REAL* dScalingFactors,
 #endif
         REAL factor = nodeScales[pattern];
         if (factor != 1.0) {
+#ifdef LSCALER
+            total += factor;
+#else
             total += log(factor);
-        }
-    }
-
-    if (pattern < patternCount)
-        rootScaling[pattern] -= total;
-} 
-
-__global__ void kernelRemoveFactorsScalersLog(REAL* dScalingFactors,
-                                             unsigned int* dNodePtrQueue,
-                                             REAL* rootScaling,
-                                             int nodeCount,
-                                             int patternCount) {
-    int pattern = threadIdx.x + blockIdx.x * PATTERN_BLOCK_SIZE;
-
-    REAL total = 0;
-    REAL* nodeScales;
-
-    int n;
-    for(n = 0; n < nodeCount; n++) {
-//      if (threadIdx.x == 0) // TODO Why does this not work???
-        nodeScales = dScalingFactors + dNodePtrQueue[n];
-//      __syncthreads();
-
-#ifdef KERNEL_PRINT_ENABLED
-        if (pattern == 1)
-            printf("added %1.2e\n", nodeScales[pattern]);
 #endif
-
-        total += nodeScales[pattern];
+        }
     }
 
     if (pattern < patternCount)
@@ -911,69 +719,11 @@ __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
     if(state == 0) {
         if (max == 0)
         	max = 1.0;
-        scalingFactors[pattern] = max;
-    }
-
-
-    __syncthreads();
-
-    for(m = 0; m < matrixCount; m++)
-        allPartials[m * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
-                    state] /= max;
-
-}
-
-__global__ void kernelPartialsDynamicScalingSlowScalersLog(REAL* allPartials,
-                                                          REAL* scalingFactors,
-                                                          int matrixCount) {
-    int state = threadIdx.x;
-    int matrix = threadIdx.y;
-    int pattern = blockIdx.x;
-    int patternCount = gridDim.x;
-
-    int deltaPartialsByMatrix = __umul24(matrix, __umul24( PADDED_STATE_COUNT, patternCount));
-
-    __shared__ REAL partials[PADDED_STATE_COUNT];
-
-    __shared__ REAL max;
-
-    if (state == 0)
-        max = 0.0;
-
-    int m;
-    for(m = 0; m < matrixCount; m++) {
-        partials[state] = allPartials[m * patternCount * PADDED_STATE_COUNT + pattern *
-                                      PADDED_STATE_COUNT + state];
-        __syncthreads();
-
-#ifdef IS_POWER_OF_TWO
-    // parallelized reduction *** only works for powers-of-2 ****
-    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-        if (state < i) {
+#ifdef LSCALER
+        scalingFactors[pattern] = log(max);
 #else
-    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-        if (state < i && state + i < PADDED_STATE_COUNT ) {
-#endif // IS_POWER_OF_TWO
-                REAL compare1 = partials[state];
-                REAL compare2 = partials[state + i];
-                if(compare2 > compare1)
-                    partials[state] = compare2;
-            }
-            __syncthreads();
-        }
-        if(state == 0) {
-            if( partials[0] > max)
-                max = partials[0];
-        }
-    }
-
-    if(state == 0) {
-        if (max == 0) {
-        	max = 1.0;
-            scalingFactors[pattern] = 0.0;
-        } else {
-            scalingFactors[pattern] = log(max);
-        }
+        scalingFactors[pattern] = max;
+#endif
     }
 
 
@@ -984,7 +734,6 @@ __global__ void kernelPartialsDynamicScalingSlowScalersLog(REAL* allPartials,
                     state] /= max;
 
 }
-
 
 } // extern "C"
 

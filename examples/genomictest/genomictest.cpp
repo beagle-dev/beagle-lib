@@ -55,14 +55,11 @@ void runBeagle(int resource,
                int ntaxa, 
                int nsites, 
                bool scaling, 
-               bool autoScaling,
                int rateCategoryCount)
 {
     
     int scaleCount = (scaling ? ntaxa : 0);
-    
-    BeagleInstanceDetails instDetails;
-    
+
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
 			    ntaxa,			  /**< Number of tip data elements (input) */
@@ -76,12 +73,20 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-			//	(autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				BEAGLE_FLAG_VECTOR_SSE,
-				0,		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-				&instDetails);
+				0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				0		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+				);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
+	    exit(1);
+    }
+
+    // initialize the instance
+    BeagleInstanceDetails instDetails;
+    int error = beagleInitializeInstance(instance, &instDetails);
+	
+    if (error < 0) {
+	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
 	    exit(1);
     }
         
@@ -91,16 +96,11 @@ void runBeagle(int resource,
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     fprintf(stdout, "\n");      
     
-    if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
-        autoScaling = false;
-    
     // set the sequences for each tip using partial likelihood arrays
 	srand(42);	// fix the random seed...
 	for(int i=0; i<ntaxa; i++)
 	{
-        double* tmpPartials = getRandomTipPartials(nsites, stateCount);
-		beagleSetTipPartials(instance, i, tmpPartials);
-        free(tmpPartials);
+		beagleSetTipPartials(instance, i, getRandomTipPartials(nsites, stateCount));
 	}
     
 #ifdef _WIN32
@@ -114,16 +114,6 @@ void runBeagle(int resource,
     }
     
 	beagleSetCategoryRates(instance, &rates[0]);
-    
-	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
-    
-    for (int i = 0; i < nsites; i++) {
-        patternWeights[i] = 1.0;
-    }    
-
-    beagleSetPatternWeights(instance, patternWeights);
-    
-    free(patternWeights);
 	
     // create base frequency array
 
@@ -137,8 +127,6 @@ void runBeagle(int resource,
         freqs[i] = 1.0 / stateCount;
     }
 
-    beagleSetStateFrequencies(instance, 0, &freqs[0]);
-    
     // create an array containing site category weights
 #ifdef _WIN32
 	std::vector<double> weights(rateCategoryCount);
@@ -149,8 +137,6 @@ void runBeagle(int resource,
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     } 
-    
-    beagleSetCategoryWeights(instance, 0, &weights[0]);
 
 	// an eigen decomposition for the general state-space JC69 model
     // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
@@ -223,11 +209,8 @@ void runBeagle(int resource,
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
 		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
 		operations[BEAGLE_OP_COUNT*i+6] = i*2+1;
-
-        scalingFactorsIndices[i] = i;
         
-        if (autoScaling)
-            scalingFactorsIndices[i] += ntaxa;
+        scalingFactorsIndices[i] = i;
 	}	
 
 	int rootIndex = ntaxa*2-2;
@@ -248,10 +231,13 @@ void runBeagle(int resource,
     gettimeofday(&time2, NULL);
     
     // update the partials
-	beagleUpdatePartials( instance,      // instance
+	beagleUpdatePartials( &instance,      // instance
+	                1,              // instanceCount
 	                operations,     // eigenIndex
 	                ntaxa-1,              // operationCount
 	                BEAGLE_OP_NONE);             // cumulative scaling index
+
+	double *patternLogLik = (double*)malloc(sizeof(double) * nsites);
     
 
     int scalingFactorsCount = ntaxa-1;
@@ -259,7 +245,7 @@ void runBeagle(int resource,
     int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
     
     
-    if (scaling && !autoScaling) {
+    if (scaling) {
         beagleResetScaleFactors(instance,
                                cumulativeScalingFactorIndex);
         
@@ -269,26 +255,22 @@ void runBeagle(int resource,
                                cumulativeScalingFactorIndex);
     }
     
-    if (autoScaling)
-        beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
-    
-    int categoryWeightsIndex = 0;
-    int stateFrequencyIndex = 0;
-    
-	double logL = 0.0;
-    
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
-	                            &categoryWeightsIndex,                // weights
-	                            &stateFrequencyIndex,                 // stateFrequencies
+	                            &weights[0],                // weights
+	                            &freqs[0],                 // stateFrequencies
                                 &cumulativeScalingFactorIndex,
 	                            1,                      // count
-	                            &logL);         // outLogLikelihoods
+	                            patternLogLik);         // outLogLikelihoods
 
 	// end timing!
 	gettimeofday(&time3,NULL);
 
+	double logL = 0.0;
+	for (int i = 0; i < nsites; i++) {
+		logL += patternLogLik[i];
+	}
 
 	fprintf(stdout, "logL = %.5f \n", logL);
 	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
@@ -318,7 +300,6 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* ntaxa,
                                     int* nsites,
                                     bool* scaling,
-                                    bool* autoScaling,
                                     int* rateCategoryCount)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
@@ -344,9 +325,6 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 			helpMessage();
         } else if (option == "--scale") {
             *scaling = true;
-        } else if (option == "--autoscale") {
-        	*scaling = true;
-        	*autoScaling = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
         } else if (option == "--taxa") {
@@ -395,12 +373,10 @@ int main( int argc, const char* argv[] )
     int stateCount = 4;
     int ntaxa = 29;
     int nsites = 10000;
-    bool manualScaling = false;
-    bool autoScaling = false;
-    
+    bool scaling = false;
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &rateCategoryCount);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &scaling, &rateCategoryCount);
     
 	std::cout << "Simulating genomic ";
     if (stateCount == 4)
@@ -416,8 +392,7 @@ int main( int argc, const char* argv[] )
                       stateCount,
                       ntaxa,
                       nsites,
-                      manualScaling,
-                      autoScaling,
+                      scaling,
                       rateCategoryCount);                      
 		}
 	}else{
@@ -425,8 +400,7 @@ int main( int argc, const char* argv[] )
                   stateCount,
                   ntaxa,
                   nsites,
-                  manualScaling,
-                  autoScaling,
+                  scaling,
                   rateCategoryCount);
 	}
 

@@ -75,19 +75,10 @@ public:
                                       const double* inInverseEigenVectors,
                                       const double* inEigenValues) = 0;
     
-    virtual int setStateFrequencies(int stateFrequenciesIndex,
-                                  const double* inStateFrequencies) = 0;    
-    
-    virtual int setCategoryWeights(int categoryWeightsIndex,
-                                 const double* inCategoryWeights) = 0;
-    
-    virtual int setPatternWeights(const double* inPatternWeights) = 0;
-    
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,
-                                    const double* inMatrix,
-                                    double paddedValue) = 0;
+                                    const double* inMatrix) = 0;
     
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
@@ -117,29 +108,24 @@ public:
     virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;   
     
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
-                                            const int* categoryWeightsIndices,
-                                            const int* stateFrequenciesIndices,
+                                            const double* inWeights,
+                                            const double* inStateFrequencies,
                                             const int* scalingFactorsIndices,
                                             int count,
-                                            double* outSumLogLikelihood) = 0;
+                                            double* outLogLikelihoods) = 0;
     
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,
                                             const int* firstDerivativeIndices,
                                             const int* secondDerivativeIndices,
-                                            const int* categoryWeightsIndices,
-                                            const int* stateFrequenciesIndices,
+                                            const double* inWeights,
+                                            const double* inStateFrequencies,
                                             const int* scalingFactorsIndices,
                                             int count,
-                                            double* outSumLogLikelihood,
-                                            double* outSumFirstDerivative,
-                                            double* outSumSecondDerivative) = 0;
-    
-    virtual int getSiteLogLikelihoods(double* outLogLikelihoods) = 0;
-    
-    virtual int getSiteDerivatives(double* outFirstDerivatives,
-                                   double* outSecondDerivatives) = 0;
+                                            double* outLogLikelihoods,
+                                            double* outFirstDerivatives,
+                                            double* outSecondDerivatives) = 0;
 //protected:
     int resourceNumber;
 };

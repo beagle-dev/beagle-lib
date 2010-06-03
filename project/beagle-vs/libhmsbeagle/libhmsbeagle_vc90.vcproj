@@ -43,7 +43,6 @@
 				Include="&quot;../../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
-				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -225,7 +224,6 @@
 				Include="&quot;../../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
-				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -738,19 +736,11 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels128.cu"
-						>
-					</File>
-					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels16.cu"
-						>
-					</File>
-					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu"
-						>
-					</File>
-					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32ls.cu"
 						>
 					</File>
 					<File
@@ -762,7 +752,19 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels48ls.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels4ls.cu"
+						>
+					</File>
+					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64ls.cu"
 						>
 					</File>
 					<File

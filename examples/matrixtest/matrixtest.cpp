@@ -159,25 +159,17 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_REAL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
+        if (rList->list[i].supportFlags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
         fprintf(stdout, "\n");
     }    
     fprintf(stdout, "\n");    
@@ -194,8 +186,6 @@ int main( int argc, const char* argv[] )
     
     int scaleCount = (scaling ? 3 : 0);
     
-    BeagleInstanceDetails instDetails;
-    
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -203,49 +193,50 @@ int main( int argc, const char* argv[] )
                                   0,		        /**< Number of compact state representation buffers to create (input) */
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
-                                  1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+                                  0,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                                   4,		        /**< Number of rate matrix buffers (input) */
                                   rateCategoryCount,/**< Number of rate categories (input) */
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                   0,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  BEAGLE_FLAG_PROCESSOR_CPU
-#ifndef JC
-                                  | BEAGLE_FLAG_EIGEN_COMPLEX
+#ifdef JC
+                                  0
+#else
+                                  BEAGLE_FLAG_COMPLEX           /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 #endif
-                                  ,           /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-                                  &instDetails);
+                                  );
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
     }
-        
+    
+    // initialize the instance
+    BeagleInstanceDetails instDetails;
+    int error = beagleInitializeInstance(instance, &instDetails);
+	
+    if (error < 0) {
+	    fprintf(stderr, "Failed to initialize BEAGLE instance\n\n");
+	    exit(1);
+    }
+    
     int rNumber = instDetails.resourceNumber;
     fprintf(stdout, "Using resource %i:\n", rNumber);
-    fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
-    fprintf(stdout, "\tImpl : %s\n", instDetails.implName);
-    fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
+    fprintf(stdout, "\tName : %s\n", rList->list[rNumber].name);
+    fprintf(stdout, "\tDesc : %s\n", rList->list[rNumber].description);
+    fprintf(stdout, "\tImpl : %s\n", "GET INFO");
     fprintf(stdout, "\tFlags:");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
-    if (instDetails.flags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
-    if (instDetails.flags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
-    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_REAL");
-    if (instDetails.flags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
-    if (instDetails.flags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
-    if (instDetails.flags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
-    if (instDetails.flags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
-    if (instDetails.flags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
-    if (instDetails.flags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
-    if (instDetails.flags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
+    if (instDetails.flags & BEAGLE_FLAG_DOUBLE) fprintf(stdout, " DOUBLE");
+    if (instDetails.flags & BEAGLE_FLAG_SINGLE) fprintf(stdout, " SINGLE");
+    if (instDetails.flags & BEAGLE_FLAG_ASYNCH) fprintf(stdout, " ASYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_SYNCH)  fprintf(stdout, " SYNCH");
+    if (instDetails.flags & BEAGLE_FLAG_COMPLEX)fprintf(stdout, " COMPLEX");
+    if (instDetails.flags & BEAGLE_FLAG_LSCALER)fprintf(stdout, " LSCALER");
+    if (instDetails.flags & BEAGLE_FLAG_CPU)    fprintf(stdout, " CPU");
+    if (instDetails.flags & BEAGLE_FLAG_GPU)    fprintf(stdout, " GPU");
+    if (instDetails.flags & BEAGLE_FLAG_FPGA)   fprintf(stdout, " FPGA");
+    if (instDetails.flags & BEAGLE_FLAG_SSE)    fprintf(stdout, " SSE");
+    if (instDetails.flags & BEAGLE_FLAG_CELL)   fprintf(stdout, " CELL");
     fprintf(stdout, "\n\n");
     
     
@@ -269,18 +260,8 @@ int main( int argc, const char* argv[] )
     
 	beagleSetCategoryRates(instance, &rates[0]);
 	
-	double* patternWeights = (double*) malloc(sizeof(double) * nPatterns);
-    
-    for (int i = 0; i < nPatterns; i++) {
-        patternWeights[i] = 1.0;
-    }    
-    
-    beagleSetPatternWeights(instance, patternWeights);
-	
     // create base frequency array
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-    
-    beagleSetStateFrequencies(instance, 0, freqs);
     
     // create an array containing site category weights
 #ifdef _WIN32
@@ -291,8 +272,6 @@ int main( int argc, const char* argv[] )
     for (int i = 0; i < rateCategoryCount; i++) {
         weights[i] = 1.0/rateCategoryCount;
     }    
-    
-    beagleSetCategoryWeights(instance, 0, &weights[0]);
     
 #ifndef JC
 	// an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
@@ -357,8 +336,7 @@ int main( int argc, const char* argv[] )
 													   edgeLengths[b]);
 		beagleSetTransitionMatrix(instance,
 								  nodeIndices[b],
-								  transitionMatrix,
-                                  1.0);
+								  transitionMatrix);
 		free(transitionMatrix);
 	}
     
@@ -371,7 +349,8 @@ int main( int argc, const char* argv[] )
 	int rootIndex = 4;
     
     // update the partials
-	beagleUpdatePartials(instance,      // instance
+	beagleUpdatePartials(&instance,      // instance
+                   1,              // instanceCount
                    operations,     // eigenIndex
                    2,              // operationCount
                    BEAGLE_OP_NONE);          // cumulative scaling index
@@ -393,27 +372,25 @@ int main( int argc, const char* argv[] )
                                      cumulativeScalingIndex);
     }
     
-	int categoryWeightsIndex = 0;
-    int stateFrequencyIndex = 0;
-    
-	double logL = 0.0;    
-    
     // calculate the site likelihoods at the root node
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            (const int *)&rootIndex,// bufferIndices
-                                  &categoryWeightsIndex,                // weights
-                                  &stateFrequencyIndex,                  // stateFrequencies
+	                            &weights[0],                // weights
+	                            freqs,                  // stateFrequencies
                                 &cumulativeScalingIndex,// cumulative scaling index
 	                            1,                      // count
-	                            &logL);         // outLogLikelihoods
-        
+	                            patternLogLik);         // outLogLikelihoods
+    
+	double logL = 0.0;
+	for (int i = 0; i < nPatterns; i++) {
+		logL += patternLogLik[i];
+	}
+    
 #ifndef JC
 	fprintf(stdout, "logL = %.5f (BEAST = -1665.38544)\n\n", logL);
 #else
 	fprintf(stdout, "logL = %.5f (PAUP = -1574.63623)\n\n", logL);
 #endif
-    
-    free(patternWeights);
 	
 	free(patternLogLik);
 	free(humanPartials);

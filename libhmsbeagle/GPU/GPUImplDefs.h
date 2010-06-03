@@ -28,9 +28,6 @@
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
-#include "libhmsbeagle/platform.h"
-
-#include <cfloat>
 
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
@@ -39,18 +36,8 @@
 /* Definition of REAL can be switched between 'double' and 'float' */
 #ifdef DOUBLE_PRECISION
     #define REAL    double
-    #define REAL_MIN    DBL_MIN
-    #define REAL_MAX    DBL_MAX
-    #define SCALING_FACTOR_COUNT 2046 // -1022, 1023
-    #define SCALING_FACTOR_OFFSET 1022 // the zero point
-    #define SCALING_EXPONENT_THRESHOLD 200 // TODO: find optimal value for SCALING_EXPONENT_THRESHOLD
 #else
     #define REAL    float
-    #define REAL_MIN    FLT_MIN
-    #define REAL_MAX    FLT_MAX
-    #define SCALING_FACTOR_COUNT 254 // -126, 127
-    #define SCALING_FACTOR_OFFSET 126 // the zero point
-    #define SCALING_EXPONENT_THRESHOLD 20 // TODO: find optimal value for SCALING_EXPONENT_THRESHOLD
 #endif
 
 #define SIZE_REAL   sizeof(REAL)
@@ -87,9 +74,6 @@
 /* Table of pre-optimized compiler definitions
  */
 
-// state count independent
-#define SUM_SITES_BLOCK_SIZE 128
-
 // PADDED_STATE_COUNT == 4
 #define PATTERN_BLOCK_SIZE_4          16
 #define MATRIX_BLOCK_SIZE_4           8
@@ -100,14 +84,7 @@
 
 // PADDED_STATE_COUNT == 8 TODO
 
-// PADDED_STATE_COUNT == 16
-// TODO: find optimal settings
-#define PATTERN_BLOCK_SIZE_16         8
-#define MATRIX_BLOCK_SIZE_16          8
-#define BLOCK_PEELING_SIZE_16         8
-#define IS_POWER_OF_TWO_16            1
-#define SMALLEST_POWER_OF_TWO_16      16
-#define SLOW_REWEIGHING_16            0
+// PADDED_STATE_COUNT == 16 TODO
 
 // PADDED_STATE_COUNT == 32
 // TODO: find optimal settings
@@ -280,9 +257,9 @@ struct Dim3Int
 {
     unsigned int x, y, z;
 #if defined(__cplusplus)
-    Dim3Int(unsigned int xArg = 1,
-            unsigned int yArg = 1,
-            unsigned int zArg = 1) : x(xArg), y(yArg), z(zArg) {}
+    Dim3Int(unsigned int x = 1,
+            unsigned int y = 1,
+            unsigned int z = 1) : x(x), y(y), z(z) {}
 #endif /* __cplusplus */
 };
 

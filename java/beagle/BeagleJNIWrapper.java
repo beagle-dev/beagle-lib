@@ -39,13 +39,13 @@ public class BeagleJNIWrapper {
             final int[] resourceList,
             int resourceCount,
             long preferenceFlags,
-            long requirementFlags,
+            long requirementFlags);
+
+    public native int initializeInstance(
+            int instance,
             InstanceDetails returnInfo);
 
     public native int finalize(int instance);
-
-    public native int setPatternWeights(int instance,
-                                        final double[] patternWeights);
 
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
@@ -63,18 +63,9 @@ public class BeagleJNIWrapper {
                                             final double[] inverseEigenValues,
                                             final double[] eigenValues);
 
-    public native int setStateFrequencies(int instance,
-                                          int stateFrequenciesIndex,
-                                          final double[] stateFrequencies);
+    public native int setCategoryRates(int instance, final double[] inCategoryRates);
 
-    public native int setCategoryWeights(int instance,
-                                         int categoryWeightsIndex,
-                                         final double[] categoryWeights);
-
-    public native int setCategoryRates(int instance,
-                                       final double[] inCategoryRates);
-
-    public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix, double paddedValue);
+    public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix);
 
     public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
 
@@ -85,12 +76,14 @@ public class BeagleJNIWrapper {
                                                final double[] edgeLengths,
                                                int count);
 
-    public native int updatePartials(final int instance,
+    public native int updatePartials(final int[] instance,
+                                     int instanceCount,
                                      final int[] operations,
                                      int operationCount,
                                      int cumulativeScalingIndex);
 
-    public native int waitForPartials(final int instance,
+    public native int waitForPartials(final int[] instance,
+                                      int instanceCount,
                                       final int[] destinationPartials,
                                       int destinationPartialsCount);
 
@@ -109,11 +102,11 @@ public class BeagleJNIWrapper {
 
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
-                                                  final int[] categoryWeightsIndices,
-                                                  final int[] stateFrequenciesIndices,
-                                                  final int[] cumulativeScaleIndices,
+                                                  final double[] inWeights,
+                                                  final double[] inStateFrequencies,
+                                                  final int[] scalingFactorsIndices,
                                                   int count,
-                                                  final double[] outSumLogLikelihood);
+                                                  final double[] outLogLikelihoods);
 
     public native int calculateEdgeLogLikelihoods(int instance,
                                                   final int[] parentBufferIndices,
@@ -121,16 +114,13 @@ public class BeagleJNIWrapper {
                                                   final int[] probabilityIndices,
                                                   final int[] firstDerivativeIndices,
                                                   final int[] secondDerivativeIndices,
-                                                  final int[] categoryWeightsIndices,
-                                                  final int[] stateFrequenciesIndices,
+                                                  final double[] inWeights,
+                                                  final double[] inStateFrequencies,
                                                   final int[] scalingFactorsIndices,
                                                   int count,
-                                                  final double[] outSumLogLikelihood,
-                                                  final double[] outSumFirstDerivative,
-                                                  final double[] outSumSecondDerivative);
-
-    public native int getSiteLogLikelihoods(final int instance,
-                                            final double[] outLogLikelihoods);
+                                                  final double[] outLogLikelihoods,
+                                                  final double[] outFirstDerivatives,
+                                                  final double[] outSecondDerivatives);
 
     /* Library loading routines */
 

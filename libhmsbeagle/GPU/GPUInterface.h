@@ -95,10 +95,6 @@ public:
     GPUPtr AllocateRealMemory(int length);
 
     GPUPtr AllocateIntMemory(int length);
-    
-    void MemsetShort(GPUPtr dest,
-                     unsigned short val,
-                     unsigned int count);
 
     void MemcpyHostToDevice(GPUPtr dest,
                             const void* src,

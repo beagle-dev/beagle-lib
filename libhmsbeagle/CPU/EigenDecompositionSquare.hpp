@@ -27,7 +27,7 @@ EigenDecompositionSquare<REALTYPE>::EigenDecompositionSquare(int decompositionCo
 											       long flags)
 	: EigenDecomposition<REALTYPE>(decompositionCount,stateCount,categoryCount) {
 
-	isComplex = flags & BEAGLE_FLAG_EIGEN_COMPLEX;
+	isComplex = flags & BEAGLE_FLAG_COMPLEX;
 
 	if (isComplex)
 		kEigenValuesSize = 2 * kStateCount;
@@ -109,6 +109,7 @@ void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
 			const REALTYPE distance = categoryRates[l] * edgeLength;
+        	int tmpIndex = 0;
         	for(int i=0; i<kStateCount; i++) {
         		if (!isComplex || EvalImag[i] == 0) {
         			const REALTYPE tmp = exp(Eval[i] * distance);
@@ -154,7 +155,7 @@ void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex
                 }
 #ifdef PAD_MATRICES
                 transitionMat[n] = 1.0;
-                n += PAD;
+                n++;
 #endif
             }
         }

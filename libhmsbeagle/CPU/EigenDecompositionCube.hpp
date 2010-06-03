@@ -59,8 +59,6 @@ EigenDecompositionCube<REALTYPE>::~EigenDecompositionCube() {
 	free(gCMatrices);
 	free(gEigenValues);
 	free(matrixTmp);
-	free(firstDerivTmp);
-	free(secondDerivTmp);
 }
 
 template <typename REALTYPE>
@@ -101,12 +99,13 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l]));
                 }
 				
-                REALTYPE* tmpCMatrices = gCMatrices[eigenIndex];
+				int m = 0;
 				for (int i = 0; i < kStateCount; i++) {
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
-							sum += (*tmpCMatrices++) * matrixTmp[k];
+							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
+							m++;
 						}
 						if (sum > 0)
 							transitionMat[n] = sum;
@@ -116,7 +115,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					}
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
-					n += PAD;
+					n++;
 #endif
 				}
 			}
@@ -148,6 +147,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
 						REALTYPE sumD1 = 0.0;
+						REALTYPE sumD2 = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
 							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
 							sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
@@ -163,7 +163,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 #ifdef PAD_MATRICES
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
-					n += PAD;
+					n++;
 #endif
 				}
 			}
@@ -207,7 +207,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
                     secondDerivMat[n] = 0.0;
-					n += PAD;
+					n++;
 #endif
 				}
 			}

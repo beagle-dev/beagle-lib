@@ -93,7 +93,6 @@ FourTaxonExample::FourTaxonExample()
   , do_rescaling(false)
   , accumulate_on_the_fly(false)
   , dynamic_scaling(false)
-  , auto_scaling(false)
   , single(false)
   , calculate_derivatives(0)
   , empirical_derivatives(false)
@@ -284,7 +283,7 @@ void FourTaxonExample::initBeagleLib()
         
     long requirementFlags = 0;
     if (single) {
-        requirementFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
+        requirementFlags |= BEAGLE_FLAG_SINGLE;
     }
         
 	int mtrxCount = ntaxa + 1; 
@@ -294,8 +293,6 @@ void FourTaxonExample::initBeagleLib()
     else if (calculate_derivatives == 2)
         mtrxCount *= 3;
 
-    BeagleInstanceDetails instDetails;
-        
 	instance_handle = beagleCreateInstance(
 				ntaxa,		// tipCount
 				ntaxa + 2,	// partialsBufferCount
@@ -308,15 +305,21 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				BEAGLE_FLAG_VECTOR_SSE | (auto_scaling ? BEAGLE_FLAG_SCALING_AUTO : 0),         // preferenceFlags
-				requirementFlags,			// requirementFlags
-				&instDetails);
+				BEAGLE_FLAG_SSE,         // preferenceFlags
+				requirementFlags			// requirementFlags
+				);
 	
 	if (rsrc_number != BEAGLE_OP_NONE)
 		delete[] rsrcList;
 
 	if (instance_handle < 0)
 		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
+        
+    BeagleInstanceDetails instDetails;
+    code = beagleInitializeInstance(instance_handle, &instDetails);    
+    if (code != 0) {
+			abort("beagleInitializeInstance encountered a problem");
+    }
         
     int rNumber = instDetails.resourceNumber;
     //BeagleResourceList* rList = beagleGetResourceList();
@@ -376,19 +379,6 @@ void FourTaxonExample::initBeagleLib()
 #endif
 		);
 
-#ifdef _WIN32
-        std::vector<double> patternWeights(nsites);
-#else
-        double patternWeights[nsites];
-#endif
-        
-    for (int i = 0; i < nsites; i++) {
-        patternWeights[i] = 1.0;
-    }    
-        
-    beagleSetPatternWeights(instance_handle, &patternWeights[0]);
-        
-        
 	// JC69 model eigenvector matrix
 	double evec[4 * 4] = {
 		 1.0,  2.0,  0.0,  0.5,
@@ -418,11 +408,7 @@ void FourTaxonExample::initBeagleLib()
 	if (code != 0)
 		abort("beagleSetEigenDecomposition encountered a problem");
         
-    if (auto_scaling) {
-        scaleIndices.resize(2);
-        scaleIndices[0] = 4;
-        scaleIndices[1] = 5;        
-    } else if (scaling && !accumulate_on_the_fly) {
+    if (scaling && !accumulate_on_the_fly) {
         scaleIndices.resize(2);
         scaleIndices[0] = 1;
         scaleIndices[1] = 2;
@@ -454,7 +440,8 @@ double FourTaxonExample::calcLnL(int return_value)
         beagleResetScaleFactors(instance_handle, cumulativeScalingFactorIndex);
       
 	code = beagleUpdatePartials(
-		   instance_handle,                                 // instance
+		   &instance_handle,                                 // instance
+		   1,                                                // instanceCount
 		   &operations[0],                                   // operations
 		   2,                                                // operationCount
            (accumulate_on_the_fly ?                          
@@ -468,8 +455,6 @@ double FourTaxonExample::calcLnL(int return_value)
 	int transitionMatrixIndex  = transmat_index;
 	int firstDerivMatrixIndex  = transmat_index + 5;
 	int secondDerivMatrixIndex  = transmat_index + 10;
-    int stateFrequencyIndex = 0;
-    int categoryWeightsIndex = 0;
         
 #ifdef _WIN32
 	std::vector<double> relativeRateProb(nrates);
@@ -481,9 +466,7 @@ double FourTaxonExample::calcLnL(int return_value)
         relativeRateProb[i] = 1.0 / nrates;
     }
         
-    if (auto_scaling) {
-        code = beagleAccumulateScaleFactors(instance_handle, &scaleIndices[0], 2, BEAGLE_OP_NONE);
-    } else if (do_rescaling && !accumulate_on_the_fly) { // Accumulate scale factors if not on-the-fly
+    if (do_rescaling && !accumulate_on_the_fly) { // Accumulate scale factors if not on-the-fly
         code = beagleAccumulateScaleFactors(
              instance_handle,
              &scaleIndices[0],
@@ -492,14 +475,10 @@ double FourTaxonExample::calcLnL(int return_value)
     }
         
 	double stateFreqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-        
-    beagleSetStateFrequencies(instance_handle, 0, stateFreqs);        
-        
-    beagleSetCategoryWeights(instance_handle, 0, &relativeRateProb[0]);
 
-    double lnL = 0.0;
-	double firstDeriv = 0.0;
-	double secondDeriv = 0.0;
+	std::vector<double> lnL(nsites);
+	std::vector<double> firstDeriv(nsites);
+	std::vector<double> secondDeriv(nsites);
 
 	code = beagleCalculateEdgeLogLikelihoods(
 		 instance_handle,					// instance,
@@ -508,13 +487,17 @@ double FourTaxonExample::calcLnL(int return_value)
 		 &transitionMatrixIndex,			// probabilityIndices
 		 (calculate_derivatives > 0 ? &firstDerivMatrixIndex : NULL),	// firstDerivativeIndices
 		 (calculate_derivatives > 1 ? &secondDerivMatrixIndex : NULL),	// secondDerivativeIndices
-		 &categoryWeightsIndex,	// weights
-		 &stateFrequencyIndex,			// stateFrequencies,
+#ifdef _WIN32
+		 &relativeRateProb[0],
+#else
+		 (const double*)&relativeRateProb,	// weights
+#endif
+		 (const double*)stateFreqs,			// stateFrequencies,
          &cumulativeScalingFactorIndex,
 		 1,									// count
-		 &lnL,							// outLogLikelihoods,
-		 (calculate_derivatives > 0 ? &firstDeriv : NULL),	  // outFirstDerivatives,
-		 (calculate_derivatives > 1 ? &secondDeriv : NULL));	  // outSecondDerivatives
+		 &lnL[0],							// outLogLikelihoods,
+		 (calculate_derivatives > 0 ? &firstDeriv[0] : NULL),	  // outFirstDerivatives,
+		 (calculate_derivatives > 1 ? &secondDeriv[0] : NULL));	  // outSecondDerivatives
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
@@ -530,11 +513,11 @@ double FourTaxonExample::calcLnL(int return_value)
 	double return_sum = 0;
 		
 	if (return_value == 0)
-		return_sum = lnL;
+		return_sum = std::accumulate(lnL.begin(), lnL.end(), 0.0);
 	else if (return_value == 1)
-		return_sum = firstDeriv;
+		return_sum = std::accumulate(firstDeriv.begin(), firstDeriv.end(), 0.0);
 	else if (return_value == 2)
-		return_sum = secondDeriv;
+		return_sum = std::accumulate(secondDeriv.begin(), secondDeriv.end(), 0.0);
 
 
 	return return_sum;
@@ -801,8 +784,7 @@ void FourTaxonExample::helpMessage()
     std::cerr << "If --scaling is specified, 0 = no rescaling,\n";
     std::cerr << "                           1 = rescale and accumulate scale factors on the fly\n";
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
-    std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n";
-    std::cerr << "                           4 = automatically rescale when necessary\n\n";
+    std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n\n";
     std::cerr << "If --single is specified, then run in single precision mode\n\n";
     std::cerr << "If --calcderivs is specified, 0 = no calculation of edge likelihood derivatives\n";
     std::cerr << "                              1 = calculate first order edge likelihood derivatives\n";
@@ -861,21 +843,18 @@ void FourTaxonExample::interpretCommandLineParameters(
             int noption = (unsigned)atoi(option.c_str());
             scaling = false;
             accumulate_on_the_fly = true;
-            do_rescaling = false;
-            auto_scaling = false;
-            if (noption >= 1 && noption < 4)
+            do_rescaling = false;                
+            if (noption >= 1)
                 {                
                 scaling = true;
                 do_rescaling = true;
                 }
-            if (noption >= 2 && noption < 4)
+            if (noption >= 2)
                 accumulate_on_the_fly = false;
             if (noption == 3)                 
-                dynamic_scaling = true;
-            if (noption == 4)
-                auto_scaling = true;
+                dynamic_scaling = true;                
             expecting_scaling_number = false;
-            if (noption < 0 || noption > 4)
+            if (noption < 0 || noption > 3)
                 abort("invalid scaling option supplied on the command line");
              }
 		else if (expecting_calculate_derivatives)

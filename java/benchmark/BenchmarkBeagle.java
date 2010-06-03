@@ -1,154 +1,18 @@
+package benchmark;
+
+import beagle.Beagle;
+import beagle.BeagleFactory;
+import beagle.BeagleFlag;
+import beagle.BeagleInfo;
+
 /**
- *
+ * Created by IntelliJ IDEA.
+ * User: rambaut
+ * Date: Aug 1, 2009
+ * Time: 11:48:51 PM
+ * To change this template use File | Settings | File Templates.
  */
-package beagle;
-
-import java.util.*;
-import java.util.logging.Logger;
-
-/**
- * @author Marc Suchard
- * @author Andrew Rambaut
- *
- */
-public class BeagleFactory {
-
-    private static Map<Integer, ResourceDetails> resourceDetailsMap = new HashMap<Integer, ResourceDetails>();
-
-    public static List<ResourceDetails> getResourceDetails() {
-        getBeagleJNIWrapper();
-
-        return new ArrayList<ResourceDetails>(resourceDetailsMap.values());
-    }
-
-    public static ResourceDetails getResourceDetails(int resourceNumber) {
-        getBeagleJNIWrapper();
-//        System.err.println("resourceNumber = "+resourceNumber);
-        return resourceDetailsMap.get(resourceNumber);
-    }
-
-    public static Beagle loadBeagleInstance(
-            int tipCount,
-            int partialsBufferCount,
-            int compactBufferCount,
-            int stateCount,
-            int patternCount,
-            int eigenBufferCount,
-            int matrixBufferCount,
-            int categoryCount,
-            int scaleBufferCount,
-            int[] resourceList,
-            long preferenceFlags,
-            long requirementFlags
-    ) {
-
-        boolean forceJava = Boolean.valueOf(System.getProperty("java.only"));
-        boolean forceHybrid = Boolean.valueOf(System.getProperty("force.hybrid"));
-
-        getBeagleJNIWrapper();
-
-        if (!forceJava && BeagleJNIWrapper.INSTANCE != null) {
-
-            try {
-                Beagle beagle = new BeagleJNIImpl(
-                        tipCount,
-                        partialsBufferCount,
-                        compactBufferCount,
-                        stateCount,
-                        patternCount,
-                        eigenBufferCount,
-                        matrixBufferCount,
-                        categoryCount,
-                        scaleBufferCount,
-                        resourceList,
-                        preferenceFlags,
-                        requirementFlags
-                );
-
-                // From Java we allow the opton of overriding the default CPU BEAGLE implementation in favour
-                // of a hybrid Java/Native C version.
-
-                // In order to know that it was a CPU instance created, we have to let BEAGLE
-                // to make the instance and then override it...
-
-                InstanceDetails details = beagle.getDetails();
-                if (stateCount == 4 && details != null && BeagleFlag.CPU.isSet(details.getFlags()) &&
-                        forceHybrid) {
-
-                    try {
-                        beagle.finalize();
-                    } catch (Throwable throwable) {
-                        System.err.println("Error releasing BEAGLE implementation:\n" + throwable.getMessage());
-                    }
-                    Logger.getLogger("beagle").info("Using BeagleNative4StateImpl");
-                    beagle = new BeagleNative4StateImpl(
-                            tipCount,
-                            partialsBufferCount,
-                            compactBufferCount,
-                            patternCount,
-                            eigenBufferCount,
-                            matrixBufferCount,
-                            categoryCount,
-                            scaleBufferCount
-                    );
-                }
-                if (details != null) // If resourceList/requirements not met, details == null here
-                    return beagle;
-
-            } catch (BeagleException beagleException) {
-                Logger.getLogger("beagle").info("  "+beagleException.getMessage());
-            }
-        }
-
-        if (stateCount == 4) {
-            return new FourStateBeagleImpl(
-                    tipCount,
-                    partialsBufferCount,
-                    compactBufferCount,
-                    patternCount,
-                    eigenBufferCount,
-                    matrixBufferCount,
-                    categoryCount,
-                    scaleBufferCount
-            );
-        }
-
-        return new GeneralBeagleImpl(tipCount,
-                partialsBufferCount,
-                compactBufferCount,
-                stateCount,
-                patternCount,
-                eigenBufferCount,
-                matrixBufferCount,
-                categoryCount,
-                scaleBufferCount
-        );
-    }
-
-    private static BeagleJNIWrapper getBeagleJNIWrapper() {
-        if (BeagleJNIWrapper.INSTANCE == null) {
-            try {
-                BeagleJNIWrapper.loadBeagleLibrary();
-//                System.err.println("BEAGLE library loaded");
-
-            } catch (UnsatisfiedLinkError ule) {
-                System.err.println("Failed to load BEAGLE library: " + ule.getMessage());
-            }
-
-            if (BeagleJNIWrapper.INSTANCE != null) {
-                for (ResourceDetails details : BeagleJNIWrapper.INSTANCE.getResourceList()) {
-                    resourceDetailsMap.put(details.getNumber(), details);
-                }
-            }
-
-        }
-
-        return BeagleJNIWrapper.INSTANCE;
-    }
-
-
-    // Code and constants for test main()
-
+public class BenchmarkBeagle {
     private final static String human = "AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
     private final static String chimp = "AGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
     private final static String gorilla = "AGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
@@ -222,6 +86,9 @@ public class BeagleFactory {
 
     public static void main(String[] argv) {
 
+        int count = 1000000;
+        boolean scalingOn = true;
+
         // is nucleotides...
         int stateCount = 4;
 
@@ -229,9 +96,8 @@ public class BeagleFactory {
         int nPatterns = human.length();
 
         BeagleInfo.printResourceList();
-
         // create an instance of the BEAGLE library
-        Beagle instance = loadBeagleInstance(
+        Beagle instance = BeagleFactory.loadBeagleInstance(
                 3,				/**< Number of tip data elements (input) */
                 5,	            /**< Number of partials buffers to create (input) */
                 3,		        /**< Number of compact state representation buffers to create (input) */
@@ -240,9 +106,9 @@ public class BeagleFactory {
                 1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                 4,		        /**< Number of rate matrix buffers (input) */
                 1,              /**< Number of rate categories (input) */
-                3,               /**< Number of scale buffers (input) */
+                (scalingOn ? 3 : 0),
                 new int[] {1, 0},
-                BeagleFlag.GPU.getMask(),
+                0,
                 0
         );
         if (instance == null) {
@@ -309,27 +175,48 @@ public class BeagleFactory {
                 edgeLengths,   // edgeLengths
                 4);            // count
 
-        instance.resetScaleFactors(2);
+        if (scalingOn) {
+            // calculate the scaling factors
+            instance.resetScaleFactors(2);
+
+            // create a list of partial likelihood update operations
+            // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
+            int[] operations0 = {
+                    3, (scalingOn ? 0 : -1), (scalingOn ? 0 : -1), 0, 0, 1, 1,
+                    4, (scalingOn ? 1 : -1), (scalingOn ? 1 : -1), 2, 2, 3, 3
+            };
+            // update the partials with scaling
+            instance.updatePartials(
+                    operations0,     // eigenIndex
+                    2,              // operationCount
+                    (scalingOn ? 1 : -1));            // cumulative scale index
+
+        }
 
         // create a list of partial likelihood update operations
         // the order is [dest, writeScale, readScale, source1, matrix1, source2, matrix2]
         int[] operations = {
-                3, 0, 0, 0, 0, 1, 1,
-                4, 1, 1, 2, 2, 3, 3
+                3, -1, (scalingOn ? 0 : -1), 0, 0, 1, 1,
+                4, -1, (scalingOn ? 1 : -1), 2, 2, 3, 3
         };
-        int[] rootIndices = { 4 };
 
-        // update the partials
-        instance.updatePartials(
-                operations,     // eigenIndex
-                2,              // operationCount
-                2);             // rescale ?
+        System.out.println("Running " + count + " iterations...");
+        long time0 = System.nanoTime();
+        for (int i = 0; i < count; i++) {
+            // update the partials
+            instance.updatePartials(
+                    operations,     // eigenIndex
+                    2,              // operationCount
+                    (scalingOn ? 2 : -1));            // cumulative scale index
+        }
+        long time1 = System.nanoTime();
+        System.out.println("Time = " + ((double)(time1 - time0) / 1000000000));
 
         double[] patternLogLik = new double[nPatterns];
 
-        int[] scalingFactorsIndices = {2}; // internal nodes
+        int[] scalingFactorsIndices = {(scalingOn ? 2 : -1)}; // internal nodes
 
-        // TODO Need to call accumulateScaleFactors if scaling is enabled
+        int[] rootIndices = { 4 };
 
         // calculate the site likelihoods at the root node
         instance.calculateRootLogLikelihoods(
@@ -346,7 +233,7 @@ public class BeagleFactory {
             logL += patternLogLik[i];
         }
 
+        System.out.println();
         System.out.println("logL = " + logL + " (PAUP logL = -1574.63623)");
     }
-
 }

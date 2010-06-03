@@ -158,17 +158,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0,0);
     kernelMap->insert(std::make_pair(4,kernel4));
-    
-    KernelResource kernel16 = KernelResource(
-        16,
-        (char*) KERNELS_STRING_16,
-        PATTERN_BLOCK_SIZE_16,
-        MATRIX_BLOCK_SIZE_16,
-        BLOCK_PEELING_SIZE_16,
-        SLOW_REWEIGHING_16,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(16,kernel16));
+    KernelResource kernel4LS = KernelResource(kernel4, (char*) KERNELS_STRING_LS_4);
+    kernelMap->insert(std::make_pair(-4,kernel4LS));
     
     KernelResource kernel32 = KernelResource(
         32,
@@ -180,6 +171,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0,0);
     kernelMap->insert(std::make_pair(32,kernel32));
+    KernelResource kernel32LS = KernelResource(kernel32, (char*) KERNELS_STRING_LS_32);
+    kernelMap->insert(std::make_pair(-32,kernel32LS));
     
     KernelResource kernel48 = KernelResource(
         48,
@@ -191,6 +184,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0,0);
     kernelMap->insert(std::make_pair(48,kernel48));
+    KernelResource kernel48LS = KernelResource(kernel48, (char*) KERNELS_STRING_LS_48);
+    kernelMap->insert(std::make_pair(-48,kernel48LS));
     
     KernelResource kernel64 = KernelResource(
         64,
@@ -202,28 +197,8 @@ void GPUInterface::InitializeKernelMap() {
         MULTIPLY_BLOCK_SIZE,
         0,0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
-
-    KernelResource kernel128 = KernelResource(
-           128,
-           (char*) KERNELS_STRING_128,
-           PATTERN_BLOCK_SIZE_128,
-           MATRIX_BLOCK_SIZE_128,
-           BLOCK_PEELING_SIZE_128,
-           SLOW_REWEIGHING_128,
-           MULTIPLY_BLOCK_SIZE,
-           0,0,0);
-       kernelMap->insert(std::make_pair(128,kernel128));
-
-    KernelResource kernel192 = KernelResource(
-           192,
-           (char*) KERNELS_STRING_192,
-           PATTERN_BLOCK_SIZE_192,
-           MATRIX_BLOCK_SIZE_192,
-           BLOCK_PEELING_SIZE_192,
-           SLOW_REWEIGHING_192,
-           MULTIPLY_BLOCK_SIZE,
-           0,0,0);
-       kernelMap->insert(std::make_pair(192,kernel192));
+    KernelResource kernel64LS = KernelResource(kernel64, (char*) KERNELS_STRING_LS_64);
+    kernelMap->insert(std::make_pair(-64,kernel64LS));
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
@@ -317,12 +292,12 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     va_list parameters;
     va_start(parameters, totalParameterCount);  
     for(int i = 0; i < parameterCountV; i++) {
-        void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        GPUPtr param = va_arg(parameters, GPUPtr);
         
         // adjust offset alignment requirements
-        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        offset = (offset + __alignof(void*) - 1) & ~(__alignof(void*) - 1);
         
-        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
+        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(void*)));
         
         offset += sizeof(void*);
     }
@@ -411,21 +386,6 @@ GPUPtr GPUInterface::AllocateIntMemory(int length) {
 #endif
 
     return data;
-}
-
-void GPUInterface::MemsetShort(GPUPtr dest,
-                               unsigned short val,
-                               unsigned int count) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetShort\n");
-#endif    
-    
-    SAFE_CUPP(cuMemsetD16(dest, val, count));
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetShort\n");
-#endif    
-    
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,

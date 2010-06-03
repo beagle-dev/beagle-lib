@@ -39,7 +39,7 @@
 namespace beagle {
 namespace cpu {
 
-BEAGLE_CPU_TEMPLATE
+template <typename REALTYPE>
 class BeagleCPU4StateSSEImpl : public BeagleCPU4StateImpl<REALTYPE> {
 
 protected:
@@ -54,9 +54,6 @@ protected:
 	using BeagleCPUImpl<REALTYPE>::gTipStates;
 	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
 	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
-	using BeagleCPUImpl<REALTYPE>::gCategoryWeights;
-	using BeagleCPUImpl<REALTYPE>::gStateFrequencies;
-	using BeagleCPUImpl<REALTYPE>::realtypeMin;
 
 public:
     virtual ~BeagleCPU4StateSSEImpl();
@@ -89,32 +86,18 @@ private:
                                       const REALTYPE* __restrict matrices1,
                                       const REALTYPE* __restrict partials2,
                                       const REALTYPE* __restrict matrices2);
-    
-    virtual void calcPartialsPartialsFixedScaling(REALTYPE* __restrict destP,
-                                            const REALTYPE* __restrict child0Partials,
-                                            const REALTYPE* __restrict child0TransMat,
-                                            const REALTYPE* __restrict child1Partials,
-                                            const REALTYPE* __restrict child1TransMat,
-                                            const REALTYPE* __restrict scaleFactors);
 
-    virtual void calcPartialsPartialsAutoScaling(REALTYPE* __restrict destP,
-                                                 const REALTYPE* __restrict partials1,
-                                                 const REALTYPE* __restrict matrices1,
-                                                 const REALTYPE* __restrict partials2,
-                                                 const REALTYPE* __restrict matrices2,
-                                                 int* activateScaling);
-
-    virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
+    virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const int categoryWeightsIndex,
-                                        const int stateFrequenciesIndex,
+                                        const double* inWeights,
+                                        const double* inStateFrequencies,
                                         const int scalingFactorsIndex,
-                                        double* outSumLogLikelihood);
+                                        double* outLogLikelihoods);
 
 };
 
-BEAGLE_CPU_TEMPLATE
+template <typename REALTYPE>
 class BeagleCPU4StateSSEImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

@@ -42,28 +42,21 @@ namespace cpu {
 //const char* beagleCPU4StateImplDoubleName = "CPU-4State-Double";
 //const char* beagleCPU4StateImplSingleName = "CPU-4State-Single";
 
-BEAGLE_CPU_TEMPLATE
-class BeagleCPU4StateImpl : public BeagleCPUImpl<BEAGLE_CPU_GENERIC> {
+template <typename REALTYPE>
+class BeagleCPU4StateImpl : public BeagleCPUImpl<REALTYPE> {
 
 protected:
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kFlags;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kTipCount;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartials;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTransitionMatrices;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPatternCount;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPaddedPatternCount;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kExtraPatterns;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kStateCount;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTipStates;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kCategoryCount;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gScaleBuffers;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gStateFrequencies;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryWeights;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
-	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
-    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshhold;
+	using BeagleCPUImpl<REALTYPE>::kTipCount;
+	using BeagleCPUImpl<REALTYPE>::gPartials;
+	using BeagleCPUImpl<REALTYPE>::integrationTmp;
+	using BeagleCPUImpl<REALTYPE>::gTransitionMatrices;
+	using BeagleCPUImpl<REALTYPE>::kPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kPaddedPatternCount;
+	using BeagleCPUImpl<REALTYPE>::kExtraPatterns;
+	using BeagleCPUImpl<REALTYPE>::kStateCount;
+	using BeagleCPUImpl<REALTYPE>::gTipStates;
+	using BeagleCPUImpl<REALTYPE>::kCategoryCount;
+	using BeagleCPUImpl<REALTYPE>::gScaleBuffers;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -88,26 +81,26 @@ public:
                                     const REALTYPE* partials2,
                                     const REALTYPE* matrices2);
     
-    virtual int calcRootLogLikelihoods(const int bufferIndex,
-                                        const int categoryWeightsIndex,
-                                        const int stateFrequenciesIndex,
-                                        const int scalingFactorsIndex,
-                                        double* outSumLogLikelihood);
+    virtual void calcRootLogLikelihoods(const int bufferIndex,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
+                                    const int scalingFactorsIndex,
+                                    double* outLogLikelihoods);
     
-    virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
-                                             const int* categoryWeightsIndices,
-                                             const int* stateFrequenciesIndices,
+    virtual void calcRootLogLikelihoodsMulti(const int* bufferIndices,
+                                             const double* inWeights,
+                                             const double* inStateFrequencies,
                                              const int* scaleBufferIndices,
                                              int count,
-                                             double* outSumLogLikelihood);    
+                                             double* outLogLikelihoods);
         
-    virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
+    virtual void calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
-                                        const int categoryWeightsIndex,
-                                        const int stateFrequenciesIndex,
+                                        const double* inWeights,
+                                        const double* inStateFrequencies,
                                         const int scalingFactorsIndex,
-                                        double* outSumLogLikelihood);
+                                        double* outLogLikelihoods);
     
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                            const int *child0States,
@@ -130,22 +123,14 @@ public:
                                             const REALTYPE *child1TransMat,
                                             const REALTYPE *scaleFactors);
     
-    virtual void calcPartialsPartialsAutoScaling(REALTYPE *destP,
-                                                  const REALTYPE *child0Partials,
-                                                  const REALTYPE *child0TransMat,
-                                                  const REALTYPE *child1Partials,
-                                                  const REALTYPE *child1TransMat,
-                                                  int *activateScaling);
-    
-    
-    inline int integrateOutStatesAndScale(const REALTYPE* integrationTmp,
-                                           const int stateFrequenciesIndex,
+    inline void integrateOutStatesAndScale(const REALTYPE* integrationTmp,
+                                           const double* inStateFrequencies,
                                            const int scalingFactorsIndex,
-                                           double* outSumLogLikelihood);
+                                           double* outLogLikelihoods);
 
 };
 
-BEAGLE_CPU_TEMPLATE
+template <typename REALTYPE>
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

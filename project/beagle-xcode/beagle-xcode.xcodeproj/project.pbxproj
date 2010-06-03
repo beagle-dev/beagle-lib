@@ -11,7 +11,7 @@
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 649B46E41024038400FC2C85 /* Build configuration list for PBXAggregateTarget "CUDA_kernels" */;
 			buildPhases = (
-				649B46E01024035300FC2C85 /* Generate CUDA_kernels.sh */,
+				649B46E01024035300FC2C85 /* Generate CUDA_kernels.h */,
 			);
 			dependencies = (
 			);
@@ -22,24 +22,12 @@
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 649B47111024052B00FC2C85 /* Build configuration list for PBXAggregateTarget "OpenCL_kernels" */;
 			buildPhases = (
-				649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.sh */,
+				649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */,
 			);
 			dependencies = (
 			);
 			name = OpenCL_kernels;
 			productName = OpenCL_kernels2;
-		};
-		64B0E83311923743002715F8 /* libhmsbeagle install */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = 64B0E83811923770002715F8 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */;
-			buildPhases = (
-				64B0E83211923743002715F8 /* ShellScript */,
-			);
-			dependencies = (
-				64B0E83711923747002715F8 /* PBXTargetDependency */,
-			);
-			name = "libhmsbeagle install";
-			productName = "libhmsbeagle install";
 		};
 /* End PBXAggregateTarget section */
 
@@ -65,14 +53,6 @@
 		644D3EC20FFDBD8300774CDD /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
 		644D3EC40FFDBD8300774CDD /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */; };
 		644D3F7B0FFEE53200774CDD /* GPUInterfaceCUDA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */; };
-		64507517113C46C30057F416 /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C360FD2B74900678D0B /* beagle.cpp */; };
-		64507518113C46C30057F416 /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3B0FD2B74900678D0B /* BeagleGPUImpl.cpp */; };
-		64507519113C46C30057F416 /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 645749650FFF2AE300603261 /* GPUImplHelper.cpp */; };
-		6450751A113C46C30057F416 /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 649E825D0FD6FC580044891D /* KernelLauncher.cpp */; };
-		6450751B113C46C30057F416 /* GPUInterfaceCUDA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F21C3F0FD2B74900678D0B /* GPUInterfaceCUDA.cpp */; };
-		6450751D113C46C30057F416 /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64835E1B10559B4B00561CFA /* KernelResource.cpp */; };
-		6450751E113C46C30057F416 /* BeagleCPU4StateGCDImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */; };
-		6450752A113C46F30057F416 /* matrixtest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64F8EDF31108524B00170901 /* matrixtest.cpp */; };
 		645670C410751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.hpp */; };
 		645670C510751CAC00E9CDF0 /* EigenDecompositionSquare.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B610751CAC00E9CDF0 /* EigenDecompositionSquare.hpp */; };
 		645670C610751CAC00E9CDF0 /* EigenDecompositionCube.hpp in Sources */ = {isa = PBXBuildFile; fileRef = 645670B410751CAC00E9CDF0 /* EigenDecompositionCube.hpp */; };
@@ -132,13 +112,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		64507515113C46C30057F416 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 649B46E11024035300FC2C85;
-			remoteInfo = CUDA_kernels;
-		};
 		649B46E5102403CA00FC2C85 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
@@ -166,13 +139,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = 649B470E1024050D00FC2C85;
 			remoteInfo = OpenCL_kernels;
-		};
-		64B0E83611923747002715F8 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 643E276B1191EDFE0018C69A;
-			remoteInfo = libhmsbeagle;
 		};
 		64C0EB351034BC820004734E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -218,42 +184,11 @@
 		33CE76DE10669B1800CBF579 /* BeagleCPU4StateSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPU4StateSSEImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.hpp; sourceTree = SOURCE_ROOT; };
 		33CE770210669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BeagleCPU4StateGCDImpl.cpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.cpp; sourceTree = SOURCE_ROOT; };
 		33CE770310669F4C00CBF579 /* BeagleCPU4StateGCDImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateGCDImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateGCDImpl.h; sourceTree = SOURCE_ROOT; };
-		640D70B21199CF800068947E /* Beagle.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = Beagle.java; path = ../../java/beagle/Beagle.java; sourceTree = SOURCE_ROOT; };
-		640D70B31199CF800068947E /* BeagleErrorCode.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleErrorCode.java; path = ../../java/beagle/BeagleErrorCode.java; sourceTree = SOURCE_ROOT; };
-		640D70B41199CF800068947E /* BeagleException.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleException.java; path = ../../java/beagle/BeagleException.java; sourceTree = SOURCE_ROOT; };
-		640D70B51199CF800068947E /* BeagleFactory.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleFactory.java; path = ../../java/beagle/BeagleFactory.java; sourceTree = SOURCE_ROOT; };
-		640D70B61199CF800068947E /* BeagleFlag.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleFlag.java; path = ../../java/beagle/BeagleFlag.java; sourceTree = SOURCE_ROOT; };
-		640D70B71199CF800068947E /* BeagleInfo.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleInfo.java; path = ../../java/beagle/BeagleInfo.java; sourceTree = SOURCE_ROOT; };
-		640D70B81199CF800068947E /* BeagleJNIImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleJNIImpl.java; path = ../../java/beagle/BeagleJNIImpl.java; sourceTree = SOURCE_ROOT; };
-		640D70B91199CF800068947E /* BeagleJNIWrapper.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = BeagleJNIWrapper.java; path = ../../java/beagle/BeagleJNIWrapper.java; sourceTree = SOURCE_ROOT; };
-		640D70BA1199CF800068947E /* DependencyAwareBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = DependencyAwareBeagleImpl.java; path = ../../java/beagle/DependencyAwareBeagleImpl.java; sourceTree = SOURCE_ROOT; };
-		640D70BB1199CF800068947E /* FourStateBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = FourStateBeagleImpl.java; path = ../../java/beagle/FourStateBeagleImpl.java; sourceTree = SOURCE_ROOT; };
-		640D70BC1199CF800068947E /* GeneralBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = GeneralBeagleImpl.java; path = ../../java/beagle/GeneralBeagleImpl.java; sourceTree = SOURCE_ROOT; };
-		640D70BD1199CF800068947E /* InstanceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = InstanceDetails.java; path = ../../java/beagle/InstanceDetails.java; sourceTree = SOURCE_ROOT; };
-		640D70BE1199CF800068947E /* ResourceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = ResourceDetails.java; path = ../../java/beagle/ResourceDetails.java; sourceTree = SOURCE_ROOT; };
 		64206724102618CE004AB87A /* beagle_BeagleJNIWrapper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle_BeagleJNIWrapper.cpp; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp; sourceTree = SOURCE_ROOT; };
 		64206725102618CE004AB87A /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = beagle_BeagleJNIWrapper.h; path = ../../libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h; sourceTree = SOURCE_ROOT; };
 		6420678D102623AC004AB87A /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = ../../examples/tinytest/tinytest.cpp; sourceTree = SOURCE_ROOT; };
-		6425A18A114AD1050056D2EA /* configure.ac */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = configure.ac; path = ../../configure.ac; sourceTree = SOURCE_ROOT; };
-		6425A18E114AD1620056D2EA /* aminclude.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = aminclude.am; path = ../../aminclude.am; sourceTree = SOURCE_ROOT; };
-		6425A18F114AD1620056D2EA /* autogen.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; name = autogen.sh; path = ../../autogen.sh; sourceTree = SOURCE_ROOT; };
-		6425A190114AD1620056D2EA /* hmsbeagle-1.0.pc.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = "hmsbeagle-1.0.pc.in"; path = "../../hmsbeagle-1.0.pc.in"; sourceTree = SOURCE_ROOT; };
-		6425A191114AD1620056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../Makefile.am; sourceTree = SOURCE_ROOT; };
-		6425A1A2114AD3D20056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/Makefile.am; sourceTree = SOURCE_ROOT; };
-		6425A1A3114AD3DE0056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/CPU/Makefile.am; sourceTree = SOURCE_ROOT; };
-		6425A1A4114AD3E80056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/GPU/Makefile.am; sourceTree = SOURCE_ROOT; };
-		6425A1A5114AD4550056D2EA /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/GPU/kernels/Makefile.am; sourceTree = SOURCE_ROOT; };
 		643430DE0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		643E284611921D3A0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E284811921D7B0018C69A /* beagle.dox */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = beagle.dox; path = ../../beagle.dox; sourceTree = SOURCE_ROOT; };
-		643E284D11921DC90018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/complextest/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E284E11921DDD0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/fourtaxon/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E284F11921DEB0018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/genomictest/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E285011921DF80018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/matrixtest/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E285111921E070018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../examples/tinytest/Makefile.am; sourceTree = SOURCE_ROOT; };
-		643E286A119224460018C69A /* Makefile.am */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Makefile.am; path = ../../libhmsbeagle/JNI/Makefile.am; sourceTree = SOURCE_ROOT; };
 		644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64507523113C46C30057F416 /* matrixTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = matrixTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		645670B310751CAC00E9CDF0 /* EigenDecomposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecomposition.h; path = ../../libhmsbeagle/CPU/EigenDecomposition.h; sourceTree = SOURCE_ROOT; };
 		645670B410751CAC00E9CDF0 /* EigenDecompositionCube.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = EigenDecompositionCube.hpp; path = ../../libhmsbeagle/CPU/EigenDecompositionCube.hpp; sourceTree = SOURCE_ROOT; };
 		645670B510751CAC00E9CDF0 /* EigenDecompositionCube.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EigenDecompositionCube.h; path = ../../libhmsbeagle/CPU/EigenDecompositionCube.h; sourceTree = SOURCE_ROOT; };
@@ -264,21 +199,21 @@
 		645748DD0FFF28CB00603261 /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelLauncher.h; path = ../../libhmsbeagle/GPU/KernelLauncher.h; sourceTree = SOURCE_ROOT; };
 		645749640FFF2AE300603261 /* GPUImplHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImplHelper.h; path = ../../libhmsbeagle/GPU/GPUImplHelper.h; sourceTree = SOURCE_ROOT; };
 		645749650FFF2AE300603261 /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUImplHelper.cpp; path = ../../libhmsbeagle/GPU/GPUImplHelper.cpp; sourceTree = SOURCE_ROOT; };
-		646A4C3411079EE6000D8ED2 /* Precision.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Precision.h; path = ../../libhmsbeagle/CPU/Precision.h; sourceTree = SOURCE_ROOT; };
 		646F6E9710019AA10085DDB1 /* fourTaxonCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		646F6EDA10019C510085DDB1 /* genomicTestCUDAXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCUDAXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		6474F590101F904B00A1A469 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = ../../libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp; sourceTree = SOURCE_ROOT; };
 		6474F592101F90D200A1A469 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		6474F5E9101F927700A1A469 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; explicitFileType = sourcecode.opencl; fileEncoding = 4; name = BeagleOpenCL_kernels.cl; path = ../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = SOURCE_ROOT; };
-		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; explicitFileType = sourcecode.cuda; fileEncoding = 4; name = kernelsX.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsX.cu; sourceTree = SOURCE_ROOT; };
-		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; explicitFileType = sourcecode.cuda; fileEncoding = 4; name = kernelsAll.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsAll.cu; sourceTree = SOURCE_ROOT; };
-		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; explicitFileType = sourcecode.cuda; fileEncoding = 4; name = kernels4.cu; path = ../../libhmsbeagle/GPU/kernels/kernels4.cu; sourceTree = SOURCE_ROOT; };
+		64835D231055719000561CFA /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsX.cu; sourceTree = SOURCE_ROOT; };
+		64835D241055719000561CFA /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = ../../libhmsbeagle/GPU/kernels/kernelsAll.cu; sourceTree = SOURCE_ROOT; };
+		64835D251055719000561CFA /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = ../../libhmsbeagle/GPU/kernels/kernels4.cu; sourceTree = SOURCE_ROOT; };
 		64835E1A10559B4B00561CFA /* KernelResource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = KernelResource.h; path = ../../libhmsbeagle/GPU/KernelResource.h; sourceTree = SOURCE_ROOT; };
 		64835E1B10559B4B00561CFA /* KernelResource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelResource.cpp; path = ../../libhmsbeagle/GPU/KernelResource.cpp; sourceTree = SOURCE_ROOT; };
 		648DE27C102486F80022E549 /* BeagleCPU4StateImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPU4StateImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.hpp; sourceTree = SOURCE_ROOT; };
 		648DE27D102486F80022E549 /* BeagleCPU4StateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPU4StateImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPU4StateImpl.h; sourceTree = SOURCE_ROOT; };
 		649E825D0FD6FC580044891D /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = KernelLauncher.cpp; path = ../../libhmsbeagle/GPU/KernelLauncher.cpp; sourceTree = SOURCE_ROOT; };
+		649E83130FD705BA0044891D /* CUDA.Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = CUDA.Makefile; path = ../../CUDA.Makefile; sourceTree = SOURCE_ROOT; xcLanguageSpecificationIdentifier = xcode.lang.make; };
 		64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; name = check_lnL_using_BEAST.xml; path = ../../examples/tinytest/check_lnL_using_BEAST.xml; sourceTree = SOURCE_ROOT; };
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
 		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -297,8 +232,6 @@
 		64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = fourtaxon.dat; path = ../../examples/fourtaxon/fourtaxon.dat; sourceTree = SOURCE_ROOT; };
 		64F21C4F0FD2B7B500678D0B /* fourtaxon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fourtaxon.h; path = ../../examples/fourtaxon/fourtaxon.h; sourceTree = SOURCE_ROOT; };
 		64F21C720FD2C0BA00678D0B /* tinyTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinyTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
-		64F8EDE91108522400170901 /* complextest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = complextest.cpp; path = ../../examples/complextest/complextest.cpp; sourceTree = SOURCE_ROOT; };
-		64F8EDF31108524B00170901 /* matrixtest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = matrixtest.cpp; path = ../../examples/matrixtest/matrixtest.cpp; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -310,13 +243,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		644D3EC80FFDBD8300774CDD /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6450751F113C46C30057F416 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -392,8 +318,6 @@
 				649C825E1027A26000B21A29 /* GPU OpenCL */,
 				649C82461027866E00B21A29 /* Examples */,
 				64206723102618CE004AB87A /* JNI */,
-				640D70B01199CEC70068947E /* java */,
-				6425A17D114AD0EF0056D2EA /* Makefiles */,
 				6474F594101F90EB00A1A469 /* Frameworks */,
 				649E82EE0FD703EA0044891D /* Other */,
 				64F21C5D0FD2B93B00678D0B /* Products */,
@@ -419,27 +343,6 @@
 			name = "CPU 4State GCD Impl";
 			sourceTree = SOURCE_ROOT;
 		};
-		640D70B01199CEC70068947E /* java */ = {
-			isa = PBXGroup;
-			children = (
-				640D70B21199CF800068947E /* Beagle.java */,
-				640D70B31199CF800068947E /* BeagleErrorCode.java */,
-				640D70B41199CF800068947E /* BeagleException.java */,
-				640D70B51199CF800068947E /* BeagleFactory.java */,
-				640D70B61199CF800068947E /* BeagleFlag.java */,
-				640D70B71199CF800068947E /* BeagleInfo.java */,
-				640D70B81199CF800068947E /* BeagleJNIImpl.java */,
-				640D70B91199CF800068947E /* BeagleJNIWrapper.java */,
-				640D70BA1199CF800068947E /* DependencyAwareBeagleImpl.java */,
-				640D70BB1199CF800068947E /* FourStateBeagleImpl.java */,
-				640D70BC1199CF800068947E /* GeneralBeagleImpl.java */,
-				640D70BD1199CF800068947E /* InstanceDetails.java */,
-				640D70BE1199CF800068947E /* ResourceDetails.java */,
-			);
-			name = java;
-			path = ../../libhmsbeagle/JNI;
-			sourceTree = "<group>";
-		};
 		64206723102618CE004AB87A /* JNI */ = {
 			isa = PBXGroup;
 			children = (
@@ -449,118 +352,6 @@
 			name = JNI;
 			path = ../../libhmsbeagle/JNI;
 			sourceTree = SOURCE_ROOT;
-		};
-		6425A17D114AD0EF0056D2EA /* Makefiles */ = {
-			isa = PBXGroup;
-			children = (
-				6425A19F114AD3A20056D2EA /* libhmsbeagle */,
-				6425A199114AD36F0056D2EA /* CPU */,
-				6425A19A114AD3740056D2EA /* GPU */,
-				6425A1A0114AD3AE0056D2EA /* kernels */,
-				643E28691192242B0018C69A /* JNI */,
-				643E284411921D100018C69A /* examples */,
-				6425A18E114AD1620056D2EA /* aminclude.am */,
-				6425A18F114AD1620056D2EA /* autogen.sh */,
-				643E284811921D7B0018C69A /* beagle.dox */,
-				6425A18A114AD1050056D2EA /* configure.ac */,
-				6425A190114AD1620056D2EA /* hmsbeagle-1.0.pc.in */,
-				6425A191114AD1620056D2EA /* Makefile.am */,
-			);
-			name = Makefiles;
-			sourceTree = "<group>";
-		};
-		6425A199114AD36F0056D2EA /* CPU */ = {
-			isa = PBXGroup;
-			children = (
-				6425A1A3114AD3DE0056D2EA /* Makefile.am */,
-			);
-			name = CPU;
-			sourceTree = "<group>";
-		};
-		6425A19A114AD3740056D2EA /* GPU */ = {
-			isa = PBXGroup;
-			children = (
-				6425A1A4114AD3E80056D2EA /* Makefile.am */,
-			);
-			name = GPU;
-			sourceTree = "<group>";
-		};
-		6425A19F114AD3A20056D2EA /* libhmsbeagle */ = {
-			isa = PBXGroup;
-			children = (
-				6425A1A2114AD3D20056D2EA /* Makefile.am */,
-			);
-			name = libhmsbeagle;
-			sourceTree = "<group>";
-		};
-		6425A1A0114AD3AE0056D2EA /* kernels */ = {
-			isa = PBXGroup;
-			children = (
-				6425A1A5114AD4550056D2EA /* Makefile.am */,
-			);
-			name = kernels;
-			sourceTree = "<group>";
-		};
-		643E284411921D100018C69A /* examples */ = {
-			isa = PBXGroup;
-			children = (
-				643E284A11921D9E0018C69A /* complextest */,
-				643E284B11921DA40018C69A /* fourtaxon */,
-				643E284911921D910018C69A /* genomictest */,
-				643E284C11921DA90018C69A /* matrixtest */,
-				643E284511921D1E0018C69A /* tinytest */,
-				643E284611921D3A0018C69A /* Makefile.am */,
-			);
-			name = examples;
-			sourceTree = "<group>";
-		};
-		643E284511921D1E0018C69A /* tinytest */ = {
-			isa = PBXGroup;
-			children = (
-				643E285111921E070018C69A /* Makefile.am */,
-			);
-			name = tinytest;
-			sourceTree = "<group>";
-		};
-		643E284911921D910018C69A /* genomictest */ = {
-			isa = PBXGroup;
-			children = (
-				643E284F11921DEB0018C69A /* Makefile.am */,
-			);
-			name = genomictest;
-			sourceTree = "<group>";
-		};
-		643E284A11921D9E0018C69A /* complextest */ = {
-			isa = PBXGroup;
-			children = (
-				643E284D11921DC90018C69A /* Makefile.am */,
-			);
-			name = complextest;
-			sourceTree = "<group>";
-		};
-		643E284B11921DA40018C69A /* fourtaxon */ = {
-			isa = PBXGroup;
-			children = (
-				643E284E11921DDD0018C69A /* Makefile.am */,
-			);
-			name = fourtaxon;
-			sourceTree = "<group>";
-		};
-		643E284C11921DA90018C69A /* matrixtest */ = {
-			isa = PBXGroup;
-			children = (
-				643E285011921DF80018C69A /* Makefile.am */,
-			);
-			name = matrixtest;
-			sourceTree = "<group>";
-		};
-		643E28691192242B0018C69A /* JNI */ = {
-			isa = PBXGroup;
-			children = (
-				643E286A119224460018C69A /* Makefile.am */,
-			);
-			name = JNI;
-			sourceTree = "<group>";
 		};
 		645670DF10751D0F00E9CDF0 /* CPU Complex */ = {
 			isa = PBXGroup;
@@ -589,8 +380,6 @@
 				64F21C4F0FD2B7B500678D0B /* fourtaxon.h */,
 				64F21C4D0FD2B7B400678D0B /* fourtaxon.cpp */,
 				64EC49C00FE9BBDB006841E3 /* genomictest.cpp */,
-				64F8EDE91108522400170901 /* complextest.cpp */,
-				64F8EDF31108524B00170901 /* matrixtest.cpp */,
 			);
 			name = Examples;
 			sourceTree = SOURCE_ROOT;
@@ -600,7 +389,6 @@
 			children = (
 				64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */,
 				64F21C380FD2B74900678D0B /* BeagleCPUImpl.hpp */,
-				646A4C3411079EE6000D8ED2 /* Precision.h */,
 			);
 			name = "CPU Impl";
 			sourceTree = SOURCE_ROOT;
@@ -664,6 +452,7 @@
 		649E82EE0FD703EA0044891D /* Other */ = {
 			isa = PBXGroup;
 			children = (
+				649E83130FD705BA0044891D /* CUDA.Makefile */,
 				64F21C4E0FD2B7B500678D0B /* fourtaxon.dat */,
 				64BA0A500FD46BCF00E5EA7A /* check_lnL_using_BEAST.xml */,
 				64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */,
@@ -683,29 +472,11 @@
 				6474F5BF101F916D00A1A469 /* tinyTestOpenCLXcode */,
 				64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
 				64C0EB441034BC820004734E /* genomicTestOpenCLXcode */,
-				64507523113C46C30057F416 /* matrixTestCUDAXcode */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
-
-/* Begin PBXLegacyTarget section */
-		643E276B1191EDFE0018C69A /* libhmsbeagle */ = {
-			isa = PBXLegacyTarget;
-			buildArgumentsString = "$(BEAGLE_CXXFLAGS) $(ACTION)";
-			buildConfigurationList = 643E27791191EE310018C69A /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */;
-			buildPhases = (
-			);
-			buildToolPath = /usr/bin/make;
-			buildWorkingDirectory = ../..;
-			dependencies = (
-			);
-			name = libhmsbeagle;
-			passBuildSettingsInEnvironment = 0;
-			productName = libhmsbeagle;
-		};
-/* End PBXLegacyTarget section */
 
 /* Begin PBXNativeTarget section */
 		643430DD0FD2CD0400AFC69E /* fourTaxonCPUXcode */ = {
@@ -740,23 +511,6 @@
 			name = tinyTestCUDAXcode;
 			productName = tinyTestGPUXcode;
 			productReference = 644D3ECC0FFDBD8300774CDD /* tinyTestCUDAXcode */;
-			productType = "com.apple.product-type.tool";
-		};
-		64507513113C46C30057F416 /* matrixTestCUDAXcode */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 64507520113C46C30057F416 /* Build configuration list for PBXNativeTarget "matrixTestCUDAXcode" */;
-			buildPhases = (
-				64507516113C46C30057F416 /* Sources */,
-				6450751F113C46C30057F416 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				64507514113C46C30057F416 /* PBXTargetDependency */,
-			);
-			name = matrixTestCUDAXcode;
-			productName = tinyTestGPUXcode;
-			productReference = 64507523113C46C30057F416 /* matrixTestCUDAXcode */;
 			productType = "com.apple.product-type.tool";
 		};
 		646F6E8810019AA10085DDB1 /* fourTaxonCUDAXcode */ = {
@@ -896,20 +650,17 @@
 				644D3EBF0FFDBD8300774CDD /* tinyTestCUDAXcode */,
 				646F6E8810019AA10085DDB1 /* fourTaxonCUDAXcode */,
 				646F6ECB10019C510085DDB1 /* genomicTestCUDAXcode */,
-				64507513113C46C30057F416 /* matrixTestCUDAXcode */,
 				6474F5AF101F916D00A1A469 /* tinyTestOpenCLXcode */,
 				64D10A511033B8F4009EC5FB /* fourTaxonOpenCLXcode */,
 				64C0EB331034BC820004734E /* genomicTestOpenCLXcode */,
 				649B46E11024035300FC2C85 /* CUDA_kernels */,
 				649B470E1024050D00FC2C85 /* OpenCL_kernels */,
-				643E276B1191EDFE0018C69A /* libhmsbeagle */,
-				64B0E83311923743002715F8 /* libhmsbeagle install */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		649B46E01024035300FC2C85 /* Generate CUDA_kernels.sh */ = {
+		649B46E01024035300FC2C85 /* Generate CUDA_kernels.h */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -919,16 +670,16 @@
 				$PROJECT_DIR/../../libhmsbeagle/GPU/kernels/kernelsX.cu,
 				$PROJECT_DIR/../../libhmsbeagle/GPU/kernels/kernelsAll.cu,
 			);
-			name = "Generate CUDA_kernels.sh";
+			name = "Generate CUDA_kernels.h";
 			outputPaths = (
 				$PROJECT_DIR/../../libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "\ncd $PROJECT_DIR/../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\necho \"Making state count = 4\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 128 192\ndo\n\techo \"Making state count = $s\"\n\t/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\n\techo \"#define KERNELS_STRING_$s \\\"\\\\\" >> BeagleCUDA_kernels.h\n\tcat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\techo \"\\\"\" >> BeagleCUDA_kernels.h\ndone\n";
+			shellPath = /bin/sh;
+			shellScript = "\n\ncd $PROJECT_DIR/../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n# \tCompile 4-state model with log scaler storage\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 -DLSCALER ./kernels4.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_LS_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=32 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_32 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=48 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=64 ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n# \tCompile with log scaler storage\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=32 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_LS_32 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=48 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_LS_48 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=64 -DLSCALER ./kernelsX.cu -O3 -I$PROJECT_DIR/../.. -DCUDA\necho \"#define KERNELS_STRING_LS_64 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n\nexit 0\n";
 			showEnvVarsInLog = 0;
 		};
-		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.sh */ = {
+		649B470D1024050D00FC2C85 /* Generate OpenCL_kernels.h */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -936,7 +687,7 @@
 			inputPaths = (
 				$PROJECT_DIR/../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl,
 			);
-			name = "Generate OpenCL_kernels.sh";
+			name = "Generate OpenCL_kernels.h";
 			outputPaths = (
 				$PROJECT_DIR/../../libhmsbeagle/GPU/BeagleOpenCL_kernels.h,
 			);
@@ -944,19 +695,6 @@
 			shellPath = /bin/sh;
 			shellScript = "cd $PROJECT_DIR/../../libhmsbeagle/GPU/\n\necho \"// auto-generated header file with OpenCL kernels code\" > BeagleOpenCL_kernels.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleOpenCL_kernels.h\n\ncat BeagleOpenCL_kernels.cl | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels.h\n\necho \"\\\"\" >> BeagleOpenCL_kernels.h\n\nexit 0";
 			showEnvVarsInLog = 0;
-		};
-		64B0E83211923743002715F8 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "cd $PROJECT_DIR/../..\n\nmake install";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -983,21 +721,6 @@
 				6420678E102623AC004AB87A /* tinytest.cpp in Sources */,
 				64835E1E10559B4B00561CFA /* KernelResource.cpp in Sources */,
 				33CE770710669F4C00CBF579 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		64507516113C46C30057F416 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				64507517113C46C30057F416 /* beagle.cpp in Sources */,
-				64507518113C46C30057F416 /* BeagleGPUImpl.cpp in Sources */,
-				64507519113C46C30057F416 /* GPUImplHelper.cpp in Sources */,
-				6450751A113C46C30057F416 /* KernelLauncher.cpp in Sources */,
-				6450751B113C46C30057F416 /* GPUInterfaceCUDA.cpp in Sources */,
-				6450752A113C46F30057F416 /* matrixtest.cpp in Sources */,
-				6450751D113C46C30057F416 /* KernelResource.cpp in Sources */,
-				6450751E113C46C30057F416 /* BeagleCPU4StateGCDImpl.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1114,11 +837,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		64507514113C46C30057F416 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 649B46E11024035300FC2C85 /* CUDA_kernels */;
-			targetProxy = 64507515113C46C30057F416 /* PBXContainerItemProxy */;
-		};
 		649B46E6102403CA00FC2C85 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 649B46E11024035300FC2C85 /* CUDA_kernels */;
@@ -1138,11 +856,6 @@
 			isa = PBXTargetDependency;
 			target = 649B470E1024050D00FC2C85 /* OpenCL_kernels */;
 			targetProxy = 649B47121024056E00FC2C85 /* PBXContainerItemProxy */;
-		};
-		64B0E83711923747002715F8 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 643E276B1191EDFE0018C69A /* libhmsbeagle */;
-			targetProxy = 64B0E83611923747002715F8 /* PBXContainerItemProxy */;
 		};
 		64C0EB341034BC820004734E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1193,7 +906,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonCPUXcode;
@@ -1210,25 +923,11 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = fourTaxonCPUXcode;
 				USER_HEADER_SEARCH_PATHS = ../../;
 				ZERO_LINK = NO;
-			};
-			name = Release;
-		};
-		643E276C1191EDFE0018C69A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BEAGLE_CXXFLAGS = "CXXFLAGS=-g";
-			};
-			name = Debug;
-		};
-		643E276D1191EDFE0018C69A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
 			};
 			name = Release;
 		};
@@ -1238,13 +937,14 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1265,12 +965,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1287,74 +988,20 @@
 			};
 			name = Release;
 		};
-		64507521113C46C30057F416 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				BUILD_STYLE = Debug;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
-					CUDA,
-				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
-				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
-				OTHER_LDFLAGS = "-lcuda";
-				PREBINDING = NO;
-				PRODUCT_NAME = matrixTestCUDAXcode;
-				USER_HEADER_SEARCH_PATHS = "";
-			};
-			name = Debug;
-		};
-		64507522113C46C30057F416 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				BUILD_STYLE = Release;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
-					CUDA,
-				);
-				HEADER_SEARCH_PATHS = (
-					../../,
-					/usr/local/cuda/include,
-				);
-				INSTALL_PATH = /usr/local/bin;
-				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
-				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "-lcuda";
-				PREBINDING = NO;
-				PRODUCT_NAME = matrixTestCUDAXcode;
-				USER_HEADER_SEARCH_PATHS = "";
-				ZERO_LINK = NO;
-			};
-			name = Release;
-		};
 		646F6E9510019AA10085DDB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1375,12 +1022,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1403,13 +1051,14 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Debug;
 				COPY_PHASE_STRIP = NO;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1430,12 +1079,13 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				BUILD_STYLE = Release;
 				COPY_PHASE_STRIP = YES;
+				CUDA_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					ENABLE_SSE,
 					CUDA,
+					"STATE_COUNT=4",
 				);
 				HEADER_SEARCH_PATHS = (
 					../../,
@@ -1544,27 +1194,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = OpenCL_kernels;
-				ZERO_LINK = NO;
-			};
-			name = Release;
-		};
-		64B0E83411923743002715F8 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				PRODUCT_NAME = "libhmsbeagle install";
-			};
-			name = Debug;
-		};
-		64B0E83511923743002715F8 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				PRODUCT_NAME = "libhmsbeagle install";
 				ZERO_LINK = NO;
 			};
 			name = Release;
@@ -1686,7 +1315,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
+				GCC_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
@@ -1704,7 +1333,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = genomicTestCPUXcode;
@@ -1723,7 +1351,7 @@
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
+				GCC_PREPROCESSOR_DEFINITIONS = "STATE_COUNT=4";
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
@@ -1741,7 +1369,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = ENABLE_SSE;
 				INSTALL_PATH = /usr/local/bin;
 				PREBINDING = NO;
 				PRODUCT_NAME = tinyTestCPUXcode;
@@ -1771,29 +1398,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		643E27791191EE310018C69A /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				643E276C1191EDFE0018C69A /* Debug */,
-				643E276D1191EDFE0018C69A /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		644D3EC90FFDBD8300774CDD /* Build configuration list for PBXNativeTarget "tinyTestCUDAXcode" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				644D3ECA0FFDBD8300774CDD /* Debug */,
 				644D3ECB0FFDBD8300774CDD /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		64507520113C46C30057F416 /* Build configuration list for PBXNativeTarget "matrixTestCUDAXcode" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				64507521113C46C30057F416 /* Debug */,
-				64507522113C46C30057F416 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1839,15 +1448,6 @@
 			buildConfigurations = (
 				649B470F1024050D00FC2C85 /* Debug */,
 				649B47101024050D00FC2C85 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		64B0E83811923770002715F8 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				64B0E83411923743002715F8 /* Debug */,
-				64B0E83511923743002715F8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -115,127 +115,6 @@ __global__ void kernelPartialsPartialsNoScale(REAL* partials1,
 	    }
 
 	}
-    
-__global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
-                                                REAL* partials2,
-                                                REAL* partials3,
-                                                REAL* matrices1,
-                                                REAL* matrices2,
-                                                signed char* scalingFactors,
-                                                unsigned short* activeScalingFactors,
-                                                int totalPatterns) {
-    REAL sum1;
-    REAL sum2;
-    int i;
-
-    DETERMINE_INDICES_4();
-
-    int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    int myIdx = multBy16(patIdx) + tx; // threadId in block
-    
-    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
-    REAL* matrix2 = matrices2 + x2;
-
-#ifdef KERNEL_PRINT_ENABLED
-    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
-           state, u);
-#endif
-
-    // Load values into shared memory
-    __shared__ REAL sMatrix1[16];
-    __shared__ REAL sMatrix2[16];
-
-    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
-
-    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
-        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
-    } else {
-        sPartials1[multBy16(patIdx) | tx] = 0;
-        sPartials2[multBy16(patIdx) | tx] = 0;
-    }
-
-    if (patIdx == 0 ) {
-        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
-        sMatrix2[tx] = matrix2[tx];
-    }
-
-    __syncthreads();
-
-    i = pat;
-    sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-    sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-    i = (++i) & 0x3;
-    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-    i = (++i) & 0x3;
-    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-    i = (++i) & 0x3;
-    sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-    sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-    
-    REAL tmpPartial = sum1 * sum2;
-    int expTmp;
-    REAL sigTmp = frexp(tmpPartial, &expTmp);        
-
-    __syncthreads();
-    
-    if (pattern < totalPatterns) {
-        if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD) {
-            // now using sPartials2 to hold scaling trigger boolean
-            sPartials2[patIdx16pat4] = 1;
-        } else {
-            partials3[u] = tmpPartial;
-            sPartials2[patIdx16pat4] = 0;
-            sPartials1[myIdx] = 0;
-        }
-    } 
-    
-    __syncthreads();
-    
-    int scalingActive = sPartials2[patIdx16pat4];
-        
-    if (scalingActive) {
-        // now using sPartials1 to store max unscaled partials3
-        sPartials1[myIdx] = tmpPartial;
-    }
-        
-    __syncthreads();
-        
-    // Unrolled parallel max-reduction
-    if (scalingActive && state < 2) {
-        REAL compare = sPartials1[myIdx + 2];
-        if (compare >  sPartials1[myIdx])
-            sPartials1[myIdx] = compare;
-    }
-     
-    __syncthreads();
-            
-    if (scalingActive && state < 1) {
-        REAL maxPartial = sPartials1[myIdx + 1];
-        if (maxPartial < sPartials1[myIdx])
-            maxPartial = sPartials1[myIdx];
-        int expMax;
-        frexp(maxPartial, &expMax);
-        sPartials1[myIdx] = expMax;
-        *activeScalingFactors = 1;
-    }
-
-    __syncthreads();
-            
-    if (scalingActive) 
-        partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx16pat4]);
-        
-    if ((myIdx < PATTERN_BLOCK_SIZE * 4) && (myIdx + __umul24(blockIdx.x, PATTERN_BLOCK_SIZE * 4) < totalPatterns))
-        scalingFactors[(blockIdx.x * PATTERN_BLOCK_SIZE * 4) + (matrix * totalPatterns) + myIdx] = sPartials1[multBy4(myIdx)];
-}
 
 __global__ void kernelPartialsPartialsFixedScale(REAL* partials1,
                                                                       REAL* partials2,
@@ -727,7 +606,11 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
         if (matrixMax[pat] == 0)
         	matrixMax[pat] = 1.0;
    
+#ifdef LSCALER
+        scalingFactors[pattern] = log(matrixMax[pat]);
+#else
         scalingFactors[pattern] = matrixMax[pat]; // TODO: Are these incoherent writes?
+#endif
     }
 
     // Attempt at a parallel reduction that (1) does not work and (2) is slower
@@ -757,101 +640,6 @@ __global__ void kernelPartialsDynamicScaling(REAL* allPartials,
         allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
 }
 
-
-/*
- * Find a scaling factor for each pattern
- */
-__global__ void kernelPartialsDynamicScalingScalersLog(REAL* allPartials,
-                                                      REAL* scalingFactors,
-                                                      int matrixCount) {
-                                             
-    int tx = threadIdx.x;
-    
-    int state = tx & 0x3;
-    int pat = tx >> 2;
-                             
-    int patIdx = blockIdx.x;
-    
-    int pattern = (patIdx << 2) + pat;
-    int matrix = threadIdx.y;
-    // TODO: Assumes matrixCount < MATRIX_BLOCK_SIZ
-    
-    // Patterns are always padded, so no reading/writing past end possible
-    // Find start of patternBlock for thread-block
-    int partialsOffset = (matrix * gridDim.x + patIdx) << 4; //* 16;
-
-    __shared__ REAL partials[MATRIX_BLOCK_SIZE][16]; // 4 patterns at a time
-    __shared__ REAL storedPartials[MATRIX_BLOCK_SIZE][16];
-
-    __shared__ REAL matrixMax[4];
-    
-    if (matrix < matrixCount)
-        partials[matrix][tx] = allPartials[partialsOffset + tx];          
-
-    storedPartials[matrix][tx] = partials[matrix][tx];
-           
-    __syncthreads();
-    
-    // Unrolled parallel max-reduction
-    if (state < 2) {
-        REAL compare1 = partials[matrix][tx];
-        REAL compare2 = partials[matrix][tx + 2];
-        if (compare2 > compare1)
-            partials[matrix][tx] = compare2;
-    }
-    __syncthreads();
-    
-    if (state < 1) {
-        REAL compare1 = partials[matrix][tx];
-        REAL compare2 = partials[matrix][tx + 1];
-        if (compare2 > compare1)
-            partials[matrix][tx] = compare2;
-    }
-    __syncthreads();
- 
-    // Could also parallel-reduce here.
-    if (state == 0 && matrix == 0) {
-        matrixMax[pat] = 0;
-        int m;
-        for(m = 0; m < matrixCount; m++) {
-            if (partials[m][tx] > matrixMax[pat])
-                matrixMax[pat] = partials[m][tx];
-        }
-        
-        if (matrixMax[pat] == 0) {
-        	matrixMax[pat] = 1.0;
-            scalingFactors[pattern] = 0.0;
-        } else {
-            scalingFactors[pattern] = log(matrixMax[pat]);
-        }
-    }
-
-    // Attempt at a parallel reduction that (1) does not work and (2) is slower
-//    if (state == 0) {    
-//        for (int i = MATRIX_BLOCK_SIZE / 2; i > 0; i >>= 1) {
-//            if (matrix < i) {
-//                REAL compare1 = partials[matrix][tx];
-//                REAL compare2 = partials[matrix+i][tx];
-//                if (compare2 > compare1)
-//                    partials[matrix][tx] = compare2;              
-//            }
-//            __syncthreads();
-//        }         
-//        
-//        if (matrix == 0) {
-//            matrixMax[pat] = partials[matrix][tx];
-//            if (matrixMax[pat] == 0)
-//                matrixMax[pat] = 1.0;
-//                
-//            scalingFactors[pattern] = matrixMax[pat];
-//        }
-//    }
-
-    __syncthreads();
-
-    if (matrix < matrixCount)
-        allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
-}
 
 /*
  * Find a scaling factor for each pattern and accumulate into buffer
@@ -916,8 +704,14 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
         if (matrixMax[pat] == 0)
         	matrixMax[pat] = 1.0;
    
+#ifdef LSCALER
+        REAL logMax = log(matrixMax[pat]);
+        scalingFactors[pattern] = logMax;
+        cumulativeScaling[pattern] += logMax; // TODO: Fix, this is both a read and write
+#else
         scalingFactors[pattern] = matrixMax[pat]; 
         cumulativeScaling[pattern] += log(matrixMax[pat]);
+#endif
     }
 
     __syncthreads();
@@ -926,84 +720,6 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
         allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
         
 }
-
-/*
- * Find a scaling factor for each pattern and accumulate into buffer
- */
-__global__ void kernelPartialsDynamicScalingAccumulateScalersLog(REAL* allPartials,
-                                                                REAL* scalingFactors,
-                                                                REAL* cumulativeScaling,
-                                                                int matrixCount) {
-    int tx = threadIdx.x;
-    
-    int state = tx & 0x3;
-    int pat = tx >> 2;
-                             
-    int patIdx = blockIdx.x;
-    
-    int pattern = (patIdx << 2) + pat;
-    int matrix = threadIdx.y;
-    // TODO: Assumes matrixCount < MATRIX_BLOCK_SIZ
-    
-    // Patterns are always padded, so no reading/writing past end possible
-    // Find start of patternBlock for thread-block
-    int partialsOffset = (matrix * gridDim.x + patIdx) << 4; //* 16;
-
-    __shared__ REAL partials[MATRIX_BLOCK_SIZE][16]; // 4 patterns at a time
-    __shared__ REAL storedPartials[MATRIX_BLOCK_SIZE][16];
-
-    __shared__ REAL matrixMax[4];
-    
-    if (matrix < matrixCount)
-        partials[matrix][tx] = allPartials[partialsOffset + tx];          
-
-    storedPartials[matrix][tx] = partials[matrix][tx];
-           
-    __syncthreads();
-    
-    // Unrolled parallel max-reduction
-    if (state < 2) {
-        REAL compare1 = partials[matrix][tx];
-        REAL compare2 = partials[matrix][tx + 2];
-        if (compare2 > compare1)
-            partials[matrix][tx] = compare2;
-    }
-    __syncthreads();
-    
-    if (state < 1) {
-        REAL compare1 = partials[matrix][tx];
-        REAL compare2 = partials[matrix][tx + 1];
-        if (compare2 > compare1)
-            partials[matrix][tx] = compare2;
-    }
-    __syncthreads();
- 
-    // Could also parallel-reduce here.
-    if (state == 0 && matrix == 0) {
-        matrixMax[pat] = 0;
-        int m;
-        for(m = 0; m < matrixCount; m++) {
-            if (partials[m][tx] > matrixMax[pat])
-                matrixMax[pat] = partials[m][tx];
-        }
-        
-        if (matrixMax[pat] == 0) {
-        	matrixMax[pat] = 1.0;
-            scalingFactors[pattern] = 0.0;
-        } else {
-            REAL logMax = log(matrixMax[pat]);
-            scalingFactors[pattern] = logMax;
-            cumulativeScaling[pattern] += logMax; // TODO: Fix, this is both a read and write
-        }
-    }
-
-    __syncthreads();
-
-    if (matrix < matrixCount)
-        allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
-        
-}
-
 
 #define LIKE_PATTERN_BLOCK_SIZE PATTERN_BLOCK_SIZE
 
@@ -1033,8 +749,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1057,77 +773,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScale(REAL* dResult,
     __syncthreads();
     
     if (state == 0)
-        dResult[pattern] = (log(sum[pat][state]) + dRootScalingFactors[pattern]);
+        dResult[pattern] = log(sum[pat][state]) + dRootScalingFactors[pattern];
 }
-
-__global__ void kernelIntegrateLikelihoodsAutoScaling(REAL* dResult,
-                                                     REAL* dRootPartials,
-                                                     REAL* dWeights,
-                                                     REAL* dFrequencies,
-                                                     int* dRootScalingFactors,
-                                                     int matrixCount,
-                                                     int patternCount) {
-     int state   = threadIdx.x;
-    int pat = threadIdx.y;
-    int pattern = blockIdx.x * LIKE_PATTERN_BLOCK_SIZE + threadIdx.y;
-    
-    __shared__ REAL stateFreq[4];
-    
-    // TODO: Currently assumes MATRIX_BLOCK_SIZE >= matrixCount
-    __shared__ REAL matrixProp[MATRIX_BLOCK_SIZE];
-    __shared__ REAL sum[LIKE_PATTERN_BLOCK_SIZE][4];
-
-    // Load shared memory
-
-    if (pat == 0) {
-        stateFreq[state] = dFrequencies[state];
-    }
-    
-    sum[pat][state] = 0;
-    
-    // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
-    }
-
-    __syncthreads();
-
-    int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;
-
-    short maxScaleFactor = dRootScalingFactors[pattern];
-    for(int r = 1; r < matrixCount; r++) {
-        int tmpFactor = dRootScalingFactors[pattern + (r * patternCount)];
-        if (tmpFactor > maxScaleFactor)
-            maxScaleFactor = tmpFactor;
-    }
-
-    for(int r = 0; r < matrixCount; r++) {
-        int tmpFactor = dRootScalingFactors[pattern + (r * patternCount)];
-        if (tmpFactor != maxScaleFactor) {
-            // TODO: verify which of the two methods below is faster
-            int expTmp;
-            sum[pat][state] += ldexp(frexp(dRootPartials[u + delta * r], &expTmp), expTmp + (tmpFactor - maxScaleFactor)) * matrixProp[r];
-//            sum[pat][state] += dRootPartials[u + delta * r] * pow(2.0, tmpFactor - maxScaleFactor) * matrixProp[r];
-        } else {
-            sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
-        }
-    }
-
-    sum[pat][state] *= stateFreq[state];
-        
-    if (state < 2)
-        sum[pat][state] += sum[pat][state + 2];
-    __syncthreads();
-    if (state < 1) {
-        sum[pat][state] += sum[pat][state + 1];
-    }
-    __syncthreads();
-    
-    if (state == 0)
-        dResult[pattern] = (log(sum[pat][state]) + (M_LN2 * maxScaleFactor));
-}
-
 
 __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
                                               REAL* dFirstDerivResult,
@@ -1166,8 +813,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
     sumD2[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1200,12 +847,12 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(REAL* dResult,
     
     if (state == 0) {
         tmpLogLike = sum[pat][state];
-        dResult[pattern] = (log(tmpLogLike) + dRootScalingFactors[pattern]);
+        dResult[pattern] = log(tmpLogLike) + dRootScalingFactors[pattern];
         
         tmpFirstDeriv = sumD1[pat][state] / tmpLogLike;
         dFirstDerivResult[pattern] = tmpFirstDeriv;
         
-        dSecondDerivResult[pattern] = (sumD2[pat][state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv);
+        dSecondDerivResult[pattern] = sumD2[pat][state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv;
     }
 }
 
@@ -1235,8 +882,8 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1256,8 +903,6 @@ __global__ void kernelIntegrateLikelihoods(REAL* dResult,
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    
-    // TODO: remove this extra syncthreads for all integrate kernels
     __syncthreads();
     
     if (state == 0)
@@ -1301,8 +946,8 @@ __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
     sumD2[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1340,7 +985,7 @@ __global__ void kernelIntegrateLikelihoodsSecondDeriv(REAL* dResult,
         tmpFirstDeriv = sumD1[pat][state] / tmpLogLike;
         dFirstDerivResult[pattern] = tmpFirstDeriv;
         
-        dSecondDerivResult[pattern] = (sumD2[pat][state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv);
+        dSecondDerivResult[pattern] = sumD2[pat][state] / tmpLogLike - tmpFirstDeriv * tmpFirstDeriv;
     }
 }
 
@@ -1371,8 +1016,8 @@ __global__ void kernelIntegrateLikelihoodsMulti(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1409,8 +1054,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
 											  REAL* dRootPartials,
                                               REAL* dWeights,
                                               REAL* dFrequencies,
-                                              REAL* dScalingFactors,
-											  unsigned int* dPtrQueue,
+											  REAL** dPtrQueue,
 											  REAL* dMaxScalingFactors,
 											  REAL* dIndexMaxScalingFactors,
                                               int matrixCount,
@@ -1436,8 +1080,8 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
     sum[pat][state] = 0;
     
     // TODO: Assumes matrixCount < LIKE_PATTERN_BLOCK_SIZE * 4
-    if (pat * 4 + state < matrixCount) {
-        matrixProp[pat * 4 + state] = dWeights[pat * 4 + state];
+    if (pat * LIKE_PATTERN_BLOCK_SIZE + state < matrixCount) {
+        matrixProp[pat * LIKE_PATTERN_BLOCK_SIZE + state] = dWeights[pat * 4 + state];
     }
 
     __syncthreads();
@@ -1458,14 +1102,14 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
         sum[pat][state] += sum[pat][state + 1];
     }
     __syncthreads();
-
-	REAL cumulativeScalingFactor = (dScalingFactors + dPtrQueue[subsetIndex])[pattern];
+    
+	REAL cumulativeScalingFactor = ((REAL*) *((int*)dPtrQueue + subsetIndex))[pattern];
 	
 	if (subsetIndex == 0) {
 		int indexMaxScalingFactor = 0;
 		REAL maxScalingFactor = cumulativeScalingFactor;
 		for (int j = 1; j < subsetCount; j++) {
-			REAL tmpScalingFactor = (dScalingFactors + dPtrQueue[j])[pattern];
+			REAL tmpScalingFactor = ((REAL*) *((int*)dPtrQueue + j))[pattern];
 			if (tmpScalingFactor > maxScalingFactor) {
 				indexMaxScalingFactor = j;
 				maxScalingFactor = tmpScalingFactor;
@@ -1486,7 +1130,7 @@ __global__ void kernelIntegrateLikelihoodsFixedScaleMulti(REAL* dResult,
 	
 		if (state == 0) {
 			if (subsetIndex == subsetCount - 1)
-				dResult[pattern] = (log(dResult[pattern] + sum[pat][state]) + dMaxScalingFactors[pattern]);
+				dResult[pattern] = log(dResult[pattern] + sum[pat][state]) + dMaxScalingFactors[pattern];
 			else
 				dResult[pattern] += sum[pat][state];
 		}

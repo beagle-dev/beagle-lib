@@ -47,6 +47,7 @@ private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
     
+    int kHostMemoryUsed;
     int kInitialized;
     
     long kFlags;
@@ -61,23 +62,26 @@ private:
     int kCategoryCount;
  
     int kTipPartialsBufferCount;
-    int kInternalPartialsBufferCount;
     int kBufferCount;
     int kScaleBufferCount;
     
     int kPaddedStateCount;
     int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
                                 //   * kPaddedStateCount is a multiple of 16
-    int kSumSitesBlockCount;
-    
+
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
-    int kScaleBufferSize;
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
     
+    GPUPtr* dEigenValues;
+    GPUPtr* dEvec;
+    GPUPtr* dIevc;
+    
+    GPUPtr dWeights;
+    GPUPtr dFrequencies; 
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
@@ -85,49 +89,31 @@ private:
     GPUPtr dFirstDerivTmp;
     GPUPtr dSecondDerivTmp;
     
-    GPUPtr dSumLogLikelihood;
-    GPUPtr dSumFirstDeriv;
-    GPUPtr dSumSecondDeriv;
-    
-    GPUPtr dPatternWeights;    
-	
-    GPUPtr dBranchLengths;
-    
-    GPUPtr dDistanceQueue;
-    
-    GPUPtr dPtrQueue;
-	
-    GPUPtr dMaxScalingFactors;
-    GPUPtr dIndexMaxScalingFactors;
-    
-    GPUPtr dActiveScalingFactors;
-    
-    GPUPtr dAccumulatedScalingFactors;
-    
-    GPUPtr* dEigenValues;
-    GPUPtr* dEvec;
-    GPUPtr* dIevc;
-    
-    GPUPtr* dWeights;
-    GPUPtr* dFrequencies; 
-
-    GPUPtr* dScalingFactors;
-    
-    GPUPtr* dStates;
+	double* hCategoryRates; // Can keep in double-precision
     
     GPUPtr* dPartials;
     GPUPtr* dMatrices;
     
+    REAL** hTmpTipPartials;
+    int** hTmpStates;
+    
+    GPUPtr* dScalingFactors;
+    
+    GPUPtr* dStates;
+    
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
-    unsigned int* hPtrQueue;
+    GPUPtr dBranchLengths;
     
-    double* hCategoryRates; // Can keep in double-precision
-
-    REAL* hPatternWeightsCache;
-        
     REAL* hDistanceQueue;
+    GPUPtr dDistanceQueue;
+    
+    GPUPtr* hPtrQueue;
+    GPUPtr dPtrQueue;
+	
+	GPUPtr dMaxScalingFactors;
+	GPUPtr dIndexMaxScalingFactors;
     
     REAL* hWeightsCache;
     REAL* hFrequenciesCache;
@@ -174,20 +160,10 @@ public:
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
     
-    int setStateFrequencies(int stateFrequenciesIndex,
-                            const double* inStateFrequencies);    
-    
-    int setCategoryWeights(int categoryWeightsIndex,
-                           const double* inCategoryWeights);
-    
-    int setPatternWeights(const double* inPatternWeights);
-    
-    
     int setCategoryRates(const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
-                            const double* inMatrix,
-                            double paddedValue);
+                            const double* inMatrix);
     
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);
@@ -217,29 +193,24 @@ public:
     int resetScaleFactors(int cumulativeScalingIndex);
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
-                                    const int* categoryWeightsIndices,
-                                    const int* stateFrequenciesIndices,
-                                    const int* cumulativeScaleIndices,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
+                                    const int* scalingFactorsIndices,
                                     int count,
-                                    double* outSumLogLikelihood);
+                                    double* outLogLikelihoods);
     
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                     const int* childBufferIndices,
                                     const int* probabilityIndices,
                                     const int* firstDerivativeIndices,
                                     const int* secondDerivativeIndices,
-                                    const int* categoryWeightsIndices,
-                                    const int* stateFrequenciesIndices,
-                                    const int* cumulativeScaleIndices,
+                                    const double* inWeights,
+                                    const double* inStateFrequencies,
+                                    const int* scalingFactorsIndices,
                                     int count,
-                                    double* outSumLogLikelihood,
-                                    double* outSumFirstDerivative,
-                                    double* outSumSecondDerivative);
-
-    int getSiteLogLikelihoods(double* outLogLikelihoods);
-    
-    int getSiteDerivatives(double* outFirstDerivatives,
-                           double* outSecondDerivatives);
+                                    double* outLogLikelihoods,
+                                    double* outFirstDerivatives,
+                                    double* outSecondDerivatives);    
 };
 
 class BeagleGPUImplFactory : public BeagleImplFactory {

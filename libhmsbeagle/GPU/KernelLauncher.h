@@ -43,7 +43,6 @@ private:
     GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
-    GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
@@ -57,7 +56,6 @@ private:
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
     GPUFunction fIntegrateLikelihoodsDynamicScalingSecondDeriv;
     GPUFunction fAccumulateFactorsDynamicScaling;
-    GPUFunction fAccumulateFactorsAutoScaling;
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingAccumulate;
@@ -66,11 +64,6 @@ private:
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
 	GPUFunction fIntegrateLikelihoodsMulti;
 	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
-    GPUFunction fIntegrateLikelihoodsAutoScaling;
-
-    GPUFunction fSumSites1;
-    GPUFunction fSumSites2;
-    GPUFunction fSumSites3;
     
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
@@ -82,8 +75,6 @@ private:
     Dim3Int bgAccumulateGrid;
     Dim3Int bgScaleBlock;
     Dim3Int bgScaleGrid;
-    Dim3Int bgSumSitesBlock;
-    Dim3Int bgSumSitesGrid;
     
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -92,7 +83,6 @@ private:
     unsigned int kMatrixBlockSize;
     unsigned int kSlowReweighing;  
     unsigned int kMultiplyBlockSize;
-    unsigned int kSumSitesBlockSize;
     long kFlags;
     
 public:
@@ -102,29 +92,34 @@ public:
     
 // Kernel links
 #ifdef CUDA
-    void GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
-                                          GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquare(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
                                           unsigned int totalMatrix);
 
-    void GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dMatrices,
-                                                    GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dPtrQueue,
                                                      GPUPtr dEvec,
                                                      GPUPtr dIevc,
                                                      GPUPtr dEigenValues,
                                                      GPUPtr distanceQueue,
                                                      unsigned int totalMatrix);    
     
-    void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrices,
-                                                     GPUPtr dPtrQueue,
+    void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
                                           GPUPtr dIevc,
                                           GPUPtr dEigenValues,
                                           GPUPtr distanceQueue,
                                           unsigned int totalMatrix);
+
+    void GetTransitionProbabilitiesComplex(GPUPtr dPtrQueue,
+                                           GPUPtr dEvec,
+                                           GPUPtr dIevc,
+                                           GPUPtr dEigenValues,
+                                           GPUPtr distanceQueue,
+                                           GPUPtr dComplex,
+                                           unsigned int totalMatrix);
 
 #else //OpenCL
     void GetTransitionProbabilitiesSquare(GPUPtr dPtr,
@@ -170,14 +165,6 @@ public:
                                            int doRescaling);
     
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
-                                            GPUPtr dRootPartials,
-                                            GPUPtr dWeights,
-                                            GPUPtr dFrequencies,
-                                            GPUPtr dRootScalingFactors,
-                                            unsigned int patternCount,
-                                            unsigned int categoryCount);
-    
-    void IntegrateLikelihoodsAutoScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,
                                             GPUPtr dWeights,
                                             GPUPtr dFrequencies,
@@ -234,22 +221,12 @@ public:
                                                   unsigned int patternCount,
                                                   unsigned int categoryCount);
     
-    void AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
-                                         GPUPtr dNodePtrQueue,
+    void AccumulateFactorsDynamicScaling(GPUPtr dNodePtrQueue,
                                          GPUPtr dRootScalingFactors,
                                          unsigned int nodeCount,
                                          unsigned int patternCount);
 
-    void AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
-                                      GPUPtr dNodePtrQueue,
-                                      GPUPtr dRootScalingFactors,
-                                      GPUPtr dActiveFactors,
-                                      unsigned int nodeCount,
-                                      unsigned int patternCount,
-                                      unsigned int scaleBufferSize);
-    
-    void RemoveFactorsDynamicScaling(GPUPtr dScalingFactors,
-                                     GPUPtr dNodePtrQueue,
+    void RemoveFactorsDynamicScaling(GPUPtr dNodePtrQueue,
                                      GPUPtr dRootScalingFactors,
                                      unsigned int nodeCount,
                                      unsigned int patternCount);    
@@ -291,7 +268,6 @@ public:
 											 GPUPtr dRootPartials,
 											 GPUPtr dWeights,
 											 GPUPtr dFrequencies,
-                                             GPUPtr dScalingFactors,
 											 GPUPtr dPtrQueue,
 											 GPUPtr dMaxScalingFactors,
 											 GPUPtr dIndexMaxScalingFactors,
@@ -299,27 +275,6 @@ public:
 											 unsigned int categoryCount,
 											 unsigned int subsetCount,
 											 unsigned int subsetIndex);
-    
-    void SumSites1(GPUPtr dArray1,
-                  GPUPtr dSum1,
-                  GPUPtr dPatternWeights,
-                  unsigned int patternCount);
-    
-    void SumSites2(GPUPtr dArray1,
-                  GPUPtr dSum1,
-                  GPUPtr dArray2,
-                  GPUPtr dSum2,
-                  GPUPtr dPatternWeights,
-                  unsigned int patternCount);
-    
-    void SumSites3(GPUPtr dArray1,
-                  GPUPtr dSum1,
-                  GPUPtr dArray2,
-                  GPUPtr dSum2,
-                  GPUPtr dArray3,
-                  GPUPtr dSum3,
-                  GPUPtr dPatternWeights,
-                  unsigned int patternCount);
 	
     void SetupKernelBlocksAndGrids();
     

@@ -2,8 +2,6 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -O2"}
-
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
 dnl -----------------------------------------------
@@ -107,6 +105,9 @@ fi
 
 AM_CONDITIONAL(BUILDOPENCL, test ! x$with_opencl = xno)
 
+AC_SUBST(OPENCL_CFLAGS)
+AC_SUBST(OPENCL_LIBS)
+
 if( test ! x$with_opencl = xno ) 
 then
 	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
@@ -142,7 +143,7 @@ then
 
 
 AC_ARG_ENABLE([emu],
-    AC_HELP_STRING([--enable-emu],[turn on device emulation for CUDA]),
+   [  --enable-emu    Turn on device emulation for CUDA],
    [case "${enableval}" in
        yes) EMULATION=true;;
        no)  EMULATION=false;;
@@ -159,6 +160,8 @@ then
 fi
 
 AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
+AC_SUBST(CUDA_CFLAGS)
+AC_SUBST(CUDA_LIBS)
 AC_SUBST(NVCC)
 
 if( test ! x$NVCC = xno ) 
@@ -179,19 +182,8 @@ if test x$EMULATION = xtrue
 then
    NVCCFLAGS+=" -deviceemu"
 fi
+AC_SUBST(NVCCFLAGS)
 
-# ------------------------------------------------------------------------------
-# Setup SSE
-# ------------------------------------------------------------------------------
-
-AC_ARG_ENABLE(sse,
-	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
-
-SSE_CFLAGS=
-if test  "$enable_sse" = yes; then
-	SSE_CFLAGS+="-DENABLE_SSE"
-    AM_CXXFLAGS="$AM_CXXFLAGS -msse2"
-fi
 
 # ------------------------------------------------------------------------------
 # Setup Mac multi-architecture flags
@@ -201,12 +193,14 @@ fi
 case $host_os in
 *darwin*)
   
-  AM_CXXFLAGS="$AM_CXXFLAGS -DDLS_MACOS"
+  CXXFLAGS+=" -DDLS_MACOS"
+  CFLAGS+=" -DDLS_MACOS"
   
   # CUDA will only work with i386
   if( test ! x$NVCC = xno )
   then
-     AM_CXXFLAGS="$AM_CXXFLAGS -arch i386"
+     CXXFLAGS+=" -arch i386"
+     CFLAGS+=" -arch i386"
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   # OpenCL requires the 10.6 SDK
@@ -217,12 +211,19 @@ case $host_os in
         [AC_MSG_ERROR([OpenCL builds require Mac OS X 10.6 and Xcode])])
   fi
 
+  AC_SUBST(CXXFLAGS)
+  AC_SUBST(CFLAGS)
+  AC_SUBST(LDFLAGS)
 esac
 
 case $host_os in
   *cygwin*)
-  AM_CXXFLAGS="$AM_CXXFLAGS -D__int64=\"long long\""
+  CXXFLAGS+=" -D__int64=\"long long\""
+  CFLAGS+=" -D__int64=\"long long\""
   LDFLAGS+=" -mno-cygwin -Wl,-add-stdcall-alias -shared -no-undefined"
+  AC_SUBST(CXXFLAGS)
+  AC_SUBST(CFLAGS)
+  AC_SUBST(LDFLAGS)
 esac
 
 # ------------------------------------------------------------------------------
@@ -246,19 +247,6 @@ case $host_os in
 esac 
 AC_SUBST(JNI_EXTRA_LDFLAGS)
 
-
-# ------------------------------------------------------------------------------
-# Distribute common variables
-# ------------------------------------------------------------------------------
-
-AC_SUBST(NVCCFLAGS)
-AC_SUBST(CUDA_CFLAGS)
-AC_SUBST(CUDA_LIBS)
-AC_SUBST(OPENCL_CFLAGS)
-AC_SUBST(OPENCL_LIBS)
-AC_SUBST(SSE_CFLAGS)
-AC_SUBST(AM_CXXFLAGS)
-AC_SUBST(LDFLAGS)
 
 # ------------------------------------------------------------------------------
 # Doxygen support 
@@ -288,7 +276,6 @@ AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile])
 AC_CONFIG_FILES([examples/tinytest/Makefile])
 AC_CONFIG_FILES([examples/complextest/Makefile])
-AC_CONFIG_FILES([examples/oddstatetest/Makefile])
 AC_CONFIG_FILES([examples/fourtaxon/Makefile])
 AC_CONFIG_FILES([examples/genomictest/Makefile])
 AC_CONFIG_FILES([examples/matrixtest/Makefile])
