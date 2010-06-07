@@ -31,11 +31,11 @@ java -Xmx500m -cp build\dist\beast.jar;%LIBHMSBEAGLE-1.0%\beagle.jar -Djava.libr
 
 The following software prerequisites must be installed prior to building libhmsbeagle on windows:
 
-* A 64-bit Windows OS (XP or later)
-* Visual Studio Professional 2008 (express edition will not work)
-* Java Development Kit 1.5 or later
-* Nvidia CUDA 2.3, 64-bit (3.0 has not been tested, not by me anyway)
-** The video card driver is required to use the library, but not to build it
+  * A 64-bit Windows OS (XP or later)
+  * Visual Studio Professional 2008 (express edition will not work)
+  * Java Development Kit 1.5 or later
+  * Nvidia CUDA 2.3, 64-bit (3.0 has not been tested, not by me anyway)
+  ** The video card driver is required to use the library, but not to build it
 
 Step 1. Checkout the source code repository:
 {{{
