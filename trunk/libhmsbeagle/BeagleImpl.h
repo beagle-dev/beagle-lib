@@ -88,6 +88,11 @@ public:
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix,
                                     double paddedValue) = 0;
+
+    virtual int setTransitionMatrices(const int* matrixIndices,
+                                      const double* inMatrices,
+                                      int count,
+                                      double paddedValue) = 0;    
     
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;

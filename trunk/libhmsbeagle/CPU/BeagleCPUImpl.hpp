@@ -603,6 +603,35 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrix(int matrixIndex,
 #endif
     return BEAGLE_SUCCESS;
 }
+    
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrices(const int* matrixIndices,
+                                                             const double* inMatrices,
+                                                             int count,
+                                                             double paddedValue) {
+    for (int k = 0; k < count; k++) {
+        const double* inMatrix = inMatrices + k*kStateCount*kStateCount*kCategoryCount*sizeof(double);
+        int matrixIndex = matrixIndices[k];
+        
+#ifdef PAD_MATRICES
+        const double* offsetInMatrix = inMatrix;
+        REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
+        for(int i = 0; i < kCategoryCount; i++) {
+            for(int j = 0; j < kStateCount; j++) {
+                beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
+                offsetBeagleMatrix[kStateCount] = paddedValue;
+                offsetBeagleMatrix += kStateCount + PAD; // Skip padding
+                offsetInMatrix += kStateCount;
+            }
+        }
+#else
+        beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
+                     kMatrixSize * kCategoryCount);
+#endif
+    }
+    
+    return BEAGLE_SUCCESS;
+}
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,

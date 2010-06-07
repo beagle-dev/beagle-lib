@@ -442,6 +442,28 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
 BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
 								int matrixIndex,
 								double* outMatrix);
+    
+/**
+ * @brief Set multiple transition matrices
+ *
+ * This function copies multiple transition matrices into matrix buffers. This function
+ * is used when the application wishes to explicitly set the transition matrices rather than
+ * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrices array should be
+ * of size stateCount * stateCount * categoryCount * count.
+ *
+ * @param instance      Instance number (input)
+ * @param matrixIndices Indices of matrix buffers (input)
+ * @param inMatrices    Pointer to source transition matrices (input)
+ * @param count         Number of transition matrices (input)
+ * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
+                                                 const int* matrixIndices,
+                                                 const double* inMatrices,
+                                                 int count,
+                                                 double paddedValue);
 
 /**
  * @brief Calculate or queue for calculation partials using a list of operations

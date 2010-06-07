@@ -89,6 +89,8 @@ public:
                                int parameterCountV,
                                int totalParameterCount,
                                ...); // parameters
+
+    void* AllocatePinnedHostMemory(int memSize);
     
     GPUPtr AllocateMemory(int memSize);
     
@@ -108,6 +110,8 @@ public:
                             const GPUPtr src,
                             int memSize);
 
+    void FreePinnedHostMemory(void* hPtr);
+    
     void FreeMemory(GPUPtr dPtr);
     
     unsigned int GetAvailableMemory();
