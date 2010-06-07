@@ -187,10 +187,17 @@ BeagleGPUImpl::~BeagleGPUImpl() {
     
         free(hWeightsCache);
         free(hFrequenciesCache);
-        free(hLogLikelihoodsCache);
         free(hPartialsCache);
         free(hStatesCache);
+        
+#ifdef BEAGLE_MEMORY_PINNED
+        gpu->FreePinnedHostMemory(hLogLikelihoodsCache);
+        gpu->FreePinnedHostMemory(hMatrixCache);
+#else
+        free(hLogLikelihoodsCache);
         free(hMatrixCache);
+#endif
+        
     }
     
     if (kernels)
@@ -367,11 +374,21 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
     hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
     hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
+    
+    int hMatrixCacheSize = 0;
     if ((2 * kMatrixSize + kEigenValuesSize) > (kMatrixSize * kCategoryCount))
-        hMatrixCache = (REAL*) calloc(2 * kMatrixSize + kEigenValuesSize, SIZE_REAL);
+        hMatrixCacheSize = 2 * kMatrixSize + kEigenValuesSize;
     else
-        hMatrixCache = (REAL*) calloc(kMatrixSize * kCategoryCount, SIZE_REAL);
+        hMatrixCacheSize = kMatrixSize * kCategoryCount;
+    
+#ifdef BEAGLE_MEMORY_PINNED
+    hLogLikelihoodsCache = (REAL*) gpu->AllocatePinnedHostMemory(kPatternCount * SIZE_REAL);
+    hMatrixCache = (REAL*) gpu->AllocatePinnedHostMemory(hMatrixCacheSize * SIZE_REAL);
+    bzero(hMatrixCache, hMatrixCacheSize * SIZE_REAL);
+#else
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
+    hMatrixCache = (REAL*) calloc(hMatrixCacheSize, SIZE_REAL);
+#endif
     
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dIevc = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
@@ -864,7 +881,6 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
 int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix,
                                        double paddedValue) {
-    // TODO: test setTransitionMatrix
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrix\n");
@@ -900,6 +916,54 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
     
     return BEAGLE_SUCCESS;
 }
+
+int BeagleGPUImpl::setTransitionMatrices(const int* matrixIndices,
+                                         const double* inMatrices,
+                                         int count,
+                                         double paddedValue) {
+    // TODO: optimize setTransitionMatrices
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrices\n");
+#endif
+    
+    for (int k = 0; k < count; k++) {
+        const double* inMatrix = inMatrices + k*kMatrixSize*kCategoryCount*sizeof(double);
+        int matrixIndex = matrixIndices[k];
+    
+        const double* inMatrixOffset = inMatrix;
+        REAL* tmpRealMatrixOffset = hMatrixCache;
+        
+        for (int l = 0; l < kCategoryCount; l++) {
+            REAL* transposeOffset = tmpRealMatrixOffset;
+            
+            for (int i = 0; i < kStateCount; i++) {
+    #ifdef DOUBLE_PRECISION
+                memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
+    #else
+                MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
+    #endif
+                tmpRealMatrixOffset += kPaddedStateCount;
+                inMatrixOffset += kStateCount;
+            }
+            
+            transposeSquareMatrix(transposeOffset, kPaddedStateCount);
+            tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
+        }
+        
+        // Copy to GPU device
+        gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache,
+                                SIZE_REAL * kMatrixSize * kCategoryCount);
+        
+    }   
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTransitionMatrices\n");
+#endif
+    
+    return BEAGLE_SUCCESS;
+}
+
 
 int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
                                             const int* probabilityIndices,

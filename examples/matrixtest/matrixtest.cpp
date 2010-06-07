@@ -91,16 +91,16 @@ double* getPartials(char *sequence) {
 	return partials;
 }
 
-double* getTransitionMatrix(double* Eval,
+void getTransitionMatrix(double* Eval,
 							double *Evec,
 							double *Ievc,
 							int kStateCount,
 							int numRates,
 							double *rates,
-							double edgeLength) {
+							double edgeLength,
+                            double* transitionMat) {
 
 	double* matrixTmp = (double*) malloc(kStateCount * kStateCount * sizeof(double));
-	double* transitionMat = (double*) malloc(kStateCount * kStateCount * numRates * sizeof(double));
 
 	int n = 0;
 
@@ -146,7 +146,6 @@ double* getTransitionMatrix(double* Eval,
 	}
 
 	free(matrixTmp);
-	return transitionMat;
 }
 
 int main( int argc, const char* argv[] )
@@ -210,7 +209,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                   0,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  BEAGLE_FLAG_PROCESSOR_CPU
+                                  BEAGLE_FLAG_PROCESSOR_GPU
 #ifndef JC
                                   | BEAGLE_FLAG_EIGEN_COMPLEX
 #endif
@@ -346,21 +345,28 @@ int main( int argc, const char* argv[] )
 //	                         edgeLengths,   // edgeLengths
 //	                         4);            // count
 
-	// set transitionMatrices one at a time
-	for(int b=0; b<4; b++) {
-		double* transitionMatrix = getTransitionMatrix(eval,
-													   evec,
-													   ivec,
-													   4,
-													   rateCategoryCount,
-													   rates,
-													   edgeLengths[b]);
-		beagleSetTransitionMatrix(instance,
-								  nodeIndices[b],
-								  transitionMatrix,
-                                  1.0);
-		free(transitionMatrix);
+	// set transitionMatrices
+    
+    double* transitionMatrix = (double*) malloc(4 * 4 * 4 * rateCategoryCount * sizeof(double));
+	
+    for(int b=0; b<4; b++) {
+        getTransitionMatrix(eval,
+                           evec,
+                           ivec,
+                           4,
+                           rateCategoryCount,
+                           rates,
+                           edgeLengths[b],
+                           transitionMatrix + b*4*4*rateCategoryCount*sizeof(double));
 	}
+
+    beagleSetTransitionMatrices(instance,
+                                nodeIndices,
+                                transitionMatrix,
+                                4,
+                                1.0);
+    free(transitionMatrix);
+    
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
