@@ -73,6 +73,8 @@ public class MarkovJumpsTest extends TraceCorrelationAssert {
                 hky.getDataType(),
                 "stateTag",
                 hky,
+                false,
+                false,
                 false, // use uniformization
                 false,
                 1000
