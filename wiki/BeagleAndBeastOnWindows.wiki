@@ -43,9 +43,12 @@ svn co http://beagle-lib.googlecode.com/trunk/ beagle-lib
 }}}
 
 Step 2. Open the Visual Studio 2008 project:
-It's located at project\beagle-vs\libhmsbeagle_vc90.sln
+  * It's located at project\beagle-vs\libhmsbeagle_vc90.sln
 
 Step 3. Set the desired configuration (e.g. "Release" and X64)
+
 Step 4. Right-click on the installer project (at the left hand side in the project explorer) and select "build"
 
-*Alternate approach:*  Edit the file project\beagle-vs\build_installer.bat to point to the Visual Studio and ant installations, and run it from within a command prompt
+Step 5. The installer will be located in project\beagle-vs\beagleinstaller\Release, assuming a release build.
+
+*Alternate approach:*  Edit the file project\beagle-vs\build_installer.bat to point to the Visual Studio and ant installations, and run it from within a command prompt.  Skip steps 2-4.
