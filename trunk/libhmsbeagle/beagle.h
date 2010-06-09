@@ -454,16 +454,16 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * @param instance      Instance number (input)
  * @param matrixIndices Indices of matrix buffers (input)
  * @param inMatrices    Pointer to source transition matrices (input)
+ * @param paddedValues  Values to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
  * @param count         Number of transition matrices (input)
- * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
                                                  const int* matrixIndices,
                                                  const double* inMatrices,
-                                                 int count,
-                                                 double paddedValue);
+                                                 const double* paddedValues,
+                                                 int count);
 
 /**
  * @brief Calculate or queue for calculation partials using a list of operations

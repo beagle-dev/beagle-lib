@@ -348,6 +348,8 @@ int main( int argc, const char* argv[] )
 	// set transitionMatrices
     
     double* transitionMatrix = (double*) malloc(4 * 4 * 4 * rateCategoryCount * sizeof(double));
+    
+    double* paddedValues = (double*) malloc(4*sizeof(double));
 	
     for(int b=0; b<4; b++) {
         getTransitionMatrix(eval,
@@ -358,13 +360,15 @@ int main( int argc, const char* argv[] )
                            rates,
                            edgeLengths[b],
                            transitionMatrix + b*4*4*rateCategoryCount*sizeof(double));
+        
+        paddedValues[b] = 1.0;
 	}
 
     beagleSetTransitionMatrices(instance,
                                 nodeIndices,
                                 transitionMatrix,
-                                4,
-                                1.0);
+                                paddedValues,
+                                4);
     free(transitionMatrix);
     
     

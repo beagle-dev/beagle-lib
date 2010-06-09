@@ -919,8 +919,8 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
 
 int BeagleGPUImpl::setTransitionMatrices(const int* matrixIndices,
                                          const double* inMatrices,
-                                         int count,
-                                         double paddedValue) {
+                                         const double* paddedValues,
+                                         int count) {
     // TODO: optimize setTransitionMatrices
     
 #ifdef BEAGLE_DEBUG_FLOW
