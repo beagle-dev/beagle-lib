@@ -359,7 +359,7 @@ int main( int argc, const char* argv[] )
                            rateCategoryCount,
                            rates,
                            edgeLengths[b],
-                           transitionMatrix + b*4*4*rateCategoryCount*sizeof(double));
+                           transitionMatrix + b*4*4*rateCategoryCount);
         
         paddedValues[b] = 1.0;
 	}

@@ -610,7 +610,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrices(const int* matrixIn
                                                              const double* paddedValues,
                                                              int count) {
     for (int k = 0; k < count; k++) {
-        const double* inMatrix = inMatrices + k*kStateCount*kStateCount*kCategoryCount*sizeof(double);
+        const double* inMatrix = inMatrices + k*kStateCount*kStateCount*kCategoryCount;
         int matrixIndex = matrixIndices[k];
         
 #ifdef PAD_MATRICES
