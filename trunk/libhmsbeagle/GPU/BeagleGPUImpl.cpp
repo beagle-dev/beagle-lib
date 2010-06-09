@@ -374,12 +374,10 @@ int BeagleGPUImpl::createInstance(int tipCount,
     hFrequenciesCache = (REAL*) calloc(kPaddedStateCount * kPartialsBufferCount, SIZE_REAL);
     hPartialsCache = (REAL*) calloc(kPartialsSize, SIZE_REAL);
     hStatesCache = (int*) calloc(kPaddedPatternCount, SIZE_INT);
-    
-    int hMatrixCacheSize = 0;
-    if ((2 * kMatrixSize + kEigenValuesSize) > (kMatrixSize * kCategoryCount))
+
+    int hMatrixCacheSize = kMatrixSize * kCategoryCount * BEAGLE_CACHED_MATRICES_COUNT;
+    if ((2 * kMatrixSize + kEigenValuesSize) > hMatrixCacheSize)
         hMatrixCacheSize = 2 * kMatrixSize + kEigenValuesSize;
-    else
-        hMatrixCacheSize = kMatrixSize * kCategoryCount;
     
 #ifdef BEAGLE_MEMORY_PINNED
     hLogLikelihoodsCache = (REAL*) gpu->AllocatePinnedHostMemory(kPatternCount * SIZE_REAL);
@@ -921,39 +919,43 @@ int BeagleGPUImpl::setTransitionMatrices(const int* matrixIndices,
                                          const double* inMatrices,
                                          const double* paddedValues,
                                          int count) {
-    // TODO: optimize setTransitionMatrices
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrices\n");
 #endif
     
-    for (int k = 0; k < count; k++) {
-        const double* inMatrix = inMatrices + k*kMatrixSize*kCategoryCount*sizeof(double);
-        int matrixIndex = matrixIndices[k];
-    
-        const double* inMatrixOffset = inMatrix;
+    int k = 0;
+    while (k < count) {
+        const double* inMatrixOffset = inMatrices + k*kStateCount*kStateCount*kCategoryCount;
         REAL* tmpRealMatrixOffset = hMatrixCache;
-        
-        for (int l = 0; l < kCategoryCount; l++) {
-            REAL* transposeOffset = tmpRealMatrixOffset;
-            
-            for (int i = 0; i < kStateCount; i++) {
-    #ifdef DOUBLE_PRECISION
-                memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
-    #else
-                MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
-    #endif
-                tmpRealMatrixOffset += kPaddedStateCount;
-                inMatrixOffset += kStateCount;
-            }
-            
-            transposeSquareMatrix(transposeOffset, kPaddedStateCount);
-            tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
-        }
+        int lumpedMatricesCount = 0;
+        int matrixIndex = matrixIndices[k];
+                
+        do {
+            for (int l = 0; l < kCategoryCount; l++) {
+                REAL* transposeOffset = tmpRealMatrixOffset;
+                
+                for (int i = 0; i < kStateCount; i++) {
+        #ifdef DOUBLE_PRECISION
+                    memcpy(tmpRealMatrixOffset, inMatrixOffset, SIZE_REAL * kStateCount);
+        #else
+                    MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, REAL);
+        #endif
+                    tmpRealMatrixOffset += kPaddedStateCount;
+                    inMatrixOffset += kStateCount;
+                }
+                
+                transposeSquareMatrix(transposeOffset, kPaddedStateCount);
+                tmpRealMatrixOffset += (kPaddedStateCount - kStateCount) * kPaddedStateCount;
+            } 
+                    
+            lumpedMatricesCount++;
+            k++;
+        } while ((k < count) && (matrixIndices[k] == matrixIndices[k-1] + 1) && (lumpedMatricesCount < BEAGLE_CACHED_MATRICES_COUNT));
         
         // Copy to GPU device
         gpu->MemcpyHostToDevice(dMatrices[matrixIndex], hMatrixCache,
-                                SIZE_REAL * kMatrixSize * kCategoryCount);
+                                SIZE_REAL * kMatrixSize * kCategoryCount * lumpedMatricesCount);
         
     }   
     
