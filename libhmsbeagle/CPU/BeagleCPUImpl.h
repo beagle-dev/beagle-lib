@@ -186,8 +186,8 @@ public:
     
     int setTransitionMatrices(const int* matrixIndices,
                               const double* inMatrices,
-                              int count,
-                              double paddedValue);
+                              const double* paddedValues,
+                              int count);
 
     int getTransitionMatrix(int matrixIndex,
     						double* outMatrix);

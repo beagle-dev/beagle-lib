@@ -283,6 +283,9 @@
 		64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = SOURCE_ROOT; };
 		64C0EB441034BC820004734E /* genomicTestOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64D10A621033B8F4009EC5FB /* fourTaxonOpenCLXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourTaxonOpenCLXcode; sourceTree = BUILT_PRODUCTS_DIR; };
+		64E78A5411C02A1F0092E093 /* BeagleCPUSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BeagleCPUSSEImpl.h; path = ../../libhmsbeagle/CPU/BeagleCPUSSEImpl.h; sourceTree = SOURCE_ROOT; };
+		64E78A5511C02A1F0092E093 /* BeagleCPUSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = BeagleCPUSSEImpl.hpp; path = ../../libhmsbeagle/CPU/BeagleCPUSSEImpl.hpp; sourceTree = SOURCE_ROOT; };
+		64E78A5611C02A1F0092E093 /* SSEDefinitions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SSEDefinitions.h; path = ../../libhmsbeagle/CPU/SSEDefinitions.h; sourceTree = SOURCE_ROOT; };
 		64EC49C00FE9BBDB006841E3 /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = ../../examples/genomictest/genomictest.cpp; sourceTree = SOURCE_ROOT; };
 		64EC49E10FE9BD0B006841E3 /* genomicTestCPUXcode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomicTestCPUXcode; sourceTree = BUILT_PRODUCTS_DIR; };
 		64F21C360FD2B74900678D0B /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../libhmsbeagle/beagle.cpp; sourceTree = SOURCE_ROOT; };
@@ -384,6 +387,7 @@
 				649E82ED0FD703C10044891D /* Beagle */,
 				649C82471027867600B21A29 /* CPU Impl */,
 				645670DF10751D0F00E9CDF0 /* CPU Complex */,
+				64E78A5311C0295B0092E093 /* CPU SSE Impl */,
 				649C82611027A32200B21A29 /* CPU 4State Impl */,
 				33CE76B3106690F300CBF579 /* CPU 4State SSE Impl */,
 				33CE770110669F1B00CBF579 /* CPU 4State GCD Impl */,
@@ -601,6 +605,7 @@
 				64F21C390FD2B74900678D0B /* BeagleCPUImpl.h */,
 				64F21C380FD2B74900678D0B /* BeagleCPUImpl.hpp */,
 				646A4C3411079EE6000D8ED2 /* Precision.h */,
+				64E78A5611C02A1F0092E093 /* SSEDefinitions.h */,
 			);
 			name = "CPU Impl";
 			sourceTree = SOURCE_ROOT;
@@ -669,6 +674,15 @@
 				64BA0A510FD46BCF00E5EA7A /* check_lnL_using_paup.nex */,
 			);
 			name = Other;
+			sourceTree = "<group>";
+		};
+		64E78A5311C0295B0092E093 /* CPU SSE Impl */ = {
+			isa = PBXGroup;
+			children = (
+				64E78A5411C02A1F0092E093 /* BeagleCPUSSEImpl.h */,
+				64E78A5511C02A1F0092E093 /* BeagleCPUSSEImpl.hpp */,
+			);
+			name = "CPU SSE Impl";
 			sourceTree = "<group>";
 		};
 		64F21C5D0FD2B93B00678D0B /* Products */ = {

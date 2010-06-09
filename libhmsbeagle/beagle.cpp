@@ -611,14 +611,14 @@ int beagleSetTransitionMatrix(int instance,
 int beagleSetTransitionMatrices(int instance,
                               const int* matrixIndices,
                               const double* inMatrices,
-                              int count,
-                              double paddedValue) {
+                              const double* paddedValues,
+                              int count) {
     //    try {
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     
-    return beagleInstance->setTransitionMatrices(matrixIndices, inMatrices, count, paddedValue);
+    return beagleInstance->setTransitionMatrices(matrixIndices, inMatrices, paddedValues, count);
     //    }
     //    catch (std::bad_alloc &) {
     //        return BEAGLE_ERROR_OUT_OF_MEMORY;

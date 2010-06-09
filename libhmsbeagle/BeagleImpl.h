@@ -91,8 +91,8 @@ public:
 
     virtual int setTransitionMatrices(const int* matrixIndices,
                                       const double* inMatrices,
-                                      int count,
-                                      double paddedValue) = 0;    
+                                      const double* paddedValues,
+                                      int count) = 0;    
     
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
