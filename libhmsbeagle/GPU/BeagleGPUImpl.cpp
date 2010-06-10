@@ -382,7 +382,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
 #ifdef BEAGLE_MEMORY_PINNED
     hLogLikelihoodsCache = (REAL*) gpu->AllocatePinnedHostMemory(kPatternCount * SIZE_REAL);
     hMatrixCache = (REAL*) gpu->AllocatePinnedHostMemory(hMatrixCacheSize * SIZE_REAL);
-    bzero(hMatrixCache, hMatrixCacheSize * SIZE_REAL);
+    memset(hMatrixCache, 0, hMatrixCacheSize * SIZE_REAL);
 #else
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
     hMatrixCache = (REAL*) calloc(hMatrixCacheSize, SIZE_REAL);
