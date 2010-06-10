@@ -364,9 +364,23 @@ void FourTaxonExample::initBeagleLib()
     double rates[nrates];
 #endif
 
-    for (int i = 0; i < nrates; i++) {
-        rates[i] = 0.1 + 2.0 * i;
-    }
+	if (nrates == 4)
+		{
+		// This branch will be visited unless original value of nrates has been changed
+		rates[0] = 0.03338775;
+		rates[1] = 0.25191592;
+		rates[2] = 0.82026848;
+		rates[3] = 2.89442785;
+		}
+	else
+		{
+		// If value of nrates set in the constructor is not 4 (the original value),
+		// drop back to setting all rates equal since we have no code in this example
+		// for computing the discrete gamma rate boundaries and mean rates
+		for (int i = 0; i < nrates; i++) {
+		    rates[i] = 1.0;
+			}
+		}
         
     beagleSetCategoryRates(instance_handle,
 #ifdef _WIN32		
@@ -518,7 +532,7 @@ double FourTaxonExample::calcLnL(int return_value)
 
 	if (code != 0)
 		abort("beagleCalculateEdgeLogLikelihoods encountered a problem");
-        
+
     if (dynamic_scaling) {
         operations[1] = BEAGLE_OP_NONE; // Set write scale buffer (op1) to NONE
         operations[8] = BEAGLE_OP_NONE; // Set write scale buffer (op2) to NONE
@@ -699,7 +713,10 @@ void FourTaxonExample::writeData()
 	outf << "  tree starting = [&U](alga_D86836:0.01, fern_D14882:0.01, (hops_AF206777:0.01, corn_Z11973:0.01):0.01);\n";
 	outf << "end;\n\n";
 	outf << "begin paup;\n";
-	outf << "  lset nst=1 basefreq=equal;\n";
+	if (nrates == 4)
+		outf << "  lset nst=1 basefreq=equal rates=gamma shape=0.5;\n";
+	else
+		outf << "  lset nst=1 basefreq=equal rates=equal;\n";
 	outf << "  lscores 1 / userbrlen;\n";
 	outf << "end;\n";
 	outf.close();
