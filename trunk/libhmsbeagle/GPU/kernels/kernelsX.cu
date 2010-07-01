@@ -105,7 +105,6 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
                                                              REAL* matrices1,
                                                              REAL* matrices2,
                                                              signed char* scalingFactors,
-                                                             unsigned short* activeScalingFactors,
                                                              int totalPatterns) {
     REAL sum1 = 0;
     REAL sum2 = 0;
@@ -200,7 +199,6 @@ __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
         int expMax;
         frexp(maxPartial, &expMax);
         sPartials1[patIdx][0] = expMax;
-        *activeScalingFactors = 1;
     }
 
     __syncthreads();
