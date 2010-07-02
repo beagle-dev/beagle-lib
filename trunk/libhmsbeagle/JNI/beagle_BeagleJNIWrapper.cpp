@@ -374,7 +374,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-	jint errCode = (jint)beagleUpdatePartials(instance, (int *)operations, operationCount, cumulativeScalingIndex);
+	jint errCode = (jint)beagleUpdatePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScalingIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
