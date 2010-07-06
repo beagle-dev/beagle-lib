@@ -97,7 +97,7 @@ void beagleLoadPlugins(void) {
 	}
 
 	try{
-		beagle::plugin::Plugin* gpuplug = pm.findPlugin("hmsbeagle-gpu");
+		beagle::plugin::Plugin* gpuplug = pm.findPlugin("hmsbeagle-cuda");
 		plugins.push_back(gpuplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
