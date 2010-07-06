@@ -469,7 +469,7 @@ double FourTaxonExample::calcLnL(int return_value)
       
 	code = beagleUpdatePartials(
 		   instance_handle,                                 // instance
-		   &operations[0],                                   // operations
+		   (BeagleOperation*)&operations[0],                                   // operations
 		   2,                                                // operationCount
            (accumulate_on_the_fly ?                          
             cumulativeScalingFactorIndex : BEAGLE_OP_NONE)); // cumulative scale index
