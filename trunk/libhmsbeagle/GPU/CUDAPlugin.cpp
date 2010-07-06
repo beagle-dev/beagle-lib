@@ -6,6 +6,7 @@
  */
 
 #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
+#include "libhmsbeagle/GPU/CUDAPlugin.h"
 
 namespace beagle {
 namespace gpu {
@@ -15,6 +16,7 @@ Plugin("CUDA", "GPU")
 {
         GPUInterface gpu;
         if (gpu.Initialize()) {
+            int gpuDeviceCount = gpu.GetDeviceCount();
             for (int i = 0; i < gpuDeviceCount; i++) {
                 char* dName = (char*) malloc(sizeof(char) * 100);
                 char* dDesc = (char*) malloc(sizeof(char) * 100);
@@ -45,7 +47,7 @@ Plugin("CUDA", "GPU")
 CUDAPlugin::~CUDAPlugin()
 {
 	// Destory GPU kernel info
-	if(beagleResource.size()>0)
+	if(beagleResources.size()>0)
 	{
 		GPUInterface gpu;
 		gpu.DestroyKernelMap();
