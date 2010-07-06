@@ -3,24 +3,26 @@ SUBDIRS = kernels
 INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 if BUILDCUDA
-noinst_LTLIBRARIES= libcuda.la 
-libcuda_la_SOURCES =  \
+lib_LTLIBRARIES= libhmsbeagle-cuda.la 
+libhmsbeagle_cuda_la_SOURCES =  \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp \
-KernelLauncher.h KernelResource.cpp KernelResource.h
+KernelLauncher.h KernelResource.cpp KernelResource.h \
+CUDAPlugin.h CUDAPlugin.cpp
 
-libcuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS)
+libhmsbeagle_cuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS)
+libhmsbeagle_cuda_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
 endif
 
 if BUILDOPENCL
-noinst_LTLIBRARIES= libopencl.la 
-libopencl_la_SOURCES =  \
+lib_LTLIBRARIES= libhmsbeagle-opencl.la 
+libhmsbeagle_opencl_la_SOURCES =  \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceOpenCL.cpp  KernelLauncher.cpp \
 KernelLauncher.h KernelResource.cpp KernelResource.h
 
-nodist_libopencl_la_SOURCES = BeagleOpenCL_Kernels.h
+nodist_libhmsbeagle_opencl_la_SOURCES = BeagleOpenCL_Kernels.h
 BUILT_SOURCES = BeagleOpenCL_Kernels.h
 CLEANFILES = BeagleOpenCL_Kernels.h
 
@@ -34,7 +36,8 @@ BeagleOpenCL_Kernels.h: Makefile
 
 EXTRA_DIST = BeagleOpenCL_kernels.cu
 
-libopencl_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENCL_CFLAGS)
+libhmsbeagle_opencl_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENCL_CFLAGS)
+libhmsbeagle_opencl_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
 endif
 
