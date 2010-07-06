@@ -38,7 +38,8 @@
 
 namespace beagle {
 
-class BeagleImpl {
+class BeagleImpl
+{
 public:
     virtual ~BeagleImpl(){}
     
