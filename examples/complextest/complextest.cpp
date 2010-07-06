@@ -293,7 +293,7 @@ int main( int argc, const char* argv[] )
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int operations[BEAGLE_OP_COUNT * 2] = {
+	BeagleOperation operations[2] = {
 		3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
 		4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
 	};
