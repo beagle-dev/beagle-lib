@@ -63,6 +63,8 @@ else
         _JTOPDIR=`echo "$_JTOPDIR" | sed -e 's:/[[^/]]*$::'`
         if test -f "$_JTOPDIR/include/jni.h"; then
                 JNI_INCLUDE_DIRS="$JNI_INCLUDE_DIRS $_JTOPDIR/include"
+        elif test -f "$_JTOPDIR/Headers/jni.h"; then
+                JNI_INCLUDE_DIRS="$JNI_INCLUDE_DIRS $_JTOPDIR/Headers"
         else
                 AC_MSG_ERROR([cannot find java include files])
         fi
