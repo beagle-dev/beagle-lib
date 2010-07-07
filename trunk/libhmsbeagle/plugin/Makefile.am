@@ -8,7 +8,7 @@ SharedLibrary.h \
 UnixSharedLibrary.h \
 UnixSharedLibrary.cpp
 
-libplugin_la_LDFLAGS = -ldl
+libplugin_la_LDFLAGS = -lltdl
 libplugin_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 

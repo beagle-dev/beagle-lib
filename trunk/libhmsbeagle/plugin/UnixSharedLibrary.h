@@ -13,7 +13,7 @@
 #endif
 
 #include "libhmsbeagle/plugin/SharedLibrary.h"
-#include <dlfcn.h>
+#include <ltdl.h>
 
 namespace beagle {
 namespace plugin {
@@ -27,24 +27,28 @@ class UnixSharedLibrary : public SharedLibrary
     void* findSymbol(const char* name);
 
   private:
-    void* m_handle;
+    lt_dlhandle m_handle;
 };
 
 UnixSharedLibrary::UnixSharedLibrary(const char* name)
     : m_handle(0)
 {
-    m_handle = dlopen(name,RTLD_NOW|RTLD_GLOBAL);
+    lt_dlinit();
+    m_handle = lt_dlopenext(name);
     if (m_handle == 0)
     {
-    const char* s = dlerror();
+    const char* s = lt_dlerror();
     throw SharedLibraryException(s?s:"Exact Error Not Reported");
     }
 }
-UnixSharedLibrary::~UnixSharedLibrary() { dlclose(m_handle); }
+UnixSharedLibrary::~UnixSharedLibrary() {
+	lt_dlclose(m_handle); 
+	lt_dlexit();
+}
 
 void* UnixSharedLibrary::findSymbol(const char* name)
 {
-    void* sym = dlsym(m_handle,name);
+    void* sym = lt_dlsym(m_handle,name);
     if (sym == 0)
     throw SharedLibraryException("Symbol Not Found");
     else

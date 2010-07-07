@@ -29,7 +29,6 @@ Plugin* PluginManager::findPlugin(const char* name)
 
     string libname = "lib";
     libname += name;
-    libname += ".so";
 
     PluginInfo* pi = new PluginInfo;
     pi->m_library = SharedLibrary::openSharedLibrary(libname.c_str());
