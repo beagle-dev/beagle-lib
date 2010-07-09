@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="libhmsbeagle"
-	ProjectGUID="{74775C34-D68F-4812-AF73-7270C035DAD2}"
-	RootNamespace="libhmsbeagle"
+	Name="libhmsbeagle-cpu"
+	ProjectGUID="{66941623-E8F3-4E64-961D-955F2629C1C6}"
+	RootNamespace="libhmsbeagle-cpu"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="131072"
 	>
@@ -29,8 +29,6 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -68,10 +66,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32D.dll"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle-cpu32D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -110,8 +108,6 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -152,10 +148,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64D.dll"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle-cpu64D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -193,11 +189,6 @@
 			CharacterSet="2"
 			>
 			<Tool
-				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
-			/>
-			<Tool
 				Name="VCCustomBuildTool"
 			/>
 			<Tool
@@ -230,7 +221,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32.dll"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle-cpu32.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -273,8 +264,6 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -312,7 +301,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64.dll"
+				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle-cpu64.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -350,58 +339,242 @@
 	</References>
 	<Files>
 		<Filter
-			Name="libhmsbeagle"
+			Name="libhmsbeagle-cpu"
 			>
 			<File
-				RelativePath="..\..\..\libhmsbeagle\beagle.cpp"
+				RelativePath="..\..\..\libhmsbeagle-cpu\beagle.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\..\libhmsbeagle\beagle.h"
+				RelativePath="..\..\..\libhmsbeagle-cpu\BeagleImpl.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\..\libhmsbeagle\BeagleImpl.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\..\libhmsbeagle\platform.h"
+				RelativePath="..\..\..\libhmsbeagle-cpu\platform.h"
 				>
 			</File>
 			<Filter
-				Name="JNI"
+				Name="CPU"
 				>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.cpp"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateGCDImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.h"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateGCDImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateImpl.h"
 					>
 				</File>
-			</Filter>
-			<Filter
-				Name="plugin"
-				>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\Plugin.cpp"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateSSEImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\Plugin.h"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPU4StateSSEImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPUImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\SharedLibrary.h"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\BeagleCPUImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecomposition.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.cpp"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecompositionCube.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.h"
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecompositionCube.hpp"
 					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecompositionSquare.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecompositionSquare.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 		</Filter>

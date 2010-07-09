@@ -24,6 +24,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fourtaxon", "fourtaxon\four
 EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "hmsbeagle library", "beagleinstaller\beagleinstaller.vdproj", "{A75FE2BD-2DF0-4662-8D97-4259B0120400}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-cpu", "libhmsbeagle-cpu\libhmsbeagle-cpu_vc90.vcproj", "{66941623-E8F3-4E64-961D-955F2629C1C6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-cuda", "libhmsbeagle-cuda\libhmsbeagle-cuda_vc90.vcproj", "{79D3A424-1C62-457A-BB20-196381DEC0B0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -76,6 +80,22 @@ Global
 		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Debug|x64.ActiveCfg = Debug
 		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Release|Win32.ActiveCfg = Release
 		{A75FE2BD-2DF0-4662-8D97-4259B0120400}.Release|x64.ActiveCfg = Release
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Debug|Win32.Build.0 = Debug|Win32
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Debug|x64.ActiveCfg = Debug|x64
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Debug|x64.Build.0 = Debug|x64
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Release|Win32.ActiveCfg = Release|Win32
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Release|Win32.Build.0 = Release|Win32
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Release|x64.ActiveCfg = Release|x64
+		{66941623-E8F3-4E64-961D-955F2629C1C6}.Release|x64.Build.0 = Release|x64
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Debug|Win32.Build.0 = Debug|Win32
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Debug|x64.ActiveCfg = Debug|x64
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Debug|x64.Build.0 = Debug|x64
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Release|Win32.ActiveCfg = Release|Win32
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Release|Win32.Build.0 = Release|Win32
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Release|x64.ActiveCfg = Release|x64
+		{79D3A424-1C62-457A-BB20-196381DEC0B0}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
