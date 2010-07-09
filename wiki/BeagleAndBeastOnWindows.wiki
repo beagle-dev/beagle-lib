@@ -12,7 +12,7 @@ http://edhar.genomecenter.ucdavis.edu/~koadman/libhmsbeagle-20100325.msi
 
 Step 2.  Get a current beast.
 {{{
-svn co http://beast-mcmc.googlecode.com/trunk/ beast-mcmc
+svn co http://beast-mcmc.googlecode.com/svn/trunk/ beast-mcmc
 }}}
 
 Step 3.  Build beast
