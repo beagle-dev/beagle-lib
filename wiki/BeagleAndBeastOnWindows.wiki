@@ -39,7 +39,7 @@ The following software prerequisites must be installed prior to building libhmsb
 
 Step 1. Checkout the source code repository:
 {{{
-svn co http://beagle-lib.googlecode.com/trunk/ beagle-lib
+svn co http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
 }}}
 
 Step 2. Open the Visual Studio 2008 project:
