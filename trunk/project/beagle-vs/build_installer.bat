@@ -32,8 +32,10 @@ call %ant% -f ..\..\build.xml
 ::
 call %vcvars% amd64
 @ECHO ON
-start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
-start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
+start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|x64" /UseEnv /Out errlog.txt 
+start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|x64" /UseEnv /Out errlog.txt 
+:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
+:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
 
 
 ::

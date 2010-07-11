@@ -38,8 +38,8 @@ class BEAGLE_DLLEXPORT Plugin
     virtual std::string pluginName() const{ return m_plugin_name; }
     virtual std::string pluginType() const{ return m_plugin_type; }
 
-    virtual std::list<beagle::BeagleImplFactory*> getBeagleFactories() const{ return beagleFactories; }
-    virtual std::list<BeagleResource> getBeagleResources() const{ return beagleResources; }
+    virtual const std::list<beagle::BeagleImplFactory*>& getBeagleFactories() const{ return beagleFactories; }
+    virtual const std::list<BeagleResource>& getBeagleResources() const{ return beagleResources; }
 
 protected:
     std::list<beagle::BeagleImplFactory*> beagleFactories;

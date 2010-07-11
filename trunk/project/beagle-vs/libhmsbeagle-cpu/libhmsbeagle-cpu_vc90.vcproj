@@ -189,6 +189,9 @@
 			CharacterSet="2"
 			>
 			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
 				Name="VCCustomBuildTool"
 			/>
 			<Tool
@@ -341,18 +344,6 @@
 		<Filter
 			Name="libhmsbeagle-cpu"
 			>
-			<File
-				RelativePath="..\..\..\libhmsbeagle-cpu\beagle.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\..\libhmsbeagle-cpu\BeagleImpl.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\..\libhmsbeagle-cpu\platform.h"
-				>
-			</File>
 			<Filter
 				Name="CPU"
 				>
@@ -499,6 +490,14 @@
 							Name="VCCustomBuildTool"
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.h"
+					>
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle-cpu\CPU\EigenDecomposition.h"

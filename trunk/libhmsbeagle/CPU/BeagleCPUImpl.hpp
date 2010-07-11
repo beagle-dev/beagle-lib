@@ -1847,11 +1847,12 @@ BEAGLE_CPU_TEMPLATE
 void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
 	void *ptr = (void *) NULL;
 
-#if defined (__APPLE__)
+#if defined (__APPLE__) || defined(WIN32)
 	/*
 	 presumably malloc on OS X always returns
 	 a 16-byte aligned pointer
 	 */
+	/* Windows malloc() always gives 16-byte alignment */	 
 	ptr = malloc(size);
 	if(ptr == (void*)NULL) {
 		assert(0);
