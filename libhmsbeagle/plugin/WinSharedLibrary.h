@@ -40,7 +40,19 @@ WinSharedLibrary::WinSharedLibrary(const char* name)
     : m_handle(0)
 {
 	std::string libname = name;
+#ifdef _WIN64
+#ifdef _DEBUG
+	libname += "64D";
+#else
 	libname += "64";
+#endif
+#else
+#ifdef _DEBUG
+	libname += "32D";
+#else
+	libname += "32";
+#endif
+#endif
     m_handle = LoadLibrary(libname.c_str());
     if (m_handle == 0)
     {

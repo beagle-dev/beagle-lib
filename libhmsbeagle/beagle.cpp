@@ -135,13 +135,10 @@ void beagle_library_finalize(void) {
 	}
 	plugins.clear();	
 */
-	// Destroy implFactory
+	// Destroy implFactory.
+	// The contained factory pointers will be deleted by the plugins themselves
 	if (implFactory && loaded) {
 		try {
-		for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
-				factory != implFactory->end(); factory++) {
-			delete (*factory); // Fixes 4 byte leak for each entry in implFactory
-		}
 		delete implFactory;
 		} catch (...) {
 
@@ -149,11 +146,8 @@ void beagle_library_finalize(void) {
 	}
 
 	// Destroy rsrcList
+	// The resources will be deleted by the plugins themselves
 	if (rsrcList && loaded) {
-		for(int i=1; i<rsrcList->length; i++) { // #0 is not needed
-			free(rsrcList->list[i].name);
-			free(rsrcList->list[i].description);
-		}
 		free(rsrcList->list);
 		free(rsrcList);
 	}
@@ -284,8 +278,14 @@ int beagleCreateInstance(int tipCount,
                 int resource = (*it).second;
                 long resourceFlag = rsrcList->list[resource].supportFlags;
                 if ( (resourceFlag & requirementFlags) < requirementFlags) {
-                    possibleResources->remove(*(it--));
+					if(it==possibleResources->begin()){
+	                    possibleResources->remove(*(it));
+						it=possibleResources->begin();
+					}else
+	                    possibleResources->remove(*(it--));
                 }
+				if(it==possibleResources->end())
+					break;
             }
         }
         
