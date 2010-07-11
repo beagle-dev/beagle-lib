@@ -14,7 +14,7 @@
 
 #include "libhmsbeagle/plugin/SharedLibrary.h"
 #include <windows.h>
-#include <string.h>
+#include <string>
 #include <iostream>
 
 namespace beagle {
@@ -35,16 +35,13 @@ class WinSharedLibrary : public SharedLibrary
   private:
     HINSTANCE m_handle;
 };
-SharedLibrary* SharedLibrary::openSharedLibrary(const char* name)
-    throw (SharedLibraryException)
-{
-    return new WinSharedLibrary(name);
-}
 WinSharedLibrary::WinSharedLibrary(const char* name)
     throw (SharedLibraryException)
     : m_handle(0)
 {
-    m_handle = LoadLibrary(name);
+	std::string libname = name;
+	libname += "64";
+    m_handle = LoadLibrary(libname.c_str());
     if (m_handle == 0)
     {
     char buffer[255];

@@ -13,6 +13,7 @@
 #endif
 
 #include "libhmsbeagle/plugin/SharedLibrary.h"
+#include <string>
 #include <ltdl.h>
 
 namespace beagle {
@@ -33,8 +34,10 @@ class UnixSharedLibrary : public SharedLibrary
 UnixSharedLibrary::UnixSharedLibrary(const char* name)
     : m_handle(0)
 {
+	std::string libname = "lib";
+	libname += name;
     lt_dlinit();
-    m_handle = lt_dlopenext(name);
+    m_handle = lt_dlopenext(libname.c_str());
     if (m_handle == 0)
     {
     const char* s = lt_dlerror();

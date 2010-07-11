@@ -27,11 +27,8 @@ Plugin* PluginManager::findPlugin(const char* name)
     if (m_plugin_map.count(name) > 0)
     return m_plugin_map[name]->m_plugin;
 
-    string libname = "lib";
-    libname += name;
-
     PluginInfo* pi = new PluginInfo;
-    pi->m_library = SharedLibrary::openSharedLibrary(libname.c_str());
+    pi->m_library = SharedLibrary::openSharedLibrary(name);
     plugin_init_func pif =
         findSymbol<plugin_init_func>(*pi->m_library,"plugin_init");
 
