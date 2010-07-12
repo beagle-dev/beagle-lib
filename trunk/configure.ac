@@ -268,6 +268,7 @@ AC_SUBST(OPENCL_LIBS)
 AC_SUBST(SSE_CFLAGS)
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(LDFLAGS)
+AC_SUBST(LIBS)
 
 # ------------------------------------------------------------------------------
 # Doxygen support 
@@ -283,11 +284,6 @@ DX_PDF_FEATURE(OFF)
 DX_PS_FEATURE(OFF)
 
 DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
-
-#
-# put needed libraries for client code linking into a variable
-#
-AC_SUBST(LIBS)
 
 # ------------------------------------------------------------------------------
 # All done, create Makefiles
