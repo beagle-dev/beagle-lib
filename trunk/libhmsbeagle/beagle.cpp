@@ -47,13 +47,6 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
 
-#if defined(CUDA) || defined(OPENCL)
-#endif
-#if defined(ENABLE_SSE)
-    #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
-	#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
-#endif
-
 #include "libhmsbeagle/plugin/Plugin.h"
 
 typedef std::list< std::pair<int,int> > PairedList;
@@ -102,8 +95,13 @@ void beagleLoadPlugins(void) {
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
-		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-sse");
+		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
 		plugins.push_back(sseplug);
+	}catch(beagle::plugin::SharedLibraryException sle){}
+
+	try{
+		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
+		plugins.push_back(openmpplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 }
 
@@ -215,9 +213,6 @@ BeagleResourceList* beagleGetResourceList() {
 	}
      }
 
-#if defined(ENABLE_SSE)
-        rsrcList->list[0].supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
-#endif
     return rsrcList;
 }
 
