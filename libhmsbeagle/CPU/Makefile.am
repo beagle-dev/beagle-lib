@@ -13,4 +13,4 @@ libhmsbeagle_cpu_la_SOURCES = EigenDecomposition.h \
 libhmsbeagle_cpu_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CXXFLAGS)
 libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
-INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
+AM_CPPFLAGS = -I$(abs_top_builddir) -I$(abs_top_srcdir)

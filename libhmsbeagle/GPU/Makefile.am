@@ -1,6 +1,6 @@
 SUBDIRS = kernels
 
-INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
+AM_CPPFLAGS = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 if BUILDCUDA
 lib_LTLIBRARIES= libhmsbeagle-cuda.la 

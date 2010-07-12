@@ -3,10 +3,13 @@
  * @author Aaron E. Darling
  * Based on code found in "Dynamic Plugins for C++" by Arthur J. Musgrove
  * and published in Dr. Dobbs Journal, July 1, 2004.
+ *
+ * This header implements unix libraries using libtool loading instead of
+ * the standard dlopen() interface
  */
 
-#ifndef __UNIXSHAREDLIBRARY_H__
-#define __UNIXSHAREDLIBRARY_H__
+#ifndef __LIBTOOLSHAREDLIBRARY_H__
+#define __LIBTOOLSHAREDLIBRARY_H__
 
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
@@ -14,11 +17,12 @@
 
 #include "libhmsbeagle/plugin/SharedLibrary.h"
 
-// only use the standard unix library interface if we don't have libtool libraries
-#ifndef HAVE_LIBLTDL
+#ifdef HAVE_LIBLTDL
 
-#include <dlfcn.h>
-#include <string>
+// use libtool-devel library loading
+#include <ltdl.h>
+#include <iostream>
+
 
 namespace beagle {
 namespace plugin {
@@ -32,27 +36,31 @@ class UnixSharedLibrary : public SharedLibrary
     void* findSymbol(const char* name);
 
   private:
-    void* m_handle;
+    lt_dlhandle m_handle;
 };
 
 UnixSharedLibrary::UnixSharedLibrary(const char* name)
     : m_handle(0)
 {
+    lt_dlinit();
     std::string libname = "lib";
-    libname += name;
-    libname += ".so";
-    m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_GLOBAL);
+    libname += name;    
+
+    m_handle = lt_dlopenext(libname.c_str());
     if (m_handle == 0)
     {
-    const char* s = dlerror();
+    const char* s = lt_dlerror();
     throw SharedLibraryException(s?s:"Exact Error Not Reported");
     }
 }
-UnixSharedLibrary::~UnixSharedLibrary() { dlclose(m_handle); }
+UnixSharedLibrary::~UnixSharedLibrary() {
+	lt_dlclose(m_handle); 
+	lt_dlexit();
+}
 
 void* UnixSharedLibrary::findSymbol(const char* name)
 {
-    void* sym = dlsym(m_handle,name);
+    void* sym = lt_dlsym(m_handle,name);
     if (sym == 0)
     throw SharedLibraryException("Symbol Not Found");
     else
@@ -64,5 +72,5 @@ void* UnixSharedLibrary::findSymbol(const char* name)
 
 #endif	// HAVE_LIBLTDL
 
-#endif	// __UNIXSHAREDLIBRARY_H__
+#endif	// __LIBTOOLSHAREDLIBRARY_H__
 

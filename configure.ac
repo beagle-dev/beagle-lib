@@ -70,6 +70,15 @@ AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
 # ------------------------------------------------------------------------------
+# Check for libtool development libraries for plugin loading
+# ------------------------------------------------------------------------------
+AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
+if test "x$ac_cv_search_lt_dlinit" == "xno"
+then
+   LIBS += "-ldl"
+fi
+
+# ------------------------------------------------------------------------------
 # Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
@@ -274,6 +283,11 @@ DX_PDF_FEATURE(OFF)
 DX_PS_FEATURE(OFF)
 
 DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
+
+#
+# put needed libraries for client code linking into a variable
+#
+AC_SUBST(LIBS)
 
 # ------------------------------------------------------------------------------
 # All done, create Makefiles
