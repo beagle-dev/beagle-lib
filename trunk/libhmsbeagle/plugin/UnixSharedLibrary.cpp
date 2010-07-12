@@ -10,7 +10,12 @@
 #endif
 #include "libhmsbeagle/platform.h"
 
+#ifdef HAVE_LIBLTDL
+#include "libhmsbeagle/plugin/LibtoolSharedLibrary.h"
+#else
 #include "libhmsbeagle/plugin/UnixSharedLibrary.h"
+#endif
+
 #include <string>
 
 namespace beagle {

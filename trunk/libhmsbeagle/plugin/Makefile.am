@@ -6,11 +6,10 @@ Plugin.cpp \
 Plugin.h \
 SharedLibrary.h \
 UnixSharedLibrary.h \
+LibtoolSharedLibrary.h \
 UnixSharedLibrary.cpp
 
-libplugin_la_LDFLAGS = -lltdl
 libplugin_la_CXXFLAGS = $(AM_CXXFLAGS)
 
-
-INCLUDES = -I$(top_builddir) -I$(top_srcdir)
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
 
