@@ -75,7 +75,7 @@ AC_SUBST(abs_top_srcdir)
 AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
 if test "x$ac_cv_search_lt_dlinit" == "xno"
 then
-   LIBS += "-ldl"
+   AC_SEARCH_LIBS(dlopen,dl)
 fi
 
 # ------------------------------------------------------------------------------
