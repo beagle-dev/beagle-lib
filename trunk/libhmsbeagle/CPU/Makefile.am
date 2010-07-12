@@ -1,4 +1,4 @@
-lib_LTLIBRARIES=libhmsbeagle-cpu.la libhmsbeagle-cpu-sse.la libhmsbeagle-cpu-openmp.la
+lib_LTLIBRARIES=libhmsbeagle-cpu.la libhmsbeagle-cpu-sse.la
 
 BEAGLE_CPU_COMMON = EigenDecomposition.h \
                     EigenDecompositionCube.hpp EigenDecompositionCube.h \
@@ -30,6 +30,9 @@ libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -relea
 #
 # CPU plugin with OpenMP parallel threads
 #
+if HAVE_OPENMP
+lib_LTLIBRARIES += libhmsbeagle-cpu-openmp.la
+
 libhmsbeagle_cpu_openmp_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		    		BeagleCPUImpl.hpp BeagleCPUImpl.h \
                     BeagleCPU4StateImpl.hpp BeagleCPU4StateImpl.h \
@@ -38,6 +41,6 @@ libhmsbeagle_cpu_openmp_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 libhmsbeagle_cpu_openmp_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CXXFLAGS)
 libhmsbeagle_cpu_openmp_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 libhmsbeagle_cpu_openmp_la_LIBADD = $(OPENMP_CXXFLAGS)
-
+endif
 
 AM_CPPFLAGS = -I$(abs_top_builddir) -I$(abs_top_srcdir)

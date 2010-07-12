@@ -82,19 +82,17 @@ fi
 # Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
-AC_ARG_WITH([openmp],
-   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
-   [],
-   [with_openmp=no])
-if test "x$with_openmp" != "xno"
-then
-   AX_OPENMP()
-fi
+# user option not currently working
+#AC_ARG_WITH([openmp],
+#   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
+#   [with_openmp=yes],
+#   [with_openmp=no])
+AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+	[AM_CONDITIONAL(HAVE_OPENMP,false)])
 AC_SUBST(OPENMP_CFLAGS)
 dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
-
 
 # ------------------------------------------------------------------------------
 # Setup OPENCL paths
