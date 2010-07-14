@@ -18,9 +18,10 @@ Plugin("CUDA", "GPU")
         if (gpu.Initialize()) {
             int gpuDeviceCount = gpu.GetDeviceCount();
             for (int i = 0; i < gpuDeviceCount; i++) {
-                char* dName = (char*) malloc(sizeof(char) * 100);
-                char* dDesc = (char*) malloc(sizeof(char) * 100);
-                gpu.GetDeviceName(i, dName, 100);
+                int nameDescSize = 256;
+                char* dName = (char*) malloc(sizeof(char) * nameDescSize);
+                char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
+                gpu.GetDeviceName(i, dName, nameDescSize);
                 gpu.GetDeviceDescription(i, dDesc);
 		BeagleResource resource;
                 resource.name = dName;
