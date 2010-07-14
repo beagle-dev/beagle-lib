@@ -100,6 +100,8 @@ private:
     GPUPtr dMaxScalingFactors;
     GPUPtr dIndexMaxScalingFactors;
     
+    GPUPtr dActiveScalingFactors;
+    
     GPUPtr dAccumulatedScalingFactors;
     
     GPUPtr* dEigenValues;

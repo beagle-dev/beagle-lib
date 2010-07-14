@@ -70,29 +70,22 @@ AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
 # ------------------------------------------------------------------------------
-# Check for libtool development libraries for plugin loading
-# ------------------------------------------------------------------------------
-AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
-if test "x$ac_cv_search_lt_dlinit" == "xno"
-then
-   AC_SEARCH_LIBS(dlopen,dl)
-fi
-
-# ------------------------------------------------------------------------------
 # Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
-# user option not currently working
-#AC_ARG_WITH([openmp],
-#   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
-#   [with_openmp=yes],
-#   [with_openmp=no])
-AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
-	[AM_CONDITIONAL(HAVE_OPENMP,false)])
+AC_ARG_WITH([openmp],
+   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
+   [],
+   [with_openmp=no])
+if test "x$with_openmp" != "xno"
+then
+   AX_OPENMP()
+fi
 AC_SUBST(OPENMP_CFLAGS)
 dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
+
 
 # ------------------------------------------------------------------------------
 # Setup OPENCL paths
@@ -266,7 +259,6 @@ AC_SUBST(OPENCL_LIBS)
 AC_SUBST(SSE_CFLAGS)
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(LDFLAGS)
-AC_SUBST(LIBS)
 
 # ------------------------------------------------------------------------------
 # Doxygen support 
@@ -293,7 +285,6 @@ AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
-AC_CONFIG_FILES([libhmsbeagle/plugin/Makefile])
 AC_CONFIG_FILES([examples/Makefile])
 AC_CONFIG_FILES([examples/tinytest/Makefile])
 AC_CONFIG_FILES([examples/complextest/Makefile])

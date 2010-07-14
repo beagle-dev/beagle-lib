@@ -1,6 +1,6 @@
 check_PROGRAMS = fourtaxon
 fourtaxon_SOURCES = fourtaxon.cpp fourtaxon.h
-fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la
+fourtaxon_LDADD = $(top_builddir)/$(GENERIC_LIBRARY_NAME)/libhmsbeagle.la @CUDA_LIBS@ @OPENCL_LIBS@
 
 check_SCRIPTS = fourtaxonrun.sh
 fourtaxonrun.sh:
@@ -12,7 +12,7 @@ clean-local:
 	rm -f check_lnL_using_paup.nex
 
 TESTS = fourtaxonrun.sh
-AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
+INCLUDES = -I$(top_builddir) -I$(top_srcdir)
 
 EXTRA_DIST=fourtaxon.dat
 

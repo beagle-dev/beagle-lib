@@ -47,7 +47,15 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
 
-#include "libhmsbeagle/plugin/Plugin.h"
+#if defined(CUDA) || defined(OPENCL)
+    #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
+#endif
+#include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUImpl.h"
+#if defined(ENABLE_SSE)
+    #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
+	#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
+#endif
 
 typedef std::list< std::pair<int,int> > PairedList;
 
@@ -74,46 +82,25 @@ BeagleResourceList* rsrcList = NULL;
 int loaded = 0; // Indicates is the initial library constructors have been run
                 // This patches a bug with JVM under Linux that calls the finalizer twice
 
-/** The list of plugins that provide implementations of likelihood calculators */
-std::list<beagle::plugin::Plugin*> plugins;
-
-void beagleLoadPlugins(void) {
-	beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
-
-	try{
-		beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
-		plugins.push_back(cpuplug);
-	}catch(beagle::plugin::SharedLibraryException sle){
-		// this one should always work
-		std::cerr << "Unable to load CPU plugin!\n";
-		std::cerr << "Please check for proper libhmsbeagle installation.\n";
-	}
-
-	try{
-		beagle::plugin::Plugin* gpuplug = pm.findPlugin("hmsbeagle-cuda");
-		plugins.push_back(gpuplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-
-	try{
-		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
-		plugins.push_back(sseplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-
-	try{
-		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-		plugins.push_back(openmpplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-}
-
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 	if (implFactory == NULL) {
+
 		implFactory = new std::list<beagle::BeagleImplFactory*>;
+
 		// Set-up a list of implementation factories in trial-order
-		std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-		for(; plugin_iter != plugins.end(); plugin_iter++ ){
-			std::list<beagle::BeagleImplFactory*> factories = (*plugin_iter)->getBeagleFactories();
-			implFactory->insert(implFactory->end(), factories.begin(), factories.end());
-		}
+#if defined(CUDA) || defined(OPENCL)
+		if (rsrcList->length > 1)
+			implFactory->push_back(new beagle::gpu::BeagleGPUImplFactory());
+#endif
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<double>());
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
+		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
+		implFactory->push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
+#if defined(ENABLE_SSE)
+		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
+//		implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
+		implFactory->push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing
+#endif
 	}
 	return implFactory;
 }
@@ -125,18 +112,22 @@ void beagle_library_initialize(void) {
 
 void beagle_library_finalize(void) {
 
-	// FIXME: need to destroy each plugin
-	// the following code segfaults
-/*	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-	for(; plugin_iter != plugins.end(); plugin_iter++ ){
-		delete *plugin_iter;
+	// Destory GPU kernel info
+#if defined(CUDA)
+	if (loaded) {
+		GPUInterface* gpu = new GPUInterface;
+		gpu->DestroyKernelMap();
+		delete gpu;
 	}
-	plugins.clear();	
-*/
-	// Destroy implFactory.
-	// The contained factory pointers will be deleted by the plugins themselves
+#endif
+
+	// Destroy implFactory
 	if (implFactory && loaded) {
 		try {
+		for(std::list<beagle::BeagleImplFactory*>::iterator factory = implFactory->begin();
+				factory != implFactory->end(); factory++) {
+			delete (*factory); // Fixes 4 byte leak for each entry in implFactory
+		}
 		delete implFactory;
 		} catch (...) {
 
@@ -144,8 +135,11 @@ void beagle_library_finalize(void) {
 	}
 
 	// Destroy rsrcList
-	// The resources will be deleted by the plugins themselves
 	if (rsrcList && loaded) {
+		for(int i=1; i<rsrcList->length; i++) { // #0 is not needed
+			free(rsrcList->list[i].name);
+			free(rsrcList->list[i].description);
+		}
 		free(rsrcList->list);
 		free(rsrcList);
 	}
@@ -188,29 +182,55 @@ int beagleFinalize() {
 
 BeagleResourceList* beagleGetResourceList() {
 
-	// plugins must be loaded before resources
-	if (plugins.size()==0)
-	    beagleLoadPlugins();
-
     if (rsrcList == NULL) {
-	// count the total resources across plugins
         rsrcList = (BeagleResourceList*) malloc(sizeof(BeagleResourceList));
-        rsrcList->length = 0;
-	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-	for(; plugin_iter != plugins.end(); plugin_iter++ ){
-		rsrcList->length += (*plugin_iter)->getBeagleResources().size();
-	}
-	// allocate space for a complete list of resources
+        rsrcList->length = 1;
+
+#if defined(CUDA) || defined(OPENCL)
+        GPUInterface* gpu = new GPUInterface;
+        if (gpu->Initialize()) {
+            int gpuDeviceCount = gpu->GetDeviceCount();
+            rsrcList->length += gpuDeviceCount;
+            rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
+            for (int i = 0; i < gpuDeviceCount; i++) {
+                char* dName = (char*) malloc(sizeof(char) * 100);
+                char* dDesc = (char*) malloc(sizeof(char) * 100);
+                gpu->GetDeviceName(i, dName, 100);
+                gpu->GetDeviceDescription(i, dDesc);
+                rsrcList->list[i + 1].name = dName;
+                rsrcList->list[i + 1].description = dDesc;
+                rsrcList->list[i + 1].supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                                     BEAGLE_FLAG_PRECISION_SINGLE |
+                                                     BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                                                     BEAGLE_FLAG_THREADING_NONE |
+                                                     BEAGLE_FLAG_VECTOR_NONE |
+                                                     BEAGLE_FLAG_PROCESSOR_GPU |
+                                                     BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                                                     BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+                rsrcList->list[i + 1].requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
+            }
+        } else {
+            rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
+        }
+        delete gpu;
+#else
         rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
-	// copy in resource lists from each plugin
-	int rI=0;
-	for(plugin_iter = plugins.begin(); plugin_iter != plugins.end(); plugin_iter++ ){
-		std::list<BeagleResource> rList = (*plugin_iter)->getBeagleResources();
-		std::list<BeagleResource>::iterator r_iter = rList.begin();
-		for(; r_iter != rList.end(); r_iter++){
-			rsrcList->list[rI++] = *r_iter;
-		}
-	}
+#endif
+
+        rsrcList->list[0].name = (char*) "CPU";
+        rsrcList->list[0].description = (char*) "";
+        rsrcList->list[0].supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                         BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                                         BEAGLE_FLAG_THREADING_NONE |
+                                         BEAGLE_FLAG_PROCESSOR_CPU |
+                                         BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
+                                         BEAGLE_FLAG_VECTOR_NONE |
+                                         BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+#if defined(ENABLE_SSE)
+        rsrcList->list[0].supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
+#endif
+        rsrcList->list[0].requiredFlags = BEAGLE_FLAG_PROCESSOR_CPU;
      }
 
     return rsrcList;
@@ -245,7 +265,7 @@ int beagleCreateInstance(int tipCount,
     try {
         if (instances == NULL)
             instances = new std::vector<beagle::BeagleImpl*>;
-
+        
         if (rsrcList == NULL)
             beagleGetResourceList();
         
@@ -273,14 +293,8 @@ int beagleCreateInstance(int tipCount,
                 int resource = (*it).second;
                 long resourceFlag = rsrcList->list[resource].supportFlags;
                 if ( (resourceFlag & requirementFlags) < requirementFlags) {
-					if(it==possibleResources->begin()){
-	                    possibleResources->remove(*(it));
-						it=possibleResources->begin();
-					}else
-	                    possibleResources->remove(*(it--));
+                    possibleResources->remove(*(it--));
                 }
-				if(it==possibleResources->end())
-					break;
             }
         }
         
@@ -653,7 +667,7 @@ int beagleUpdateTransitionMatrices(int instance,
 }
 
 int beagleUpdatePartials(const int instance,
-                   const BeagleOperation* operations,
+                   const int* operations,
                    int operationCount,
                    int cumulativeScalingIndex) {
 //    try {
@@ -661,7 +675,7 @@ int beagleUpdatePartials(const int instance,
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 
-        return beagleInstance->updatePartials((const int*)operations, operationCount, cumulativeScalingIndex);
+        return beagleInstance->updatePartials(operations, operationCount, cumulativeScalingIndex);
 //    }
 //    catch (std::bad_alloc &) {
 //        return BEAGLE_ERROR_OUT_OF_MEMORY;

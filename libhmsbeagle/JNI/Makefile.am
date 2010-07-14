@@ -6,5 +6,5 @@ libjni_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS)
 libjni_la_LIBADD = $(CUDA_LIBS) -lhmsbeagle
 
 
-AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
+INCLUDES = -I$(top_builddir) -I$(top_srcdir)
 

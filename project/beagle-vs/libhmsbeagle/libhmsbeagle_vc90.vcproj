@@ -17,6 +17,9 @@
 		/>
 	</Platforms>
 	<ToolFiles>
+		<ToolFile
+			RelativePath=".\Cuda.rules"
+		/>
 	</ToolFiles>
 	<Configurations>
 		<Configuration
@@ -29,11 +32,18 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				Description="Creating a .cu file for every combination of state counts"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="CUDA Build Rule"
+				Include="&quot;../../../&quot;"
+				NvccCompilation="4"
+				compileout="2"
+				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -47,8 +57,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;CUDA"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -68,8 +78,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="cuda.lib"
 				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32D.dll"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="C:\CUDA\LIB"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
 				SubSystem="1"
@@ -110,13 +122,19 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				Description="Creating a .cu file for every combination of state counts"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
 				CommandLine=""
 				Outputs=""
+			/>
+			<Tool
+				Name="CUDA Build Rule"
+				Include="&quot;../../../&quot;"
+				NvccCompilation="4"
+				compileout="2"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -131,8 +149,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;CUDA"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -152,8 +170,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="cuda.lib"
 				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64D.dll"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
 				SubSystem="1"
@@ -194,11 +214,18 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				Description="Creating a .cu file for every combination of state counts"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="CUDA Build Rule"
+				Include="&quot;../../../&quot;"
+				NvccCompilation="4"
+				compileout="2"
+				ExtraNvccOptions="-m32"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -211,8 +238,8 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_CONSOLE"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
+				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -230,8 +257,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="cuda.lib"
 				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32.dll"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="C:\CUDA\LIB"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -273,13 +302,19 @@
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
-				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				Description="Creating a .cu file for every combination of state counts"
+				CommandLine="$(ProjectDir)\findJava.bat &amp;&amp; $(ProjectDir)\createCUDAkernels.bat&#x0D;&#x0A;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
 				CommandLine=""
 				Outputs=""
+			/>
+			<Tool
+				Name="CUDA Build Rule"
+				Include="&quot;../../../&quot;"
+				NvccCompilation="4"
+				compileout="2"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -293,8 +328,8 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_CONSOLE"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
+				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -312,8 +347,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="cuda.lib"
 				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64.dll"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -369,6 +406,440 @@
 				>
 			</File>
 			<Filter
+				Name="CPU"
+				>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateGCDImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecomposition.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.hpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+				</File>
+			</Filter>
+			<Filter
+				Name="GPU"
+				>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\GPUImplDefs.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\GPUImplHelper.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\GPUImplHelper.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\GPUInterface.h"
+					>
+					<FileConfiguration
+						Name="Release|x64"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+							CommandLine=""
+							AdditionalDependencies=""
+							Outputs=""
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\GPUInterfaceCUDA.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\KernelLauncher.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\KernelLauncher.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\KernelResource.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\KernelResource.h"
+					>
+				</File>
+				<Filter
+					Name="kernels"
+					>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\BeagleCUDA_kernels.h"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
+								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
+								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
+								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="VCCustomBuildTool"
+								Description="Creating CUDA kernel header file"
+								CommandLine="$(ProjectDir)\createCombinedCudaHeader.bat&#x0D;&#x0A;"
+								AdditionalDependencies="$(InputDir)\kernels4.cu;$(InputDir)\kernelsX.cu;$(InputDir)\kernelsAll.cu"
+								Outputs="BeagleCUDA_kernels.h"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels128.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels16.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels32.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels4.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels48.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsX.cu"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+							/>
+						</FileConfiguration>
+					</File>
+				</Filter>
+			</Filter>
+			<Filter
 				Name="JNI"
 				>
 				<File
@@ -377,30 +848,6 @@
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.h"
-					>
-				</File>
-			</Filter>
-			<Filter
-				Name="plugin"
-				>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\Plugin.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\Plugin.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\SharedLibrary.h"
-					>
-				</File>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.h"
 					>
 				</File>
 			</Filter>

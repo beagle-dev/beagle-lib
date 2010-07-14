@@ -399,8 +399,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     if (doRescaling == 2) { // auto-rescaling
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
                           bgPeelingBlock, bgPeelingGrid,
-                          6, 7,
-                          partials1, partials2, partials3, matrices1, matrices2, scalingFactors,
+                          7, 8,
+                          partials1, partials2, partials3, matrices1, matrices2, scalingFactors, cumulativeScaling,
                           patternCount);        
     } else if (doRescaling != 0) {
         
@@ -722,6 +722,7 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
 void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
                                                   GPUPtr dNodePtrQueue,
                                                   GPUPtr dRootScalingFactors,
+                                                  GPUPtr dActiveFactors,
                                                   unsigned int nodeCount,
                                                   unsigned int patternCount,
                                                   unsigned int scaleBufferSize) {
@@ -729,12 +730,12 @@ void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif
     
-    int parameterCountV = 3;
-    int totalParameterCount = 6;
+    int parameterCountV = 4;
+    int totalParameterCount = 7;
     gpu->LaunchKernel(fAccumulateFactorsAutoScaling,
                       bgAccumulateBlock, bgAccumulateGrid,
                       parameterCountV, totalParameterCount,
-                      dScalingFactors, dNodePtrQueue, dRootScalingFactors,
+                      dScalingFactors, dNodePtrQueue, dRootScalingFactors, dActiveFactors,
                       nodeCount, patternCount, scaleBufferSize);
 
 #ifdef BEAGLE_DEBUG_FLOW

@@ -465,16 +465,6 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
                                                  const double* paddedValues,
                                                  int count);
 
-typedef struct {
-	int destinationPartials;
-	int destinationScaleWrite;
-	int destinationScaleRead;
-	int child1Partials;
-	int child1TransitionMatrix;
-	int child2Partials;
-	int child2TransitionMatrix;
-} BeagleOperation;
-
 /**
  * @brief Calculate or queue for calculation partials using a list of operations
  *
@@ -499,7 +489,7 @@ typedef struct {
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
-                         const BeagleOperation* operations,
+                         const int* operations,
                          int operationCount,
                          int cumulativeScaleIndex);
 
