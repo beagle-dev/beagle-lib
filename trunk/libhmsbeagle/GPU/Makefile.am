@@ -21,7 +21,8 @@ lib_LTLIBRARIES= libhmsbeagle-opencl.la
 libhmsbeagle_opencl_la_SOURCES =  \
 BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceOpenCL.cpp  KernelLauncher.cpp \
-KernelLauncher.h KernelResource.cpp KernelResource.h
+KernelLauncher.h KernelResource.cpp KernelResource.h \
+OpenCLPlugin.h OpenCLPlugin.cpp
 
 nodist_libhmsbeagle_opencl_la_SOURCES = BeagleOpenCL_Kernels.h
 BUILT_SOURCES = BeagleOpenCL_Kernels.h
