@@ -95,6 +95,11 @@ void beagleLoadPlugins(void) {
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
+		beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
+		plugins.push_back(openclplug);
+	}catch(beagle::plugin::SharedLibraryException sle){}
+
+	try{
 		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
 		plugins.push_back(sseplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
