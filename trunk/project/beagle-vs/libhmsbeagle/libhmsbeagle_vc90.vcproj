@@ -68,7 +68,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32D.dll"
+				OutputFile="$(OutDir)\hmsbeagle32D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
@@ -115,8 +115,6 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine=""
-				Outputs=""
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -152,7 +150,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64D.dll"
+				OutputFile="$(OutDir)\hmsbeagle64D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle.pdb"
@@ -230,7 +228,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle32.dll"
+				OutputFile="$(OutDir)\hmsbeagle32.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -278,8 +276,6 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine=""
-				Outputs=""
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -312,7 +308,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(SolutionDir)$(ConfigurationName)/hmsbeagle64.dll"
+				OutputFile="$(OutDir)\hmsbeagle64.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"

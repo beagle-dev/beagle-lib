@@ -208,7 +208,7 @@
         {
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0B0D2E6AC7574DFD98EE63181DF75218"
             {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle64D.lib"
+            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle64D.lib"
             "TargetName" = "8:hmsbeagle64D.lib"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
@@ -248,7 +248,7 @@
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_36FFB5FE7D174A45BEF4781ABDCC6464"
             {
-            "SourcePath" = "8:..\\Release\\hmsbeagle64.lib"
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle64.lib"
             "TargetName" = "8:hmsbeagle64.lib"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
@@ -368,7 +368,7 @@
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A6E1177F71F44FD0AAB0214B8D2DE00E"
             {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle64D.dll"
+            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle64D.dll"
             "TargetName" = "8:hmsbeagle64D.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
@@ -468,7 +468,7 @@
             }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D0B047B507C94278BFEB4DC4F092BE8E"
             {
-            "SourcePath" = "8:..\\Release\\hmsbeagle64.dll"
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle64.dll"
             "TargetName" = "8:hmsbeagle64.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
