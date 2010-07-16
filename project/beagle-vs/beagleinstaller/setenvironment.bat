@@ -1,0 +1,1 @@
+setx PATH %PATH%;%1

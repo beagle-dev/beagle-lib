@@ -3,9 +3,9 @@ IF DEFINED JDK_HOME (GOTO END) ELSE (GOTO FIND_JAVA_HOME)
 :FIND_JAVA_HOME
 echo Hunting for Java
 
-FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Development Kit" /v CurrentVersion') DO set CurVer=%%B
+FOR /F "skip=2 tokens=2*" %%A IN ('C:\WINDOWS\SYSTEM32\REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Development Kit" /v CurrentVersion') DO set CurVer=%%B
 
-FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Development Kit\%CurVer%"  /v JavaHome') DO set JDK_HOME=%%B
+FOR /F "skip=2 tokens=2*" %%A IN ('C:\WINDOWS\SYSTEM32\REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Development Kit\%CurVer%"  /v JavaHome') DO set JDK_HOME=%%B
 
 :END
 
