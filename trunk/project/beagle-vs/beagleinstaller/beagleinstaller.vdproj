@@ -21,6 +21,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_0B9D667E07D64474BA0572905A86D571"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_1C85F80EA6024823BC8B3AC4F07FAC97"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -39,6 +45,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_495BA4B3982C46FE8EF219AF48BE4D9E"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_50335B5B0A6D49568CCD3EB28FF099AB"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -51,7 +63,49 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_6681BBACF56E4217ACAE33B14D3973E6"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_8582D23F4A01452691A105865E368E26"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_861A4D28613A4147BCF08F1C08599EA9"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_8653E67341814BFBAB349A5F2D3048EF"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_88AD2161FB86497A94C5EC7C7E994E27"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_8D1894B2307E48D5B5BBF136CB2BC2C5"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_9AB858870A1F42A88AAFD58C046B73A1"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_9B24FAB00507429BA9156BEFCFAE4325"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -99,13 +153,37 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_D28B6EFCC4F5434EB7CC825137746729"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_D635552D0C0A45DC962988189E35909C"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
+        "MsmKey" = "8:_DD172F2FE0834ED4AA7BF39943834415"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_EA914E936F3947F19C36AB6E8DF7EEEA"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FFFEF197439247E0AB2D35C661274CDB"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -226,6 +304,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0B9D667E07D64474BA0572905A86D571"
+            {
+            "SourcePath" = "8:..\\Release\\hmsbeagle-cpu32.dll"
+            "TargetName" = "8:hmsbeagle-cpu32.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1C85F80EA6024823BC8B3AC4F07FAC97"
             {
             "SourcePath" = "8:..\\..\\..\\lib\\beagle.jar"
@@ -286,6 +384,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_495BA4B3982C46FE8EF219AF48BE4D9E"
+            {
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cpu-openmp64.dll"
+            "TargetName" = "8:hmsbeagle-cpu-openmp64.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_50335B5B0A6D49568CCD3EB28FF099AB"
             {
             "SourcePath" = "8:..\\Release\\hmsbeagle32.lib"
@@ -326,10 +444,130 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_6681BBACF56E4217ACAE33B14D3973E6"
+            {
+            "SourcePath" = "8:..\\Debug\\hmsbeagle-cpu32D.dll"
+            "TargetName" = "8:hmsbeagle-cpu32D.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8582D23F4A01452691A105865E368E26"
+            {
+            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cpu-openmp64D.dll"
+            "TargetName" = "8:hmsbeagle-cpu-openmp64D.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_861A4D28613A4147BCF08F1C08599EA9"
+            {
+            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cuda64D.dll"
+            "TargetName" = "8:hmsbeagle-cuda64D.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_88AD2161FB86497A94C5EC7C7E994E27"
             {
             "SourcePath" = "8:..\\..\\..\\COPYING"
             "TargetName" = "8:COPYING"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8D1894B2307E48D5B5BBF136CB2BC2C5"
+            {
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cuda64.dll"
+            "TargetName" = "8:hmsbeagle-cuda64.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9AB858870A1F42A88AAFD58C046B73A1"
+            {
+            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cpu64D.dll"
+            "TargetName" = "8:hmsbeagle-cpu64D.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9B24FAB00507429BA9156BEFCFAE4325"
+            {
+            "SourcePath" = "8:..\\Debug\\hmsbeagle-cpu-openmp32D.dll"
+            "TargetName" = "8:hmsbeagle-cpu-openmp32D.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
@@ -486,6 +724,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D28B6EFCC4F5434EB7CC825137746729"
+            {
+            "SourcePath" = "8:..\\Release\\hmsbeagle-cuda32.dll"
+            "TargetName" = "8:hmsbeagle-cuda32.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D635552D0C0A45DC962988189E35909C"
             {
             "SourcePath" = "8:..\\..\\..\\libhmsbeagle\\beagle.h"
@@ -506,10 +764,70 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DD172F2FE0834ED4AA7BF39943834415"
+            {
+            "SourcePath" = "8:..\\Debug\\hmsbeagle-cuda32D.dll"
+            "TargetName" = "8:hmsbeagle-cuda32D.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DD9621BDC9894989BF95B275D9407A1E"
             {
             "SourcePath" = "8:banner.jpg"
             "TargetName" = "8:banner.jpg"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_EA914E936F3947F19C36AB6E8DF7EEEA"
+            {
+            "SourcePath" = "8:..\\Release\\hmsbeagle-cpu-openmp32.dll"
+            "TargetName" = "8:hmsbeagle-cpu-openmp32.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FFFEF197439247E0AB2D35C661274CDB"
+            {
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cpu64.dll"
+            "TargetName" = "8:hmsbeagle-cpu64.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
@@ -1195,6 +1513,20 @@
         }
         "MergeModule"
         {
+            "{CEE29DC0-9FBA-4B99-8D47-5BC643D9B626}:_8653E67341814BFBAB349A5F2D3048EF"
+            {
+            "UseDynamicProperties" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "SourcePath" = "8:c:\\program files (x86)\\common files\\merge modules\\microsoft_vc90_openmp_x86_x64.msm"
+                "Properties"
+                {
+                }
+            "LanguageId" = "3:0"
+            "Exclude" = "11:FALSE"
+            "Folder" = "8:"
+            "Feature" = "8:"
+            "IsolateTo" = "8:"
+            }
         }
         "ProjectOutput"
         {
