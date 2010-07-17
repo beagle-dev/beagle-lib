@@ -357,7 +357,7 @@ int main( int argc, const char* argv[] )
                            ivec,
                            4,
                            rateCategoryCount,
-                           rates,
+                           &rates[0],
                            edgeLengths[b],
                            transitionMatrix + b*4*4*rateCategoryCount);
         
