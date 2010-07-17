@@ -53,7 +53,9 @@ WinSharedLibrary::WinSharedLibrary(const char* name)
 	libname += "32";
 #endif
 #endif
+	UINT emode = SetErrorMode(SEM_FAILCRITICALERRORS);
     m_handle = LoadLibrary(libname.c_str());
+	SetErrorMode(emode);
     if (m_handle == 0)
     {
     char buffer[255];
