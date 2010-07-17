@@ -38,6 +38,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "oddstatetest", "oddstatetes
 		{74775C34-D68F-4812-AF73-7270C035DAD2} = {74775C34-D68F-4812-AF73-7270C035DAD2}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-cpu-sse", "libhmsbeagle-cpu-sse\libhmsbeagle-cpu-sse_vc90.vcproj", "{3C25DFE8-C9CE-4395-A09E-525F7195C178}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-cpu-openmp", "libhmsbeagle-cpu-openmp\libhmsbeagle-cpu-openmp_vc90.vcproj", "{E930B41B-9414-478D-A94C-DB59F0FD4141}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -122,6 +126,22 @@ Global
 		{640760A1-B6BF-4EE5-8974-0F9327035B0A}.Release|Win32.Build.0 = Release|Win32
 		{640760A1-B6BF-4EE5-8974-0F9327035B0A}.Release|x64.ActiveCfg = Release|x64
 		{640760A1-B6BF-4EE5-8974-0F9327035B0A}.Release|x64.Build.0 = Release|x64
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Debug|Win32.Build.0 = Debug|Win32
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Debug|x64.ActiveCfg = Debug|x64
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Debug|x64.Build.0 = Debug|x64
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Release|Win32.ActiveCfg = Release|Win32
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Release|Win32.Build.0 = Release|Win32
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Release|x64.ActiveCfg = Release|x64
+		{3C25DFE8-C9CE-4395-A09E-525F7195C178}.Release|x64.Build.0 = Release|x64
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Debug|Win32.Build.0 = Debug|Win32
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Debug|x64.ActiveCfg = Debug|x64
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Debug|x64.Build.0 = Debug|x64
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Release|Win32.ActiveCfg = Release|Win32
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Release|Win32.Build.0 = Release|Win32
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Release|x64.ActiveCfg = Release|x64
+		{E930B41B-9414-478D-A94C-DB59F0FD4141}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
