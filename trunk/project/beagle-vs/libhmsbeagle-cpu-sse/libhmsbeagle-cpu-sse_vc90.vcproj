@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="libhmsbeagle-cpu"
-	ProjectGUID="{66941623-E8F3-4E64-961D-955F2629C1C6}"
-	RootNamespace="libhmsbeagle-cpu"
+	Name="libhmsbeagle-cpu-sse"
+	ProjectGUID="{3C25DFE8-C9CE-4395-A09E-525F7195C178}"
+	RootNamespace="libhmsbeagle-cpu-sse"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="131072"
 	>
@@ -46,7 +46,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;ENABLE_SSE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -66,10 +66,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu32D.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-sse32D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu-sse.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -128,7 +128,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;ENABLE_SSE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -148,10 +148,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu64D.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-sse64D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu-sse.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -206,7 +206,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_CONSOLE"
+				PreprocessorDefinitions="WIN32;_CONSOLE;ENABLE_SSE"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -224,7 +224,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu32.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-sse32.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -286,7 +286,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="../../../"
-				PreprocessorDefinitions="WIN32;_CONSOLE"
+				PreprocessorDefinitions="WIN32;_CONSOLE;ENABLE_SSE"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -304,7 +304,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu64.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-sse64.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -342,33 +342,33 @@
 	</References>
 	<Files>
 		<Filter
-			Name="libhmsbeagle-cpu"
+			Name="libhmsbeagle-cpu-sse"
 			>
 			<Filter
 				Name="CPU"
 				>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.h"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.hpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.hpp"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.h"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUSSEImpl.h"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.hpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUSSEImpl.hpp"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUSSEPlugin.cpp"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.h"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUSSEPlugin.h"
 					>
 				</File>
 				<File
@@ -389,6 +389,10 @@
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.hpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\SSEDefinitions.h"
 					>
 				</File>
 			</Filter>

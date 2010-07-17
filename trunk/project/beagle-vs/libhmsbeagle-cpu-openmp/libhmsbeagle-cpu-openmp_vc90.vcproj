@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
-	Name="libhmsbeagle-cpu"
-	ProjectGUID="{66941623-E8F3-4E64-961D-955F2629C1C6}"
-	RootNamespace="libhmsbeagle-cpu"
+	Name="libhmsbeagle-cpu-openmp"
+	ProjectGUID="{E930B41B-9414-478D-A94C-DB59F0FD4141}"
+	RootNamespace="libhmsbeagle-cpu-openmp"
 	Keyword="Win32Proj"
 	TargetFrameworkVersion="131072"
 	>
@@ -50,6 +50,7 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
+				OpenMP="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -66,10 +67,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu32D.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-openmp32D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu-openmp.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -132,6 +133,7 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
+				OpenMP="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -148,10 +150,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu64D.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-openmp64D.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu.pdb"
+				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cpu-openmp.pdb"
 				SubSystem="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -208,6 +210,7 @@
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE"
 				RuntimeLibrary="0"
+				OpenMP="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -224,7 +227,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu32.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-openmp32.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -288,6 +291,7 @@
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE"
 				RuntimeLibrary="0"
+				OpenMP="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -304,7 +308,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)\hmsbeagle-cpu64.dll"
+				OutputFile="$(OutDir)\hmsbeagle-cpu-openmp64.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -356,6 +360,14 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.h"
+					>
+				</File>
+				<File
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateSSEImpl.hpp"
+					>
+				</File>
+				<File
 					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.h"
 					>
 				</File>
@@ -364,11 +376,11 @@
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.cpp"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUOpenMPPlugin.cpp"
 					>
 				</File>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.h"
+					RelativePath="..\..\..\libhmsbeagle\CPU\BeagleCPUOpenMPPlugin.h"
 					>
 				</File>
 				<File
