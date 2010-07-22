@@ -8,7 +8,7 @@ Current builds of libhmsbeagle require the Nvidia CUDA hardware driver to be ins
 = Details =
 
 Step 1.  Download and use the beagle windows installer, *reboot when done*.  Installer currently available from:
-http://edhar.genomecenter.ucdavis.edu/~koadman/libhmsbeagle-20100325.msi
+http://edhar.genomecenter.ucdavis.edu/~koadman/libhmsbeagle-20100716.msi
 
 Step 2.  Get a current beast.
 {{{
@@ -49,6 +49,6 @@ Step 3. Set the desired configuration (e.g. "Release" and X64)
 
 Step 4. Right-click on the installer project (at the left hand side in the project explorer) and select "build"
 
-Step 5. The installer will be located in project\beagle-vs\beagleinstaller\Release, assuming a release build.
+Step 5. The installer will be located in project\beagle-vs\beagleinstaller\Release, assuming a release build.  Note that if error messages appear that the build system was unable to find Java, then you must build from the command line with build_installer.bat.  See below.
 
 *Alternate approach:*  Edit the file project\beagle-vs\build_installer.bat to point to the Visual Studio and ant installations, and run it from within a command prompt.  Skip steps 2-4.
