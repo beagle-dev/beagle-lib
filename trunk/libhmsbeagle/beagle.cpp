@@ -75,14 +75,18 @@ int loaded = 0; // Indicates is the initial library constructors have been run
                 // This patches a bug with JVM under Linux that calls the finalizer twice
 
 /** The list of plugins that provide implementations of likelihood calculators */
-std::list<beagle::plugin::Plugin*> plugins;
+std::list<beagle::plugin::Plugin*>* plugins;
 
 void beagleLoadPlugins(void) {
+	if(plugins==NULL){
+		plugins = new std::list<beagle::plugin::Plugin*>();
+	}
+
 	beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
 	try{
 		beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
-		plugins.push_back(cpuplug);
+		plugins->push_back(cpuplug);
 	}catch(beagle::plugin::SharedLibraryException sle){
 		// this one should always work
 		std::cerr << "Unable to load CPU plugin!\n";
@@ -91,7 +95,7 @@ void beagleLoadPlugins(void) {
 
 	try{
 		beagle::plugin::Plugin* gpuplug = pm.findPlugin("hmsbeagle-cuda");
-		plugins.push_back(gpuplug);
+		plugins->push_back(gpuplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
@@ -101,12 +105,12 @@ void beagleLoadPlugins(void) {
 
 	try{
 		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
-		plugins.push_back(sseplug);
+		plugins->push_back(sseplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
 		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-		plugins.push_back(openmpplug);
+		plugins->push_back(openmpplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 }
 
@@ -114,8 +118,8 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 	if (implFactory == NULL) {
 		implFactory = new std::list<beagle::BeagleImplFactory*>;
 		// Set-up a list of implementation factories in trial-order
-		std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-		for(; plugin_iter != plugins.end(); plugin_iter++ ){
+		std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
+		for(; plugin_iter != plugins->end(); plugin_iter++ ){
 			std::list<beagle::BeagleImplFactory*> factories = (*plugin_iter)->getBeagleFactories();
 			implFactory->insert(implFactory->end(), factories.begin(), factories.end());
 		}
@@ -138,6 +142,9 @@ void beagle_library_finalize(void) {
 	}
 	plugins.clear();	
 */
+	if(plugins!=NULL){
+		delete plugins;
+	}
 	// Destroy implFactory.
 	// The contained factory pointers will be deleted by the plugins themselves
 	if (implFactory && loaded) {
@@ -194,22 +201,22 @@ int beagleFinalize() {
 BeagleResourceList* beagleGetResourceList() {
 
 	// plugins must be loaded before resources
-	if (plugins.size()==0)
+	if (plugins==NULL)
 	    beagleLoadPlugins();
 
     if (rsrcList == NULL) {
 	// count the total resources across plugins
         rsrcList = (BeagleResourceList*) malloc(sizeof(BeagleResourceList));
         rsrcList->length = 0;
-	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-	for(; plugin_iter != plugins.end(); plugin_iter++ ){
+	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
+	for(; plugin_iter != plugins->end(); plugin_iter++ ){
 		rsrcList->length += (*plugin_iter)->getBeagleResources().size();
 	}
 	// allocate space for a complete list of resources
         rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
 	// copy in resource lists from each plugin
 	int rI=0;
-	for(plugin_iter = plugins.begin(); plugin_iter != plugins.end(); plugin_iter++ ){
+	for(plugin_iter = plugins->begin(); plugin_iter != plugins->end(); plugin_iter++ ){
 		std::list<BeagleResource> rList = (*plugin_iter)->getBeagleResources();
 		std::list<BeagleResource>::iterator r_iter = rList.begin();
 		for(; r_iter != rList.end(); r_iter++){
