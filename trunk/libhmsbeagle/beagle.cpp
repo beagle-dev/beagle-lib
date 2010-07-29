@@ -142,7 +142,8 @@ void beagle_library_finalize(void) {
 	}
 	plugins.clear();	
 */
-	if(plugins!=NULL){
+
+	if(plugins!=NULL && loaded){
 		delete plugins;
 	}
 	// Destroy implFactory.
