@@ -100,7 +100,7 @@ void beagleLoadPlugins(void) {
 
 	try{
 		beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
-		plugins.push_back(openclplug);
+		plugins->push_back(openclplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
