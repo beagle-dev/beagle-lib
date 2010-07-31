@@ -30,7 +30,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				CommandLine="&quot;$(ProjectDir)\findJava.bat&quot;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -111,7 +111,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				CommandLine="&quot;$(ProjectDir)\findJava.bat&quot;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -193,7 +193,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				CommandLine="&quot;$(ProjectDir)\findJava.bat&quot;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
@@ -272,7 +272,7 @@
 			<Tool
 				Name="VCPreBuildEventTool"
 				Description="Finding Java directory"
-				CommandLine="$(ProjectDir)\findJava.bat"
+				CommandLine="&quot;$(ProjectDir)\findJava.bat&quot;"
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
