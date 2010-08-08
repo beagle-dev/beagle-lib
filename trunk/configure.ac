@@ -83,12 +83,15 @@ fi
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
 # user option not currently working
-#AC_ARG_WITH([openmp],
-#   [AS_HELP_STRING([--with-openmp],[build openmp version @<:@default=yes@:>@])],
-#   [with_openmp=yes],
-#   [with_openmp=no])
-AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
-	[AM_CONDITIONAL(HAVE_OPENMP,false)])
+AC_ARG_ENABLE([openmp],
+   [AS_HELP_STRING([--disable-openmp],[disable automatic building of openmp version])])
+
+AS_IF([test "x$enable_openmp" != "xno"], [
+	AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+		[AM_CONDITIONAL(HAVE_OPENMP,false)])
+],[
+AM_CONDITIONAL(HAVE_OPENMP, test true = false)
+])
 AC_SUBST(OPENMP_CFLAGS)
 dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
