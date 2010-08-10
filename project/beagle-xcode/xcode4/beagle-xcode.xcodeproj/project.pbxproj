@@ -26,7 +26,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 64EE9C3A1211AC8600A284AE /* libhmsbeagle */;
+			remoteGlobalIDString = 64EE9C3A1211AC8600A284AE;
 			remoteInfo = libhmsbeagle;
 		};
 /* End PBXContainerItemProxy section */
@@ -82,6 +82,9 @@
 		6425C8741210911C00E7ED58 /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GPUInterfaceOpenCL.cpp; path = ../../../libhmsbeagle/GPU/GPUInterfaceOpenCL.cpp; sourceTree = "<group>"; };
 		6425C8751210911C00E7ED58 /* OpenCLPlugin.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = OpenCLPlugin.cpp; path = ../../../libhmsbeagle/GPU/OpenCLPlugin.cpp; sourceTree = "<group>"; };
 		6425C8761210911C00E7ED58 /* OpenCLPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = OpenCLPlugin.h; path = ../../../libhmsbeagle/GPU/OpenCLPlugin.h; sourceTree = "<group>"; };
+		6427CE2E1211CCA400B8AA72 /* contents.xcworkspacedata */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = contents.xcworkspacedata; path = "beagle-xcode.xcworkspace/contents.xcworkspacedata"; sourceTree = "<group>"; };
+		6427CE2F1211CCB100B8AA72 /* project.pbxproj */ = {isa = PBXFileReference; lastKnownFileType = text.pbxproject; name = project.pbxproj; path = "beagle-xcode.xcodeproj/project.pbxproj"; sourceTree = "<group>"; };
+		6427CE301211CCC900B8AA72 /* xcshareddata */ = {isa = PBXFileReference; lastKnownFileType = folder; name = xcshareddata; path = "beagle-xcode.xcodeproj/xcshareddata"; sourceTree = "<group>"; };
 		646A84A2121093B000F88378 /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.opencl; name = BeagleOpenCL_kernels.cl; path = ../../../libhmsbeagle/GPU/BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
 		646A84A3121093C000F88378 /* kernels4.cu */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = ../../../libhmsbeagle/GPU/kernels/kernels4.cu; sourceTree = "<group>"; };
 		646A84A4121093C000F88378 /* kernelsAll.cu */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = ../../../libhmsbeagle/GPU/kernels/kernelsAll.cu; sourceTree = "<group>"; };
@@ -312,6 +315,32 @@
 			name = makefiles;
 			sourceTree = "<group>";
 		};
+		6427CE2B1211CC8500B8AA72 /* xcode */ = {
+			isa = PBXGroup;
+			children = (
+				6427CE2C1211CC8D00B8AA72 /* project */,
+				6427CE2D1211CC9400B8AA72 /* workspace */,
+			);
+			name = xcode;
+			sourceTree = "<group>";
+		};
+		6427CE2C1211CC8D00B8AA72 /* project */ = {
+			isa = PBXGroup;
+			children = (
+				6427CE2F1211CCB100B8AA72 /* project.pbxproj */,
+				6427CE301211CCC900B8AA72 /* xcshareddata */,
+			);
+			name = project;
+			sourceTree = "<group>";
+		};
+		6427CE2D1211CC9400B8AA72 /* workspace */ = {
+			isa = PBXGroup;
+			children = (
+				6427CE2E1211CCA400B8AA72 /* contents.xcworkspacedata */,
+			);
+			name = workspace;
+			sourceTree = "<group>";
+		};
 		646A84C1121095C100F88378 /* libhmsbeagle */ = {
 			isa = PBXGroup;
 			children = (
@@ -412,6 +441,7 @@
 				6425C84312108DCC00E7ED58 /* makefiles */,
 				6425C84212108DB400E7ED58 /* java */,
 				646A84CD1210967300F88378 /* other */,
+				6427CE2B1211CC8500B8AA72 /* xcode */,
 			);
 			sourceTree = "<group>";
 		};
