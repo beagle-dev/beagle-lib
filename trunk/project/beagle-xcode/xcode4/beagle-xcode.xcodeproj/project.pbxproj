@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXAggregateTarget section */
+		6407BBAE121483F100BA8C93 /* CUDA kernels */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 6407BBB11214840F00BA8C93 /* Build configuration list for PBXAggregateTarget "CUDA kernels" */;
+			buildPhases = (
+				6407BBAD121483F100BA8C93 /* ShellScript */,
+			);
+			dependencies = (
+			);
+			name = "CUDA kernels";
+			productName = "CUDA kernels";
+		};
 		640C78461211AFE700B62295 /* libhmsbeagle install */ = {
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 640C78491211AFE700B62295 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */;
@@ -21,7 +32,66 @@
 		};
 /* End PBXAggregateTarget section */
 
+/* Begin PBXBuildFile section */
+		6407B9B81211EE3A00BA8C93 /* BeagleCPUPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C85412108EB500E7ED58 /* BeagleCPUPlugin.cpp */; };
+		6407BA031211EFBE00BA8C93 /* Plugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C84B12108E5700E7ED58 /* Plugin.cpp */; };
+		6407BA041211EFBE00BA8C93 /* UnixSharedLibrary.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C84E12108E5700E7ED58 /* UnixSharedLibrary.cpp */; };
+		6407BA451211F09200BA8C93 /* beagle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C84512108E1F00E7ED58 /* beagle.cpp */; };
+		6407BA5D1211F2C600BA8C93 /* libplugin.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA001211EF8F00BA8C93 /* libplugin.a */; };
+		6407BA7C1211F3B200BA8C93 /* libhmsbeagle.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */; };
+		6407BA7D1211F3BD00BA8C93 /* tinytest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 646A84AB121094BF00F88378 /* tinytest.cpp */; };
+		6407BB9F1214834A00BA8C93 /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C86712108FE200E7ED58 /* BeagleGPUImpl.cpp */; };
+		6407BBA01214834A00BA8C93 /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C86A12108FE200E7ED58 /* GPUImplHelper.cpp */; };
+		6407BBA11214834A00BA8C93 /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C86D12108FE200E7ED58 /* KernelLauncher.cpp */; };
+		6407BBA21214834A00BA8C93 /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C86F12108FE200E7ED58 /* KernelResource.cpp */; };
+		6407BBCD1214874400BA8C93 /* CUDAPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C8711210910B00E7ED58 /* CUDAPlugin.cpp */; };
+		6407BBCE1214874900BA8C93 /* GPUInterfaceCUDA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C8731210910B00E7ED58 /* GPUInterfaceCUDA.cpp */; };
+		6407BBF51214888500BA8C93 /* BeagleCPUSSEPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6425C86412108F8D00E7ED58 /* BeagleCPUSSEPlugin.cpp */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		6407BA661211F2E500BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407B9FF1211EF8F00BA8C93 /* plugin */;
+			remoteInfo = plugin;
+		};
+		6407BA771211F3A800BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteInfo = hmsbeagle;
+		};
+		6407BAB91213ACA900BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407B9B41211EE3400BA8C93 /* hmsbeagle-cpu */;
+			remoteInfo = "hmsbeagle-cpu";
+		};
+		6407BBB2121484C600BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407BBAE121483F100BA8C93 /* CUDA kernels */;
+			remoteInfo = "CUDA kernels";
+		};
+		6407BBF9121488D500BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */;
+			remoteInfo = "hmsbeagle-cpu-sse";
+		};
+		6407BBFB121488D500BA8C93 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */;
+			remoteInfo = "hmsbeagle-cuda";
+		};
 		640C784A1211AFFC00B62295 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
@@ -32,6 +102,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		6407B9B51211EE3400BA8C93 /* libhmsbeagle-cpu.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cpu.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6407BA001211EF8F00BA8C93 /* libplugin.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libplugin.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libhmsbeagle.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		6407BA731211F38B00BA8C93 /* tinytest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinytest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6407BB9C1214832300BA8C93 /* libhmsbeagle-cuda.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cuda.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6407BBF21214886100BA8C93 /* libhmsbeagle-cpu-sse.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cpu-sse.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6425C84512108E1F00E7ED58 /* beagle.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = beagle.cpp; path = ../../../libhmsbeagle/beagle.cpp; sourceTree = "<group>"; };
 		6425C84612108E1F00E7ED58 /* beagle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = beagle.h; path = ../../../libhmsbeagle/beagle.h; sourceTree = "<group>"; };
 		6425C84712108E1F00E7ED58 /* BeagleImpl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = BeagleImpl.h; path = ../../../libhmsbeagle/BeagleImpl.h; sourceTree = "<group>"; };
@@ -136,7 +212,67 @@
 		646A84DC1210975200F88378 /* check_lnL_using_paup.nex */ = {isa = PBXFileReference; lastKnownFileType = text; name = check_lnL_using_paup.nex; path = ../../../examples/tinytest/check_lnL_using_paup.nex; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		6407B9B31211EE3400BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407B9FE1211EF8F00BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BA0D1211EFF800BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BA5D1211F2C600BA8C93 /* libplugin.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BA711211F38B00BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BA7C1211F3B200BA8C93 /* libhmsbeagle.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BB9A1214832300BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BBF01214886100BA8C93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		6407B9AB1211ED6800BA8C93 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6407B9B51211EE3400BA8C93 /* libhmsbeagle-cpu.dylib */,
+				6407BBF21214886100BA8C93 /* libhmsbeagle-cpu-sse.dylib */,
+				6407BB9C1214832300BA8C93 /* libhmsbeagle-cuda.dylib */,
+				6407BA001211EF8F00BA8C93 /* libplugin.a */,
+				6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */,
+				6407BA731211F38B00BA8C93 /* tinytest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		6425C83712108CF000E7ED58 /* src */ = {
 			isa = PBXGroup;
 			children = (
@@ -442,49 +578,223 @@
 				6425C84212108DB400E7ED58 /* java */,
 				646A84CD1210967300F88378 /* other */,
 				6427CE2B1211CC8500B8AA72 /* xcode */,
+				6407B9AB1211ED6800BA8C93 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
+/* Begin PBXHeadersBuildPhase section */
+		6407B9B11211EE3400BA8C93 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407B9FC1211EF8F00BA8C93 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BA0B1211EFF800BA8C93 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BB981214832300BA8C93 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BBEE1214886100BA8C93 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXLegacyTarget section */
-		64EE9C3A1211AC8600A284AE /* libhmsbeagle */ = {
+		64EE9C3A1211AC8600A284AE /* libhmsbeagle make */ = {
 			isa = PBXLegacyTarget;
 			buildArgumentsString = "$(BEAGLE_CXXFLAGS) $(ACTION)";
-			buildConfigurationList = 64EE9C451211ACBD00A284AE /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */;
+			buildConfigurationList = 64EE9C451211ACBD00A284AE /* Build configuration list for PBXLegacyTarget "libhmsbeagle make" */;
 			buildPhases = (
 			);
 			buildToolPath = /usr/bin/make;
 			buildWorkingDirectory = ../../..;
 			dependencies = (
 			);
-			name = libhmsbeagle;
+			name = "libhmsbeagle make";
 			passBuildSettingsInEnvironment = 0;
 			productName = libhmsbeagle;
 		};
 /* End PBXLegacyTarget section */
+
+/* Begin PBXNativeTarget section */
+		6407B9B41211EE3400BA8C93 /* hmsbeagle-cpu */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407B9D01211EE7800BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cpu" */;
+			buildPhases = (
+				6407B9B11211EE3400BA8C93 /* Headers */,
+				6407B9B21211EE3400BA8C93 /* Sources */,
+				6407B9B31211EE3400BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "hmsbeagle-cpu";
+			productName = "hmsbeagle-cpu";
+			productReference = 6407B9B51211EE3400BA8C93 /* libhmsbeagle-cpu.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		6407B9FF1211EF8F00BA8C93 /* plugin */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407BA1C1211F02000BA8C93 /* Build configuration list for PBXNativeTarget "plugin" */;
+			buildPhases = (
+				6407B9FC1211EF8F00BA8C93 /* Headers */,
+				6407B9FD1211EF8F00BA8C93 /* Sources */,
+				6407B9FE1211EF8F00BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = plugin;
+			productName = plugin;
+			productReference = 6407BA001211EF8F00BA8C93 /* libplugin.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		6407BA0E1211EFF800BA8C93 /* hmsbeagle */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407BA1D1211F02000BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle" */;
+			buildPhases = (
+				6407BA0B1211EFF800BA8C93 /* Headers */,
+				6407BA0C1211EFF800BA8C93 /* Sources */,
+				6407BA0D1211EFF800BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6407BA671211F2E500BA8C93 /* PBXTargetDependency */,
+				6407BABA1213ACA900BA8C93 /* PBXTargetDependency */,
+				6407BBFA121488D500BA8C93 /* PBXTargetDependency */,
+				6407BBFC121488D500BA8C93 /* PBXTargetDependency */,
+			);
+			name = hmsbeagle;
+			productName = hmsbeagle;
+			productReference = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		6407BA721211F38B00BA8C93 /* tinytest */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407BA911211F41000BA8C93 /* Build configuration list for PBXNativeTarget "tinytest" */;
+			buildPhases = (
+				6407BA701211F38B00BA8C93 /* Sources */,
+				6407BA711211F38B00BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6407BA781211F3A800BA8C93 /* PBXTargetDependency */,
+			);
+			name = tinytest;
+			productName = tinytest;
+			productReference = 6407BA731211F38B00BA8C93 /* tinytest */;
+			productType = "com.apple.product-type.tool";
+		};
+		6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407BBAC1214838D00BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cuda" */;
+			buildPhases = (
+				6407BB981214832300BA8C93 /* Headers */,
+				6407BB991214832300BA8C93 /* Sources */,
+				6407BB9A1214832300BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6407BBB3121484C600BA8C93 /* PBXTargetDependency */,
+			);
+			name = "hmsbeagle-cuda";
+			productName = "hmsbeagle-cuda";
+			productReference = 6407BB9C1214832300BA8C93 /* libhmsbeagle-cuda.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6407BBF6121488A300BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cpu-sse" */;
+			buildPhases = (
+				6407BBEE1214886100BA8C93 /* Headers */,
+				6407BBEF1214886100BA8C93 /* Sources */,
+				6407BBF01214886100BA8C93 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "hmsbeagle-cpu-sse";
+			productName = "hmsbeagle-cpu-sse";
+			productReference = 6407BBF21214886100BA8C93 /* libhmsbeagle-cpu-sse.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		649FE0EC12108B60006E8768 /* Project object */ = {
 			isa = PBXProject;
 			buildConfigurationList = 649FE0EF12108B60006E8768 /* Build configuration list for PBXProject "beagle-xcode" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 			);
 			mainGroup = 649FE0EA12108B60006E8768;
+			productRefGroup = 6407B9AB1211ED6800BA8C93 /* Products */;
 			projectDirPath = "";
-			projectRoot = "";
+			projectRoot = ../../..;
 			targets = (
-				64EE9C3A1211AC8600A284AE /* libhmsbeagle */,
+				6407B9B41211EE3400BA8C93 /* hmsbeagle-cpu */,
+				6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */,
+				6407BBAE121483F100BA8C93 /* CUDA kernels */,
+				6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */,
+				6407B9FF1211EF8F00BA8C93 /* plugin */,
+				6407BA0E1211EFF800BA8C93 /* hmsbeagle */,
+				6407BA721211F38B00BA8C93 /* tinytest */,
+				64EE9C3A1211AC8600A284AE /* libhmsbeagle make */,
 				640C78461211AFE700B62295 /* libhmsbeagle install */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		6407BBAD121483F100BA8C93 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				$PROJECT_DIR/../../../libhmsbeagle/GPU/kernels/kernels4.cu,
+				$PROJECT_DIR/../../../libhmsbeagle/GPU/kernels/kernelsX.cu,
+				$PROJECT_DIR/../../../libhmsbeagle/GPU/kernels/kernelsAll.cu,
+			);
+			outputPaths = (
+				$PROJECT_DIR/../../../libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\ncd $PROJECT_DIR/../../../libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\necho \"Making state count = 4\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$PROJECT_DIR/../../.. -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 128 192\ndo\n\techo \"Making state count = $s\"\n\t/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -I$PROJECT_DIR/../../.. -DCUDA\n\techo \"#define KERNELS_STRING_$s \\\"\\\\\" >> BeagleCUDA_kernels.h\n\tcat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\techo \"\\\"\" >> BeagleCUDA_kernels.h\ndone\n";
+			showEnvVarsInLog = 0;
+		};
 		640C784C1211B00400B62295 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -500,15 +810,353 @@
 		};
 /* End PBXShellScriptBuildPhase section */
 
+/* Begin PBXSourcesBuildPhase section */
+		6407B9B21211EE3400BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407B9B81211EE3A00BA8C93 /* BeagleCPUPlugin.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407B9FD1211EF8F00BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BA031211EFBE00BA8C93 /* Plugin.cpp in Sources */,
+				6407BA041211EFBE00BA8C93 /* UnixSharedLibrary.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BA0C1211EFF800BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BA451211F09200BA8C93 /* beagle.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BA701211F38B00BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BA7D1211F3BD00BA8C93 /* tinytest.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BB991214832300BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BB9F1214834A00BA8C93 /* BeagleGPUImpl.cpp in Sources */,
+				6407BBA01214834A00BA8C93 /* GPUImplHelper.cpp in Sources */,
+				6407BBA11214834A00BA8C93 /* KernelLauncher.cpp in Sources */,
+				6407BBA21214834A00BA8C93 /* KernelResource.cpp in Sources */,
+				6407BBCD1214874400BA8C93 /* CUDAPlugin.cpp in Sources */,
+				6407BBCE1214874900BA8C93 /* GPUInterfaceCUDA.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6407BBEF1214886100BA8C93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6407BBF51214888500BA8C93 /* BeagleCPUSSEPlugin.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
 /* Begin PBXTargetDependency section */
+		6407BA671211F2E500BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407B9FF1211EF8F00BA8C93 /* plugin */;
+			targetProxy = 6407BA661211F2E500BA8C93 /* PBXContainerItemProxy */;
+		};
+		6407BA781211F3A800BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			targetProxy = 6407BA771211F3A800BA8C93 /* PBXContainerItemProxy */;
+		};
+		6407BABA1213ACA900BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407B9B41211EE3400BA8C93 /* hmsbeagle-cpu */;
+			targetProxy = 6407BAB91213ACA900BA8C93 /* PBXContainerItemProxy */;
+		};
+		6407BBB3121484C600BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407BBAE121483F100BA8C93 /* CUDA kernels */;
+			targetProxy = 6407BBB2121484C600BA8C93 /* PBXContainerItemProxy */;
+		};
+		6407BBFA121488D500BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */;
+			targetProxy = 6407BBF9121488D500BA8C93 /* PBXContainerItemProxy */;
+		};
+		6407BBFC121488D500BA8C93 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */;
+			targetProxy = 6407BBFB121488D500BA8C93 /* PBXContainerItemProxy */;
+		};
 		640C784B1211AFFC00B62295 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 64EE9C3A1211AC8600A284AE /* libhmsbeagle */;
+			target = 64EE9C3A1211AC8600A284AE /* libhmsbeagle make */;
 			targetProxy = 640C784A1211AFFC00B62295 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		6407B9B61211EE3400BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				EXECUTABLE_PREFIX = lib;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cpu";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407B9B71211EE3400BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cpu";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BA011211EF8F00BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = plugin;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407BA021211EF8F00BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = plugin;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BA101211EFF900BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				EXECUTABLE_PREFIX = lib;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = hmsbeagle;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407BA111211EFF900BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				INSTALL_PATH = /usr/local/lib;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = hmsbeagle;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BA751211F38C00BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INSTALL_PATH = /usr/local/bin;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = tinytest;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407BA761211F38C00BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				INSTALL_PATH = /usr/local/bin;
+				OTHER_LDFLAGS = "";
+				PREBINDING = NO;
+				PRODUCT_NAME = tinytest;
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BB9D1214832300BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				EXECUTABLE_PREFIX = lib;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					DLS_MACOS,
+					CUDA,
+				);
+				HEADER_SEARCH_PATHS = /usr/local/cuda/include;
+				INSTALL_PATH = /usr/local/lib;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = "-lcuda";
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cuda";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407BB9E1214832300BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					DLS_MACOS,
+					CUDA,
+				);
+				HEADER_SEARCH_PATHS = /usr/local/cuda/include;
+				INSTALL_PATH = /usr/local/lib;
+				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
+				OTHER_LDFLAGS = "-lcuda";
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cuda";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BBAF121483F100BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				PRODUCT_NAME = "CUDA kernels";
+			};
+			name = Debug;
+		};
+		6407BBB0121483F100BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				PRODUCT_NAME = "CUDA kernels";
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
+		6407BBF31214886100BA8C93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = NO;
+				EXECUTABLE_PREFIX = lib;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INSTALL_PATH = /usr/local/lib;
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cpu-sse";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+			};
+			name = Debug;
+		};
+		6407BBF41214886100BA8C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_MODEL_TUNING = G5;
+				INSTALL_PATH = /usr/local/lib;
+				PREBINDING = NO;
+				PRODUCT_NAME = "hmsbeagle-cpu-sse";
+				USER_HEADER_SEARCH_PATHS = ../../..;
+				ZERO_LINK = NO;
+			};
+			name = Release;
+		};
 		640C78471211AFE700B62295 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -539,7 +1187,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BEAGLE_CXXFLAGS = "CXXFLAGS=-g";
-				PRODUCT_NAME = libhmsbeagle;
+				PRODUCT_NAME = "libhmsbeagle make";
 			};
 			name = Debug;
 		};
@@ -554,6 +1202,69 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		6407B9D01211EE7800BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cpu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407B9B61211EE3400BA8C93 /* Debug */,
+				6407B9B71211EE3400BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BA1C1211F02000BA8C93 /* Build configuration list for PBXNativeTarget "plugin" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BA011211EF8F00BA8C93 /* Debug */,
+				6407BA021211EF8F00BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BA1D1211F02000BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BA101211EFF900BA8C93 /* Debug */,
+				6407BA111211EFF900BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BA911211F41000BA8C93 /* Build configuration list for PBXNativeTarget "tinytest" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BA751211F38C00BA8C93 /* Debug */,
+				6407BA761211F38C00BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BBAC1214838D00BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cuda" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BB9D1214832300BA8C93 /* Debug */,
+				6407BB9E1214832300BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BBB11214840F00BA8C93 /* Build configuration list for PBXAggregateTarget "CUDA kernels" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BBAF121483F100BA8C93 /* Debug */,
+				6407BBB0121483F100BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6407BBF6121488A300BA8C93 /* Build configuration list for PBXNativeTarget "hmsbeagle-cpu-sse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6407BBF31214886100BA8C93 /* Debug */,
+				6407BBF41214886100BA8C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		640C78491211AFE700B62295 /* Build configuration list for PBXAggregateTarget "libhmsbeagle install" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -572,7 +1283,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		64EE9C451211ACBD00A284AE /* Build configuration list for PBXLegacyTarget "libhmsbeagle" */ = {
+		64EE9C451211ACBD00A284AE /* Build configuration list for PBXLegacyTarget "libhmsbeagle make" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				64EE9C3B1211AC8600A284AE /* Debug */,
