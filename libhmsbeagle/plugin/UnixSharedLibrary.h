@@ -40,7 +40,11 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
 {
     std::string libname = "lib";
     libname += name;
+#ifdef DLS_MACOS
+    libname += ".dylib";
+#else
     libname += ".so";
+#endif
     m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_GLOBAL);
     if (m_handle == 0)
     {
