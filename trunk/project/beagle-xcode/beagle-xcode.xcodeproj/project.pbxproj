@@ -114,35 +114,35 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
 		643E19451214B4AF00B7E5A1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
 		643E195B1214B54B00B7E5A1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
 		643E196F1214B5D800B7E5A1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
 		643E19831214B64600B7E5A1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
+			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
 /* End PBXContainerItemProxy section */
@@ -243,7 +243,6 @@
 		64020C021214A0F700C76EFB /* build.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = build.xml; sourceTree = "<group>"; };
 		64020C031214A0F700C76EFB /* COPYING */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = COPYING; sourceTree = "<group>"; };
 		64020C041214A0F700C76EFB /* COPYING.LESSER */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = COPYING.LESSER; sourceTree = "<group>"; };
-		64020C051214A0F700C76EFB /* INSTALL */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = INSTALL; sourceTree = "<group>"; };
 		64020C061214A0F700C76EFB /* NEWS */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = NEWS; sourceTree = "<group>"; };
 		64020C071214A0F700C76EFB /* README */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README; sourceTree = "<group>"; };
 		64020C081214A0F700C76EFB /* suppress_cuda.valgrind */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = suppress_cuda.valgrind; sourceTree = "<group>"; };
@@ -418,7 +417,7 @@
 				6425C84212108DB400E7ED58 /* java */,
 			);
 			name = "beagle-lib";
-			path = ../../..;
+			path = ../..;
 			sourceTree = "<group>";
 		};
 		6407B9AB1211ED6800BA8C93 /* Products */ = {
@@ -689,7 +688,6 @@
 				64020C021214A0F700C76EFB /* build.xml */,
 				64020C031214A0F700C76EFB /* COPYING */,
 				64020C041214A0F700C76EFB /* COPYING.LESSER */,
-				64020C051214A0F700C76EFB /* INSTALL */,
 				64020C061214A0F700C76EFB /* NEWS */,
 				64020C071214A0F700C76EFB /* README */,
 				64020C081214A0F700C76EFB /* suppress_cuda.valgrind */,
@@ -998,7 +996,7 @@
 			mainGroup = 649FE0EA12108B60006E8768;
 			productRefGroup = 6407B9AB1211ED6800BA8C93 /* Products */;
 			projectDirPath = "";
-			projectRoot = ../../..;
+			projectRoot = ../..;
 			targets = (
 				6407B9B41211EE3400BA8C93 /* hmsbeagle-cpu */,
 				6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */,
@@ -1612,7 +1610,7 @@
 		649FE0F112108B60006E8768 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../../..";
+				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
@@ -1621,7 +1619,7 @@
 		649FE0F212108B60006E8768 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../../..";
+				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
