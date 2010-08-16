@@ -258,9 +258,6 @@
 		6407BA731211F38B00BA8C93 /* tinytest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinytest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6407BB9C1214832300BA8C93 /* libhmsbeagle-cuda.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cuda.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6407BBF21214886100BA8C93 /* libhmsbeagle-cpu-sse.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cpu-sse.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
-		6427CE2E1211CCA400B8AA72 /* contents.xcworkspacedata */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = contents.xcworkspacedata; path = "beagle-xcode.xcworkspace/contents.xcworkspacedata"; sourceTree = "<group>"; };
-		6427CE2F1211CCB100B8AA72 /* project.pbxproj */ = {isa = PBXFileReference; lastKnownFileType = text.pbxproject; name = project.pbxproj; path = "beagle-xcode.xcodeproj/project.pbxproj"; sourceTree = "<group>"; };
-		6427CE301211CCC900B8AA72 /* xcshareddata */ = {isa = PBXFileReference; lastKnownFileType = folder; name = xcshareddata; path = "beagle-xcode.xcodeproj/xcshareddata"; sourceTree = "<group>"; };
 		643E19291214B3D800B7E5A1 /* complextest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = complextest; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E19411214B4AA00B7E5A1 /* fourtaxon */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourtaxon; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E19571214B54600B7E5A1 /* matrixtest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = matrixtest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -601,32 +598,6 @@
 			name = makefiles;
 			sourceTree = "<group>";
 		};
-		6427CE2B1211CC8500B8AA72 /* xcode */ = {
-			isa = PBXGroup;
-			children = (
-				6427CE2C1211CC8D00B8AA72 /* project */,
-				6427CE2D1211CC9400B8AA72 /* workspace */,
-			);
-			name = xcode;
-			sourceTree = "<group>";
-		};
-		6427CE2C1211CC8D00B8AA72 /* project */ = {
-			isa = PBXGroup;
-			children = (
-				6427CE2F1211CCB100B8AA72 /* project.pbxproj */,
-				6427CE301211CCC900B8AA72 /* xcshareddata */,
-			);
-			name = project;
-			sourceTree = "<group>";
-		};
-		6427CE2D1211CC9400B8AA72 /* workspace */ = {
-			isa = PBXGroup;
-			children = (
-				6427CE2E1211CCA400B8AA72 /* contents.xcworkspacedata */,
-			);
-			name = workspace;
-			sourceTree = "<group>";
-		};
 		646A84C1121095C100F88378 /* libhmsbeagle */ = {
 			isa = PBXGroup;
 			children = (
@@ -726,7 +697,6 @@
 			isa = PBXGroup;
 			children = (
 				64020C101214A1BE00C76EFB /* beagle-lib */,
-				6427CE2B1211CC8500B8AA72 /* xcode */,
 				6407B9AB1211ED6800BA8C93 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -1612,6 +1582,7 @@
 			buildSettings = {
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				GCC_VERSION = "";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
 			name = Debug;
@@ -1621,6 +1592,7 @@
 			buildSettings = {
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
+				GCC_VERSION = "";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
 			name = Release;

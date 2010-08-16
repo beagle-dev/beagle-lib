@@ -20,7 +20,7 @@ BeagleCPUOpenMPPlugin::BeagleCPUOpenMPPlugin() :
 Plugin("CPU-SSE-OpenMP", "CPU-SSE-OpenMP")
 {
 	BeagleResource resource;
-        resource.name = (char*) "CPU-SSE-OpenMP";
+        resource.name = (char*) "CPU";
         resource.description = (char*) "";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                                          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |

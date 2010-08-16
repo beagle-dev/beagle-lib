@@ -17,8 +17,8 @@ BeagleCPUSSEPlugin::BeagleCPUSSEPlugin() :
 Plugin("CPU-SSE", "CPU-SSE")
 {
 	BeagleResource resource;
-        resource.name = (char*) "CPU-SSE";
-        resource.description = (char*) "CPU using SSE instructions";
+        resource.name = (char*) "CPU";
+        resource.description = (char*) "";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                                          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                                          BEAGLE_FLAG_THREADING_NONE |

@@ -94,8 +94,8 @@ void beagleLoadPlugins(void) {
 	}
 
 	try{
-		beagle::plugin::Plugin* gpuplug = pm.findPlugin("hmsbeagle-cuda");
-		plugins->push_back(gpuplug);
+		beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
+		plugins->push_back(cudaplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
@@ -221,7 +221,18 @@ BeagleResourceList* beagleGetResourceList() {
 		std::list<BeagleResource> rList = (*plugin_iter)->getBeagleResources();
 		std::list<BeagleResource>::iterator r_iter = rList.begin();
 		for(; r_iter != rList.end(); r_iter++){
-			rsrcList->list[rI++] = *r_iter;
+            bool rsrcExists = false;
+            for(int i=0; i<rI; i++){
+                if (strcmp(rsrcList->list[i].name, r_iter->name) == 0) {
+                    rsrcExists = true;
+                    rsrcList->length--;
+                    rsrcList->list[i].supportFlags |= r_iter->supportFlags;
+                    break;
+                }
+            }
+            
+            if (!rsrcExists)
+                rsrcList->list[rI++] = *r_iter;
 		}
 	}
      }
