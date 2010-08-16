@@ -792,7 +792,7 @@ __global__ void kernelAccumulateFactorsAutoScaling(signed char* dScalingFactors,
 
     int n;
     for(n = 0; n < nodeCount; n++) {
-        int sIndex = dNodePtrQueue[n];
+//        int sIndex = dNodePtrQueue[n];
         nodeScales = dScalingFactors + dNodePtrQueue[n] * scaleBufferSize;
 
         total += nodeScales[index];

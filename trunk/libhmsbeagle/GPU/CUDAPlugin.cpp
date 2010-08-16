@@ -23,7 +23,7 @@ Plugin("CUDA", "GPU")
                 char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
                 gpu.GetDeviceName(i, dName, nameDescSize);
                 gpu.GetDeviceDescription(i, dDesc);
-		BeagleResource resource;
+                BeagleResource resource;
                 resource.name = dName;
                 resource.description = dDesc;
                 resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -35,7 +35,7 @@ Plugin("CUDA", "GPU")
                                                      BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                                      BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
                 resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
-		beagleResources.push_back(resource);
+                beagleResources.push_back(resource);
             }
         }
 

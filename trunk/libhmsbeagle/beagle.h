@@ -103,8 +103,8 @@ enum BeagleFlags {
     
     BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
-    BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,  /**< Use FPGA as main processor */
-    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18  /**< Use Cell as main processor */
+    BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,   /**< Use FPGA as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18    /**< Use Cell as main processor */
 };
 
 /**
@@ -140,7 +140,7 @@ typedef struct {
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
     long  supportFlags; /**< Bit-flags of supported capabilities on resource */
-    long  requiredFlags;/**< Bit-flags of required capabilities on resource */
+    long  requiredFlags;/**< Bit-flags that identify resource type */
 } BeagleResource;
 
 /**
