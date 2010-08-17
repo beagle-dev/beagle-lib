@@ -556,6 +556,24 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
 #endif    
 }
 
+void GPUInterface::GetDeviceCapability(int deviceNumber,
+                                       int* capabilityMajor,
+                                       int* capabilityMinor) {    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceCapability\n");
+#endif
+    
+    CUdevice tmpCudaDevice;
+    
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
+    
+    SAFE_CUDA(cuDeviceComputeCapability(capabilityMajor, capabilityMinor, tmpCudaDevice));    
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceCapability\n");
+#endif    
+}
+
 void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
                                 int length, double checkValue, int *signal) {
     REAL* hPtr = (REAL*) malloc(SIZE_REAL * length);

@@ -121,7 +121,11 @@ public:
                        int nameLength);
     
     void GetDeviceDescription(int deviceNumber,
-                              char* deviceDescription);    
+                              char* deviceDescription);
+    
+    void GetDeviceCapability(int deviceNumber,
+                             int* capabilityMajor,
+                             int* capabilityMinor);
 
     void PrintfDeviceVector(GPUPtr dPtr,
                       int length);
