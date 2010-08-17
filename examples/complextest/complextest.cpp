@@ -92,37 +92,7 @@ double* getPartials(char *sequence) {
 }
 
 int main( int argc, const char* argv[] )
-{
-    // print resource list
-    BeagleResourceList* rList;
-    rList = beagleGetResourceList();
-    fprintf(stdout, "Available resources:\n");
-    for (int i = 0; i < rList->length; i++) {
-        fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
-        fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
-        fprintf(stdout, "\t\tFlags:");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_REAL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
-        if (rList->list[i].supportFlags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
-        fprintf(stdout, "\n");
-    }    
-    fprintf(stdout, "\n");    
+{ 
     
     bool scaling = true;
     
@@ -167,27 +137,7 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
-    fprintf(stdout, "\tFlags:");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CPU) fprintf(stdout, " PROCESSOR_CPU");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_GPU) fprintf(stdout, " PROCESSOR_GPU");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_FPGA) fprintf(stdout, " PROCESSOR_FPGA");
-    if (instDetails.flags & BEAGLE_FLAG_PROCESSOR_CELL) fprintf(stdout, " PROCESSOR_CELL");
-    if (instDetails.flags & BEAGLE_FLAG_PRECISION_DOUBLE) fprintf(stdout, " PRECISION_DOUBLE");
-    if (instDetails.flags & BEAGLE_FLAG_PRECISION_SINGLE) fprintf(stdout, " PRECISION_SINGLE");
-    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
-    if (instDetails.flags & BEAGLE_FLAG_EIGEN_REAL)fprintf(stdout, " EIGEN_REAL");
-    if (instDetails.flags & BEAGLE_FLAG_EIGEN_COMPLEX)fprintf(stdout, " EIGEN_COMPLEX");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_MANUAL)fprintf(stdout, " SCALING_MANUAL");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_AUTO)fprintf(stdout, " SCALING_AUTO");
-    if (instDetails.flags & BEAGLE_FLAG_SCALING_ALWAYS)fprintf(stdout, " SCALING_ALWAYS");
-    if (instDetails.flags & BEAGLE_FLAG_SCALERS_RAW)fprintf(stdout, " SCALERS_RAW");
-    if (instDetails.flags & BEAGLE_FLAG_SCALERS_LOG)fprintf(stdout, " SCALERS_LOG");
-    if (instDetails.flags & BEAGLE_FLAG_VECTOR_NONE)    fprintf(stdout, " VECTOR_NONE");
-    if (instDetails.flags & BEAGLE_FLAG_VECTOR_SSE)    fprintf(stdout, " VECTOR_SSE");
-    if (instDetails.flags & BEAGLE_FLAG_THREADING_NONE)    fprintf(stdout, " THREADING_NONE");
-    if (instDetails.flags & BEAGLE_FLAG_THREADING_OPENMP)    fprintf(stdout, " THREADING_OPENMP");
-    fprintf(stdout, "\n\n");
+    fprintf(stdout, "\n");
     
     
 //    beagleSetTipStates(instance, 0, getStates(human));
