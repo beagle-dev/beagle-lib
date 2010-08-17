@@ -222,11 +222,12 @@ BeagleResourceList* beagleGetResourceList() {
 		std::list<BeagleResource>::iterator r_iter = rList.begin();
 		for(; r_iter != rList.end(); r_iter++){
             bool rsrcExists = false;
-            for(int i=0; i<rI; i++){
-                if (strcmp(rsrcList->list[i].name, r_iter->name) == 0) {
+//          for(int i=0; i<rI; i++){ // TODO: only show each physical GPU once but allow for multiple GPUs with the same name
+            if (rI > 0) { 
+                if (strcmp(rsrcList->list[0].name, r_iter->name) == 0) { // currently only checking for multiple CPU resources
                     rsrcExists = true;
                     rsrcList->length--;
-                    rsrcList->list[i].supportFlags |= r_iter->supportFlags;
+                    rsrcList->list[0].supportFlags |= r_iter->supportFlags;
                     break;
                 }
             }
