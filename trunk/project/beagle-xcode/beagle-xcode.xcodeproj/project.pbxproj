@@ -482,8 +482,8 @@
 				64020B5A12149CFE00C76EFB /* EigenDecompositionCube.hpp */,
 				64020B5612149CFE00C76EFB /* EigenDecompositionSquare.h */,
 				64020B5B12149CFE00C76EFB /* EigenDecompositionSquare.hpp */,
-				6425C83B12108D4A00E7ED58 /* OpenMP */,
 				6425C83F12108D9100E7ED58 /* SSE */,
+				6425C83B12108D4A00E7ED58 /* OpenMP */,
 			);
 			path = CPU;
 			sourceTree = "<group>";

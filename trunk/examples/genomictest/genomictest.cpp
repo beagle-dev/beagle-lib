@@ -1,12 +1,15 @@
 /*
  *  genomictest.cpp
  *  Created by Aaron Darling on 14/06/2009.
+ *  @author Aaron Darling
+ *  @author Daniel Ayres
  *  Based on tinyTest.cpp by Andrew Rambaut.
  */
 #include <cstdio>
 #include <string>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 
 #ifdef _WIN32
 	#include <vector>
@@ -37,6 +40,7 @@
 	}
 #endif
 
+double cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
@@ -49,6 +53,14 @@ double* getRandomTipPartials( int nsites, int stateCount )
 	return partials;
 }
 
+void printTiming(double timingValue,
+                 int timePrecision,
+                 bool printSpeedup,
+                 double cpuTimingValue,
+                 int speedupPrecision) {
+	std::cout << std::setprecision(timePrecision) << timingValue;
+    if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)"; std::cout << "\n";
+}
 
 void runBeagle(int resource, 
                int stateCount, 
@@ -56,7 +68,9 @@ void runBeagle(int resource,
                int nsites, 
                bool scaling, 
                bool autoScaling,
-               int rateCategoryCount)
+               int rateCategoryCount,
+               int nreps,
+               bool fullTiming)
 {
     
     int scaleCount = (scaling ? ntaxa : 0);
@@ -88,8 +102,7 @@ void runBeagle(int resource,
     int rNumber = instDetails.resourceNumber;
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
-    fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
-    fprintf(stdout, "\n");      
+    fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);    
     
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
@@ -233,68 +246,106 @@ void runBeagle(int resource,
 	int rootIndex = ntaxa*2-2;
 
     // start timing!
-	struct timeval time1, time2, time3;
-	gettimeofday(&time1,NULL);
+	struct timeval time1, time2, time3, time4, time5;
+    double timeUpdateTransitionMatrices, timeUpdatePartials, timeAccumulateScaleFactors, timeCalculateRootLogLikelihoods, timeTotal;
+    timeUpdateTransitionMatrices = timeUpdatePartials = timeAccumulateScaleFactors = timeCalculateRootLogLikelihoods = timeTotal = 0;
+    
+    double logL = 0.0;
+    
+    for (int i=0; i<nreps; i++){
+        gettimeofday(&time1,NULL);
 
-    // tell BEAGLE to populate the transition matrices for the above edge lengths
-	beagleUpdateTransitionMatrices(instance,     // instance
-                                   0,             // eigenIndex
-                                   nodeIndices,   // probabilityIndices
-                                   NULL,          // firstDerivativeIndices
-                                   NULL,          // secondDerivativeIndices
-                                   edgeLengths,   // edgeLengths
-                                   ntaxa*2-2);            // count    
+        // tell BEAGLE to populate the transition matrices for the above edge lengths
+        beagleUpdateTransitionMatrices(instance,     // instance
+                                       0,             // eigenIndex
+                                       nodeIndices,   // probabilityIndices
+                                       NULL,          // firstDerivativeIndices
+                                       NULL,          // secondDerivativeIndices
+                                       edgeLengths,   // edgeLengths
+                                       ntaxa*2-2);            // count    
 
-    gettimeofday(&time2, NULL);
-    
-    // update the partials
-	beagleUpdatePartials( instance,      // instance
-	                (BeagleOperation*)operations,     // eigenIndex
-	                ntaxa-1,              // operationCount
-	                BEAGLE_OP_NONE);             // cumulative scaling index
-    
-
-    int scalingFactorsCount = ntaxa-1;
-    
-    int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
-    
-    
-    if (scaling && !autoScaling) {
-        beagleResetScaleFactors(instance,
-                               cumulativeScalingFactorIndex);
+        gettimeofday(&time2, NULL);
         
-        beagleAccumulateScaleFactors(instance,
-                               scalingFactorsIndices,
-                               scalingFactorsCount,
-                               cumulativeScalingFactorIndex);
+        // update the partials
+        beagleUpdatePartials( instance,      // instance
+                        (BeagleOperation*)operations,     // eigenIndex
+                        ntaxa-1,              // operationCount
+                        BEAGLE_OP_NONE);             // cumulative scaling index
+
+        gettimeofday(&time3, NULL);
+
+        int scalingFactorsCount = ntaxa-1;
+        
+        int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
+        
+        
+        if (scaling && !autoScaling) {
+            beagleResetScaleFactors(instance,
+                                   cumulativeScalingFactorIndex);
+            
+            beagleAccumulateScaleFactors(instance,
+                                   scalingFactorsIndices,
+                                   scalingFactorsCount,
+                                   cumulativeScalingFactorIndex);
+        }
+        
+        if (autoScaling)
+            beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
+
+        gettimeofday(&time4, NULL);
+        
+        int categoryWeightsIndex = 0;
+        int stateFrequencyIndex = 0;
+        
+        // calculate the site likelihoods at the root node
+        beagleCalculateRootLogLikelihoods(instance,               // instance
+                                    (const int *)&rootIndex,// bufferIndices
+                                    &categoryWeightsIndex,                // weights
+                                    &stateFrequencyIndex,                 // stateFrequencies
+                                    &cumulativeScalingFactorIndex,
+                                    1,                      // count
+                                    &logL);         // outLogLikelihoods
+
+        // end timing!
+        gettimeofday(&time5,NULL);
+        
+        timeUpdateTransitionMatrices += time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
+        timeUpdatePartials += time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
+        timeAccumulateScaleFactors += time4.tv_sec - time3.tv_sec + (double)(time4.tv_usec-time3.tv_usec)/1000000.0;
+        timeCalculateRootLogLikelihoods += time5.tv_sec - time4.tv_sec + (double)(time5.tv_usec-time4.tv_usec)/1000000.0;
+        timeTotal += time5.tv_sec - time1.tv_sec + (double)(time5.tv_usec-time1.tv_usec)/1000000.0;
+    }
+
+    if (resource == 0) {
+        cpuTimeUpdateTransitionMatrices = timeUpdateTransitionMatrices;
+        cpuTimeUpdatePartials = timeUpdatePartials;
+        cpuTimeAccumulateScaleFactors = timeAccumulateScaleFactors;
+        cpuTimeCalculateRootLogLikelihoods = timeCalculateRootLogLikelihoods;
+        cpuTimeTotal = timeTotal;
     }
     
-    if (autoScaling)
-        beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
-    
-    int categoryWeightsIndex = 0;
-    int stateFrequencyIndex = 0;
-    
-	double logL = 0.0;
-    
-    // calculate the site likelihoods at the root node
-	beagleCalculateRootLogLikelihoods(instance,               // instance
-	                            (const int *)&rootIndex,// bufferIndices
-	                            &categoryWeightsIndex,                // weights
-	                            &stateFrequencyIndex,                 // stateFrequencies
-                                &cumulativeScalingFactorIndex,
-	                            1,                      // count
-	                            &logL);         // outLogLikelihoods
-
-	// end timing!
-	gettimeofday(&time3,NULL);
-
 
 	fprintf(stdout, "logL = %.5f \n", logL);
-	double timediff1 =  time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
-    double timediff2 =  time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
-	std::cout << "Took " << timediff1 << " and\n";
-    std::cout << "     " << timediff2 << " seconds\n\n";
+    
+    std::cout.setf(std::ios::showpoint);
+    std::cout.setf(std::ios::floatfield, std::ios::fixed);
+    int timePrecision = 5;
+    int speedupPrecision = 2;
+	std::cout << "seconds: ";
+    printTiming(timeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision);
+    if (fullTiming) {
+        std::cout << " transMats:  ";
+        printTiming(timeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision);
+        std::cout << " partials:   ";
+        printTiming(timeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision);
+        if (scaling || autoScaling) {
+            std::cout << " accScalers: ";
+            printTiming(timeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision);
+        }
+        std::cout << " rootLnL:    ";
+        printTiming(timeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision);
+    }
+    std::cout << "\n";
 	beagleFinalizeInstance(instance);
     free(evec);
 }
@@ -306,9 +357,10 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale] [--rsrc <integer>] [--reps <integer>] [--full-timing]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --scale is specified, BEAGLE will rescale the partials during computation\n\n";
+    std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
 	std::exit(0);
 }
 
@@ -319,11 +371,16 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* nsites,
                                     bool* scaling,
                                     bool* autoScaling,
-                                    int* rateCategoryCount)	{
+                                    int* rateCategoryCount,
+                                    int* rsrc,
+                                    int* nreps,
+                                    bool* fullTiming)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
 	bool expecting_rateCategoryCount = false;
+	bool expecting_nreps = false;
+	bool expecting_rsrc = false;
 	
     for (unsigned i = 1; i < argc; ++i) {
 		std::string option = argv[i];
@@ -340,6 +397,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_rateCategoryCount) {
             *rateCategoryCount = (unsigned)atoi(option.c_str());
             expecting_rateCategoryCount = false;
+        } else if (expecting_rsrc) {
+            *rsrc = (unsigned)atoi(option.c_str());
+            expecting_rsrc = false;            
+        } else if (expecting_nreps) {
+            *nreps = (unsigned)atoi(option.c_str());
+            expecting_nreps = false;
         } else if (option == "--help") {
 			helpMessage();
         } else if (option == "--scale") {
@@ -355,6 +418,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_nsites = true;
         } else if (option == "--rates") {
             expecting_rateCategoryCount = true;
+        } else if (option == "--rsrc") {
+            expecting_rsrc = true;
+        } else if (option == "--reps") {
+            expecting_nreps = true;
+        } else if (option == "--full-timing") {
+            *fullTiming = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -373,7 +442,13 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	
 	if (expecting_rateCategoryCount)
 		abort("read last command line option without finding value associated with --rates");
-	
+
+	if (expecting_rsrc)
+		abort("read last command line option without finding value associated with --rsrc");
+    
+	if (expecting_nreps)
+		abort("read last command line option without finding value associated with --reps");
+
 	if (*stateCount < 2 || 
         (*stateCount & (*stateCount-1)) != 0)
 		abort("invalid number of states (must be a power-of-two) supplied on the command line");
@@ -386,6 +461,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     
     if (*rateCategoryCount < 1) {
         abort("invalid number of rates supplied on the command line");
+        
+    if (*nreps < 1)
+        abort("invalid number of reps supplied on the command line");
     }
 }
 
@@ -395,39 +473,59 @@ int main( int argc, const char* argv[] )
     int stateCount = 4;
     int ntaxa = 29;
     int nsites = 10000;
-    bool manualScaling = false;
+    bool manualScaling = true;
     bool autoScaling = false;
+
+    int rsrc = -1;
+    int nreps = 1;
+    bool fullTiming = false;
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &rateCategoryCount);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming);
     
-	std::cout << "Simulating genomic ";
+	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
         std::cout << "DNA";
     else
         std::cout << stateCount << "-state data";
-    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns\n";
+    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "") << ")\n\n";
 
-	BeagleResourceList* rl = beagleGetResourceList();
-	if(rl != NULL){
-		for(int i=0; i<rl->length; i++){
-			runBeagle(i,
-                      stateCount,
-                      ntaxa,
-                      nsites,
-                      manualScaling,
-                      autoScaling,
-                      rateCategoryCount);                      
-		}
-	}else{
-		runBeagle(NULL,
+    if (rsrc != -1) {
+        runBeagle(rsrc,
                   stateCount,
                   ntaxa,
                   nsites,
                   manualScaling,
                   autoScaling,
-                  rateCategoryCount);
+                  rateCategoryCount,
+                  nreps,
+                  fullTiming);        
+    } else {
+        BeagleResourceList* rl = beagleGetResourceList();
+        if(rl != NULL){
+            for(int i=0; i<rl->length; i++){
+                runBeagle(i,
+                          stateCount,
+                          ntaxa,
+                          nsites,
+                          manualScaling,
+                          autoScaling,
+                          rateCategoryCount,
+                          nreps,
+                          fullTiming);                      
+            }
+        }else{
+            runBeagle(NULL,
+                      stateCount,
+                      ntaxa,
+                      nsites,
+                      manualScaling,
+                      autoScaling,
+                      rateCategoryCount,
+                      nreps,
+                      fullTiming);
+        }
 	}
 
 #ifdef _WIN32

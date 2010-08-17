@@ -37,7 +37,7 @@ Plugin("CPU-SSE", "CPU-SSE")
 	// FIXME: the SSE plugin currently assumes all hardware is compatible
 	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
 //	implFactory->push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
-	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing
+//	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing (disabled until it works for all input)
 }
 
 }	// namespace cpu
