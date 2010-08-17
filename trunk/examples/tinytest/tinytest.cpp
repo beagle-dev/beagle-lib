@@ -122,8 +122,6 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
         printFlags(rList->list[i].supportFlags);
-        fprintf(stdout, "\n\t\tFlags:");
-        printFlags(rList->list[i].requiredFlags);
         fprintf(stdout, "\n");
     }    
     fprintf(stdout, "\n");    
