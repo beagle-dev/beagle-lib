@@ -88,6 +88,10 @@ GPUInterface::~GPUInterface() {
         delete kernelResource;
     }
     
+    if (resourceMap) {
+        delete resourceMap;
+    }
+    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::~GPUInterface\n");
 #endif    
@@ -112,6 +116,24 @@ int GPUInterface::Initialize() {
         exit(-1);
     }
     
+    
+    resourceMap = new std::map<int, int>;
+    
+    int numDevices = 0;
+    SAFE_CUDA(cuDeviceGetCount(&numDevices));
+    
+    CUdevice tmpCudaDevice;
+    int capabilityMajor;
+    int capabilityMinor;
+    int currentDevice = 0;
+    for (int i=0; i < numDevices; i++) {        
+        SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, i));
+        SAFE_CUDA(cuDeviceComputeCapability(&capabilityMajor, &capabilityMinor, tmpCudaDevice)); 
+        if ((capabilityMajor > 1 && capabilityMinor != 9999) || (capabilityMajor == 1 && capabilityMinor > 0)) {
+            resourceMap->insert(std::make_pair(currentDevice++, i));
+        }
+    }
+    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
 #endif    
@@ -123,15 +145,12 @@ int GPUInterface::GetDeviceCount() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetDeviceCount\n");
 #endif        
-    
-    int numDevices = 0;
-    SAFE_CUDA(cuDeviceGetCount(&numDevices));
-    
+        
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
 #endif            
     
-    return numDevices;
+    return resourceMap->size();
 }
 
 void GPUInterface::DestroyKernelMap() {
@@ -231,8 +250,8 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif            
-    
-    SAFE_CUDA(cuDeviceGet(&cudaDevice, deviceNumber));
+
+    SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
     
     SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     
@@ -518,7 +537,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     
     CUdevice tmpCudaDevice;
 
-    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
     
     SAFE_CUDA(cuDeviceGetName(deviceName, nameLength, tmpCudaDevice));
     
@@ -535,7 +554,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     
     CUdevice tmpCudaDevice;
     
-    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
     
     unsigned int totalGlobalMemory = 0;
     int clockSpeed = 0;
@@ -553,24 +572,6 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
-#endif    
-}
-
-void GPUInterface::GetDeviceCapability(int deviceNumber,
-                                       int* capabilityMajor,
-                                       int* capabilityMinor) {    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceCapability\n");
-#endif
-    
-    CUdevice tmpCudaDevice;
-    
-    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, deviceNumber));
-    
-    SAFE_CUDA(cuDeviceComputeCapability(capabilityMajor, capabilityMinor, tmpCudaDevice));    
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceCapability\n");
 #endif    
 }
 

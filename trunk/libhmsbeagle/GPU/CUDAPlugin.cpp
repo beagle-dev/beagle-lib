@@ -18,31 +18,26 @@ Plugin("CUDA", "GPU")
         if (gpu.Initialize()) {
             int gpuDeviceCount = gpu.GetDeviceCount();
             for (int i = 0; i < gpuDeviceCount; i++) {
-                int deviceCapabilityMajor;
-                int deviceCapabilityMinor;
-                gpu.GetDeviceCapability(i, &deviceCapabilityMajor, &deviceCapabilityMinor);
-                if ((deviceCapabilityMajor > 1 && deviceCapabilityMajor != 9999) || (deviceCapabilityMajor == 1 && deviceCapabilityMinor > 0)) {
-                    int nameDescSize = 256;
-                    char* dName = (char*) malloc(sizeof(char) * nameDescSize);
-                    char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
-                    gpu.GetDeviceName(i, dName, nameDescSize);
-                    gpu.GetDeviceDescription(i, dDesc);
-                    
-                    BeagleResource resource;
-                    resource.name = dName;
-                    resource.description = dDesc;
-                    resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                                                         BEAGLE_FLAG_PRECISION_SINGLE |
-                                                         BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-                                                         BEAGLE_FLAG_THREADING_NONE |
-                                                         BEAGLE_FLAG_VECTOR_NONE |
-                                                         BEAGLE_FLAG_PROCESSOR_GPU |
-                                                         BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
-                    resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
-                    
-                    beagleResources.push_back(resource);
-                }
+                int nameDescSize = 256;
+                char* dName = (char*) malloc(sizeof(char) * nameDescSize);
+                char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
+                gpu.GetDeviceName(i, dName, nameDescSize);
+                gpu.GetDeviceDescription(i, dDesc);
+                
+                BeagleResource resource;
+                resource.name = dName;
+                resource.description = dDesc;
+                resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                                                     BEAGLE_FLAG_PRECISION_SINGLE |
+                                                     BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                                                     BEAGLE_FLAG_THREADING_NONE |
+                                                     BEAGLE_FLAG_VECTOR_NONE |
+                                                     BEAGLE_FLAG_PROCESSOR_GPU |
+                                                     BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                                                     BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+                resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
+                
+                beagleResources.push_back(resource);
             }
         }
 

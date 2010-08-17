@@ -30,6 +30,8 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <map>
+
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
@@ -123,10 +125,6 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
-    void GetDeviceCapability(int deviceNumber,
-                             int* capabilityMajor,
-                             int* capabilityMinor);
-
     void PrintfDeviceVector(GPUPtr dPtr,
                       int length);
     
@@ -147,6 +145,8 @@ public:
     
 protected:
 	void InitializeKernelMap();
+    
+    std::map<int, int>* resourceMap;
 };
 
 #endif // __GPUInterface__
