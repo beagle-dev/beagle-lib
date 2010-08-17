@@ -366,9 +366,9 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--scale] [--rsrc <integer>] [--reps <integer>] [--full-timing]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--rsrc <integer>] [--reps <integer>] [--full-timing]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
-    std::cerr << "If --scale is specified, BEAGLE will rescale the partials during computation\n\n";
+    std::cerr << "If --manualscale or --autoscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
 	std::exit(0);
 }
@@ -378,7 +378,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* stateCount,
                                     int* ntaxa,
                                     int* nsites,
-                                    bool* scaling,
+                                    bool* manualScaling,
                                     bool* autoScaling,
                                     int* rateCategoryCount,
                                     int* rsrc,
@@ -414,10 +414,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_nreps = false;
         } else if (option == "--help") {
 			helpMessage();
-        } else if (option == "--scale") {
-            *scaling = true;
+        } else if (option == "--manualscale") {
+            *manualScaling = true;
         } else if (option == "--autoscale") {
-        	*scaling = true;
         	*autoScaling = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
@@ -498,7 +497,8 @@ int main( int argc, const char* argv[] )
         std::cout << "DNA";
     else
         std::cout << stateCount << "-state data";
-    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "") << ")\n\n";
+    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":"")) << ")\n\n";
 
     if (rsrc != -1) {
         runBeagle(rsrc,
