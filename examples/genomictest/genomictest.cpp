@@ -58,8 +58,13 @@ void printTiming(double timingValue,
                  bool printSpeedup,
                  double cpuTimingValue,
                  int speedupPrecision) {
-	std::cout << std::setprecision(timePrecision) << timingValue;
+	std::cout << std::setprecision(timePrecision) << timingValue << "s";
     if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)"; std::cout << "\n";
+}
+
+double getTimeDiff(struct timeval t1,
+                   struct timeval t2) {
+    return ((t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec-t1.tv_usec)/1000000.0);
 }
 
 void runBeagle(int resource, 
@@ -90,8 +95,7 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-			//	(autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				BEAGLE_FLAG_VECTOR_SSE,
+                (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
 				0,		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
@@ -247,8 +251,7 @@ void runBeagle(int resource,
 
     // start timing!
 	struct timeval time1, time2, time3, time4, time5;
-    double timeUpdateTransitionMatrices, timeUpdatePartials, timeAccumulateScaleFactors, timeCalculateRootLogLikelihoods, timeTotal;
-    timeUpdateTransitionMatrices = timeUpdatePartials = timeAccumulateScaleFactors = timeCalculateRootLogLikelihoods = timeTotal = 0;
+    double bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
     
     double logL = 0.0;
     
@@ -309,43 +312,49 @@ void runBeagle(int resource,
         // end timing!
         gettimeofday(&time5,NULL);
         
-        timeUpdateTransitionMatrices += time2.tv_sec - time1.tv_sec + (double)(time2.tv_usec-time1.tv_usec)/1000000.0;
-        timeUpdatePartials += time3.tv_sec - time2.tv_sec + (double)(time3.tv_usec-time2.tv_usec)/1000000.0;
-        timeAccumulateScaleFactors += time4.tv_sec - time3.tv_sec + (double)(time4.tv_usec-time3.tv_usec)/1000000.0;
-        timeCalculateRootLogLikelihoods += time5.tv_sec - time4.tv_sec + (double)(time5.tv_usec-time4.tv_usec)/1000000.0;
-        timeTotal += time5.tv_sec - time1.tv_sec + (double)(time5.tv_usec-time1.tv_usec)/1000000.0;
+        if (i == 0 || getTimeDiff(time1, time2) < bestTimeUpdateTransitionMatrices)
+            bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
+        if (i == 0 || getTimeDiff(time2, time3) < bestTimeUpdatePartials)
+            bestTimeUpdatePartials = getTimeDiff(time2, time3);
+        if (i == 0 || getTimeDiff(time3, time4) < bestTimeAccumulateScaleFactors)
+            bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
+        if (i == 0 || getTimeDiff(time4, time5) < bestTimeUpdateTransitionMatrices)
+            bestTimeCalculateRootLogLikelihoods = getTimeDiff(time4, time5);
+        if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal)
+            bestTimeTotal = getTimeDiff(time1, time5);
+        
     }
 
     if (resource == 0) {
-        cpuTimeUpdateTransitionMatrices = timeUpdateTransitionMatrices;
-        cpuTimeUpdatePartials = timeUpdatePartials;
-        cpuTimeAccumulateScaleFactors = timeAccumulateScaleFactors;
-        cpuTimeCalculateRootLogLikelihoods = timeCalculateRootLogLikelihoods;
-        cpuTimeTotal = timeTotal;
+        cpuTimeUpdateTransitionMatrices = bestTimeUpdateTransitionMatrices;
+        cpuTimeUpdatePartials = bestTimeUpdatePartials;
+        cpuTimeAccumulateScaleFactors = bestTimeAccumulateScaleFactors;
+        cpuTimeCalculateRootLogLikelihoods = bestTimeCalculateRootLogLikelihoods;
+        cpuTimeTotal = bestTimeTotal;
     }
     
-
 	fprintf(stdout, "logL = %.5f \n", logL);
     
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
-    int timePrecision = 5;
+    int timePrecision = 6;
     int speedupPrecision = 2;
-	std::cout << "seconds: ";
-    printTiming(timeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision);
+	std::cout << "best run: ";
+    printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision);
     if (fullTiming) {
         std::cout << " transMats:  ";
-        printTiming(timeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision);
+        printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision);
         std::cout << " partials:   ";
-        printTiming(timeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision);
+        printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision);
         if (scaling || autoScaling) {
             std::cout << " accScalers: ";
-            printTiming(timeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision);
+            printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision);
         }
         std::cout << " rootLnL:    ";
-        printTiming(timeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision);
+        printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision);
     }
     std::cout << "\n";
+    
 	beagleFinalizeInstance(instance);
     free(evec);
 }
@@ -473,11 +482,11 @@ int main( int argc, const char* argv[] )
     int stateCount = 4;
     int ntaxa = 29;
     int nsites = 10000;
-    bool manualScaling = true;
+    bool manualScaling = false;
     bool autoScaling = false;
 
     int rsrc = -1;
-    int nreps = 1;
+    int nreps = 5;
     bool fullTiming = false;
     
     int rateCategoryCount = 4;
