@@ -57,9 +57,14 @@ void printTiming(double timingValue,
                  int timePrecision,
                  bool printSpeedup,
                  double cpuTimingValue,
-                 int speedupPrecision) {
+                 int speedupPrecision,
+                 bool printPercent,
+                 double totalTime,
+                 int percentPrecision) {
 	std::cout << std::setprecision(timePrecision) << timingValue << "s";
-    if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)"; std::cout << "\n";
+    if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)";
+    if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
+    std::cout << "\n";
 }
 
 double getTimeDiff(struct timeval t1,
@@ -339,19 +344,20 @@ void runBeagle(int resource,
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
     int timePrecision = 6;
     int speedupPrecision = 2;
+    int percentPrecision = 2;
 	std::cout << "best run: ";
-    printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision);
+    printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
     if (fullTiming) {
         std::cout << " transMats:  ";
-        printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision);
+        printTiming(bestTimeUpdateTransitionMatrices, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";
-        printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision);
+        printTiming(bestTimeUpdatePartials, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
         if (scaling || autoScaling) {
             std::cout << " accScalers: ";
-            printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision);
+            printTiming(bestTimeAccumulateScaleFactors, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
         }
         std::cout << " rootLnL:    ";
-        printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision);
+        printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
     }
     std::cout << "\n";
     
