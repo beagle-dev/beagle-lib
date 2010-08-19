@@ -64,7 +64,7 @@ GPUInterface::GPUInterface() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::GPUInterface\n");
 #endif    
     
-    cudaDevice = NULL;
+    cudaDevice = (CUdevice)NULL;
     cudaContext = NULL;
     cudaModule = NULL;
     kernelResource = NULL;
