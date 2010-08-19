@@ -531,7 +531,7 @@ int main( int argc, const char* argv[] )
                           fullTiming);                      
             }
         }else{
-            runBeagle(NULL,
+            runBeagle(0,
                       stateCount,
                       ntaxa,
                       nsites,
