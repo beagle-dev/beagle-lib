@@ -749,7 +749,7 @@
 			buildPhases = (
 			);
 			buildToolPath = /usr/bin/make;
-			buildWorkingDirectory = ../../..;
+			buildWorkingDirectory = "$(BEAGLE_SOURCE_ROOT)";
 			dependencies = (
 			);
 			name = "libhmsbeagle make";
@@ -1015,7 +1015,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $PROJECT_DIR/../../..\n\nmake install\n";
+			shellScript = "cd $BEAGLE_SOURCE_ROOT\n\nmake install\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
