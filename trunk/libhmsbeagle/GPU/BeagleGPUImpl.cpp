@@ -51,27 +51,27 @@ BeagleGPUImpl::BeagleGPUImpl() {
     gpu = NULL;
     kernels = NULL;
     
-    dIntegrationTmp = NULL;
-    dOutFirstDeriv = NULL;
-    dOutSecondDeriv = NULL;
-    dPartialsTmp = NULL;
-    dFirstDerivTmp = NULL;
-    dSecondDerivTmp = NULL;
+    dIntegrationTmp = (GPUPtr)NULL;
+    dOutFirstDeriv = (GPUPtr)NULL;
+    dOutSecondDeriv = (GPUPtr)NULL;
+    dPartialsTmp = (GPUPtr)NULL;
+    dFirstDerivTmp = (GPUPtr)NULL;
+    dSecondDerivTmp = (GPUPtr)NULL;
     
-    dSumLogLikelihood = NULL;
-    dSumFirstDeriv = NULL;
-    dSumSecondDeriv = NULL;
+    dSumLogLikelihood = (GPUPtr)NULL;
+    dSumFirstDeriv = (GPUPtr)NULL;
+    dSumSecondDeriv = (GPUPtr)NULL;
     
-    dPatternWeights = NULL;    
+    dPatternWeights = (GPUPtr)NULL;    
 	
-    dBranchLengths = NULL;
+    dBranchLengths = (GPUPtr)NULL;
     
-    dDistanceQueue = NULL;
+    dDistanceQueue = (GPUPtr)NULL;
     
-    dPtrQueue = NULL;
+    dPtrQueue = (GPUPtr)NULL;
     
-    dMaxScalingFactors = NULL;
-    dIndexMaxScalingFactors = NULL;
+    dMaxScalingFactors = (GPUPtr)NULL;
+    dIndexMaxScalingFactors = (GPUPtr)NULL;
     
     dEigenValues = NULL;
     dEvec = NULL;
@@ -1116,7 +1116,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         GPUPtr tipStates2 = dStates[child2Index];
         
         int rescale = BEAGLE_OP_NONE;
-        GPUPtr scalingFactors = NULL;
+        GPUPtr scalingFactors = (GPUPtr)NULL;
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             int sIndex = parIndex - kTipCount;
