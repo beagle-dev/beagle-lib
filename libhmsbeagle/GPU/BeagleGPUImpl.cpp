@@ -104,6 +104,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
     hPartialsCache = NULL;
     hStatesCache = NULL;
     hMatrixCache = NULL;
+    
+    hdRescalingTrigger = NULL;
 }
 
 BeagleGPUImpl::~BeagleGPUImpl() {
@@ -188,6 +190,10 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         free(hFrequenciesCache);
         free(hPartialsCache);
         free(hStatesCache);
+        
+        if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+            gpu->FreePinnedHostMemory(hdRescalingTrigger);
+        }
         
 #ifdef BEAGLE_MEMORY_PINNED
         gpu->FreePinnedHostMemory(hLogLikelihoodsCache);
@@ -285,6 +291,9 @@ int BeagleGPUImpl::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
         kFlags |= BEAGLE_FLAG_SCALERS_LOG;
         kScaleBufferCount = kInternalPartialsBufferCount + 1; // +1 for temp buffer used by edgelikelihood
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALING_DYNAMIC || requirementFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        kFlags |= BEAGLE_FLAG_SCALING_DYNAMIC;
+        kFlags |= BEAGLE_FLAG_SCALERS_RAW;
     } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
         kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
         kFlags |= BEAGLE_FLAG_SCALERS_LOG;
@@ -379,8 +388,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
         hMatrixCacheSize = 2 * kMatrixSize + kEigenValuesSize;
     
 #ifdef BEAGLE_MEMORY_PINNED
-    hLogLikelihoodsCache = (REAL*) gpu->AllocatePinnedHostMemory(kPatternCount * SIZE_REAL);
-    hMatrixCache = (REAL*) gpu->AllocatePinnedHostMemory(hMatrixCacheSize * SIZE_REAL);
+    hLogLikelihoodsCache = (REAL*) gpu->AllocatePinnedHostMemory(kPatternCount * SIZE_REAL, false, false);
+    hMatrixCache = (REAL*) gpu->AllocatePinnedHostMemory(hMatrixCacheSize * SIZE_REAL, false, false);
     memset(hMatrixCache, 0, hMatrixCacheSize * SIZE_REAL);
 #else
     hLogLikelihoodsCache = (REAL*) malloc(kPatternCount * SIZE_REAL);
@@ -401,17 +410,21 @@ int BeagleGPUImpl::createInstance(int tipCount,
     }
     
     if (kScaleBufferCount > 0) {
-        dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
+            dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             dScalingFactors[0] =  gpu->AllocateMemory(sizeof(signed char) * kScaleBufferSize * kScaleBufferCount); // TODO: char won't work for double-precision
             for (int i=1; i < kScaleBufferCount; i++)
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
+        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+            dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
+            hdRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
         } else {
+            dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
             for (int i=1; i < kScaleBufferCount; i++) {
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * SIZE_REAL;               
             }
-        }
+        }        
     }
     
     for(int i=0; i<kEigenDecompCount; i++) {
@@ -1117,6 +1130,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = (GPUPtr)NULL;
+        GPUPtr existingScalingFactors = (GPUPtr)NULL;
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             int sIndex = parIndex - kTipCount;
@@ -1128,6 +1142,12 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
+        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {            
+            if (tipStates1 == 0 && tipStates2 == 0) {
+                rescale = 3;
+                existingScalingFactors = dScalingFactors[readScalingIndex];
+                scalingFactors = dScalingFactors[writeScalingIndex];
+            }
         } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
@@ -1178,10 +1198,10 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                                              rescale);
             } else {
                 kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
-                                                               matrices1, matrices2, scalingFactors,
+                                                               matrices1, matrices2, scalingFactors, existingScalingFactors,
                                                                cumulativeScalingBuffer, 
                                                                kPaddedPatternCount, kCategoryCount,
-                                                               rescale);
+                                                               rescale, hdRescalingTrigger);
             }
         }
         
@@ -1339,6 +1359,11 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     fprintf(stderr, "\tEntering BeagleGPUImpl::resetScaleFactors\n");
 #endif
 
+    if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        if (dScalingFactors[cumulativeScalingIndex] == 0)
+            dScalingFactors[cumulativeScalingIndex] = gpu->AllocateRealMemory(kScaleBufferSize);
+    }
+    
     REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
     
     // Fill with zeroes
@@ -1817,7 +1842,7 @@ const char* BeagleGPUImplFactory::getName() {
 const long BeagleGPUImplFactory::getFlags() {
    return BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_PRECISION_SINGLE |
-          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_PROCESSOR_GPU |

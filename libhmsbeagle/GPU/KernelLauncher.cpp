@@ -157,7 +157,10 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
             "kernelPartialsPartialsFixedScale");
-
+    
+    fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
+            "kernelPartialsPartialsCheckScale");
+    
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelStatesPartialsNoScale");
 
@@ -388,15 +391,61 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr matrices1,
                                                            GPUPtr matrices2,
                                                            GPUPtr scalingFactors,
+                                                           GPUPtr existingScalingFactors,
                                                            GPUPtr cumulativeScaling,
                                                            unsigned int patternCount,
                                                            unsigned int categoryCount,
-                                                           int doRescaling) {
+                                                           int doRescaling,
+                                                           int* hdRescalingTrigger) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicScaling\n");
 #endif
     
-    if (doRescaling == 2) { // auto-rescaling
+    if (doRescaling == 3) { // dynamic-rescaling
+        
+        if (existingScalingFactors == 0) {
+            *hdRescalingTrigger = 0;
+            // Compute partials without any rescaling but check values
+            gpu->LaunchKernel(fPartialsPartialsByPatternBlockCheckScaling,
+                              bgPeelingBlock, bgPeelingGrid,
+                              6, 7,
+                              partials1, partials2, partials3, matrices1, matrices2, gpu->GetDevicePointer((void*)hdRescalingTrigger),
+                              patternCount);            
+
+            gpu->Synchronize();
+//            printf("hdRescalingTrigger %d\n", *hdRescalingTrigger);
+            if (hdRescalingTrigger) { // check if any partials need rescaling
+//                if (scalingFactors == 0)
+//                    scalingFactors = gpu->AllocateRealMemory(patternCount);
+//                gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
+//                                  bgScaleBlock, bgScaleGrid,
+//                                  3, 4,
+//                                  partials3, scalingFactors, cumulativeScaling,
+//                                  categoryCount);
+            }
+        } else {
+//            *hdRescalingTrigger = 0;
+//            // Compute partials with known rescalings        
+//            gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedCheckScaling,
+//                              bgPeelingBlock, bgPeelingGrid,
+//                              7, 8,
+//                              partials1, partials2, partials3, matrices1, matrices2,
+//                              existingScalingFactors, gpu->GetDevicePointer((void*)hdRescalingTrigger),
+//                              patternCount);        
+//            
+//            gpu->Synchronize();
+//            if (hdRescalingTrigger) { // check if any partials need rescaling
+//                if (scalingFactors == 0)
+//                    scalingFactors = gpu->AllocateRealMemory(patternCount);
+//                
+//                gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
+//                                  bgScaleBlock, bgScaleGrid,
+//                                  4, 5,
+//                                  partials3, scalingFactors, existingScalingFactors, cumulativeScaling,
+//                                  categoryCount);
+//            }
+        }
+    } else if (doRescaling == 2) { // auto-rescaling
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
                           bgPeelingBlock, bgPeelingGrid,
                           6, 7,
@@ -830,6 +879,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     fprintf(stderr, "\t\tLeaving  KernelLauncher::RescalePartials\n");
 #endif
 }
+
 
 void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
                                           GPUPtr dRootPartials,

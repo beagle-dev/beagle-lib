@@ -91,6 +91,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< Manual scaling */
     BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< Auto-scaling on */
     BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< Scale at every updatePartials */
+    BEAGLE_FLAG_SCALING_DYNAMIC     = 1 << 19,   /**< Manual scaling with dynamic checking  */
     
     BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< Save raw scalers */
     BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< Save log scalers */

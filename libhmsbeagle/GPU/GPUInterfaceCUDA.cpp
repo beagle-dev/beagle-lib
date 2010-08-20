@@ -35,6 +35,7 @@
 
 #include <cuda.h>
 
+#include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
@@ -253,7 +254,12 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 
     SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
     
-    SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
+    if (flags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO | CU_CTX_MAP_HOST, cudaDevice));
+    } else {
+        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
+    }
+    
     
     if (kernelMap == NULL) {
         // kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
@@ -372,14 +378,22 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 }
 
 
-void* GPUInterface::AllocatePinnedHostMemory(int memSize) {
+void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bool mapped) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
 #endif
     
     void* data;
     
-    SAFE_CUPP(cuMemAllocHost(&data, memSize));
+    unsigned int flags = 0;
+    
+    if (writeCombined)
+        flags |= CU_MEMHOSTALLOC_WRITECOMBINED;
+    if (mapped)
+        flags |= CU_MEMHOSTALLOC_DEVICEMAP;
+
+    SAFE_CUPP(cuMemHostAlloc(&data, memSize, flags));
+    
     
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", data, (data + memSize));
@@ -519,6 +533,22 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeMemory\n");
 #endif
+}
+
+GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDevicePointer\n");
+#endif
+    
+    GPUPtr dPtr;
+    
+    SAFE_CUPP(cuMemHostGetDevicePointer(&dPtr, hPtr, 0));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDevicePointer\n");
+#endif
+
+    return dPtr;
 }
 
 unsigned int GPUInterface::GetAvailableMemory() {

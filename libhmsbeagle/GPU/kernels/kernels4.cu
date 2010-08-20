@@ -116,6 +116,92 @@ __global__ void kernelPartialsPartialsNoScale(REAL* partials1,
 
 	}
     
+__global__ void kernelPartialsPartialsCheckScale(REAL* partials1,
+                                                                  REAL* partials2,
+                                                                  REAL* partials3,
+                                                                  REAL* matrices1,
+                                                                  REAL* matrices2,
+                                                                  int* hdRescalingTrigger,
+                                                                  int totalPatterns) {
+		REAL sum1;
+	    REAL sum2;
+	    int i;
+
+	    DETERMINE_INDICES_4();
+
+	    int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+	    int y = deltaPartialsByState + deltaPartialsByMatrix;
+	    
+	    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+	    REAL* matrix2 = matrices2 + x2;
+
+	#ifdef KERNEL_PRINT_ENABLED
+	    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+	           state, u);
+	#endif
+
+	    // Load values into shared memory
+	    __shared__ REAL sMatrix1[16];
+	    __shared__ REAL sMatrix2[16];
+
+	    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+	    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+	    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
+	    if (pattern < totalPatterns) {
+	        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
+	        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
+	    } else {
+	        sPartials1[multBy16(patIdx) | tx] = 0;
+	        sPartials2[multBy16(patIdx) | tx] = 0;
+	    }
+
+	    if (patIdx == 0 ) {
+	        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+	        sMatrix2[tx] = matrix2[tx];
+	    }
+
+	    __syncthreads();
+
+	    if (pattern < totalPatterns) { // Remove padded threads!
+
+ 	        i = pat;
+	        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+
+	        i = (++i) & 0x3;
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+
+	        i = (++i) & 0x3;
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+
+	        i = (++i) & 0x3;
+	        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+	        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+            
+            REAL tmpPartial = sum1 * sum2;
+            
+            partials3[u] = tmpPartial;
+
+            if (tmpPartial < SCALING_THRESHOLD_LOWER || tmpPartial > SCALING_THRESHOLD_UPPER)
+                *hdRescalingTrigger = 1;
+            
+//            union {float f; long l;} fl;
+//            fl.f = sum1 * sum2;;
+//
+//	        partials3[u] = fl.f;
+//            
+//            int expTmp  = ((fl.l >> 23) & 0x000000ff) - 0x7e;
+//            
+//            if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD)
+//                *hdRescalingTrigger = 1;
+	    }
+
+	}
+    
+    
 __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
                                                 REAL* partials2,
                                                 REAL* partials3,

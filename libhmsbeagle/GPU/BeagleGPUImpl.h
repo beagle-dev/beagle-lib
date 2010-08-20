@@ -134,6 +134,8 @@ private:
     int* hStatesCache;
     REAL* hMatrixCache;
     
+    int* hdRescalingTrigger;
+    
 public:    
     BeagleGPUImpl();
     
