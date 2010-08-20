@@ -45,6 +45,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
+    GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
     GPUFunction fStatesStatesByPatternBlockCoherent;
@@ -142,10 +143,12 @@ public:
                                                GPUPtr matrices1,
                                                GPUPtr matrices2,
                                                GPUPtr scalingFactors,
+                                               GPUPtr existingScalingFactors,
                                                GPUPtr cumulativeScaling,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
-                                               int doRescaling);
+                                               int doRescaling,
+                                               int* hdRescalingTrigger);
     
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,

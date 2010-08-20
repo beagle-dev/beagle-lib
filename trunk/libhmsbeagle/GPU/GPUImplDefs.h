@@ -48,6 +48,8 @@
     #define SCALING_FACTOR_COUNT 2046 // -1022, 1023
     #define SCALING_FACTOR_OFFSET 1022 // the zero point
     #define SCALING_EXPONENT_THRESHOLD 200 // TODO: find optimal value for SCALING_EXPONENT_THRESHOLD
+    #define SCALING_THRESHOLD_LOWER 6.22301528e-61 // TODO: find optimal value for SCALING_THRESHOLD
+    #define SCALING_THRESHOLD_UPPER 1.60693804e60 // TODO: find optimal value for SCALING_THRESHOLD
 #else
     #define REAL    float
     #define REAL_MIN    FLT_MIN
@@ -55,6 +57,8 @@
     #define SCALING_FACTOR_COUNT 254 // -126, 127
     #define SCALING_FACTOR_OFFSET 126 // the zero point
     #define SCALING_EXPONENT_THRESHOLD 20 // TODO: find optimal value for SCALING_EXPONENT_THRESHOLD
+    #define SCALING_THRESHOLD_LOWER 9.53674316e-7 // TODO: find optimal value for SCALING_THRESHOLD
+    #define SCALING_THRESHOLD_UPPER 1048576 // TODO: find optimal value for SCALING_THRESHOLD
 #endif
 
 #define SIZE_REAL   sizeof(REAL)

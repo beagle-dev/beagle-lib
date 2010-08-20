@@ -92,7 +92,9 @@ public:
                                int totalParameterCount,
                                ...); // parameters
 
-    void* AllocatePinnedHostMemory(int memSize);
+    void* AllocatePinnedHostMemory(int memSize,
+                                   bool writeCombined,
+                                   bool mapped);
     
     GPUPtr AllocateMemory(int memSize);
     
@@ -115,6 +117,8 @@ public:
     void FreePinnedHostMemory(void* hPtr);
     
     void FreeMemory(GPUPtr dPtr);
+    
+    GPUPtr GetDevicePointer(void* hPtr);
     
     unsigned int GetAvailableMemory();
     
