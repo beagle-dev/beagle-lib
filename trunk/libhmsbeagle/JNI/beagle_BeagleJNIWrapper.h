@@ -169,6 +169,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    copyScaleFactors
+ * Signature: (II)II
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_copyScaleFactors
+  (JNIEnv *, jobject, jint, jint, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoods
  * Signature: (I[I[I[I[II[D)I
  */

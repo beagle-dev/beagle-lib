@@ -18,6 +18,7 @@ public enum BeagleFlag {
     SCALING_MANUAL(1 << 6, "manual scaling"),
     SCALING_AUTO(1 << 7, "auto-scaling on"),
     SCALING_ALWAYS(1 << 8, "scale at every update"),
+    SCALING_DYNAMIC(1 << 19, "manual scaling with dynamic checking"),            
 
     SCALERS_RAW(1 << 9, "save raw scalers"),
     SCALERS_LOG(1 << 10, "save log scalers"),

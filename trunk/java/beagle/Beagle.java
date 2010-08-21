@@ -250,6 +250,21 @@ public interface Beagle {
             final int cumulativeScaleIndex
     );
 
+
+    /**
+     * Copy scale factors
+     *
+     * This function copies scale factors from one buffer to another.
+     *
+     * @param instance                  Instance number (input)
+     * @param destScalingIndex          Destination scaleBuffer (input)
+     * @param srcScalingIndex           Source scaleBuffer (input)
+     */
+    void copyScaleFactors(
+        int destScalingIndex,
+        int srcScalingIndex
+    );    
+
     /**
      * Reset scalefactors
      *
