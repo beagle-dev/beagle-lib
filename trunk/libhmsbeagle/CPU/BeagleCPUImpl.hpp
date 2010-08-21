@@ -248,11 +248,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_SCALING_AUTO;
         kFlags |= BEAGLE_FLAG_SCALERS_LOG;
         kScaleBufferCount = kInternalPartialsBufferCount;
-    } else
-    if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALING_ALWAYS || requirementFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
         kFlags |= BEAGLE_FLAG_SCALING_ALWAYS;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
         kScaleBufferCount = kInternalPartialsBufferCount + 1; // +1 for temp buffer used by edgelikelihood
+    } else if (preferenceFlags & BEAGLE_FLAG_SCALING_DYNAMIC || requirementFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        kFlags |= BEAGLE_FLAG_SCALING_DYNAMIC;
+        kFlags |= BEAGLE_FLAG_SCALERS_RAW;
     } else if (preferenceFlags & BEAGLE_FLAG_SCALERS_LOG || requirementFlags & BEAGLE_FLAG_SCALERS_LOG) {
         kFlags |= BEAGLE_FLAG_SCALING_MANUAL;
     	kFlags |= BEAGLE_FLAG_SCALERS_LOG;
@@ -336,8 +338,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         
         for (int i = 0; i < kScaleBufferCount; i++) {
             gScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * scaleBufferSize);
+            
             if (gScaleBuffers[i] == 0L)
                 throw std::bad_alloc();
+
+            
+            if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+                for (int j=0; j < scaleBufferSize; j++) {
+                    gScaleBuffers[i][j] = 1.0;
+                }
+            }
         }
     }
         
@@ -694,6 +704,12 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = gScaleBuffers[parIndex - kTipCount];
+        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) { // TODO: this is a quick and dirty implementation just so it returns correct results
+            if (tipStates1 == 0 && tipStates2 == 0) {
+                rescale = 1;
+                removeScaleFactors(&readScalingIndex, 1, cumulativeScaleIndex);
+                scalingFactors = gScaleBuffers[writeScalingIndex];
+            }
         } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = gScaleBuffers[writeScalingIndex];
@@ -1932,7 +1948,7 @@ const char* BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::getName() {
 BEAGLE_CPU_TEMPLATE
 const long BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::getFlags() {
     long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
                  BEAGLE_FLAG_THREADING_NONE |
                  BEAGLE_FLAG_PROCESSOR_CPU |
                  BEAGLE_FLAG_VECTOR_NONE |
