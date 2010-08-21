@@ -442,6 +442,19 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    copyScaleFactors
+ * Signature: (II)II
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_copyScaleFactors
+(JNIEnv *env, jobject obj, jint instance, jint destScalingIndex, jint srcScalingIndex) {
+
+	jint errCode = (jint)beagleCopyScaleFactors(instance, destScalingIndex, srcScalingIndex);
+	return errCode;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoods
  * Signature: (I[I[D[DI[D)I
  */

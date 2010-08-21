@@ -182,6 +182,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void copyScaleFactors(int destScalingIndex, int srcScalingIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.copyScaleFactors(instance, destScalingIndex, srcScalingIndex);
+        if (errCode != 0) {
+            throw new BeagleException("copyScaleFactors", errCode);
+        }
+    }
+
     public void resetScaleFactors(int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.resetScaleFactors(instance, cumulativeScaleIndex);
         if (errCode != 0) {

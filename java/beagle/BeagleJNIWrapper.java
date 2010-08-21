@@ -107,6 +107,10 @@ public class BeagleJNIWrapper {
     public native int resetScaleFactors(final int instance,
                                         final int cumulativeScalingIndex);
 
+    public native int copyScaleFactors(final int instance,
+                                       final int destScalingIndex,
+                                       final int srcScalingIndex);
+
     public native int calculateRootLogLikelihoods(int instance,
                                                   final int[] bufferIndices,
                                                   final int[] categoryWeightsIndices,

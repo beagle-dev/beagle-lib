@@ -358,6 +358,10 @@ public class GeneralBeagleImpl implements Beagle {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
 
+    public void copyScaleFactors(int destScalingIndex, int srcScalingIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+    }
+
     public void resetScaleFactors(int cumulativeScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
