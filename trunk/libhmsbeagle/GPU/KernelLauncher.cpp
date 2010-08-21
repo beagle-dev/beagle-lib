@@ -223,10 +223,7 @@ void KernelLauncher::LoadKernels() {
                     "kernelPartialsDynamicScaling");
 
             fPartialsDynamicScalingAccumulate = gpu->GetFunction(
-                    "kernelPartialsDynamicScalingAccumulate");
-            
-            fPartialsDynamicScalingAccumulateDifference = gpu->GetFunction(
-                    "kernelPartialsDynamicScalingAccumulateDifference");
+                    "kernelPartialsDynamicScalingAccumulate");            
         }
     } else {
         if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
@@ -243,6 +240,12 @@ void KernelLauncher::LoadKernels() {
                     "kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
         }
     }
+    
+    fPartialsDynamicScalingAccumulateDifference = gpu->GetFunction(
+           "kernelPartialsDynamicScalingAccumulateDifference");
+
+    fPartialsDynamicScalingAccumulateReciprocal = gpu->GetFunction(
+           "kernelPartialsDynamicScalingAccumulateReciprocal");
 
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
     
@@ -424,7 +427,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
             }
-            gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
+            gpu->LaunchKernel(fPartialsDynamicScalingAccumulateReciprocal,
                               bgScaleBlock, bgScaleGrid,
                               3, 4,
                               partials3, dScalingFactors[writeScalingIndex], cumulativeScaling,

@@ -64,6 +64,7 @@ private:
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingAccumulate;
     GPUFunction fPartialsDynamicScalingAccumulateDifference;
+    GPUFunction fPartialsDynamicScalingAccumulateReciprocal;
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
