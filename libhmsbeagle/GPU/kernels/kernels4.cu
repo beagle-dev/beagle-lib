@@ -270,7 +270,7 @@ __global__ void kernelPartialsPartialsFixedCheckScale(REAL* partials1,
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
         
-        REAL tmpPartial = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
+        REAL tmpPartial = sum1 * sum2 * fixedScalingFactors[patIdx * 4 + pat];
         
         partials3[u] = tmpPartial;
 
@@ -1091,6 +1091,78 @@ __global__ void kernelPartialsDynamicScalingAccumulate(REAL* allPartials,
         
 }
 
+
+__global__ void kernelPartialsDynamicScalingAccumulateReciprocal(REAL* allPartials,
+                                                       REAL* scalingFactors,
+                                                       REAL* cumulativeScaling,
+                                                       int matrixCount) {
+    int tx = threadIdx.x;
+    
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+                             
+    int patIdx = blockIdx.x;
+    
+    int pattern = (patIdx << 2) + pat;
+    int matrix = threadIdx.y;
+    // TODO: Assumes matrixCount < MATRIX_BLOCK_SIZ
+    
+    // Patterns are always padded, so no reading/writing past end possible
+    // Find start of patternBlock for thread-block
+    int partialsOffset = (matrix * gridDim.x + patIdx) << 4; //* 16;
+
+    __shared__ REAL partials[MATRIX_BLOCK_SIZE][16]; // 4 patterns at a time
+    __shared__ REAL storedPartials[MATRIX_BLOCK_SIZE][16];
+
+    __shared__ REAL matrixMax[4];
+    
+    if (matrix < matrixCount)
+        partials[matrix][tx] = allPartials[partialsOffset + tx];          
+
+    storedPartials[matrix][tx] = partials[matrix][tx];
+           
+    __syncthreads();
+    
+    // Unrolled parallel max-reduction
+    if (state < 2) {
+        REAL compare1 = partials[matrix][tx];
+        REAL compare2 = partials[matrix][tx + 2];
+        if (compare2 > compare1)
+            partials[matrix][tx] = compare2;
+    }
+    __syncthreads();
+    
+    if (state < 1) {
+        REAL compare1 = partials[matrix][tx];
+        REAL compare2 = partials[matrix][tx + 1];
+        if (compare2 > compare1)
+            partials[matrix][tx] = compare2;
+    }
+    __syncthreads();
+ 
+    // Could also parallel-reduce here.
+    if (state == 0 && matrix == 0) {
+        matrixMax[pat] = 0;
+        int m;
+        for(m = 0; m < matrixCount; m++) {
+            if (partials[m][tx] > matrixMax[pat])
+                matrixMax[pat] = partials[m][tx];
+        }
+        
+        if (matrixMax[pat] == 0)
+        	matrixMax[pat] = 1.0;
+   
+        scalingFactors[pattern] = 1/matrixMax[pat]; 
+        cumulativeScaling[pattern] += log(matrixMax[pat]);
+    }
+
+    __syncthreads();
+
+    if (matrix < matrixCount)
+        allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
+        
+}
+
 /*
  * Find a scaling factor for each pattern and accumulate into buffer
  */
@@ -1229,9 +1301,9 @@ __global__ void kernelPartialsDynamicScalingAccumulateDifference(REAL* allPartia
         if (matrixMax[pat] == 0)
         	matrixMax[pat] = 1.0;
    
-        scalingFactors[pattern] = matrixMax[pat]; 
+        scalingFactors[pattern] = 1/matrixMax[pat]; 
         REAL currentFactors = existingScalingFactors[pattern];
-        cumulativeScaling[pattern] += (log(matrixMax[pat]) - log(currentFactors));
+        cumulativeScaling[pattern] += (log(matrixMax[pat]) + log(currentFactors));
     }
 
     __syncthreads();
