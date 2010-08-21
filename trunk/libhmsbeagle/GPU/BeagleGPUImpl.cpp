@@ -105,7 +105,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
     hStatesCache = NULL;
     hMatrixCache = NULL;
     
-    hdRescalingTrigger = NULL;
+    hRescalingTrigger = NULL;
+    dRescalingTrigger = (GPUPtr)NULL;
 }
 
 BeagleGPUImpl::~BeagleGPUImpl() {
@@ -192,7 +193,7 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         free(hStatesCache);
         
         if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-            gpu->FreePinnedHostMemory(hdRescalingTrigger);
+            gpu->FreePinnedHostMemory(hRescalingTrigger);
         }
         
 #ifdef BEAGLE_MEMORY_PINNED
@@ -417,7 +418,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
             dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
-            hdRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
+            hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
+            dRescalingTrigger = gpu->GetDevicePointer((void*) hRescalingTrigger);
         } else {
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
@@ -1142,12 +1144,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
-        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {            
-            if (tipStates1 == 0 && tipStates2 == 0) {
-                rescale = 3;
-                existingScalingFactors = dScalingFactors[readScalingIndex];
-                scalingFactors = dScalingFactors[writeScalingIndex];
-            }
         } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
@@ -1197,11 +1193,19 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                                                              kPaddedPatternCount, kCategoryCount,
                                                              rescale);
             } else {
-                kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
-                                                               matrices1, matrices2, scalingFactors, existingScalingFactors,
-                                                               cumulativeScalingBuffer, 
-                                                               kPaddedPatternCount, kCategoryCount,
-                                                               rescale, hdRescalingTrigger);
+                if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+                    kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
+                                                                   matrices1, matrices2, writeScalingIndex, readScalingIndex,
+                                                                   dScalingFactors, cumulativeScalingBuffer, 
+                                                                   kPaddedPatternCount, kCategoryCount,
+                                                                   rescale, hRescalingTrigger, dRescalingTrigger);
+                } else {
+                    kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
+                                                                   matrices1, matrices2, scalingFactors,
+                                                                   cumulativeScalingBuffer, 
+                                                                   kPaddedPatternCount, kCategoryCount,
+                                                                   rescale);
+                }
             }
         }
         

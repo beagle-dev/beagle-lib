@@ -160,6 +160,9 @@ void KernelLauncher::LoadKernels() {
     
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
             "kernelPartialsPartialsCheckScale");
+
+    fPartialsPartialsByPatternBlockFixedCheckScaling = gpu->GetFunction(
+           "kernelPartialsPartialsFixedCheckScale");
     
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelStatesPartialsNoScale");
@@ -221,6 +224,9 @@ void KernelLauncher::LoadKernels() {
 
             fPartialsDynamicScalingAccumulate = gpu->GetFunction(
                     "kernelPartialsDynamicScalingAccumulate");
+            
+            fPartialsDynamicScalingAccumulateDifference = gpu->GetFunction(
+                    "kernelPartialsDynamicScalingAccumulateDifference");
         }
     } else {
         if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
@@ -385,67 +391,90 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtr,
 #endif
 
 
+void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1,
+                                                           GPUPtr partials2,
+                                                           GPUPtr partials3,
+                                                           GPUPtr matrices1,
+                                                           GPUPtr matrices2,
+                                                           GPUPtr writeScalingIndex,
+                                                           GPUPtr readScalingIndex,
+                                                           GPUPtr* dScalingFactors,
+                                                           GPUPtr cumulativeScaling,
+                                                           unsigned int patternCount,
+                                                           unsigned int categoryCount,
+                                                           int doRescaling,
+                                                           int* hRescalingTrigger,
+                                                           GPUPtr dRescalingTrigger) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
+#endif
+    
+    if (dScalingFactors[readScalingIndex] == 0) {
+        *hRescalingTrigger = 0;
+        // Compute partials without any rescaling but check values
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockCheckScaling,
+                          bgPeelingBlock, bgPeelingGrid,
+                          6, 7,
+                          partials1, partials2, partials3, matrices1, matrices2, dRescalingTrigger,
+                          patternCount);            
+
+        gpu->Synchronize();
+//        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
+        if (*hRescalingTrigger) { // check if any partials need rescaling
+            if (dScalingFactors[writeScalingIndex] == 0) {
+                dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
+            }
+            gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
+                              bgScaleBlock, bgScaleGrid,
+                              3, 4,
+                              partials3, dScalingFactors[writeScalingIndex], cumulativeScaling,
+                              categoryCount);
+        }
+    } else {
+        *hRescalingTrigger = 0;
+        // Compute partials with known rescalings        
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedCheckScaling,
+                          bgPeelingBlock, bgPeelingGrid,
+                          7, 8,
+                          partials1, partials2, partials3, matrices1, matrices2,
+                          dScalingFactors[readScalingIndex], dRescalingTrigger,
+                          patternCount);        
+        
+        gpu->Synchronize();
+//        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
+        if (*hRescalingTrigger) { // check if any partials need rescaling
+            if (dScalingFactors[writeScalingIndex] == 0) {
+                dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
+            }
+            gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
+                              bgScaleBlock, bgScaleGrid,
+                              4, 5,
+                              partials3, dScalingFactors[writeScalingIndex], dScalingFactors[readScalingIndex], cumulativeScaling,
+                              categoryCount);
+        }
+    }
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
+#endif
+    
+}
+
 void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr partials2,
                                                            GPUPtr partials3,
                                                            GPUPtr matrices1,
                                                            GPUPtr matrices2,
                                                            GPUPtr scalingFactors,
-                                                           GPUPtr existingScalingFactors,
                                                            GPUPtr cumulativeScaling,
                                                            unsigned int patternCount,
                                                            unsigned int categoryCount,
-                                                           int doRescaling,
-                                                           int* hdRescalingTrigger) {
+                                                           int doRescaling) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicScaling\n");
 #endif
     
-    if (doRescaling == 3) { // dynamic-rescaling
-        
-        if (existingScalingFactors == 0) {
-            *hdRescalingTrigger = 0;
-            // Compute partials without any rescaling but check values
-            gpu->LaunchKernel(fPartialsPartialsByPatternBlockCheckScaling,
-                              bgPeelingBlock, bgPeelingGrid,
-                              6, 7,
-                              partials1, partials2, partials3, matrices1, matrices2, gpu->GetDevicePointer((void*)hdRescalingTrigger),
-                              patternCount);            
-
-            gpu->Synchronize();
-//            printf("hdRescalingTrigger %d\n", *hdRescalingTrigger);
-            if (hdRescalingTrigger) { // check if any partials need rescaling
-//                if (scalingFactors == 0)
-//                    scalingFactors = gpu->AllocateRealMemory(patternCount);
-//                gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
-//                                  bgScaleBlock, bgScaleGrid,
-//                                  3, 4,
-//                                  partials3, scalingFactors, cumulativeScaling,
-//                                  categoryCount);
-            }
-        } else {
-//            *hdRescalingTrigger = 0;
-//            // Compute partials with known rescalings        
-//            gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedCheckScaling,
-//                              bgPeelingBlock, bgPeelingGrid,
-//                              7, 8,
-//                              partials1, partials2, partials3, matrices1, matrices2,
-//                              existingScalingFactors, gpu->GetDevicePointer((void*)hdRescalingTrigger),
-//                              patternCount);        
-//            
-//            gpu->Synchronize();
-//            if (hdRescalingTrigger) { // check if any partials need rescaling
-//                if (scalingFactors == 0)
-//                    scalingFactors = gpu->AllocateRealMemory(patternCount);
-//                
-//                gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
-//                                  bgScaleBlock, bgScaleGrid,
-//                                  4, 5,
-//                                  partials3, scalingFactors, existingScalingFactors, cumulativeScaling,
-//                                  categoryCount);
-//            }
-        }
-    } else if (doRescaling == 2) { // auto-rescaling
+    if (doRescaling == 2) { // auto-rescaling
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
                           bgPeelingBlock, bgPeelingGrid,
                           6, 7,
@@ -455,10 +484,10 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         
         // Compute partials without any rescaling        
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
-                                   bgPeelingBlock, bgPeelingGrid,
-                                   5, 6,
-                                   partials1, partials2, partials3, matrices1, matrices2,
-                                   patternCount);
+                          bgPeelingBlock, bgPeelingGrid,
+                          5, 6,
+                          partials1, partials2, partials3, matrices1, matrices2,
+                          patternCount);
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
@@ -471,11 +500,11 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         
         // Compute partials with known rescalings        
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedScaling,
-                                   bgPeelingBlock, bgPeelingGrid,
-                                   6, 7,
-                                   partials1, partials2, partials3, matrices1, matrices2,
-                                   scalingFactors,
-                                   patternCount);        
+                          bgPeelingBlock, bgPeelingGrid,
+                          6, 7,
+                          partials1, partials2, partials3, matrices1, matrices2,
+                          scalingFactors,
+                          patternCount);        
     }
     
 #ifdef BEAGLE_DEBUG_FLOW

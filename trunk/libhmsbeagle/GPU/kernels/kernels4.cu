@@ -121,7 +121,7 @@ __global__ void kernelPartialsPartialsCheckScale(REAL* partials1,
                                                                   REAL* partials3,
                                                                   REAL* matrices1,
                                                                   REAL* matrices2,
-                                                                  int* hdRescalingTrigger,
+                                                                  int* dRescalingTrigger,
                                                                   int totalPatterns) {
 		REAL sum1;
 	    REAL sum2;
@@ -186,7 +186,7 @@ __global__ void kernelPartialsPartialsCheckScale(REAL* partials1,
             partials3[u] = tmpPartial;
 
             if (tmpPartial < SCALING_THRESHOLD_LOWER || tmpPartial > SCALING_THRESHOLD_UPPER)
-                *hdRescalingTrigger = 1;
+                *dRescalingTrigger = 1;
             
 //            union {float f; long l;} fl;
 //            fl.f = sum1 * sum2;;
@@ -196,10 +196,90 @@ __global__ void kernelPartialsPartialsCheckScale(REAL* partials1,
 //            int expTmp  = ((fl.l >> 23) & 0x000000ff) - 0x7e;
 //            
 //            if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD)
-//                *hdRescalingTrigger = 1;
+//                *dRescalingTrigger = 1;
 	    }
 
 	}
+
+__global__ void kernelPartialsPartialsFixedCheckScale(REAL* partials1,
+                                                      REAL* partials2,
+                                                      REAL* partials3,
+                                                      REAL* matrices1,
+                                                      REAL* matrices2,
+                                                      REAL* scalingFactors,
+                                                      int* dRescalingTrigger,
+                                                      int totalPatterns) {
+    REAL sum1;
+    REAL sum2;
+    int i;
+
+    DETERMINE_INDICES_4();
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    REAL* matrix2 = matrices2 + x2;
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+    __shared__ REAL sMatrix2[16];
+
+    __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+    __shared__ REAL fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];
+
+    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx * 16 + tx] = partials1[y + tx]; // All coalesced memory reads
+        sPartials2[patIdx * 16 + tx] = partials2[y + tx];
+    } else {
+        sPartials1[patIdx * 16 + tx] = 0;
+        sPartials2[patIdx * 16 + tx] = 0;
+    }
+
+    if (patIdx < 4) // need to load 4*PATTERN_BLOCK_SIZE factors for this block
+        fixedScalingFactors[patIdx * PATTERN_BLOCK_SIZE + tx] =
+            scalingFactors[blockIdx.x * PATTERN_BLOCK_SIZE * 4 + patIdx * PATTERN_BLOCK_SIZE + tx];
+
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+        sMatrix2[tx] = matrix2[tx];
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) { // Remove padded threads!
+
+        i = pat;
+        sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2  = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+
+        i = (++i) & 0x3;
+        sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        
+        REAL tmpPartial = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
+        
+        partials3[u] = tmpPartial;
+
+        if (tmpPartial < SCALING_THRESHOLD_LOWER || tmpPartial > SCALING_THRESHOLD_UPPER)
+            *dRescalingTrigger = 1;
+
+    }
+
+}
     
     
 __global__ void kernelPartialsPartialsAutoScale(REAL* partials1,
@@ -1079,6 +1159,79 @@ __global__ void kernelPartialsDynamicScalingAccumulateScalersLog(REAL* allPartia
             scalingFactors[pattern] = logMax;
             cumulativeScaling[pattern] += logMax; // TODO: Fix, this is both a read and write
         }
+    }
+
+    __syncthreads();
+
+    if (matrix < matrixCount)
+        allPartials[partialsOffset + tx] = storedPartials[matrix][tx] / matrixMax[pat];
+        
+}
+
+__global__ void kernelPartialsDynamicScalingAccumulateDifference(REAL* allPartials,
+                                                                 REAL* scalingFactors,
+                                                                 REAL* existingScalingFactors,
+                                                                 REAL* cumulativeScaling,
+                                                                 int matrixCount) {
+    int tx = threadIdx.x;
+    
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+                             
+    int patIdx = blockIdx.x;
+    
+    int pattern = (patIdx << 2) + pat;
+    int matrix = threadIdx.y;
+    // TODO: Assumes matrixCount < MATRIX_BLOCK_SIZ
+    
+    // Patterns are always padded, so no reading/writing past end possible
+    // Find start of patternBlock for thread-block
+    int partialsOffset = (matrix * gridDim.x + patIdx) << 4; //* 16;
+
+    __shared__ REAL partials[MATRIX_BLOCK_SIZE][16]; // 4 patterns at a time
+    __shared__ REAL storedPartials[MATRIX_BLOCK_SIZE][16];
+
+    __shared__ REAL matrixMax[4];
+    
+    if (matrix < matrixCount)
+        partials[matrix][tx] = allPartials[partialsOffset + tx];          
+
+    storedPartials[matrix][tx] = partials[matrix][tx];
+           
+    __syncthreads();
+    
+    // Unrolled parallel max-reduction
+    if (state < 2) {
+        REAL compare1 = partials[matrix][tx];
+        REAL compare2 = partials[matrix][tx + 2];
+        if (compare2 > compare1)
+            partials[matrix][tx] = compare2;
+    }
+    __syncthreads();
+    
+    if (state < 1) {
+        REAL compare1 = partials[matrix][tx];
+        REAL compare2 = partials[matrix][tx + 1];
+        if (compare2 > compare1)
+            partials[matrix][tx] = compare2;
+    }
+    __syncthreads();
+ 
+    // Could also parallel-reduce here.
+    if (state == 0 && matrix == 0) {
+        matrixMax[pat] = 0;
+        int m;
+        for(m = 0; m < matrixCount; m++) {
+            if (partials[m][tx] > matrixMax[pat])
+                matrixMax[pat] = partials[m][tx];
+        }
+        
+        if (matrixMax[pat] == 0)
+        	matrixMax[pat] = 1.0;
+   
+        scalingFactors[pattern] = matrixMax[pat]; 
+        REAL currentFactors = existingScalingFactors[pattern];
+        cumulativeScaling[pattern] += (log(matrixMax[pat]) - log(currentFactors));
     }
 
     __syncthreads();

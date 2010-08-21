@@ -76,14 +76,15 @@ void runBeagle(int resource,
                int stateCount, 
                int ntaxa, 
                int nsites, 
-               bool scaling, 
+               bool manualScaling, 
                bool autoScaling,
+               bool dynamicScaling,
                int rateCategoryCount,
                int nreps,
                bool fullTiming)
 {
     
-    int scaleCount = (scaling ? ntaxa : 0);
+    int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
     
     BeagleInstanceDetails instDetails;
     
@@ -100,12 +101,12 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-                (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				0,		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
-	    exit(1);
+	    return;
     }
         
     int rNumber = instDetails.resourceNumber;
@@ -239,8 +240,8 @@ void runBeagle(int resource,
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
 		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
-        operations[BEAGLE_OP_COUNT*i+1] = (scaling ? i : BEAGLE_OP_NONE);
-        operations[BEAGLE_OP_COUNT*i+2] = BEAGLE_OP_NONE;
+        operations[BEAGLE_OP_COUNT*i+1] = ((manualScaling || dynamicScaling) ? i : BEAGLE_OP_NONE);
+        operations[BEAGLE_OP_COUNT*i+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
 		operations[BEAGLE_OP_COUNT*i+3] = i*2;
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
 		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
@@ -260,6 +261,11 @@ void runBeagle(int resource,
     
     double logL = 0.0;
     
+    int cumulativeScalingFactorIndex = ((manualScaling || dynamicScaling) ? ntaxa-1 : BEAGLE_OP_NONE);
+
+    if (dynamicScaling)
+        beagleResetScaleFactors(instance, cumulativeScalingFactorIndex);
+    
     for (int i=0; i<nreps; i++){
         gettimeofday(&time1,NULL);
 
@@ -278,27 +284,23 @@ void runBeagle(int resource,
         beagleUpdatePartials( instance,      // instance
                         (BeagleOperation*)operations,     // eigenIndex
                         ntaxa-1,              // operationCount
-                        BEAGLE_OP_NONE);             // cumulative scaling index
+                        (dynamicScaling ? ntaxa-1 : BEAGLE_OP_NONE));             // cumulative scaling index
 
         gettimeofday(&time3, NULL);
 
         int scalingFactorsCount = ntaxa-1;
-        
-        int cumulativeScalingFactorIndex = (scaling ? ntaxa-1 : BEAGLE_OP_NONE);
-        
-        
-        if (scaling && !autoScaling) {
+                
+        if (manualScaling) {
             beagleResetScaleFactors(instance,
-                                   cumulativeScalingFactorIndex);
+                                    cumulativeScalingFactorIndex);
             
             beagleAccumulateScaleFactors(instance,
                                    scalingFactorsIndices,
                                    scalingFactorsCount,
                                    cumulativeScalingFactorIndex);
-        }
-        
-        if (autoScaling)
+        } else if (autoScaling) {
             beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
+        }
 
         gettimeofday(&time4, NULL);
         
@@ -352,7 +354,7 @@ void runBeagle(int resource,
         printTiming(bestTimeUpdateTransitionMatrices, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";
         printTiming(bestTimeUpdatePartials, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
-        if (scaling || autoScaling) {
+        if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
         }
@@ -372,9 +374,9 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--rsrc <integer>] [--reps <integer>] [--full-timing]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--full-timing]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
-    std::cerr << "If --manualscale or --autoscale is specified, BEAGLE will rescale the partials during computation\n\n";
+    std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
 	std::exit(0);
 }
@@ -386,6 +388,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* nsites,
                                     bool* manualScaling,
                                     bool* autoScaling,
+                                    bool* dynamicScaling,
                                     int* rateCategoryCount,
                                     int* rsrc,
                                     int* nreps,
@@ -424,6 +427,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *manualScaling = true;
         } else if (option == "--autoscale") {
         	*autoScaling = true;
+        } else if (option == "--dynamicscale") {
+        	*dynamicScaling = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
         } else if (option == "--taxa") {
@@ -489,6 +494,7 @@ int main( int argc, const char* argv[] )
     int nsites = 10000;
     bool manualScaling = false;
     bool autoScaling = false;
+    bool dynamicScaling = false;
 
     int rsrc = -1;
     int nreps = 5;
@@ -496,7 +502,7 @@ int main( int argc, const char* argv[] )
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -504,7 +510,7 @@ int main( int argc, const char* argv[] )
     else
         std::cout << stateCount << "-state data";
     std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":"")) << ")\n\n";
+    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ")\n\n";
 
     if (rsrc != -1) {
         runBeagle(rsrc,
@@ -513,6 +519,7 @@ int main( int argc, const char* argv[] )
                   nsites,
                   manualScaling,
                   autoScaling,
+                  dynamicScaling,
                   rateCategoryCount,
                   nreps,
                   fullTiming);        
@@ -526,6 +533,7 @@ int main( int argc, const char* argv[] )
                           nsites,
                           manualScaling,
                           autoScaling,
+                          dynamicScaling,
                           rateCategoryCount,
                           nreps,
                           fullTiming);                      
@@ -537,6 +545,7 @@ int main( int argc, const char* argv[] )
                       nsites,
                       manualScaling,
                       autoScaling,
+                      dynamicScaling,
                       rateCategoryCount,
                       nreps,
                       fullTiming);

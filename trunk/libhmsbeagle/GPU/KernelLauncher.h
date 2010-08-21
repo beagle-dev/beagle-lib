@@ -46,6 +46,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
+    GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
     GPUFunction fStatesStatesByPatternBlockCoherent;
@@ -62,6 +63,7 @@ private:
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingAccumulate;
+    GPUFunction fPartialsDynamicScalingAccumulateDifference;
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
@@ -137,18 +139,31 @@ public:
                                           unsigned int index);    
 #endif
     
+    void PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1,
+                                                    GPUPtr partials2,
+                                                    GPUPtr partials3,
+                                                    GPUPtr matrices1,
+                                                    GPUPtr matrices2,
+                                                    GPUPtr writeScalingIndex,
+                                                    GPUPtr readScalingIndex,
+                                                    GPUPtr* dScalingFactors,
+                                                    GPUPtr cumulativeScaling,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount,
+                                                    int doRescaling,
+                                                    int* hRescalingTrigger,
+                                                    GPUPtr dRescalingTrigger);
+    
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
                                                GPUPtr partials3,
                                                GPUPtr matrices1,
                                                GPUPtr matrices2,
                                                GPUPtr scalingFactors,
-                                               GPUPtr existingScalingFactors,
                                                GPUPtr cumulativeScaling,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
-                                               int doRescaling,
-                                               int* hdRescalingTrigger);
+                                               int doRescaling);
     
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,
