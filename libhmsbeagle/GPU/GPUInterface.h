@@ -113,6 +113,10 @@ public:
     void MemcpyDeviceToHost(void* dest,
                             const GPUPtr src,
                             int memSize);
+    
+    void MemcpyDeviceToDevice(GPUPtr dest,
+                              GPUPtr src,
+                              int memSize);
 
     void FreePinnedHostMemory(void* hPtr);
     

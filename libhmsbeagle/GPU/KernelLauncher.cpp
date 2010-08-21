@@ -399,10 +399,11 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                                                            GPUPtr partials3,
                                                            GPUPtr matrices1,
                                                            GPUPtr matrices2,
-                                                           GPUPtr writeScalingIndex,
-                                                           GPUPtr readScalingIndex,
+                                                           int writeScalingIndex,
+                                                           int readScalingIndex,
+                                                           int cumulativeScalingIndex,
                                                            GPUPtr* dScalingFactors,
-                                                           GPUPtr cumulativeScaling,
+                                                           GPUPtr* dScalingFactorsMaster,
                                                            unsigned int patternCount,
                                                            unsigned int categoryCount,
                                                            int doRescaling,
@@ -411,7 +412,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
 #endif
-    
+
     if (dScalingFactors[readScalingIndex] == 0) {
         *hRescalingTrigger = 0;
         // Compute partials without any rescaling but check values
@@ -424,13 +425,21 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
         gpu->Synchronize();
 //        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
+            if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
+                dScalingFactors[writeScalingIndex] = dScalingFactorsMaster[writeScalingIndex];
+
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
+                dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
             }
+            
+            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+                dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+            
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateReciprocal,
                               bgScaleBlock, bgScaleGrid,
                               3, 4,
-                              partials3, dScalingFactors[writeScalingIndex], cumulativeScaling,
+                              partials3, dScalingFactors[writeScalingIndex], dScalingFactors[cumulativeScalingIndex],
                               categoryCount);
         }
     } else {
@@ -446,14 +455,24 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
         gpu->Synchronize();
 //        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
+            if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
+                dScalingFactors[writeScalingIndex] = dScalingFactorsMaster[writeScalingIndex];
+            
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
+                dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
             }
+            
+            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+                dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+            
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
                               bgScaleBlock, bgScaleGrid,
                               4, 5,
-                              partials3, dScalingFactors[writeScalingIndex], dScalingFactors[readScalingIndex], cumulativeScaling,
+                              partials3, dScalingFactors[writeScalingIndex], dScalingFactors[readScalingIndex], dScalingFactors[cumulativeScalingIndex],
                               categoryCount);
+        } else if (readScalingIndex != writeScalingIndex) {
+            dScalingFactors[writeScalingIndex] = dScalingFactors[readScalingIndex];
         }
     }
     

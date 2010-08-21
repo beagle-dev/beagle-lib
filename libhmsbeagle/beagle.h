@@ -568,6 +568,19 @@ BEAGLE_DLLEXPORT int beagleResetScaleFactors(int instance,
                             int cumulativeScaleIndex);
 
 /**
+ * @brief Copy scale factors
+ *
+ * This function copies scale factors from one buffer to another.
+ *
+ * @param instance                  Instance number (input)
+ * @param destScalingIndex          Destination scaleBuffer (input)
+ * @param srcScalingIndex           Source scaleBuffer (input)
+ */
+BEAGLE_DLLEXPORT int beagleCopyScaleFactors(int instance,
+                                            int destScalingIndex,
+                                            int srcScalingIndex);
+    
+/**
  * @brief Calculate site log likelihoods at a root node
  *
  * This function integrates a list of partials at a node with respect to a set of partials-weights

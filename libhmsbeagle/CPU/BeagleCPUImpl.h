@@ -242,6 +242,9 @@ public:
 
     int resetScaleFactors(int cumulativeScalingIndex);
 
+    int copyScaleFactors(int destScalingIndex,
+                         int srcScalingIndex);    
+    
     // calculate the site log likelihoods at a particular node
     //
     // rootNodeIndex the index of the root

@@ -1068,6 +1068,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetScaleFactors(int cumulativeScalingIn
 	 }
     return BEAGLE_SUCCESS;
 }
+    
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::copyScaleFactors(int destScalingIndex,
+                                                        int srcScalingIndex) {
+    memcpy(gScaleBuffers[destScalingIndex],gScaleBuffers[srcScalingIndex],sizeof(REALTYPE) * kPatternCount);
+
+    return BEAGLE_SUCCESS;
+}
 
 BEAGLE_CPU_TEMPLATE
     int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
