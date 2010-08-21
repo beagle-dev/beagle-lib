@@ -782,6 +782,26 @@ int beagleResetScaleFactors(int instance,
 //    }
 }
 
+int beagleCopyScaleFactors(int instance,
+                           int destScalingIndex,
+                           int srcScalingIndex) {
+    //    try {
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    return beagleInstance->copyScaleFactors(destScalingIndex, srcScalingIndex);
+    //    }
+    //    catch (std::bad_alloc &) {
+    //        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    //    }
+    //    catch (std::out_of_range &) {
+    //        return BEAGLE_ERROR_OUT_OF_RANGE;
+    //    }
+    //    catch (...) {
+    //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    //    }
+}
+
 int beagleCalculateRootLogLikelihoods(int instance,
                                       const int* bufferIndices,
                                       const int* categoryWeightsIndices,

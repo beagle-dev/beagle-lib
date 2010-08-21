@@ -122,6 +122,9 @@ public:
     
     virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;   
     
+    virtual int copyScaleFactors(int destScalingIndex,
+                                 int srcScalingIndex) = 0; 
+    
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const int* categoryWeightsIndices,
                                             const int* stateFrequenciesIndices,

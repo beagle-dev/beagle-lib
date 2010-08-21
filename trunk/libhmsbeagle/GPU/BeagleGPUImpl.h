@@ -137,6 +137,8 @@ private:
     int* hRescalingTrigger;
     GPUPtr dRescalingTrigger;
     
+    GPUPtr* dScalingFactorsMaster;
+    
 public:    
     BeagleGPUImpl();
     
@@ -221,6 +223,9 @@ public:
                            int cumulativeScalingIndex);
     
     int resetScaleFactors(int cumulativeScalingIndex);
+    
+    int copyScaleFactors(int destScalingIndex,
+                         int srcScalingIndex);
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const int* categoryWeightsIndices,

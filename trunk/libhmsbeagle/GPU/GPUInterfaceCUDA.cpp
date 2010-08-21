@@ -511,6 +511,21 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     
 }
 
+void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
+                                        GPUPtr src,
+                                        int memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToDevice\n");
+#endif    
+    
+    SAFE_CUPP(cuMemcpyDtoD(dest, src, memSize));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToDevice\n");
+#endif    
+    
+}
+
 void GPUInterface::FreePinnedHostMemory(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");

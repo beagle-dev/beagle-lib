@@ -107,6 +107,7 @@ BeagleGPUImpl::BeagleGPUImpl() {
     
     hRescalingTrigger = NULL;
     dRescalingTrigger = (GPUPtr)NULL;
+    dScalingFactorsMaster = NULL;
 }
 
 BeagleGPUImpl::~BeagleGPUImpl() {
@@ -122,8 +123,17 @@ BeagleGPUImpl::~BeagleGPUImpl() {
 
         gpu->FreeMemory(dMatrices[0]);
         
-        if (kScaleBufferCount > 0)
-			gpu->FreeMemory(dScalingFactors[0]);
+        if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+            gpu->FreePinnedHostMemory(hRescalingTrigger);
+            for (int i = 0; i < kScaleBufferCount; i++) {
+                if (dScalingFactorsMaster[i] != 0)
+                    gpu->FreeMemory(dScalingFactorsMaster[i]);
+            }
+            free(dScalingFactorsMaster);
+        } else {
+            if (kScaleBufferCount > 0)
+                gpu->FreeMemory(dScalingFactors[0]);
+        }
         
 		for (int i = 0; i < kBufferCount; i++) {        
 			if (i < kTipCount) { // For the tips
@@ -191,11 +201,7 @@ BeagleGPUImpl::~BeagleGPUImpl() {
         free(hFrequenciesCache);
         free(hPartialsCache);
         free(hStatesCache);
-        
-        if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-            gpu->FreePinnedHostMemory(hRescalingTrigger);
-        }
-        
+                
 #ifdef BEAGLE_MEMORY_PINNED
         gpu->FreePinnedHostMemory(hLogLikelihoodsCache);
         gpu->FreePinnedHostMemory(hMatrixCache);
@@ -418,6 +424,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
             dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
+            dScalingFactorsMaster = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
             hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
             dRescalingTrigger = gpu->GetDevicePointer((void*) hRescalingTrigger);
         } else {
@@ -1132,7 +1139,6 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = (GPUPtr)NULL;
-        GPUPtr existingScalingFactors = (GPUPtr)NULL;
         
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             int sIndex = parIndex - kTipCount;
@@ -1196,7 +1202,7 @@ int BeagleGPUImpl::updatePartials(const int* operations,
                 if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
                     kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
                                                                    matrices1, matrices2, writeScalingIndex, readScalingIndex,
-                                                                   dScalingFactors, cumulativeScalingBuffer, 
+                                                                   cumulativeScalingIndex, dScalingFactors, dScalingFactorsMaster,
                                                                    kPaddedPatternCount, kCategoryCount,
                                                                    rescale, hRescalingTrigger, dRescalingTrigger);
                 } else {
@@ -1278,6 +1284,11 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateScaleFactors\n");
 #endif
     
+    if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+            dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+    } 
+    
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         
         for(int n = 0; n < count; n++) {
@@ -1304,7 +1315,7 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
                                                      1, kPaddedPatternCount);
         }
     #endif
-}
+    }
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
@@ -1329,6 +1340,11 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::removeScaleFactors\n");
 #endif
+    
+    if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+            dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+    } 
     
     for(int n = 0; n < count; n++)
         hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
@@ -1364,8 +1380,13 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
 #endif
 
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        if (dScalingFactors[cumulativeScalingIndex] == 0)
+        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+            dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+        
+        if (dScalingFactors[cumulativeScalingIndex] == 0) {
             dScalingFactors[cumulativeScalingIndex] = gpu->AllocateRealMemory(kScaleBufferSize);
+            dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
+        }
     }
     
     REAL* zeroes = (REAL*) calloc(SIZE_REAL, kPaddedPatternCount);
@@ -1383,6 +1404,28 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::resetScaleFactors\n");
 #endif    
+    
+    return BEAGLE_SUCCESS;
+}
+
+int BeagleGPUImpl::copyScaleFactors(int destScalingIndex,
+                                    int srcScalingIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::copyScaleFactors\n");
+#endif
+
+    if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+        dScalingFactors[destScalingIndex] = dScalingFactors[srcScalingIndex];
+    } else {
+        gpu->MemcpyDeviceToDevice(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], SIZE_REAL*kScaleBufferSize);
+    }
+#ifdef BEAGLE_DEBUG_SYNCH    
+    gpu->Synchronize();
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::copyScaleFactors\n");
+#endif   
     
     return BEAGLE_SUCCESS;
 }
