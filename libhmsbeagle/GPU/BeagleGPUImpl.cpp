@@ -1285,8 +1285,11 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
 #endif
     
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
-            dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
+            gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*kScaleBufferSize);
+            gpu->Synchronize();
+            dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];            
+        }
     } 
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
@@ -1342,8 +1345,11 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
 #endif
     
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+        if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
+            gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*kScaleBufferSize);
+            gpu->Synchronize();
             dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+        }
     } 
     
     for(int n = 0; n < count; n++)

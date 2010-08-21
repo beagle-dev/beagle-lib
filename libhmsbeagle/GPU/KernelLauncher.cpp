@@ -433,8 +433,11 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                 dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
             }
             
-            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
+                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*patternCount);
+                gpu->Synchronize();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+            }
             
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateReciprocal,
                               bgScaleBlock, bgScaleGrid,
@@ -463,8 +466,11 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                 dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
             }
             
-            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex])
+            if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
+                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*patternCount);
+                gpu->Synchronize();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
+            }
             
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
                               bgScaleBlock, bgScaleGrid,
