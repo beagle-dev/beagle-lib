@@ -1150,10 +1150,10 @@ int BeagleGPUImpl::updatePartials(const int* operations,
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
-        } else if (writeScalingIndex >= 0) {
+        } else if ((kFlags & BEAGLE_FLAG_SCALING_MANUAL) && writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = dScalingFactors[writeScalingIndex];
-        } else if (readScalingIndex >= 0) {
+        } else if ((kFlags & BEAGLE_FLAG_SCALING_MANUAL) && readScalingIndex >= 0) {
             rescale = 0;
             scalingFactors = dScalingFactors[readScalingIndex];
         }

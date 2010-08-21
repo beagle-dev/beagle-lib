@@ -396,7 +396,7 @@ void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bo
     
     
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", data, (data + memSize));
+    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", (int)data, ((int)data + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
