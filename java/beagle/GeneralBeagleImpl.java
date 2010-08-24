@@ -153,6 +153,14 @@ public class GeneralBeagleImpl implements Beagle {
 
     }
 
+    public void getTipStates(int tipIndex, int[] states) {
+        assert(tipIndex >= 0 && tipIndex < tipCount);
+        if (this.tipStates[tipIndex] == null) {
+            throw new RuntimeException("Unset tip states");
+        }
+        System.arraycopy(this.tipStates[tipIndex], 0, states, 0, states.length);
+    }
+
     public void setTipPartials(int tipIndex, double[] inPartials) {
         assert(tipIndex >= 0 && tipIndex < tipCount);
         if (this.partials[tipIndex] == null) {
