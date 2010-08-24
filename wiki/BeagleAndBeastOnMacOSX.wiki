@@ -1,0 +1,4 @@
+#summary How to install and run BEAGLE for use with BEAST on Mac
+#labels Featured
+
+[http://beast.bio.ed.ac.uk/BEAGLE_on_Mac_OS_X Details are currently on the BEAST website]
