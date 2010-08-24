@@ -49,6 +49,8 @@ public class BeagleJNIWrapper {
 
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
+    public native int getTipStates(int instance, int tipIndex, final int[] inStates);
+
     public native int setTipPartials(int instance, int tipIndex, final double[] inPartials);
 
     public native int setPartials(int instance, int bufferIndex, final double[] inPartials);

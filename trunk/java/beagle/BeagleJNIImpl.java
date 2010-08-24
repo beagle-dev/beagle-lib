@@ -75,6 +75,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void getTipStates(int tipIndex, final int[] states) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getTipStates(instance, tipIndex, states);
+        if (errCode != 0) {
+            throw new BeagleException("getTipStates", errCode);
+        }
+    }
+
     public void setTipPartials(int tipIndex, final double[] partials) {
         int errCode = BeagleJNIWrapper.INSTANCE.setTipPartials(instance, tipIndex, partials);
         if (errCode != 0) {

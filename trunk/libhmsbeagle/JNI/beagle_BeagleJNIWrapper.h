@@ -49,6 +49,15 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getTipStates
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTipStates
+  (JNIEnv *, jobject, jint, jint, jintArray);
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipPartials
  * Signature: (II[D)I
  */

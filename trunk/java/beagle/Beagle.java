@@ -54,6 +54,21 @@ public interface Beagle {
             final int[] inStates);
 
     /**
+     * Get the compressed state representation for tip node
+     *
+     * This function copies a compact state representation from an instance buffer.
+     * Compact state representation is an array of states: 0 to stateCount - 1 (missing = stateCount).
+     * The inStates array should be patternCount in length (replication across categoryCount is not
+     * required).
+     *
+     * @param tipIndex   Index of destination partialsBuffer (input)
+     * @param outStates   Pointer to compressed states (input)
+     */
+    void getTipStates(
+            int tipIndex,
+            final int[] outStates);
+
+    /**
      * Set an instance partials buffer
      *
      * This function copies an array of partials into an instance buffer. The inPartials array should
@@ -84,7 +99,7 @@ public interface Beagle {
     /**
      * Get partials from an instance buffer
      *
-     * This function copies an array of partials into an instance buffer. The inPartials array should
+     * This function copies an array of partials from an instance buffer. The inPartials array should
      * be stateCount * patternCount * categoryCount in length.
      *
      * @param bufferIndex   Index of destination partialsBuffer (input)

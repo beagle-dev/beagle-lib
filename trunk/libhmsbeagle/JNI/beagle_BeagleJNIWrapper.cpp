@@ -182,6 +182,25 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getTipStates
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTipStates
+(JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray outTipStates)
+{
+	fprintf(stderr,"beagleGetTipStates is not yet implemented\n");
+    exit(0);   
+    
+//    jint *tipStates = env->GetIntArrayElements(outTipStates, NULL);    
+// 
+//	jint errCode = (jint)beagleGetTipStates(instance, tipIndex, (int *)tipStates);
+//    
+//    env->ReleaseIntArrayElements(outTipStates, tipStates, 0);
+//    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipPartials
  * Signature: (II[D)I
  */
