@@ -84,9 +84,9 @@ fi
 dnl Check for OpenMP
 # user option not currently working
 AC_ARG_ENABLE([openmp],
-   [AS_HELP_STRING([--disable-openmp],[disable automatic building of openmp version])])
+   [AS_HELP_STRING([--enable-openmp],[enable automatic building of openmp version])])
 
-AS_IF([test "x$enable_openmp" != "xno"], [
+AS_IF([test "$enable_openmp" = "yes"], [
 	AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
 		[AM_CONDITIONAL(HAVE_OPENMP,false)])
 ],[
