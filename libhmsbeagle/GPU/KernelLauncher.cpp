@@ -158,11 +158,14 @@ void KernelLauncher::LoadKernels() {
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
             "kernelPartialsPartialsFixedScale");
     
+    if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
             "kernelPartialsPartialsCheckScale");
 
+   
     fPartialsPartialsByPatternBlockFixedCheckScaling = gpu->GetFunction(
            "kernelPartialsPartialsFixedCheckScale");
+    }
     
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelStatesPartialsNoScale");
@@ -241,12 +244,14 @@ void KernelLauncher::LoadKernels() {
         }
     }
     
+    if (kPaddedStateCount == 4) { // TODO Temporary
     fPartialsDynamicScalingAccumulateDifference = gpu->GetFunction(
            "kernelPartialsDynamicScalingAccumulateDifference");
 
     fPartialsDynamicScalingAccumulateReciprocal = gpu->GetFunction(
            "kernelPartialsDynamicScalingAccumulateReciprocal");
-
+    }
+    
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
     
     fIntegrateLikelihoodsSecondDeriv = gpu->GetFunction("kernelIntegrateLikelihoodsSecondDeriv");
