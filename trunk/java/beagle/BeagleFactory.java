@@ -91,6 +91,11 @@ public class BeagleFactory {
 //            );
 //        }
 
+        if (!forceJava) {
+            throw new RuntimeException("No acceptable BEAGLE library plugins found. " +
+                    "Make sure that BEAGLE is properly installed or try changing resource requirements.");
+        }
+
         return new GeneralBeagleImpl(tipCount,
                 partialsBufferCount,
                 compactBufferCount,
