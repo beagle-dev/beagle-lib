@@ -65,7 +65,7 @@ public class TinyTest extends TraceCorrelationAssert {
                 branchSiteModel,
                 siteRateModel,
                 branchRateModel,
-                false, PartialsRescalingScheme.AUTO);
+                false, PartialsRescalingScheme.DEFAULT);
 
         double logLikelihood = treeLikelihood.getLogLikelihood();
 
