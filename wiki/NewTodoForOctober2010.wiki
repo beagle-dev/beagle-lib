@@ -1,0 +1,5 @@
+#summary prep work for october meeting
+
+  * A stand-alone hello beagle example (e.g. not embedded within the library)
+  * OpenCL build for windows and linux
+  * think about a short paper?
