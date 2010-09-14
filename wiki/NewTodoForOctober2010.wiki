@@ -7,3 +7,4 @@
   * Solve "Issues"
    # Default scaling on GPU is wack at the moment
   * Finalize current "scaling" techniques -- consider 2nd paper describing approaches.
+  * Turn-off OpenMP as default in build or solve compiler issue
