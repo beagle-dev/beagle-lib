@@ -44,6 +44,8 @@
 
 std::map<int, KernelResource>* kernelMap = NULL;
 
+static int nGpuArchCoresPerSM[] = { -1, 8, 32 };
+
 
 #define SAFE_CUDA(call) { \
                             CUresult error = call; \
@@ -604,16 +606,19 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     unsigned int totalGlobalMemory = 0;
     int clockSpeed = 0;
     int mpCount = 0;
-    
+    int major = 0;
+    int minor = 0;
+
+    SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
     SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, tmpCudaDevice));
-    
+
     sprintf(deviceDescription,
             "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of cores: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5),
             clockSpeed / 1000000.0,
-            8 * mpCount);
+            nGpuArchCoresPerSM[major] * mpCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
