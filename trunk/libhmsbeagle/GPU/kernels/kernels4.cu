@@ -535,6 +535,77 @@ __global__ void kernelStatesPartialsNoScale(int* states1,
 
 }
 
+__global__ void kernelStatesPartialsFixedScale(int* states1,
+                                                                REAL* partials2,
+                                                                REAL* partials3,
+                                                                REAL* matrices1,
+                                                                REAL* matrices2,
+                                                                REAL* scalingFactors,
+                                                                int totalPatterns) {
+    REAL sum1 = 1;
+    REAL sum2;
+    int i;
+
+    DETERMINE_INDICES_4();
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    REAL* matrix2 = matrices2 + x2;
+
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+    __shared__ REAL sMatrix2[16];
+
+    __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+    __shared__ REAL fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];
+
+
+    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
+    if (pattern < totalPatterns) {
+        sPartials2[patIdx * 16 + tx] = partials2[y + tx];
+    } else {
+        sPartials2[patIdx * 16 + tx] = 0;
+    }
+
+    if (patIdx < 4) // need to load 4*PATTERN_BLOCK_SIZE factors for this block
+        fixedScalingFactors[patIdx * PATTERN_BLOCK_SIZE + tx] =
+            scalingFactors[blockIdx.x * PATTERN_BLOCK_SIZE * 4 + patIdx * PATTERN_BLOCK_SIZE + tx];
+
+
+    if (patIdx == 0) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+        sMatrix2[tx] = matrix2[tx];
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) { // Remove padded threads!
+
+        int state1 = states1[pattern];
+
+        if (state1 < PADDED_STATE_COUNT)
+            sum1 = sMatrix1[state1 * 4 + state];
+
+        i = pat;
+        sum2  = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        i = (++i) & 0x3;
+        sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
+        partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
+    }
+
+}
+
+
 
 __global__ void kernelStatesStatesNoScale(int* states1,
                                                               int* states2,
@@ -578,6 +649,58 @@ __global__ void kernelStatesStatesNoScale(int* states1,
         }
     }
 }
+
+__global__ void kernelStatesStatesFixedScale(int* states1,
+                                                              int* states2,
+                                                              REAL* partials3,
+                                                              REAL* matrices1,
+                                                              REAL* matrices2,
+                                                              REAL* scalingFactors,
+                                                              int totalPatterns) {
+
+	DETERMINE_INDICES_4();
+    REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    REAL* matrix2 = matrices2 + x2;
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
+           state, u);
+#endif
+
+    // Load values into shared memory
+    __shared__ REAL sMatrix1[16];
+    __shared__ REAL sMatrix2[16];
+
+    __shared__ REAL fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];
+
+    if (patIdx < 4) // need to load 4*PATTERN_BLOCK_SIZE factors for this block
+        fixedScalingFactors[patIdx * PATTERN_BLOCK_SIZE + tx] =
+            scalingFactors[blockIdx.x * PATTERN_BLOCK_SIZE * 4 + patIdx * PATTERN_BLOCK_SIZE + tx];
+
+
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
+        sMatrix2[tx] = matrix2[tx];
+    }
+
+    __syncthreads();
+
+    if (pattern < totalPatterns) {
+        int state1 = states1[pattern];
+        int state2 = states2[pattern];
+
+        if ( state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix1[state1 * 4 + state] * sMatrix2[state2 * 4 + state] / fixedScalingFactors[patIdx * 4 + pat];
+        } else if (state1 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix1[state1 * 4 + state] / fixedScalingFactors[patIdx * 4 + pat];
+        } else if (state2 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix2[state2 * 4 + state] / fixedScalingFactors[patIdx * 4 + pat];
+        } else {
+            partials3[u] = 1.0 / fixedScalingFactors[patIdx * 4 + pat];
+        }
+    }
+}
+
 
 __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
                                                               REAL* dParentPartials,
