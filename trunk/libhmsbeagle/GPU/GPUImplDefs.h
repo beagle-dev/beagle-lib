@@ -37,6 +37,8 @@
 //#define BEAGLE_DEBUG_SYNCH
 
 #define BEAGLE_MEMORY_PINNED
+//#define BEAGLE_FILL_4_STATE_SCALAR_SS
+//#define BEAGLE_FILL_4_STATE_SCALAR_SP
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
 
