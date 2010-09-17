@@ -574,20 +574,27 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         if (doRescaling > 0) {
             gpu->Synchronize();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
-                                            patternCount, categoryCount, 0);
-                                            //1);
+                                            patternCount, categoryCount,
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
+											1
+#else
+                                            0
+#endif
+                                            );
         }
     } else {
         
         // Compute partials with known rescalings
-//        if (kPaddedStateCount == 4) { // Ignore rescaling
-//
-//            gpu->LaunchKernel(fStatesPartialsByPatternBlockCoherent,
-//                                       bgPeelingBlock, bgPeelingGrid,
-//                                       5, 6,
-//                                       states1, partials2, partials3, matrices1, matrices2,
-//                                       patternCount);
-//        } else {
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
+        if (kPaddedStateCount == 4) { // Ignore rescaling
+
+            gpu->LaunchKernel(fStatesPartialsByPatternBlockCoherent,
+                                       bgPeelingBlock, bgPeelingGrid,
+                                       5, 6,
+                                       states1, partials2, partials3, matrices1, matrices2,
+                                       patternCount);
+        } else {
+#endif
 
             gpu->LaunchKernel(fStatesPartialsByPatternBlockFixedScaling,
                                    bgPeelingBlock, bgPeelingGrid,
@@ -595,7 +602,9 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                    states1, partials2, partials3, matrices1, matrices2,
                                    scalingFactors,
                                    patternCount);
-//        }
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
+        }
+#endif
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -631,21 +640,28 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         if (doRescaling > 0) {
             gpu->Synchronize();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
-                                            patternCount, categoryCount, 0);
-            //1);
+                                            patternCount, categoryCount,
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
+                                            1
+#else
+                                            0
+#endif
+                                            );
         }
         
     } else {
         
         // Compute partials with known rescalings
-//        if (kPaddedStateCount == 4) {
-//
-//            gpu->LaunchKernel(fStatesStatesByPatternBlockCoherent,
-//                                   bgPeelingBlock, bgPeelingGrid,
-//                                   5, 6,
-//                                   states1, states2, partials3, matrices1, matrices2,
-//                                   patternCount);
-//        } else {
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
+        if (kPaddedStateCount == 4) {
+
+            gpu->LaunchKernel(fStatesStatesByPatternBlockCoherent,
+                                   bgPeelingBlock, bgPeelingGrid,
+                                   5, 6,
+                                   states1, states2, partials3, matrices1, matrices2,
+                                   patternCount);
+        } else {
+#endif
 
             gpu->LaunchKernel(fStatesStatesByPatternBlockFixedScaling,
                                    bgPeelingBlock, bgPeelingGrid,
@@ -653,7 +669,9 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                    states1, states2, partials3, matrices1, matrices2,
                                    scalingFactors,
                                    patternCount);
-//        }
+#ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
+        }
+#endif
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -894,23 +912,23 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     
     // TODO: remove fillWithOnes and leave it up to client?
     
-//    // Rescale partials and save scaling factors
-//    if (kPaddedStateCount == 4) {
-//        if (fillWithOnes != 0) {
-//            if (ones == NULL) {
-//                ones = (REAL*) malloc(SIZE_REAL * patternCount);
-//                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
-//                    for(int i = 0; i < patternCount; i++)
-//                        ones[i] = 0.0;
-//                } else {
-//                    for(int i = 0; i < patternCount; i++)
-//                        ones[i] = 1.0;
-//                }
-//            }
-//            gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
-//            return;
-//        }
-//    }
+    // Rescale partials and save scaling factors
+    if (kPaddedStateCount == 4) {
+        if (fillWithOnes != 0) {
+            if (ones == NULL) {
+                ones = (REAL*) malloc(SIZE_REAL * patternCount);
+                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+                    for(int i = 0; i < patternCount; i++)
+                        ones[i] = 0.0;
+                } else {
+                    for(int i = 0; i < patternCount; i++)
+                        ones[i] = 1.0;
+                }
+            }
+            gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
+            return;
+        }
+    }
         
     // TODO: Totally incoherent for kPaddedStateCount == 4
         
