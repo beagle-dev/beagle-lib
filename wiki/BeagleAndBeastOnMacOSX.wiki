@@ -10,7 +10,9 @@ To use BEAGLE with NVidia graphics cards you will need to download and install t
 
 Next you will need to download and install BEAGLE. Open 'Terminal.app' and type:
 
-{{{svn checkout http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib}}}
+{{{
+svn checkout http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
+}}}
 
 This will download BEAGLE into a folder called 'beagle-lib'. Type:
 
