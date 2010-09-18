@@ -8,7 +8,10 @@ You will need the following software to build beagle:
   * autotools (autoconf, automake, etc)
   * pkg-config
   * subversion
+  * Nvidia Toolkit
   * Optional: Nvidia CUDA SDK
+
+To use BEAGLE with NVidia graphics cards you will need to download and install the CUDA driver and tools from [http://www.nvidia.com/object/cuda_get.html http://www.nvidia.com/object/cuda_get.html]. 
 
 == Build from the source repository ==
 
