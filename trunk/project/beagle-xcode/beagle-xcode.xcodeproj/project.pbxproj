@@ -959,6 +959,7 @@
 			isa = PBXProject;
 			buildConfigurationList = 649FE0EF12108B60006E8768 /* Build configuration list for PBXProject "beagle-xcode" */;
 			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,

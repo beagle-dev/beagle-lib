@@ -569,8 +569,8 @@ GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
 }
 
 unsigned int GPUInterface::GetAvailableMemory() {
-    unsigned int availableMem = 0;
-    unsigned int totalMem = 0;
+    size_t availableMem = 0;
+    size_t totalMem = 0;
     SAFE_CUPP(cuMemGetInfo(&availableMem, &totalMem));
     return availableMem;
 }
@@ -603,7 +603,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     
     SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
     
-    unsigned int totalGlobalMemory = 0;
+    size_t totalGlobalMemory = 0;
     int clockSpeed = 0;
     int mpCount = 0;
     int major = 0;
