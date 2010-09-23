@@ -213,10 +213,12 @@ case $host_os in
   
   AM_CXXFLAGS="$AM_CXXFLAGS -DDLS_MACOS"
   
-  # CUDA will only work with i386
   if( test ! x$NVCC = xno )
   then
-     AM_CXXFLAGS="$AM_CXXFLAGS -arch i386"
+    case "$host" in
+      *-darwin10*)
+        NVCCFLAGS+=" -m64"
+     esac
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   # OpenCL requires the 10.6 SDK
