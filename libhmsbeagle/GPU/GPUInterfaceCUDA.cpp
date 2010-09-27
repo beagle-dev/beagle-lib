@@ -225,6 +225,17 @@ void GPUInterface::InitializeKernelMap() {
         0,0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
 
+    KernelResource kernel80 = KernelResource(
+        80,
+        (char*) KERNELS_STRING_80,
+        PATTERN_BLOCK_SIZE_80,
+        MATRIX_BLOCK_SIZE_80,
+        BLOCK_PEELING_SIZE_80,
+        SLOW_REWEIGHING_80,
+        MULTIPLY_BLOCK_SIZE,
+        0,0,0);
+    kernelMap->insert(std::make_pair(80,kernel80));
+
     KernelResource kernel128 = KernelResource(
            128,
            (char*) KERNELS_STRING_128,
@@ -569,9 +580,15 @@ GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
 }
 
 unsigned int GPUInterface::GetAvailableMemory() {
+#if CUDA_VERSION >= 3020
     size_t availableMem = 0;
     size_t totalMem = 0;
     SAFE_CUPP(cuMemGetInfo(&availableMem, &totalMem));
+#else
+    unsigned int availableMem = 0;
+    unsigned int totalMem = 0;
+    SAFE_CUPP(cuMemGetInfo(&availableMem, &totalMem));
+#endif
     return availableMem;
 }
 
@@ -603,7 +620,11 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     
     SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
     
+#if CUDA_VERSION >= 3020
     size_t totalGlobalMemory = 0;
+#else
+    unsigned int totalGlobalMemory = 0;
+#endif
     int clockSpeed = 0;
     int mpCount = 0;
     int major = 0;
