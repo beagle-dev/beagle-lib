@@ -265,6 +265,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     	kPaddedStateCount = 48;    
     else if (kStateCount <= 64)
         kPaddedStateCount = 64;
+    else if (kStateCount <= 80)
+    	kPaddedStateCount = 80;
     else if (kStateCount <= 128)
         kPaddedStateCount = 128;
     else if (kStateCount <= 192)
@@ -1466,6 +1468,11 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         else
             scale = 0;
         
+#ifdef BEAGLE_DEBUG_VALUES
+        fprintf(stderr,"root partials = \n");
+        gpu->PrintfDeviceVector(dPartials[rootNodeIndex], kPaddedPatternCount);
+#endif
+
         if (scale) {
             kernels->IntegrateLikelihoodsDynamicScaling(dIntegrationTmp, dPartials[rootNodeIndex],
                                                         dWeights[categoryWeightsIndex],
@@ -1480,6 +1487,11 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
                                           kPaddedPatternCount, kCategoryCount);
         }
         
+#ifdef BEAGLE_DEBUG_VALUES
+        fprintf(stderr,"before SumSites1 = \n");
+        gpu->PrintfDeviceVector(dIntegrationTmp, kPaddedPatternCount);
+#endif
+
         kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
                                     kPatternCount);
 
@@ -1494,7 +1506,7 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         }    
         
     } else {
-		// TODO: evaluate peformance, maybe break up kernels below for each subsetIndex case
+		// TODO: evaluate performance, maybe break up kernels below for each subsetIndex case
 		
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
 			for(int n = 0; n < count; n++) {
