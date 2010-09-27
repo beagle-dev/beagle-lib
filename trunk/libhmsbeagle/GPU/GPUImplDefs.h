@@ -144,6 +144,14 @@
 #define SMALLEST_POWER_OF_TWO_64      64
 #define SLOW_REWEIGHING_64            0
 
+// PADDED_STATE_COUNT == 80
+#define PATTERN_BLOCK_SIZE_80         8
+#define MATRIX_BLOCK_SIZE_80          8
+#define BLOCK_PEELING_SIZE_80         8
+#define IS_POWER_OF_TWO_80            0
+#define SMALLEST_POWER_OF_TWO_80      128
+#define SLOW_REWEIGHING_80            1
+
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_128        4
 #define MATRIX_BLOCK_SIZE_128         8
@@ -241,6 +249,19 @@
         #define SLOW_REWEIGHING
     #endif
 #else
+#if (STATE_COUNT <= 80) // else if
+    #define PADDED_STATE_COUNT        80
+    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_80
+    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_80
+    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_80
+    #if (IS_POWER_OF_TWO_80 == 1)
+        #define IS_POWER_OF_TWO
+    #endif
+    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_80
+    #if (SLOW_REWEIGHING_80 == 1)
+        #define SLOW_REWEIGHING
+    #endif
+#else
 #if (STATE_COUNT <= 128) // else if
     #define PADDED_STATE_COUNT        128
     #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_128
@@ -266,6 +287,7 @@
     #if (SLOW_REWEIGHING_192 == 1)
         #define SLOW_REWEIGHING
     #endif
+#endif
 #endif
 #endif
 #endif
