@@ -225,16 +225,16 @@ void GPUInterface::InitializeKernelMap() {
         0,0,0);
     kernelMap->insert(std::make_pair(64,kernel64));
 
-    KernelResource kernel80 = KernelResource(
-        80,
-        (char*) KERNELS_STRING_80,
-        PATTERN_BLOCK_SIZE_80,
-        MATRIX_BLOCK_SIZE_80,
-        BLOCK_PEELING_SIZE_80,
-        SLOW_REWEIGHING_80,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(80,kernel80));
+//    KernelResource kernel80 = KernelResource(
+//        80,
+//        (char*) KERNELS_STRING_80,
+//        PATTERN_BLOCK_SIZE_80,
+//        MATRIX_BLOCK_SIZE_80,
+//        BLOCK_PEELING_SIZE_80,
+//        SLOW_REWEIGHING_80,
+//        MULTIPLY_BLOCK_SIZE,
+//        0,0,0);
+//    kernelMap->insert(std::make_pair(80,kernel80));
 
     KernelResource kernel128 = KernelResource(
            128,
