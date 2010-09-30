@@ -86,6 +86,10 @@ int GPUInterface::GetDeviceCount() {
     return openClNumDevices;
 }
 
+bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
+	return false;
+}
+
 void GPUInterface::SetDevice(int deviceNumber,
                              int paddedStateCount
                              int categoryCount,

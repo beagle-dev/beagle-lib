@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 if BUILDCUDA
 lib_LTLIBRARIES= libhmsbeagle-cuda.la 
 libhmsbeagle_cuda_la_SOURCES =  \
-BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
+BeagleGPUImpl.hpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp \
 KernelLauncher.h KernelResource.cpp KernelResource.h \
 CUDAPlugin.h CUDAPlugin.cpp
@@ -19,7 +19,7 @@ endif
 if BUILDOPENCL
 lib_LTLIBRARIES= libhmsbeagle-opencl.la 
 libhmsbeagle_opencl_la_SOURCES =  \
-BeagleGPUImpl.cpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
+BeagleGPUImpl.hpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceOpenCL.cpp  KernelLauncher.cpp \
 KernelLauncher.h KernelResource.cpp KernelResource.h \
 OpenCLPlugin.h OpenCLPlugin.cpp

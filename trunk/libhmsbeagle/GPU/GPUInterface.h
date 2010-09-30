@@ -133,6 +133,8 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
+    bool GetSupportsDoublePrecision(int deviceNumber);
+
     void PrintfDeviceVector(GPUPtr dPtr,
                       int length);
     

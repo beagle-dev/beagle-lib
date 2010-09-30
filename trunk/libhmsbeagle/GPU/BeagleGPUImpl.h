@@ -39,9 +39,13 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
 
+#define BEAGLE_GPU_GENERIC	Real
+#define BEAGLE_GPU_TEMPLATE	template <typename Real>
+
 namespace beagle {
 namespace gpu {
 
+BEAGLE_GPU_TEMPLATE
 class BeagleGPUImpl : public BeagleImpl {
 private:
     GPUInterface* gpu;
@@ -123,16 +127,16 @@ private:
     
     double* hCategoryRates; // Can keep in double-precision
 
-    REAL* hPatternWeightsCache;
+    Real* hPatternWeightsCache;
         
-    REAL* hDistanceQueue;
+    Real* hDistanceQueue;
     
-    REAL* hWeightsCache;
-    REAL* hFrequenciesCache;
-    REAL* hLogLikelihoodsCache;
-    REAL* hPartialsCache;
+    Real* hWeightsCache;
+    Real* hFrequenciesCache;
+    Real* hLogLikelihoodsCache;
+    Real* hPartialsCache;
     int* hStatesCache;
-    REAL* hMatrixCache;
+    Real* hMatrixCache;
     
     int* hRescalingTrigger;
     GPUPtr dRescalingTrigger;
@@ -253,6 +257,7 @@ public:
                            double* outSecondDerivatives);
 };
 
+BEAGLE_GPU_TEMPLATE
 class BeagleGPUImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,
@@ -275,5 +280,7 @@ public:
 
 }	// namespace gpu
 }	// namespace beagle
+
+#include "libhmsbeagle/GPU/BeagleGPUImpl.hpp"
 
 #endif // __BeagleGPUImpl__

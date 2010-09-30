@@ -46,7 +46,8 @@
 using namespace beagle;
 using namespace beagle::gpu;
 
-BeagleGPUImpl::BeagleGPUImpl() {
+BEAGLE_GPU_TEMPLATE
+BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     
     gpu = NULL;
     kernels = NULL;
@@ -110,7 +111,8 @@ BeagleGPUImpl::BeagleGPUImpl() {
     dScalingFactorsMaster = NULL;
 }
 
-BeagleGPUImpl::~BeagleGPUImpl() {
+BEAGLE_GPU_TEMPLATE
+BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
     	
 	if (kInitialized) {
         for (int i=0; i < kEigenDecompCount; i++) {
@@ -219,7 +221,8 @@ BeagleGPUImpl::~BeagleGPUImpl() {
     
 }
 
-int BeagleGPUImpl::createInstance(int tipCount,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
                                   int partialsBufferCount,
                                   int compactBufferCount,
                                   int stateCount,
@@ -266,7 +269,7 @@ int BeagleGPUImpl::createInstance(int tipCount,
     else if (kStateCount <= 64)
         kPaddedStateCount = 64;
     else if (kStateCount <= 80)
-    	kPaddedStateCount = 80;
+		kPaddedStateCount = 80;
     else if (kStateCount <= 128)
         kPaddedStateCount = 128;
     else if (kStateCount <= 192)
@@ -524,7 +527,8 @@ int BeagleGPUImpl::createInstance(int tipCount,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = resourceNumber;
         returnInfo->flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -540,7 +544,8 @@ int BeagleGPUImpl::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setTipStates(int tipIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipStates(int tipIndex,
                                 const int* inStates) {
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -571,7 +576,8 @@ int BeagleGPUImpl::setTipStates(int tipIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setTipPartials(int tipIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex,
                                   const double* inPartials) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTipPartials\n");
@@ -614,7 +620,8 @@ int BeagleGPUImpl::setTipPartials(int tipIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setPartials(int bufferIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
                                const double* inPartials) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setPartials\n");
@@ -655,7 +662,8 @@ int BeagleGPUImpl::setPartials(int bufferIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::getPartials(int bufferIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
 							   int scaleIndex,
                                double* outPartials) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -687,8 +695,8 @@ int BeagleGPUImpl::getPartials(int bufferIndex,
     return BEAGLE_SUCCESS;
 }
 
-
-int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
                                          const double* inInverseEigenVectors,
                                          const double* inEigenValues) {
@@ -772,7 +780,8 @@ int BeagleGPUImpl::setEigenDecomposition(int eigenIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setStateFrequencies(int stateFrequenciesIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setStateFrequencies(int stateFrequenciesIndex,
                                        const double* inStateFrequencies) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setStateFrequencies\n");
@@ -797,7 +806,8 @@ int BeagleGPUImpl::setStateFrequencies(int stateFrequenciesIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setCategoryWeights(int categoryWeightsIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCategoryWeights(int categoryWeightsIndex,
                                       const double* inCategoryWeights) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setCategoryWeights\n");
@@ -823,7 +833,8 @@ int BeagleGPUImpl::setCategoryWeights(int categoryWeightsIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCategoryRates(const double* inCategoryRates) {
 
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
@@ -841,7 +852,8 @@ int BeagleGPUImpl::setCategoryRates(const double* inCategoryRates) {
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setPatternWeights(const double* inPatternWeights) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPatternWeights) {
     
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\tEntering BeagleGPUImpl::setPatternWeights\n");
@@ -864,7 +876,8 @@ int BeagleGPUImpl::setPatternWeights(const double* inPatternWeights) {
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 									   double* outMatrix) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getTransitionMatrix\n");
@@ -898,7 +911,8 @@ int BeagleGPUImpl::getTransitionMatrix(int matrixIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix,
                                        double paddedValue) {
     
@@ -937,7 +951,8 @@ int BeagleGPUImpl::setTransitionMatrix(int matrixIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::setTransitionMatrices(const int* matrixIndices,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIndices,
                                          const double* inMatrices,
                                          const double* paddedValues,
                                          int count) {
@@ -988,8 +1003,8 @@ int BeagleGPUImpl::setTransitionMatrices(const int* matrixIndices,
     return BEAGLE_SUCCESS;
 }
 
-
-int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                             const int* probabilityIndices,
                                             const int* firstDerivativeIndices,
                                             const int* secondDerivativeIndices,
@@ -1106,7 +1121,8 @@ int BeagleGPUImpl::updateTransitionMatrices(int eigenIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::updatePartials(const int* operations,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                   int operationCount,
                                   int cumulativeScalingIndex) {
     
@@ -1266,7 +1282,8 @@ int BeagleGPUImpl::updatePartials(const int* operations,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::waitForPartials(const int* /*destinationPartials*/,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationPartials*/,
                                    int /*destinationPartialsCount*/) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::waitForPartials\n");
@@ -1279,7 +1296,8 @@ int BeagleGPUImpl::waitForPartials(const int* /*destinationPartials*/,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scalingIndices,
 										  int count,
 										  int cumulativeScalingIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1338,7 +1356,8 @@ int BeagleGPUImpl::accumulateScaleFactors(const int* scalingIndices,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndices,
                                         int count,
                                         int cumulativeScalingIndex) {
     
@@ -1381,7 +1400,8 @@ int BeagleGPUImpl::removeScaleFactors(const int* scalingIndices,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::resetScaleFactors(int cumulativeScalingIndex) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::resetScaleFactors\n");
@@ -1416,7 +1436,8 @@ int BeagleGPUImpl::resetScaleFactors(int cumulativeScalingIndex) {
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::copyScaleFactors(int destScalingIndex,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
                                     int srcScalingIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::copyScaleFactors\n");
@@ -1438,7 +1459,8 @@ int BeagleGPUImpl::copyScaleFactors(int destScalingIndex,
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const int* categoryWeightsIndices,
                                                const int* stateFrequenciesIndices,
                                                const int* cumulativeScaleIndices,
@@ -1466,8 +1488,8 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
         else if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE)
             dCumulativeScalingFactor = dScalingFactors[cumulativeScaleIndices[0]];
         else
-            scale = 0;
-        
+        	scale = 0;
+
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr,"root partials = \n");
         gpu->PrintfDeviceVector(dPartials[rootNodeIndex], kPaddedPatternCount);
@@ -1577,7 +1599,8 @@ int BeagleGPUImpl::calculateRootLogLikelihoods(const int* bufferIndices,
     return returnCode;
 }
 
-int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                const int* childBufferIndices,
                                                const int* probabilityIndices,
                                                const int* firstDerivativeIndices,
@@ -1810,7 +1833,8 @@ int BeagleGPUImpl::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
     return returnCode;
 }
 
-int BeagleGPUImpl::getSiteLogLikelihoods(double* outLogLikelihoods) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikelihoods) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getSiteLogLikelihoods\n");
@@ -1830,7 +1854,8 @@ int BeagleGPUImpl::getSiteLogLikelihoods(double* outLogLikelihoods) {
     return BEAGLE_SUCCESS;
 }
 
-int BeagleGPUImpl::getSiteDerivatives(double* outFirstDerivatives,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteDerivatives(double* outFirstDerivatives,
                                       double* outSecondDerivatives) {
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1864,7 +1889,8 @@ int BeagleGPUImpl::getSiteDerivatives(double* outFirstDerivatives,
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleGPUImplFactory public methods
 
-BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
+BEAGLE_GPU_TEMPLATE
+BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
                                               int partialsBufferCount,
                                               int compactBufferCount,
                                               int stateCount,
@@ -1877,7 +1903,7 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
                                               long preferenceFlags,
                                               long requirementFlags,
                                               int* errorCode) {
-    BeagleImpl* impl = new BeagleGPUImpl();
+    BeagleImpl* impl = new BeagleGPUImpl<BEAGLE_GPU_GENERIC>();
     try {
         *errorCode =
             impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
@@ -1900,17 +1926,26 @@ BeagleImpl*  BeagleGPUImplFactory::createImpl(int tipCount,
     return NULL;
 }
 
-const char* BeagleGPUImplFactory::getName() {
+BEAGLE_GPU_TEMPLATE
+const char* BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getName() {
+	if (sizeof(REAL) == 8) {
+		return "GPU-DP";
+	}
     return "GPU";
 }
 
-const long BeagleGPUImplFactory::getFlags() {
-   return BEAGLE_FLAG_COMPUTATION_SYNCH |
-          BEAGLE_FLAG_PRECISION_SINGLE |
+BEAGLE_GPU_TEMPLATE
+const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+   long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_PROCESSOR_GPU |
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+	if (sizeof(Real) == 8)
+		flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+	else
+		flags |= BEAGLE_FLAG_PRECISION_SINGLE;
+	return flags;
 }

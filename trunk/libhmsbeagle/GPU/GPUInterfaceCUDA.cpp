@@ -610,6 +610,16 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 #endif        
 }
 
+bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
+	CUdevice tmpCudaDevice;
+	SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
+
+	int major = 0;
+	int minor = 0;
+	SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
+	return (major >= 2 || (major >= 1 && minor >= 2));
+}
+
 void GPUInterface::GetDeviceDescription(int deviceNumber,
                                         char* deviceDescription) {    
 #ifdef BEAGLE_DEBUG_FLOW
