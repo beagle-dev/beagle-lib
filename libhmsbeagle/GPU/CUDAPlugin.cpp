@@ -15,8 +15,11 @@ CUDAPlugin::CUDAPlugin() :
 Plugin("CUDA", "GPU")
 {
         GPUInterface gpu;
+        bool anyGPUSupportsCUDA = false;
+        bool anyGPUSupportsDP = false;
         if (gpu.Initialize()) {
             int gpuDeviceCount = gpu.GetDeviceCount();
+            anyGPUSupportsCUDA = (gpuDeviceCount > 0);
             for (int i = 0; i < gpuDeviceCount; i++) {
                 int nameDescSize = 256;
                 char* dName = (char*) malloc(sizeof(char) * nameDescSize);
@@ -35,16 +38,27 @@ Plugin("CUDA", "GPU")
                                                      BEAGLE_FLAG_PROCESSOR_GPU |
                                                      BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                                      BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
-                resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
+                // Determine DP capability
+                if (gpu.GetSupportsDoublePrecision(i)) {
+                	resource.supportFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+                	anyGPUSupportsDP = true;
+                }
                 
+                resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
                 beagleResources.push_back(resource);
             }
         }
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories
-	if(beagleResources.size() > 0)
-		beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory());
+//	if(beagleResources.size() > 0) {
+    if (anyGPUSupportsCUDA) {
+		beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float>());
+		if (anyGPUSupportsDP) {
+			// TODO Uncomment when working
+//			beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double>());
+		}
+	}
 }
 
 CUDAPlugin::~CUDAPlugin()
