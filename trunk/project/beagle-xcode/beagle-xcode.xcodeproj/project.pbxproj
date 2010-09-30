@@ -35,7 +35,6 @@
 /* Begin PBXBuildFile section */
 		64020C111214A23400C76EFB /* BeagleCPUPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B5C12149CFE00C76EFB /* BeagleCPUPlugin.cpp */; };
 		64020C121214A24800C76EFB /* BeagleCPUSSEPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B6412149D6600C76EFB /* BeagleCPUSSEPlugin.cpp */; };
-		64020C131214A26700C76EFB /* BeagleGPUImpl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B6D12149DC300C76EFB /* BeagleGPUImpl.cpp */; };
 		64020C141214A26700C76EFB /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7012149DC300C76EFB /* GPUImplHelper.cpp */; };
 		64020C151214A26700C76EFB /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7312149DC300C76EFB /* KernelLauncher.cpp */; };
 		64020C161214A26700C76EFB /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7512149DC300C76EFB /* KernelResource.cpp */; };
@@ -194,7 +193,7 @@
 		64020B6312149D6600C76EFB /* BeagleCPUSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPUSSEImpl.hpp; sourceTree = "<group>"; };
 		64020B6412149D6600C76EFB /* BeagleCPUSSEPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleCPUSSEPlugin.cpp; sourceTree = "<group>"; };
 		64020B6512149D7900C76EFB /* BeagleCPU4StateSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPU4StateSSEImpl.h; sourceTree = "<group>"; };
-		64020B6D12149DC300C76EFB /* BeagleGPUImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleGPUImpl.cpp; sourceTree = "<group>"; };
+		64020B6D12149DC300C76EFB /* BeagleGPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleGPUImpl.hpp; sourceTree = "<group>"; };
 		64020B6E12149DC300C76EFB /* BeagleGPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleGPUImpl.h; sourceTree = "<group>"; };
 		64020B6F12149DC300C76EFB /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GPUImplDefs.h; sourceTree = "<group>"; };
 		64020B7012149DC300C76EFB /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUImplHelper.cpp; sourceTree = "<group>"; };
@@ -502,7 +501,7 @@
 			children = (
 				64020B6F12149DC300C76EFB /* GPUImplDefs.h */,
 				64020B6E12149DC300C76EFB /* BeagleGPUImpl.h */,
-				64020B6D12149DC300C76EFB /* BeagleGPUImpl.cpp */,
+				64020B6D12149DC300C76EFB /* BeagleGPUImpl.hpp */,
 				64020B7112149DC300C76EFB /* GPUImplHelper.h */,
 				64020B7012149DC300C76EFB /* GPUImplHelper.cpp */,
 				64020B7412149DC300C76EFB /* KernelLauncher.h */,
@@ -1003,7 +1002,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "\ncd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\necho \"Making state count = 4\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 128 192\ndo\n\techo \"Making state count = $s\"\n\t/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -I$BEAGLE_SOURCE_ROOT -DCUDA\n\techo \"#define KERNELS_STRING_$s \\\"\\\\\" >> BeagleCUDA_kernels.h\n\tcat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\techo \"\\\"\" >> BeagleCUDA_kernels.h\ndone\n";
+			shellScript = "\ncd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels.ptx\nrm -f BeagleCUDA_kernels.h\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels.h\n\n# \tCompile 4-state model\necho \"Making state count = 4\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_4 \\\"\\\\\" >> BeagleCUDA_kernels.h\ncat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\necho \"\\\"\" >> BeagleCUDA_kernels.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\n\techo \"Making state count = $s\"\n\t/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -I$BEAGLE_SOURCE_ROOT -DCUDA\n\techo \"#define KERNELS_STRING_$s \\\"\\\\\" >> BeagleCUDA_kernels.h\n\tcat BeagleCUDA_kernels.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels.h\n\techo \"\\\"\" >> BeagleCUDA_kernels.h\ndone\n";
 		};
 		640C784C1211B00400B62295 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1058,7 +1057,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				64020C131214A26700C76EFB /* BeagleGPUImpl.cpp in Sources */,
 				64020C141214A26700C76EFB /* GPUImplHelper.cpp in Sources */,
 				64020C151214A26700C76EFB /* KernelLauncher.cpp in Sources */,
 				64020C161214A26700C76EFB /* KernelResource.cpp in Sources */,
