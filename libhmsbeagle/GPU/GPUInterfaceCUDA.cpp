@@ -41,6 +41,18 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
+#define LOAD_KERNEL_INTO_MAP(state, prec, map, id) \
+	    KernelResource kernel##state##prec = KernelResource( \
+	        state, \
+	        (char*) KERNELS_STRING_##prec##_##state, \
+	        PATTERN_BLOCK_SIZE_##state, \
+	        MATRIX_BLOCK_SIZE_##state, \
+	        BLOCK_PEELING_SIZE_##state, \
+	        SLOW_REWEIGHING_##state, \
+	        MULTIPLY_BLOCK_SIZE, \
+	        0,0,0); \
+	    map->insert(std::make_pair(id,kernel##state##prec));
+
 
 std::map<int, KernelResource>* kernelMap = NULL;
 
@@ -71,6 +83,7 @@ GPUInterface::GPUInterface() {
     cudaContext = NULL;
     cudaModule = NULL;
     kernelResource = NULL;
+    supportDoublePrecision = false;
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
@@ -169,94 +182,27 @@ void GPUInterface::InitializeKernelMap() {
 #endif
 
     kernelMap = new std::map<int, KernelResource>;
-    
-    KernelResource kernel4 = KernelResource(
-        4,
-        (char*) KERNELS_STRING_4,
-        PATTERN_BLOCK_SIZE_4,
-        MATRIX_BLOCK_SIZE_4,
-        BLOCK_PEELING_SIZE_4,
-        SLOW_REWEIGHING_4,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(4,kernel4));
-    
-    KernelResource kernel16 = KernelResource(
-        16,
-        (char*) KERNELS_STRING_16,
-        PATTERN_BLOCK_SIZE_16,
-        MATRIX_BLOCK_SIZE_16,
-        BLOCK_PEELING_SIZE_16,
-        SLOW_REWEIGHING_16,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(16,kernel16));
-    
-    KernelResource kernel32 = KernelResource(
-        32,
-        (char*) KERNELS_STRING_32,
-        PATTERN_BLOCK_SIZE_32,
-        MATRIX_BLOCK_SIZE_32,
-        BLOCK_PEELING_SIZE_32,
-        SLOW_REWEIGHING_32,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(32,kernel32));
-    
-    KernelResource kernel48 = KernelResource(
-        48,
-        (char*) KERNELS_STRING_48,
-        PATTERN_BLOCK_SIZE_48,
-        MATRIX_BLOCK_SIZE_48,
-        BLOCK_PEELING_SIZE_48,
-        SLOW_REWEIGHING_48,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(48,kernel48));
-    
-    KernelResource kernel64 = KernelResource(
-        64,
-        (char*) KERNELS_STRING_64,
-        PATTERN_BLOCK_SIZE_64,
-        MATRIX_BLOCK_SIZE_64,
-        BLOCK_PEELING_SIZE_64,
-        SLOW_REWEIGHING_64,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(64,kernel64));
 
-    KernelResource kernel80 = KernelResource(
-        80,
-        (char*) KERNELS_STRING_80,
-        PATTERN_BLOCK_SIZE_80,
-        MATRIX_BLOCK_SIZE_80,
-        BLOCK_PEELING_SIZE_80,
-        SLOW_REWEIGHING_80,
-        MULTIPLY_BLOCK_SIZE,
-        0,0,0);
-    kernelMap->insert(std::make_pair(80,kernel80));
+    LOAD_KERNEL_INTO_MAP(4,   SP, kernelMap, 4  );
+    LOAD_KERNEL_INTO_MAP(16,  SP, kernelMap, 16 );
+    LOAD_KERNEL_INTO_MAP(32,  SP, kernelMap, 32 );
+    LOAD_KERNEL_INTO_MAP(48,  SP, kernelMap, 48 );
+    LOAD_KERNEL_INTO_MAP(64,  SP, kernelMap, 64 );
+    LOAD_KERNEL_INTO_MAP(80,  SP, kernelMap, 80 );
+    LOAD_KERNEL_INTO_MAP(128, SP, kernelMap, 128);
+    LOAD_KERNEL_INTO_MAP(192, SP, kernelMap, 192);
 
-    KernelResource kernel128 = KernelResource(
-           128,
-           (char*) KERNELS_STRING_128,
-           PATTERN_BLOCK_SIZE_128,
-           MATRIX_BLOCK_SIZE_128,
-           BLOCK_PEELING_SIZE_128,
-           SLOW_REWEIGHING_128,
-           MULTIPLY_BLOCK_SIZE,
-           0,0,0);
-       kernelMap->insert(std::make_pair(128,kernel128));
-
-    KernelResource kernel192 = KernelResource(
-           192,
-           (char*) KERNELS_STRING_192,
-           PATTERN_BLOCK_SIZE_192,
-           MATRIX_BLOCK_SIZE_192,
-           BLOCK_PEELING_SIZE_192,
-           SLOW_REWEIGHING_192,
-           MULTIPLY_BLOCK_SIZE,
-           0,0,0);
-       kernelMap->insert(std::make_pair(192,kernel192));
+    if (supportDoublePrecision) {
+    	// TODO Uncomment when written
+//        LOAD_KERNEL_INTO_MAP(4,   DP, kernelMap, -4  );
+//        LOAD_KERNEL_INTO_MAP(16,  DP, kernelMap, -16 );
+//        LOAD_KERNEL_INTO_MAP(32,  DP, kernelMap, -32 );
+//        LOAD_KERNEL_INTO_MAP(48,  DP, kernelMap, -48 );
+//        LOAD_KERNEL_INTO_MAP(64,  DP, kernelMap, -64 );
+//        LOAD_KERNEL_INTO_MAP(80,  DP, kernelMap, -80 );
+//        LOAD_KERNEL_INTO_MAP(128, DP, kernelMap, -128);
+//        LOAD_KERNEL_INTO_MAP(192, DP, kernelMap, -192);
+    }
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
@@ -279,19 +225,17 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
         InitializeKernelMap();
     }
     
-    if (kernelMap->count(paddedStateCount) == 0) {
+    int id = paddedStateCount;
+    if (flags & BEAGLE_FLAG_PRECISION_DOUBLE) {
+    	id *= -1;
+    }
+
+    if (kernelMap->count(id) == 0) {
     	fprintf(stderr,"Critical error: unable to find kernel code for %d states.\n",paddedStateCount);
     	exit(-1);
     }
     
-//    kernel.paddedStateCount = paddedStateCount;
-//    kernel.kernelCode = kernelMap[paddedStateCount].kernelCode;
-//    kernel.patternBlockSize = kernelMap[paddedStateCount].patternBlockSize;
-//    kernel.matrixBlockSize = kernelMap[paddedStateCount].matrixBlockSize;
-//    kernel.blockPeelingSize = kernelMap[paddedStateCount].blockPeelingSize;
-//    kernel.slowReweighing = kernelMap[paddedStateCount].slowReweighing;
-//    kernel.multiplyBlockSize = kernelMap[paddedStateCount].multiplyBlockSize;
-    kernelResource = (*kernelMap)[paddedStateCount].copy();
+    kernelResource = (*kernelMap)[id].copy();
     kernelResource->categoryCount = categoryCount;
     kernelResource->patternCount = paddedPatternCount;
     kernelResource->flags = flags;

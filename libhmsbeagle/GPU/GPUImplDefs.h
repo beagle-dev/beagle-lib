@@ -97,9 +97,6 @@
 /* Table of pre-optimized compiler definitions
  */
 
-// state count independent
-#define SUM_SITES_BLOCK_SIZE 128
-
 // PADDED_STATE_COUNT == 4
 #define PATTERN_BLOCK_SIZE_4          16
 #define MATRIX_BLOCK_SIZE_4           8
@@ -107,8 +104,6 @@
 #define IS_POWER_OF_TWO_4             1
 #define SMALLEST_POWER_OF_TWO_4       4
 #define SLOW_REWEIGHING_4             0
-
-// PADDED_STATE_COUNT == 8 TODO
 
 // PADDED_STATE_COUNT == 16
 // TODO: find optimal settings
@@ -168,135 +163,34 @@
 #define SMALLEST_POWER_OF_TWO_192     256
 #define SLOW_REWEIGHING_192           1
 
-
-
-
-#if (STATE_COUNT == 4)
-    #define PADDED_STATE_COUNT        4
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_4
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_4
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_4
-    #if (IS_POWER_OF_TWO_4 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_4
-    #if (SLOW_REWEIGHING_4 == 1)
-        #define SLOW_REWEIGHING
-    #endif
+#ifdef STATE_COUNT
+#if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192)
+	#define PADDED_STATE_COUNT	STATE_COUNT
 #else
-#if (STATE_COUNT <= 8)  // else if
-    #define PADDED_STATE_COUNT        8
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_8
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_8
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_8
-    #if (IS_POWER_OF_TWO_8 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_8
-    #if (SLOW_REWEIGHING_8 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 16) // else if
-    #define PADDED_STATE_COUNT        16
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_16
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_16
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_16
-    #if (IS_POWER_OF_TWO_16 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_16
-    #if (SLOW_REWEIGHING_16 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 32) // else if
-    #define PADDED_STATE_COUNT        32
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_32
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_32
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_32
-    #if (IS_POWER_OF_TWO_32 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_32
-    #if (SLOW_REWEIGHING_32 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 48) // else if
-    #define PADDED_STATE_COUNT        48
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_48
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_48
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_48
-    #if (IS_POWER_OF_TWO_48 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_48
-    #if (SLOW_REWEIGHING_48 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 64) // else if
-    #define PADDED_STATE_COUNT        64
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_64
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_64
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_64
-    #if (IS_POWER_OF_TWO_64 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_64
-    #if (SLOW_REWEIGHING_64 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 80) // else if
-    #define PADDED_STATE_COUNT        80
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_80
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_80
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_80
-    #if (IS_POWER_OF_TWO_80 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_80
-    #if (SLOW_REWEIGHING_80 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 128) // else if
-    #define PADDED_STATE_COUNT        128
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_128
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_128
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_128
-    #if (IS_POWER_OF_TWO_128 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_128
-    #if (SLOW_REWEIGHING_128 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#else
-#if (STATE_COUNT <= 192) // else if
-    #define PADDED_STATE_COUNT        192
-    #define PATTERN_BLOCK_SIZE        PATTERN_BLOCK_SIZE_192
-    #define MATRIX_BLOCK_SIZE         MATRIX_BLOCK_SIZE_192
-    #define BLOCK_PEELING_SIZE        BLOCK_PEELING_SIZE_192
-    #if (IS_POWER_OF_TWO_192 == 1)
-        #define IS_POWER_OF_TWO
-    #endif
-    #define SMALLEST_POWER_OF_TWO     SMALLEST_POWER_OF_TWO_192
-    #if (SLOW_REWEIGHING_192 == 1)
-        #define SLOW_REWEIGHING
-    #endif
-#endif
-#endif
-#endif
-#endif
-#endif
-#endif
-#endif
+	#error *** Precompiler directive state count not defined ***
 #endif
 #endif
 
+// Need nested macros: first for replacement, second for evaluation
+#define GET_NO_CALL(x, y)	x##_##y
+#define	GET_VALUE(x, y)		GET_NO_CALL(x, y)
+
+#define PATTERN_BLOCK_SIZE		GET_VALUE(PATTERN_BLOCK_SIZE, PADDED_STATE_COUNT)
+#define MATRIX_BLOCK_SIZE		GET_VALUE(MATRIX_BLOCK_SIZE, PADDED_STATE_COUNT)
+#define BLOCK_PEELING_SIZE		GET_VALUE(BLOCK_PEELING_SIZE, PADDED_STATE_COUNT)
+#define CHECK_IS_POWER_OF_TWO	GET_VALUE(IS_POWER_OF_TWO, PADDED_STATE_COUNT)
+#if (CHECK_IS_POWER_OF_TWO == 1)
+	#define IS_POWER_OF_TWO
+#endif
+#define SMALLEST_POWER_OF_TWO	GET_VALUE(SMALLEST_POWER_OF_TWO, PADDED_STATE_COUNT)
+#define CHECK_SLOW_REWEIGHING	GET_VALUE(SLOW_REWEIGHING, PADDED_STATE_COUNT)
+#if (CHECK_SLOW_REWEIGHING == 1)
+#define SLOW_REWEIGHING
+#endif
+
+
+// State count independent
+#define SUM_SITES_BLOCK_SIZE 128
 #define MULTIPLY_BLOCK_SIZE 16
 
 #define MEMCNV(to, from, length, toType)    { \
