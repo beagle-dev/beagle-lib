@@ -287,8 +287,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
     int resultPaddedPatterns = 0;
-    if (kPaddedStateCount == 4 && kPaddedPatternCount % PATTERN_BLOCK_SIZE_4 != 0) 
-        resultPaddedPatterns = PATTERN_BLOCK_SIZE_4 - kPaddedPatternCount % PATTERN_BLOCK_SIZE_4;
+    int patternBlockSizeFour = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
+    if (kPaddedStateCount == 4 && kPaddedPatternCount % patternBlockSizeFour != 0)
+        resultPaddedPatterns = patternBlockSizeFour - kPaddedPatternCount % patternBlockSizeFour;
         
     kScaleBufferSize = kPaddedPatternCount;
     
@@ -320,8 +321,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }    
     
-    kSumSitesBlockCount = kPatternCount / SUM_SITES_BLOCK_SIZE;
-    if (kPatternCount % SUM_SITES_BLOCK_SIZE != 0)
+    int sumSitesBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? SUM_SITES_BLOCK_SIZE_DP : SUM_SITES_BLOCK_SIZE_SP);
+    kSumSitesBlockCount = kPatternCount / sumSitesBlockSize;
+    if (kPatternCount % sumSitesBlockSize != 0)
         kSumSitesBlockCount += 1;
         
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;

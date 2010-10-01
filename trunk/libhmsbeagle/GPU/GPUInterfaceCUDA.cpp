@@ -45,11 +45,11 @@
 	    KernelResource kernel##state##prec = KernelResource( \
 	        state, \
 	        (char*) KERNELS_STRING_##prec##_##state, \
-	        PATTERN_BLOCK_SIZE_##state, \
-	        MATRIX_BLOCK_SIZE_##state, \
-	        BLOCK_PEELING_SIZE_##state, \
-	        SLOW_REWEIGHING_##state, \
-	        MULTIPLY_BLOCK_SIZE, \
+	        PATTERN_BLOCK_SIZE_##prec##_##state, \
+	        MATRIX_BLOCK_SIZE_##prec##_##state, \
+	        BLOCK_PEELING_SIZE_##prec##_##state, \
+	        SLOW_REWEIGHING_##prec##_##state, \
+	        MULTIPLY_BLOCK_SIZE_##prec, \
 	        0,0,0); \
 	    map->insert(std::make_pair(id,kernel##state##prec));
 
