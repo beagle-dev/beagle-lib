@@ -97,71 +97,139 @@
 /* Table of pre-optimized compiler definitions
  */
 
+// SINGLE PRECISION definitions
+
 // PADDED_STATE_COUNT == 4
-#define PATTERN_BLOCK_SIZE_4          16
-#define MATRIX_BLOCK_SIZE_4           8
-#define BLOCK_PEELING_SIZE_4          8
-#define IS_POWER_OF_TWO_4             1
-#define SMALLEST_POWER_OF_TWO_4       4
-#define SLOW_REWEIGHING_4             0
+#define PATTERN_BLOCK_SIZE_SP_4          16
+#define MATRIX_BLOCK_SIZE_SP_4           8
+#define BLOCK_PEELING_SIZE_SP_4          8
+#define IS_POWER_OF_TWO_SP_4             1
+#define SMALLEST_POWER_OF_TWO_SP_4       4
+#define SLOW_REWEIGHING_SP_4             0
 
 // PADDED_STATE_COUNT == 16
 // TODO: find optimal settings
-#define PATTERN_BLOCK_SIZE_16         8
-#define MATRIX_BLOCK_SIZE_16          8
-#define BLOCK_PEELING_SIZE_16         8
-#define IS_POWER_OF_TWO_16            1
-#define SMALLEST_POWER_OF_TWO_16      16
-#define SLOW_REWEIGHING_16            0
+#define PATTERN_BLOCK_SIZE_SP_16         8
+#define MATRIX_BLOCK_SIZE_SP_16          8
+#define BLOCK_PEELING_SIZE_SP_16         8
+#define IS_POWER_OF_TWO_SP_16            1
+#define SMALLEST_POWER_OF_TWO_SP_16      16
+#define SLOW_REWEIGHING_SP_16            0
 
 // PADDED_STATE_COUNT == 32
 // TODO: find optimal settings
-#define PATTERN_BLOCK_SIZE_32         8
-#define MATRIX_BLOCK_SIZE_32          8
-#define BLOCK_PEELING_SIZE_32         8
-#define IS_POWER_OF_TWO_32            1
-#define SMALLEST_POWER_OF_TWO_32      32
-#define SLOW_REWEIGHING_32            0
+#define PATTERN_BLOCK_SIZE_SP_32         8
+#define MATRIX_BLOCK_SIZE_SP_32          8
+#define BLOCK_PEELING_SIZE_SP_32         8
+#define IS_POWER_OF_TWO_SP_32            1
+#define SMALLEST_POWER_OF_TWO_SP_32      32
+#define SLOW_REWEIGHING_SP_32            0
 
 // PADDED_STATE_COUNT == 48
-#define PATTERN_BLOCK_SIZE_48         8
-#define MATRIX_BLOCK_SIZE_48          8
-#define BLOCK_PEELING_SIZE_48         8
-#define IS_POWER_OF_TWO_48            0
-#define SMALLEST_POWER_OF_TWO_48      64
-#define SLOW_REWEIGHING_48            0
+#define PATTERN_BLOCK_SIZE_SP_48         8
+#define MATRIX_BLOCK_SIZE_SP_48          8
+#define BLOCK_PEELING_SIZE_SP_48         8
+#define IS_POWER_OF_TWO_SP_48            0
+#define SMALLEST_POWER_OF_TWO_SP_48      64
+#define SLOW_REWEIGHING_SP_48            0
 
 // PADDED_STATE_COUNT == 64
-#define PATTERN_BLOCK_SIZE_64         8
-#define MATRIX_BLOCK_SIZE_64          8
-#define BLOCK_PEELING_SIZE_64         8
-#define IS_POWER_OF_TWO_64            1
-#define SMALLEST_POWER_OF_TWO_64      64
-#define SLOW_REWEIGHING_64            0
+#define PATTERN_BLOCK_SIZE_SP_64         8
+#define MATRIX_BLOCK_SIZE_SP_64          8
+#define BLOCK_PEELING_SIZE_SP_64         8
+#define IS_POWER_OF_TWO_SP_64            1
+#define SMALLEST_POWER_OF_TWO_SP_64      64
+#define SLOW_REWEIGHING_SP_64            0
 
 // PADDED_STATE_COUNT == 80
-#define PATTERN_BLOCK_SIZE_80         8
-#define MATRIX_BLOCK_SIZE_80          8
-#define BLOCK_PEELING_SIZE_80         8
-#define IS_POWER_OF_TWO_80            0
-#define SMALLEST_POWER_OF_TWO_80      128
-#define SLOW_REWEIGHING_80            1
+#define PATTERN_BLOCK_SIZE_SP_80         8
+#define MATRIX_BLOCK_SIZE_SP_80          8
+#define BLOCK_PEELING_SIZE_SP_80         8
+#define IS_POWER_OF_TWO_SP_80            0
+#define SMALLEST_POWER_OF_TWO_SP_80      128
+#define SLOW_REWEIGHING_SP_80            1
 
 // PADDED_STATE_COUNT == 128
-#define PATTERN_BLOCK_SIZE_128        4
-#define MATRIX_BLOCK_SIZE_128         8
-#define BLOCK_PEELING_SIZE_128        2
-#define IS_POWER_OF_TWO_128           1
-#define SMALLEST_POWER_OF_TWO_128     128
-#define SLOW_REWEIGHING_128           1
+#define PATTERN_BLOCK_SIZE_SP_128        4
+#define MATRIX_BLOCK_SIZE_SP_128         8
+#define BLOCK_PEELING_SIZE_SP_128        2
+#define IS_POWER_OF_TWO_SP_128           1
+#define SMALLEST_POWER_OF_TWO_SP_128     128
+#define SLOW_REWEIGHING_SP_128           1
  
 // PADDED_STATE_COUNT == 192
-#define PATTERN_BLOCK_SIZE_192        2
-#define MATRIX_BLOCK_SIZE_192         8
-#define BLOCK_PEELING_SIZE_192        2
-#define IS_POWER_OF_TWO_192           0
-#define SMALLEST_POWER_OF_TWO_192     256
-#define SLOW_REWEIGHING_192           1
+#define PATTERN_BLOCK_SIZE_SP_192        2
+#define MATRIX_BLOCK_SIZE_SP_192         8
+#define BLOCK_PEELING_SIZE_SP_192        2
+#define IS_POWER_OF_TWO_SP_192           0
+#define SMALLEST_POWER_OF_TWO_SP_192     256
+#define SLOW_REWEIGHING_SP_192           1
+
+// DOUBLE PRECISION definitions   TODO None of these have been checked
+
+// PADDED_STATE_COUNT == 4
+#define PATTERN_BLOCK_SIZE_DP_4          16
+#define MATRIX_BLOCK_SIZE_DP_4           8
+#define BLOCK_PEELING_SIZE_DP_4          8
+#define IS_POWER_OF_TWO_DP_4             1
+#define SMALLEST_POWER_OF_TWO_DP_4       4
+#define SLOW_REWEIGHING_DP_4             0
+
+// PADDED_STATE_COUNT == 16
+#define PATTERN_BLOCK_SIZE_DP_16         8
+#define MATRIX_BLOCK_SIZE_DP_16          8
+#define BLOCK_PEELING_SIZE_DP_16         8
+#define IS_POWER_OF_TWO_DP_16            1
+#define SMALLEST_POWER_OF_TWO_DP_16      16
+#define SLOW_REWEIGHING_DP_16            0
+
+// PADDED_STATE_COUNT == 32
+#define PATTERN_BLOCK_SIZE_DP_32         8
+#define MATRIX_BLOCK_SIZE_DP_32          8
+#define BLOCK_PEELING_SIZE_DP_32         8
+#define IS_POWER_OF_TWO_DP_32            1
+#define SMALLEST_POWER_OF_TWO_DP_32      32
+#define SLOW_REWEIGHING_DP_32            0
+
+// PADDED_STATE_COUNT == 48
+#define PATTERN_BLOCK_SIZE_DP_48         8
+#define MATRIX_BLOCK_SIZE_DP_48          8
+#define BLOCK_PEELING_SIZE_DP_48         8
+#define IS_POWER_OF_TWO_DP_48            0
+#define SMALLEST_POWER_OF_TWO_DP_48      64
+#define SLOW_REWEIGHING_DP_48            0
+
+// PADDED_STATE_COUNT == 64
+#define PATTERN_BLOCK_SIZE_DP_64         8
+#define MATRIX_BLOCK_SIZE_DP_64          8
+#define BLOCK_PEELING_SIZE_DP_64         8
+#define IS_POWER_OF_TWO_DP_64            1
+#define SMALLEST_POWER_OF_TWO_DP_64      64
+#define SLOW_REWEIGHING_DP_64            0
+
+// PADDED_STATE_COUNT == 80
+#define PATTERN_BLOCK_SIZE_DP_80         8
+#define MATRIX_BLOCK_SIZE_DP_80          8
+#define BLOCK_PEELING_SIZE_DP_80         8
+#define IS_POWER_OF_TWO_DP_80            0
+#define SMALLEST_POWER_OF_TWO_DP_80      128
+#define SLOW_REWEIGHING_DP_80            1
+
+// PADDED_STATE_COUNT == 128
+#define PATTERN_BLOCK_SIZE_DP_128        4
+#define MATRIX_BLOCK_SIZE_DP_128         8
+#define BLOCK_PEELING_SIZE_DP_128        2
+#define IS_POWER_OF_TWO_DP_128           1
+#define SMALLEST_POWER_OF_TWO_DP_128     128
+#define SLOW_REWEIGHING_DP_128           1
+
+// PADDED_STATE_COUNT == 192
+#define PATTERN_BLOCK_SIZE_DP_192        2
+#define MATRIX_BLOCK_SIZE_DP_192         8
+#define BLOCK_PEELING_SIZE_DP_192        2
+#define IS_POWER_OF_TWO_DP_192           0
+#define SMALLEST_POWER_OF_TWO_DP_192     256
+#define SLOW_REWEIGHING_DP_192           1
 
 #ifdef STATE_COUNT
 #if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192)
@@ -172,26 +240,40 @@
 #endif
 
 // Need nested macros: first for replacement, second for evaluation
-#define GET_NO_CALL(x, y)	x##_##y
-#define	GET_VALUE(x, y)		GET_NO_CALL(x, y)
+#define GET2_NO_CALL(x, y)	x##_##y
+#define	GET2_VALUE(x, y)		GET2_NO_CALL(x, y)
+#define GET_NO_CALL(x, y, z)	x##_##y##_##z
+#define	GET_VALUE(x, y, z)		GET_NO_CALL(x, y, z)
 
-#define PATTERN_BLOCK_SIZE		GET_VALUE(PATTERN_BLOCK_SIZE, PADDED_STATE_COUNT)
-#define MATRIX_BLOCK_SIZE		GET_VALUE(MATRIX_BLOCK_SIZE, PADDED_STATE_COUNT)
-#define BLOCK_PEELING_SIZE		GET_VALUE(BLOCK_PEELING_SIZE, PADDED_STATE_COUNT)
-#define CHECK_IS_POWER_OF_TWO	GET_VALUE(IS_POWER_OF_TWO, PADDED_STATE_COUNT)
+#ifdef DOUBLE_PRECISION
+	#define PREC	DP
+	#error *** Double precision not yet supported ***
+#else
+	#define	PREC	SP
+#endif
+
+#define PATTERN_BLOCK_SIZE		GET_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
+#define MATRIX_BLOCK_SIZE		GET_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
+#define BLOCK_PEELING_SIZE		GET_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT)
+#define CHECK_IS_POWER_OF_TWO	GET_VALUE(IS_POWER_OF_TWO, PREC, PADDED_STATE_COUNT)
 #if (CHECK_IS_POWER_OF_TWO == 1)
 	#define IS_POWER_OF_TWO
 #endif
-#define SMALLEST_POWER_OF_TWO	GET_VALUE(SMALLEST_POWER_OF_TWO, PADDED_STATE_COUNT)
-#define CHECK_SLOW_REWEIGHING	GET_VALUE(SLOW_REWEIGHING, PADDED_STATE_COUNT)
+#define SMALLEST_POWER_OF_TWO	GET_VALUE(SMALLEST_POWER_OF_TWO, PREC, PADDED_STATE_COUNT)
+#define CHECK_SLOW_REWEIGHING	GET_VALUE(SLOW_REWEIGHING, PREC, PADDED_STATE_COUNT)
 #if (CHECK_SLOW_REWEIGHING == 1)
-#define SLOW_REWEIGHING
+	#define SLOW_REWEIGHING
 #endif
 
 
 // State count independent
-#define SUM_SITES_BLOCK_SIZE 128
-#define MULTIPLY_BLOCK_SIZE 16
+#define SUM_SITES_BLOCK_SIZE_DP	128
+#define SUM_SITES_BLOCK_SIZE_SP	128
+#define MULTIPLY_BLOCK_SIZE_DP	16
+#define MULTIPLY_BLOCK_SIZE_SP	16
+
+#define SUM_SITES_BLOCK_SIZE 	GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
+#define MULTIPLY_BLOCK_SIZE 	GET2_VALUE(MULTIPLY_BLOCK_SIZE, PREC)
 
 #define MEMCNV(to, from, length, toType)    { \
                                                 int m; \
