@@ -157,6 +157,8 @@ protected:
 	void InitializeKernelMap();
     
     std::map<int, int>* resourceMap;
+
+    bool supportDoublePrecision;
 };
 
 #endif // __GPUInterface__

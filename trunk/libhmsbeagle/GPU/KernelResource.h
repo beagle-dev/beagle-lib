@@ -43,7 +43,7 @@ public:
         long inFlags
         );
     
-    KernelResource(KernelResource krIn,
+    KernelResource(const KernelResource& krIn,
                    char* inKernelCode);
     
     virtual ~KernelResource();

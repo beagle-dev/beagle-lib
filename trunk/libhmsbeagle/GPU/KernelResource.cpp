@@ -34,7 +34,7 @@ KernelResource::KernelResource(
     flags = inFlags;
 }
 
-KernelResource::KernelResource(KernelResource krIn,
+KernelResource::KernelResource(const KernelResource& krIn,
                                char* inKernelCode) {
     paddedStateCount = krIn.paddedStateCount;
     kernelCode = inKernelCode;
