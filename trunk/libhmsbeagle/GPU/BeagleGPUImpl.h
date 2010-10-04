@@ -255,6 +255,10 @@ public:
     
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
+
+private:
+    char* getInstanceName();
+
 };
 
 BEAGLE_GPU_TEMPLATE
@@ -277,6 +281,9 @@ public:
     virtual const char* getName();
     virtual const long getFlags();
 };
+
+template <typename Real>
+static void modifyFlagsForPrecision(long* flags, Real r);
 
 }	// namespace gpu
 }	// namespace beagle
