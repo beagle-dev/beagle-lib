@@ -2019,12 +2019,10 @@ const char* BeagleGPUImplFactory<float>::getName() {
 	return "GPU-SP";
 }
 
-template<>
 static void modifyFlagsForPrecision(long *flags, double r) {
 	*flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 
-template<>
 static void modifyFlagsForPrecision<float>(long *flags, float r) {
 	*flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
