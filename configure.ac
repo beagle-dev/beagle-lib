@@ -82,13 +82,27 @@ fi
 # Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
-# user option not currently working
+if test x$GCC = xyes
+then
+	AX_GCC_VERSION()
+fi
+
 AC_ARG_ENABLE([openmp],
    [AS_HELP_STRING([--enable-openmp],[enable automatic building of openmp version])])
 
+# if we're on gcc, then make sure the version is at least 4.2.0 because apple ships a 
+# 4.1.x that has broken openmp support
 AS_IF([test "$enable_openmp" = "yes"], [
-	AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+	if test x$GCC = xyes 
+	then 
+		AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.0], [ 
+			AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+			[AM_CONDITIONAL(HAVE_OPENMP,false)])
+		],[])
+	else
+		AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
 		[AM_CONDITIONAL(HAVE_OPENMP,false)])
+	fi
 ],[
 AM_CONDITIONAL(HAVE_OPENMP, test true = false)
 ])
