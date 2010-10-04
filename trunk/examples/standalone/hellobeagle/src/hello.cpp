@@ -43,6 +43,9 @@ void createStates(const string& nucleotides, vector<int>& states){
 	}
 }
 
+/**
+ * begin a simple example to illustrate how the BEAGLE library might be used to calculate likelihood for a three leaf tree
+ */
 int main(int argc, char* argv[]){
 
 	// get the number of site patterns.  These could optionally be compressed
@@ -88,15 +91,13 @@ int main(int argc, char* argv[]){
 
 	// create array of state background frequencies
 	double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+	beagleSetStateFrequencies(instance, 0, freqs);
 
-	// create an array containing site category weights
+	// create an array containing site category weights and rates
 	const double weights[1] = { 1.0 };
 	const double rates[1] = { 1.0 };
-
-	beagleSetStateFrequencies(instance, 0, freqs);
 	beagleSetCategoryWeights(instance, 0, weights);
 	beagleSetCategoryRates(instance, rates);
-
 
 
 	// an eigen decomposition for the JC69 model
@@ -120,6 +121,7 @@ int main(int argc, char* argv[]){
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
 
 	// a list of indices and edge lengths
+	// these get used to tell beagle which edge length goes with which node
 	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.1, 0.1, 0.2, 0.1 };
 
@@ -132,14 +134,16 @@ int main(int argc, char* argv[]){
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-    // create a list of partial likelihood update operations
-    // the order is [dest, sourceScaling, destScaling, source1, matrix1, source2, matrix2]
+	// create a list of partial likelihood update operations
+	// the order is [dest, sourceScaling, destScaling, source1, matrix1, source2, matrix2]
+	// these operations say: first peel node 0 and 1 to calculate the per-site partial likelihoods, and store them
+        // in buffer 3.  Then peel node 2 and buffer 3 and store the per-site partial likelihoods in buffer 4.
 	BeagleOperation operations[2] = {
 		{3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1},
 		{4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3}
 	};
 
-    // update the partials
+	// this invokes all the math to carry out the likelihood calculation
 	beagleUpdatePartials( instance,      // instance
 	                operations,     // eigenIndex
 	                2,              // operationCount
@@ -151,7 +155,9 @@ int main(int argc, char* argv[]){
 	int stateFrequencyIndex[1] = {0};
 	int cumulativeScaleIndex[1] = {BEAGLE_OP_NONE};
 
-    // calculate the site likelihoods at the root node
+	// calculate the site likelihoods at the root node
+	// this integrates the per-site root partial likelihoods across sites, background state frequencies, and rate categories
+	// results in a single log likelihood, output here into logL
 	beagleCalculateRootLogLikelihoods(instance,               // instance
 	                            rootIndex,// bufferIndices
 	                            categoryWeightIndex,                // weights
