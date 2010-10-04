@@ -247,7 +247,6 @@
 
 #ifdef DOUBLE_PRECISION
 	#define PREC	DP
-	#error *** Double precision not yet supported ***
 #else
 	#define	PREC	SP
 #endif
