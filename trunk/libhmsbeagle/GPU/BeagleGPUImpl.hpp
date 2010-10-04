@@ -2023,7 +2023,7 @@ static void modifyFlagsForPrecision(long *flags, double r) {
 	*flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 
-static void modifyFlagsForPrecision<float>(long *flags, float r) {
+static void modifyFlagsForPrecision(long *flags, float r) {
 	*flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
 
