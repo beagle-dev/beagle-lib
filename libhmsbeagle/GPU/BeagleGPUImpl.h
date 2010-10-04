@@ -283,7 +283,7 @@ public:
 };
 
 template <typename Real>
-static void modifyFlagsForPrecision(long* flags, Real r);
+void modifyFlagsForPrecision(long* flags, Real r);
 
 }	// namespace gpu
 }	// namespace beagle

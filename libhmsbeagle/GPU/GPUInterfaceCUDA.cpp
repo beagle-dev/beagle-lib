@@ -79,7 +79,7 @@ GPUInterface::GPUInterface() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::GPUInterface\n");
 #endif    
     
-    cudaDevice = (CUdevice)NULL;
+    cudaDevice = (CUdevice) 0;
     cudaContext = NULL;
     cudaModule = NULL;
     kernelResource = NULL;
@@ -353,7 +353,7 @@ void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bo
     
     
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", data, (data + memSize));
+    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", (int)data, ((int)data + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -606,12 +606,13 @@ void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
     
     MemcpyDeviceToHost(hPtr, dPtr, SIZE_REAL * length);
     
-#ifdef DOUBLE_PRECISION
-    printfVectorD(hPtr, length);
-#else
-    printfVectorF(hPtr,length);
-#endif
-    
+//#ifdef DOUBLE_PRECISION
+//    printfVectorD(hPtr, length);
+//#else
+//    printfVectorF(hPtr,length);
+//#endif
+	printfVector(hPtr, length);
+	
     if (checkValue != -1) {
     	double sum = 0;
     	for(int i=0; i<length; i++) {

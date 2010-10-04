@@ -762,21 +762,21 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
-#ifdef DOUBLE_PRECISION
-    fprintf(stderr, "Eval:\n");
-    printfVectorD(Eval, kEigenValuesSize);
-    fprintf(stderr, "Evec:\n");
-    printfVectorD(Evec, kMatrixSize);
-    fprintf(stderr, "Ievc:\n");
-    printfVectorD(Ievc, kPaddedStateCount * kPaddedStateCount);
-#else
+//#ifdef DOUBLE_PRECISION
+//    fprintf(stderr, "Eval:\n");
+//    printfVectorD(Eval, kEigenValuesSize);
+//    fprintf(stderr, "Evec:\n");
+//    printfVectorD(Evec, kMatrixSize);
+//    fprintf(stderr, "Ievc:\n");
+//    printfVectorD(Ievc, kPaddedStateCount * kPaddedStateCount);
+//#else
     fprintf(stderr, "Eval =\n");
-    printfVectorF(Eval, kEigenValuesSize);
+    printfVector(Eval, kEigenValuesSize);
     fprintf(stderr, "Evec =\n");
-    printfVectorF(Evec, kMatrixSize);
+    printfVector(Evec, kMatrixSize);
     fprintf(stderr, "Ievc =\n");
-    printfVectorF(Ievc, kPaddedStateCount * kPaddedStateCount);   
-#endif
+    printfVector(Ievc, kPaddedStateCount * kPaddedStateCount);   
+//#endif
 #endif
     
     // Copy to GPU device
@@ -2020,12 +2020,12 @@ const char* BeagleGPUImplFactory<float>::getName() {
 }
 
 template<>
-void modifyFlagsForPrecision<double>(long *flags, double r) {
+void modifyFlagsForPrecision(long *flags, double r) {
 	*flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 
 template<>
-void modifyFlagsForPrecision<float>(long *flags, float r) {
+void modifyFlagsForPrecision(long *flags, float r) {
 	*flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
 

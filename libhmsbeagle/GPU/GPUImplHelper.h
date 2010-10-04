@@ -37,17 +37,27 @@ void checkHostMemory(void* ptr);
 /**
  * @brief Transposes a square matrix in place
  */
-void transposeSquareMatrix(REAL* mat,
-                           int size);
+template<typename Real>
+void transposeSquareMatrix(Real* mat,
+                           int size) {
+    for (int i = 0; i < size - 1; i++) {
+        for (int j = i + 1; j < size; j++) {
+            Real tmp = mat[i * size + j];
+            mat[i * size + j] = mat[j * size + i];
+            mat[j * size + i] = tmp;
+        }
+    }
+}
 
-void printfVectorD(double* ptr,
-                   int length);
-
-void printfVectorF(float* ptr,
-                   int length);
-
-void printfVector(REAL* ptr,
-                  int length);
+template<typename Real>
+void printfVector(Real* ptr,
+                  int length) {
+    fprintf(stderr, "[ %1.5e", ptr[0]);
+    int i;
+    for (i = 1; i < length; i++)
+        fprintf(stderr, " %1.5e", ptr[i]);
+    fprintf(stderr, " ]\n");
+}
 
 void printfInt(int* ptr,
                int length);
