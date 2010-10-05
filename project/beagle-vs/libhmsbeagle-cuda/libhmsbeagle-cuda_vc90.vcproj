@@ -522,6 +522,10 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels80.cu"
+						>
+					</File>
+					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu"
 						>
 					</File>
@@ -539,6 +543,38 @@
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels64.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_128.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_16.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_80.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_192.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_32.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_4.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_48.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_64.cu"
 						>
 					</File>
 					<File
