@@ -29,7 +29,7 @@ BUILT_SOURCES = BeagleOpenCL_Kernels.h
 CLEANFILES = BeagleOpenCL_Kernels.h
 
 # rules for building cuda files
-BeagleOpenCL_Kernels.h: Makefile BeagleOpenCL_kernels.cu
+BeagleOpenCL_Kernels.h: Makefile BeagleOpenCL_kernels.cu GPUImplDefs.h
 	echo "// auto-generated header file with OpenCL kernels code" > BeagleOpenCL_kernels.h
 	echo "#define KERNELS_STRING \"\\" >> BeagleOpenCL_kernels.h
 	cat GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
