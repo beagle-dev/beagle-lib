@@ -28,8 +28,11 @@
 
 #ifdef _WIN32
 // needed to export library symbols
-#define BEAGLE_DLLEXPORT __declspec(dllexport)
-
+#ifdef _EXPORTING
+#define BEAGLE_DLLEXPORT __declspec(dllexport) 
+#else
+#define BEAGLE_DLLEXPORT __declspec(dllimport) 
+#endif
 /*
 // automatically include the appropriate beagle library
 	#ifdef _WIN64
