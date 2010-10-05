@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(abs_top_builddir) -I$(abs_top_srcdir)
+INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 
 if BUILDCUDA
 
@@ -8,7 +8,7 @@ CLEANFILES = BeagleCUDA_kernels.h
 STATE_COUNT_LIST = 16 32 48 64 80 128 192
 
 # rules for building cuda files
-BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu
+BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplDefs.h
 	echo "// auto-generated header file with CUDA kernels PTX code" > $(BUILT_SOURCES)
 #
 # Compile single-precision kernels
