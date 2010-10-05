@@ -17,7 +17,7 @@ That's all!
 
 == A slightly more complex example ==
 
-If writing a new beagle app from scratch, we recommend starting from the standalone example inside the beagle source tree.  It can be obtained with the following command:
+If writing a new beagle app from scratch, we recommend starting from the standalone example inside the beagle source tree.  The advantage of using this example is that it comes with an autotools build system already set up to use beagle.  It can be obtained with the following command:
 {{{
 svn export https://beagle-lib.googlecode.com/svn/trunk/examples/standalone/hellobeagle hellobeagle 
 }}}
