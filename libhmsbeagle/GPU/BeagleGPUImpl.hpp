@@ -453,9 +453,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     }
     
     
-    dIntegrationTmp = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
-    dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
-    dOutSecondDeriv = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
+    dIntegrationTmp = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+    dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+    dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
 
     dPatternWeights = gpu->AllocateMemory(kPatternCount * sizeof(Real));
     
