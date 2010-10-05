@@ -14,3 +14,12 @@ g++ -o my_fly_beagle_app my_fly_beagle_app.cpp `pkg-config --cflags --libs hmsbe
 Note the use of backticks, that's shell code that runs the command in backticks and pastes the output into the command-line.  The pkg-config command requests the compiler and linker flags to link against the hmsbeagle library, API version 1.0.  If you'd like to link against another installed version of the API, change the version number appropriately.
 
 That's all!
+
+== A slightly more complex example ==
+
+If writing a new beagle app from scratch, we recommend starting from the standalone example inside the beagle source tree.  It can be obtained with the following command:
+{{{
+svn export https://beagle-lib.googlecode.com/svn/trunk/examples/standalone/hellobeagle hellobeagle 
+}}}
+
+At that point, one can start editing the src/hello.cpp file to accomplish the appropriate phylogenetic likelihood calculation task.
