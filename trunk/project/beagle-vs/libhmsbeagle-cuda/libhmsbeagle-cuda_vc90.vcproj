@@ -409,10 +409,6 @@
 				Name="GPU"
 				>
 				<File
-					RelativePath="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.cpp"
-					>
-				</File>
-				<File
 					RelativePath="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.h"
 					>
 				</File>
@@ -522,10 +518,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels80.cu"
-						>
-					</File>
-					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu"
 						>
 					</File>
@@ -546,15 +538,15 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels80.cu"
+						>
+					</File>
+					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_128.cu"
 						>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_16.cu"
-						>
-					</File>
-					<File
-						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_80.cu"
 						>
 					</File>
 					<File
@@ -575,6 +567,10 @@
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_64.cu"
+						>
+					</File>
+					<File
+						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_80.cu"
 						>
 					</File>
 					<File
