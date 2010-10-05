@@ -8,7 +8,7 @@ CLEANFILES = BeagleCUDA_kernels.h
 STATE_COUNT_LIST = 16 32 48 64 80 128 192
 
 # rules for building cuda files
-BeagleCUDA_kernels.h: Makefile
+BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu
 	echo "// auto-generated header file with CUDA kernels PTX code" > $(BUILT_SOURCES)
 #
 # Compile single-precision kernels
@@ -55,11 +55,6 @@ BeagleCUDA_kernels.h: Makefile
 EXTRA_DIST = kernels4.cu kernelsX.cu kernelsAll.cu
 
 libcuda_kernels_la_CXXFLAGS = $(CUDA_CFLAGS)
-
-endif
-
-if BUILDOPENCL
-
 
 endif
 
