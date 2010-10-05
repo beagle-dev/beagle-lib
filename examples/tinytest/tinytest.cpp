@@ -161,7 +161,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                   BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_PROCESSOR_GPU,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                                  0,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
