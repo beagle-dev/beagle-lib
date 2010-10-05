@@ -13,13 +13,12 @@ if exist %OUTFILE% del %OUTFILE%
 echo #ifndef __BeagleCUDA_kernels__ >> %OUTFILE%
 echo #define __BeagleCUDA_kernels__ >> %OUTFILE%
 
-bin2c.exe -st -n KERNELS_STRING_4 data\kernels4.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_16 data\kernels16.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_32 data\kernels32.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_48 data\kernels48.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_64 data\kernels64.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_128 data\kernels128.ptx >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_192 data\kernels192.ptx >> %OUTFILE%
+FOR %%G IN (16 32 48 64 80 128 192) DO (
+
+bin2c.exe -st -n KERNELS_STRING_SP_%%G data\kernels%%G.ptx >> %OUTFILE%
+bin2c.exe -st -n KERNELS_STRING_DP_%%G data\kernels_dp_%%G.ptx >> %OUTFILE%
+
+)
 
 echo #endif 	// __BeagleCUDA_kernels__ >> %OUTFILE%
 
