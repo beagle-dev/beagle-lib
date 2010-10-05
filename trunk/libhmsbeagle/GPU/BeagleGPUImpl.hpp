@@ -321,12 +321,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     } else {
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }
-    
-    if (preferenceFlags & BEAGLE_FLAG_PRECISION_DOUBLE) {
-        kFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
-    } else if (preferenceFlags & BEAGLE_FLAG_PRECISION_SINGLE) {
-        kFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
-    }
+
+    Real r;
+    modifyFlagsForPrecision(&kFlags, r);
     
     int sumSitesBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? SUM_SITES_BLOCK_SIZE_DP : SUM_SITES_BLOCK_SIZE_SP);
     kSumSitesBlockCount = kPatternCount / sumSitesBlockSize;
