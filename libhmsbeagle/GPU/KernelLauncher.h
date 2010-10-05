@@ -154,7 +154,8 @@ public:
                                                     unsigned int categoryCount,
                                                     int doRescaling,
                                                     int* hRescalingTrigger,
-                                                    GPUPtr dRescalingTrigger);
+                                                    GPUPtr dRescalingTrigger,
+                                                    int sizeReal);
     
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,

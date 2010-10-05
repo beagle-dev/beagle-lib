@@ -353,7 +353,7 @@ void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bo
     
     
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d.\n", (int)data, ((int)data + memSize));
+    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d .\n", (long)data, ((long)data + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -598,53 +598,6 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
 #endif    
-}
-
-void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
-                                int length, double checkValue, int *signal) {
-    REAL* hPtr = (REAL*) malloc(SIZE_REAL * length);
-    
-    MemcpyDeviceToHost(hPtr, dPtr, SIZE_REAL * length);
-    
-//#ifdef DOUBLE_PRECISION
-//    printfVectorD(hPtr, length);
-//#else
-//    printfVectorF(hPtr,length);
-//#endif
-	printfVector(hPtr, length);
-	
-    if (checkValue != -1) {
-    	double sum = 0;
-    	for(int i=0; i<length; i++) {
-    		sum += hPtr[i];
-    		if( (hPtr[i] > checkValue) && (hPtr[i]-checkValue > 1.0E-4)) {
-    			fprintf(stderr,"Check value exception!  (%d) %2.5e > %2.5e (diff = %2.5e)\n",
-    					i,hPtr[i],checkValue, (hPtr[i]-checkValue));
-    			if( signal != 0 )
-    				*signal = 1;
-//    			exit(0);    			
-    		}
-    		if (hPtr[i] != hPtr[i]) {
-    			fprintf(stderr,"NaN found!\n");
-    			//exit(0);
-    			if( signal != 0 ) 
-    				*signal = 1;
-    		}
-    	}
-    	if (sum == 0) {
-    		fprintf(stderr,"Zero-sum vector!\n");
-//    		exit(0);
-    		if( signal != 0 )
-    			*signal = 1;
-    	}
-    	
-    }
-    
-    free(hPtr);
-}
-
-void GPUInterface::PrintfDeviceVector(GPUPtr dPtr, int length) {
-	PrintfDeviceVector(dPtr,length,-1, 0);
 }
 
 void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
