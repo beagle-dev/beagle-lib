@@ -56,7 +56,7 @@ Plugin("CUDA", "GPU")
 		beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float>());
 		if (anyGPUSupportsDP) {
 			// TODO Uncomment when working
-			beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double>());
+			//beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double>());
 		}
 	}
 }
