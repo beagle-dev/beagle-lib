@@ -135,16 +135,50 @@ public:
     
     bool GetSupportsDoublePrecision(int deviceNumber);
 
-    void PrintfDeviceVector(GPUPtr dPtr,
-                      int length);
+    template<typename Real>
+    void PrintfDeviceVector(GPUPtr dPtr, int length, Real r) {
+    	PrintfDeviceVector(dPtr,length,-1, 0, r);
+    }
     
+    template<typename Real>
     void PrintfDeviceVector(GPUPtr dPtr,
-                           int length, double checkValue);
+                            int length, double checkValue, Real r);
     
+    template<typename Real>
     void PrintfDeviceVector(GPUPtr dPtr,
                             int length,
                             double checkValue,
-                            int *signal);
+                            int *signal,
+                            Real r) {
+    	Real* hPtr = (Real*) malloc(sizeof(Real) * length);
+
+        MemcpyDeviceToHost(hPtr, dPtr, sizeof(Real) * length);
+    	printfVector(hPtr, length);
+
+        if (checkValue != -1) {
+        	double sum = 0;
+        	for(int i=0; i<length; i++) {
+        		sum += hPtr[i];
+        		if( (hPtr[i] > checkValue) && (hPtr[i]-checkValue > 1.0E-4)) {
+        			fprintf(stderr,"Check value exception!  (%d) %2.5e > %2.5e (diff = %2.5e)\n",
+        					i,hPtr[i],checkValue, (hPtr[i]-checkValue));
+        			if( signal != 0 )
+        				*signal = 1;
+        		}
+        		if (hPtr[i] != hPtr[i]) {
+        			fprintf(stderr,"NaN found!\n");
+        			if( signal != 0 )
+        				*signal = 1;
+        		}
+        	}
+        	if (sum == 0) {
+        		fprintf(stderr,"Zero-sum vector!\n");
+        		if( signal != 0 )
+        			*signal = 1;
+        	}
+        }
+        free(hPtr);
+    }
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);

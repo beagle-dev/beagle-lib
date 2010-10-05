@@ -413,7 +413,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                                                            unsigned int categoryCount,
                                                            int doRescaling,
                                                            int* hRescalingTrigger,
-                                                           GPUPtr dRescalingTrigger) {
+                                                           GPUPtr dRescalingTrigger,
+                                                           int sizeReal) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
 #endif
@@ -434,12 +435,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                 dScalingFactors[writeScalingIndex] = dScalingFactorsMaster[writeScalingIndex];
 
             if (dScalingFactors[writeScalingIndex] == 0) {
-                dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
+                dScalingFactors[writeScalingIndex] = gpu->AllocateMemory(patternCount * sizeReal);
                 dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
             }
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
-                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*patternCount);
+                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal *patternCount);
                 gpu->Synchronize();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
@@ -472,7 +473,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             }
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
-                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], SIZE_REAL*patternCount);
+                gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal * patternCount);
                 gpu->Synchronize();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
@@ -915,18 +916,20 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
     // Rescale partials and save scaling factors
     if (kPaddedStateCount == 4) {
         if (fillWithOnes != 0) {
-            if (ones == NULL) {
-                ones = (REAL*) malloc(SIZE_REAL * patternCount);
-                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
-                    for(int i = 0; i < patternCount; i++)
-                        ones[i] = 0.0;
-                } else {
-                    for(int i = 0; i < patternCount; i++)
-                        ones[i] = 1.0;
-                }
-            }
-            gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
-            return;
+//            if (ones == NULL) {
+//                ones = (REAL*) malloc(SIZE_REAL * patternCount);
+//                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
+//                    for(int i = 0; i < patternCount; i++)
+//                        ones[i] = 0.0;
+//                } else {
+//                    for(int i = 0; i < patternCount; i++)
+//                        ones[i] = 1.0;
+//                }
+//            }
+//            gpu->MemcpyHostToDevice(scalingFactors, ones, SIZE_REAL * patternCount);
+//            return;
+        	fprintf(stderr,"Old legacy code; should not get here!\n");
+        	exit(0);
         }
     }
         

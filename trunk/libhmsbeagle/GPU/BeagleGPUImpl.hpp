@@ -418,7 +418,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
-    dMatrices[0] = gpu->AllocateRealMemory(kMatrixCount * kMatrixSize * kCategoryCount);
+    dMatrices[0] = gpu->AllocateMemory(kMatrixCount * kMatrixSize * kCategoryCount * sizeof(Real));
     
     for (int i = 1; i < kMatrixCount; i++) {
         dMatrices[i] = dMatrices[i-1] + kMatrixSize * kCategoryCount * sizeof(Real);
@@ -437,7 +437,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             dRescalingTrigger = gpu->GetDevicePointer((void*) hRescalingTrigger);
         } else {
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-            dScalingFactors[0] = gpu->AllocateRealMemory(kScaleBufferSize * kScaleBufferCount);
+            dScalingFactors[0] = gpu->AllocateMemory(kScaleBufferSize * kScaleBufferCount * sizeof(Real));
             for (int i=1; i < kScaleBufferCount; i++) {
                 dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(Real);
             }
@@ -445,27 +445,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     }
     
     for(int i=0; i<kEigenDecompCount; i++) {
-    	dEvec[i] = gpu->AllocateRealMemory(kMatrixSize);
-    	dIevc[i] = gpu->AllocateRealMemory(kMatrixSize);
-    	dEigenValues[i] = gpu->AllocateRealMemory(kEigenValuesSize);
-        dWeights[i] = gpu->AllocateRealMemory(kCategoryCount);
-        dFrequencies[i] = gpu->AllocateRealMemory(kPaddedStateCount);
+    	dEvec[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
+    	dIevc[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
+    	dEigenValues[i] = gpu->AllocateMemory(kEigenValuesSize * sizeof(Real));
+        dWeights[i] = gpu->AllocateMemory(kCategoryCount * sizeof(Real));
+        dFrequencies[i] = gpu->AllocateMemory(kPaddedStateCount * sizeof(Real));
     }
     
     
-    dIntegrationTmp = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
-    dOutFirstDeriv = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
-    dOutSecondDeriv = gpu->AllocateRealMemory(kPaddedPatternCount + resultPaddedPatterns);
+    dIntegrationTmp = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
+    dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
+    dOutSecondDeriv = gpu->AllocateMemory(kPaddedPatternCount + resultPaddedPatterns * sizeof(Real));
 
-    dPatternWeights = gpu->AllocateRealMemory(kPatternCount);
+    dPatternWeights = gpu->AllocateMemory(kPatternCount * sizeof(Real));
     
-    dSumLogLikelihood = gpu->AllocateRealMemory(kSumSitesBlockCount);
-    dSumFirstDeriv = gpu->AllocateRealMemory(kSumSitesBlockCount);
-    dSumSecondDeriv = gpu->AllocateRealMemory(kSumSitesBlockCount);
+    dSumLogLikelihood = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+    dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+    dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
     
-    dPartialsTmp = gpu->AllocateRealMemory(kPartialsSize);
-    dFirstDerivTmp = gpu->AllocateRealMemory(kPartialsSize);
-    dSecondDerivTmp = gpu->AllocateRealMemory(kPartialsSize);
+    dPartialsTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+    dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+    dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
     
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount);
@@ -479,11 +479,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
-                dCompactBuffers[i] = gpu->AllocateIntMemory(kPaddedPatternCount);
+                dCompactBuffers[i] = gpu->AllocateMemory(kPaddedPatternCount * sizeof(int));
             if (i < kTipPartialsBufferCount)
-                dTipPartialsBuffers[i] = gpu->AllocateRealMemory(kPartialsSize);
+                dTipPartialsBuffers[i] = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
         } else {
-            dPartials[i] = gpu->AllocateRealMemory(kPartialsSize);
+            dPartials[i] = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
         }
     }
     
@@ -491,9 +491,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
         
     // No execution has more no kBufferCount events
-    dBranchLengths = gpu->AllocateRealMemory(kBufferCount);
+    dBranchLengths = gpu->AllocateMemory(kBufferCount * sizeof(Real));
     
-    dDistanceQueue = gpu->AllocateRealMemory(kMatrixCount * kCategoryCount * 2);
+    dDistanceQueue = gpu->AllocateMemory(kMatrixCount * kCategoryCount * 2 * sizeof(Real));
     hDistanceQueue = (Real*) malloc(sizeof(Real) * kMatrixCount * kCategoryCount * 2);
     checkHostMemory(hDistanceQueue);
     
@@ -507,8 +507,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 	hPatternWeightsCache = (Real*) malloc(sizeof(double) * kPatternCount);
     checkHostMemory(hPatternWeightsCache);
     
-	dMaxScalingFactors = gpu->AllocateRealMemory(kPaddedPatternCount);
-	dIndexMaxScalingFactors = gpu->AllocateIntMemory(kPaddedPatternCount);
+	dMaxScalingFactors = gpu->AllocateMemory(kPaddedPatternCount * sizeof(Real));
+	dIndexMaxScalingFactors = gpu->AllocateMemory(kPaddedPatternCount * sizeof(int));
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
@@ -785,12 +785,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
     gpu->MemcpyHostToDevice(dEigenValues[eigenIndex], Eval, sizeof(Real) * kEigenValuesSize);
     
 #ifdef BEAGLE_DEBUG_VALUES
+    Real r;
     fprintf(stderr, "dEigenValues =\n");
-    gpu->PrintfDeviceVector(dEigenValues[eigenIndex], kEigenValuesSize);
+    gpu->PrintfDeviceVector(dEigenValues[eigenIndex], kEigenValuesSize, r);
     fprintf(stderr, "dEvec =\n");
-    gpu->PrintfDeviceVector(dEvec[eigenIndex], kMatrixSize);
+    gpu->PrintfDeviceVector(dEvec[eigenIndex], kMatrixSize, r);
     fprintf(stderr, "dIevc =\n");
-    gpu->PrintfDeviceVector(dIevc[eigenIndex], kPaddedStateCount * kPaddedStateCount);
+    gpu->PrintfDeviceVector(dIevc[eigenIndex], kPaddedStateCount * kPaddedStateCount, r);
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1128,9 +1129,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 #endif
     
 #ifdef BEAGLE_DEBUG_VALUES
+    Real r;
     for (int i = 0; i < 1; i++) {
         fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
-        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount);
+        gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount, r);
         for(int j=0; j<kCategoryCount; j++)
         	fprintf(stderr, " %1.5f",hCategoryRates[j]);
         fprintf(stderr,"\n");
@@ -1210,15 +1212,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
         fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
         fprintf(stderr, "child1 = \n");
+        Real r;
         if (tipStates1)
             gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
         else
-            gpu->PrintfDeviceVector(partials1, kPartialsSize);
+            gpu->PrintfDeviceVector(partials1, kPartialsSize, r);
         fprintf(stderr, "child2 = \n");
         if (tipStates2)
             gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
         else
-            gpu->PrintfDeviceVector(partials2, kPartialsSize);
+            gpu->PrintfDeviceVector(partials2, kPartialsSize, r);
         fprintf(stderr, "node index = %d\n", parIndex);       
 #endif        
         
@@ -1249,7 +1252,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                                    matrices1, matrices2, writeScalingIndex, readScalingIndex,
                                                                    cumulativeScalingIndex, dScalingFactors, dScalingFactorsMaster,
                                                                    kPaddedPatternCount, kCategoryCount,
-                                                                   rescale, hRescalingTrigger, dRescalingTrigger);
+                                                                   rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
                 } else {
                     kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                    matrices1, matrices2, scalingFactors,
@@ -1276,25 +1279,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
             }
         }
         
-#ifdef BEAGLE_DEBUG_VALUES            
+#ifdef BEAGLE_DEBUG_VALUES
         if (rescale > -1) {
         	fprintf(stderr,"scalars = ");
-        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount);
+        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount, r);
         }
         fprintf(stderr, "parent = \n");
         int signal = 0;
         if (writeScalingIndex == -1)
-        	gpu->PrintfDeviceVector(partials3, kPartialsSize);
+        	gpu->PrintfDeviceVector(partials3, kPartialsSize, r);
         else
-        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0,&signal);
-//        if (signal) {
-//        	fprintf(stderr,"mat1 = ");
-//        	gpu->PrintfDeviceVector(matrices1,kMatrixSize);
-//        	fprintf(stderr,"mat2 = ");
-//        	gpu->PrintfDeviceVector(matrices2,kMatrixSize);
-//        	exit(0);
-//        }
-        
+        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
 #endif
     }
     
@@ -1371,9 +1366,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
     gpu->Synchronize();
 #endif
 
-#ifdef BEAGLE_DEBUG_VALUES    
+#ifdef BEAGLE_DEBUG_VALUES
+    Real r;
     fprintf(stderr, "scaling factors = ");
-    gpu->PrintfDeviceVector(dScalingFactors[cumulativeScalingIndex], kPaddedPatternCount);
+    gpu->PrintfDeviceVector(dScalingFactors[cumulativeScalingIndex], kPaddedPatternCount, r);
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1439,7 +1435,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::resetScaleFactors(int cumulativeScalingIn
             dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
         
         if (dScalingFactors[cumulativeScalingIndex] == 0) {
-            dScalingFactors[cumulativeScalingIndex] = gpu->AllocateRealMemory(kScaleBufferSize);
+            dScalingFactors[cumulativeScalingIndex] = gpu->AllocateMemory(kScaleBufferSize * sizeof(Real));
             dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
         }
     }
@@ -1518,8 +1514,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         	scale = 0;
 
 #ifdef BEAGLE_DEBUG_VALUES
+        Real r;
         fprintf(stderr,"root partials = \n");
-        gpu->PrintfDeviceVector(dPartials[rootNodeIndex], kPaddedPatternCount);
+        gpu->PrintfDeviceVector(dPartials[rootNodeIndex], kPaddedPatternCount, r);
 #endif
 
         if (scale) {
@@ -1538,7 +1535,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr,"before SumSites1 = \n");
-        gpu->PrintfDeviceVector(dIntegrationTmp, kPaddedPatternCount);
+        gpu->PrintfDeviceVector(dIntegrationTmp, kPaddedPatternCount, r);
 #endif
 
         kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
@@ -1614,8 +1611,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
+    Real r;
     fprintf(stderr, "parent = \n");
-    gpu->PrintfDeviceVector(dIntegrationTmp, kPatternCount);    
+    gpu->PrintfDeviceVector(dIntegrationTmp, kPatternCount, r);
 #endif
     
     
