@@ -202,7 +202,7 @@
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_DP_64         8
 #define MATRIX_BLOCK_SIZE_DP_64          8
-#define BLOCK_PEELING_SIZE_DP_64         8
+#define BLOCK_PEELING_SIZE_DP_64         4 // Can use 8 on GTX480
 #define IS_POWER_OF_TWO_DP_64            1
 #define SMALLEST_POWER_OF_TWO_DP_64      64
 #define SLOW_REWEIGHING_DP_64            0
@@ -210,7 +210,7 @@
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_DP_80         8
 #define MATRIX_BLOCK_SIZE_DP_80          8
-#define BLOCK_PEELING_SIZE_DP_80         8
+#define BLOCK_PEELING_SIZE_DP_80         4 // Can use 8 on GTX480
 #define IS_POWER_OF_TWO_DP_80            0
 #define SMALLEST_POWER_OF_TWO_DP_80      128
 #define SLOW_REWEIGHING_DP_80            1
