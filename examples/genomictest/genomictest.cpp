@@ -81,7 +81,8 @@ void runBeagle(int resource,
                bool dynamicScaling,
                int rateCategoryCount,
                int nreps,
-               bool fullTiming)
+               bool fullTiming,
+               bool preferDoublePrecision)
 {
     
     int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
@@ -101,8 +102,8 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-                0,		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),		          /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                (preferDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -392,7 +393,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* rateCategoryCount,
                                     int* rsrc,
                                     int* nreps,
-                                    bool* fullTiming)	{
+                                    bool* fullTiming,
+                                    bool* preferDoublePrecision)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -429,6 +431,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*autoScaling = true;
         } else if (option == "--dynamicscale") {
         	*dynamicScaling = true;
+        } else if (option == "--doubleprecision") {
+        	*preferDoublePrecision = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
         } else if (option == "--taxa") {
@@ -495,6 +499,7 @@ int main( int argc, const char* argv[] )
     bool manualScaling = false;
     bool autoScaling = false;
     bool dynamicScaling = false;
+    bool preferDoublePrecision = false;
 
     int rsrc = -1;
     int nreps = 5;
@@ -502,7 +507,7 @@ int main( int argc, const char* argv[] )
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming, &preferDoublePrecision);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -522,7 +527,8 @@ int main( int argc, const char* argv[] )
                   dynamicScaling,
                   rateCategoryCount,
                   nreps,
-                  fullTiming);        
+                  fullTiming,
+                  preferDoublePrecision);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -536,7 +542,8 @@ int main( int argc, const char* argv[] )
                           dynamicScaling,
                           rateCategoryCount,
                           nreps,
-                          fullTiming);                      
+                          fullTiming,
+                          preferDoublePrecision);
             }
         }else{
             runBeagle(0,
@@ -548,7 +555,8 @@ int main( int argc, const char* argv[] )
                       dynamicScaling,
                       rateCategoryCount,
                       nreps,
-                      fullTiming);
+                      fullTiming,
+                      preferDoublePrecision);
         }
 	}
 
