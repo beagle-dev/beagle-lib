@@ -443,6 +443,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\CUDAPlugin.cpp"
+					>
+				</File>
+				<File
 					RelativePath="..\..\..\libhmsbeagle\GPU\KernelLauncher.cpp"
 					>
 				</File>
