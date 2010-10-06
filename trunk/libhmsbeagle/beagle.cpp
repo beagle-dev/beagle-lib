@@ -318,7 +318,7 @@ int beagleCreateInstance(int tipCount,
         int bestScore = +1;
         possibleResources->sort(); // Attempt in rank order, lowest score wins
         
-        int errorCode;
+        int errorCode = BEAGLE_ERROR_NO_RESOURCE;
         
         // Score each resource-implementation pair given preferences
         for(PairedList::iterator it = possibleResources->begin();
