@@ -322,7 +322,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }
 
-    Real r;
+    Real r = 0;
     modifyFlagsForPrecision(&kFlags, r);
     
     int sumSitesBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? SUM_SITES_BLOCK_SIZE_DP : SUM_SITES_BLOCK_SIZE_SP);
@@ -551,7 +551,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
                             BEAGLE_FLAG_THREADING_NONE |
                             BEAGLE_FLAG_VECTOR_NONE |
                             BEAGLE_FLAG_PROCESSOR_GPU;
-        Real r;
+        Real r = 0;
         modifyFlagsForPrecision(&(returnInfo->flags), r);
 
         returnInfo->flags |= kFlags;        
@@ -788,7 +788,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
     gpu->MemcpyHostToDevice(dEigenValues[eigenIndex], Eval, sizeof(Real) * kEigenValuesSize);
     
 #ifdef BEAGLE_DEBUG_VALUES
-    Real r;
+    Real r = 0;
     fprintf(stderr, "dEigenValues =\n");
     gpu->PrintfDeviceVector(dEigenValues[eigenIndex], kEigenValuesSize, r);
     fprintf(stderr, "dEvec =\n");
@@ -1132,7 +1132,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 #endif
     
 #ifdef BEAGLE_DEBUG_VALUES
-    Real r;
+    Real r = 0;
     for (int i = 0; i < 1; i++) {
         fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
         gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount, r);
@@ -1215,7 +1215,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         fprintf(stderr, "partialSize = %d\n", kPartialsSize);
         fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
         fprintf(stderr, "child1 = \n");
-        Real r;
+        Real r = 0;
         if (tipStates1)
             gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
         else
@@ -1370,7 +1370,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
 #endif
 
 #ifdef BEAGLE_DEBUG_VALUES
-    Real r;
+    Real r = 0;
     fprintf(stderr, "scaling factors = ");
     gpu->PrintfDeviceVector(dScalingFactors[cumulativeScalingIndex], kPaddedPatternCount, r);
 #endif
@@ -1517,7 +1517,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         	scale = 0;
 
 #ifdef BEAGLE_DEBUG_VALUES
-        Real r;
+        Real r = 0;
         fprintf(stderr,"root partials = \n");
         gpu->PrintfDeviceVector(dPartials[rootNodeIndex], kPaddedPatternCount, r);
 #endif
@@ -1614,7 +1614,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
-    Real r;
+    Real r = 0;
     fprintf(stderr, "parent = \n");
     gpu->PrintfDeviceVector(dIntegrationTmp, kPatternCount, r);
 #endif
@@ -2040,7 +2040,7 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 
-	Real r;
+	Real r = 0;
 	modifyFlagsForPrecision(&flags, r);
 	return flags;
 }
