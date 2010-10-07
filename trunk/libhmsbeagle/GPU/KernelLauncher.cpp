@@ -436,7 +436,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
 
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateMemory(patternCount * sizeReal);
-                dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
+                dScalingFactorsMaster[writeScalingIndex] = dScalingFactors[writeScalingIndex];
             }
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
@@ -469,7 +469,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
-                dScalingFactorsMaster[cumulativeScalingIndex] = dScalingFactors[cumulativeScalingIndex];
+                dScalingFactorsMaster[writeScalingIndex] = dScalingFactors[writeScalingIndex];
             }
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
