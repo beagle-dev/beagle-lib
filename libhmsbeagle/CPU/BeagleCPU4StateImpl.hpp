@@ -477,8 +477,10 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
 
             REALTYPE max01 = FAST_MAX(destP[offset + 0], destP[offset + 1]);
             REALTYPE max23 = FAST_MAX(destP[offset + 2], destP[offset + 3]);
-            REALTYPE max0123 = FAST_MAX(max01, max23);
-            max = FAST_MAX(max, max0123);
+//            REALTYPE max0123 = FAST_MAX(max01, max23);
+//            max = FAST_MAX(max, max0123);
+            max = FAST_MAX(max, max01);
+            max = FAST_MAX(max, max23);
 
 //            for (int i = 0; i < 4; i++) {
 //                if(destP[offset] > max)
@@ -487,8 +489,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
 //            }
         }
 
-        if (max == 0)
-            max = 1.0;
+        if (max == REALTYPE(0.0))
+            max = REALTYPE(1.0);
 
         REALTYPE rMax = REALTYPE(1.0) / max;
         for (int l = 0; l < kCategoryCount; l++) {
