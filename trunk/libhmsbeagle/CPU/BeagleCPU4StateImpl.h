@@ -143,6 +143,10 @@ public:
                                            const int scalingFactorsIndex,
                                            double* outSumLogLikelihood);
 
+    virtual void rescalePartials(REALTYPE *destP,
+    		                     REALTYPE *scaleFactors,
+                                 REALTYPE *cumulativeScaleFactors,
+                                 const int  fillWithOnes);
 };
 
 BEAGLE_CPU_TEMPLATE
