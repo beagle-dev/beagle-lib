@@ -1424,9 +1424,9 @@ __global__ void kernelPartialsDynamicScalingAccumulateDifference(REAL* allPartia
         if (matrixMax[pat] == 0)
         	matrixMax[pat] = 1.0;
    
-        scalingFactors[pattern] = 1/matrixMax[pat]; 
         REAL currentFactors = existingScalingFactors[pattern];
-        cumulativeScaling[pattern] += (log(matrixMax[pat]) + log(currentFactors));
+        scalingFactors[pattern] = 1/matrixMax[pat] * currentFactors; 
+        cumulativeScaling[pattern] += (log(matrixMax[pat]));
     }
 
     __syncthreads();
