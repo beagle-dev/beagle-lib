@@ -1130,7 +1130,6 @@ BEAGLE_CPU_TEMPLATE
         } else {
             cumulativeScalingFactorIndex = cumulativeScaleIndices[0];
         }
-        
 		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL)
 			return calcEdgeLogLikelihoods(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
                                    categoryWeightsIndices[0], stateFrequenciesIndices[0], cumulativeScalingFactorIndex,
@@ -1145,8 +1144,19 @@ BEAGLE_CPU_TEMPLATE
                                               stateFrequenciesIndices[0], cumulativeScalingFactorIndex, outSumLogLikelihood,
                                               outSumFirstDerivative, outSumSecondDerivative);
     } else {
-        fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1\n");
-        return BEAGLE_ERROR_OUT_OF_RANGE;
+        if ((kFlags & BEAGLE_FLAG_SCALING_AUTO) || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
+            fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and auto/always scaling\n");
+        }
+        
+		if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
+			return calcEdgeLogLikelihoodsMulti(parentBufferIndices, childBufferIndices, probabilityIndices,
+                                          categoryWeightsIndices, stateFrequenciesIndices, cumulativeScaleIndices, count,
+                                          outSumLogLikelihood);
+		} else {
+            fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and derivatives\n");
+        }
+            
+
     }
 
 }
@@ -1171,6 +1181,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
 
 	memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 
+    
 	if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
 
 		const int* statesChild = gTipStates[childIndex];
@@ -1254,6 +1265,159 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
     return returnCode;
 }
 
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* parentBufferIndices,
+                                                                   const int* childBufferIndices,
+                                                                   const int* probabilityIndices,
+                                                                   const int* categoryWeightsIndices,
+                                                                   const int* stateFrequenciesIndices,
+                                                                   const int* scalingFactorsIndices,
+                                                                   int count,
+                                                                   double* outSumLogLikelihood) {
+
+    
+    
+    std::vector<int> indexMaxScale(kPatternCount);
+    std::vector<REALTYPE> maxScaleFactor(kPatternCount);
+    
+    int returnCode = BEAGLE_SUCCESS;
+    
+    for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+        const REALTYPE* partialsParent = gPartials[parentBufferIndices[subsetIndex]];
+        const REALTYPE* transMatrix = gTransitionMatrices[probabilityIndices[subsetIndex]];
+        const REALTYPE* wt = gCategoryWeights[categoryWeightsIndices[subsetIndex]];
+        const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndices[subsetIndex]];
+        int childIndex = childBufferIndices[subsetIndex];
+
+        memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
+        
+        if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+            
+            const int* statesChild = gTipStates[childIndex];
+            int v = 0; // Index for parent partials
+            
+            for(int l = 0; l < kCategoryCount; l++) {
+                int u = 0; // Index in resulting product-partials (summed over categories)
+                const REALTYPE weight = wt[l];
+                for(int k = 0; k < kPatternCount; k++) {
+                    
+                    const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
+                    // so we can interchange the patterCount and categoryCount loop order?
+                    int w =  l * kMatrixSize;
+                    for(int i = 0; i < kStateCount; i++) {
+                        integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                        u++;
+#ifdef PAD_MATRICES
+                        w += (kStateCount + PAD);
+#else
+                        w += kStateCount;
+#endif
+                    }
+                    v += kStateCount;
+                }
+            }                
+        } else {
+            const REALTYPE* partialsChild = gPartials[childIndex];
+            int v = 0;
+            
+            for(int l = 0; l < kCategoryCount; l++) {
+                int u = 0;
+                const REALTYPE weight = wt[l];
+                for(int k = 0; k < kPatternCount; k++) {
+                    int w = l * kMatrixSize;
+                    for(int i = 0; i < kStateCount; i++) {
+                        double sumOverJ = 0.0;
+                        for(int j = 0; j < kStateCount; j++) {
+                            sumOverJ += transMatrix[w] * partialsChild[v + j];
+                            w++;
+                        }
+#ifdef PAD_MATRICES
+                        // increment for the extra column at the end
+                        w += PAD;
+#endif
+                        integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
+                        u++;
+                    }
+                    v += kStateCount;
+                }
+            }
+                            
+        }
+        int u = 0;
+        for(int k = 0; k < kPatternCount; k++) {
+            REALTYPE sumOverI = 0.0;
+            for(int i = 0; i < kStateCount; i++) {
+                sumOverI += freqs[i] * integrationTmp[u];
+                u++;
+            }            
+            
+            if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+                int cumulativeScalingFactorIndex;
+                cumulativeScalingFactorIndex = scalingFactorsIndices[subsetIndex];
+                
+                const REALTYPE* cumulativeScaleFactors = gScaleBuffers[cumulativeScalingFactorIndex];
+                
+                if (subsetIndex == 0) {
+                    indexMaxScale[k] = 0;
+                    maxScaleFactor[k] = cumulativeScaleFactors[k];
+                    for (int j = 1; j < count; j++) {
+                        REALTYPE tmpScaleFactor;
+                        tmpScaleFactor = gScaleBuffers[scalingFactorsIndices[j]][k];
+                        
+                        if (tmpScaleFactor > maxScaleFactor[k]) {
+                            indexMaxScale[k] = j;
+                            maxScaleFactor[k] = tmpScaleFactor;
+                        }
+                    }
+                }
+                
+                if (subsetIndex != indexMaxScale[k])
+                    sumOverI *= exp((REALTYPE)(cumulativeScaleFactors[k] - maxScaleFactor[k]));
+            }
+
+
+            
+            if (subsetIndex == 0) {
+                outLogLikelihoodsTmp[k] = sumOverI;
+            } else if (subsetIndex == count - 1) {
+                REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sumOverI;
+                
+                if (!(tmpSum >= realtypeMin))
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
+                outLogLikelihoodsTmp[k] = log(tmpSum);
+            } else {
+                outLogLikelihoodsTmp[k] += sumOverI;
+            }
+            
+            if (scalingFactorsIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
+                for(int i=0; i<kPatternCount; i++)
+                    outLogLikelihoodsTmp[i] += maxScaleFactor[i];
+            }
+
+                        
+            if (!(sumOverI >= realtypeMin))
+                returnCode = BEAGLE_ERROR_FLOATING_POINT;
+        }
+        
+        
+        if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+            for(int i=0; i<kPatternCount; i++)
+                outLogLikelihoodsTmp[i] += maxScaleFactor[i];
+        }
+        
+        
+    }
+
+    *outSumLogLikelihood = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+    }
+    
+    return returnCode;
+}
+
+    
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsFirstDeriv(const int parIndex,
                                                                const int childIndex,

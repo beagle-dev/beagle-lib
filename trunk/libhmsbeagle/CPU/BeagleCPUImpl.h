@@ -322,7 +322,16 @@ protected:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
-	
+
+    virtual int calcEdgeLogLikelihoodsMulti(const int* parentBufferIndices,
+                                            const int* childBufferIndices,
+                                            const int* probabilityIndices,
+                                            const int* categoryWeightsIndices,
+                                            const int* stateFrequenciesIndices,
+                                            const int* scalingFactorsIndices,
+                                            int count,
+                                            double* outSumLogLikelihood);
+    
     virtual int calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
                                                   const int childBufferIndex,
                                                   const int probabilityIndex,
