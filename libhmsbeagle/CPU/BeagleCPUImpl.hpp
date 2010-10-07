@@ -1275,8 +1275,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
                                                                    int count,
                                                                    double* outSumLogLikelihood) {
 
-    
-    
     std::vector<int> indexMaxScale(kPatternCount);
     std::vector<REALTYPE> maxScaleFactor(kPatternCount);
     
@@ -1389,25 +1387,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
             } else {
                 outLogLikelihoodsTmp[k] += sumOverI;
             }
-            
-            if (scalingFactorsIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
-                for(int i=0; i<kPatternCount; i++)
-                    outLogLikelihoodsTmp[i] += maxScaleFactor[i];
-            }
-
                         
-            if (!(sumOverI >= realtypeMin))
-                returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        }
-        
-        
-        if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
-            for(int i=0; i<kPatternCount; i++)
-                outLogLikelihoodsTmp[i] += maxScaleFactor[i];
-        }
-        
+        }        
         
     }
+    
+    if (scalingFactorsIndices[0] != BEAGLE_OP_NONE) {
+        for(int i=0; i<kPatternCount; i++)
+            outLogLikelihoodsTmp[i] += maxScaleFactor[i];
+    }
+    
 
     *outSumLogLikelihood = 0.0;
     for (int i = 0; i < kPatternCount; i++) {
