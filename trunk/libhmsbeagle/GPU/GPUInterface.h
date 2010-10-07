@@ -26,6 +26,8 @@
 #ifndef __GPUInterface__
 #define __GPUInterface__
 
+#include <cstdio>
+
 #ifdef HAVE_CONFIG_H
 #include "libhmsbeagle/config.h"
 #endif
