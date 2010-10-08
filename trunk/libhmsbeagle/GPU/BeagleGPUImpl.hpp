@@ -1848,9 +1848,81 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
         }
         
         
-    } else {
-        // TODO: implement calculateEdgeLnL for count > 1
-        assert(false);
+    } else { //count > 1
+        if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
+
+            if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+                fprintf(stderr,"BeagleGPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and SCALING_ALWAYS\n");
+            } else if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+                for(int n = 0; n < count; n++)
+                    hPtrQueue[n] = cumulativeScaleIndices[n] * kScaleBufferSize;
+                gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+            }
+            
+            for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+                
+                const int parIndex = parentBufferIndices[subsetIndex];
+                const int childIndex = childBufferIndices[subsetIndex];
+                const int probIndex = probabilityIndices[subsetIndex];                
+                                
+                GPUPtr partialsParent = dPartials[parIndex];
+                GPUPtr partialsChild = dPartials[childIndex];        
+                GPUPtr statesChild = dStates[childIndex];
+                GPUPtr transMatrix = dMatrices[probIndex];
+                
+                const GPUPtr tmpDWeights = dWeights[categoryWeightsIndices[subsetIndex]];
+                const GPUPtr tmpDFrequencies = dFrequencies[stateFrequenciesIndices[subsetIndex]];
+                
+                if (statesChild != 0) {
+                    kernels->StatesPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, statesChild,
+                                                           transMatrix, kPaddedPatternCount,
+                                                           kCategoryCount);
+                } else {
+                    kernels->PartialsPartialsEdgeLikelihoods(dPartialsTmp, partialsParent, partialsChild,
+                                                             transMatrix, kPaddedPatternCount,
+                                                             kCategoryCount);
+                }
+                
+                if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+                    kernels->IntegrateLikelihoodsFixedScaleMulti(dIntegrationTmp, dPartialsTmp, tmpDWeights,
+                                                                 tmpDFrequencies, dScalingFactors[0], dPtrQueue, dMaxScalingFactors,
+                                                                 dIndexMaxScalingFactors,
+                                                                 kPaddedPatternCount,
+                                                                 kCategoryCount, count, subsetIndex);
+                } else {
+                    if (subsetIndex == 0) {
+                        kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartialsTmp, tmpDWeights,
+                                                           tmpDFrequencies,
+                                                           kPaddedPatternCount, kCategoryCount, 0);
+                    } else if (subsetIndex == count - 1) { 
+                        kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartialsTmp, tmpDWeights,
+                                                           tmpDFrequencies,
+                                                           kPaddedPatternCount, kCategoryCount, 1);
+                    } else {
+                        kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartialsTmp, tmpDWeights,
+                                                           tmpDFrequencies,
+                                                           kPaddedPatternCount, kCategoryCount, 2);
+                    }
+                }
+                
+                kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
+                                   kPatternCount);
+                
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
+                
+                *outSumLogLikelihood = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                    
+                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                }    
+            }
+
+		} else {
+            fprintf(stderr,"BeagleGPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and derivatives\n");
+            returnCode = BEAGLE_ERROR_GENERAL;
+        }
     }
     
     
