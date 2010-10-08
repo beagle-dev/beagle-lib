@@ -1579,6 +1579,7 @@
 		649FE0F112108B60006E8768 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
 				GCC_VERSION = "";
@@ -1589,6 +1590,7 @@
 		649FE0F212108B60006E8768 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
 				GCC_VERSION = "";
