@@ -598,9 +598,6 @@ template <>
             u++;
         }
 
-        if (!(sumOverI >= realtypeMin))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
         outLogLikelihoodsTmp[k] = log(sumOverI);
     }
 
@@ -616,6 +613,9 @@ template <>
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+        
     return returnCode;
 }
 #if 0

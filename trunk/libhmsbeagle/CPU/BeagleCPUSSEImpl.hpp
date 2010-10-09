@@ -453,9 +453,6 @@ template <>
 //            u++;
 //        }
 //
-//        if (!(sumOverI - sumOverI == 0.0))
-//            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-//
 //        outLogLikelihoodsTmp[k] = log(sumOverI);
 //    }
 //
@@ -470,6 +467,9 @@ template <>
 //    for (int i = 0; i < kPatternCount; i++) {
 //        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
 //    }
+//    
+//    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+//        returnCode = BEAGLE_ERROR_FLOATING_POINT;
 //
 //    return returnCode;
 //}

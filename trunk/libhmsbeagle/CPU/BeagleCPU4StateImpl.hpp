@@ -434,10 +434,7 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
         freq3 * integrationTmp[u + 3];
         
         u += 4;
-                
-        if (!(sumOverI - sumOverI == 0.0))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        
+                        
         outLogLikelihoodsTmp[k] = log(sumOverI);
     }        
 
@@ -452,6 +449,10 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
     for(int k=0; k < kPatternCount; k++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
     }    
+    
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+
     
     return returnCode;
 }
@@ -738,9 +739,6 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sum;
                 
-                if (!(tmpSum - tmpSum == 0.0))
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
-                
                 outLogLikelihoodsTmp[k] = log(tmpSum);
             } else {
                 outLogLikelihoodsTmp[k] += sum;
@@ -757,6 +755,10 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
     for (int i = 0; i < kPatternCount; i++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
+    
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+
     
     return returnCode;
 }
