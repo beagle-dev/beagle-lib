@@ -928,9 +928,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bu
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sum;
 
-                if (!(tmpSum - tmpSum == 0.0))
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
                 outLogLikelihoodsTmp[k] = log(tmpSum);
             } else {
                 outLogLikelihoodsTmp[k] += sum;
@@ -948,6 +945,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bu
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+    
     return returnCode;
 
 }
@@ -991,9 +991,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIn
             u++;
         }
 
-        if (!(sum - sum == 0.0))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
         outLogLikelihoodsTmp[k] = log(sum);
     }
 
@@ -1009,6 +1006,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIn
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+
+    
     // TODO: merge the three kPatternCount loops above into one
 
     return returnCode;
@@ -1244,9 +1245,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
 			u++;
 		}
 
-        if (!(sumOverI - sumOverI == 0.0))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
         outLogLikelihoodsTmp[k] = log(sumOverI);
 	}
 
@@ -1262,6 +1260,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+    
     return returnCode;
 }
 
@@ -1380,9 +1381,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sumOverI;
                 
-                if (!(tmpSum - tmpSum == 0.0))
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
-                
                 outLogLikelihoodsTmp[k] = log(tmpSum);
             } else {
                 outLogLikelihoodsTmp[k] += sumOverI;
@@ -1402,6 +1400,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
     for (int i = 0; i < kPatternCount; i++) {
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
+    
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }
@@ -1500,9 +1501,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsFirstDeriv(const in
 			u++;
 		}
 
-        if (!(sumOverI - sumOverI == 0.0))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
         outLogLikelihoodsTmp[k] = log(sumOverI);
 		outFirstDerivativesTmp[k] = sumOverID1 / sumOverI;
 	}
@@ -1521,6 +1519,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsFirstDeriv(const in
 
         *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
     }
+    
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
     return returnCode;
 }
@@ -1628,9 +1629,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDeriv(const i
 			u++;
 		}
 
-        if (!(sumOverI - sumOverI == 0.0))
-            returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
         outLogLikelihoodsTmp[k] = log(sumOverI);
 		outFirstDerivativesTmp[k] = sumOverID1 / sumOverI;
 		outSecondDerivativesTmp[k] = sumOverID2 / sumOverI - outFirstDerivativesTmp[k] * outFirstDerivativesTmp[k];
@@ -1654,6 +1652,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDeriv(const i
         *outSumSecondDerivative += outSecondDerivativesTmp[i] * gPatternWeights[i];
     }
 
+    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+    
     return returnCode;
 }
 
