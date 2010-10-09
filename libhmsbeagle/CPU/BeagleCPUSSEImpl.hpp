@@ -453,7 +453,7 @@ template <>
 //            u++;
 //        }
 //
-//        if (!(sumOverI >= realtypeMin))
+//        if (!(sumOverI - sumOverI == 0.0))
 //            returnCode = BEAGLE_ERROR_FLOATING_POINT;
 //
 //        outLogLikelihoodsTmp[k] = log(sumOverI);

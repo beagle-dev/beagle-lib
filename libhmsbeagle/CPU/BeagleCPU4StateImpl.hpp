@@ -435,7 +435,7 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
         
         u += 4;
                 
-        if (!(sumOverI >= realtypeMin))
+        if (!(sumOverI - sumOverI == 0.0))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
         
         outLogLikelihoodsTmp[k] = log(sumOverI);
@@ -738,7 +738,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sum;
                 
-                if (!(tmpSum >= realtypeMin))
+                if (!(tmpSum - tmpSum == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 outLogLikelihoodsTmp[k] = log(tmpSum);

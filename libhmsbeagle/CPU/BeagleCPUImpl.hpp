@@ -928,7 +928,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bu
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sum;
 
-                if (!(tmpSum >= realtypeMin))
+                if (!(tmpSum - tmpSum == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
                 outLogLikelihoodsTmp[k] = log(tmpSum);
@@ -991,7 +991,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIn
             u++;
         }
 
-        if (!(sum >= realtypeMin))
+        if (!(sum - sum == 0.0))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
         outLogLikelihoodsTmp[k] = log(sum);
@@ -1244,7 +1244,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
 			u++;
 		}
 
-        if (!(sumOverI >= realtypeMin))
+        if (!(sumOverI - sumOverI == 0.0))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
         outLogLikelihoodsTmp[k] = log(sumOverI);
@@ -1380,7 +1380,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
             } else if (subsetIndex == count - 1) {
                 REALTYPE tmpSum = outLogLikelihoodsTmp[k] + sumOverI;
                 
-                if (!(tmpSum >= realtypeMin))
+                if (!(tmpSum - tmpSum == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 outLogLikelihoodsTmp[k] = log(tmpSum);
@@ -1500,7 +1500,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsFirstDeriv(const in
 			u++;
 		}
 
-        if (!(sumOverI >= realtypeMin))
+        if (!(sumOverI - sumOverI == 0.0))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
         outLogLikelihoodsTmp[k] = log(sumOverI);
@@ -1628,7 +1628,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDeriv(const i
 			u++;
 		}
 
-        if (!(sumOverI >= realtypeMin))
+        if (!(sumOverI - sumOverI == 0.0))
             returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
         outLogLikelihoodsTmp[k] = log(sumOverI);
