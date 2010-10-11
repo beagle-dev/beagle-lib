@@ -119,21 +119,18 @@ int GPUInterface::Initialize() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::Initialize\n");
 #endif    
     
+    resourceMap = new std::map<int, int>;
+    
     // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
     CUresult error = cuInit(0);
     
-    int returnValue = 1;
-    
     if (error == CUDA_ERROR_NO_DEVICE) {
-        returnValue = 0;
+        return 0;
     } else if (error != CUDA_SUCCESS) {
         fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n",
                 GetCUDAErrorDescription(error), __FILE__, __LINE__);
         exit(-1);
     }
-    
-    
-    resourceMap = new std::map<int, int>;
     
     int numDevices = 0;
     SAFE_CUDA(cuDeviceGetCount(&numDevices));
@@ -154,7 +151,7 @@ int GPUInterface::Initialize() {
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
 #endif    
     
-    return returnValue;
+    return 1;
 }
 
 int GPUInterface::GetDeviceCount() {
