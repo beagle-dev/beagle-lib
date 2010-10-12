@@ -1714,11 +1714,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
         
         if (max == 0)
             max = 1.0;
-        
+			
+        REALTYPE oneOverMax = REALTYPE(1.0) / max;
         for (int l = 0; l < kCategoryCount; l++) {
             int offset = l * kPaddedPatternCount * kStateCount + patternOffset;
             for (int i = 0; i < kStateCount; i++)
-                destP[offset++] /= max;
+                destP[offset++] *= oneOverMax;
         }
 
         if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
@@ -1880,31 +1881,37 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
                                              const REALTYPE* partials2,
                                              const REALTYPE* matrices2,
                                              const REALTYPE* scaleFactors) {
+    int matrixIncr = kStateCount;
+#ifdef PAD_MATRICES
+    // increment for the extra column at the end
+    matrixIncr += PAD;
+#endif
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-	int u = l*kStateCount*kPatternCount;
-	int v = l*kStateCount*kPatternCount;
+        int v = l*kStateCount*kPatternCount;
+        int matrixOffset = l*kMatrixSize;
+        const REALTYPE* partials2Ptr = &partials2[v];
+        REALTYPE* destPtr = &destP[v];
         for (int k = 0; k < kPatternCount; k++) {
-            int state1 = states1[k];
             int w = l * kMatrixSize;
-            REALTYPE scaleFactor = scaleFactors[k];
+            int state1 = states1[k];
+			REALTYPE scaleFactor = scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
-            	REALTYPE tmp = matrices1[w + state1];
+                const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
+                REALTYPE tmp = matrices1[w + state1];
             	REALTYPE sum = 0.0;
                 for (int j = 0; j < kStateCount; j++) {
-                    sum += matrices2[w] * partials2[v + j];
-                    w++;
+                    sum += matrices2Ptr[j] * partials2Ptr[j];
                 }
-#ifdef PAD_MATRICES
-                // increment for the extra column at the end
-                w += PAD;
-#endif
-                destP[u] = tmp * sum / scaleFactor;
-                u++;
+                
+                w += matrixIncr;
+                
+                *(destPtr++) = tmp * sum / scaleFactor;
             }
-            v += kStateCount;
+            partials2Ptr += kStateCount;
         }
-    }
+    }											 
 }
 
 /*
