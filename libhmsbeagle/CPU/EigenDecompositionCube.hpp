@@ -82,6 +82,8 @@ void EigenDecompositionCube<REALTYPE>::setEigenDecomposition(int eigenIndex,
     }
 }
 
+#define UNROLL
+
 template <typename REALTYPE>
 void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
                                                       const int* probabilityIndices,
@@ -91,6 +93,10 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
                                                       const double* categoryRates,
                                                       REALTYPE** transitionMatrices,
                                                       int count) {
+#ifdef UNROLL													  
+	int stateCountModFour = (kStateCount / 4) * 4;
+#endif
+													  
 	if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
 		for (int u = 0; u < count; u++) {
 			REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
@@ -105,9 +111,23 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 				for (int i = 0; i < kStateCount; i++) {
 					for (int j = 0; j < kStateCount; j++) {
 						REALTYPE sum = 0.0;
-						for (int k = 0; k < kStateCount; k++) {
-							sum += (*tmpCMatrices++) * matrixTmp[k];
+#ifdef UNROLL						
+						int k = 0;
+						for (; k < stateCountModFour; k += 4) {
+							sum += tmpCMatrices[k + 0] * matrixTmp[k + 0];
+							sum += tmpCMatrices[k + 1] * matrixTmp[k + 1];
+							sum += tmpCMatrices[k + 2] * matrixTmp[k + 2];
+							sum += tmpCMatrices[k + 3] * matrixTmp[k + 3];
 						}
+						for (; k < kStateCount; k++) {
+							sum += tmpCMatrices[k] * matrixTmp[k];
+						}
+						tmpCMatrices += kStateCount;
+#else
+						for (int k = 0; k < kStateCount; k++) {
+							sum += *tmpCMatrices++ * matrixTmp[k];
+						}
+#endif;						
 						if (sum > 0)
 							transitionMat[n] = sum;
 						else
