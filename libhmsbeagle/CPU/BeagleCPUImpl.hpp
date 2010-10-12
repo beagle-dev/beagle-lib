@@ -1896,7 +1896,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             int state1 = states1[k];
-			REALTYPE scaleFactor = scaleFactors[k];
+			REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
                 REALTYPE tmp = matrices1[w + state1];
@@ -1907,7 +1907,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
                 
                 w += matrixIncr;
                 
-                *(destPtr++) = tmp * sum / scaleFactor;
+                *(destPtr++) = tmp * sum * oneOverScaleFactor;
             }
             partials2Ptr += kStateCount;
         }
@@ -1976,7 +1976,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYP
         const REALTYPE* partials2Ptr = &partials2[v];
         REALTYPE* destPtr = &destP[v];
         for (int k = 0; k < kPatternCount; k++) {
-            REALTYPE scaleFactor = scaleFactors[k];
+            REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
@@ -1985,7 +1985,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYP
                     sum1 += matrices1Ptr[j] * partials1Ptr[j];
                     sum2 += matrices2Ptr[j] * partials2Ptr[j];
                 }
-                *(destPtr++) = sum1 * sum2 / scaleFactor;
+                *(destPtr++) = sum1 * sum2 * oneOverScaleFactor;
             }
             partials1Ptr += kStateCount;
             partials2Ptr += kStateCount;
