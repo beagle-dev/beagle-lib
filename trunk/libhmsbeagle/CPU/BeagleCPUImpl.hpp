@@ -1848,6 +1848,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
     matrixIncr += PAD;
 #endif
 
+	int stateCountModFour = (kStateCount / 4) * 4;
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kStateCount*kPatternCount;
@@ -1860,14 +1862,22 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
                 REALTYPE tmp = matrices1[w + state1];
-            	REALTYPE sum = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum += matrices2Ptr[j] * partials2Ptr[j];
+            	REALTYPE sumA = 0.0;
+				REALTYPE sumB = 0.0;				
+				int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    sumA += matrices2Ptr[j + 0] * partials2Ptr[j + 0];					
+					sumB += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+					sumA += matrices2Ptr[j + 2] * partials2Ptr[j + 2];					
+					sumB += matrices2Ptr[j + 3] * partials2Ptr[j + 3];					
                 }
+				for (; j < kStateCount; j++) {
+					sumA += matrices2Ptr[j] * partials2Ptr[j];					
+				}				
                 
                 w += matrixIncr;
                 
-                *(destPtr++) = tmp * sum;
+                *(destPtr++) = tmp * (sumA + sumB);
             }
             partials2Ptr += kStateCount;
         }
@@ -1887,6 +1897,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
     matrixIncr += PAD;
 #endif
 
+	int stateCountModFour = (kStateCount / 4) * 4;
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kStateCount*kPatternCount;
@@ -1900,15 +1912,24 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
                 REALTYPE tmp = matrices1[w + state1];
-            	REALTYPE sum = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum += matrices2Ptr[j] * partials2Ptr[j];
+            	REALTYPE sumA = 0.0;
+				REALTYPE sumB = 0.0;				
+				int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    sumA += matrices2Ptr[j + 0] * partials2Ptr[j + 0];					
+					sumB += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+					sumA += matrices2Ptr[j + 2] * partials2Ptr[j + 2];					
+					sumB += matrices2Ptr[j + 3] * partials2Ptr[j + 3];					
                 }
+				for (; j < kStateCount; j++) {
+					sumA += matrices2Ptr[j] * partials2Ptr[j];					
+				}				
                 
                 w += matrixIncr;
                 
-                *(destPtr++) = tmp * sum * oneOverScaleFactor;
+                *(destPtr++) = tmp * (sumA + sumB) * oneOverScaleFactor;
             }
+			
             partials2Ptr += kStateCount;
         }
     }											 
@@ -1929,6 +1950,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
     matrixIncr += PAD;
 #endif
 
+	int stateCountModFour = (kStateCount / 4) * 4;
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kStateCount*kPatternCount;
@@ -1941,13 +1964,29 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
-                REALTYPE sum1 = 0.0, sum2 = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum1 += matrices1Ptr[j] * partials1Ptr[j];
-                    sum2 += matrices2Ptr[j] * partials2Ptr[j];
+                REALTYPE sum1A = 0.0, sum2A = 0.0;
+				REALTYPE sum1B = 0.0, sum2B = 0.0;
+				int j = 0;
+				for (; j < stateCountModFour; j += 4) {
+					sum1A += matrices1Ptr[j + 0] * partials1Ptr[j + 0];
+					sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
+					
+					sum1B += matrices1Ptr[j + 1] * partials1Ptr[j + 1];
+					sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+
+					sum1A += matrices1Ptr[j + 2] * partials1Ptr[j + 2];
+					sum2A += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
+					
+					sum1B += matrices1Ptr[j + 3] * partials1Ptr[j + 3];
+					sum2B += matrices2Ptr[j + 3] * partials2Ptr[j + 3];										
+				}				
+				
+                for (; j < kStateCount; j++) {
+                    sum1A += matrices1Ptr[j] * partials1Ptr[j];
+                    sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
 
-                *(destPtr++) = sum1 * sum2;
+                *(destPtr++) = (sum1A + sum1B) * (sum2A + sum2B);
             }
             partials1Ptr += kStateCount;
             partials2Ptr += kStateCount;
@@ -1967,6 +2006,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYP
     // increment for the extra column at the end
     matrixIncr += PAD;
 #endif
+
+	int stateCountModFour = (kStateCount / 4) * 4;
     
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
@@ -1980,14 +2021,32 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYP
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
-                REALTYPE sum1 = 0.0, sum2 = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum1 += matrices1Ptr[j] * partials1Ptr[j];
-                    sum2 += matrices2Ptr[j] * partials2Ptr[j];
+                REALTYPE sum1A = 0.0, sum2A = 0.0;
+				REALTYPE sum1B = 0.0, sum2B = 0.0;
+				int j = 0;
+				for (; j < stateCountModFour; j += 4) {
+					sum1A += matrices1Ptr[j + 0] * partials1Ptr[j + 0];
+					sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
+					
+					sum1B += matrices1Ptr[j + 1] * partials1Ptr[j + 1];
+					sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+
+					sum1A += matrices1Ptr[j + 2] * partials1Ptr[j + 2];
+					sum2A += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
+					
+					sum1B += matrices1Ptr[j + 3] * partials1Ptr[j + 3];
+					sum2B += matrices2Ptr[j + 3] * partials2Ptr[j + 3];										
+				}				
+				
+                for (; j < kStateCount; j++) {
+                    sum1A += matrices1Ptr[j] * partials1Ptr[j];
+                    sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
-                *(destPtr++) = sum1 * sum2 * oneOverScaleFactor;
+
+                *(destPtr++) = (sum1A + sum1B) * (sum2A + sum2B) / oneOverScaleFactor;
             }
-            partials1Ptr += kStateCount;
+			
+			partials1Ptr += kStateCount;
             partials2Ptr += kStateCount;
         }
     }
