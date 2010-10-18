@@ -518,6 +518,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCategoryRates(const double* inCategory
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternWeights(const double* inPatternWeights) {
+    assert(inPatternWeights != 0L);
     memcpy(gPatternWeights, inPatternWeights, sizeof(double) * kPatternCount);
     return BEAGLE_SUCCESS;
 }
@@ -2109,6 +2110,7 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
 	 a 16-byte aligned pointer
 	 */
 	/* Windows malloc() always gives 16-byte alignment */	 
+	assert(size > 0);
 	ptr = malloc(size);
 	if(ptr == (void*)NULL) {
 		assert(0);
