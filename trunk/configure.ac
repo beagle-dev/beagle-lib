@@ -256,26 +256,32 @@ esac
 # ------------------------------------------------------------------------------
 AC_ARG_WITH([jdk], [AS_HELP_STRING([--with-jdk=PATH], [prefix of a JDK installation for compiling the JNI wrapper])], [JAVAPREFIX=$withval/bin], [])
 
+jnilibext=no
+
 if test "x$with_jdk" != "xno"
 then
     AC_PROG_JAVAC
-    AC_JNI_INCLUDE_DIR
-    for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
-    do
-       CPPFLAGS="$CPPFLAGS -I$JNI_INCLUDE_DIR"
-    done
+    if test "x$JAVAC" != "x"
+    then
+        AC_JNI_INCLUDE_DIR
+        for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
+        do
+           CPPFLAGS="$CPPFLAGS -I$JNI_INCLUDE_DIR"
+        done
 
-    jnilibext=no
-    dnl Older versions of OS X require .jnilib extension for java libs
-    case $host_os in 
-    *darwin[[78]]*) 
-       JNI_EXTRA_LDFLAGS="-shrext .jnilib"
-       jnilibext=yes
-    esac 
-    AM_CONDITIONAL(BUILDJNILIBEXT, test ! x$jnilibext = xno)
+        dnl Older versions of OS X require .jnilib extension for java libs
+        case $host_os in 
+        *darwin[[78]]*) 
+           JNI_EXTRA_LDFLAGS="-shrext .jnilib"
+           jnilibext=yes
+        esac
+    else
+        with_jdk=no
+    fi
 fi
 
 AM_CONDITIONAL(BUILDJNI, test ! x$with_jdk = xno)
+AM_CONDITIONAL(BUILDJNILIBEXT, test ! x$jnilibext = xno)
 
 # ------------------------------------------------------------------------------
 # Distribute common variables
@@ -331,6 +337,9 @@ AC_OUTPUT
 # warn the user about missing functionality
 # ------------------------------------------------------------------------------
 if( test x$NVCC = xno ) then
-	AC_MSG_WARN([Nvidia CUDA nvcc compiler not found.  CUDA support will not be built.  Check the path to CUDA and specify --with-cuda=/path/to/cuda])
+	AC_MSG_WARN([NVIDIA CUDA nvcc compiler not found.  CUDA support will not be built.  Check the path to CUDA and specify --with-cuda=/path/to/cuda])
 fi
 
+if( test x$with_jdk = xno ) then
+	AC_MSG_WARN([JDK installation not found.  JNI wrapper will not be built.  Check the path to JDK and specify --with-jdk=/path/to/jdk])
+fi

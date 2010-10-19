@@ -46,13 +46,13 @@ AC_DEFUN([AC_JNI_INCLUDE_DIR],[
 
 JNI_INCLUDE_DIRS=""
 
-test "x$JAVAC" = x && AC_MSG_ERROR(['\$JAVAC' undefined])
+test "x$JAVAC" = x && AC_MSG_NOTICE(['\$JAVAC' undefined]) && with_jdk=no
 if test "x$JAVAPREFIX" = x; then
 	AC_PATH_PROG(_ACJNI_JAVAC, $JAVAC, no)
 else
 	AC_PATH_PROG(_ACJNI_JAVAC, $JAVAC, no, $JAVAPREFIX)
 fi
-test "x$_ACJNI_JAVAC" = xno && AC_MSG_ERROR([$JAVAC could not be found in path])
+test "x$_ACJNI_JAVAC" = xno && AC_MSG_NOTICE([$JAVAC could not be found in path]) && with_jdk=no
 
 _ACJNI_FOLLOW_SYMLINKS("$_ACJNI_JAVAC")
 _JTOPDIR=`echo "$_ACJNI_FOLLOWED" | sed -e 's://*:/:g' -e 's:/[[^/]]*$::'`
@@ -70,7 +70,8 @@ else
         elif test -f "$_JTOPDIR/Headers/jni.h"; then
                 JNI_INCLUDE_DIRS="$JNI_INCLUDE_DIRS $_JTOPDIR/Headers"
         else
-                AC_MSG_ERROR([cannot find java include files])
+                AC_MSG_NOTICE([cannot find java include files])
+		with_jdk=no
         fi
 fi
 
