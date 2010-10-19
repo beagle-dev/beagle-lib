@@ -127,7 +127,7 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 						for (int k = 0; k < kStateCount; k++) {
 							sum += *tmpCMatrices++ * matrixTmp[k];
 						}
-#endif;						
+#endif						
 						if (sum > 0)
 							transitionMat[n] = sum;
 						else
@@ -238,5 +238,5 @@ void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
 } // cpu
 } // beagle
 
-#endif // _EigenDecompositionCube_hpp_
+#endif	// _EigenDecompositionCube_hpp_
 
