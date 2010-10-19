@@ -229,8 +229,8 @@ case $host_os in
   
   if( test ! x$NVCC = xno )
   then
-    case "$host" in
-      *-darwin10*)
+    case "$host_os" in
+      *darwin10*)
         NVCCFLAGS+=" -m64"
      esac
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
@@ -265,7 +265,7 @@ done
 
 dnl Older versions of OS X require .jnilib extension for java libs
 case $host_os in 
-*darwin*) 
+*darwin[[78]]*) 
    JNI_EXTRA_LDFLAGS="-shrext .jnilib" ;; 
 esac 
 AC_SUBST(JNI_EXTRA_LDFLAGS)
