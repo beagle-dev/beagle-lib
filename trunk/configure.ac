@@ -114,7 +114,9 @@ AC_SUBST(OPENMP_CXXFLAGS)
 # ------------------------------------------------------------------------------
 # Setup OpenCL
 # ------------------------------------------------------------------------------
-AC_ARG_ENABLE([opencl],
+AX_OPENCL([C++])
+
+AC_ARG_WITH([opencl],
    [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
    [],
    [enable_opencl=no])
@@ -273,7 +275,6 @@ then
         case $host_os in 
         *darwin[[78]]*) 
            JNI_EXTRA_LDFLAGS="-shrext .jnilib"
-           jnilibext=yes
         esac
     else
         with_jdk=no
@@ -281,7 +282,6 @@ then
 fi
 
 AM_CONDITIONAL(BUILDJNI, test ! x$with_jdk = xno)
-AM_CONDITIONAL(BUILDJNILIBEXT, test ! x$jnilibext = xno)
 
 # ------------------------------------------------------------------------------
 # Distribute common variables
@@ -322,7 +322,6 @@ AC_CONFIG_FILES([libhmsbeagle/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
-AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/plugin/Makefile])
 AC_CONFIG_FILES([examples/Makefile])
 AC_CONFIG_FILES([examples/tinytest/Makefile])
