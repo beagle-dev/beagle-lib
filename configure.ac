@@ -69,6 +69,9 @@ AM_CONFIG_HEADER(libhmsbeagle/config.h)
 AC_SUBST(abs_top_builddir)
 AC_SUBST(abs_top_srcdir)
 
+CHECK_LIB_PATH="\$(top_builddir)/libhmsbeagle/CPU/.libs:\$(top_builddir)/libhmsbeagle/GPU/.libs"
+AC_SUBST(CHECK_LIB_PATH)
+
 # ------------------------------------------------------------------------------
 # Check for libtool development libraries for plugin loading
 # ------------------------------------------------------------------------------
