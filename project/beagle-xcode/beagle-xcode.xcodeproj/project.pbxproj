@@ -234,9 +234,6 @@
 		64020BE91214A05D00C76EFB /* GeneralBeagleImpl.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; path = GeneralBeagleImpl.java; sourceTree = "<group>"; };
 		64020BEA1214A05D00C76EFB /* InstanceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; path = InstanceDetails.java; sourceTree = "<group>"; };
 		64020BEB1214A05D00C76EFB /* ResourceDetails.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; path = ResourceDetails.java; sourceTree = "<group>"; };
-		64020BF41214A0AE00C76EFB /* AncestralStateBeagleTreeLikelihoodTest.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = AncestralStateBeagleTreeLikelihoodTest.java; path = beagle/AncestralStateBeagleTreeLikelihoodTest.java; sourceTree = "<group>"; };
-		64020BF51214A0AE00C76EFB /* MarkovJumpsTest.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = MarkovJumpsTest.java; path = beagle/MarkovJumpsTest.java; sourceTree = "<group>"; };
-		64020BF61214A0AE00C76EFB /* TinyTest.java */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.java; name = TinyTest.java; path = beagle/TinyTest.java; sourceTree = "<group>"; };
 		64020C001214A0F700C76EFB /* AUTHORS */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = AUTHORS; sourceTree = "<group>"; };
 		64020C011214A0F700C76EFB /* beagle.dox */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = beagle.dox; sourceTree = "<group>"; };
 		64020C021214A0F700C76EFB /* build.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = build.xml; sourceTree = "<group>"; };
@@ -381,16 +378,6 @@
 				64020BEB1214A05D00C76EFB /* ResourceDetails.java */,
 			);
 			path = beagle;
-			sourceTree = "<group>";
-		};
-		64020BEE1214A08000C76EFB /* test */ = {
-			isa = PBXGroup;
-			children = (
-				64020BF41214A0AE00C76EFB /* AncestralStateBeagleTreeLikelihoodTest.java */,
-				64020BF51214A0AE00C76EFB /* MarkovJumpsTest.java */,
-				64020BF61214A0AE00C76EFB /* TinyTest.java */,
-			);
-			path = test;
 			sourceTree = "<group>";
 		};
 		64020C091214A10900C76EFB /* examples */ = {
@@ -579,7 +566,6 @@
 			isa = PBXGroup;
 			children = (
 				64020BED1214A07C00C76EFB /* beagle */,
-				64020BEE1214A08000C76EFB /* test */,
 			);
 			path = java;
 			sourceTree = "<group>";
