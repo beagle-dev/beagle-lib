@@ -12,6 +12,7 @@ clean-local:
 	rm -f check_lnL_using_paup.nex
 
 TESTS = fourtaxonrun.sh
+TESTS_ENVIRONMENT = LD_LIBRARY_PATH+=@CHECK_LIB_PATH@
 AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
 
 EXTRA_DIST=fourtaxon.dat

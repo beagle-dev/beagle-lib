@@ -3,7 +3,7 @@ INCLUDES = -I$(abs_top_builddir) -I$(abs_top_srcdir)
 if BUILDCUDA
 
 BUILT_SOURCES = BeagleCUDA_kernels.h
-CLEANFILES = BeagleCUDA_kernels.h
+CLEANFILES = BeagleCUDA_kernels.h BeagleCUDA_kernels.ptx
 
 STATE_COUNT_LIST = 16 32 48 64 80 128 192
 
