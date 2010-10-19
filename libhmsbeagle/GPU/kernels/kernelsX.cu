@@ -601,9 +601,9 @@ __global__ void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartials
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     // Load values into shared memory
-    __shared__ REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    __shared__ REAL sMatrixFirstDeriv[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    __shared__ REAL sMatrixSecondDeriv[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    __shared__ REAL sMatrix1[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
+    __shared__ REAL sMatrixFirstDeriv[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
+    __shared__ REAL sMatrixSecondDeriv[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
 
     __shared__ REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     __shared__ REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
@@ -618,23 +618,23 @@ __global__ void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartials
         sPartials2[patIdx][state] = 0;
     }
 
-    for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+    for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE/2) {
         // load one row of matrices
-        if (patIdx < BLOCK_PEELING_SIZE) {
+        if (patIdx < BLOCK_PEELING_SIZE/2) {
             // These are all coherent global memory reads.
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
 	        sMatrixFirstDeriv[patIdx][state] = matrixFirstDeriv[patIdx * PADDED_STATE_COUNT + state];
 	        sMatrixSecondDeriv[patIdx][state] = matrixSecondDeriv[patIdx * PADDED_STATE_COUNT + state];
 
             // sMatrix now filled with starting in state and ending in i
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            matrixFirstDeriv += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            matrixSecondDeriv += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            matrix1 += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
+            matrixFirstDeriv += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
+            matrixSecondDeriv += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
         }
         __syncthreads();
 
         int j;
-        for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
+        for(j = 0; j < BLOCK_PEELING_SIZE/2; j++) {
             sum1 += sMatrix1[j][state] * sPartials1[patIdx][i + j];
             sumFirstDeriv += sMatrixFirstDeriv[j][state] * sPartials1[patIdx][i + j];
             sumSecondDeriv += sMatrixSecondDeriv[j][state] * sPartials1[patIdx][i + j];
