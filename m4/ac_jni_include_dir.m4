@@ -47,7 +47,11 @@ AC_DEFUN([AC_JNI_INCLUDE_DIR],[
 JNI_INCLUDE_DIRS=""
 
 test "x$JAVAC" = x && AC_MSG_ERROR(['\$JAVAC' undefined])
-AC_PATH_PROG(_ACJNI_JAVAC, $JAVAC, no)
+if test "x$JAVAPREFIX" = x; then
+	AC_PATH_PROG(_ACJNI_JAVAC, $JAVAC, no)
+else
+	AC_PATH_PROG(_ACJNI_JAVAC, $JAVAC, no, $JAVAPREFIX)
+fi
 test "x$_ACJNI_JAVAC" = xno && AC_MSG_ERROR([$JAVAC could not be found in path])
 
 _ACJNI_FOLLOW_SYMLINKS("$_ACJNI_JAVAC")
