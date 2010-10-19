@@ -112,26 +112,26 @@ OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
 
 # ------------------------------------------------------------------------------
-# Setup OPENCL paths
+# Setup OpenCL
 # ------------------------------------------------------------------------------
-AC_ARG_WITH([opencl],
+AC_ARG_ENABLE([opencl],
    [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
    [],
-   [with_opencl=no])
+   [enable_opencl=no])
 
 OPENCL_CFLAGS=
 OPENCL_LIBS=
 
-if test "x$with_opencl" != "xno"
+if test "x$enable_opencl" != "xno"
 then
    OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4\\\"\""
    OPENCL_LIBS="-framework OpenCL"
    OPENCLPATH=""
 fi
 
-AM_CONDITIONAL(BUILDOPENCL, test ! x$with_opencl = xno)
+AM_CONDITIONAL(BUILDOPENCL, test ! x$enable_opencl = xno)
 
-if( test ! x$with_opencl = xno ) 
+if( test ! x$enable_opencl = xno ) 
 then
 	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
 fi
@@ -142,7 +142,7 @@ fi
 # Setup CUDA paths
 # ------------------------------------------------------------------------------
 AC_ARG_WITH([cuda],
-   [AS_HELP_STRING([--with-cuda=PATH],[prefix where cuda is installed @<:@default=auto@:>@])],
+   [AS_HELP_STRING([--with-cuda=PATH],[prefix where CUDA is installed @<:@default=auto@:>@])],
    [],
    [with_cuda=auto])
 
@@ -236,7 +236,7 @@ case $host_os in
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   # OpenCL requires the 10.6 SDK
-  if( test ! x$with_opencl = xno )
+  if( test ! x$enable_opencl = xno )
   then
     AC_CHECK_FILE(/Developer/SDKs/MacOSX10.6.sdk,
         [LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.6.sdk"],
@@ -254,22 +254,28 @@ esac
 # ------------------------------------------------------------------------------
 # Setup Java
 # ------------------------------------------------------------------------------
-AC_ARG_WITH([jdk], [AS_HELP_STRING([--with-jdk=PATH], [Specify a JDK installation for compiling the JNI wrapper])], [JAVAPREFIX=$withval/bin], [])
+AC_ARG_WITH([jdk], [AS_HELP_STRING([--with-jdk=PATH], [prefix of a JDK installation for compiling the JNI wrapper])], [JAVAPREFIX=$withval/bin], [])
 
-AC_PROG_JAVAC
-AC_JNI_INCLUDE_DIR
-for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
-do
-   CPPFLAGS="$CPPFLAGS -I$JNI_INCLUDE_DIR"
-done
+if test "x$with_jdk" != "xno"
+then
+    AC_PROG_JAVAC
+    AC_JNI_INCLUDE_DIR
+    for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
+    do
+       CPPFLAGS="$CPPFLAGS -I$JNI_INCLUDE_DIR"
+    done
 
-dnl Older versions of OS X require .jnilib extension for java libs
-case $host_os in 
-*darwin[[78]]*) 
-   JNI_EXTRA_LDFLAGS="-shrext .jnilib" ;; 
-esac 
-AC_SUBST(JNI_EXTRA_LDFLAGS)
+    jnilibext=no
+    dnl Older versions of OS X require .jnilib extension for java libs
+    case $host_os in 
+    *darwin[[78]]*) 
+       JNI_EXTRA_LDFLAGS="-shrext .jnilib"
+       jnilibext=yes
+    esac 
+    AM_CONDITIONAL(BUILDJNILIBEXT, test ! x$jnilibext = xno)
+fi
 
+AM_CONDITIONAL(BUILDJNI, test ! x$with_jdk = xno)
 
 # ------------------------------------------------------------------------------
 # Distribute common variables
@@ -281,6 +287,7 @@ AC_SUBST(CUDA_LIBS)
 AC_SUBST(OPENCL_CFLAGS)
 AC_SUBST(OPENCL_LIBS)
 AC_SUBST(SSE_CFLAGS)
+AC_SUBST(JNI_EXTRA_LDFLAGS)
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(LIBS)
