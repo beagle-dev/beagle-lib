@@ -254,11 +254,9 @@ esac
 # ------------------------------------------------------------------------------
 # Setup Java
 # ------------------------------------------------------------------------------
-AC_ARG_WITH([java], [AS_HELP_STRING([--with-java=PATH], [Specify a specific Java installation for compiling BEAGLE])], [JAVA=$withval/bin/java], [])
+AC_ARG_WITH([jdk], [AS_HELP_STRING([--with-jdk=PATH], [Specify a JDK installation for compiling the JNI wrapper])], [JAVAPREFIX=$withval/bin], [])
 
-AC_CHECK_CLASSPATH
 AC_PROG_JAVAC
-AC_PROG_JAVA
 AC_JNI_INCLUDE_DIR
 for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
 do
