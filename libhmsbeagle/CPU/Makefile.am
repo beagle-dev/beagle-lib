@@ -1,6 +1,6 @@
 lib_LTLIBRARIES=libhmsbeagle-cpu.la libhmsbeagle-cpu-sse.la
 
-BEAGLE_CPU_COMMON = EigenDecomposition.h \
+BEAGLE_CPU_COMMON = Precision.h EigenDecomposition.h \
                     EigenDecompositionCube.hpp EigenDecompositionCube.h \
                     EigenDecompositionSquare.hpp EigenDecompositionSquare.h
 
@@ -20,8 +20,8 @@ libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $
 # CPU plugin with custom SSE code
 #
 libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
-                    BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
-                    BeagleCPUSSEImpl.hpp BeagleCPUSSEimpl.h \
+                    SSEDefinitions.h BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
+                    BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
 		BeagleCPUSSEPlugin.h BeagleCPUSSEPlugin.cpp
 
 libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS)

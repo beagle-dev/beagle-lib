@@ -8,7 +8,7 @@ libhmsbeagle_cuda_la_SOURCES =  \
 BeagleGPUImpl.hpp  BeagleGPUImpl.h  GPUImplDefs.h  GPUImplHelper.cpp \
 GPUImplHelper.h  GPUInterface.h  GPUInterfaceCUDA.cpp  KernelLauncher.cpp \
 KernelLauncher.h KernelResource.cpp KernelResource.h \
-CUDAPlugin.h CUDAPlugin.cpp
+CUDAPlugin.h CUDAPlugin.cpp Precision.h
 
 libhmsbeagle_cuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS) 
 libhmsbeagle_cuda_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE) 

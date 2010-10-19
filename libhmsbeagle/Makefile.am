@@ -1,4 +1,4 @@
-SUBDIRS=GPU CPU JNI plugin
+SUBDIRS=GPU CPU plugin
 if BUILDJNI
 lib_LTLIBRARIES=libhmsbeagle.la libhmsbeagle-jni.la
 else
@@ -11,13 +11,9 @@ libhmsbeagle_la_CXXFLAGS = $(AM_CXXFLAGS)
 libhmsbeagle_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
 
 if BUILDJNI
-libhmsbeagle_jni_la_SOURCES = beagle.cpp BeagleImpl.h
-if BUILDJNILIBEXT
-libhmsbeagle_jni_la_LDFLAGS = -module -avoid-version $(JNI_EXTRA_LDFLAGS) -lhmsbeagle
-else
-libhmsbeagle_jni_la_LDFLAGS = -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE) -lhmsbeagle
-endif
-libhmsbeagle_jni_la_LIBADD = JNI/libjni.la plugin/libplugin.la
+libhmsbeagle_jni_la_SOURCES = JNI/beagle_BeagleJNIWrapper.h JNI/beagle_BeagleJNIWrapper.cpp
+libhmsbeagle_jni_la_LDFLAGS = -module -avoid-version $(JNI_EXTRA_LDFLAGS)
+libhmsbeagle_jni_la_LIBADD = -lhmsbeagle
 libhmsbeagle_jni_la_CXXFLAGS = $(AM_CXXFLAGS)
 endif
 
