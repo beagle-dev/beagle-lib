@@ -733,7 +733,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
                     // First compute without any scaling
                     calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2);
                     if (rescale == 1) // Recompute scaleFactors
-                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,1);
+                        rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
                 }
             } else {
                 if (rescale == 0) {
@@ -1682,22 +1682,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
         std::cerr << "destP (before rescale): \n";// << destP << "\n";
         for(int i=0; i<kPartialsSize; i++)
             fprintf(stderr,"destP[%d] = %.5f\n",i,destP[i]);
-    }
-
-    if (kStateCount == 4 && fillWithOnes != 0) {
-//        if (ones == NULL) {
-//            ones = (double*) malloc(sizeof(double) * kPatternCount);
-//                for(int i = 0; i < kPatternCount; i++)
-//                    ones[i] = 1.0;
-//        }
-        if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
-            memcpy(scaleFactors,zeros,sizeof(REALTYPE) * kPaddedPatternCount);
-        else
-            memcpy(scaleFactors,ones,sizeof(REALTYPE) * kPaddedPatternCount);
-        // No accumulation necessary as cumulativeScaleFactors are on the log-scale
-        if (DEBUGGING_OUTPUT)
-            fprintf(stderr,"Ones copied!\n");
-        return;
     }
 
     // TODO None of the code below has been optimized.
