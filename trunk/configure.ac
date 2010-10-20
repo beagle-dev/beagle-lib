@@ -276,7 +276,7 @@ then
 
         dnl Older versions of OS X require .jnilib extension for java libs
         case $host_os in 
-        *darwin[[78]]*) 
+        *darwin*) 
            JNI_EXTRA_LDFLAGS="-shrext .jnilib"
         esac
     else
