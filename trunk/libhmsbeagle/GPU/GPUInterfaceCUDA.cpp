@@ -557,7 +557,7 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
 	int major = 0;
 	int minor = 0;
 	SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
-	return (major >= 2 || (major >= 1 && minor >= 2));
+	return (major >= 2 || (major >= 1 && minor >= 3));
 }
 
 void GPUInterface::GetDeviceDescription(int deviceNumber,
