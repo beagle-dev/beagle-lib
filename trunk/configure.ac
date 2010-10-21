@@ -117,29 +117,30 @@ AC_SUBST(OPENMP_CXXFLAGS)
 # ------------------------------------------------------------------------------
 # Setup OpenCL
 # ------------------------------------------------------------------------------
-AX_OPENCL([C++])
+#AX_OPENCL([C++])
 
-AC_ARG_WITH([opencl],
-   [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
-   [],
-   [enable_opencl=no])
+#AC_ARG_WITH([opencl],
+#   [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
+#   [],
+#   [enable_opencl=no])
 
-OPENCL_CFLAGS=
-OPENCL_LIBS=
+#OPENCL_CFLAGS=
+#OPENCL_LIBS=
 
-if test "x$enable_opencl" != "xno"
-then
-   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4\\\"\""
-   OPENCL_LIBS="-framework OpenCL"
-   OPENCLPATH=""
-fi
+#if test "x$enable_opencl" != "xno"
+#then
+#   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4\\\"\""
+#   OPENCL_LIBS="-framework OpenCL"
+#   OPENCLPATH=""
+#fi
 
+enable_opencl=no
 AM_CONDITIONAL(BUILDOPENCL, test ! x$enable_opencl = xno)
 
-if( test ! x$enable_opencl = xno ) 
-then
-	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
-fi
+#if( test ! x$enable_opencl = xno ) 
+#then
+#	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
+#fi
 
 
 
