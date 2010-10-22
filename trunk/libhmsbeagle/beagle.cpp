@@ -325,6 +325,7 @@ int beagleCreateInstance(int tipCount,
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
             long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
+            long resourceSupportedFlags = rsrcList->list[resource].supportFlags;            
             int resourceScore = (*it).first;
 #ifdef BEAGLE_DEBUG_FLOW
             fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
@@ -336,8 +337,9 @@ int beagleCreateInstance(int tipCount,
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
 #endif
-                if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Meets requirementFlags
-                    && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Meets resourceFlags
+                if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Factory meets requirementFlags
+                    && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
+                    && ((resourceSupportedFlags & factoryFlags) >= factoryFlags) // Resource meets factoryFlags
                     ) {
                     int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                     int totalScore = resourceScore + implementationScore;
