@@ -571,7 +571,7 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
 
 
 __global__ void
-__launch_bounds__(BLOCK_PEELING_SIZE * PADDED_STATE_COUNT)
+__launch_bounds__(PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT)
 kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartialsTmp,
                                                               REAL* dFirstDerivTmp,
                                                               REAL* dSecondDerivTmp,
