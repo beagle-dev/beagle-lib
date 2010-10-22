@@ -569,7 +569,10 @@ __global__ void kernelPartialsPartialsEdgeLikelihoods(REAL* dPartialsTmp,
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
 }
 
-__global__ void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartialsTmp,
+
+__global__ void
+__launch_bounds__(BLOCK_PEELING_SIZE * PADDED_STATE_COUNT)
+kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(REAL* dPartialsTmp,
                                                               REAL* dFirstDerivTmp,
                                                               REAL* dSecondDerivTmp,
                                                               REAL* dParentPartials,
