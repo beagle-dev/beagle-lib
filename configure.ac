@@ -10,20 +10,21 @@ dnl -----------------------------------------------
 
 GENERIC_LIBRARY_NAME=libhmsbeagle
 
-#release versioning
-GENERIC_MAJOR_VERSION=1
-GENERIC_MINOR_VERSION=0
-GENERIC_MICRO_VERSION=0
-
-#API version (often = GENERIC_MAJOR_VERSION.GENERIC_MINOR_VERSION)
-GENERIC_API_VERSION=1.0
+#API version
+GENERIC_API_VERSION=1
 AC_SUBST(GENERIC_API_VERSION)
 
+#revision version
+GENERIC_REVISION_VERSION=0
+
+#release versioning
+GENERIC_MAJOR_VERSION=$GENERIC_API_VERSION
+GENERIC_MINOR_VERSION=$GENERIC_REVISION_VERSION
+GENERIC_MICRO_VERSION=0
+
 #shared library versioning
-GENERIC_LIBRARY_VERSION=1:0:0
-#                       | | |
-#                +------+ | +---+
-#                |        |     |
+GENERIC_LIBRARY_VERSION=$GENERIC_API_VERSION:$GENERIC_REVISION_VERSION:0
+#
 #             current:revision:age
 #                |        |     |
 #                |        |     +- increment if interfaces have been added
@@ -43,8 +44,6 @@ PACKAGE=$GENERIC_LIBRARY_NAME
 AC_SUBST(GENERIC_LIBRARY_NAME)
 
 GENERIC_VERSION=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION.$GENERIC_MICRO_VERSION
-GENERIC_RELEASE=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION
-AC_SUBST(GENERIC_RELEASE)
 AC_SUBST(GENERIC_VERSION)
 
 VERSION=$GENERIC_VERSION
@@ -60,6 +59,8 @@ AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_LN_S
+AC_DISABLE_STATIC
+AM_DISABLE_STATIC
 AC_PROG_LIBTOOL
 AM_PROG_LIBTOOL
 
@@ -321,7 +322,7 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 # All done, create Makefiles
 # ------------------------------------------------------------------------------
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([hmsbeagle-1.0.pc])
+AC_CONFIG_FILES([hmsbeagle-$GENERIC_API_VERSION.pc])
 AC_CONFIG_FILES([libhmsbeagle/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])

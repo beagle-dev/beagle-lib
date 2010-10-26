@@ -11,7 +11,7 @@ KernelLauncher.h KernelResource.cpp KernelResource.h \
 CUDAPlugin.h CUDAPlugin.cpp Precision.h
 
 libhmsbeagle_cuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS) 
-libhmsbeagle_cuda_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE) 
+libhmsbeagle_cuda_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) 
 libhmsbeagle_cuda_la_LIBADD= $(CUDA_LIBS)
 
 endif
@@ -41,7 +41,7 @@ BeagleOpenCL_Kernels_h_DEPENDENCES = BeagleOpenCL_kernels.cl GPUImplDefs.h
 EXTRA_DIST = BeagleOpenCL_kernels.cu
 
 libhmsbeagle_opencl_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENCL_CFLAGS)
-libhmsbeagle_opencl_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
+libhmsbeagle_opencl_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 libhmsbeagle_opencl_la_LIBADD= $(OPENCL_LIBS)
 
 endif
