@@ -262,7 +262,7 @@
 		646A84BB1210956C00F88378 /* aminclude.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = aminclude.am; sourceTree = "<group>"; };
 		646A84BC1210956C00F88378 /* autogen.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = autogen.sh; sourceTree = "<group>"; };
 		646A84BE1210956C00F88378 /* configure.ac */ = {isa = PBXFileReference; lastKnownFileType = text; path = configure.ac; sourceTree = "<group>"; };
-		646A84BF1210956C00F88378 /* hmsbeagle-1.0.pc.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = "hmsbeagle-1.0.pc.in"; sourceTree = "<group>"; };
+		646A84BF1210956C00F88378 /* hmsbeagle-1.pc.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = "hmsbeagle-1.pc.in"; sourceTree = "<group>"; };
 		646A84C01210956C00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84C71210960D00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84C81210961500F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
@@ -576,7 +576,7 @@
 				646A84BB1210956C00F88378 /* aminclude.am */,
 				646A84BC1210956C00F88378 /* autogen.sh */,
 				646A84BE1210956C00F88378 /* configure.ac */,
-				646A84BF1210956C00F88378 /* hmsbeagle-1.0.pc.in */,
+				646A84BF1210956C00F88378 /* hmsbeagle-1.pc.in */,
 				646A84C01210956C00F88378 /* Makefile.am */,
 				646A84C1121095C100F88378 /* libhmsbeagle */,
 			);

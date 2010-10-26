@@ -8,4 +8,4 @@ Description: A library to calculate phylogenetic likelihoods.
 Requires:
 Version: @VERSION@
 Libs: -L${libdir} -lhmsbeagle @LIBS@
-Cflags: -I${includedir}/libhmsbeagle-1.0
+Cflags: -I${includedir}/libhmsbeagle-@GENERIC_API_VERSION@

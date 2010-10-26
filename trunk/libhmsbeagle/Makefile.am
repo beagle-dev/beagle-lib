@@ -8,7 +8,7 @@ endif
 libhmsbeagle_la_SOURCES=beagle.cpp BeagleImpl.h
 libhmsbeagle_la_LIBADD = plugin/libplugin.la
 libhmsbeagle_la_CXXFLAGS = $(AM_CXXFLAGS)
-libhmsbeagle_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
+libhmsbeagle_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 
 if BUILDJNI
 libhmsbeagle_jni_la_SOURCES = JNI/beagle_BeagleJNIWrapper.h JNI/beagle_BeagleJNIWrapper.cpp

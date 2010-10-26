@@ -13,7 +13,7 @@ libhmsbeagle_cpu_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUPlugin.h BeagleCPUPlugin.cpp
 
 libhmsbeagle_cpu_la_CXXFLAGS = $(AM_CXXFLAGS)
-libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
+libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 
 
 #
@@ -25,7 +25,7 @@ libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUSSEPlugin.h BeagleCPUSSEPlugin.cpp
 
 libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS)
-libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
+libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 
 #
 # CPU plugin with OpenMP parallel threads
@@ -39,7 +39,7 @@ libhmsbeagle_cpu_openmp_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUOpenMPPlugin.h BeagleCPUOpenMPPlugin.cpp
 
 libhmsbeagle_cpu_openmp_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CXXFLAGS)
-libhmsbeagle_cpu_openmp_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) -release $(GENERIC_RELEASE)
+libhmsbeagle_cpu_openmp_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 libhmsbeagle_cpu_openmp_la_LIBADD = $(OPENMP_CXXFLAGS)
 endif
 
