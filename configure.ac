@@ -322,7 +322,7 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 # All done, create Makefiles
 # ------------------------------------------------------------------------------
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([hmsbeagle-$GENERIC_API_VERSION.pc])
+AC_CONFIG_FILES([hmsbeagle-1.pc])
 AC_CONFIG_FILES([libhmsbeagle/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
