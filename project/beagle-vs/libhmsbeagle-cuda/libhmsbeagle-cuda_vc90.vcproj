@@ -83,7 +83,7 @@
 				AdditionalDependencies="cuda.lib"
 				OutputFile="$(OutDir)\hmsbeagle-cuda32D.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="C:\CUDA\LIB"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/libhmsbeagle-cuda.pdb"
 				SubSystem="1"
@@ -137,6 +137,7 @@
 				Include="&quot;../../../&quot;"
 				NvccCompilation="4"
 				compileout="2"
+				ExtraNvccOptions="-m64"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -262,7 +263,7 @@
 				AdditionalDependencies="cuda.lib"
 				OutputFile="$(OutDir)\hmsbeagle-cuda32.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="C:\CUDA\LIB"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -319,6 +320,7 @@
 				compileout="2"
 				CompilerPath="0"
 				AlternateNvccPath=""
+				ExtraNvccOptions="-m64"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -413,6 +415,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\..\..\libhmsbeagle\GPU\CUDAPlugin.cpp"
+					>
+				</File>
+				<File
 					RelativePath="..\..\..\libhmsbeagle\GPU\GPUImplDefs.h"
 					>
 				</File>
@@ -440,10 +446,6 @@
 				</File>
 				<File
 					RelativePath="..\..\..\libhmsbeagle\GPU\GPUInterfaceCUDA.cpp"
-					>
-				</File>
-				<File
-					RelativePath="..\..\..\libhmsbeagle\GPU\CUDAPlugin.cpp"
 					>
 				</File>
 				<File
@@ -548,34 +550,290 @@
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_128.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_16.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_192.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_32.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_4.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_48.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_64.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_80.cu"
 						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Debug|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|x64"
+							>
+							<Tool
+								Name="CUDA Build Rule"
+								Arch="13"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu"
