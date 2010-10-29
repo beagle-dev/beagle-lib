@@ -50,6 +50,7 @@
 #include "libhmsbeagle/plugin/Plugin.h"
 
 typedef std::list< std::pair<int,int> > PairedList;
+typedef std::list< std::pair<int,std::pair<int,beagle::BeagleImplFactory*> > > RsrcImplList;
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
 std::vector<beagle::BeagleImpl*> *instances = NULL;
@@ -315,12 +316,13 @@ int beagleCreateInstance(int tipCount,
         }
         
         beagle::BeagleImpl* bestBeagle = NULL;
-        int bestScore = +1;
         possibleResources->sort(); // Attempt in rank order, lowest score wins
         
         int errorCode = BEAGLE_ERROR_NO_RESOURCE;
         
         // Score each resource-implementation pair given preferences
+        RsrcImplList* possibleResourceImplementations = new RsrcImplList;
+        
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
@@ -347,46 +349,46 @@ int beagleCreateInstance(int tipCount,
                     fprintf(stderr,"\tPossible implementation: %s (%d)\n",
                             (*factory)->getName(),totalScore);
 #endif
-                    if (totalScore < bestScore) { // Looking for lowest
-                        // TODO: should only initialize impl after finding the best one
-                        beagle::BeagleImpl* beagle = (*factory)->createImpl(tipCount, partialsBufferCount,
-                                                                            compactBufferCount, stateCount,
-                                                                            patternCount, eigenBufferCount,
-                                                                            matrixBufferCount, categoryCount,
-                                                                            scaleBufferCount,
-                                                                            resource,
-                                                                            preferenceFlags,
-                                                                            requirementFlags,
-                                                                            &errorCode);
-                        if (beagle != NULL) {
-                            //                            beagle->resourceNumber = resource;
-                            // Found a better implementation
-                            if (bestBeagle != NULL)
-                                delete bestBeagle;
-                            bestBeagle = beagle;
-                            bestScore = totalScore;
-                        }
-                    }
+                    
+                    possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));
+                    
                 }
             }
         }
         
         delete possibleResources;
         
-        if (bestBeagle != NULL) {
-            int instance = instances->size();
-            instances->push_back(bestBeagle);
-
-            int returnValue = bestBeagle->getInstanceDetails(returnInfo);
-            if (returnValue == BEAGLE_SUCCESS) {
-                returnInfo->resourceName = rsrcList->list[returnInfo->resourceNumber].name;
-                // TODO: move implDescription to inside the implementation
-                returnInfo->implDescription = (char*) "none";
-                
-                returnValue = instance;
-            }
+        possibleResourceImplementations->sort();
+        
+        for(RsrcImplList::iterator it = possibleResourceImplementations->begin(); it != possibleResourceImplementations->end(); ++it) {
+            int resource = (*it).second.first;
+            beagle::BeagleImplFactory* factory = (*it).second.second;
             
-            return returnValue;
+            beagle::BeagleImpl* bestBeagle = factory->createImpl(tipCount, partialsBufferCount,
+                                                                compactBufferCount, stateCount,
+                                                                patternCount, eigenBufferCount,
+                                                                matrixBufferCount, categoryCount,
+                                                                scaleBufferCount,
+                                                                resource,
+                                                                preferenceFlags,
+                                                                requirementFlags,
+                                                                &errorCode);
+            
+            if (bestBeagle != NULL) {
+                int instance = instances->size();
+                instances->push_back(bestBeagle);
+                
+                int returnValue = bestBeagle->getInstanceDetails(returnInfo);
+                if (returnValue == BEAGLE_SUCCESS) {
+                    returnInfo->resourceName = rsrcList->list[returnInfo->resourceNumber].name;
+                    // TODO: move implDescription to inside the implementation
+                    returnInfo->implDescription = (char*) "none";
+                    
+                    returnValue = instance;
+                }
+                
+                return returnValue;
+            }            
         }
         
         // No implementations found or appropriate, return last error code
