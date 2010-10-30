@@ -364,7 +364,7 @@ int beagleCreateInstance(int tipCount,
             int resource = (*it).second.first;
             beagle::BeagleImplFactory* factory = (*it).second.second;
             
-            beagle::BeagleImpl* bestBeagle = factory->createImpl(tipCount, partialsBufferCount,
+            bestBeagle = factory->createImpl(tipCount, partialsBufferCount,
                                                                 compactBufferCount, stateCount,
                                                                 patternCount, eigenBufferCount,
                                                                 matrixBufferCount, categoryCount,
@@ -374,22 +374,27 @@ int beagleCreateInstance(int tipCount,
                                                                 requirementFlags,
                                                                 &errorCode);
             
-            if (bestBeagle != NULL) {
-                int instance = instances->size();
-                instances->push_back(bestBeagle);
-                
-                int returnValue = bestBeagle->getInstanceDetails(returnInfo);
-                if (returnValue == BEAGLE_SUCCESS) {
-                    returnInfo->resourceName = rsrcList->list[returnInfo->resourceNumber].name;
-                    // TODO: move implDescription to inside the implementation
-                    returnInfo->implDescription = (char*) "none";
-                    
-                    returnValue = instance;
-                }
-                
-                return returnValue;
-            }            
+            if (bestBeagle != NULL)
+                break; 
         }
+        
+        delete possibleResourceImplementations;
+        
+        if (bestBeagle != NULL) {
+            int instance = instances->size();
+            instances->push_back(bestBeagle);
+            
+            int returnValue = bestBeagle->getInstanceDetails(returnInfo);
+            if (returnValue == BEAGLE_SUCCESS) {
+                returnInfo->resourceName = rsrcList->list[returnInfo->resourceNumber].name;
+                // TODO: move implDescription to inside the implementation
+                returnInfo->implDescription = (char*) "none";
+                
+                returnValue = instance;
+            }
+            
+            return returnValue;
+        }   
         
         // No implementations found or appropriate, return last error code
         return errorCode;
