@@ -330,13 +330,54 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     
 }
 
+void* GPUInterface::MallocHost(size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");
+#endif
+    
+    void* ptr;
+    
+#ifdef BEAGLE_MEMORY_PINNED
+    ptr = AllocatePinnedHostMemory(memSize, false, false);
+#else
+    ptr = malloc(memSize);
+#endif
 
-void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bool mapped) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MallocHost\n");
+#endif
+    
+    return ptr;
+}
+
+void* GPUInterface::CallocHost(size_t size, size_t length) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::CallocHost\n");
+#endif
+    
+    void* ptr;
+    size_t memSize = size * length;
+    
+#ifdef BEAGLE_MEMORY_PINNED
+    ptr = AllocatePinnedHostMemory(memSize, false, false);
+    memset(ptr, 0, memSize);
+#else
+    ptr = calloc(size, length);
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::CallocHost\n");
+#endif
+    
+    return ptr;
+}
+
+void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined, bool mapped) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
 #endif
     
-    void* data;
+    void* ptr;
     
     unsigned int flags = 0;
     
@@ -345,83 +386,83 @@ void* GPUInterface::AllocatePinnedHostMemory(int memSize, bool writeCombined, bo
     if (mapped)
         flags |= CU_MEMHOSTALLOC_DEVICEMAP;
 
-    SAFE_CUPP(cuMemHostAlloc(&data, memSize, flags));
+    SAFE_CUPP(cuMemHostAlloc(&ptr, memSize, flags));
     
     
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d .\n", (long)data, ((long)data + memSize));
+    fprintf(stderr, "Allocated pinned host (CPU) memory %d to %d .\n", (long)ptr, ((long)ptr + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
 #endif
     
-    return data;
+    return ptr;
 }
 
-GPUPtr GPUInterface::AllocateMemory(int memSize) {
+GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateMemory\n");
 #endif
     
-    GPUPtr data;
+    GPUPtr ptr;
     
-    SAFE_CUPP(cuMemAlloc(&data, memSize));
+    SAFE_CUPP(cuMemAlloc(&ptr, memSize));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + memSize));
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", ptr, (ptr + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateMemory\n");
 #endif
     
-    return data;
+    return ptr;
 }
 
-GPUPtr GPUInterface::AllocateRealMemory(int length) {
+GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateRealMemory\n");
 #endif
 
-    GPUPtr data;
+    GPUPtr ptr;
 
-    SAFE_CUPP(cuMemAlloc(&data, SIZE_REAL * length));
+    SAFE_CUPP(cuMemAlloc(&ptr, SIZE_REAL * length));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + length));
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", ptr, (ptr + length));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateRealMemory\n");
 #endif
     
-    return data;
+    return ptr;
 }
 
-GPUPtr GPUInterface::AllocateIntMemory(int length) {
+GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::AllocateIntMemory\n");
 #endif
 
-    GPUPtr data;
+    GPUPtr ptr;
     
-    SAFE_CUPP(cuMemAlloc(&data, SIZE_INT * length));
+    SAFE_CUPP(cuMemAlloc(&ptr, SIZE_INT * length));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %d to %d.\n", data, (data + length));
+    fprintf(stderr, "Allocated GPU memory %d to %d.\n", ptr, (ptr + length));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateIntMemory\n");
 #endif
 
-    return data;
+    return ptr;
 }
 
 void GPUInterface::MemsetShort(GPUPtr dest,
                                unsigned short val,
-                               unsigned int count) {
+                               size_t count) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetShort\n");
 #endif    
@@ -436,7 +477,7 @@ void GPUInterface::MemsetShort(GPUPtr dest,
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
-                                      int memSize) {
+                                      size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
 #endif    
@@ -451,7 +492,7 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
 
 void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       const GPUPtr src,
-                                      int memSize) {
+                                      size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif        
@@ -466,7 +507,7 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
                                         GPUPtr src,
-                                        int memSize) {
+                                        size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToDevice\n");
 #endif    
@@ -477,6 +518,22 @@ void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToDevice\n");
 #endif    
     
+}
+
+void GPUInterface::FreeHostMemory(void* hPtr) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::FreeHostMemory\n");
+#endif
+    
+#ifdef BEAGLE_MEMORY_PINNED
+    FreePinnedHostMemory(hPtr);
+#else
+    free(hPtr);
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeHostMemory\n");
+#endif
 }
 
 void GPUInterface::FreePinnedHostMemory(void* hPtr) {

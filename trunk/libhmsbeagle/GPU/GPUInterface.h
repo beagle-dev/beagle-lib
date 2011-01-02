@@ -94,32 +94,38 @@ public:
                                int totalParameterCount,
                                ...); // parameters
 
-    void* AllocatePinnedHostMemory(int memSize,
+    void* MallocHost(size_t memSize);
+    
+    void* CallocHost(size_t size, size_t length);
+    
+    void* AllocatePinnedHostMemory(size_t memSize,
                                    bool writeCombined,
                                    bool mapped);
     
-    GPUPtr AllocateMemory(int memSize);
+    GPUPtr AllocateMemory(size_t memSize);
     
-    GPUPtr AllocateRealMemory(int length);
+    GPUPtr AllocateRealMemory(size_t length);
 
-    GPUPtr AllocateIntMemory(int length);
+    GPUPtr AllocateIntMemory(size_t length);
     
     void MemsetShort(GPUPtr dest,
                      unsigned short val,
-                     unsigned int count);
+                     size_t count);
 
     void MemcpyHostToDevice(GPUPtr dest,
                             const void* src,
-                            int memSize);
+                            size_t memSize);
 
     void MemcpyDeviceToHost(void* dest,
                             const GPUPtr src,
-                            int memSize);
+                            size_t memSize);
     
     void MemcpyDeviceToDevice(GPUPtr dest,
                               GPUPtr src,
-                              int memSize);
+                              size_t memSize);
 
+    void FreeHostMemory(void* hPtr);
+    
     void FreePinnedHostMemory(void* hPtr);
     
     void FreeMemory(GPUPtr dPtr);
