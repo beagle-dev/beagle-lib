@@ -192,26 +192,21 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(dCompactBuffers);
         free(dTipPartialsBuffers);
 
-        free(hPtrQueue);
+        gpu->FreeHostMemory(hPtrQueue);
         
-        free(hCategoryRates);
+        gpu->FreeHostMemory(hCategoryRates);
         
-        free(hPatternWeightsCache);
+        gpu->FreeHostMemory(hPatternWeightsCache);
     
-        free(hDistanceQueue);
+        gpu->FreeHostMemory(hDistanceQueue);
     
-        free(hWeightsCache);
-        free(hFrequenciesCache);
-        free(hPartialsCache);
-        free(hStatesCache);
+        gpu->FreeHostMemory(hWeightsCache);
+        gpu->FreeHostMemory(hFrequenciesCache);
+        gpu->FreeHostMemory(hPartialsCache);
+        gpu->FreeHostMemory(hStatesCache);
                 
-#ifdef BEAGLE_MEMORY_PINNED
-        gpu->FreePinnedHostMemory(hLogLikelihoodsCache);
-        gpu->FreePinnedHostMemory(hMatrixCache);
-#else
-        free(hLogLikelihoodsCache);
-        free(hMatrixCache);
-#endif
+        gpu->FreeHostMemory(hLogLikelihoodsCache);
+        gpu->FreeHostMemory(hMatrixCache);
         
     }
     
@@ -396,23 +391,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kernels = new KernelLauncher(gpu);
     
     // TODO: only allocate if necessary on the fly
-    hWeightsCache = (Real*) calloc(kCategoryCount * kPartialsBufferCount, sizeof(Real));
-    hFrequenciesCache = (Real*) calloc(kPaddedStateCount * kPartialsBufferCount, sizeof(Real));
-    hPartialsCache = (Real*) calloc(kPartialsSize, sizeof(Real));
-    hStatesCache = (int*) calloc(kPaddedPatternCount, sizeof(int));
+    hWeightsCache = (Real*) gpu->CallocHost(kCategoryCount * kPartialsBufferCount, sizeof(Real));
+    hFrequenciesCache = (Real*) gpu->CallocHost(kPaddedStateCount * kPartialsBufferCount, sizeof(Real));
+    hPartialsCache = (Real*) gpu->CallocHost(kPartialsSize, sizeof(Real));
+    hStatesCache = (int*) gpu->CallocHost(kPaddedPatternCount, sizeof(int));
 
     int hMatrixCacheSize = kMatrixSize * kCategoryCount * BEAGLE_CACHED_MATRICES_COUNT;
     if ((2 * kMatrixSize + kEigenValuesSize) > hMatrixCacheSize)
         hMatrixCacheSize = 2 * kMatrixSize + kEigenValuesSize;
     
-#ifdef BEAGLE_MEMORY_PINNED
-    hLogLikelihoodsCache = (Real*) gpu->AllocatePinnedHostMemory(kPatternCount * sizeof(Real), false, false);
-    hMatrixCache = (Real*) gpu->AllocatePinnedHostMemory(hMatrixCacheSize * sizeof(Real), false, false);
-    memset(hMatrixCache, 0, hMatrixCacheSize * sizeof(Real));
-#else
-    hLogLikelihoodsCache = (Real*) malloc(kPatternCount * sizeof(Real));
-    hMatrixCache = (Real*) calloc(hMatrixCacheSize, sizeof(Real));
-#endif
+    hLogLikelihoodsCache = (Real*) gpu->MallocHost(kPatternCount * sizeof(Real));
+    hMatrixCache = (Real*) gpu->CallocHost(hMatrixCacheSize, sizeof(Real));
     
     dEvec = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dIevc = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
@@ -497,17 +486,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dBranchLengths = gpu->AllocateMemory(kBufferCount * sizeof(Real));
     
     dDistanceQueue = gpu->AllocateMemory(kMatrixCount * kCategoryCount * 2 * sizeof(Real));
-    hDistanceQueue = (Real*) malloc(sizeof(Real) * kMatrixCount * kCategoryCount * 2);
+    hDistanceQueue = (Real*) gpu->MallocHost(sizeof(Real) * kMatrixCount * kCategoryCount * 2);
     checkHostMemory(hDistanceQueue);
     
     dPtrQueue = gpu->AllocateMemory(sizeof(unsigned int) * ptrQueueLength);
-    hPtrQueue = (unsigned int*) malloc(sizeof(unsigned int) * ptrQueueLength);
+    hPtrQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
     
-	hCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount); // Keep in double-precision
+	hCategoryRates = (double*) gpu->MallocHost(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
 
-	hPatternWeightsCache = (Real*) malloc(sizeof(double) * kPatternCount);
+	hPatternWeightsCache = (Real*) gpu->MallocHost(sizeof(double) * kPatternCount);
     checkHostMemory(hPatternWeightsCache);
     
 	dMaxScalingFactors = gpu->AllocateMemory(kPaddedPatternCount * sizeof(Real));
@@ -1443,13 +1432,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::resetScaleFactors(int cumulativeScalingIn
         }
     }
     
-    Real* zeroes = (Real*) calloc(sizeof(Real), kPaddedPatternCount);
+    Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedPatternCount);
     
     // Fill with zeroes
     gpu->MemcpyHostToDevice(dScalingFactors[cumulativeScalingIndex], zeroes,
                             sizeof(Real) * kPaddedPatternCount);
     
-    free(zeroes);
+    gpu->FreeHostMemory(zeroes);
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
