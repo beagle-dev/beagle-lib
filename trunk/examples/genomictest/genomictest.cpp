@@ -352,15 +352,15 @@ void runBeagle(int resource,
     printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
     if (fullTiming) {
         std::cout << " transMats:  ";
-        printTiming(bestTimeUpdateTransitionMatrices, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
+        printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";
-        printTiming(bestTimeUpdatePartials, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
+        printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
-            printTiming(bestTimeAccumulateScaleFactors, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
+            printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         }
         std::cout << " rootLnL:    ";
-        printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, 0, 0, 0, 1, bestTimeTotal, percentPrecision);
+        printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision, 1, bestTimeTotal, percentPrecision);
     }
     std::cout << "\n";
     
