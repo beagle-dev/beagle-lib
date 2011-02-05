@@ -160,7 +160,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		64020B3612149C2500C76EFB /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = beagle.cpp; sourceTree = "<group>"; };
+		64020B3612149C2500C76EFB /* beagle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = beagle.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B3712149C2500C76EFB /* beagle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = beagle.h; sourceTree = "<group>"; };
 		64020B3812149C2500C76EFB /* platform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = platform.h; sourceTree = "<group>"; };
 		64020B4312149C9B00C76EFB /* BeaglePlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeaglePlugin.h; sourceTree = "<group>"; };
@@ -193,19 +193,19 @@
 		64020B6312149D6600C76EFB /* BeagleCPUSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPUSSEImpl.hpp; sourceTree = "<group>"; };
 		64020B6412149D6600C76EFB /* BeagleCPUSSEPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleCPUSSEPlugin.cpp; sourceTree = "<group>"; };
 		64020B6512149D7900C76EFB /* BeagleCPU4StateSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPU4StateSSEImpl.h; sourceTree = "<group>"; };
-		64020B6D12149DC300C76EFB /* BeagleGPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleGPUImpl.hpp; sourceTree = "<group>"; };
+		64020B6D12149DC300C76EFB /* BeagleGPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleGPUImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B6E12149DC300C76EFB /* BeagleGPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleGPUImpl.h; sourceTree = "<group>"; };
-		64020B6F12149DC300C76EFB /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GPUImplDefs.h; sourceTree = "<group>"; };
+		64020B6F12149DC300C76EFB /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = GPUImplDefs.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		64020B7012149DC300C76EFB /* GPUImplHelper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUImplHelper.cpp; sourceTree = "<group>"; };
 		64020B7112149DC300C76EFB /* GPUImplHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GPUImplHelper.h; sourceTree = "<group>"; };
 		64020B7212149DC300C76EFB /* GPUInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GPUInterface.h; sourceTree = "<group>"; };
-		64020B7312149DC300C76EFB /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = KernelLauncher.cpp; sourceTree = "<group>"; };
+		64020B7312149DC300C76EFB /* KernelLauncher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = KernelLauncher.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B7412149DC300C76EFB /* KernelLauncher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KernelLauncher.h; sourceTree = "<group>"; };
 		64020B7512149DC300C76EFB /* KernelResource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = KernelResource.cpp; sourceTree = "<group>"; };
 		64020B7612149DC300C76EFB /* KernelResource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KernelResource.h; sourceTree = "<group>"; };
 		64020B7712149DFA00C76EFB /* CUDAPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CUDAPlugin.cpp; sourceTree = "<group>"; };
 		64020B7812149DFA00C76EFB /* CUDAPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CUDAPlugin.h; sourceTree = "<group>"; };
-		64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUInterfaceCUDA.cpp; sourceTree = "<group>"; };
+		64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = GPUInterfaceCUDA.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; };
 		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
 		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
@@ -1168,16 +1168,8 @@
 		6407B9B61211EE3400BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = lib;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu";
 			};
 			name = Debug;
@@ -1185,32 +1177,16 @@
 		6407B9B71211EE3400BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = lib;
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BA011211EF8F00BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = plugin;
 			};
 			name = Debug;
@@ -1218,33 +1194,16 @@
 		6407BA021211EF8F00BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = plugin;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BA101211EFF900BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = lib;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = hmsbeagle;
 			};
 			name = Debug;
@@ -1252,33 +1211,16 @@
 		6407BA111211EFF900BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = lib;
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/lib;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = hmsbeagle;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BA751211F38C00BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/bin;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = tinytest;
 			};
 			name = Debug;
@@ -1286,38 +1228,23 @@
 		6407BA761211F38C00BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/bin;
-				OTHER_LDFLAGS = "";
-				PREBINDING = NO;
 				PRODUCT_NAME = tinytest;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BB9D1214832300BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = lib;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					CUDA,
 				);
 				HEADER_SEARCH_PATHS = /usr/local/cuda/include;
-				INSTALL_PATH = /usr/local/lib;
 				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
 				OTHER_LDFLAGS = "-lcuda";
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cuda";
 			};
 			name = Debug;
@@ -1325,32 +1252,22 @@
 		6407BB9E1214832300BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = lib;
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					CUDA,
 				);
 				HEADER_SEARCH_PATHS = /usr/local/cuda/include;
-				INSTALL_PATH = /usr/local/lib;
 				LIBRARY_SEARCH_PATHS = /usr/local/cuda/lib;
 				OTHER_LDFLAGS = "-lcuda";
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cuda";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BBAF121483F100BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
 				PRODUCT_NAME = "CUDA kernels";
 			};
 			name = Debug;
@@ -1358,26 +1275,16 @@
 		6407BBB0121483F100BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = "CUDA kernels";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		6407BBF31214886100BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = lib;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/lib;
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu-sse";
 			};
 			name = Debug;
@@ -1385,16 +1292,9 @@
 		6407BBF41214886100BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_PREFIX = lib;
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/lib;
-				PREBINDING = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu-sse";
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
@@ -1415,14 +1315,8 @@
 		643E192B1214B3D800B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
 				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = complextest;
 			};
 			name = Debug;
@@ -1430,29 +1324,16 @@
 		643E192C1214B3D800B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
 				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = complextest;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		643E19431214B4AB00B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = fourtaxon;
 			};
 			name = Debug;
@@ -1460,29 +1341,15 @@
 		643E19441214B4AB00B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = fourtaxon;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		643E19591214B54700B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = matrixtest;
 			};
 			name = Debug;
@@ -1490,29 +1357,15 @@
 		643E195A1214B54700B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = matrixtest;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		643E196D1214B5D300B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = oddstatetest;
 			};
 			name = Debug;
@@ -1520,29 +1373,15 @@
 		643E196E1214B5D300B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = oddstatetest;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		643E19811214B63E00B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_MODEL_TUNING = G5;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = genomictest;
 			};
 			name = Debug;
@@ -1550,25 +1389,19 @@
 		643E19821214B63E00B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				COPY_PHASE_STRIP = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				GCC_MODEL_TUNING = G5;
-				INSTALL_PATH = /usr/local/bin;
-				PREBINDING = NO;
 				PRODUCT_NAME = genomictest;
-				ZERO_LINK = NO;
 			};
 			name = Release;
 		};
 		649FE0F112108B60006E8768 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
+				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
-				GCC_VERSION = "";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
 			name = Debug;
@@ -1576,11 +1409,11 @@
 		649FE0F212108B60006E8768 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = DLS_MACOS;
-				GCC_VERSION = "";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
 			name = Release;
@@ -1596,8 +1429,7 @@
 		64EE9C3C1211AC8600A284AE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BEAGLE_CXXFLAGS = "";
-				PRODUCT_NAME = libhmsbeagle;
+				PRODUCT_NAME = "libhmsbeagle make";
 			};
 			name = Release;
 		};
