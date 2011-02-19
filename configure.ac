@@ -269,7 +269,7 @@ if test "x$with_jdk" != "xno"
 then
     AC_PROG_JAVAC
     if test "x$JAVAC" != "x"
-    then
+    then  
         AC_JNI_INCLUDE_DIR
         for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
         do
@@ -345,5 +345,5 @@ if( test x$NVCC = xno ) then
 fi
 
 if( test x$with_jdk = xno ) then
-	AC_MSG_WARN([JDK installation not found.  JNI wrapper will not be built.  Check the path to JDK and specify --with-jdk=/path/to/jdk])
+	AC_MSG_WARN([JDK installation not found.  JNI wrapper will not be built.  Check the path to JDK and specify --with-jdk=/path/to/jdk].  If using Mac OS X, also try installing Java for Mac OS X 1.6 Update 3 Developer Package)
 fi
