@@ -1677,7 +1677,7 @@ BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
 		REALTYPE* scaleFactors,
 		REALTYPE* cumulativeScaleFactors,
-                                       const int  fillWithOnes) {
+        const int  fillWithOnes) {
     if (DEBUGGING_OUTPUT) {
         std::cerr << "destP (before rescale): \n";// << destP << "\n";
         for(int i=0; i<kPartialsSize; i++)

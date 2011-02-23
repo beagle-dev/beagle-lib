@@ -147,6 +147,7 @@ public:
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
+
 };
 
 BEAGLE_CPU_TEMPLATE
