@@ -458,7 +458,7 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
 }
 
 #define FAST_MAX(x,y)	(x > y ? x : y)
-
+//#define BEAGLE_TEST_OPTIMIZATION
 /*
  * Re-scales the partial likelihoods such that the largest is one.
  */
@@ -471,37 +471,35 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::rescalePartials(REALTYPE* destP,
 	bool useLogScalars = kFlags & BEAGLE_FLAG_SCALERS_LOG;
 
     for (int k = 0; k < kPatternCount; k++) {
-    	REALTYPE max = 0;
+    	REALTYPE max = 0;    	
         const int patternOffset = k * 4;
         for (int l = 0; l < kCategoryCount; l++) {
             int offset = l * kPaddedPatternCount * 4 + patternOffset;
 
+#ifdef BEAGLE_TEST_OPTIMIZATION
             REALTYPE max01 = FAST_MAX(destP[offset + 0], destP[offset + 1]);
             REALTYPE max23 = FAST_MAX(destP[offset + 2], destP[offset + 3]);
-//            REALTYPE max0123 = FAST_MAX(max01, max23);
-//            max = FAST_MAX(max, max0123);
             max = FAST_MAX(max, max01);
             max = FAST_MAX(max, max23);
-
-//            for (int i = 0; i < 4; i++) {
-//                if(destP[offset] > max)
-//                    max = destP[offset];
-//                offset++;
-//            }
+#else
+			#pragma unroll
+            for (int i = 0; i < 4; i++) {
+                if(destP[offset] > max)
+                    max = destP[offset];
+                offset++;
+            }
+#endif
         }
 
-        if (max == REALTYPE(0.0))
+        if (max == 0)
             max = REALTYPE(1.0);
 
-        REALTYPE rMax = REALTYPE(1.0) / max;
+        REALTYPE oneOverMax = REALTYPE(1.0) / max;
         for (int l = 0; l < kCategoryCount; l++) {
             int offset = l * kPaddedPatternCount * 4 + patternOffset;
-            destP[offset + 0] *= rMax;
-            destP[offset + 1] *= rMax;
-            destP[offset + 2] *= rMax;
-            destP[offset + 3] *= rMax;
-//            for (int i = 0; i < 4; i++)
-//                destP[offset++] /= max;
+			#pragma unroll
+            for (int i = 0; i < 4; i++)
+                destP[offset++] *= oneOverMax;
         }
 
         if (useLogScalars) {
