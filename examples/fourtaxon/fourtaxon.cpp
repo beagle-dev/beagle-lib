@@ -97,6 +97,7 @@ FourTaxonExample::FourTaxonExample()
   , single(false)
   , calculate_derivatives(0)
   , empirical_derivatives(false)
+  , sse_vectorization(false)
     {
 	data_file_name = "fourtaxon.dat";
 	}
@@ -308,7 +309,7 @@ void FourTaxonExample::initBeagleLib()
                 3,          // scalingBuffersCount                
 				rsrcList,	// resourceList
 				rsrcCnt,	// resourceCount
-				BEAGLE_FLAG_VECTOR_SSE | (auto_scaling ? BEAGLE_FLAG_SCALING_AUTO : 0),         // preferenceFlags
+				(sse_vectorization ? BEAGLE_FLAG_VECTOR_SSE : 0) | (auto_scaling ? BEAGLE_FLAG_SCALING_AUTO : 0),         // preferenceFlags
 				requirementFlags,			// requirementFlags
 				&instDetails);
 	
@@ -946,6 +947,10 @@ void FourTaxonExample::interpretCommandLineParameters(
             {
             empirical_derivatives = true;
             }
+        else if (option == "--sse")
+        {
+            sse_vectorization = true;
+        }
 		else 
 			{
 			std::string msg("Unknown command line parameter \"");

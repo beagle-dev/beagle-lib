@@ -206,9 +206,9 @@
 		64020B7712149DFA00C76EFB /* CUDAPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CUDAPlugin.cpp; sourceTree = "<group>"; };
 		64020B7812149DFA00C76EFB /* CUDAPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CUDAPlugin.h; sourceTree = "<group>"; };
 		64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = GPUInterfaceCUDA.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
-		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; };
-		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
-		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cuda; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
+		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; };
+		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
+		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
 		64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; path = BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
 		64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUInterfaceOpenCL.cpp; sourceTree = "<group>"; };
 		64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = OpenCLPlugin.cpp; sourceTree = "<group>"; };
@@ -254,6 +254,7 @@
 		6407BA731211F38B00BA8C93 /* tinytest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tinytest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6407BB9C1214832300BA8C93 /* libhmsbeagle-cuda.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cuda.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6407BBF21214886100BA8C93 /* libhmsbeagle-cpu-sse.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-cpu-sse.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6435614113256BDE008D7357 /* fourtaxon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = fourtaxon.h; path = "../../../developer/beagle-lib/examples/fourtaxon/fourtaxon.h"; sourceTree = "<group>"; };
 		643E19291214B3D800B7E5A1 /* complextest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = complextest; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E19411214B4AA00B7E5A1 /* fourtaxon */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourtaxon; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E19571214B54600B7E5A1 /* matrixtest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = matrixtest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -553,6 +554,7 @@
 			isa = PBXGroup;
 			children = (
 				64020BD012149EA500C76EFB /* complextest.cpp */,
+				6435614113256BDE008D7357 /* fourtaxon.h */,
 				64020BD112149EAD00C76EFB /* fourtaxon.cpp */,
 				64020BD212149EB500C76EFB /* genomictest.cpp */,
 				64020BD312149EBE00C76EFB /* matrixtest.cpp */,

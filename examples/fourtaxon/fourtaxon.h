@@ -63,4 +63,5 @@ class FourTaxonExample
         bool                        auto_scaling;
 		int                         calculate_derivatives;
         bool                        empirical_derivatives;
+        bool                        sse_vectorization;
 	};
