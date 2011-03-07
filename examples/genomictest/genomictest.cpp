@@ -82,7 +82,8 @@ void runBeagle(int resource,
                int rateCategoryCount,
                int nreps,
                bool fullTiming,
-               bool preferDoublePrecision)
+               bool preferDoublePrecision,
+               bool preferSSE)
 {
     
     int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
@@ -102,8 +103,10 @@ void runBeagle(int resource,
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
-                (preferDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE),		          /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                (preferDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
+					(preferSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | 
+					(autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -394,7 +397,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* rsrc,
                                     int* nreps,
                                     bool* fullTiming,
-                                    bool* preferDoublePrecision)	{
+                                    bool* preferDoublePrecision,
+                                    bool* preferSSE)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -447,6 +451,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_nreps = true;
         } else if (option == "--full-timing") {
             *fullTiming = true;
+        } else if (option == "--SSE") {
+        	*preferSSE = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -500,6 +506,7 @@ int main( int argc, const char* argv[] )
     bool autoScaling = false;
     bool dynamicScaling = false;
     bool preferDoublePrecision = false;
+    bool preferSSE = false;
 
     int rsrc = -1;
     int nreps = 5;
@@ -507,7 +514,7 @@ int main( int argc, const char* argv[] )
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming, &preferDoublePrecision);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming, &preferDoublePrecision, &preferSSE);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -528,7 +535,8 @@ int main( int argc, const char* argv[] )
                   rateCategoryCount,
                   nreps,
                   fullTiming,
-                  preferDoublePrecision);
+                  preferDoublePrecision,
+                  preferSSE);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -543,7 +551,8 @@ int main( int argc, const char* argv[] )
                           rateCategoryCount,
                           nreps,
                           fullTiming,
-                          preferDoublePrecision);
+                          preferDoublePrecision,
+                          preferSSE);
             }
         }else{
             runBeagle(0,
@@ -556,7 +565,8 @@ int main( int argc, const char* argv[] )
                       rateCategoryCount,
                       nreps,
                       fullTiming,
-                      preferDoublePrecision);
+                      preferDoublePrecision,
+                      preferSSE);
         }
 	}
 

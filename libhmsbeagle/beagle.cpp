@@ -50,7 +50,8 @@
 #include "libhmsbeagle/plugin/Plugin.h"
 
 typedef std::list< std::pair<int,int> > PairedList;
-typedef std::list< std::pair<int,std::pair<int,beagle::BeagleImplFactory*> > > RsrcImplList;
+typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> >	RsrcImpl;
+typedef std::list<RsrcImpl> RsrcImplList;
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
 std::vector<beagle::BeagleImpl*> *instances = NULL;
@@ -67,6 +68,12 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
 }
 
 }	// end namespace beagle
+
+
+// A specialized comparator that only reorders based on score
+bool compareRsrcImpl(const RsrcImpl &left, const RsrcImpl &right) {
+	return left.first < right.first;
+}
 
 std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
@@ -123,7 +130,7 @@ std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
 		for(; plugin_iter != plugins->end(); plugin_iter++ ){
 			std::list<beagle::BeagleImplFactory*> factories = (*plugin_iter)->getBeagleFactories();
 			implFactory->insert(implFactory->end(), factories.begin(), factories.end());
-		}
+		}				
 	}
 	return implFactory;
 }
@@ -322,7 +329,7 @@ int beagleCreateInstance(int tipCount,
         
         // Score each resource-implementation pair given preferences
         RsrcImplList* possibleResourceImplementations = new RsrcImplList;
-        
+
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
@@ -358,7 +365,25 @@ int beagleCreateInstance(int tipCount,
         
         delete possibleResources;
         
-        possibleResourceImplementations->sort();
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr,"\nOriginal list of possible implementations:\n");
+        for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
+				it != possibleResourceImplementations->end(); ++it) {
+        	beagle::BeagleImplFactory* factory = (*it).second.second;
+        	fprintf(stderr,"\t %s (%d)\n", factory->getName(), (*it).first);
+        }
+#endif        
+        
+        possibleResourceImplementations->sort(compareRsrcImpl);
+        
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr,"\nSorted list of possible implementations:\n");
+        for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
+				it != possibleResourceImplementations->end(); ++it) {
+        	beagle::BeagleImplFactory* factory = (*it).second.second;
+        	fprintf(stderr,"\t %s (%d)\n", factory->getName(), (*it).first);
+        }
+#endif
         
         for(RsrcImplList::iterator it = possibleResourceImplementations->begin(); it != possibleResourceImplementations->end(); ++it) {
             int resource = (*it).second.first;
