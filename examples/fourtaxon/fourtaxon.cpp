@@ -799,7 +799,7 @@ void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
 	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]";
-	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single] [--calcderivs]\n\n";
+	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single] [--calcderivs] [--empiricalderivs] [--sse]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";
