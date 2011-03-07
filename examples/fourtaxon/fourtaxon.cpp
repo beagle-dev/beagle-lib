@@ -826,6 +826,7 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                              1 = calculate first order edge likelihood derivatives\n";
     std::cerr << "                              2 = calculate first and second order edge likelihood derivatives\n\n";
     std::cerr << "If --empiricalderivs is specified, then empirically calculate first and second order edge likelihood derivatives\n\n";
+    std::cerr << "If --sse is specified, then the SSE implementation is enabled\n\n";        
 	std::cerr << std::endl;
 	std::exit(0);
 	}
