@@ -31,17 +31,17 @@ function grep_print_fourtaxon {
 }
 
 function grep_print_time {
-    TIME_REAL_MIN=`grep "real" screen_output | cut -f 2 | grep -o [0-9.]*`
+    TIME_REAL_MIN=`grep "real" screen_output | cut -f 1 -d "m" | grep -o [0-9.].*`
     TIME_REAL_SEC=`grep "real" screen_output | cut -f 2 -d "m" | grep -o [0-9.]*`
     TIME_REAL=`echo $TIME_REAL_MIN*60 + $TIME_REAL_SEC | bc`
     TIME_REAL=`printf "%f" $TIME_REAL`
 
-    TIME_USER_MIN=`grep "user" screen_output | cut -f 2 | grep -o [0-9.]*`
+    TIME_USER_MIN=`grep "user" screen_output | cut -f 1 -d "m" | grep -o [0-9.].*`
     TIME_USER_SEC=`grep "user" screen_output | cut -f 2 -d "m" | grep -o [0-9.]*`
     TIME_USER=`echo $TIME_USER_MIN*60 + $TIME_USER_SEC | bc`
     TIME_USER=`printf "%f" $TIME_USER`
 
-    TIME_SYS_MIN=`grep "sys" screen_output | cut -f 2 | grep -o [0-9.]*`
+    TIME_SYS_MIN=`grep "sys" screen_output | cut -f 1 -d "m" | grep -o [0-9.].*`
     TIME_SYS_SEC=`grep "sys" screen_output | cut -f 2 -d "m" | grep -o [0-9.]*`
     TIME_SYS=`echo $TIME_SYS_MIN*60 + $TIME_SYS_SEC | bc`
     TIME_SYS=`printf "%f" $TIME_SYS`
