@@ -271,6 +271,9 @@
 		646A84CA1210962600F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CB1210962E00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CC1210963800F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		6485E24913300526007163C6 /* run_test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_test.sh; path = "../../developer/beagle-lib/tests/run_test.sh"; sourceTree = "<group>"; };
+		6485E24A133039FF007163C6 /* run_genomic_tests.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_genomic_tests.sh; path = "../../developer/beagle-lib/tests/run_genomic_tests.sh"; sourceTree = "<group>"; };
+		6485E24B13304AC3007163C6 /* test_results.csv */ = {isa = PBXFileReference; lastKnownFileType = text; name = test_results.csv; path = "../../developer/beagle-lib/tests/test_results.csv"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -396,6 +399,7 @@
 			children = (
 				6425C83712108CF000E7ED58 /* src */,
 				6425C84112108DAD00E7ED58 /* examples */,
+				6485E247133004FC007163C6 /* tests */,
 				6425C84312108DCC00E7ED58 /* makefiles */,
 				646A84CD1210967300F88378 /* other */,
 				6425C84212108DB400E7ED58 /* java */,
@@ -678,6 +682,16 @@
 				64020C0F1214A18A00C76EFB /* check_lnL_using_paup.nex */,
 			);
 			path = tinytest;
+			sourceTree = "<group>";
+		};
+		6485E247133004FC007163C6 /* tests */ = {
+			isa = PBXGroup;
+			children = (
+				6485E24A133039FF007163C6 /* run_genomic_tests.sh */,
+				6485E24913300526007163C6 /* run_test.sh */,
+				6485E24B13304AC3007163C6 /* test_results.csv */,
+			);
+			name = tests;
 			sourceTree = "<group>";
 		};
 		649FE0EA12108B60006E8768 = {
