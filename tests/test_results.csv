@@ -1,0 +1,6 @@
+program,states,taxa,sites,rates,reps,rsrc,rescaling,precision,sse,rsrc_name,impl_name,lnl,best_run,time_real,time_user,time_sys,cpu,gcc_version,revision,date
+genomictest,4,20,1000,4,5,0,none,single,no,CPU,CPU-4State-Single,-37292.50618,0.001431s,0m0.049s,0m0.022s,0m0.029s,Intel Core 2 Duo 2.53 GHz,i686-apple-darwin10-gcc-4.2.1 (GCC) 4.2.1 (Apple Inc. build 5666) (dot 3),977M,2011-03-15 21:31:38
+genomictest,4,20,1000,4,5,0,none,double,no,CPU,CPU-4State-Double,-37292.50521,0.001476s,0m0.053s,0m0.023s,0m0.032s,Intel Core 2 Duo 2.53 GHz,i686-apple-darwin10-gcc-4.2.1 (GCC) 4.2.1 (Apple Inc. build 5666) (dot 3),977M,2011-03-15 21:31:38
+genomictest,4,20,1000,4,5,0,none,double,yes,CPU,CPU-4State-SSE-Double,-37292.50521,0.001048s,0m0.050s,0m0.020s,0m0.029s,Intel Core 2 Duo 2.53 GHz,i686-apple-darwin10-gcc-4.2.1 (GCC) 4.2.1 (Apple Inc. build 5666) (dot 3),977M,2011-03-15 21:31:39
+genomictest,64,10,1000,4,5,0,none,single,no,CPU,CPU-Single,-53402.08134,0.268888s,0m1.435s,0m1.368s,0m0.051s,Intel Core 2 Duo 2.53 GHz,i686-apple-darwin10-gcc-4.2.1 (GCC) 4.2.1 (Apple Inc. build 5666) (dot 3),977M,2011-03-15 21:31:39
+genomictest,64,10,1000,4,5,0,none,double,no,CPU,CPU-Double,-53402.08885,0.298891s,0m1.606s,0m1.523s,0m0.070s,Intel Core 2 Duo 2.53 GHz,i686-apple-darwin10-gcc-4.2.1 (GCC) 4.2.1 (Apple Inc. build 5666) (dot 3),977M,2011-03-15 21:31:41
