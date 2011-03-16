@@ -95,6 +95,7 @@ FourTaxonExample::FourTaxonExample()
   , dynamic_scaling(false)
   , auto_scaling(false)
   , single(false)
+  , require_double(false)
   , calculate_derivatives(0)
   , empirical_derivatives(false)
   , sse_vectorization(false)
@@ -288,6 +289,10 @@ void FourTaxonExample::initBeagleLib()
         requirementFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
     }
         
+    if (require_double) {
+        requirementFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+    }
+        
 	int mtrxCount = ntaxa + 1; 
 		
 	if (calculate_derivatives == 1)
@@ -317,7 +322,7 @@ void FourTaxonExample::initBeagleLib()
 		delete[] rsrcList;
 
 	if (instance_handle < 0)
-		abort("beagleCreateInstance returned a negative instance handle (and that's not good)");
+		abort("Failed: beagleCreateInstance returned a negative instance handle (and that's not good)");
         
     int rNumber = instDetails.resourceNumber;
     //BeagleResourceList* rList = beagleGetResourceList();
@@ -799,7 +804,7 @@ void FourTaxonExample::helpMessage()
 	{
 	std::cerr << "Usage:\n\n";
 	std::cerr << "fourtaxon [--help] [--quiet] [--niters <integer>] [--datafile <string>]";
-	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single] [--calcderivs] [--empiricalderivs] [--sse]\n\n";
+	std::cerr << " [--rsrc <integer>] [--likeroot <integer>]  [--scaling <integer>] [--single] [--double] [--calcderivs] [--empiricalderivs] [--sse]\n\n";
 	std::cerr << "If --help is specified, this usage message is shown\n\n";
 	std::cerr << "If --quiet is specified, no progress reports will be issued (allowing for\n";
 	std::cerr << "        more accurate timing).\n\n";
@@ -821,7 +826,8 @@ void FourTaxonExample::helpMessage()
     std::cerr << "                           2 = rescale and accumulate scale factors at once\n";
     std::cerr << "                           3 = rescale once at first evaluation (dynamic)\n";
     std::cerr << "                           4 = automatically rescale when necessary\n\n";
-    std::cerr << "If --single is specified, then run in single precision mode\n\n";
+    std::cerr << "If --single is specified, then require single precision mode\n\n";
+    std::cerr << "If --double is specified, then require double precision mode\n\n";
     std::cerr << "If --calcderivs is specified, 0 = no calculation of edge likelihood derivatives\n";
     std::cerr << "                              1 = calculate first order edge likelihood derivatives\n";
     std::cerr << "                              2 = calculate first and second order edge likelihood derivatives\n\n";
@@ -916,6 +922,10 @@ void FourTaxonExample::interpretCommandLineParameters(
             {
             single = true;
             }
+        else if (option == "--double")
+        {
+            require_double = true;
+        }
 		else if (option == "--likeroot")
 			{
 			expecting_likerootnode = true;

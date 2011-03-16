@@ -272,8 +272,8 @@
 		646A84CB1210962E00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CC1210963800F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		6485E24913300526007163C6 /* run_test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_test.sh; path = "../../developer/beagle-lib/tests/run_test.sh"; sourceTree = "<group>"; };
-		6485E24A133039FF007163C6 /* run_genomic_tests.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_genomic_tests.sh; path = "../../developer/beagle-lib/tests/run_genomic_tests.sh"; sourceTree = "<group>"; };
 		6485E24B13304AC3007163C6 /* test_results.csv */ = {isa = PBXFileReference; lastKnownFileType = text; name = test_results.csv; path = "../../developer/beagle-lib/tests/test_results.csv"; sourceTree = "<group>"; };
+		6485E24C1330639F007163C6 /* run_test_batch.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_test_batch.sh; path = "../../developer/beagle-lib/tests/run_test_batch.sh"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -687,8 +687,8 @@
 		6485E247133004FC007163C6 /* tests */ = {
 			isa = PBXGroup;
 			children = (
-				6485E24A133039FF007163C6 /* run_genomic_tests.sh */,
 				6485E24913300526007163C6 /* run_test.sh */,
+				6485E24C1330639F007163C6 /* run_test_batch.sh */,
 				6485E24B13304AC3007163C6 /* test_results.csv */,
 			);
 			name = tests;
