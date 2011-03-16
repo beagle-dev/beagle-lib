@@ -41,6 +41,7 @@ class FourTaxonExample
 		std::string					data_file_name;
         bool                        scaling;
         bool                        single;
+        bool                        require_double;
 		const unsigned 				ntaxa;
 		unsigned 					nsites;
         unsigned                    nrates;
