@@ -20,11 +20,11 @@ set -v
 ./run_test.sh  "genomictest"  "64"    "10"  "1000"   "4"    "10"   "0"   "none"     "double"   "yes"  >> test_results.csv
 ./run_test.sh  "genomictest"  "64"    "10"  "1000"   "4"    "10"   "1"   "none"     "double"   "no"  >> test_results.csv
 
-./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "100"  "0"   "none"     "single"   "no"  >> test_results.csv
-./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "100"  "1"   "none"     "single"   "no"  >> test_results.csv
-./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "100"  "0"   "none"     "double"   "no"  >> test_results.csv
-./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "100"  "0"   "none"     "double"   "yes" >> test_results.csv
-./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "100"  "1"   "none"     "double"   "no"  >> test_results.csv
+./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "500"  "0"   "none"     "single"   "no"  >> test_results.csv
+./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "500"  "1"   "none"     "single"   "no"  >> test_results.csv
+./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "500"  "0"   "none"     "double"   "no"  >> test_results.csv
+./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "500"  "0"   "none"     "double"   "yes" >> test_results.csv
+./run_test.sh  "fourtaxon"    "4"     "4"   "1314"   "4"    "500"  "1"   "none"     "double"   "no"  >> test_results.csv
 
 set +v
 
