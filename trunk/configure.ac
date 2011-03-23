@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -O3 -march=native"}
+: ${CXXFLAGS=" -O3"}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
@@ -222,6 +222,20 @@ SSE_CFLAGS=
 if test  "$enable_sse" = yes; then
 	SSE_CFLAGS+="-DENABLE_SSE"
     AM_CXXFLAGS="$AM_CXXFLAGS -msse2"
+fi
+
+# ------------------------------------------------------------------------------
+# Setup native cpu architecture optimization flag
+# ------------------------------------------------------------------------------
+
+AC_ARG_ENABLE(march_native,
+    AC_HELP_STRING([--enable-march-native],[build with native architecture optimization @<:@default=yes@:>@]), , [enable_march_native=yes])
+
+if test  "$enable_march_native" = yes; then
+    if test x$GCC = xyes 
+    then 
+        AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.3], [AM_CXXFLAGS="$AM_CXXFLAGS -march=native"],[])
+    fi
 fi
 
 # ------------------------------------------------------------------------------
