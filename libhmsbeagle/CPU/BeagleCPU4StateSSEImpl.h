@@ -80,9 +80,16 @@ private:
 
     virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
-                                    const REALTYPE* matrices1,
-                                    const REALTYPE* partials2,
-                                    const REALTYPE* matrices2);
+                                    const REALTYPE* __restrict matrices1,
+                                    const REALTYPE* __restrict partials2,
+                                    const REALTYPE* __restrict matrices2);
+
+    virtual void calcStatesPartialsFixedScaling(REALTYPE* destP,
+                                    const int* states1,
+                                    const REALTYPE* __restrict matrices1,
+                                    const REALTYPE* __restrict partials2,
+                                    const REALTYPE* __restrict matrices2,
+                                    const REALTYPE* __restrict scaleFactors);
 
     virtual void calcPartialsPartials(REALTYPE* __restrict destP,
                                       const REALTYPE* __restrict partials1,
