@@ -1212,32 +1212,48 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
 
 	} else { // Integrate against a partial at the child
 
-		const REALTYPE* partialsChild = gPartials[childIndex];
-		int v = 0;
-
-		for(int l = 0; l < kCategoryCount; l++) {
-			int u = 0;
-			const REALTYPE weight = wt[l];
-			for(int k = 0; k < kPatternCount; k++) {
-				int w = l * kMatrixSize;
-				for(int i = 0; i < kStateCount; i++) {
-					double sumOverJ = 0.0;
-					for(int j = 0; j < kStateCount; j++) {
-						sumOverJ += transMatrix[w] * partialsChild[v + j];
-						w++;
-					}
+        const REALTYPE* partialsChild = gPartials[childIndex];
+        int v = 0;
+        int stateCountModFour = (kStateCount / 4) * 4;
+        
+        for(int l = 0; l < kCategoryCount; l++) {
+            int u = 0;
+            const REALTYPE weight = wt[l];
+            for(int k = 0; k < kPatternCount; k++) {
+                int w = l * kMatrixSize;
+                const REALTYPE* partialsChildPtr = &partialsChild[v];
+                for(int i = 0; i < kStateCount; i++) {
+                    double sumOverJA = 0.0, sumOverJB = 0.0;
+                    int j = 0;
+                    const REALTYPE* transMatrixPtr = &transMatrix[w];
+                    for (; j < stateCountModFour; j += 4) {
+                        sumOverJA += transMatrixPtr[j + 0] * partialsChildPtr[j + 0];
+                        sumOverJB += transMatrixPtr[j + 1] * partialsChildPtr[j + 1];
+                        sumOverJA += transMatrixPtr[j + 2] * partialsChildPtr[j + 2];
+                        sumOverJB += transMatrixPtr[j + 3] * partialsChildPtr[j + 3];
+                        
+                    }
+                    for (; j < kStateCount; j++) {
+                        sumOverJA += transMatrixPtr[j] * partialsChildPtr[j];
+                    }
+                    //                        for(int j = 0; j < kStateCount; j++) {
+                    //                            sumOverJ += transMatrix[w] * partialsChild[v + j];
+                    //                            w++;
+                    //                        }
+                    integrationTmp[u] += (sumOverJA + sumOverJB) * partialsParent[v + i] * weight;
+                    u++;
+                    
+                    w += kStateCount;
 #ifdef PAD_MATRICES
-					// increment for the extra column at the end
-					w += PAD;
+                    // increment for the extra column at the end
+                    w += PAD;
 #endif
-					integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
-					u++;
-				}
-				v += kStateCount;
-			}
-		}
-	}
-
+                }
+                v += kStateCount;
+            }
+        }
+    }
+    
 	int u = 0;
 	for(int k = 0; k < kPatternCount; k++) {
 		REALTYPE sumOverI = 0.0;
@@ -1319,24 +1335,40 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
         } else {
             const REALTYPE* partialsChild = gPartials[childIndex];
             int v = 0;
+            int stateCountModFour = (kStateCount / 4) * 4;
             
             for(int l = 0; l < kCategoryCount; l++) {
                 int u = 0;
                 const REALTYPE weight = wt[l];
                 for(int k = 0; k < kPatternCount; k++) {
                     int w = l * kMatrixSize;
+                    const REALTYPE* partialsChildPtr = &partialsChild[v];
                     for(int i = 0; i < kStateCount; i++) {
-                        double sumOverJ = 0.0;
-                        for(int j = 0; j < kStateCount; j++) {
-                            sumOverJ += transMatrix[w] * partialsChild[v + j];
-                            w++;
+                        double sumOverJA = 0.0, sumOverJB = 0.0;
+                        int j = 0;
+                        const REALTYPE* transMatrixPtr = &transMatrix[w];
+                        for (; j < stateCountModFour; j += 4) {
+                            sumOverJA += transMatrixPtr[j + 0] * partialsChildPtr[j + 0];
+                            sumOverJB += transMatrixPtr[j + 1] * partialsChildPtr[j + 1];
+                            sumOverJA += transMatrixPtr[j + 2] * partialsChildPtr[j + 2];
+                            sumOverJB += transMatrixPtr[j + 3] * partialsChildPtr[j + 3];
+                            
                         }
+                        for (; j < kStateCount; j++) {
+                            sumOverJA += transMatrixPtr[j] * partialsChildPtr[j];
+                        }
+//                        for(int j = 0; j < kStateCount; j++) {
+//                            sumOverJ += transMatrix[w] * partialsChild[v + j];
+//                            w++;
+//                        }
+                        integrationTmp[u] += (sumOverJA + sumOverJB) * partialsParent[v + i] * weight;
+                        u++;
+                        
+                        w += kStateCount;
 #ifdef PAD_MATRICES
                         // increment for the extra column at the end
                         w += PAD;
 #endif
-                        integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
-                        u++;
                     }
                     v += kStateCount;
                 }
