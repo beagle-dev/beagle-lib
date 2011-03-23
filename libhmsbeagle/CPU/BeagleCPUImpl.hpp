@@ -2060,7 +2060,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYP
                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
 
-                *(destPtr++) = (sum1A + sum1B) * (sum2A + sum2B) / oneOverScaleFactor;
+                *(destPtr++) = (sum1A + sum1B) * (sum2A + sum2B) * oneOverScaleFactor;
             }
 			
 			partials1Ptr += kStateCount;

@@ -64,6 +64,7 @@ typedef double VecEl_t;
 # 	define VEC_SETZERO()		_mm_setzero_pd()
 #	define VEC_SET1(a)			_mm_set_sd((a))
 #	define VEC_SET(a, b)		_mm_set_pd((a), (b))
+#   define VEC_MOVE(a, b)		_mm_move_sd((a), (b))
 #else
 	typedef float RealType;
 	typedef __m128	V_Real;
