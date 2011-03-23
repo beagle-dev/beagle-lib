@@ -218,6 +218,39 @@ void BeagleCPUSSEImpl<double>::calcStatesPartials(double* destP,
 //    }
 //}
 
+//template<>
+//void inline BeagleCPUSSEImpl<double>::innerPartialsPartals(
+//		const double* __restrict partials1,
+//		const double* __restrict matrices1,
+//		const double* __restrict partials2,
+//		const double* __restrict matrices2,
+//		V_Real& sum1_vec,
+//		V_Real& sum2_vec,
+//		V_Real& out,
+//		int& v,
+//		int& w) {
+//	int j = 0;
+//	sum1_vec = VEC_SETZERO();
+//	sum2_vec = VEC_SETZERO();
+//	for (; j < kStateCountMinusOne; j += 2) {
+//		sum1_vec = VEC_MADD(
+//				VEC_LOAD(matrices1 + w + j), // TODO This only works if w is even
+//				VEC_LOAD(partials1 + v + j), // TODO This only works if v is even
+//				sum1_vec);
+//		sum2_vec = VEC_MADD(
+//				VEC_LOAD(matrices2 + w + j),
+//				VEC_LOAD(partials2 + v + j),
+//				sum2_vec);
+//	}
+//
+//	out = VEC_MULT(
+//			VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
+//			VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
+//	);
+//}
+
+//#define DOUBLE_UNROLL // Does not appear to save any time
+
 template <>
 void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
                                               const double* __restrict partials1,
@@ -227,41 +260,107 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	int u = l*kStateCount*kPatternCount;
+    	double* destPu = destP + l*kStateCount*kPatternCount;
     	int v = l*kStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
+            for (int i = 0; i < kStateCount;
+#ifdef DOUBLE_UNROLL
+            		i += 2 // TODO This only works if stateCount is even
+#else
+            		++i
+#endif
+            ) {
+            	register V_Real sum1_vecA = VEC_SETZERO();
+            	register V_Real sum2_vecA = VEC_SETZERO();
+            	for (int j = 0; j < kStateCountMinusOne; j += 2) {
+            		sum1_vecA = VEC_MADD(
+								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
+								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
+								 sum1_vecA);
+            		sum2_vecA = VEC_MADD(
+								 VEC_LOAD(matrices2 + w + j),
+								 VEC_LOAD(partials2 + v + j),
+								 sum2_vecA);
+            	}
+
+            	sum1_vecA = VEC_MULT(
+            	               VEC_ADD(sum1_vecA, VEC_SWAP(sum1_vecA)),
+            	               VEC_ADD(sum2_vecA, VEC_SWAP(sum2_vecA))
+            	           );
+#ifdef PAD_MATRICES
+                // increment for the extra column at the end
+                w += kStateCount + PAD;
+#else
+                w += kStateCount;
+#endif
+
+#ifndef DOUBLE_UNROLL
+                // Store single value
+                VEC_STORE_SCALAR(destPu, sum1_vecA);
+                destPu++;
+#endif
+
+#ifdef DOUBLE_UNROLL
+            	register V_Real sum1_vecB = VEC_SETZERO();
+            	register V_Real sum2_vecB = VEC_SETZERO();
+            	for (int j = 0; j < kStateCountMinusOne; j += 2) {
+            		sum1_vecB = VEC_MADD(
+								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
+								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
+								 sum1_vecB);
+            		sum2_vecB = VEC_MADD(
+								 VEC_LOAD(matrices2 + w + j),
+								 VEC_LOAD(partials2 + v + j),
+								 sum2_vecB);
+            	}
+
+            	sum1_vecB = VEC_MULT(
+            	               VEC_ADD(sum1_vecB, VEC_SWAP(sum1_vecB)),
+            	               VEC_ADD(sum2_vecB, VEC_SWAP(sum2_vecB))
+            	           );
+#ifdef PAD_MATRICES
+                // increment for the extra column at the end
+                w += kStateCount + PAD;
+#else
+                w += kStateCount;
+#endif
+
+                // Store both partials in one transaction
+                VEC_STORE(destPu, VEC_MOVE(sum1_vecA, sum1_vecB));
+                destPu += 2;
+#endif
+
+            }
+            v += kStateCount;
+        }
+    }
+}
+
+template <>
+void BeagleCPUSSEImpl<double>::calcPartialsPartialsFixedScaling(
+													double* __restrict destP,
+                                              const double* __restrict partials1,
+                                              const double* __restrict matrices1,
+                                              const double* __restrict partials2,
+                                              const double* __restrict matrices2,
+                                              const double* __restrict scaleFactors) {
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+    	double* destPu = destP + l*kStateCount*kPatternCount;
+    	int v = l*kStateCount*kPatternCount;
+        for (int k = 0; k < kPatternCount; k++) {
+            int w = l * kMatrixSize;
+            const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
             for (int i = 0; i < kStateCount; i++) {
 
             	register V_Real sum1_vec;
             	register V_Real sum2_vec;
 
               	int j = 0;
-//              	fprintf(stderr,"v = %d, w = %d\n",v,w);
-//            	if (kOddStateCount) { // TODO Template for compiler-time optimization
-//            		// Need to either unroll first or last entry
-//            		double sum1_end;
-//            		double sum2_end;
-//            		if (w & 1) { // v and w are odd, unroll first element
-//            			fprintf(stderr,"unroll head\n");
-//            			sum1_end = matrices1[w] * partials1[v];
-//            			sum2_end = matrices2[w] * partials2[v];
-//            			j++;
-//            		} else { // unroll last element
-//            			fprintf(stderr,"unroll tail\n");
-//               			sum1_end = matrices1[w + kStateCountMinusOne] *
-//               					   partials1[v + kStateCountMinusOne];
-//                		sum2_end = matrices2[w + kStateCountMinusOne] *
-//               					   partials2[v + kStateCountMinusOne];
-//            		}
-//            		sum1_vec = VEC_SET1(sum1_end);
-//            		sum2_vec = VEC_SET1(sum2_end);
-//            	} else {
-            		sum1_vec = VEC_SETZERO();
-            		sum2_vec = VEC_SETZERO();
-//            	}
-//            	fprintf(stderr,"Done with head/tail\n");
-//            	fprintf(stderr,"starting SSE at %d:%d\n",(v+j),(w+j));
+            	sum1_vec = VEC_SETZERO();
+            	sum2_vec = VEC_SETZERO();
             	for ( ; j < kStateCountMinusOne; j += 2) {
             		sum1_vec = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
@@ -272,21 +371,11 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
 								 VEC_LOAD(partials2 + v + j),
 								 sum2_vec);
             	}
-
-//            	fprintf(stderr,"Done with loop\n");
-
-#if 1
-                VEC_STORE_SCALAR(destP + u,
-                		VEC_MULT(
+                VEC_STORE_SCALAR(destPu,
+                		VEC_DIV(VEC_MULT(
                 				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
                 				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
-                		));
-#else
-                VecUnion t1, t2;
-                t1.vx = sum1;
-                t2.vx = sum2;
-                destP[u] = (t1.x[0] + t1.x[1] + endSum1) * (t2.x[0] + t2.x[1] + endSum2);
-#endif
+                		), scalar));
 
 #ifdef PAD_MATRICES
                 // increment for the extra column at the end
@@ -294,12 +383,13 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
 #else
                 w += kStateCount;
 #endif
-                u++;
+                destPu++;
             }
             v += kStateCount;
         }
     }
 }
+
     
 template <>
 void BeagleCPUSSEImpl<double>::calcPartialsPartialsAutoScaling(double* destP,
@@ -566,6 +656,48 @@ const long BeagleCPUSSEImplFactory<float>::getFlags() {
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
 }
 
+// Code to save:
+//	int j = 0;
+////              	fprintf(stderr,"v = %d, w = %d\n",v,w);
+////            	if (kOddStateCount) { // TODO Template for compiler-time optimization
+////            		// Need to either unroll first or last entry
+////            		double sum1_end;
+////            		double sum2_end;
+////            		if (w & 1) { // v and w are odd, unroll first element
+////            			fprintf(stderr,"unroll head\n");
+////            			sum1_end = matrices1[w] * partials1[v];
+////            			sum2_end = matrices2[w] * partials2[v];
+////            			j++;
+////            		} else { // unroll last element
+////            			fprintf(stderr,"unroll tail\n");
+////               			sum1_end = matrices1[w + kStateCountMinusOne] *
+////               					   partials1[v + kStateCountMinusOne];
+////                		sum2_end = matrices2[w + kStateCountMinusOne] *
+////               					   partials2[v + kStateCountMinusOne];
+////            		}
+////            		sum1_vec = VEC_SET1(sum1_end);
+////            		sum2_vec = VEC_SET1(sum2_end);
+////            	} else {
+//	sum1_vec = VEC_SETZERO();
+//	sum2_vec = VEC_SETZERO();
+////            	}
+////            	fprintf(stderr,"Done with head/tail\n");
+////            	fprintf(stderr,"starting SSE at %d:%d\n",(v+j),(w+j));
+// Next snippet
+//#if 1
+//                VEC_STORE_SCALAR(destP + u,
+//                		VEC_MULT(
+//                				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
+//                				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
+//                		));
+//#else
+//                VecUnion t1, t2;
+//                t1.vx = sum1_vec;
+//                t2.vx = sum2_vec;
+//                destP[u] = (t1.x[0] + t1.x[1] //+ endSum1
+//                		) * (t2.x[0] + t2.x[1] //+ endSum2
+//                				);
+//#endif
 
 }
 }

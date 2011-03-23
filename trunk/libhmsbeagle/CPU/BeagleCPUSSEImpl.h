@@ -96,6 +96,13 @@ private:
                                       const REALTYPE* __restrict partials2,
                                       const REALTYPE* __restrict matrices2);
     
+    virtual void calcPartialsPartialsFixedScaling(REALTYPE* __restrict destP,
+                                      const REALTYPE* __restrict partials1,
+                                      const REALTYPE* __restrict matrices1,
+                                      const REALTYPE* __restrict partials2,
+                                      const REALTYPE* __restrict matrices2,
+                                      const REALTYPE* __restrict scaleFactors);
+
     virtual void calcPartialsPartialsAutoScaling(REALTYPE* __restrict destP,
                                                  const REALTYPE* __restrict partials1,
                                                  const REALTYPE* __restrict matrices1,
@@ -110,6 +117,17 @@ private:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
+
+//    void inline innerPartialsPartals(
+//    		const double* __restrict partials1,
+//    		const double* __restrict matrices1,
+//    		const double* __restrict partials2,
+//    		const double* __restrict matrices2,
+//    		V_Real& sum1_vec,
+//    		V_Real& sum2_vec,
+//    		V_Real& out,
+//    		int& v,
+//    		int& w);
 
 };
 
