@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -O3"}
+: ${CXXFLAGS=" -O3 -march=native"}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
