@@ -248,6 +248,72 @@ void BeagleCPU4StateSSEImpl<double>::calcStatesPartials(double* destP,
 }
 
 template <>
+void BeagleCPU4StateSSEImpl<float>::calcStatesPartialsFixedScaling(float* destP,
+                                const int* states1,
+                                const float* __restrict matrices1,
+                                const float* __restrict partials2,
+                                const float* __restrict matrices2,
+                                const float* __restrict scaleFactors) {
+	BeagleCPU4StateImpl<float>::calcStatesPartialsFixedScaling(
+									   destP,
+									   states1,
+									   matrices1,
+									   partials2,
+									   matrices2,
+									   scaleFactors);
+}
+
+template <>
+void BeagleCPU4StateSSEImpl<double>::calcStatesPartialsFixedScaling(double* destP,
+                                const int* states_q,
+                                const double* __restrict matrices_q,
+                                const double* __restrict partials_r,
+                                const double* __restrict matrices_r,
+                                const double* __restrict scaleFactors) {
+
+
+    int v = 0;
+    int w = 0;
+
+ 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+	V_Real *destPvec = (V_Real *)destP;
+	V_Real destr_01, destr_23;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+
+    	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = 0; k < kPatternCount; k++) {
+
+        	const V_Real scaleFactor = VEC_SPLAT(scaleFactors[k]);
+
+            const int state_q = states_q[k];
+            V_Real vp0, vp1, vp2, vp3;
+            SSE_PREFETCH_PARTIALS(vp,partials_r,v);
+
+			destr_01 = VEC_MULT(vp0, vu_mr[0][0].vx);
+			destr_01 = VEC_MADD(vp1, vu_mr[1][0].vx, destr_01);
+			destr_01 = VEC_MADD(vp2, vu_mr[2][0].vx, destr_01);
+			destr_01 = VEC_MADD(vp3, vu_mr[3][0].vx, destr_01);
+			destr_23 = VEC_MULT(vp0, vu_mr[0][1].vx);
+			destr_23 = VEC_MADD(vp1, vu_mr[1][1].vx, destr_23);
+			destr_23 = VEC_MADD(vp2, vu_mr[2][1].vx, destr_23);
+			destr_23 = VEC_MADD(vp3, vu_mr[3][1].vx, destr_23);
+
+            *destPvec++ = VEC_DIV(VEC_MULT(vu_mq[state_q][0].vx, destr_01), scaleFactor);
+            *destPvec++ = VEC_DIV(VEC_MULT(vu_mq[state_q][1].vx, destr_23), scaleFactor);
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+        	destPvec += kExtraPatterns * 2;
+        	v += kExtraPatterns * 4;
+        }
+    }
+}
+
+template <>
 void BeagleCPU4StateSSEImpl<float>::calcPartialsPartials(float* destP,
                                                   const float*  partials_q,
                                                   const float*  matrices_q,
