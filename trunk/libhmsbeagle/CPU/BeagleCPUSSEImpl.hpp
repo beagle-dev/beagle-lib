@@ -268,18 +268,12 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
 								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
 								 sum1_vec);
             		sum2_vec = VEC_MADD(
-								 VEC_LOAD(matrices1 + w + j),
+								 VEC_LOAD(matrices2 + w + j),
 								 VEC_LOAD(partials2 + v + j),
 								 sum2_vec);
             	}
 
 //            	fprintf(stderr,"Done with loop\n");
-#ifdef PAD_MATRICES
-                // increment for the extra column at the end
-                w += kStateCount + PAD;
-#else
-                w += kStateCount;
-#endif
 
 #if 1
                 VEC_STORE_SCALAR(destP + u,
@@ -294,6 +288,12 @@ void BeagleCPUSSEImpl<double>::calcPartialsPartials(double* __restrict destP,
                 destP[u] = (t1.x[0] + t1.x[1] + endSum1) * (t2.x[0] + t2.x[1] + endSum2);
 #endif
 
+#ifdef PAD_MATRICES
+                // increment for the extra column at the end
+                w += kStateCount + PAD;
+#else
+                w += kStateCount;
+#endif
                 u++;
             }
             v += kStateCount;
@@ -508,7 +508,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount
                                              int* errorCode) {
 
 	if (stateCount & 1) {
-		return NULL;
+		return NULL; // Does not currently work for odd statecounts
 	}
 
     BeagleCPUSSEImpl<BEAGLE_CPU_GENERIC>* impl =
