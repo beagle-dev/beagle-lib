@@ -348,9 +348,9 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
 
         for (int k = 0; k < kPatternCount; k++) {
             
-#           if 0
-            __builtin_prefetch (&partials_q[v+32]);
-            __builtin_prefetch (&partials_r[v+32]);
+#           if 1
+            __builtin_prefetch (&partials_q[v+64]);
+            __builtin_prefetch (&partials_r[v+64]);
 //            __builtin_prefetch (destPvec+32,1,0);
 #           endif
 
@@ -473,6 +473,12 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartialsFixedScaling(double* de
 
         for (int k = 0; k < kPatternCount; k++) {
 
+#           if 1
+            __builtin_prefetch (&partials_q[v+64]);
+            __builtin_prefetch (&partials_r[v+64]);
+            //            __builtin_prefetch (destPvec+32,1,0);
+#           endif
+            
             // Prefetch scale factor
 //            const V_Real scaleFactor = VEC_LOAD_SCALAR(scaleFactors + k);
         	// Option below appears faster, why?

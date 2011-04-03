@@ -207,7 +207,7 @@
 		64020B7712149DFA00C76EFB /* CUDAPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CUDAPlugin.cpp; sourceTree = "<group>"; };
 		64020B7812149DFA00C76EFB /* CUDAPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CUDAPlugin.h; sourceTree = "<group>"; };
 		64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = GPUInterfaceCUDA.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
-		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; };
+		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
 		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
 		64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; path = BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
