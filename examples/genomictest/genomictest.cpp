@@ -20,6 +20,8 @@
 
 #include "libhmsbeagle/beagle.h"
 
+#include "linalg.h"
+
 #ifdef _WIN32
 	//From January 1, 1601 (UTC). to January 1,1970
 	#define FACTOR 0x19db1ded53e8000 
@@ -180,56 +182,102 @@ void runBeagle(int resource,
     
     beagleSetCategoryWeights(instance, 0, &weights[0]);
 
-	// an eigen decomposition for the general state-space JC69 model
-    // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
-    // the eigendecomposition of the infinitesimal rate matrix
-     
-    double* Hn = (double*)malloc(sizeof(double)*stateCount*stateCount);
-    Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
-    Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
- 
-    for (int k=2; k < stateCount; k <<= 1) {
-        // H_n = H_1 (Kronecker product) H_{n-1}
-        for (int i=0; i<k; i++) {
-            for (int j=i; j<k; j++) {
-                double Hijold = Hn[i*stateCount + j];
-                Hn[i    *stateCount + j + k] =  Hijold;
-                Hn[(i+k)*stateCount + j    ] =  Hijold;
-                Hn[(i+k)*stateCount + j + k] = -Hijold;
-                
-                Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
-                Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
-                Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
-            }
-        }        
-    }
-    double* evec = Hn;
+//	// an eigen decomposition for the general state-space JC69 model
+//    // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
+//    // the eigendecomposition of the infinitesimal rate matrix
+//     
+//    double* Hn = (double*)malloc(sizeof(double)*stateCount*stateCount);
+//    Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
+//    Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
+// 
+//    for (int k=2; k < stateCount; k <<= 1) {
+//        // H_n = H_1 (Kronecker product) H_{n-1}
+//        for (int i=0; i<k; i++) {
+//            for (int j=i; j<k; j++) {
+//                double Hijold = Hn[i*stateCount + j];
+//                Hn[i    *stateCount + j + k] =  Hijold;
+//                Hn[(i+k)*stateCount + j    ] =  Hijold;
+//                Hn[(i+k)*stateCount + j + k] = -Hijold;
+//                
+//                Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
+//                Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
+//                Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
+//            }
+//        }        
+//    }
+//    double* evec = Hn;
+//    
+//    // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+//#ifdef _WIN32
+//	std::vector<double> ivec(stateCount * stateCount);
+//#else
+//    double ivec[stateCount * stateCount];
+//#endif
+//
+//    for (int i=0; i<stateCount; i++) {
+//        for (int j=i; j<stateCount; j++) {
+//            ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
+//            ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+//        }
+//    }
+//
+//#ifdef _WIN32
+//	std::vector<double> eval(stateCount);
+//#else
+//    double eval[stateCount];
+//#endif
+//   
+//    eval[0] = 0.0;
+//    for (int i=1; i<stateCount; i++) {
+//        eval[i] = -stateCount / (stateCount - 1.0);
+//    }
     
-    // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
-#ifdef _WIN32
-	std::vector<double> ivec(stateCount * stateCount);
-#else
-    double ivec[stateCount * stateCount];
-#endif
-
-    for (int i=0; i<stateCount; i++) {
-        for (int j=i; j<stateCount; j++) {
-            ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
-            ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+    
+    double** qmat=New2DArray<double>(stateCount, stateCount);    
+    double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
+    
+    int rnum=0;
+    for(int i=0;i<stateCount;i++){
+        for(int j=i+1;j<stateCount;j++){
+            relNucRates[rnum] = rand() / (double) RAND_MAX;;
+            qmat[i][j]=relNucRates[rnum] * freqs[j];
+            qmat[j][i]=relNucRates[rnum] * freqs[i];
+            rnum++;
         }
     }
 
-#ifdef _WIN32
-	std::vector<double> eval(stateCount);
-#else
-    double eval[stateCount];
-#endif
-   
-    eval[0] = 0.0;
-    for (int i=1; i<stateCount; i++) {
-        eval[i] = -stateCount / (stateCount - 1.0);
-    }
-
+    //set diags to sum rows to 0
+    double sum;
+    for(int x=0;x<stateCount;x++){
+        sum=0.0;
+        for(int y=0;y<stateCount;y++){
+            if(x!=y) sum+=qmat[x][y];
+                }
+        qmat[x][x]=-sum;
+    } 
+    
+    double* eval=new double[stateCount];
+    double* eigvalsimag=new double[stateCount];
+    double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
+    double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
+    double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
+	int* iwork=new int[stateCount];
+	double* work=new double[stateCount];
+    
+    EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
+    memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
+    InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
+    
+    double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
+    double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
+    
+    for(int x=0;x<stateCount;x++){
+        for(int y=0;y<stateCount;y++){
+            evec[x * stateCount + y] = eigvecs[x][y];
+            ivec[x * stateCount + y] = inveigvecs[x][y];
+        }
+    } 
+    
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, &evec[0], &ivec[0], &eval[0]);
 
@@ -369,7 +417,21 @@ void runBeagle(int resource,
     std::cout << "\n";
     
 	beagleFinalizeInstance(instance);
+    
+    Delete2DArray(qmat);
+    delete relNucRates;
+    
+    delete eval;
+    delete eigvalsimag;
+    Delete2DArray(eigvecs);
+    Delete2DArray(teigvecs);
+    Delete2DArray(inveigvecs);
+    delete iwork;
+	delete work;
+   
     free(evec);
+    free(ivec);
+    
 }
 
 void abort(std::string msg) {
@@ -479,9 +541,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	if (expecting_nreps)
 		abort("read last command line option without finding value associated with --reps");
 
-	if (*stateCount < 2 || 
-        (*stateCount & (*stateCount-1)) != 0)
-		abort("invalid number of states (must be a power-of-two) supplied on the command line");
+	if (*stateCount < 2)
+		abort("invalid number of states supplied on the command line");
         
 	if (*ntaxa < 2)
 		abort("invalid number of taxa supplied on the command line");
