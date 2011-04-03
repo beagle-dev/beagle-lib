@@ -347,6 +347,12 @@ void BeagleCPU4StateSSEImpl<double>::calcPartialsPartials(double* destP,
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
         for (int k = 0; k < kPatternCount; k++) {
+            
+#           if 0
+            __builtin_prefetch (&partials_q[v+32]);
+            __builtin_prefetch (&partials_r[v+32]);
+//            __builtin_prefetch (destPvec+32,1,0);
+#           endif
 
         	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
         	SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);

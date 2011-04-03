@@ -57,6 +57,7 @@
 		643E19721214B5E600B7E5A1 /* oddstatetest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD412149EC700C76EFB /* oddstatetest.cpp */; };
 		643E19851214B64C00B7E5A1 /* libhmsbeagle.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */; };
 		643E19861214B65F00B7E5A1 /* genomictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD212149EB500C76EFB /* genomictest.cpp */; };
+		64B8F97613456B9E00516F2B /* linalg.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64B8F97513456B9E00516F2B /* linalg.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -274,6 +275,8 @@
 		6485E24913300526007163C6 /* run_test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_test.sh; path = "../../developer/beagle-lib/tests/run_test.sh"; sourceTree = "<group>"; };
 		6485E24B13304AC3007163C6 /* test_results.csv */ = {isa = PBXFileReference; lastKnownFileType = text; name = test_results.csv; path = "../../developer/beagle-lib/tests/test_results.csv"; sourceTree = "<group>"; };
 		6485E24C1330639F007163C6 /* run_test_batch.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = run_test_batch.sh; path = "../../developer/beagle-lib/tests/run_test_batch.sh"; sourceTree = "<group>"; };
+		64B8F97413456B9E00516F2B /* linalg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = linalg.h; path = genomictest/linalg.h; sourceTree = "<group>"; };
+		64B8F97513456B9E00516F2B /* linalg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = linalg.cpp; path = genomictest/linalg.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -557,10 +560,10 @@
 		6425C84112108DAD00E7ED58 /* examples */ = {
 			isa = PBXGroup;
 			children = (
+				64B8F97313456B7B00516F2B /* genomictest */,
 				64020BD012149EA500C76EFB /* complextest.cpp */,
 				6435614113256BDE008D7357 /* fourtaxon.h */,
 				64020BD112149EAD00C76EFB /* fourtaxon.cpp */,
-				64020BD212149EB500C76EFB /* genomictest.cpp */,
 				64020BD312149EBE00C76EFB /* matrixtest.cpp */,
 				64020BD412149EC700C76EFB /* oddstatetest.cpp */,
 				64020BD512149ED900C76EFB /* tinytest.cpp */,
@@ -700,6 +703,16 @@
 				64020C101214A1BE00C76EFB /* beagle-lib */,
 				6407B9AB1211ED6800BA8C93 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		64B8F97313456B7B00516F2B /* genomictest */ = {
+			isa = PBXGroup;
+			children = (
+				64B8F97413456B9E00516F2B /* linalg.h */,
+				64B8F97513456B9E00516F2B /* linalg.cpp */,
+				64020BD212149EB500C76EFB /* genomictest.cpp */,
+			);
+			name = genomictest;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1112,6 +1125,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				643E19861214B65F00B7E5A1 /* genomictest.cpp in Sources */,
+				64B8F97613456B9E00516F2B /* linalg.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
