@@ -338,6 +338,10 @@
 				RelativePath="..\..\..\examples\genomictest\genomictest.cpp"
 				>
 			</File>
+			<File
+				RelativePath="..\..\..\examples\genomictest\linalg.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"

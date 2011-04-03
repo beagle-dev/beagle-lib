@@ -33,9 +33,9 @@
 #define DLS_USE_SSE2
 
 #if defined(DLS_USE_SSE2)
-//#	if !defined(DLS_MACOS)
-//#		include <emmintrin.h>
-//#	endif
+#	if !defined(DLS_MACOS)
+#		include <emmintrin.h>
+#	endif
 #	include <xmmintrin.h>
 #endif
 typedef double VecEl_t;
