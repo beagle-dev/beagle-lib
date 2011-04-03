@@ -14,6 +14,7 @@
 #ifdef _WIN32
 	#include <vector>
 	#include <winsock.h>
+	#include <string>
 #else
 	#include <sys/time.h>
 #endif
