@@ -5,8 +5,8 @@
  *  @author Daniel Ayres
  *  Based on tinyTest.cpp by Andrew Rambaut.
  */
+#include <cstring>
 #include <cstdio>
-#include <string>
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
