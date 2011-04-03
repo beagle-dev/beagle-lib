@@ -195,6 +195,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="2"
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
@@ -271,6 +272,9 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="3"
+				FavorSizeOrSpeed="1"
+				WholeProgramOptimization="false"
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"

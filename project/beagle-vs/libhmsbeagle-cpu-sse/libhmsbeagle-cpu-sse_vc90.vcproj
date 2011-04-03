@@ -205,6 +205,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="2"
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;ENABLE_SSE;_EXPORTING"
 				RuntimeLibrary="0"
@@ -285,6 +286,9 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="3"
+				FavorSizeOrSpeed="1"
+				WholeProgramOptimization="false"
 				AdditionalIncludeDirectories="../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;ENABLE_SSE;_EXPORTING"
 				RuntimeLibrary="0"

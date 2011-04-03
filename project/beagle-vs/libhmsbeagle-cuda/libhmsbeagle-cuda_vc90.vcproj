@@ -241,6 +241,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="2"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA;_EXPORTING"
 				RuntimeLibrary="0"
@@ -334,6 +335,9 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="3"
+				FavorSizeOrSpeed="1"
+				WholeProgramOptimization="false"
 				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../../../"
 				PreprocessorDefinitions="WIN32;_CONSOLE;CUDA;_EXPORTING"
 				RuntimeLibrary="0"

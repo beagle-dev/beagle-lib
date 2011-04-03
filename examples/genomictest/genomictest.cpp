@@ -36,7 +36,7 @@
 
 		res = ifreq.QuadPart - FACTOR;
 		tp->tv_sec = (long)((LONGLONG)res/10000000);
-		tp->tv_usec = (long)((LONGLONG)res% 10000000000); // Micro Seonds
+		tp->tv_usec =(long)(((LONGLONG)res%10000000)/10); // Micro Seconds
 
 		return 0;
 	}
@@ -624,10 +624,10 @@ int main( int argc, const char* argv[] )
         }
 	}
 
-#ifdef _WIN32
-    std::cout << "\nPress ENTER to exit...\n";
-    fflush( stdout);
-    fflush( stderr);
-    getchar();
-#endif
+//#ifdef _WIN32
+//    std::cout << "\nPress ENTER to exit...\n";
+//    fflush( stdout);
+//    fflush( stderr);
+//    getchar();
+//#endif
 }
