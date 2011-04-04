@@ -56,6 +56,17 @@ double* getRandomTipPartials( int nsites, int stateCount )
 	return partials;
 }
 
+int* getRandomTipStates( int nsites, int stateCount )
+{
+	int *states = (int*) calloc(sizeof(int), nsites); 
+	for( int i=0; i<nsites; i++ )
+	{
+		int s = rand()%stateCount;
+		states[i]=s;
+	}
+	return states;
+}
+
 void printTiming(double timingValue,
                  int timePrecision,
                  bool printSpeedup,
@@ -86,8 +97,12 @@ void runBeagle(int resource,
                int nreps,
                bool fullTiming,
                bool requireDoublePrecision,
-               bool requireSSE)
+               bool requireSSE,
+               bool useTipStates,
+               int randomSeed,
+               int rescaleFrequency)
 {
+    
     
     int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
     
@@ -96,8 +111,8 @@ void runBeagle(int resource,
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
 			    ntaxa,			  /**< Number of tip data elements (input) */
-				2*ntaxa-1,	      /**< Number of partials buffers to create (input) */
-				0,		          /**< Number of compact state representation buffers to create (input) */
+				(useTipStates ? ntaxa-1 : 2*ntaxa-1), /**< Number of partials buffers to create (input) */
+                (useTipStates ? ntaxa : 0),	/**< Number of compact state representation buffers to create (input) */
 				stateCount,		  /**< Number of states in the continuous-time Markov chain (input) */
 				nsites,			  /**< Number of site patterns to be handled by the instance (input) */
 				1,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
@@ -126,13 +141,19 @@ void runBeagle(int resource,
         autoScaling = false;
     
     // set the sequences for each tip using partial likelihood arrays
-	srand(42);	// fix the random seed...
-	for(int i=0; i<ntaxa; i++)
-	{
-        double* tmpPartials = getRandomTipPartials(nsites, stateCount);
-		beagleSetTipPartials(instance, i, tmpPartials);
-        free(tmpPartials);
-	}
+	srand(randomSeed);	// fix the random seed...
+    for(int i=0; i<ntaxa; i++)
+    {
+        if (!useTipStates) {
+            double* tmpPartials = getRandomTipPartials(nsites, stateCount);
+            beagleSetTipPartials(instance, i, tmpPartials);
+            free(tmpPartials);
+        } else {
+            int* tmpStates = getRandomTipStates(nsites, stateCount);
+            beagleSetTipStates(instance, i, tmpStates);
+            free(tmpStates);                
+        }
+    }
     
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
@@ -283,6 +304,10 @@ void runBeagle(int resource,
         
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, &evec[0], &ivec[0], &eval[0]);
+    
+    free(eval);
+    free(evec);
+    free(ivec);
 
     // a list of indices and edge lengths
 	int* nodeIndices = new int[ntaxa*2-2];
@@ -296,7 +321,7 @@ void runBeagle(int resource,
     int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
 	for(int i=0; i<ntaxa-1; i++){
 		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
-        operations[BEAGLE_OP_COUNT*i+1] = ((manualScaling || dynamicScaling) ? i : BEAGLE_OP_NONE);
+        operations[BEAGLE_OP_COUNT*i+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
         operations[BEAGLE_OP_COUNT*i+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
 		operations[BEAGLE_OP_COUNT*i+3] = i*2;
 		operations[BEAGLE_OP_COUNT*i+4] = i*2;
@@ -321,8 +346,15 @@ void runBeagle(int resource,
 
     if (dynamicScaling)
         beagleResetScaleFactors(instance, cumulativeScalingFactorIndex);
-    
+
     for (int i=0; i<nreps; i++){
+        if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
+            for(int j=0; j<ntaxa-1; j++){
+                operations[BEAGLE_OP_COUNT*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
+                operations[BEAGLE_OP_COUNT*j+2] = (((manualScaling && (i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
+            }
+        }
+        
         gettimeofday(&time1,NULL);
 
         // tell BEAGLE to populate the transition matrices for the above edge lengths
@@ -346,7 +378,7 @@ void runBeagle(int resource,
 
         int scalingFactorsCount = ntaxa-1;
                 
-        if (manualScaling) {
+        if (manualScaling && !(i % rescaleFrequency)) {
             beagleResetScaleFactors(instance,
                                     cumulativeScalingFactorIndex);
             
@@ -420,11 +452,6 @@ void runBeagle(int resource,
     std::cout << "\n";
     
 	beagleFinalizeInstance(instance);
-
-    free(eval);
-    free(evec);
-    free(ivec);
-    
 }
 
 void abort(std::string msg) {
@@ -434,7 +461,7 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--full-timing]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--tipstates] [--seed <integer>] [--rescalefrequency <integer>] [--full-timing]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -454,13 +481,18 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* nreps,
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
-                                    bool* requireSSE)	{
+                                    bool* requireSSE,
+                                    bool* useTipStates,
+                                    int* randomSeed,
+                                    int* rescaleFrequency)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
 	bool expecting_rateCategoryCount = false;
 	bool expecting_nreps = false;
 	bool expecting_rsrc = false;
+	bool expecting_seed = false;
+    bool expecting_rescaleFrequency = false;
 	
     for (unsigned i = 1; i < argc; ++i) {
 		std::string option = argv[i];
@@ -483,6 +515,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_nreps) {
             *nreps = (unsigned)atoi(option.c_str());
             expecting_nreps = false;
+        } else if (expecting_seed) {
+            *randomSeed = (unsigned)atoi(option.c_str());
+            expecting_seed = false;
+        } else if (expecting_rescaleFrequency) {
+            *rescaleFrequency = (unsigned)atoi(option.c_str());
+            expecting_rescaleFrequency = false;
         } else if (option == "--help") {
 			helpMessage();
         } else if (option == "--manualscale") {
@@ -505,10 +543,16 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_rsrc = true;
         } else if (option == "--reps") {
             expecting_nreps = true;
+        } else if (option == "--rescalefrequency") {
+            expecting_rescaleFrequency = true;
+        } else if (option == "--seed") {
+            expecting_seed = true;
         } else if (option == "--full-timing") {
             *fullTiming = true;
         } else if (option == "--SSE") {
         	*requireSSE = true;
+        } else if (option == "--tipstates") {
+        	*useTipStates = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -533,6 +577,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     
 	if (expecting_nreps)
 		abort("read last command line option without finding value associated with --reps");
+    
+	if (expecting_seed)
+		abort("read last command line option without finding value associated with --seed");
+    
+	if (expecting_rescaleFrequency)
+		abort("read last command line option without finding value associated with --rescalefrequency");
 
 	if (*stateCount < 2)
 		abort("invalid number of states supplied on the command line");
@@ -543,12 +593,17 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	if (*nsites < 1)
 		abort("invalid number of sites supplied on the command line");
     
-    if (*rateCategoryCount < 1) {
+    if (*rateCategoryCount < 1)
         abort("invalid number of rates supplied on the command line");
         
     if (*nreps < 1)
         abort("invalid number of reps supplied on the command line");
-    }
+
+    if (*randomSeed < 0)
+        abort("invalid number for seed supplied on the command line");   
+        
+    if (*rescaleFrequency < 1)
+        abort("invalid number for rescalefrequency supplied on the command line");   
 }
 
 int main( int argc, const char* argv[] )
@@ -562,6 +617,9 @@ int main( int argc, const char* argv[] )
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
     bool requireSSE = false;
+    bool useTipStates = false;
+    int randomSeed = 42;
+    int rescaleFrequency = 1;
 
     int rsrc = -1;
     int nreps = 5;
@@ -569,7 +627,9 @@ int main( int argc, const char* argv[] )
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming, &requireDoublePrecision, &requireSSE);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling,
+                                   &rateCategoryCount, &rsrc, &nreps, &fullTiming, &requireDoublePrecision, &requireSSE,
+                                   &useTipStates, &randomSeed, &rescaleFrequency);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -591,7 +651,10 @@ int main( int argc, const char* argv[] )
                   nreps,
                   fullTiming,
                   requireDoublePrecision,
-                  requireSSE);
+                  requireSSE,
+                  useTipStates,
+                  randomSeed,
+                  rescaleFrequency);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -607,7 +670,10 @@ int main( int argc, const char* argv[] )
                           nreps,
                           fullTiming,
                           requireDoublePrecision,
-                          requireSSE);
+                          requireSSE,
+                          useTipStates,
+                          randomSeed,
+                          rescaleFrequency);
             }
         }else{
             runBeagle(0,
@@ -621,7 +687,10 @@ int main( int argc, const char* argv[] )
                       nreps,
                       fullTiming,
                       requireDoublePrecision,
-                      requireSSE);
+                      requireSSE,
+                      useTipStates,
+                      randomSeed,
+                      rescaleFrequency);
         }
 	}
 
