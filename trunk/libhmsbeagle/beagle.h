@@ -188,7 +188,7 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
- * @param preferenceFlags       Bit-flags indicating preferred implementation charactertistics,
+ * @param preferenceFlags       Bit-flags indicating preferred implementation characteristics,
  *                               see BeagleFlags (input)
  * @param requirementFlags      Bit-flags indicating required implementation characteristics,
  *                               see BeagleFlags (input)
