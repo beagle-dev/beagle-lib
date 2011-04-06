@@ -268,12 +268,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
 
+    if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED || preferenceFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED)
+    	kFlags |= BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+    else
+        kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
+    
     if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
     	gEigenDecomposition = new EigenDecompositionSquare<REALTYPE>(kEigenDecompCount,
     			kStateCount,kCategoryCount,kFlags);
     else
     	gEigenDecomposition = new EigenDecompositionCube<REALTYPE>(kEigenDecompCount,
-    			kStateCount, kCategoryCount);
+    			kStateCount, kCategoryCount,kFlags);
 
 	gCategoryRates = (double*) malloc(sizeof(double) * kCategoryCount);
 	if (gCategoryRates == NULL)
@@ -2203,7 +2208,8 @@ const long BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::getFlags() {
                  BEAGLE_FLAG_PROCESSOR_CPU |
                  BEAGLE_FLAG_VECTOR_NONE |
                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                 BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+                 BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
 	if (DOUBLE_PRECISION)
 		flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 	else

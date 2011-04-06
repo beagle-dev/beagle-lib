@@ -22,10 +22,12 @@ const bool DEBUGGING_OUTPUT = false;
 template <typename REALTYPE>
 EigenDecompositionCube<REALTYPE>::EigenDecompositionCube(int decompositionCount,
 											         int stateCount,
-											         int categoryCount)
+											         int categoryCount,
+                                                     long flags)
 											         : EigenDecomposition<REALTYPE>(decompositionCount,
 																				stateCount,
-																				categoryCount) {
+																				categoryCount,
+                                                                                    flags) {
     gEigenValues = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
     if (gEigenValues == NULL)
         throw std::bad_alloc();
@@ -68,20 +70,35 @@ void EigenDecompositionCube<REALTYPE>::setEigenDecomposition(int eigenIndex,
 										           const double* inEigenVectors,
                                                    const double* inInverseEigenVectors,
                                                    const double* inEigenValues) {
-		
-    int l = 0;
-    for (int i = 0; i < kStateCount; i++) {
-        gEigenValues[eigenIndex][i] = inEigenValues[i];
-        for (int j = 0; j < kStateCount; j++) {
-            for (int k = 0; k < kStateCount; k++) {
-                gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
-                        * inInverseEigenVectors[(k * kStateCount) + j];
-                l++;
+
+    if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
+        int l = 0;
+        for (int i = 0; i < kStateCount; i++) {
+            gEigenValues[eigenIndex][i] = inEigenValues[i];
+            for (int j = 0; j < kStateCount; j++) {
+                for (int k = 0; k < kStateCount; k++) {
+                    gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
+                            * inInverseEigenVectors[(k * kStateCount) + j];
+                    l++;
+                }
+            }
+        }
+    } else {
+        int l = 0;
+        for (int i = 0; i < kStateCount; i++) {
+            gEigenValues[eigenIndex][i] = inEigenValues[i];
+            for (int j = 0; j < kStateCount; j++) {
+                for (int k = 0; k < kStateCount; k++) {
+                    gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
+                    * inInverseEigenVectors[k + (j*kStateCount)];
+                    l++;
+                }
             }
         }
     }
-}
 
+}
+    
 #define UNROLL
 
 template <typename REALTYPE>

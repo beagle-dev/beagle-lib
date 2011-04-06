@@ -23,6 +23,7 @@ class EigenDecompositionCube : public EigenDecomposition<REALTYPE> {
 	using EigenDecomposition<REALTYPE>::matrixTmp;
 	using EigenDecomposition<REALTYPE>::firstDerivTmp;
 	using EigenDecomposition<REALTYPE>::secondDerivTmp;
+	using EigenDecomposition<REALTYPE>::kFlags;
 
 protected:
     REALTYPE** gCMatrices;
@@ -30,7 +31,8 @@ protected:
 public:
 	EigenDecompositionCube(int decompositionCount, 
 						   int stateCount, 
-						   int categoryCount);
+						   int categoryCount,
+                           long flags);
 	
 	virtual ~EigenDecompositionCube();
 	

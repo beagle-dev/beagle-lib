@@ -25,9 +25,9 @@ EigenDecompositionSquare<REALTYPE>::EigenDecompositionSquare(int decompositionCo
 											       int stateCount,
 											       int categoryCount,
 											       long flags)
-	: EigenDecomposition<REALTYPE>(decompositionCount,stateCount,categoryCount) {
+	: EigenDecomposition<REALTYPE>(decompositionCount,stateCount,categoryCount, flags) {
 
-	isComplex = flags & BEAGLE_FLAG_EIGEN_COMPLEX;
+	isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
 	if (isComplex)
 		kEigenValuesSize = 2 * kStateCount;
@@ -76,17 +76,34 @@ EigenDecompositionSquare<REALTYPE>::~EigenDecompositionSquare() {
 	free(gEigenValues);
 	free(matrixTmp);
 }
+    
+/**
+ * @brief Transposes a square matrix in place
+ */
+template<typename REALTYPE>
+void transposeSquareMatrix(REALTYPE* mat,
+                           int size) {
+    for (int i = 0; i < size - 1; i++) {
+        for (int j = i + 1; j < size; j++) {
+            REALTYPE tmp = mat[i * size + j];
+            mat[i * size + j] = mat[j * size + i];
+            mat[j * size + i] = tmp;
+        }
+    }
+}
 
 template <typename REALTYPE>
 void EigenDecompositionSquare<REALTYPE>::setEigenDecomposition(int eigenIndex,
 										             const double* inEigenVectors,
                                                      const double* inInverseEigenVectors,
                                                      const double* inEigenValues) {
-
+    
 	memcpy(gEigenValues[eigenIndex],inEigenValues,sizeof(double) * kEigenValuesSize);
 	const int len = kStateCount * kStateCount;
 	memcpy(gEMatrices[eigenIndex],inEigenVectors,sizeof(double) * len);
 	memcpy(gIMatrices[eigenIndex],inInverseEigenVectors,sizeof(double) * len);
+    if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
+        transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
 }
 
 template <typename REALTYPE>

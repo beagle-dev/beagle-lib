@@ -98,9 +98,11 @@ void runBeagle(int resource,
                bool fullTiming,
                bool requireDoublePrecision,
                bool requireSSE,
-               bool useTipStates,
+               int compactTipCount,
                int randomSeed,
-               int rescaleFrequency)
+               int rescaleFrequency,
+               bool unrooted,
+               bool calcderivs)
 {
     
     
@@ -111,12 +113,12 @@ void runBeagle(int resource,
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
 			    ntaxa,			  /**< Number of tip data elements (input) */
-				(useTipStates ? ntaxa-1 : 2*ntaxa-1), /**< Number of partials buffers to create (input) */
-                (useTipStates ? ntaxa : 0),	/**< Number of compact state representation buffers to create (input) */
+				((2*ntaxa-1)-compactTipCount), /**< Number of partials buffers to create (input) */
+                compactTipCount,	/**< Number of compact state representation buffers to create (input) */
 				stateCount,		  /**< Number of states in the continuous-time Markov chain (input) */
 				nsites,			  /**< Number of site patterns to be handled by the instance (input) */
 				1,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-				2*ntaxa-2,	      /**< Number of rate matrix buffers (input) */
+                (calcderivs ? (3*(2*ntaxa-2)) : (2*ntaxa-2)),	      /**< Number of rate matrix buffers (input) */
                 rateCategoryCount,/**< Number of rate categories */
                 scaleCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
@@ -144,7 +146,7 @@ void runBeagle(int resource,
 	srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
     {
-        if (!useTipStates) {
+        if (i >= compactTipCount) {
             double* tmpPartials = getRandomTipPartials(nsites, stateCount);
             beagleSetTipPartials(instance, i, tmpPartials);
             free(tmpPartials);
@@ -162,7 +164,7 @@ void runBeagle(int resource,
 #endif
 	
     for (int i = 0; i < rateCategoryCount; i++) {
-        rates[i] = 1.0;
+        rates[i] = rand() / (double) RAND_MAX;
     }
     
 	beagleSetCategoryRates(instance, &rates[0]);
@@ -170,7 +172,7 @@ void runBeagle(int resource,
 	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
     
     for (int i = 0; i < nsites; i++) {
-        patternWeights[i] = 1.0;
+        patternWeights[i] = rand() / (double) RAND_MAX;
     }    
 
     beagleSetPatternWeights(instance, patternWeights);
@@ -184,12 +186,6 @@ void runBeagle(int resource,
 #else
     double freqs[stateCount];
 #endif
-   
-    for (int i=0; i<stateCount; i++) {
-        freqs[i] = 1.0 / stateCount;
-    }
-
-    beagleSetStateFrequencies(instance, 0, &freqs[0]);
     
     // create an array containing site category weights
 #ifdef _WIN32
@@ -199,7 +195,7 @@ void runBeagle(int resource,
 #endif
 
     for (int i = 0; i < rateCategoryCount; i++) {
-        weights[i] = 1.0/rateCategoryCount;
+        weights[i] = rand() / (double) RAND_MAX;
     } 
     
     beagleSetCategoryWeights(instance, 0, &weights[0]);
@@ -209,6 +205,10 @@ void runBeagle(int resource,
     double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     
     if ((stateCount & (stateCount-1)) == 0) {
+        
+        for (int i=0; i<stateCount; i++) {
+            freqs[i] = 1.0 / stateCount;
+        }
 
         // an eigen decomposition for the general state-space JC69 model
         // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
@@ -248,6 +248,9 @@ void runBeagle(int resource,
         }
    
     } else {
+        for (int i=0; i<stateCount; i++) {
+            freqs[i] = rand() / (double) RAND_MAX;
+        }
     
         double** qmat=New2DArray<double>(stateCount, stateCount);    
         double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
@@ -255,7 +258,7 @@ void runBeagle(int resource,
         int rnum=0;
         for(int i=0;i<stateCount;i++){
             for(int j=i+1;j<stateCount;j++){
-                relNucRates[rnum] = rand() / (double) RAND_MAX;;
+                relNucRates[rnum] = rand() / (double) RAND_MAX;
                 qmat[i][j]=relNucRates[rnum] * freqs[j];
                 qmat[j][i]=relNucRates[rnum] * freqs[i];
                 rnum++;
@@ -302,6 +305,8 @@ void runBeagle(int resource,
         delete work;
     }
         
+    beagleSetStateFrequencies(instance, 0, &freqs[0]);
+    
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, &evec[0], &ivec[0], &eval[0]);
     
@@ -311,9 +316,15 @@ void runBeagle(int resource,
 
     // a list of indices and edge lengths
 	int* nodeIndices = new int[ntaxa*2-2];
-	for(int i=0; i<ntaxa*2-2; i++) nodeIndices[i]=i;
+	int* nodeIndicesD1 = new int[ntaxa*2-2];
+	int* nodeIndicesD2 = new int[ntaxa*2-2];
+	for(int i=0; i<ntaxa*2-2; i++) {
+        nodeIndices[i]=i;
+        nodeIndicesD1[i]=(ntaxa*2-2)+i;
+        nodeIndicesD2[i]=2*(ntaxa*2-2)+i;
+    }
 	double* edgeLengths = new double[ntaxa*2-2];
-	for(int i=0; i<ntaxa*2-2; i++) edgeLengths[i]=0.1;
+	for(int i=0; i<ntaxa*2-2; i++) edgeLengths[i]=rand() / (double) RAND_MAX;
 
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
@@ -335,12 +346,15 @@ void runBeagle(int resource,
 	}	
 
 	int rootIndex = ntaxa*2-2;
+	int lastTip = ntaxa - 1;
 
     // start timing!
 	struct timeval time1, time2, time3, time4, time5;
     double bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
     
     double logL = 0.0;
+    double deriv1 = 0.0;
+    double deriv2 = 0.0;
     
     int cumulativeScalingFactorIndex = ((manualScaling || dynamicScaling) ? ntaxa-1 : BEAGLE_OP_NONE);
 
@@ -361,8 +375,8 @@ void runBeagle(int resource,
         beagleUpdateTransitionMatrices(instance,     // instance
                                        0,             // eigenIndex
                                        nodeIndices,   // probabilityIndices
-                                       NULL,          // firstDerivativeIndices
-                                       NULL,          // secondDerivativeIndices
+                                       (calcderivs ? nodeIndicesD1 : NULL), // firstDerivativeIndices
+                                       (calcderivs ? nodeIndicesD2 : NULL), // secondDerivativeIndices
                                        edgeLengths,   // edgeLengths
                                        ntaxa*2-2);            // count    
 
@@ -396,14 +410,30 @@ void runBeagle(int resource,
         int stateFrequencyIndex = 0;
         
         // calculate the site likelihoods at the root node
-        beagleCalculateRootLogLikelihoods(instance,               // instance
-                                    (const int *)&rootIndex,// bufferIndices
-                                    &categoryWeightsIndex,                // weights
-                                    &stateFrequencyIndex,                 // stateFrequencies
-                                    &cumulativeScalingFactorIndex,
-                                    1,                      // count
-                                    &logL);         // outLogLikelihoods
-
+        if (!unrooted) {
+            beagleCalculateRootLogLikelihoods(instance,               // instance
+                                        (const int *)&rootIndex,// bufferIndices
+                                        &categoryWeightsIndex,                // weights
+                                        &stateFrequencyIndex,                 // stateFrequencies
+                                        &cumulativeScalingFactorIndex,
+                                        1,                      // count
+                                        &logL);         // outLogLikelihoods
+        } else {
+            // calculate the site likelihoods at the root node
+            beagleCalculateEdgeLogLikelihoods(instance,               // instance
+                                              (const int *)&rootIndex,// bufferIndices
+                                              (const int *)&lastTip,
+                                              (const int *)&lastTip,
+                                              (calcderivs ? (const int *)&nodeIndicesD1[0] : NULL),
+                                              (calcderivs ? (const int *)&nodeIndicesD2[0] : NULL),
+                                              &categoryWeightsIndex,                // weights
+                                              &stateFrequencyIndex,                 // stateFrequencies
+                                              &cumulativeScalingFactorIndex,
+                                              1,                      // count
+                                              &logL,    // outLogLikelihood
+                                              (calcderivs ? &deriv1 : NULL),
+                                              (calcderivs ? &deriv2 : NULL));
+        }
         // end timing!
         gettimeofday(&time5,NULL);
         
@@ -428,7 +458,10 @@ void runBeagle(int resource,
         cpuTimeTotal = bestTimeTotal;
     }
     
-	fprintf(stdout, "logL = %.5f \n", logL);
+    if (!calcderivs)
+        fprintf(stdout, "logL = %.5f \n", logL);
+    else
+        fprintf(stdout, "logL = %.5f d1 = %.5f d2 = %.5f\n", logL, deriv1, deriv2);
     
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
@@ -461,7 +494,7 @@ void abort(std::string msg) {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--tipstates] [--seed <integer>] [--rescalefrequency <integer>] [--full-timing]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -482,15 +515,18 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
                                     bool* requireSSE,
-                                    bool* useTipStates,
+                                    int* compactTipCount,
                                     int* randomSeed,
-                                    int* rescaleFrequency)	{
+                                    int* rescaleFrequency,
+                                    bool* unrooted,
+                                    bool* calcderivs)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
 	bool expecting_rateCategoryCount = false;
 	bool expecting_nreps = false;
 	bool expecting_rsrc = false;
+	bool expecting_compactTipCount = false;
 	bool expecting_seed = false;
     bool expecting_rescaleFrequency = false;
 	
@@ -515,6 +551,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_nreps) {
             *nreps = (unsigned)atoi(option.c_str());
             expecting_nreps = false;
+        } else if (expecting_compactTipCount) {
+            *compactTipCount = (unsigned)atoi(option.c_str());
+            expecting_compactTipCount = false;
         } else if (expecting_seed) {
             *randomSeed = (unsigned)atoi(option.c_str());
             expecting_seed = false;
@@ -543,7 +582,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_rsrc = true;
         } else if (option == "--reps") {
             expecting_nreps = true;
-        } else if (option == "--rescalefrequency") {
+        } else if (option == "--compact-tips") {
+            expecting_compactTipCount = true;
+        } else if (option == "--rescale-frequency") {
             expecting_rescaleFrequency = true;
         } else if (option == "--seed") {
             expecting_seed = true;
@@ -551,8 +592,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *fullTiming = true;
         } else if (option == "--SSE") {
         	*requireSSE = true;
-        } else if (option == "--tipstates") {
-        	*useTipStates = true;
+        } else if (option == "--unrooted") {
+        	*unrooted = true;
+        } else if (option == "--calcderivs") {
+        	*calcderivs = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -582,8 +625,11 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 		abort("read last command line option without finding value associated with --seed");
     
 	if (expecting_rescaleFrequency)
-		abort("read last command line option without finding value associated with --rescalefrequency");
+		abort("read last command line option without finding value associated with --rescale-frequency");
 
+	if (expecting_compactTipCount)
+		abort("read last command line option without finding value associated with --compact-tips");
+    
 	if (*stateCount < 2)
 		abort("invalid number of states supplied on the command line");
         
@@ -603,21 +649,29 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         abort("invalid number for seed supplied on the command line");   
         
     if (*rescaleFrequency < 1)
-        abort("invalid number for rescalefrequency supplied on the command line");   
+        abort("invalid number for rescale-frequency supplied on the command line");   
+    
+    if (*compactTipCount < 0 || *compactTipCount > *ntaxa)
+        abort("invalid number for compact-tips supplied on the command line");
+    
+    if (*calcderivs && !(*unrooted))
+        abort("calcderivs option requires unrooted tree option");
 }
 
 int main( int argc, const char* argv[] )
 {
     // Default values
     int stateCount = 4;
-    int ntaxa = 29;
+    int ntaxa = 16;
     int nsites = 10000;
     bool manualScaling = false;
     bool autoScaling = false;
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
     bool requireSSE = false;
-    bool useTipStates = false;
+    bool unrooted = false;
+    bool calcderivs = false;
+    int compactTipCount = 0;
     int randomSeed = 42;
     int rescaleFrequency = 1;
 
@@ -627,9 +681,10 @@ int main( int argc, const char* argv[] )
     
     int rateCategoryCount = 4;
     
-    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling, &dynamicScaling,
-                                   &rateCategoryCount, &rsrc, &nreps, &fullTiming, &requireDoublePrecision, &requireSSE,
-                                   &useTipStates, &randomSeed, &rescaleFrequency);
+    interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
+                                   &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
+                                   &requireDoublePrecision, &requireSSE, &compactTipCount, &randomSeed,
+                                   &rescaleFrequency, &unrooted, &calcderivs);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -652,9 +707,11 @@ int main( int argc, const char* argv[] )
                   fullTiming,
                   requireDoublePrecision,
                   requireSSE,
-                  useTipStates,
+                  compactTipCount,
                   randomSeed,
-                  rescaleFrequency);
+                  rescaleFrequency,
+                  unrooted,
+                  calcderivs);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -671,9 +728,11 @@ int main( int argc, const char* argv[] )
                           fullTiming,
                           requireDoublePrecision,
                           requireSSE,
-                          useTipStates,
+                          compactTipCount,
                           randomSeed,
-                          rescaleFrequency);
+                          rescaleFrequency,
+                          unrooted,
+                          calcderivs);
             }
         }else{
             runBeagle(0,
@@ -688,9 +747,11 @@ int main( int argc, const char* argv[] )
                       fullTiming,
                       requireDoublePrecision,
                       requireSSE,
-                      useTipStates,
+                      compactTipCount,
                       randomSeed,
-                      rescaleFrequency);
+                      rescaleFrequency,
+                      unrooted,
+                      calcderivs);
         }
 	}
 

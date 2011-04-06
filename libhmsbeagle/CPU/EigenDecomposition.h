@@ -27,19 +27,22 @@ protected:
     int kStateCount;
     int kEigenDecompCount;
     int kCategoryCount;
+	long kFlags;
     REALTYPE* matrixTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
-	
+    
 public:
 	EigenDecomposition(int decompositionCount,
 					   int stateCount,
-					   int categoryCount)
+					   int categoryCount,
+                       long flags)
 					   {
 
 					   		kEigenDecompCount = decompositionCount;
 					   		kStateCount = stateCount;
 					   		kCategoryCount = categoryCount;
+                            kFlags = flags;
 					   	};
 	
 	virtual ~EigenDecomposition() {};

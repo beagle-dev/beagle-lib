@@ -316,6 +316,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     } else {
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }
+    
+    if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED || preferenceFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED)
+    	kFlags |= BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+    else
+        kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
 
     Real r = 0;
     modifyFlagsForPrecision(&kFlags, r);
@@ -736,7 +741,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
     
     // Transposing matrices avoids incoherent memory read/writes  
     // TODO: Only need to tranpose sub-matrix of trueStateCount
-    transposeSquareMatrix(Ievc, kPaddedStateCount); 
+    if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD)
+        transposeSquareMatrix(Ievc, kPaddedStateCount); 
     transposeSquareMatrix(Evec, kPaddedStateCount);
     
 //#ifdef DOUBLE_PRECISION
@@ -2099,7 +2105,8 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_PROCESSOR_GPU |
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
 
 	Real r = 0;
 	modifyFlagsForPrecision(&flags, r);

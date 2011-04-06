@@ -21,6 +21,7 @@ class EigenDecompositionSquare: public EigenDecomposition<REALTYPE> {
 	using EigenDecomposition<REALTYPE>::kEigenDecompCount;
 	using EigenDecomposition<REALTYPE>::kCategoryCount;
 	using EigenDecomposition<REALTYPE>::matrixTmp;
+	using EigenDecomposition<REALTYPE>::kFlags;
 
 protected:
     REALTYPE** gEMatrices; // kStateCount^2 flattened array
