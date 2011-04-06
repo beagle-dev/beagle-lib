@@ -32,8 +32,8 @@
 
 #include <cfloat>
 
-//#define BEAGLE_DEBUG_FLOW
-//#define BEAGLE_DEBUG_VALUES
+#define BEAGLE_DEBUG_FLOW
+#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH
 
 #define BEAGLE_MEMORY_PINNED
