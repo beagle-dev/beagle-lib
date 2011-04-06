@@ -410,7 +410,7 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
     SAFE_CUPP(cuMemAlloc(&ptr, memSize));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", ptr, (ptr + memSize));
+    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + memSize));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -430,7 +430,7 @@ GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
     SAFE_CUPP(cuMemAlloc(&ptr, SIZE_REAL * length));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", ptr, (ptr + length));
+    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -450,7 +450,7 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
     SAFE_CUPP(cuMemAlloc(&ptr, SIZE_INT * length));
 
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", ptr, (ptr + length));
+    fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
