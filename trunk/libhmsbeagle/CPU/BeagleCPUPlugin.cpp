@@ -26,7 +26,8 @@ Plugin("CPU", "CPU")
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
                                          BEAGLE_FLAG_VECTOR_NONE |
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
         resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_CPU;
 	beagleResources.push_back(resource);
 

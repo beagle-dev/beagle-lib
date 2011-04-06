@@ -37,7 +37,8 @@ Plugin("CUDA", "GPU")
                                                      BEAGLE_FLAG_VECTOR_NONE |
                                                      BEAGLE_FLAG_PROCESSOR_GPU |
                                                      BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                                                     BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL;
+                                                     BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                                                     BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
                 // Determine DP capability
                 if (gpu.GetSupportsDoublePrecision(i)) {
                 	resource.supportFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;

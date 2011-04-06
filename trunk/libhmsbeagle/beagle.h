@@ -96,6 +96,9 @@ enum BeagleFlags {
     BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< Save raw scalers */
     BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< Save log scalers */
     
+    BEAGLE_FLAG_INVEVEC_STANDARD    = 1 << 20,   /**< Inverse eigen vectors passed to BEAGLE have not been transposed */
+    BEAGLE_FLAG_INVEVEC_TRANSPOSED  = 1 << 21,   /**< Inverse eigen vectors passed to BEAGLE have been transposed */
+    
     BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
     
