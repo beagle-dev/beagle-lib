@@ -648,7 +648,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*randomSeed < 0)
         abort("invalid number for seed supplied on the command line");   
         
-    if (*rescaleFrequency < 1)
+    if (*manualScaling && *rescaleFrequency < 1)
         abort("invalid number for rescale-frequency supplied on the command line");   
     
     if (*compactTipCount < 0 || *compactTipCount > *ntaxa)
