@@ -98,10 +98,10 @@ void EigenDecompositionSquare<REALTYPE>::setEigenDecomposition(int eigenIndex,
                                                      const double* inInverseEigenVectors,
                                                      const double* inEigenValues) {
     
-	memcpy(gEigenValues[eigenIndex],inEigenValues,sizeof(double) * kEigenValuesSize);
+	beagleMemCpy(gEigenValues[eigenIndex],inEigenValues,kEigenValuesSize);
 	const int len = kStateCount * kStateCount;
-	memcpy(gEMatrices[eigenIndex],inEigenVectors,sizeof(double) * len);
-	memcpy(gIMatrices[eigenIndex],inInverseEigenVectors,sizeof(double) * len);
+	beagleMemCpy(gEMatrices[eigenIndex],inEigenVectors,len);
+	beagleMemCpy(gIMatrices[eigenIndex],inInverseEigenVectors,len);
     if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
 }

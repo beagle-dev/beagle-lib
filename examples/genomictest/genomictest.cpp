@@ -43,7 +43,15 @@
 	}
 #endif
 
+#define MAX_DIFF 0.01 //max discrepancy in scoring between reps
+
 double cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
+
+
+void abort(std::string msg) {
+	std::cerr << msg << "\nAborting..." << std::endl;
+	std::exit(1);
+}
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
@@ -102,10 +110,17 @@ void runBeagle(int resource,
                int randomSeed,
                int rescaleFrequency,
                bool unrooted,
-               bool calcderivs)
+               bool calcderivs,
+               bool logscalers,
+               int eigenCount,
+               bool eigencomplex,
+               bool ievectrans,
+               bool setmatrix)
 {
     
-    
+    int edgeCount = ntaxa*2-2;
+    int internalCount = ntaxa-1;
+    int partialCount = ((ntaxa+internalCount)-compactTipCount)*eigenCount;
     int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
     
     BeagleInstanceDetails instDetails;
@@ -113,18 +128,21 @@ void runBeagle(int resource,
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
 			    ntaxa,			  /**< Number of tip data elements (input) */
-				((2*ntaxa-1)-compactTipCount), /**< Number of partials buffers to create (input) */
+				partialCount, /**< Number of partials buffers to create (input) */
                 compactTipCount,	/**< Number of compact state representation buffers to create (input) */
 				stateCount,		  /**< Number of states in the continuous-time Markov chain (input) */
 				nsites,			  /**< Number of site patterns to be handled by the instance (input) */
-				1,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                (calcderivs ? (3*(2*ntaxa-2)) : (2*ntaxa-2)),	      /**< Number of rate matrix buffers (input) */
+				eigenCount,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+                (calcderivs ? (3*edgeCount*eigenCount) : edgeCount*eigenCount),/**< Number of rate matrix buffers (input) */
                 rateCategoryCount,/**< Number of rate categories */
-                scaleCount,          /**< scaling buffers */
+                scaleCount*eigenCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
                 0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-				(dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | 
+                (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
+                (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
+                (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
+                (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | 
                 (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
                 (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
                 (requireSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
@@ -194,159 +212,238 @@ void runBeagle(int resource,
     double weights[rateCategoryCount];
 #endif
 
-    for (int i = 0; i < rateCategoryCount; i++) {
-        weights[i] = rand() / (double) RAND_MAX;
-    } 
+    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+        for (int i = 0; i < rateCategoryCount; i++) {
+            weights[i] = rand() / (double) RAND_MAX;
+        } 
     
-    beagleSetCategoryWeights(instance, 0, &weights[0]);
+        beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
+    }
     
-    double* eval = (double*)malloc(sizeof(double)*stateCount);;
+    double* eval;
+    if (!eigencomplex)
+        eval = (double*)malloc(sizeof(double)*stateCount);
+    else
+        eval = (double*)malloc(sizeof(double)*stateCount*2);
     double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     
-    if ((stateCount & (stateCount-1)) == 0) {
-        
-        for (int i=0; i<stateCount; i++) {
-            freqs[i] = 1.0 / stateCount;
-        }
+    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+        if (!eigencomplex && ((stateCount & (stateCount-1)) == 0)) {
+            
+            for (int i=0; i<stateCount; i++) {
+                freqs[i] = 1.0 / stateCount;
+            }
 
-        // an eigen decomposition for the general state-space JC69 model
-        // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
-        // the eigendecomposition of the infinitesimal rate matrix
+            // an eigen decomposition for the general state-space JC69 model
+            // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
+            // the eigendecomposition of the infinitesimal rate matrix
+             
+            double* Hn = evec;
+            Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
+            Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
          
-        double* Hn = evec;
-        Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
-        Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
-     
-        for (int k=2; k < stateCount; k <<= 1) {
-            // H_n = H_1 (Kronecker product) H_{n-1}
-            for (int i=0; i<k; i++) {
-                for (int j=i; j<k; j++) {
-                    double Hijold = Hn[i*stateCount + j];
-                    Hn[i    *stateCount + j + k] =  Hijold;
-                    Hn[(i+k)*stateCount + j    ] =  Hijold;
-                    Hn[(i+k)*stateCount + j + k] = -Hijold;
-                    
-                    Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
-                    Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
-                    Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
-                }
-            }        
-        }
-        
-        // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
-        for (int i=0; i<stateCount; i++) {
-            for (int j=i; j<stateCount; j++) {
-                ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
-                ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
-            }
-        }
-       
-        eval[0] = 0.0;
-        for (int i=1; i<stateCount; i++) {
-            eval[i] = -stateCount / (stateCount - 1.0);
-        }
-   
-    } else {
-        for (int i=0; i<stateCount; i++) {
-            freqs[i] = rand() / (double) RAND_MAX;
-        }
-    
-        double** qmat=New2DArray<double>(stateCount, stateCount);    
-        double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
-        
-        int rnum=0;
-        for(int i=0;i<stateCount;i++){
-            for(int j=i+1;j<stateCount;j++){
-                relNucRates[rnum] = rand() / (double) RAND_MAX;
-                qmat[i][j]=relNucRates[rnum] * freqs[j];
-                qmat[j][i]=relNucRates[rnum] * freqs[i];
-                rnum++;
-            }
-        }
-
-        //set diags to sum rows to 0
-        double sum;
-        for(int x=0;x<stateCount;x++){
-            sum=0.0;
-            for(int y=0;y<stateCount;y++){
-                if(x!=y) sum+=qmat[x][y];
+            for (int k=2; k < stateCount; k <<= 1) {
+                // H_n = H_1 (Kronecker product) H_{n-1}
+                for (int i=0; i<k; i++) {
+                    for (int j=i; j<k; j++) {
+                        double Hijold = Hn[i*stateCount + j];
+                        Hn[i    *stateCount + j + k] =  Hijold;
+                        Hn[(i+k)*stateCount + j    ] =  Hijold;
+                        Hn[(i+k)*stateCount + j + k] = -Hijold;
+                        
+                        Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
+                        Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
+                        Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
                     }
-            qmat[x][x]=-sum;
-        } 
-        
-        double* eigvalsimag=new double[stateCount];
-        double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
-        double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
-        double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
-        int* iwork=new int[stateCount];
-        double* work=new double[stateCount];
-        
-        EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
-        memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
-        InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
-        
-        
-        for(int x=0;x<stateCount;x++){
-            for(int y=0;y<stateCount;y++){
-                evec[x * stateCount + y] = eigvecs[x][y];
-                ivec[x * stateCount + y] = inveigvecs[x][y];
+                }        
             }
-        } 
+            
+            // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+            for (int i=0; i<stateCount; i++) {
+                for (int j=i; j<stateCount; j++) {
+                    ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
+                    ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+                }
+            }
+           
+            eval[0] = 0.0;
+            for (int i=1; i<stateCount; i++) {
+                eval[i] = -stateCount / (stateCount - 1.0);
+            }
+       
+        } else if (!eigencomplex) {
+            for (int i=0; i<stateCount; i++) {
+                freqs[i] = rand() / (double) RAND_MAX;
+            }
         
-        Delete2DArray(qmat);
-        delete relNucRates;
+            double** qmat=New2DArray<double>(stateCount, stateCount);    
+            double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
+            
+            int rnum=0;
+            for(int i=0;i<stateCount;i++){
+                for(int j=i+1;j<stateCount;j++){
+                    relNucRates[rnum] = rand() / (double) RAND_MAX;
+                    qmat[i][j]=relNucRates[rnum] * freqs[j];
+                    qmat[j][i]=relNucRates[rnum] * freqs[i];
+                    rnum++;
+                }
+            }
+
+            //set diags to sum rows to 0
+            double sum;
+            for(int x=0;x<stateCount;x++){
+                sum=0.0;
+                for(int y=0;y<stateCount;y++){
+                    if(x!=y) sum+=qmat[x][y];
+                        }
+                qmat[x][x]=-sum;
+            } 
+            
+            double* eigvalsimag=new double[stateCount];
+            double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
+            double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
+            double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
+            int* iwork=new int[stateCount];
+            double* work=new double[stateCount];
+            
+            EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
+            memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
+            InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
+            
+            for(int x=0;x<stateCount;x++){
+                for(int y=0;y<stateCount;y++){
+                    evec[x * stateCount + y] = eigvecs[x][y];
+                    if (ievectrans)
+                        ivec[x * stateCount + y] = inveigvecs[y][x];
+                    else
+                        ivec[x * stateCount + y] = inveigvecs[x][y];
+                }
+            } 
+            
+            Delete2DArray(qmat);
+            delete relNucRates;
+            
+            delete eigvalsimag;
+            Delete2DArray(eigvecs);
+            Delete2DArray(teigvecs);
+            Delete2DArray(inveigvecs);
+            delete iwork;
+            delete work;
+        } else if (eigencomplex && stateCount==4 && eigenCount==1) {
+            // create base frequency array
+            double temp_freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+            
+            // an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
+            double temp_evec[4 * 4] = {
+                -0.5,  0.6906786606674509,   0.15153543380548623, 0.5,
+                0.5, -0.15153543380548576,  0.6906786606674498,  0.5,
+                -0.5, -0.6906786606674498,  -0.15153543380548617, 0.5,
+                0.5,  0.15153543380548554, -0.6906786606674503,  0.5
+            };
+            
+            double temp_ivec[4 * 4] = {
+                -0.5,  0.5, -0.5,  0.5,
+                0.6906786606674505, -0.15153543380548617, -0.6906786606674507,   0.15153543380548645,
+                0.15153543380548568, 0.6906786606674509,  -0.15153543380548584, -0.6906786606674509,
+                0.5,  0.5,  0.5,  0.5
+            };
+            
+            double temp_eval[8] = { -2.0, -1.0, -1.0, 0, 0, 1, -1, 0 };
+            
+            for(int x=0;x<stateCount;x++){
+                freqs[x] = temp_freqs[x];
+                eval[x] = temp_eval[x];
+                eval[x+stateCount] = temp_eval[x+stateCount];
+                for(int y=0;y<stateCount;y++){
+                    evec[x * stateCount + y] = temp_evec[x * stateCount + y];
+                    if (ievectrans)
+                        ivec[x * stateCount + y] = temp_ivec[x + y * stateCount];
+                    else
+                        ivec[x * stateCount + y] = temp_ivec[x * stateCount + y];
+                }
+            } 
+        } else {
+            abort("should not be here");
+        }
+            
+        beagleSetStateFrequencies(instance, eigenIndex, &freqs[0]);
         
-        delete eigvalsimag;
-        Delete2DArray(eigvecs);
-        Delete2DArray(teigvecs);
-        Delete2DArray(inveigvecs);
-        delete iwork;
-        delete work;
+        if (!setmatrix) {
+            // set the Eigen decomposition
+            beagleSetEigenDecomposition(instance, eigenIndex, &evec[0], &ivec[0], &eval[0]);
+        }
     }
-        
-    beagleSetStateFrequencies(instance, 0, &freqs[0]);
-    
-    // set the Eigen decomposition
-	beagleSetEigenDecomposition(instance, 0, &evec[0], &ivec[0], &eval[0]);
     
     free(eval);
     free(evec);
     free(ivec);
 
-    // a list of indices and edge lengths
-	int* nodeIndices = new int[ntaxa*2-2];
-	int* nodeIndicesD1 = new int[ntaxa*2-2];
-	int* nodeIndicesD2 = new int[ntaxa*2-2];
-	for(int i=0; i<ntaxa*2-2; i++) {
-        nodeIndices[i]=i;
-        nodeIndicesD1[i]=(ntaxa*2-2)+i;
-        nodeIndicesD2[i]=2*(ntaxa*2-2)+i;
-    }
-	double* edgeLengths = new double[ntaxa*2-2];
-	for(int i=0; i<ntaxa*2-2; i++) edgeLengths[i]=rand() / (double) RAND_MAX;
 
+    
+    // a list of indices and edge lengths
+	int* edgeIndices = new int[edgeCount*eigenCount];
+	int* edgeIndicesD1 = new int[edgeCount*eigenCount];
+	int* edgeIndicesD2 = new int[edgeCount*eigenCount];
+	for(int i=0; i<edgeCount*eigenCount; i++) {
+        edgeIndices[i]=i;
+        edgeIndicesD1[i]=(edgeCount*eigenCount)+i;
+        edgeIndicesD2[i]=2*(edgeCount*eigenCount)+i;
+    }
+	double* edgeLengths = new double[edgeCount];
+	for(int i=0; i<edgeCount; i++) {
+        edgeLengths[i]=rand() / (double) RAND_MAX;
+    }
+    
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int* operations = new int[(ntaxa-1)*BEAGLE_OP_COUNT];
-    int* scalingFactorsIndices = new int[(ntaxa-1)]; // internal nodes
-	for(int i=0; i<ntaxa-1; i++){
+	int* operations = new int[(internalCount)*BEAGLE_OP_COUNT*eigenCount];
+    int* scalingFactorsIndices = new int[(internalCount)*eigenCount]; // internal nodes
+	for(int i=0; i<internalCount*eigenCount; i++){
 		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
         operations[BEAGLE_OP_COUNT*i+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
         operations[BEAGLE_OP_COUNT*i+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
-		operations[BEAGLE_OP_COUNT*i+3] = i*2;
-		operations[BEAGLE_OP_COUNT*i+4] = i*2;
-		operations[BEAGLE_OP_COUNT*i+5] = i*2+1;
-		operations[BEAGLE_OP_COUNT*i+6] = i*2+1;
+        
+        int child1Index;
+        if (((i % internalCount)*2) < ntaxa)
+            child1Index = (i % internalCount)*2;
+        else
+            child1Index = i*2 - internalCount * (int)(i / internalCount);
+        operations[BEAGLE_OP_COUNT*i+3] = child1Index;
+        operations[BEAGLE_OP_COUNT*i+4] = child1Index;
+
+        int child2Index;
+        if (((i % internalCount)*2+1) < ntaxa)
+            child2Index = (i % internalCount)*2+1;
+        else
+            child2Index = i*2+1 - internalCount * (int)(i / internalCount);
+		operations[BEAGLE_OP_COUNT*i+5] = child2Index;
+		operations[BEAGLE_OP_COUNT*i+6] = child2Index;
 
         scalingFactorsIndices[i] = i;
+        
+//        printf("i %d dest %d c1 %d c2 %d\n", i, ntaxa+i, child1Index, child2Index);
         
         if (autoScaling)
             scalingFactorsIndices[i] += ntaxa;
 	}	
 
-	int rootIndex = ntaxa*2-2;
-	int lastTip = ntaxa - 1;
+    int* rootIndices = new int[eigenCount];
+	int* lastTipIndices = new int[eigenCount];
+    int* categoryWeightsIndices = new int[eigenCount];
+    int* stateFrequencyIndices = new int[eigenCount];
+    int* cumulativeScalingFactorIndices = new int[eigenCount];
+    
+    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+        rootIndices[eigenIndex] = ntaxa+(internalCount*(eigenIndex+1))-1;//ntaxa*2-2;
+        lastTipIndices[eigenIndex] = ntaxa-1;
+        categoryWeightsIndices[eigenIndex] = eigenIndex;
+        stateFrequencyIndices[eigenIndex] = 0;
+        cumulativeScalingFactorIndices[eigenIndex] = ((manualScaling || dynamicScaling) ? (scaleCount*eigenCount-1)-eigenCount+eigenIndex+1 : BEAGLE_OP_NONE);
+        
+        if (dynamicScaling)
+            beagleResetScaleFactors(instance, cumulativeScalingFactorIndices[eigenIndex]);
+    }
 
     // start timing!
 	struct timeval time1, time2, time3, time4, time5;
@@ -356,14 +453,13 @@ void runBeagle(int resource,
     double deriv1 = 0.0;
     double deriv2 = 0.0;
     
-    int cumulativeScalingFactorIndex = ((manualScaling || dynamicScaling) ? ntaxa-1 : BEAGLE_OP_NONE);
-
-    if (dynamicScaling)
-        beagleResetScaleFactors(instance, cumulativeScalingFactorIndex);
+    double previousLogL = 0.0;
+    double previousDeriv1 = 0.0;
+    double previousDeriv2 = 0.0;
 
     for (int i=0; i<nreps; i++){
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
-            for(int j=0; j<ntaxa-1; j++){
+            for(int j=0; j<internalCount*eigenCount; j++){
                 operations[BEAGLE_OP_COUNT*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
                 operations[BEAGLE_OP_COUNT*j+2] = (((manualScaling && (i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
             }
@@ -371,65 +467,84 @@ void runBeagle(int resource,
         
         gettimeofday(&time1,NULL);
 
-        // tell BEAGLE to populate the transition matrices for the above edge lengths
-        beagleUpdateTransitionMatrices(instance,     // instance
-                                       0,             // eigenIndex
-                                       nodeIndices,   // probabilityIndices
-                                       (calcderivs ? nodeIndicesD1 : NULL), // firstDerivativeIndices
-                                       (calcderivs ? nodeIndicesD2 : NULL), // secondDerivativeIndices
-                                       edgeLengths,   // edgeLengths
-                                       ntaxa*2-2);            // count    
+        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+            if (!setmatrix) {
+                // tell BEAGLE to populate the transition matrices for the above edge lengths
+                beagleUpdateTransitionMatrices(instance,     // instance
+                                               eigenIndex,             // eigenIndex
+                                               &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
+                                               (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
+                                               (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
+                                               edgeLengths,   // edgeLengths
+                                               edgeCount);            // count
+            } else {
+                double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
+                for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
+                    for(int z=0;z<rateCategoryCount;z++){
+                        for(int x=0;x<stateCount;x++){
+                            for(int y=0;y<stateCount;y++){
+                                inMatrix[z*stateCount*stateCount + x*stateCount + y] = rand() / (double) RAND_MAX;
+                            }
+                        } 
+                    }
+                    beagleSetTransitionMatrix(instance, edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                    if (calcderivs) {
+                        beagleSetTransitionMatrix(instance, edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                        beagleSetTransitionMatrix(instance, edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                    }
+                }
+            }
+        }
 
         gettimeofday(&time2, NULL);
         
         // update the partials
         beagleUpdatePartials( instance,      // instance
                         (BeagleOperation*)operations,     // eigenIndex
-                        ntaxa-1,              // operationCount
-                        (dynamicScaling ? ntaxa-1 : BEAGLE_OP_NONE));             // cumulative scaling index
+                        internalCount*eigenCount,              // operationCount
+                        (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
 
         gettimeofday(&time3, NULL);
 
-        int scalingFactorsCount = ntaxa-1;
+        int scalingFactorsCount = internalCount;
                 
-        if (manualScaling && !(i % rescaleFrequency)) {
-            beagleResetScaleFactors(instance,
-                                    cumulativeScalingFactorIndex);
-            
-            beagleAccumulateScaleFactors(instance,
-                                   scalingFactorsIndices,
-                                   scalingFactorsCount,
-                                   cumulativeScalingFactorIndex);
-        } else if (autoScaling) {
-            beagleAccumulateScaleFactors(instance, scalingFactorsIndices, scalingFactorsCount, BEAGLE_OP_NONE);
+        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+            if (manualScaling && !(i % rescaleFrequency)) {
+                beagleResetScaleFactors(instance,
+                                        cumulativeScalingFactorIndices[eigenIndex]);
+                
+                beagleAccumulateScaleFactors(instance,
+                                       &scalingFactorsIndices[eigenIndex*internalCount],
+                                       scalingFactorsCount,
+                                       cumulativeScalingFactorIndices[eigenIndex]);
+            } else if (autoScaling) {
+                beagleAccumulateScaleFactors(instance, &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
+            }
         }
-
+        
         gettimeofday(&time4, NULL);
-        
-        int categoryWeightsIndex = 0;
-        int stateFrequencyIndex = 0;
-        
+                
         // calculate the site likelihoods at the root node
         if (!unrooted) {
             beagleCalculateRootLogLikelihoods(instance,               // instance
-                                        (const int *)&rootIndex,// bufferIndices
-                                        &categoryWeightsIndex,                // weights
-                                        &stateFrequencyIndex,                 // stateFrequencies
-                                        &cumulativeScalingFactorIndex,
-                                        1,                      // count
+                                        rootIndices,// bufferIndices
+                                        categoryWeightsIndices,                // weights
+                                        stateFrequencyIndices,                 // stateFrequencies
+                                        cumulativeScalingFactorIndices,
+                                        eigenCount,                      // count
                                         &logL);         // outLogLikelihoods
         } else {
             // calculate the site likelihoods at the root node
             beagleCalculateEdgeLogLikelihoods(instance,               // instance
-                                              (const int *)&rootIndex,// bufferIndices
-                                              (const int *)&lastTip,
-                                              (const int *)&lastTip,
-                                              (calcderivs ? (const int *)&nodeIndicesD1[0] : NULL),
-                                              (calcderivs ? (const int *)&nodeIndicesD2[0] : NULL),
-                                              &categoryWeightsIndex,                // weights
-                                              &stateFrequencyIndex,                 // stateFrequencies
-                                              &cumulativeScalingFactorIndex,
-                                              1,                      // count
+                                              rootIndices,// bufferIndices
+                                              lastTipIndices,
+                                              lastTipIndices,
+                                              (calcderivs ? edgeIndicesD1 : NULL),
+                                              (calcderivs ? edgeIndicesD2 : NULL),
+                                              categoryWeightsIndices,                // weights
+                                              stateFrequencyIndices,                 // stateFrequencies
+                                              cumulativeScalingFactorIndices,
+                                              eigenCount,                      // count
                                               &logL,    // outLogLikelihood
                                               (calcderivs ? &deriv1 : NULL),
                                               (calcderivs ? &deriv2 : NULL));
@@ -448,6 +563,23 @@ void runBeagle(int resource,
         if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal)
             bestTimeTotal = getTimeDiff(time1, time5);
         
+        if (!(logL - logL == 0.0))
+            abort("error: invalid lnL");
+        
+        if (i > 0 && abs(logL - previousLogL) > MAX_DIFF)
+            abort("error: large lnL difference between reps");
+        
+        if (calcderivs) {
+            if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
+                abort("error: invalid deriv");
+            
+            if (i > 0 && ((abs(deriv1 - previousDeriv1) > MAX_DIFF) || (abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
+                abort("error: large deriv difference between reps");
+        }
+
+        previousLogL = logL;
+        previousDeriv1 = deriv1;
+        previousDeriv2 = deriv2;        
     }
 
     if (resource == 0) {
@@ -487,14 +619,9 @@ void runBeagle(int resource,
 	beagleFinalizeInstance(instance);
 }
 
-void abort(std::string msg) {
-	std::cerr << msg << "\nAborting..." << std::endl;
-	std::exit(1);
-}
-
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -519,7 +646,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* randomSeed,
                                     int* rescaleFrequency,
                                     bool* unrooted,
-                                    bool* calcderivs)	{
+                                    bool* calcderivs,
+                                    bool* logscalers,
+                                    int* eigenCount,
+                                    bool* eigencomplex,
+                                    bool* ievectrans,
+                                    bool* setmatrix)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -529,6 +661,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	bool expecting_compactTipCount = false;
 	bool expecting_seed = false;
     bool expecting_rescaleFrequency = false;
+    bool expecting_eigenCount = false;
 	
     for (unsigned i = 1; i < argc; ++i) {
 		std::string option = argv[i];
@@ -560,6 +693,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_rescaleFrequency) {
             *rescaleFrequency = (unsigned)atoi(option.c_str());
             expecting_rescaleFrequency = false;
+        } else if (expecting_eigenCount) {
+            *eigenCount = (unsigned)atoi(option.c_str());
+            expecting_eigenCount = false;
         } else if (option == "--help") {
 			helpMessage();
         } else if (option == "--manualscale") {
@@ -596,6 +732,16 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*unrooted = true;
         } else if (option == "--calcderivs") {
         	*calcderivs = true;
+        } else if (option == "--logscalers") {
+        	*logscalers = true;
+        } else if (option == "--eigencount") {
+        	expecting_eigenCount = true;
+        } else if (option == "--eigencomplex") {
+        	*eigencomplex = true;
+        } else if (option == "--ievectrans") {
+        	*ievectrans = true;
+        } else if (option == "--setmatrix") {
+        	*setmatrix = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -629,6 +775,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
 	if (expecting_compactTipCount)
 		abort("read last command line option without finding value associated with --compact-tips");
+
+    if (expecting_eigenCount)
+		abort("read last command line option without finding value associated with --eigencount");
     
 	if (*stateCount < 2)
 		abort("invalid number of states supplied on the command line");
@@ -656,6 +805,12 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     
     if (*calcderivs && !(*unrooted))
         abort("calcderivs option requires unrooted tree option");
+    
+    if (*eigenCount < 1)
+        abort("invalid number for eigencount supplied on the command line");
+    
+    if (*eigencomplex && (*stateCount != 4 || *eigenCount != 1))
+        abort("eigencomplex option only works with stateCount=4 and eigenCount=1");
 }
 
 int main( int argc, const char* argv[] )
@@ -674,6 +829,11 @@ int main( int argc, const char* argv[] )
     int compactTipCount = 0;
     int randomSeed = 42;
     int rescaleFrequency = 1;
+    bool logscalers = false;
+    int eigenCount = 1;
+    bool eigencomplex = false;
+    bool ievectrans = false;
+    bool setmatrix = false;
 
     int rsrc = -1;
     int nreps = 5;
@@ -684,7 +844,8 @@ int main( int argc, const char* argv[] )
     interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
                                    &requireDoublePrecision, &requireSSE, &compactTipCount, &randomSeed,
-                                   &rescaleFrequency, &unrooted, &calcderivs);
+                                   &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
+                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -711,7 +872,12 @@ int main( int argc, const char* argv[] )
                   randomSeed,
                   rescaleFrequency,
                   unrooted,
-                  calcderivs);
+                  calcderivs,
+                  logscalers,
+                  eigenCount,
+                  eigencomplex,
+                  ievectrans,
+                  setmatrix);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -732,7 +898,12 @@ int main( int argc, const char* argv[] )
                           randomSeed,
                           rescaleFrequency,
                           unrooted,
-                          calcderivs);
+                          calcderivs,
+                          logscalers,
+                          eigenCount,
+                          eigencomplex,
+                          ievectrans,
+                          setmatrix);
             }
         }else{
             runBeagle(0,
@@ -751,7 +922,12 @@ int main( int argc, const char* argv[] )
                       randomSeed,
                       rescaleFrequency,
                       unrooted,
-                      calcderivs);
+                      calcderivs,
+                      logscalers,
+                      eigenCount,
+                      eigencomplex,
+                      ievectrans,
+                      setmatrix);
         }
 	}
 
