@@ -29,45 +29,45 @@ rm screen_output
 set -v
 
 #               states  taxa  sites    rates  reps  ctips  rseed  root   derivs  rescale   rfreq  lscalers  ecount  ecomplex  ievect  smatrix  lnl_exp          d1_exp       d2_exp
-test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "0"    "yes"  "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-12986.50361"   "0"          "0"
+test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "1"    "yes"  "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-3528.89396"    "0"          "0"
 
-test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "0"    "yes"  "no"    "manual"  "1"    "yes"     "1"     "no"      "no"    "no"     "-12986.50361"   "0"          "0"
+test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "1"    "yes"  "no"    "manual"  "1"    "yes"     "1"     "no"      "no"    "no"     "-3528.89396"    "0"          "0"
 
-test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "0"    "yes"  "no"    "none"    "2"    "no"      "1"     "no"      "no"    "no"     "-12986.50361"   "0"          "0"
+test_all_impls  "4"     "14"  "1240"   "4"    "2"   "7"    "1"    "yes"  "no"    "none"    "2"    "no"      "1"     "no"      "no"    "no"     "-3528.89396"    "0"          "0"
 
-test_all_impls  "4"     "17"  "695"    "4"    "1"   "7"    "0"    "yes"  "no"    "manual"  "1"    "yes"     "1"     "no"      "no"    "yes"    "-517.14914"     "0"          "0"
+test_all_impls  "4"     "17"  "695"    "4"    "1"   "7"    "1"    "yes"  "no"    "manual"  "1"    "yes"     "1"     "no"      "no"    "yes"    "-294.51375"     "0"          "0"
 
-test_all_impls  "4"     "7"   "739"    "5"    "2"   "7"    "0"    "yes"  "no"    "manual"  "2"    "no"      "3"     "no"      "yes"   "no"     "-3352.16256"    "0"          "0"
+test_all_impls  "4"     "7"   "739"    "5"    "2"   "7"    "1"    "yes"  "no"    "manual"  "2"    "no"      "3"     "no"      "yes"   "no"     "-4415.64392"    "0"          "0"
 
-test_all_impls  "4"     "7"   "739"    "5"    "2"   "7"    "0"    "yes"  "no"    "none"    "2"    "no"      "3"     "no"      "yes"   "no"     "-3352.16256"    "0"          "0"
+test_all_impls  "4"     "7"   "739"    "5"    "2"   "7"    "1"    "yes"  "no"    "none"    "2"    "no"      "3"     "no"      "yes"   "no"     "-4415.64392"    "0"          "0"
 
-test_all_impls  "4"     "10"  "587"    "4"    "2"   "0"    "0"    "no"   "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-5385.20838"    "0"          "0"
+test_all_impls  "4"     "10"  "587"    "4"    "2"   "0"    "1"    "no"   "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-4916.38623"    "0"          "0"
 
-test_all_impls  "4"     "19"  "1853"   "4"    "2"   "0"    "0"    "yes"  "no"    "manual"  "2"    "no"      "1"     "yes"     "no"    "no"     "-27974.41711"   "0"          "0"
+test_all_impls  "4"     "19"  "1853"   "4"    "2"   "0"    "1"    "yes"  "no"    "manual"  "2"    "no"      "1"     "yes"     "no"    "no"     "-30002.00553"   "0"          "0"
 
-test_all_impls  "4"     "9"   "900"    "2"    "2"   "9"    "0"    "no"   "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-6839.95223"    "0"          "0"
+test_all_impls  "4"     "9"   "900"    "2"    "2"   "9"    "1"    "no"   "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-2726.08630"    "0"          "0"
 
-test_all_impls  "5"     "8"   "456"    "2"    "2"   "8"    "0"    "no"   "no"    "manual"  "2"    "no"      "4"     "no"      "yes"   "no"     "-3406.48912"    "0"          "0"
+test_all_impls  "5"     "8"   "456"    "2"    "2"   "8"    "1"    "no"   "no"    "manual"  "2"    "no"      "4"     "no"      "yes"   "no"     "-3523.14699"    "0"          "0"
 
-test_all_impls  "5"     "8"   "456"    "2"    "2"   "8"    "0"    "no"   "no"    "none"    "2"    "no"      "4"     "no"      "yes"   "no"     "-3406.48912"    "0"          "0"
+test_all_impls  "5"     "8"   "456"    "2"    "2"   "8"    "1"    "no"   "no"    "none"    "2"    "no"      "4"     "no"      "yes"   "no"     "-3523.14699"    "0"          "0"
 
-test_all_impls  "8"     "13"  "637"    "2"    "2"   "13"   "0"    "yes"  "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-11892.05122"   "0"          "0"
+test_all_impls  "8"     "13"  "637"    "2"    "2"   "13"   "1"    "yes"  "no"    "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-14028.08481"   "0"          "0"
 
-test_all_impls  "8"     "13"  "637"    "2"    "2"   "13"   "0"    "yes"  "no"    "none"    "2"    "no"      "1"     "no"      "no"    "no"     "-11892.05122"   "0"          "0"
+test_all_impls  "8"     "13"  "637"    "2"    "2"   "13"   "1"    "yes"  "no"    "none"    "2"    "no"      "1"     "no"      "no"    "no"     "-14028.08481"   "0"          "0"
 
-test_all_impls  "11"    "15"  "854"    "1"    "2"   "1"    "0"    "yes"  "no"    "manual"  "2"    "no"      "2"     "no"      "no"    "no"     "-16714.00237"   "0"          "0"
+test_all_impls  "11"    "15"  "854"    "1"    "2"   "1"    "1"    "yes"  "no"    "manual"  "2"    "no"      "2"     "no"      "no"    "no"     "-18672.38823"   "0"          "0"
 
-test_all_impls  "11"    "15"  "854"    "1"    "2"   "1"    "0"    "yes"  "no"    "none"    "2"    "no"      "2"     "no"      "no"    "no"     "-16714.00237"   "0"          "0"
+test_all_impls  "11"    "15"  "854"    "1"    "2"   "1"    "1"    "yes"  "no"    "none"    "2"    "no"      "2"     "no"      "no"    "no"     "-18672.38823"   "0"          "0"
 
-test_all_impls  "13"    "5"   "425"    "1"    "1"   "5"    "0"    "no"   "yes"   "none"    "2"    "no"      "1"     "no"      "no"    "yes"    "509.97037"      "249.95152"  "-68.23365"
+test_all_impls  "13"    "5"   "425"    "1"    "1"   "5"    "1"    "no"   "yes"   "none"    "2"    "no"      "1"     "no"      "no"    "yes"    "680.04980"      "211.95093"  "-15.52490"
 
-test_all_impls  "20"    "11"  "315"    "4"    "2"   "8"    "0"    "no"   "no"    "manual"  "2"    "no"      "2"     "no"      "no"    "no"     "-5459.22591"    "0"          "0"
+test_all_impls  "20"    "11"  "315"    "4"    "2"   "8"    "1"    "no"   "no"    "manual"  "2"    "no"      "2"     "no"      "no"    "no"     "-5541.25325"    "0"          "0"
 
-test_all_impls  "61"    "6"   "664"    "1"    "2"   "6"    "0"    "no"   "yes"   "manual"  "2"    "no"      "1"     "no"      "yes"   "no"     "-9482.24975"    "-104.55821" "0.08005"
+test_all_impls  "61"    "6"   "664"    "1"    "2"   "6"    "1"    "no"   "yes"   "manual"  "2"    "no"      "1"     "no"      "yes"   "no"     "-9872.86554"    "-1.64439"   "13.20485"
 
-test_all_impls  "61"    "6"   "664"    "1"    "2"   "6"    "0"    "no"   "yes"   "none"    "2"    "no"      "1"     "no"      "yes"   "no"     "-9482.24975"    "-104.55821" "0.08005"
+test_all_impls  "61"    "6"   "664"    "1"    "2"   "6"    "1"    "no"   "yes"   "none"    "2"    "no"      "1"     "no"      "yes"   "no"     "-9872.86554"    "-1.64439"   "13.20485"
 
-test_all_impls  "64"    "12"  "399"    "3"    "2"   "12"   "0"    "no"   "yes"   "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-10943.69031"   "-14.85300"  "-29.26092"
+test_all_impls  "64"    "12"  "399"    "3"    "2"   "12"   "1"    "no"   "yes"   "manual"  "2"    "no"      "1"     "no"      "no"    "no"     "-11662.60981"   "-91.70365"  "32.13057"
 
 set +v
 

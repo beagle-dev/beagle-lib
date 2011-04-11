@@ -20,8 +20,10 @@
 #endif
 
 #include "libhmsbeagle/beagle.h"
-
 #include "linalg.h"
+
+#define MAX_DIFF    0.01        //max discrepancy in scoring between reps
+#define	GT_RAND_MAX 0x7fffffff
 
 #ifdef _WIN32
 	//From January 1, 1601 (UTC). to January 1,1970
@@ -43,10 +45,25 @@
 	}
 #endif
 
-#define MAX_DIFF 0.01 //max discrepancy in scoring between reps
-
 double cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
 
+static unsigned int rand_state = 1;
+
+int gt_rand_r(unsigned int *seed)
+{
+    *seed = *seed * 1103515245 + 12345;
+    return (*seed % ((unsigned int)GT_RAND_MAX + 1));
+}
+
+int gt_rand(void)
+{
+    return (gt_rand_r(&rand_state));
+}
+
+void gt_srand(unsigned int seed)
+{
+    rand_state = seed;
+}
 
 void abort(std::string msg) {
 	std::cerr << msg << "\nAborting..." << std::endl;
@@ -58,7 +75,7 @@ double* getRandomTipPartials( int nsites, int stateCount )
 	double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
 	for( int i=0; i<nsites*stateCount; i+=stateCount )
 	{
-		int s = rand()%stateCount;
+		int s = gt_rand()%stateCount;
 		partials[i+s]=1.0;
 	}
 	return partials;
@@ -69,7 +86,7 @@ int* getRandomTipStates( int nsites, int stateCount )
 	int *states = (int*) calloc(sizeof(int), nsites); 
 	for( int i=0; i<nsites; i++ )
 	{
-		int s = rand()%stateCount;
+		int s = gt_rand()%stateCount;
 		states[i]=s;
 	}
 	return states;
@@ -161,7 +178,7 @@ void runBeagle(int resource,
         autoScaling = false;
     
     // set the sequences for each tip using partial likelihood arrays
-	srand(randomSeed);	// fix the random seed...
+	gt_srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
     {
         if (i >= compactTipCount) {
@@ -182,7 +199,7 @@ void runBeagle(int resource,
 #endif
 	
     for (int i = 0; i < rateCategoryCount; i++) {
-        rates[i] = rand() / (double) RAND_MAX;
+        rates[i] = gt_rand() / (double) GT_RAND_MAX;
     }
     
 	beagleSetCategoryRates(instance, &rates[0]);
@@ -190,7 +207,7 @@ void runBeagle(int resource,
 	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
     
     for (int i = 0; i < nsites; i++) {
-        patternWeights[i] = rand() / (double) RAND_MAX;
+        patternWeights[i] = gt_rand() / (double) GT_RAND_MAX;
     }    
 
     beagleSetPatternWeights(instance, patternWeights);
@@ -214,7 +231,7 @@ void runBeagle(int resource,
 
     for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
         for (int i = 0; i < rateCategoryCount; i++) {
-            weights[i] = rand() / (double) RAND_MAX;
+            weights[i] = gt_rand() / (double) GT_RAND_MAX;
         } 
     
         beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
@@ -274,7 +291,7 @@ void runBeagle(int resource,
        
         } else if (!eigencomplex) {
             for (int i=0; i<stateCount; i++) {
-                freqs[i] = rand() / (double) RAND_MAX;
+                freqs[i] = gt_rand() / (double) GT_RAND_MAX;
             }
         
             double** qmat=New2DArray<double>(stateCount, stateCount);    
@@ -283,7 +300,7 @@ void runBeagle(int resource,
             int rnum=0;
             for(int i=0;i<stateCount;i++){
                 for(int j=i+1;j<stateCount;j++){
-                    relNucRates[rnum] = rand() / (double) RAND_MAX;
+                    relNucRates[rnum] = gt_rand() / (double) GT_RAND_MAX;
                     qmat[i][j]=relNucRates[rnum] * freqs[j];
                     qmat[j][i]=relNucRates[rnum] * freqs[i];
                     rnum++;
@@ -392,7 +409,7 @@ void runBeagle(int resource,
     }
 	double* edgeLengths = new double[edgeCount];
 	for(int i=0; i<edgeCount; i++) {
-        edgeLengths[i]=rand() / (double) RAND_MAX;
+        edgeLengths[i]=gt_rand() / (double) GT_RAND_MAX;
     }
     
     // create a list of partial likelihood update operations
@@ -483,7 +500,7 @@ void runBeagle(int resource,
                     for(int z=0;z<rateCategoryCount;z++){
                         for(int x=0;x<stateCount;x++){
                             for(int y=0;y<stateCount;y++){
-                                inMatrix[z*stateCount*stateCount + x*stateCount + y] = rand() / (double) RAND_MAX;
+                                inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
                             }
                         } 
                     }
@@ -794,7 +811,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*nreps < 1)
         abort("invalid number of reps supplied on the command line");
 
-    if (*randomSeed < 0)
+    if (*randomSeed < 1)
         abort("invalid number for seed supplied on the command line");   
         
     if (*manualScaling && *rescaleFrequency < 1)
@@ -827,7 +844,7 @@ int main( int argc, const char* argv[] )
     bool unrooted = false;
     bool calcderivs = false;
     int compactTipCount = 0;
-    int randomSeed = 42;
+    int randomSeed = 1;
     int rescaleFrequency = 1;
     bool logscalers = false;
     int eigenCount = 1;
