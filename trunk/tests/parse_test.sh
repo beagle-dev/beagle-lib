@@ -2,6 +2,8 @@
 
 function run_genomictest {
     (time ../examples/genomictest/genomictest $1) &> screen_output
+    echo >> screen_log
+    echo "./genomictest $1" >> screen_log
 }
 
 function run_fourtaxon {
@@ -108,7 +110,7 @@ function print_system {
 function run_print_test {
     if [ "$1" == "genomictest" ]
     then
-        CMD_FLAGS="--states $2 --taxa $3 --sites $4 --rates $5 --reps $6 --rsrc $7 --compact-tips ${11} --seed ${12} --rescale-frequency ${13}"
+        CMD_FLAGS="--states $2 --taxa $3 --sites $4 --rates $5 --reps $6 --rsrc $7 --compact-tips ${11} --seed ${12} --rescale-frequency ${13} --eigencount ${20}"
         if [ "$8" == "manual" ]
         then
             CMD_FLAGS="$CMD_FLAGS --manualscale"
@@ -128,6 +130,22 @@ function run_print_test {
         if [ "${15}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --calcderivs"
+        fi
+        if [ "${19}" == "yes" ]
+        then
+            CMD_FLAGS="$CMD_FLAGS --logscalers"
+        fi
+        if [ "${21}" == "yes" ]
+        then
+            CMD_FLAGS="$CMD_FLAGS --eigencomplex"
+        fi
+        if [ "${22}" == "yes" ]
+        then
+            CMD_FLAGS="$CMD_FLAGS --ievectrans"
+        fi
+        if [ "${23}" == "yes" ]
+        then
+            CMD_FLAGS="$CMD_FLAGS --setmatrix"
         fi
 
         run_genomictest "$CMD_FLAGS"
@@ -160,7 +178,7 @@ function run_print_test {
     then
         echo "*** ERROR: `grep "error" screen_output`" 1>&2;
     else
-        set -v; echo -n $1","$2","$3","$4","$5","$6","$7","$8","$9","${10}","${11}","${12}","${13}","${14}","${15}; set +v
+        set -v; echo -n $1","$2","$3","$4","$5","$6","$7","$8","$9","${10}","${11}","${12}","${13}","${14}","${15}","${19}","${20}","${21}","${22}","${23}; set +v
         if [ "$1" == "genomictest" ]
         then
             grep_print_genomictest ${15} ${16} ${17} ${18}
@@ -178,18 +196,20 @@ function run_print_test {
 if [ -z "${18}" ];
 then
     set -v
-    echo "run_test.sh requires 18 arguments, as follows:"
-    echo "run_test.sh <program> <states> <taxa> <sites> <rates> <reps> <rsrc> <rescaling> <precision> <sse> <compact-tips> <rseed> <rescale-frequency> <rooted> <calc-derivs> <lnl-exp> <d1-exp> <d2-exp>"
-    echo "(see run_test_batch.sh for examples)"
+    echo "parse_test.sh requires 23 arguments, as follows:"
+    echo "parse_test.sh <program> <states> <taxa> <sites> <rates> <reps> <rsrc> <rescaling> <precision> <sse> <compact-tips> <rseed> <rescale-frequency> <rooted> <calc-derivs> <lnl-exp> <d1-exp> <d2-exp> <lscalers> <ecount> <ecomplex> <ievect> <smatrix>"
+    echo "(see run_tests.sh for examples)"
     set +v
 else
 
 
     grep_system
 
-    #               program     states  taxa    sites   rates   reps    rsrc    rescaling   precision   sse     ctips   rseed   rfreq   rooted  derivs  lnl_exp  d1_exp  d2_exp
-    run_print_test  $1          $2      $3      $4      $5      $6      $7      $8          $9          ${10}   ${11}   ${12}   ${13}   ${14}   ${15}   ${16}    ${17}   ${18}
+    #               program     states  taxa    sites   rates   reps    rsrc    rescaling   precision   sse     ctips   rseed   rfreq   rooted  derivs  lnl_exp  d1_exp  d2_exp  lscalers  ecount  ecomplex  ievect  smatrix
+    run_print_test  $1          $2      $3      $4      $5      $6      $7      $8          $9          ${10}   ${11}   ${12}   ${13}   ${14}   ${15}   ${16}    ${17}   ${18}   ${19}     ${20}   ${21}     ${22}   ${23}
 
+    cat screen_output >> screen_log
+    rm screen_output
 fi
 
 
