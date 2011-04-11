@@ -39,7 +39,11 @@
 
 #ifdef CUDA
     #include <cuda.h>
-    #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#   ifdef BEAGLE_XCODE
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
+#   else
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#   endif
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
 #else
