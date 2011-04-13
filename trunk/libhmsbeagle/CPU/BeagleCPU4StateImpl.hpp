@@ -48,11 +48,8 @@
 
 #define EXPERIMENTAL_OPENMP
 
-#ifdef PAD_MATRICES
-    #define OFFSET    (4 + PAD)    // For easy conversion between 4/5
-#else
-    #define OFFSET    4
-#endif
+
+#define OFFSET    (4 + T_PAD)    // For easy conversion between 4/5
 
 #define PREFETCH_MATRIX(num,matrices,w) \
     REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
@@ -789,7 +786,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(i
         return NULL;
     }
 
-    BeagleImpl* impl = new BeagleCPU4StateImpl<REALTYPE, PAD>();
+    BeagleImpl* impl = new BeagleCPU4StateImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();
 
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,

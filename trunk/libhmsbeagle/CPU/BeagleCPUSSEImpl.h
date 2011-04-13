@@ -36,9 +36,19 @@
 
 #define RESTRICT __restrict		/* may need to define this instead to 'restrict' */
 
-#define BEAGLE_CPU_SSE_FLOAT	float, PADDING
-#define BEAGLE_CPU_SSE_DOUBLE	double, PADDING
-#define BEAGLE_CPU_SSE_TEMPLATE	template <int PADDING>
+
+// Pad transition matrix rows with an extra 1.0 for ambiguous characters
+#define T_PAD_SSE_EVEN  2   // for even state counts
+#define T_PAD_SSE_ODD   1   // for odd state counts
+
+// Partials padding
+#define P_PAD_SSE_EVEN  0   // for even state counts
+#define P_PAD_SSE_ODD   1   // for odd state counts
+
+
+#define BEAGLE_CPU_SSE_FLOAT	float, T_PAD, P_PAD
+#define BEAGLE_CPU_SSE_DOUBLE	double, T_PAD, P_PAD
+#define BEAGLE_CPU_SSE_TEMPLATE	template <int T_PAD, int P_PAD>
 
 namespace beagle {
 namespace cpu {

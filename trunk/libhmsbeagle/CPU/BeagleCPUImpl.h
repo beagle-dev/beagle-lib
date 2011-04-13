@@ -38,19 +38,16 @@
 
 #include <vector>
 
-#define BEAGLE_CPU_GENERIC	REALTYPE, PADDING
-#define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int PADDING>
+#define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
+#define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
 
 #define BEAGLE_CPU_FACTORY_GENERIC	REALTYPE
 #define BEAGLE_CPU_FACTORY_TEMPLATE	template <typename REALTYPE>
 
 
-#define PAD_MATRICES // Pad transition matrix rows with an extra 1.0 for ambiguous characters
-                     // None of the calcStates* currently work correctly when PAD_MATRICES
-                     // is not defined.  This is flag for development-purposes only
-#ifdef PAD_MATRICES
-	#define PAD	2
-#endif
+#define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
+#define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
+
 
 namespace beagle {
 namespace cpu {
@@ -82,7 +79,7 @@ protected:
     REALTYPE realtypeMin;
     int scalingExponentThreshhold;
 
-    EigenDecomposition<REALTYPE>* gEigenDecomposition;
+    EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* gEigenDecomposition;
 
     double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
     double* gPatternWeights;

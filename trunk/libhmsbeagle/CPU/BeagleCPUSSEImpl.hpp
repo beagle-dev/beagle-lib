@@ -243,12 +243,9 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
             	               VEC_ADD(sum1_vecA, VEC_SWAP(sum1_vecA)),
             	               VEC_ADD(sum2_vecA, VEC_SWAP(sum2_vecA))
             	           );
-#ifdef PAD_MATRICES
+
                 // increment for the extra column at the end
-                w += kStateCount + PAD;
-#else
-                w += kStateCount;
-#endif
+                w += kStateCount + T_PAD;
 
 #ifndef DOUBLE_UNROLL
                 // Store single value
@@ -274,12 +271,9 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
             	               VEC_ADD(sum1_vecB, VEC_SWAP(sum1_vecB)),
             	               VEC_ADD(sum2_vecB, VEC_SWAP(sum2_vecB))
             	           );
-#ifdef PAD_MATRICES
+
                 // increment for the extra column at the end
-                w += kStateCount + PAD;
-#else
-                w += kStateCount;
-#endif
+                w += kStateCount + T_PAD;
 
                 // Store both partials in one transaction
                 VEC_STORE(destPu, VEC_MOVE(sum1_vecA, sum1_vecB));
@@ -332,12 +326,10 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(
                 				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
                 		), scalar));
 
-#ifdef PAD_MATRICES
+
                 // increment for the extra column at the end
-                w += kStateCount + PAD;
-#else
-                w += kStateCount;
-#endif
+                w += kStateCount + T_PAD;
+
                 destPu++;
             }
             v += kStateCount;
@@ -571,33 +563,51 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
                                              long requirementFlags,
                                              int* errorCode) {
 
-	if (stateCount & 1) {
-		return NULL; // Does not currently work for odd statecounts
-	}
-
-    BeagleCPUSSEImpl<REALTYPE, PAD>* impl =
-    		new BeagleCPUSSEImpl<REALTYPE, PAD>();
-
-    if (!CPUSupportsSSE()) {
-        delete impl;
+    if (!CPUSupportsSSE())
         return NULL;
-    }
+    
+	if (stateCount & 1) { // is odd
+        return NULL; // partials padding not yet implemented
+        
+        BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>* impl =
+        new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>();
+        
+        
+        try {
+            if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+                                     patternCount, eigenBufferCount, matrixBufferCount,
+                                     categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags) == 0)
+                return impl;
+        }
+        catch(...) {
+            if (DEBUGGING_OUTPUT)
+                std::cerr << "exception in initialize\n";
+            delete impl;
+            throw;
+        }
+        
+        delete impl;        
+	} else {
+        BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>* impl =
+                new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>();
 
-    try {
-        if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
-                                 patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags) == 0)
-            return impl;
-    }
-    catch(...) {
-        if (DEBUGGING_OUTPUT)
-            std::cerr << "exception in initialize\n";
+
+        try {
+            if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
+                                     patternCount, eigenBufferCount, matrixBufferCount,
+                                     categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags) == 0)
+                return impl;
+        }
+        catch(...) {
+            if (DEBUGGING_OUTPUT)
+                std::cerr << "exception in initialize\n";
+            delete impl;
+            throw;
+        }
+
         delete impl;
-        throw;
     }
-
-    delete impl;
-
+    
     return NULL;
 }
 

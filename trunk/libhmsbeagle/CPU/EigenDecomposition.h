@@ -16,8 +16,8 @@
 #include <cassert>
 #include <vector>
 
-#define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE
-#define BEAGLE_CPU_EIGEN_TEMPLATE	template <typename REALTYPE>
+#define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE, T_PAD
+#define BEAGLE_CPU_EIGEN_TEMPLATE	template <typename REALTYPE, int T_PAD>
 
 namespace beagle {
 namespace cpu {

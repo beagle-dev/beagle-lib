@@ -733,8 +733,8 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
         return NULL;
     }
 
-    BeagleCPU4StateSSEImpl<REALTYPE, PAD>* impl =
-    		new BeagleCPU4StateSSEImpl<REALTYPE, PAD>();
+    BeagleCPU4StateSSEImpl<REALTYPE, T_PAD_4_SSE_DEFAULT, P_PAD_4_SSE_DEFAULT>* impl =
+    		new BeagleCPU4StateSSEImpl<REALTYPE, T_PAD_4_SSE_DEFAULT, P_PAD_4_SSE_DEFAULT>();
 
     if (!CPUSupportsSSE()) {
         delete impl;
