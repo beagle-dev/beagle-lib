@@ -20,12 +20,12 @@
 namespace beagle {
 namespace cpu {
 
-template <typename REALTYPE>
-EigenDecompositionSquare<REALTYPE>::EigenDecompositionSquare(int decompositionCount,
+BEAGLE_CPU_EIGEN_TEMPLATE
+EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int decompositionCount,
 											       int stateCount,
 											       int categoryCount,
 											       long flags)
-	: EigenDecomposition<REALTYPE>(decompositionCount,stateCount,categoryCount, flags) {
+	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags) {
 
 	isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
@@ -63,8 +63,8 @@ EigenDecompositionSquare<REALTYPE>::EigenDecompositionSquare(int decompositionCo
     matrixTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
 }
 
-template <typename REALTYPE>
-EigenDecompositionSquare<REALTYPE>::~EigenDecompositionSquare() {
+BEAGLE_CPU_EIGEN_TEMPLATE
+EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionSquare() {
 
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gEMatrices[i]);
@@ -92,8 +92,8 @@ void transposeSquareMatrix(REALTYPE* mat,
     }
 }
 
-template <typename REALTYPE>
-void EigenDecompositionSquare<REALTYPE>::setEigenDecomposition(int eigenIndex,
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int eigenIndex,
 										             const double* inEigenVectors,
                                                      const double* inInverseEigenVectors,
                                                      const double* inEigenValues) {
@@ -106,8 +106,8 @@ void EigenDecompositionSquare<REALTYPE>::setEigenDecomposition(int eigenIndex,
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
 }
 
-template <typename REALTYPE>
-void EigenDecompositionSquare<REALTYPE>::updateTransitionMatrices(int eigenIndex,
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                                         const int* probabilityIndices,
                                                         const int* firstDerivativeIndices,
                                                         const int* secondDerivativeIndices,

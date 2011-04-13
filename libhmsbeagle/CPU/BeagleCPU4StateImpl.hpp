@@ -131,7 +131,7 @@
 namespace beagle {
 namespace cpu {
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_FACTORY_TEMPLATE
 inline const char* getBeagleCPU4StateName(){ return "CPU-4State-Unknown"; };
 
 template<>
@@ -764,14 +764,14 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
 
 BEAGLE_CPU_TEMPLATE
 const char* BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::getName() {
-	return getBeagleCPU4StateName<BEAGLE_CPU_GENERIC>();
+	return getBeagleCPU4StateName<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
 
-BEAGLE_CPU_TEMPLATE
-BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
+BEAGLE_CPU_FACTORY_TEMPLATE
+BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -789,7 +789,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCo
         return NULL;
     }
 
-    BeagleImpl* impl = new BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>();
+    BeagleImpl* impl = new BeagleCPU4StateImpl<REALTYPE, PAD>();
 
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
@@ -810,13 +810,13 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCo
     return NULL;
 }
 
-BEAGLE_CPU_TEMPLATE
-const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::getName() {
-	return getBeagleCPU4StateName<BEAGLE_CPU_GENERIC>();
+BEAGLE_CPU_FACTORY_TEMPLATE
+const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
+	return getBeagleCPU4StateName<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
-BEAGLE_CPU_TEMPLATE
-const long BeagleCPU4StateImplFactory<BEAGLE_CPU_GENERIC>::getFlags() {
+BEAGLE_CPU_FACTORY_TEMPLATE
+const long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
     long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
                   BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE |

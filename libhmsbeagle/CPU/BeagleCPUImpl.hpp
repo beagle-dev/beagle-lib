@@ -96,7 +96,7 @@ namespace cpu {
 //const bool DEBUGGING_OUTPUT = false;
 //#endif
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_FACTORY_TEMPLATE
 inline const char* getBeagleCPUName(){ return "CPU-Unknown"; };
 
 template<>
@@ -105,7 +105,7 @@ inline const char* getBeagleCPUName<double>(){ return "CPU-Double"; };
 template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_FACTORY_TEMPLATE
 inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
 
 template<>
@@ -381,21 +381,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         ones[i] = 1.0;
     }
 
-    if (createInstanceExtraFunctionalityHook() != BEAGLE_SUCCESS) {
-    	throw std::bad_alloc();
-    }
-
     return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
 const char* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getName() {
-	return getBeagleCPUName<BEAGLE_CPU_GENERIC>();
+	return getBeagleCPUName<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
 BEAGLE_CPU_TEMPLATE
 const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
-	return getBeagleCPUFlags<BEAGLE_CPU_GENERIC>();
+	return getBeagleCPUFlags<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2154,8 +2150,8 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
-BEAGLE_CPU_TEMPLATE
-BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
+BEAGLE_CPU_FACTORY_TEMPLATE
+BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tipCount,
                                              int partialsBufferCount,
                                              int compactBufferCount,
                                              int stateCount,
@@ -2169,7 +2165,7 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
                                              long requirementFlags,
                                              int* errorCode) {
 
-    BeagleImpl* impl = new BeagleCPUImpl<BEAGLE_CPU_GENERIC>();
+    BeagleImpl* impl = new BeagleCPUImpl<REALTYPE, PAD>();
 
     try {
         *errorCode =
@@ -2195,13 +2191,13 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::createImpl(int tipCount,
 }
 
 
-BEAGLE_CPU_TEMPLATE
-const char* BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::getName() {
-	return getBeagleCPUName<BEAGLE_CPU_GENERIC>();
+BEAGLE_CPU_FACTORY_TEMPLATE
+const char* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
+	return getBeagleCPUName<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
-BEAGLE_CPU_TEMPLATE
-const long BeagleCPUImplFactory<BEAGLE_CPU_GENERIC>::getFlags() {
+BEAGLE_CPU_FACTORY_TEMPLATE
+const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
     long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
                  BEAGLE_FLAG_THREADING_NONE |

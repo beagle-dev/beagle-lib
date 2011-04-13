@@ -38,8 +38,11 @@
 
 #include <vector>
 
-#define BEAGLE_CPU_GENERIC	REALTYPE
-#define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE>
+#define BEAGLE_CPU_GENERIC	REALTYPE, PADDING
+#define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int PADDING>
+
+#define BEAGLE_CPU_FACTORY_GENERIC	REALTYPE
+#define BEAGLE_CPU_FACTORY_TEMPLATE	template <typename REALTYPE>
 
 
 #define PAD_MATRICES // Pad transition matrix rows with an extra 1.0 for ambiguous characters
@@ -392,15 +395,11 @@ protected:
 
     virtual int getPaddedPatternsModulus();
 
-    virtual int createInstanceExtraFunctionalityHook() {
-    	return BEAGLE_SUCCESS;
-    };
-
     void* mallocAligned(size_t size);
 
 };
 
-template <typename REALTYPE>
+BEAGLE_CPU_FACTORY_TEMPLATE
 class BeagleCPUImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

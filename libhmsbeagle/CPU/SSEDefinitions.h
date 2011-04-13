@@ -91,4 +91,11 @@ typedef union 			/* for copying individual elements to and from vector floats */
 
 #endif
 
+int CPUSupportsSSE() {
+    //int a,b,c,d;
+    //cpuid(0,a,b,c,d);
+    //fprintf(stderr,"a = %d\nb = %d\nc = %d\nd = %d\n",a,b,c,d);
+    return 1;
+}
+
 #endif // __SSEDefinitions__

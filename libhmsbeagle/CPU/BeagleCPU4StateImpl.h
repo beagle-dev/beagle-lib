@@ -150,7 +150,7 @@ public:
 
 };
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_FACTORY_TEMPLATE
 class BeagleCPU4StateImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,

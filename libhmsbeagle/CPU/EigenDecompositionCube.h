@@ -13,17 +13,17 @@
 namespace beagle {
 namespace cpu {
 
-template <class REALTYPE>
-class EigenDecompositionCube : public EigenDecomposition<REALTYPE> {
+BEAGLE_CPU_EIGEN_TEMPLATE
+class EigenDecompositionCube : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC> {
 
-	using EigenDecomposition<REALTYPE>::gEigenValues;
-	using EigenDecomposition<REALTYPE>::kStateCount;
-	using EigenDecomposition<REALTYPE>::kEigenDecompCount;
-	using EigenDecomposition<REALTYPE>::kCategoryCount;
-	using EigenDecomposition<REALTYPE>::matrixTmp;
-	using EigenDecomposition<REALTYPE>::firstDerivTmp;
-	using EigenDecomposition<REALTYPE>::secondDerivTmp;
-	using EigenDecomposition<REALTYPE>::kFlags;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::gEigenValues;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::kStateCount;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::kEigenDecompCount;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::kCategoryCount;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::matrixTmp;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::firstDerivTmp;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::secondDerivTmp;
+	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::kFlags;
 
 protected:
     REALTYPE** gCMatrices;
