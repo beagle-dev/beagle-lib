@@ -151,10 +151,10 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
 							transitionMat[n] = 0;
 						n++;
 					}
-#ifdef PAD_MATRICES
+if (T_PAD != 0) {
 					transitionMat[n] = 1.0;
-					n += PAD;
-#endif
+					n += T_PAD;
+}
 				}
 			}
 			
@@ -197,11 +197,11 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
 						firstDerivMat[n] = sumD1;
 						n++;
 					}
-#ifdef PAD_MATRICES
+if (T_PAD != 0) {
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
-					n += PAD;
-#endif
+					n += T_PAD;
+}
 				}
 			}
 		}
@@ -240,12 +240,12 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
 						secondDerivMat[n] = sumD2;
 						n++;
 					}
-#ifdef PAD_MATRICES
+if (T_PAD != 0) {
 					transitionMat[n] = 1.0;
                     firstDerivMat[n] = 0.0;
                     secondDerivMat[n] = 0.0;
-					n += PAD;
-#endif
+					n += T_PAD;
+}
 				}
 			}
 		}

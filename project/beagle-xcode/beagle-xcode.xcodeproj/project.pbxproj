@@ -174,26 +174,26 @@
 		64020B4A12149C9B00C76EFB /* UnixSharedLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = UnixSharedLibrary.cpp; sourceTree = "<group>"; };
 		64020B4B12149C9B00C76EFB /* WinSharedLibrary.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WinSharedLibrary.cpp; sourceTree = "<group>"; };
 		64020B5112149CFE00C76EFB /* BeagleCPU4StateImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPU4StateImpl.h; sourceTree = "<group>"; };
-		64020B5212149CFE00C76EFB /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPUImpl.h; sourceTree = "<group>"; };
+		64020B5212149CFE00C76EFB /* BeagleCPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = BeagleCPUImpl.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		64020B5312149CFE00C76EFB /* BeagleCPUPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPUPlugin.h; sourceTree = "<group>"; };
-		64020B5412149CFE00C76EFB /* EigenDecomposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EigenDecomposition.h; sourceTree = "<group>"; };
+		64020B5412149CFE00C76EFB /* EigenDecomposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = EigenDecomposition.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		64020B5512149CFE00C76EFB /* EigenDecompositionCube.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EigenDecompositionCube.h; sourceTree = "<group>"; };
 		64020B5612149CFE00C76EFB /* EigenDecompositionSquare.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EigenDecompositionSquare.h; sourceTree = "<group>"; };
 		64020B5712149CFE00C76EFB /* Precision.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Precision.h; sourceTree = "<group>"; };
-		64020B5812149CFE00C76EFB /* BeagleCPU4StateImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPU4StateImpl.hpp; sourceTree = "<group>"; };
-		64020B5912149CFE00C76EFB /* BeagleCPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPUImpl.hpp; sourceTree = "<group>"; };
-		64020B5A12149CFE00C76EFB /* EigenDecompositionCube.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = EigenDecompositionCube.hpp; sourceTree = "<group>"; };
-		64020B5B12149CFE00C76EFB /* EigenDecompositionSquare.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = EigenDecompositionSquare.hpp; sourceTree = "<group>"; };
+		64020B5812149CFE00C76EFB /* BeagleCPU4StateImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleCPU4StateImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		64020B5912149CFE00C76EFB /* BeagleCPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleCPUImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		64020B5A12149CFE00C76EFB /* EigenDecompositionCube.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = EigenDecompositionCube.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		64020B5B12149CFE00C76EFB /* EigenDecompositionSquare.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = EigenDecompositionSquare.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B5C12149CFE00C76EFB /* BeagleCPUPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleCPUPlugin.cpp; sourceTree = "<group>"; };
 		64020B5D12149D4200C76EFB /* BeagleCPUOpenMPPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPUOpenMPPlugin.h; sourceTree = "<group>"; };
 		64020B5E12149D4200C76EFB /* BeagleCPUOpenMPPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleCPUOpenMPPlugin.cpp; sourceTree = "<group>"; };
-		64020B5F12149D6600C76EFB /* BeagleCPUSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPUSSEImpl.h; sourceTree = "<group>"; };
+		64020B5F12149D6600C76EFB /* BeagleCPUSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = BeagleCPUSSEImpl.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		64020B6012149D6600C76EFB /* BeagleCPUSSEPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPUSSEPlugin.h; sourceTree = "<group>"; };
 		64020B6112149D6600C76EFB /* SSEDefinitions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SSEDefinitions.h; sourceTree = "<group>"; };
-		64020B6212149D6600C76EFB /* BeagleCPU4StateSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPU4StateSSEImpl.hpp; sourceTree = "<group>"; };
-		64020B6312149D6600C76EFB /* BeagleCPUSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = BeagleCPUSSEImpl.hpp; sourceTree = "<group>"; };
+		64020B6212149D6600C76EFB /* BeagleCPU4StateSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleCPU4StateSSEImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		64020B6312149D6600C76EFB /* BeagleCPUSSEImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleCPUSSEImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B6412149D6600C76EFB /* BeagleCPUSSEPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BeagleCPUSSEPlugin.cpp; sourceTree = "<group>"; };
-		64020B6512149D7900C76EFB /* BeagleCPU4StateSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleCPU4StateSSEImpl.h; sourceTree = "<group>"; };
+		64020B6512149D7900C76EFB /* BeagleCPU4StateSSEImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = BeagleCPU4StateSSEImpl.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		64020B6D12149DC300C76EFB /* BeagleGPUImpl.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = BeagleGPUImpl.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B6E12149DC300C76EFB /* BeagleGPUImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BeagleGPUImpl.h; sourceTree = "<group>"; };
 		64020B6F12149DC300C76EFB /* GPUImplDefs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = GPUImplDefs.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
@@ -1437,6 +1437,7 @@
 					DLS_MACOS,
 					BEAGLE_XCODE,
 				);
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../Resources";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
@@ -1453,6 +1454,7 @@
 					DLS_MACOS,
 					BEAGLE_XCODE,
 				);
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../Resources";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};

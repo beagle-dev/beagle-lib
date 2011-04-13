@@ -169,10 +169,10 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
                         transitionMat[n] = 0;
                     n++;
                 }
-#ifdef PAD_MATRICES
+if (T_PAD != 0) {
                 transitionMat[n] = 1.0;
-                n += PAD;
-#endif
+                n += T_PAD;
+}
             }
         }
 
