@@ -19,12 +19,12 @@ const bool DEBUGGING_OUTPUT = true;
 const bool DEBUGGING_OUTPUT = false;
 #endif
 
-template <typename REALTYPE>
-EigenDecompositionCube<REALTYPE>::EigenDecompositionCube(int decompositionCount,
+BEAGLE_CPU_EIGEN_TEMPLATE
+EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int decompositionCount,
 											         int stateCount,
 											         int categoryCount,
                                                      long flags)
-											         : EigenDecomposition<REALTYPE>(decompositionCount,
+											         : EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,
 																				stateCount,
 																				categoryCount,
                                                                                     flags) {
@@ -51,8 +51,8 @@ EigenDecompositionCube<REALTYPE>::EigenDecompositionCube(int decompositionCount,
     secondDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount);
 }
 
-template <typename REALTYPE>
-EigenDecompositionCube<REALTYPE>::~EigenDecompositionCube() {
+BEAGLE_CPU_EIGEN_TEMPLATE
+EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionCube() {
 	
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gCMatrices[i]);
@@ -65,8 +65,8 @@ EigenDecompositionCube<REALTYPE>::~EigenDecompositionCube() {
 	free(secondDerivTmp);
 }
 
-template <typename REALTYPE>
-void EigenDecompositionCube<REALTYPE>::setEigenDecomposition(int eigenIndex,
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int eigenIndex,
 										           const double* inEigenVectors,
                                                    const double* inInverseEigenVectors,
                                                    const double* inEigenValues) {
@@ -101,8 +101,8 @@ void EigenDecompositionCube<REALTYPE>::setEigenDecomposition(int eigenIndex,
     
 #define UNROLL
 
-template <typename REALTYPE>
-void EigenDecompositionCube<REALTYPE>::updateTransitionMatrices(int eigenIndex,
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                                       const int* probabilityIndices,
                                                       const int* firstDerivativeIndices,
                                                       const int* secondDerivativeIndices,

@@ -16,10 +16,13 @@
 #include <cassert>
 #include <vector>
 
+#define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE
+#define BEAGLE_CPU_EIGEN_TEMPLATE	template <typename REALTYPE>
+
 namespace beagle {
 namespace cpu {
 
-template <typename REALTYPE>
+BEAGLE_CPU_EIGEN_TEMPLATE
 class EigenDecomposition {
 	
 protected:
