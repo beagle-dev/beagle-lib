@@ -65,6 +65,8 @@ protected:
     int kExtraPatterns; /// kPaddedPatternCount - kPatternCount
     int kMatrixCount; /// the number of transition matrices to alloc and store
     int kStateCount; /// the number of states
+    int kTransPaddedStateCount;
+    int kPartialsPaddedStateCount;
     int kEigenDecompCount; /// the number of eigen solutions to alloc and store
     int kCategoryCount;
     int kScaleBufferCount;

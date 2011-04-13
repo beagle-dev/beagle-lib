@@ -212,11 +212,11 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
                                               const double* __restrict matrices1,
                                               const double* __restrict partials2,
                                               const double* __restrict matrices2) {
-    int stateCountMinusOne = kStateCount - 1;
+    int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kStateCount*kPatternCount;
-    	int v = l*kStateCount*kPatternCount;
+    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
+    	int v = l*kPartialsPaddedStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount;
@@ -281,7 +281,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 #endif
 
             }
-            v += kStateCount;
+            destPu += P_PAD;
+            v += kPartialsPaddedStateCount;
         }
     }
 }
@@ -294,11 +295,11 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(
                                               const double* __restrict partials2,
                                               const double* __restrict matrices2,
                                               const double* __restrict scaleFactors) {
-    int stateCountMinusOne = kStateCount - 1;
+    int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kStateCount*kPatternCount;
-    	int v = l*kStateCount*kPatternCount;
+    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
+    	int v = l*kPartialsPaddedStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
             const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
@@ -332,7 +333,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(
 
                 destPu++;
             }
-            v += kStateCount;
+            destPu += P_PAD;
+            v += kPartialsPaddedStateCount;
         }
     }
 }
@@ -567,8 +569,6 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
         return NULL;
     
 	if (stateCount & 1) { // is odd
-        return NULL; // partials padding not yet implemented
-        
         BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>* impl =
         new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>();
         
