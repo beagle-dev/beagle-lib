@@ -87,6 +87,7 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_FLOAT>::gStateFrequencies;
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_FLOAT>::realtypeMin;
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_FLOAT>::kMatrixSize;
+	using BeagleCPUImpl<BEAGLE_CPU_SSE_FLOAT>::kPartialsPaddedStateCount;
 
 public:
     virtual const char* getName();
@@ -160,6 +161,7 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::gStateFrequencies;
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::realtypeMin;
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::kMatrixSize;
+	using BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::kPartialsPaddedStateCount;
 
 public:
     virtual const char* getName();

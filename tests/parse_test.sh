@@ -173,7 +173,7 @@ function run_print_test {
 
     if [ -n "`grep "Failed" screen_output`" ]
     then
-        echo "*** (`grep "Failed" screen_output`)" 1>&2;
+        echo "** (`grep "Failed" screen_output`)" 1>&2;
     elif [ -n "`grep "error" screen_output`" ]
     then
         echo "*** ERROR: `grep "error" screen_output`" 1>&2;
