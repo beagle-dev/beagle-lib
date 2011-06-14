@@ -317,7 +317,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartials(doubl
 
         for (int k = 0; k < kPatternCount; k++) {
             
-#           if 1
+#           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
             __builtin_prefetch (&partials_r[v+64]);
 //            __builtin_prefetch (destPvec+32,1,0);
@@ -442,7 +442,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
 
         for (int k = 0; k < kPatternCount; k++) {
 
-#           if 1
+#           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
             __builtin_prefetch (&partials_r[v+64]);
             //            __builtin_prefetch (destPvec+32,1,0);
