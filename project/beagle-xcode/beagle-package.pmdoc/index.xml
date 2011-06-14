@@ -1,4 +1,4 @@
-<pkmkdoc spec="1.12"><properties><title>BEAGLE v1.0</title><build>/Users/rambaut/Java/BEAGLE/project/beagle-xcode/BEAGLE v1.0.pkg</build><organization>hms.beagle-lib</organization><userSees ui="easy"/><min-target os="3"/><domain system="true"/></properties><distribution><versions min-spec="1.000000"/><scripts></scripts></distribution><contents><choice title="lib" id="choice43" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="hms.beagle-lib.beagleV10.lib.pkg"/></choice><choice title="libhmsbeagle-jni" id="choice44" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="hms.beagle-lib.beagleV10.libhmsbeagle-jni.pkg"/></choice></contents><resources bg-scale="none" bg-align="bottomleft"><locale lang="en"><resource mod="true" type="background">/Users/rambaut/Java/BEAGLE/project/beagle-xcode/beagle-icon.png</resource><resource mime-type="text/rtf" kind="embedded" type="license"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
+<pkmkdoc spec="1.12"><properties><title>BEAGLE v1.0</title><build>/Users/ayres/dev/hmsbeagle/project/beagle-xcode/BEAGLEv1.0.pkg</build><organization>hms.beagle-lib</organization><userSees ui="easy"/><min-target os="3"/><domain system="true"/></properties><distribution><versions min-spec="1.000000"/><scripts></scripts></distribution><contents><choice title="lib" id="choice43" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="hms.beagle-lib.beagleV10.lib.pkg"/></choice><choice title="libhmsbeagle-jni" id="choice44" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="hms.beagle-lib.beagleV10.libhmsbeagle-jni.pkg"/></choice></contents><resources bg-scale="none" bg-align="topleft"><locale lang="en"><resource relative="true" mod="true" type="background">beagle-icon.png</resource><resource mime-type="text/rtf" kind="embedded" type="license"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
 {\fonttbl\f0\fswiss\fcharset0 ArialMT;}
 {\colortbl;\red255\green255\blue255;\red41\green42\blue32;\red0\green41\blue250;}
 {\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{square\}}{\leveltext\leveltemplateid1\'01\uc0\u9642 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}
@@ -84,18 +84,7 @@ The \'93Corresponding Application Code\'94 for a Combined Work means the object 
 
 \b0\fs28 \cf2 The Free Software Foundation may publish revised and/or new versions of the GNU Lesser General Public License from time to time. Such new versions will be similar in spirit to the present version, but may differ in detail to address new problems or concerns.\
 Each version is given a distinguishing version number. If the Library as you received it specifies that a certain numbered version of the GNU Lesser General Public License \'93or any later version\'94 applies to it, you have the option of following the terms and conditions either of that published version or of any later version published by the Free Software Foundation. If the Library as you received it does not specify a version number of the GNU Lesser General Public License, you may choose any version of the GNU Lesser General Public License ever published by the Free Software Foundation.\
-If the Library as you received it specifies that a proxy can decide whether future versions of the GNU Lesser General Public License shall apply, that proxy's public statement of acceptance of any version is permanent authorization for you to choose that version for the Library.}]]></resource><resource mime-type="text/rtf" kind="embedded" type="readme"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
-{\fonttbl\f0\fnil\fcharset0 LucidaGrande;}
-{\colortbl;\red255\green255\blue255;\red0\green0\blue153;}
-\deftab720
-\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\ql\qnatural\pardirnatural
-
-\f0\fs26 \cf0 \expnd0\expndtw0\kerning0
-To use BEAGLE with NVidia GPUs please download and install the latest NVidia CUDA drivers from www.nvidia.com:\
-\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\ql\qnatural\pardirnatural
-{\field{\*\fldinst{HYPERLINK "http://www.nvidia.com/object/mac-driver-archive.html"}}{\fldrslt \cf2 \expnd0\expndtw0\kerning0
-\ul \ulc2 \
-Download CUDA drivers from NVIDIA}}}]]></resource><resource mime-type="text/rtf" kind="embedded" type="welcome"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
+If the Library as you received it specifies that a proxy can decide whether future versions of the GNU Lesser General Public License shall apply, that proxy's public statement of acceptance of any version is permanent authorization for you to choose that version for the Library.}]]></resource><resource mime-type="text/rtf" kind="embedded" type="welcome"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
 {\fonttbl\f0\fnil\fcharset0 LucidaGrande;}
 {\colortbl;\red255\green255\blue255;}
 \deftab720
@@ -106,4 +95,16 @@ A project to create an open API and fast implementations of a library for evalua
 \
 The aim is to provide high performance evaluation 'services' to a wide range of phylogenetic software, both Bayesian samplers and Maximum Likelihood optimizers. This will allow these packages to make use of implementations that make use of optimized hardware such as graphics processing units.\
 \
-}]]></resource></locale></resources><flags/><item type="file">01lib.xml</item><item type="file">02libhmsbeagle.xml</item><mod>properties.title</mod><mod>properties.customizeOption</mod><mod>properties.anywhereDomain</mod><mod>properties.systemDomain</mod></pkmkdoc>
+}]]></resource><resource mime-type="text/rtf" kind="embedded" type="conclusion"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf350
+{\fonttbl\f0\fnil\fcharset0 LucidaGrande;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue153;\red0\green0\blue255;}
+\deftab720
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\ql\qnatural\pardirnatural
+
+\f0\fs26 \cf0 \expnd0\expndtw0\kerning0
+To use BEAGLE with NVIDIA GPUs please download and install the latest NVIDIA CUDA developer drivers for Mac OS X from www.nvidia.com:\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\ql\qnatural\pardirnatural
+{\field{\*\fldinst{HYPERLINK "http://www.nvidia.com/object/mac-driver-archive.html"}}{\fldrslt \cf2 \expnd0\expndtw0\kerning0
+\ul \ulc2 \
+}}\pard\pardeftab720\sl400\ql\qnatural
+{\field{\*\fldinst{HYPERLINK "http://developer.nvidia.com/cuda-downloads"}}{\fldrslt \cf3 \kerning1\expnd0\expndtw0 \ul \ulc3 NVIDIA CUDA Downloads}}}]]></resource></locale></resources><flags/><item type="file">01lib.xml</item><item type="file">02libhmsbeagle.xml</item><mod>properties.title</mod><mod>properties.customizeOption</mod><mod>properties.anywhereDomain</mod><mod>properties.systemDomain</mod></pkmkdoc>
