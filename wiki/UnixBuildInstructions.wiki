@@ -1,5 +1,5 @@
 #summary Simple instructions for how to build beagle on unix
-#labels Featured
+#labels Deprecated
 
 == Prerequisites ==
 
