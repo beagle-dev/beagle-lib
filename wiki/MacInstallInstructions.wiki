@@ -21,7 +21,7 @@ If you have problems with the binary installer or wish to use the very latest SV
 
 *Step 1.* You will need to install Xcode, which includes Apple's developer tools. Xcode can be found on your Mac OS X install disk as an optional installation (look for 'Xcode'). You can also download Xcode from  [https://connect.apple.com/cgi-bin/WebObjects/MemberSite.woa/wa/getSoftware?bundleID=20792 connect.apple.com ] (free registration required) or purchase it on the [http://itunes.apple.com/us/app/xcode/id422352214?mt=12 Mac App Store].
 
-*Step 2.* To use BEAGLE with NVIDIA graphics cards you will need to download and install the CUDA drivers and tools from [http://www.nvidia.com/object/cuda_get.html nvidia.com]. Select "Mac OS" as the Operating System and then select the 'Developer Drivers for MacOS' package. You will also need to download and install the 'CUDA Toolkit' package.
+*Step 2.* To use BEAGLE with NVIDIA graphics cards you will need to download and install the  [http://www.nvidia.com/object/cuda_get.html CUDA drivers and tools from nvidia.com]. Select "Mac OS" as the Operating System and then select the 'Developer Drivers for MacOS' package. You will also need to download and install the 'CUDA Toolkit' package.
 
 *Step 3.* Next you will need to download and install BEAGLE. Open 'Terminal.app' and type:
 {{{
