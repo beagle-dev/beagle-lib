@@ -1,4 +1,5 @@
 #summary Very basic instructions on how to build a unix C++ app that uses beagle
+#labels Featured
 
 == Introduction ==
 
