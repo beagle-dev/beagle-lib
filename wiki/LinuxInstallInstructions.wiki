@@ -63,6 +63,6 @@ Finally, to verify that the installation worked and that your NVIDIA card is wor
 {{{
 make check
 }}}
-This will run a suit of test programs using the BEAGLE library.
+This will run a suite of test programs using the BEAGLE library.
 
 If you get no errors you are ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
