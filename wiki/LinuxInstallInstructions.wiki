@@ -1,4 +1,5 @@
 #summary How to install BEAGLE on Linux
+#labels Featured
 
 ==Installing BEAGLE on Linux==
 To install BEAGLE on other Linux-based operating systems you will need to build BEAGLE from source.
