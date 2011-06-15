@@ -1,4 +1,5 @@
 #summary How to install BEAGLE on Windows
+#labels Featured
 
 ===Installing BEAGLE on Windows===
 The easiest way to install BEAGLE is to use the binary installer.
