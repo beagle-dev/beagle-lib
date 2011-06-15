@@ -43,4 +43,4 @@ You will have to type your admin password in for the last of these commands.
 {{{
 make check
 }}}
-This will run a suit of test programs using the BEAGLE library.
+This will run a suite of test programs using the BEAGLE library.
