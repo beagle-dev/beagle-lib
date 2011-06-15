@@ -15,19 +15,13 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_0B0D2E6AC7574DFD98EE63181DF75218"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_0B9D667E07D64474BA0572905A86D571"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1C85F80EA6024823BC8B3AC4F07FAC97"
+        "MsmKey" = "8:_0D58FCB604CB45DDA6EE3962E5373376"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -45,6 +39,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_41603C9640724589BBB7190DF9842FAE"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_495BA4B3982C46FE8EF219AF48BE4D9E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -57,25 +57,13 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_521CF6448F73433FBF1C715E76959AE5"
+        "MsmKey" = "8:_5295F4DC61A3445EBBA6E5D514222C9E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_6681BBACF56E4217ACAE33B14D3973E6"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_8582D23F4A01452691A105865E368E26"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_861A4D28613A4147BCF08F1C08599EA9"
+        "MsmKey" = "8:_76708867ADD248E4B702F8603C2A6F36"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -99,30 +87,6 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_9AB858870A1F42A88AAFD58C046B73A1"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_9B24FAB00507429BA9156BEFCFAE4325"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_A2317224C97C4E7FBC9E7312E5D97294"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_A6E1177F71F44FD0AAB0214B8D2DE00E"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_A8ED0ED0BE2C4B9EAF4D9EEE9730A23E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -141,12 +105,6 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_D01B03260AF9426888F9CA6728490B80"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_D0B047B507C94278BFEB4DC4F092BE8E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -160,18 +118,6 @@
         "Entry"
         {
         "MsmKey" = "8:_D635552D0C0A45DC962988189E35909C"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_DD172F2FE0834ED4AA7BF39943834415"
-        "OwnerKey" = "8:_UNDEFINED"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_DD9621BDC9894989BF95B275D9407A1E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -269,6 +215,20 @@
     {
         "CustomAction"
         {
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_30CE0BD600124A199EE5A20E69AE9F21"
+            {
+            "Name" = "8:setenvironment.vbs"
+            "Condition" = "8:"
+            "Object" = "8:_41603C9640724589BBB7190DF9842FAE"
+            "FileType" = "3:4"
+            "InstallAction" = "3:1"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_B89CFF54_F26B_40FA_B786_1F0711CC8953"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:"
+            }
         }
         "DefaultFeature"
         {
@@ -284,26 +244,6 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0B0D2E6AC7574DFD98EE63181DF75218"
-            {
-            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle64D.lib"
-            "TargetName" = "8:hmsbeagle64D.lib"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0B9D667E07D64474BA0572905A86D571"
             {
             "SourcePath" = "8:..\\Release\\hmsbeagle-cpu32.dll"
@@ -324,10 +264,10 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1C85F80EA6024823BC8B3AC4F07FAC97"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_0D58FCB604CB45DDA6EE3962E5373376"
             {
-            "SourcePath" = "8:..\\..\\..\\lib\\beagle.jar"
-            "TargetName" = "8:beagle.jar"
+            "SourcePath" = "8:..\\Release\\hmsbeagle-cpu-sse32.dll"
+            "TargetName" = "8:hmsbeagle-cpu-sse32.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
@@ -384,6 +324,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_41603C9640724589BBB7190DF9842FAE"
+            {
+            "SourcePath" = "8:setenvironment.vbs"
+            "TargetName" = "8:setenvironment.vbs"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_495BA4B3982C46FE8EF219AF48BE4D9E"
             {
             "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cpu-openmp64.dll"
@@ -424,10 +384,30 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_521CF6448F73433FBF1C715E76959AE5"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5295F4DC61A3445EBBA6E5D514222C9E"
             {
-            "SourcePath" = "8:setenvironment.bat"
-            "TargetName" = "8:setenvironment.bat"
+            "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cpu-sse64.dll"
+            "TargetName" = "8:hmsbeagle-cpu-sse64.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_76708867ADD248E4B702F8603C2A6F36"
+            {
+            "SourcePath" = "8:banner.jpg"
+            "TargetName" = "8:banner.jpg"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
@@ -441,66 +421,6 @@
             "PackageAs" = "3:1"
             "Register" = "3:1"
             "Exclude" = "11:TRUE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_6681BBACF56E4217ACAE33B14D3973E6"
-            {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle-cpu32D.dll"
-            "TargetName" = "8:hmsbeagle-cpu32D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8582D23F4A01452691A105865E368E26"
-            {
-            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cpu-openmp64D.dll"
-            "TargetName" = "8:hmsbeagle-cpu-openmp64D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_861A4D28613A4147BCF08F1C08599EA9"
-            {
-            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cuda64D.dll"
-            "TargetName" = "8:hmsbeagle-cuda64D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
@@ -528,86 +448,6 @@
             {
             "SourcePath" = "8:..\\x64\\Release\\hmsbeagle-cuda64.dll"
             "TargetName" = "8:hmsbeagle-cuda64.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9AB858870A1F42A88AAFD58C046B73A1"
-            {
-            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle-cpu64D.dll"
-            "TargetName" = "8:hmsbeagle-cpu64D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9B24FAB00507429BA9156BEFCFAE4325"
-            {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle-cpu-openmp32D.dll"
-            "TargetName" = "8:hmsbeagle-cpu-openmp32D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A2317224C97C4E7FBC9E7312E5D97294"
-            {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle32D.lib"
-            "TargetName" = "8:hmsbeagle32D.lib"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A6E1177F71F44FD0AAB0214B8D2DE00E"
-            {
-            "SourcePath" = "8:..\\x64\\Debug\\hmsbeagle64D.dll"
-            "TargetName" = "8:hmsbeagle64D.dll"
             "Tag" = "8:"
             "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
@@ -680,27 +520,7 @@
             "SharedLegacy" = "11:FALSE"
             "PackageAs" = "3:1"
             "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D01B03260AF9426888F9CA6728490B80"
-            {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle32D.dll"
-            "TargetName" = "8:hmsbeagle32D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
+            "Exclude" = "11:TRUE"
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
@@ -750,46 +570,6 @@
             "TargetName" = "8:beagle.h"
             "Tag" = "8:"
             "Folder" = "8:_3280EA2CCD3E4824A1693C416EE7CEB3"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DD172F2FE0834ED4AA7BF39943834415"
-            {
-            "SourcePath" = "8:..\\Debug\\hmsbeagle-cuda32D.dll"
-            "TargetName" = "8:hmsbeagle-cuda32D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_DD9621BDC9894989BF95B275D9407A1E"
-            {
-            "SourcePath" = "8:banner.jpg"
-            "TargetName" = "8:banner.jpg"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -912,19 +692,19 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:libhmsbeagle"
         "ProductCode" = "8:{ADED6A97-DCBF-4F78-B18A-ED2985521BFD}"
-        "PackageCode" = "8:{240F3AD1-12F6-4600-9501-D995FAE0091E}"
+        "PackageCode" = "8:{A721E227-44B3-4BAF-B5F2-7325D393ABD9}"
         "UpgradeCode" = "8:{63DAEA0D-6BE8-4C97-860D-2AA9F44C47DE}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
         "ProductVersion" = "8:1.0.0"
-        "Manufacturer" = "8:The BEAGLE phylogenetics working group"
+        "Manufacturer" = "8:BEAGLE"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
         "Title" = "8:libhmsbeagle"
         "Subject" = "8:"
-        "ARPCONTACT" = "8:Aaron Darling"
+        "ARPCONTACT" = "8:The BEAGLE phylogenetics working group"
         "Keywords" = "8:"
         "ARPCOMMENTS" = "8:A library providing high performance phylogenetic likelihood calculation"
         "ARPURLINFOABOUT" = "8:http://code.google.com/p/beagle-lib"
@@ -997,7 +777,7 @@
                                                             "Condition" = "8:"
                                                             "Transitive" = "11:FALSE"
                                                             "ValueTypes" = "3:1"
-                                                            "Value" = "8:\"[CommonFilesFolder]libhmsbeagle-1.0\""
+                                                            "Value" = "8:[CommonFilesFolder]libhmsbeagle-1.0"
                                                             }
                                                         }
                                                     }
@@ -1125,42 +905,6 @@
             "Attributes" = "3:1"
                 "Dialogs"
                 {
-                    "{688940B3-5CA9-4162-8DEE-2993FA9D8CBC}:_C005CD0706834901AC7191FCF7FD5EB3"
-                    {
-                    "Sequence" = "3:200"
-                    "DisplayName" = "8:Installation Folder"
-                    "UseDynamicProperties" = "11:TRUE"
-                    "IsDependency" = "11:FALSE"
-                    "SourcePath" = "8:<VsdDialogDir>\\VsdFolderDlg.wid"
-                        "Properties"
-                        {
-                            "BannerBitmap"
-                            {
-                            "Name" = "8:BannerBitmap"
-                            "DisplayName" = "8:#1001"
-                            "Description" = "8:#1101"
-                            "Type" = "3:8"
-                            "ContextData" = "8:Bitmap"
-                            "Attributes" = "3:4"
-                            "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
-                            "UsePlugInResources" = "11:TRUE"
-                            }
-                            "InstallAllUsersVisible"
-                            {
-                            "Name" = "8:InstallAllUsersVisible"
-                            "DisplayName" = "8:#1059"
-                            "Description" = "8:#1159"
-                            "Type" = "3:5"
-                            "ContextData" = "8:1;True=1;False=0"
-                            "Attributes" = "3:0"
-                            "Setting" = "3:0"
-                            "Value" = "3:1"
-                            "DefaultValue" = "3:1"
-                            "UsePlugInResources" = "11:TRUE"
-                            }
-                        }
-                    }
                     "{688940B3-5CA9-4162-8DEE-2993FA9D8CBC}:_CA2E301D957F4C4F91685F4B22D19AF7"
                     {
                     "Sequence" = "3:110"
@@ -1179,7 +923,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "EulaText"
@@ -1227,7 +971,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                         }
@@ -1259,7 +1003,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "UpdateText"
@@ -1271,7 +1015,7 @@
                             "ContextData" = "8:"
                             "Attributes" = "3:0"
                             "Setting" = "3:2"
-                            "Value" = "8:It may be necessary to log off or restart the system to finish the installation."
+                            "Value" = "8:"
                             "DefaultValue" = "8:#1258"
                             "UsePlugInResources" = "11:TRUE"
                             }
@@ -1286,29 +1030,6 @@
             "Attributes" = "3:1"
                 "Dialogs"
                 {
-                    "{688940B3-5CA9-4162-8DEE-2993FA9D8CBC}:_39DE0A6846484DD9B5F1FF9010814A07"
-                    {
-                    "Sequence" = "3:200"
-                    "DisplayName" = "8:Installation Folder"
-                    "UseDynamicProperties" = "11:TRUE"
-                    "IsDependency" = "11:FALSE"
-                    "SourcePath" = "8:<VsdDialogDir>\\VsdAdminFolderDlg.wid"
-                        "Properties"
-                        {
-                            "BannerBitmap"
-                            {
-                            "Name" = "8:BannerBitmap"
-                            "DisplayName" = "8:#1001"
-                            "Description" = "8:#1101"
-                            "Type" = "3:8"
-                            "ContextData" = "8:Bitmap"
-                            "Attributes" = "3:4"
-                            "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
-                            "UsePlugInResources" = "11:TRUE"
-                            }
-                        }
-                    }
                     "{688940B3-5CA9-4162-8DEE-2993FA9D8CBC}:_411CB939676C4D3CB03F77BAC90A3583"
                     {
                     "Sequence" = "3:300"
@@ -1327,7 +1048,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                         }
@@ -1350,7 +1071,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "EulaText"
@@ -1413,7 +1134,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "ShowProgress"
@@ -1458,7 +1179,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                             "ShowProgress"
@@ -1503,7 +1224,7 @@
                             "ContextData" = "8:Bitmap"
                             "Attributes" = "3:4"
                             "Setting" = "3:2"
-                            "Value" = "8:_DD9621BDC9894989BF95B275D9407A1E"
+                            "Value" = "8:_76708867ADD248E4B702F8603C2A6F36"
                             "UsePlugInResources" = "11:TRUE"
                             }
                         }
@@ -1530,34 +1251,6 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_47BF9D8286FF4F0B8A3FC44BE84413BA"
-            {
-            "SourcePath" = "8:"
-            "TargetName" = "8:"
-            "Tag" = "8:"
-            "Folder" = "8:_8B6E52231AE54C7F93151CBA404D57B5"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:FALSE"
-            "IsolateTo" = "8:"
-            "ProjectOutputGroupRegister" = "3:1"
-            "OutputConfiguration" = "8:"
-            "OutputGroupCanonicalName" = "8:Documentation"
-            "OutputProjectGuid" = "8:{74775C34-D68F-4812-AF73-7270C035DAD2}"
-            "ShowKeyOutput" = "11:TRUE"
-                "ExcludeFilters"
-                {
-                }
-            }
         }
     }
 }
