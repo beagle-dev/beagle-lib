@@ -1,5 +1,5 @@
 #summary How to install BEAGLE on Mac OS X
-#labels Featured
+#labels Deprecated
 
 ==Installing BEAGLE on Mac OS X==
 BEAGLE is a high-performance library that can perform the core calculations at the heart of most Bayesian and Maximum Likelihood phylogenetics package. It can make use of highly-parallel processors such as those in 3D graphics boards found in many PCs. 
