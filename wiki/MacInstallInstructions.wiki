@@ -1,0 +1,45 @@
+#summary How to install BEAGLE on Mac OS X
+
+===Installing BEAGLE on Mac OS X===
+The easiest way to install BEAGLE is to use the binary installer.
+
+*Step 1.* Download and run the binary installer:
+  * [http://beagle-lib.googlecode.com/files/BEAGLE-1.0.pkg BEAGLE-1.0.pkg]
+
+*Step 2.* If you wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA CUDA drivers for Mac OS from nvidia.com:
+  * [http://www.nvidia.com/object/mac-driver-archive.html NVIDIA CUDA drivers for Mac]
+
+After the installations above are complete you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
+
+For instructions on how to use BEAGLE with BEAST please refer to [http://beast.bio.ed.ac.uk/BEAGLE_on_Mac_OS_X Using BEAGLE with BEAST on Mac OS X]
+
+----
+
+====Installing from source====
+If you have problems with the binary installer or wish to use the very latest SVN revision you may build BEAGLE from source.
+
+*Step 1.* You will need to install Xcode, which includes Apple's developer tools. Xcode can be found on your Mac OS X install disk as an optional installation (look for 'Xcode'). You can also download Xcode from  [https://connect.apple.com/cgi-bin/WebObjects/MemberSite.woa/wa/getSoftware?bundleID=20792 connect.apple.com ] (free registration required) or purchase it on the [http://itunes.apple.com/us/app/xcode/id422352214?mt=12 Mac App Store].
+
+*Step 2.* To use BEAGLE with NVIDIA graphics cards you will need to download and install the CUDA drivers and tools from [http://www.nvidia.com/object/cuda_get.html nvidia.com]. Select "Mac OS" as the Operating System and then select the 'Developer Drivers for MacOS' package. You will also need to download and install the 'CUDA Toolkit' package.
+
+*Step 3.* Next you will need to download and install BEAGLE. Open 'Terminal.app' and type:
+{{{
+svn checkout http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
+}}} 
+This will download BEAGLE into a folder called 'beagle-lib'.
+
+*Step 4.* Type:
+{{{
+cd beagle-lib
+./autogen.sh
+./configure
+make
+sudo make install
+}}}
+You will have to type your admin password in for the last of these commands. 
+
+*Step 5.* Finally, to check that the installation worked and that your NVIDIA card is working type:
+{{{
+make check
+}}}
+This will run a suit of test programs using the BEAGLE library.
