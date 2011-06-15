@@ -1,5 +1,5 @@
 #summary A rough guide to using libhmsbeagle together with BEAST under windows
-#labels Featured
+#labels Deprecated
 
 = Introduction =
 
