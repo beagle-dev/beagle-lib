@@ -2,7 +2,7 @@
 #labels Featured
 
 ===Installing BEAGLE on Mac OS X===
-The easiest way to install BEAGLE is to use the binary installer.
+The easiest way to install BEAGLE is to use the binary installer. This installation should work with Mac OS X v1.5 (Leopard) and v1.6 (Snow Leopard).
 
 *Step 1.* Download and run the binary installer:
   * [http://beagle-lib.googlecode.com/files/BEAGLE-1.0.pkg BEAGLE-1.0.pkg]
