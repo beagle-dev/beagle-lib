@@ -417,6 +417,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     dMatrices[0] = gpu->AllocateMemory(kMatrixCount * kMatrixSize * kCategoryCount * sizeof(Real));
     
+#ifdef CUDA
     for (int i = 1; i < kMatrixCount; i++) {
         dMatrices[i] = dMatrices[i-1] + kMatrixSize * kCategoryCount * sizeof(Real);
     }
@@ -440,6 +441,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             }
         }        
     }
+#endif
     
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
@@ -1353,10 +1355,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
         // Compute scaling factors at the root
         kernels->AccumulateFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
     #else // OpenCL
-        for (int i = 0; i < count; i++) {
-            kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
-                                                     1, kPaddedPatternCount);
-        }
+//        for (int i = 0; i < count; i++) {
+//            kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
+//                                                     1, kPaddedPatternCount);
+//        }
     #endif
     }
     
@@ -1403,11 +1405,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndi
     kernels->RemoveFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                          count, kPaddedPatternCount);
 #else // OpenCL
-    for (int i = 0; i < count; i++) {
-        kernels->RemoveFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
-                                             1, kPaddedPatternCount);
-    }
-    
+//    for (int i = 0; i < count; i++) {
+//        kernels->RemoveFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
+//                                             1, kPaddedPatternCount);
+//    }    
 #endif
     
 #ifdef BEAGLE_DEBUG_SYNCH    

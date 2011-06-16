@@ -73,12 +73,6 @@ int GPUInterface::Initialize() {
     return 1;
 }
 
-void GPUInterface::DestroyKernelMap() {
-}
-
-void GPUInterface::InitializeKernelMap() {
-}
-
 int GPUInterface::GetDeviceCount() {        
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, NULL, NULL,
                            &openClNumDevices));
@@ -86,15 +80,18 @@ int GPUInterface::GetDeviceCount() {
     return openClNumDevices;
 }
 
-bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
-	return false;
+void GPUInterface::DestroyKernelMap() {
+}
+
+void GPUInterface::InitializeKernelMap() {
 }
 
 void GPUInterface::SetDevice(int deviceNumber,
-                             int paddedStateCount
+                             int paddedStateCount,
                              int categoryCount,
-                             int patternCount) {
-
+                             int paddedPatternCount,
+                             long flags) {
+    
     cl_device_id  deviceIds[openClNumDevices];
     
     SAFE_CL(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, openClNumDevices, deviceIds,
@@ -121,7 +118,8 @@ void GPUInterface::SetDevice(int deviceNumber,
         exit(-1);
     }
     
-    err = clBuildProgram(openClProgram, 0, NULL, BEAGLE_OPENCL_BUILD_OPTIONS, NULL, NULL);
+    //    err = clBuildProgram(openClProgram, 0, NULL, BEAGLE_OPENCL_BUILD_OPTIONS, NULL, NULL);
+    err = clBuildProgram(openClProgram, 0, NULL, "-D STATE_COUNT=4", NULL, NULL);
     if (err != CL_SUCCESS) {
         size_t len;
         char buffer[2048];
@@ -138,6 +136,7 @@ void GPUInterface::SetDevice(int deviceNumber,
     
     SAFE_CL(clUnloadCompiler());
 }
+
 
 void GPUInterface::Synchronize() {
     SAFE_CL(clFinish(openClCommandQueue));
@@ -158,10 +157,11 @@ GPUFunction GPUInterface::GetFunction(const char* functionName) {
 }
 
 void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
-                                         Dim3Int block,
-                                         Dim3Int grid,
-                                         int totalParameterCount,
-                                         ...) { // unsigned int parameters    
+                                Dim3Int block,
+                                Dim3Int grid,
+                                int parameterCountV,
+                                int totalParameterCount,
+                                ...) { // parameters   
     va_list parameters;
     va_start(parameters, totalParameterCount);  
     for(int i = 0; i < totalParameterCount; i++) {
@@ -185,8 +185,78 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                    globalWorkSize, localWorkSize, 0, NULL, NULL));
 }
 
+void* GPUInterface::MallocHost(size_t memSize) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");
+//#endif
+//    
+//    void* ptr;
+//    
+//#ifdef BEAGLE_MEMORY_PINNED
+//    ptr = AllocatePinnedHostMemory(memSize, false, false);
+//#else
+//    ptr = malloc(memSize);
+//#endif
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MallocHost\n");
+//#endif
+//    
+//    return ptr;
+}
 
-GPUPtr GPUInterface::AllocateMemory(int memSize) {
+void* GPUInterface::CallocHost(size_t size, size_t length) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tEntering GPUInterface::CallocHost\n");
+//#endif
+//    
+//    void* ptr;
+//    size_t memSize = size * length;
+//    
+//#ifdef BEAGLE_MEMORY_PINNED
+//    ptr = AllocatePinnedHostMemory(memSize, false, false);
+//    memset(ptr, 0, memSize);
+//#else
+//    ptr = calloc(size, length);
+//#endif
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::CallocHost\n");
+//#endif
+//    
+//    return ptr;
+}
+
+void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined, bool mapped) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
+//#endif
+//    
+//    void* ptr;
+//    
+//    unsigned int flags = 0;
+//    
+//    if (writeCombined)
+//        flags |= CU_MEMHOSTALLOC_WRITECOMBINED;
+//    if (mapped)
+//        flags |= CU_MEMHOSTALLOC_DEVICEMAP;
+//    
+//    SAFE_CUPP(cuMemHostAlloc(&ptr, memSize, flags));
+//    
+//    
+//#ifdef BEAGLE_DEBUG_VALUES
+//    fprintf(stderr, "Allocated pinned host (CPU) memory %ld to %lu .\n", (long)ptr, ((long)ptr + memSize));
+//#endif
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
+//#endif
+//    
+//    return ptr;
+}
+
+
+GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
     GPUPtr data;
     
     int err;
@@ -196,7 +266,7 @@ GPUPtr GPUInterface::AllocateMemory(int memSize) {
     return data;
 }
 
-GPUPtr GPUInterface::AllocateRealMemory(int length) {    
+GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
     GPUPtr data;
 
     int err;
@@ -207,7 +277,7 @@ GPUPtr GPUInterface::AllocateRealMemory(int length) {
     return data;
 }
 
-GPUPtr GPUInterface::AllocateIntMemory(int length) {    
+GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
     GPUPtr data;
     
     int err;
@@ -218,22 +288,102 @@ GPUPtr GPUInterface::AllocateIntMemory(int length) {
     return data;
 }
 
+void GPUInterface::MemsetShort(GPUPtr dest,
+                               unsigned short val,
+                               size_t count) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetShort\n");
+//#endif    
+//    
+//    SAFE_CUPP(cuMemsetD16(dest, val, count));
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetShort\n");
+//#endif    
+    
+}
+
+
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
-                                      int memSize) {    
+                                      size_t memSize) { 
     SAFE_CL(clEnqueueWriteBuffer(openClCommandQueue, dest, CL_TRUE, 0, memSize, src, 0,
                                  NULL, NULL));
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       const GPUPtr src,
-                                      int memSize) {
+                                      size_t memSize) {
     SAFE_CL(clEnqueueReadBuffer(openClCommandQueue, src, CL_TRUE, 0, memSize, dest, 0,
                                 NULL, NULL));
 }
 
+void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
+                                        GPUPtr src,
+                                        size_t memSize) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToDevice\n");
+//#endif    
+//    
+//    SAFE_CUPP(cuMemcpyDtoD(dest, src, memSize));
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToDevice\n");
+//#endif    
+    
+}
+
+
+void GPUInterface::FreeHostMemory(void* hPtr) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tEntering GPUInterface::FreeHostMemory\n");
+//#endif
+//    
+//#ifdef BEAGLE_MEMORY_PINNED
+//    FreePinnedHostMemory(hPtr);
+//#else
+//    free(hPtr);
+//#endif
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeHostMemory\n");
+//#endif
+}
+
+void GPUInterface::FreePinnedHostMemory(void* hPtr) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
+//#endif
+//    
+//    SAFE_CUPP(cuMemFreeHost(hPtr));
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
+//#endif
+}
+
 void GPUInterface::FreeMemory(GPUPtr dPtr) {
     SAFE_CL(clReleaseMemObject(dPtr));
+}
+
+GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDevicePointer\n");
+//#endif
+//    
+//    GPUPtr dPtr;
+//    
+//    SAFE_CUPP(cuMemHostGetDevicePointer(&dPtr, hPtr, 0));
+//    
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDevicePointer\n");
+//#endif
+//    
+//    return dPtr;
+}
+
+unsigned int GPUInterface::GetAvailableMemory() {
+    return 0;
 }
 
 void GPUInterface::GetDeviceName(int deviceNumber,
@@ -245,6 +395,10 @@ void GPUInterface::GetDeviceName(int deviceNumber,
                            NULL));    
     
     SAFE_CL(clGetDeviceInfo(deviceIds[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));    
+}
+
+bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
+	return false;
 }
 
 void GPUInterface::GetDeviceDescription(int deviceNumber,
@@ -269,24 +423,9 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
                             sizeof(unsigned int), &mpCount, NULL));
 
     sprintf(deviceDescription,
-            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of cores: %d",
+            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of multiprocessors: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
         
-}
-
-void GPUInterface::PrintfDeviceVector(GPUPtr dPtr,
-                                      int length) {
-    REAL* hPtr = (REAL*) malloc(SIZE_REAL * length);
-    
-    MemcpyDeviceToHost(hPtr, dPtr, SIZE_REAL * length);
-    
-#ifdef DOUBLE_PRECISION
-    printfVectorD(hPtr, length);
-#else
-    printfVectorF(hPtr,length);
-#endif
-    
-    free(hPtr);
 }
 
 void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,

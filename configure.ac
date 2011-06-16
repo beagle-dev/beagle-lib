@@ -120,30 +120,19 @@ AC_SUBST(OPENMP_CXXFLAGS)
 # ------------------------------------------------------------------------------
 #AX_OPENCL([C++])
 
-#AC_ARG_WITH([opencl],
-#   [AS_HELP_STRING([--with-opencl],[build opencl version @<:@default=no@:>@])],
-#   [],
-#   [enable_opencl=no])
+AC_ARG_ENABLE(opencl,
+    AC_HELP_STRING([--enable-opencl],[build OpenCL implementation @<:@default=no@:>@]), , [enable_opencl=no])
 
-#OPENCL_CFLAGS=
-#OPENCL_LIBS=
+OPENCL_CFLAGS=
+OPENCL_LIBS=
 
-#if test "x$enable_opencl" != "xno"
-#then
-#   OPENCL_CFLAGS="-framework OpenCL \"-DBEAGLE_OPENCL_BUILD_OPTIONS=\\\"-D STATE_COUNT=4\\\"\""
-#   OPENCL_LIBS="-framework OpenCL"
-#   OPENCLPATH=""
-#fi
+if test "x$enable_opencl" != "xno"
+then
+   OPENCL_CFLAGS+=" -DOPENCL -framework OpenCL"
+   OPENCL_LIBS+=" -framework OpenCL"
+fi
 
-enable_opencl=no
 AM_CONDITIONAL(BUILDOPENCL, test ! x$enable_opencl = xno)
-
-#if( test ! x$enable_opencl = xno ) 
-#then
-#	AC_DEFINE([OPENCL],[1],[Defined if OPENCL should be used])
-#fi
-
-
 
 # ------------------------------------------------------------------------------
 # Setup CUDA paths
@@ -159,17 +148,20 @@ CUDA_LIBS=
 
 if test "x$with_cuda" != "xno"
 then
+
+   CUDA_CFLAGS+=" -DCUDA"
+   CUDA_LIBS+=" -lcuda"
+
    if test "x$with_cuda" != "xauto"
    then
-      CUDA_CFLAGS="-I$with_cuda/include"
-      CUDA_LIBS="-L$with_cuda/lib -lcuda"
       CUDAPATH="$with_cuda"
+      CUDA_CFLAGS+=" -I$with_cuda/include"
+      CUDA_LIBS+=" -L$with_cuda/lib"
    else
       AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
-      AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS="-I/usr/local/cuda/include"],[])
-      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS="-L/usr/local/cuda/lib -lcuda"],[])
+      AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS+=" -I/usr/local/cuda/include"],[])
+      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS+=" -L/usr/local/cuda/lib"],[])
    fi
-
 
 
 AC_ARG_ENABLE([emu],
@@ -191,11 +183,6 @@ fi
 
 AM_CONDITIONAL(BUILDCUDA, test ! x$NVCC = xno)
 AC_SUBST(NVCC)
-
-if( test ! x$NVCC = xno ) 
-then
-	AC_DEFINE([CUDA],[1],[Defined if CUDA should be used])
-fi
 
 # ------------------------------------------------------------------------------
 # Setup nvcc flags
