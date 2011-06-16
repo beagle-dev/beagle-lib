@@ -150,4 +150,26 @@ libhmsbeagle/plugin/libplugin_la-UnixSharedLibrary.lo
 project/.DS_Store
 project/beagle-xcode/.DS_Store
 project/beagle-xcode/BEAGLEv1.0.pkg
+examples/complextest/.libs/
+examples/complextest/complextest.o
+examples/fourtaxon/.libs/
+examples/genomictest/.libs/
+examples/genomictest/genomictest.o
+examples/genomictest/linalg.o
+examples/matrixtest/.libs/
+examples/matrixtest/matrixtest.o
+examples/oddstatetest/.libs/
+examples/oddstatetest/oddstatetest.o
+examples/tinytest/.libs/
+examples/tinytest/tinytest.o
+libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h
+libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h
+libhmsbeagle/GPU/libhmsbeagle-opencl.la
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUImplHelper.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUInterfaceOpenCL.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelLauncher.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelResource.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-OpenCLPlugin.lo
+libhmsbeagle/config.h.in~
+project/beagle-xcode/BEAGLE-1.0.pkg
 
