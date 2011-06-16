@@ -30,6 +30,17 @@
 			name = "libhmsbeagle install";
 			productName = "libhmsbeagle install";
 		};
+		64859C6513A96C2100BFDE68 /* OpenCL kernels */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 64859C6713A96C2100BFDE68 /* Build configuration list for PBXAggregateTarget "OpenCL kernels" */;
+			buildPhases = (
+				64859C6613A96C2100BFDE68 /* Run Script */,
+			);
+			dependencies = (
+			);
+			name = "OpenCL kernels";
+			productName = "CUDA kernels";
+		};
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
@@ -57,6 +68,12 @@
 		643E19721214B5E600B7E5A1 /* oddstatetest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD412149EC700C76EFB /* oddstatetest.cpp */; };
 		643E19851214B64C00B7E5A1 /* libhmsbeagle.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */; };
 		643E19861214B65F00B7E5A1 /* genomictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD212149EB500C76EFB /* genomictest.cpp */; };
+		64859C7013A96EA100BFDE68 /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7012149DC300C76EFB /* GPUImplHelper.cpp */; };
+		64859C7C13A96F7600BFDE68 /* GPUInterfaceOpenCL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */; };
+		64859C7D13A96F8500BFDE68 /* OpenCLPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */; };
+		64859C8513A9717E00BFDE68 /* OpenCL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 64859C8413A9717E00BFDE68 /* OpenCL.framework */; };
+		64859C9613A9AD4500BFDE68 /* KernelResource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7512149DC300C76EFB /* KernelResource.cpp */; };
+		64859C9713A9AD4800BFDE68 /* KernelLauncher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7312149DC300C76EFB /* KernelLauncher.cpp */; };
 		64B8F97613456B9E00516F2B /* linalg.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64B8F97513456B9E00516F2B /* linalg.cpp */; };
 /* End PBXBuildFile section */
 
@@ -145,6 +162,20 @@
 			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
+		64859C7A13A96F3000BFDE68 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 64859C6513A96C2100BFDE68;
+			remoteInfo = "OpenCL kernels";
+		};
+		64859C9813A9BDA200BFDE68 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 64859C6B13A96EA100BFDE68;
+			remoteInfo = "hmsbeagle-opencl";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -210,7 +241,7 @@
 		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
 		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
-		64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; path = BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
+		64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; name = BeagleOpenCL_kernels.cl; path = kernels/BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
 		64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUInterfaceOpenCL.cpp; sourceTree = "<group>"; };
 		64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = OpenCLPlugin.cpp; sourceTree = "<group>"; };
 		64020B8012149E2E00C76EFB /* OpenCLPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OpenCLPlugin.h; sourceTree = "<group>"; };
@@ -275,6 +306,8 @@
 		646A84CA1210962600F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CB1210962E00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CC1210963800F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-opencl.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
+		64859C8413A9717E00BFDE68 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
 		64B8F97413456B9E00516F2B /* linalg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = linalg.h; path = genomictest/linalg.h; sourceTree = "<group>"; };
 		64B8F97513456B9E00516F2B /* linalg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = linalg.cpp; path = genomictest/linalg.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -364,6 +397,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		64859C7513A96EA100BFDE68 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64859C8513A9717E00BFDE68 /* OpenCL.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -425,6 +466,7 @@
 				643E19571214B54600B7E5A1 /* matrixtest */,
 				643E196B1214B5D300B7E5A1 /* oddstatetest */,
 				643E197F1214B63D00B7E5A1 /* genomictest */,
+				64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -526,6 +568,7 @@
 		6425C83E12108D8400E7ED58 /* OpenCL */ = {
 			isa = PBXGroup;
 			children = (
+				64859C8413A9717E00BFDE68 /* OpenCL.framework */,
 				64020B8012149E2E00C76EFB /* OpenCLPlugin.h */,
 				64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */,
 				64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */,
@@ -753,6 +796,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		64859C6E13A96EA100BFDE68 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXLegacyTarget section */
@@ -822,6 +872,7 @@
 				6407BABA1213ACA900BA8C93 /* PBXTargetDependency */,
 				6407BBFA121488D500BA8C93 /* PBXTargetDependency */,
 				6407BBFC121488D500BA8C93 /* PBXTargetDependency */,
+				64859C9913A9BDA200BFDE68 /* PBXTargetDependency */,
 			);
 			name = hmsbeagle;
 			productName = hmsbeagle;
@@ -966,6 +1017,24 @@
 			productReference = 643E197F1214B63D00B7E5A1 /* genomictest */;
 			productType = "com.apple.product-type.tool";
 		};
+		64859C6B13A96EA100BFDE68 /* hmsbeagle-opencl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64859C7613A96EA100BFDE68 /* Build configuration list for PBXNativeTarget "hmsbeagle-opencl" */;
+			buildPhases = (
+				64859C6E13A96EA100BFDE68 /* Headers */,
+				64859C6F13A96EA100BFDE68 /* Sources */,
+				64859C7513A96EA100BFDE68 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				64859C7B13A96F3000BFDE68 /* PBXTargetDependency */,
+			);
+			name = "hmsbeagle-opencl";
+			productName = "hmsbeagle-cuda";
+			productReference = 64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -987,6 +1056,8 @@
 				6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */,
 				6407BBAE121483F100BA8C93 /* CUDA kernels */,
 				6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */,
+				64859C6513A96C2100BFDE68 /* OpenCL kernels */,
+				64859C6B13A96EA100BFDE68 /* hmsbeagle-opencl */,
 				6407B9FF1211EF8F00BA8C93 /* plugin */,
 				6407BA0E1211EFF800BA8C93 /* hmsbeagle */,
 				643E19281214B3D800B7E5A1 /* complextest */,
@@ -1031,6 +1102,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "cd $BEAGLE_SOURCE_ROOT\n\nmake install\n";
+		};
+		64859C6613A96C2100BFDE68 /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(BEAGLE_SOURCE_ROOT)/libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.cl",
+			);
+			name = "Run Script";
+			outputPaths = (
+				"$(BEAGLE_SOURCE_ROOT)/libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "cd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleOpenCL_kernels_xcode.h\n\necho \"// auto-generated header file with OpenCL kernels code\" > BeagleOpenCL_kernels_xcode.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleOpenCL_kernels_xcode.h\n\ncat BeagleOpenCL_kernels.cl | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\n\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1129,6 +1216,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		64859C6F13A96EA100BFDE68 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64859C7013A96EA100BFDE68 /* GPUImplHelper.cpp in Sources */,
+				64859C9713A9AD4800BFDE68 /* KernelLauncher.cpp in Sources */,
+				64859C9613A9AD4500BFDE68 /* KernelResource.cpp in Sources */,
+				64859C7D13A96F8500BFDE68 /* OpenCLPlugin.cpp in Sources */,
+				64859C7C13A96F7600BFDE68 /* GPUInterfaceOpenCL.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1191,6 +1290,16 @@
 			isa = PBXTargetDependency;
 			target = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
 			targetProxy = 643E19831214B64600B7E5A1 /* PBXContainerItemProxy */;
+		};
+		64859C7B13A96F3000BFDE68 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 64859C6513A96C2100BFDE68 /* OpenCL kernels */;
+			targetProxy = 64859C7A13A96F3000BFDE68 /* PBXContainerItemProxy */;
+		};
+		64859C9913A9BDA200BFDE68 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 64859C6B13A96EA100BFDE68 /* hmsbeagle-opencl */;
+			targetProxy = 64859C9813A9BDA200BFDE68 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1426,11 +1535,54 @@
 			};
 			name = Release;
 		};
+		64859C6813A96C2100BFDE68 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "OpenCL kernels";
+			};
+			name = Debug;
+		};
+		64859C6913A96C2100BFDE68 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				PRODUCT_NAME = "OpenCL kernels";
+			};
+			name = Release;
+		};
+		64859C7713A96EA100BFDE68 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					DLS_MACOS,
+					BEAGLE_XCODE,
+					OPENCL,
+				);
+				PRODUCT_NAME = "hmsbeagle-opencl";
+			};
+			name = Debug;
+		};
+		64859C7813A96EA100BFDE68 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				EXECUTABLE_PREFIX = lib;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					DLS_MACOS,
+					BEAGLE_XCODE,
+					OPENCL,
+				);
+				PRODUCT_NAME = "hmsbeagle-opencl";
+			};
+			name = Release;
+		};
 		649FE0F112108B60006E8768 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -1447,7 +1599,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -1591,6 +1743,24 @@
 			buildConfigurations = (
 				643E19811214B63E00B7E5A1 /* Debug */,
 				643E19821214B63E00B7E5A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64859C6713A96C2100BFDE68 /* Build configuration list for PBXAggregateTarget "OpenCL kernels" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64859C6813A96C2100BFDE68 /* Debug */,
+				64859C6913A96C2100BFDE68 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64859C7613A96EA100BFDE68 /* Build configuration list for PBXNativeTarget "hmsbeagle-opencl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64859C7713A96EA100BFDE68 /* Debug */,
+				64859C7813A96EA100BFDE68 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

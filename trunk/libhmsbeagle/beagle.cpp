@@ -214,37 +214,40 @@ BeagleResourceList* beagleGetResourceList() {
 	    beagleLoadPlugins();
 
     if (rsrcList == NULL) {
-	// count the total resources across plugins
+        // count the total resources across plugins
         rsrcList = (BeagleResourceList*) malloc(sizeof(BeagleResourceList));
         rsrcList->length = 0;
-	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
-	for(; plugin_iter != plugins->end(); plugin_iter++ ){
-		rsrcList->length += (*plugin_iter)->getBeagleResources().size();
-	}
-	// allocate space for a complete list of resources
+        std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
+        for(; plugin_iter != plugins->end(); plugin_iter++ ){
+            rsrcList->length += (*plugin_iter)->getBeagleResources().size();
+        }
+        
+        // allocate space for a complete list of resources
         rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
-	// copy in resource lists from each plugin
-	int rI=0;
-	for(plugin_iter = plugins->begin(); plugin_iter != plugins->end(); plugin_iter++ ){
-		std::list<BeagleResource> rList = (*plugin_iter)->getBeagleResources();
-		std::list<BeagleResource>::iterator r_iter = rList.begin();
-		for(; r_iter != rList.end(); r_iter++){
-            bool rsrcExists = false;
-//          for(int i=0; i<rI; i++){ // TODO: only show each physical GPU once but allow for multiple GPUs with the same name
-            if (rI > 0) { 
-                if (strcmp(rsrcList->list[0].name, r_iter->name) == 0) { // currently only checking for multiple CPU resources
-                    rsrcExists = true;
-                    rsrcList->length--;
-                    rsrcList->list[0].supportFlags |= r_iter->supportFlags;
-                    break;
+        
+        // copy in resource lists from each plugin
+        int rI=0;
+        for(plugin_iter = plugins->begin(); plugin_iter != plugins->end(); plugin_iter++ ){
+            std::list<BeagleResource> rList = (*plugin_iter)->getBeagleResources();
+            std::list<BeagleResource>::iterator r_iter = rList.begin();
+            int prev_rI = rI;
+            for(; r_iter != rList.end(); r_iter++){
+                bool rsrcExists = false;
+                for(int i=0; i<prev_rI; i++){         
+                    if (strcmp(rsrcList->list[i].name, r_iter->name) == 0) {
+                        if (!rsrcExists) {
+                            rsrcExists = true;
+                            rsrcList->length--;
+                        }
+                        rsrcList->list[i].supportFlags |= r_iter->supportFlags;
+                    }
                 }
+                
+                if (!rsrcExists)
+                    rsrcList->list[rI++] = *r_iter;
             }
-            
-            if (!rsrcExists)
-                rsrcList->list[rI++] = *r_iter;
-		}
-	}
-     }
+        }
+    }
 
     return rsrcList;
 }

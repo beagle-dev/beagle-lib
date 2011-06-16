@@ -108,7 +108,10 @@ enum BeagleFlags {
     BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
     BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,   /**< Use FPGA as main processor */
-    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18    /**< Use Cell as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,    /**< Use Cell as main processor */
+    
+    BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23    /**< Use OpenCL implementation with GPU resources */
 };
 
 /**

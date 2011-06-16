@@ -49,7 +49,11 @@
 #else
 #ifdef OPENCL
     #include <OpenCL/opencl.h>
-    #include "libhmsbeagle/GPU/BeagleOpenCL_kernels.h"
+#   ifdef BEAGLE_XCODE
+        #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h"
+#   else
+        #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
+#   endif
     typedef cl_mem GPUPtr;
     typedef cl_kernel GPUFunction;
 #endif
