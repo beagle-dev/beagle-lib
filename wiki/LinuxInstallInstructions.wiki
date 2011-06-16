@@ -66,3 +66,5 @@ make check
 This will run a suite of test programs using the BEAGLE library.
 
 If you get no errors you are ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
+
+For instructions on how to use BEAGLE with BEAST please refer to [http://beast.bio.ed.ac.uk/BEAGLE Using BEAGLE with BEAST]
