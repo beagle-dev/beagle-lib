@@ -12,7 +12,7 @@ The easiest way to install BEAGLE is to use the binary installer. This installat
 
 After the installations above are complete you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
 
-For instructions on how to use BEAGLE with BEAST please refer to [http://beast.bio.ed.ac.uk/BEAGLE_on_Mac_OS_X Using BEAGLE with BEAST on Mac OS X]
+For instructions on how to use BEAGLE with BEAST please refer to [http://beast.bio.ed.ac.uk/BEAGLE Using BEAGLE with BEAST]
 
 ----
 
