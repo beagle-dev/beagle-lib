@@ -232,28 +232,25 @@ fi
 # ------------------------------------------------------------------------------
 case $host_os in
 *darwin*)
-  
   AM_CXXFLAGS="$AM_CXXFLAGS -DDLS_MACOS"
   
   if( test ! x$NVCC = xno )
   then
-    case "$host_os" in
-      *darwin10*)
-        NVCCFLAGS+=" -m64"
-        AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     esac
+     NVCCFLAGS+=" -m64"
+     AM_CXXFLAGS="$AM_CXXFLAGS -m64"
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
-  # OpenCL requires the 10.6 SDK
-  if( test ! x$enable_opencl = xno )
-  then
-    AC_CHECK_FILE(/Developer/SDKs/MacOSX10.6.sdk,
-        [LDFLAGS+=" -isysroot /Developer/SDKs/MacOSX10.6.sdk"],
-        [AC_MSG_ERROR([OpenCL builds require Mac OS X 10.6 and Xcode])])
-  fi
 
+  AC_ARG_ENABLE(osx_leopard,
+      AC_HELP_STRING([--enable-osx-leopard],[build with OS X v10.5 Leopard backwards compatibility  @<:@default=no@:>@]), , [enable-osx-leopard=yes])
+  if test  "$enable_osx_leopard" = yes; then
+      AM_CXXFLAGS="$AM_CXXFLAGS -isysroot /Developer/SDKs/MacOSX10.5.sdk -mmacosx-version-min=10.5"
+  fi
 esac
 
+# ------------------------------------------------------------------------------
+# Setup Cygwin
+# ------------------------------------------------------------------------------
 case $host_os in
   *cygwin*)
   AM_CXXFLAGS="$AM_CXXFLAGS -D__int64=\"long long\""
