@@ -7,7 +7,7 @@ The easiest way to install BEAGLE is to use the binary installer. This installat
 *Step 1.* Download and run the binary installer:
   * [http://beagle-lib.googlecode.com/files/BEAGLE-1.0.pkg BEAGLE-1.0.pkg]
 
-*Step 2.* If you wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA CUDA drivers for Mac OS from nvidia.com:
+*Step 2.* If you have OS X v10.6 or later and wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA CUDA drivers for Mac OS from nvidia.com:
   * [http://www.nvidia.com/object/mac-driver-archive.html NVIDIA CUDA drivers for Mac]
 
 After the installations above are complete you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
