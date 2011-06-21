@@ -32,13 +32,17 @@ The following software prerequisites must be installed prior to building libhmsb
 svn co http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
 }}}
 
-*Step 2.* Open the Visual Studio 2008 project:
-  * It's located at project\beagle-vs\libhmsbeagle_vc90.sln
+*Step 2.* Configure your Java path by navigating to `project\beagle-vs` and running `findJava.bat`
 
-*Step 3.* Set the desired configuration (e.g. "Release" and X64)
+*Step 3.* Open the Visual Studio 2008 project:
+  * It's located at `project\beagle-vs\libhmsbeagle_vc90.sln`
 
-*Step 4.* Right-click on the installer project (at the left hand side in the project explorer) and select "build"
+*Step 4.* Set the configuration to `Release|x64` and build the solution (`Build -> Build Solution`)
 
-*Step 5.* The installer will be located in project\beagle-vs\beagleinstaller\Release, assuming a release build.  Note that if error messages appear that the build system was unable to find Java, then you must build from the command line with build_installer.bat.  See below.
+*Step 5.* Set the configuration to `Release|Win32` and build the solution (`Build -> Build Solution`)
 
-*Alternate approach:*  Edit the file project\beagle-vs\build_installer.bat to point to the Visual Studio and ant installations, and run it from within a command prompt.  Skip steps 2-4.
+*Step 6.* Right-click on the `hmsbeagle library` installer project (at the left hand side in the project explorer) and select `build`
+
+*Step 7.* The installer will be located in `project\beagle-vs\beagleinstaller\Release`, assuming a release build.  Note that if error messages appear that the build system was unable to find Java, then you must build from the command line with `build_installer.bat`.  See below.
+
+*Alternate approach:*  Edit the file `project\beagle-vs\build_installer.bat` to point to the Visual Studio installation, and run it.  Skip steps 2-6.
