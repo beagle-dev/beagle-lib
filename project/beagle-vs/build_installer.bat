@@ -9,7 +9,6 @@
 
 SET devenv="devenv.exe"
 SET vcvars="C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat"
-:: SET ant="C:\Program Files\apache-ant-1.8.2\bin\ant"
 
 del errlog.txt
 
@@ -23,9 +22,8 @@ FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Develo
 FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\SOFTWARE\JavaSoft\Java Development Kit\%CurVer%"  /v JavaHome') DO set JDK_HOME=%%B
 :END
 
-set JAVA_HOME=%JDK_HOME%
-:: call %ant% -f ..\..\build.xml
-
+echo #pragma include_alias(^<jni.h^>, ^<%JDK_HOME%\include\jni.h^>) > ..\..\libhmsbeagle\JNI\winjni.h
+echo #pragma include_alias("jni_md.h", "%JDK_HOME%\include\win32\jni_md.h") >> ..\..\libhmsbeagle\JNI\winjni.h
 
 ::
 :: Step 2: build 64-bit libs
@@ -34,17 +32,14 @@ call %vcvars% amd64
 @ECHO ON
 start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|x64" /UseEnv /Out errlog.txt 
 :: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|x64" /UseEnv /Out errlog.txt 
-:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
-:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|x64" /project libhmsbeagle /UseEnv /Out errlog.txt 
-
 
 ::
 :: Step 3: build 32-bit libs
 ::
 call %vcvars% x86
 @ECHO ON
-start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|Win32" /project libhmsbeagle /UseEnv /Out errlog.txt 
-:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|Win32" /project libhmsbeagle /UseEnv /Out errlog.txt 
+start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Release|Win32" /UseEnv /Out errlog.txt 
+:: start /wait "" %devenv% libhmsbeagle_vc90.sln /rebuild "Debug|Win32" /UseEnv /Out errlog.txt 
 
 
 ::
