@@ -1,7 +1,7 @@
-/*
+/**
  * @file beagle.h
  *
- * Copyright 2009 Phylogenetic Likelihood Working Group
+ * Copyright 2009-2011 Phylogenetic Likelihood Working Group
  *
  * This file is part of BEAGLE.
  *
@@ -22,9 +22,70 @@
  * @brief This file documents the API as well as header for the
  * Broad-platform Evolutionary Analysis General Likelihood Evaluator
  *
- * OVERVIEW
- *
- * DEFINITION OF KEY CONCEPTS: INSTANCE, BUFFER, etc.
+ * KEY CONCEPTS
+ * 
+ * The key to BEAGLE performance lies in delivering fine-scale
+ * parallelization while minimizing data transfer and memory copy overhead.
+ * To accomplish this, the library lacks the concept or data structure for
+ * a tree, in spite of the intended use for phylogenetic analysis. Instead,
+ * BEAGLE acts directly on flexibly indexed data storage (called buffers)
+ * for observed character states and partial likelihoods. The client
+ * program can set the input buffers to reflect the data and can calculate
+ * the likelihood of a particular phylogeny by invoking likelihood
+ * calculations on the appropriate input and output buffers in the correct
+ * order. Because of this design simplicity, the library can support many
+ * different tree inference algorithms and likelihood calculation on a
+ * variety of models. Arbitrary numbers of states can be used, as can
+ * nonreversible substitution matrices via complex eigen decompositions,
+ * and mixture models with multiple rate categories and/or multiple eigen
+ * decompositions. Finally, BEAGLE application programming interface (API)
+ * calls can be asynchronous, allowing the calling program to implement
+ * other coarse-scale parallelization schemes such as evaluating
+ * independent genes or running concurrent Markov chains.
+ * 
+ * USAGE
+ * 
+ * To use the library, a client program first creates an instance of BEAGLE
+ * by calling beagleCreateInstance; multiple instances per client are
+ * possible and encouraged. All additional functions are called with a
+ * reference to this instance. The client program can optionally request
+ * that an instance run on certain hardware (e.g., a GPU) or have
+ * particular features (e.g., double-precision math). Next, the client
+ * program must specify the data dimensions and specify key aspects of the
+ * phylogenetic model. Character state data are then loaded and can be in
+ * the form of discrete observed states or partial likelihoods for
+ * ambiguous characters. The observed data are usually unchanging and
+ * loaded only once at the start to minimize memory copy overhead. The
+ * character data can be compressed into unique “site patterns” and
+ * associated weights for each. The parameters of the substitution process
+ * can then be specified, including the equilibrium state frequencies, the
+ * rates for one or more substitution rate categories and their weights,
+ * and finally, the eigen decomposition for the substitution process.
+ * 
+ * In order to calculate the likelihood of a particular tree, the client
+ * program then specifies a series of integration operations that
+ * correspond to steps in Felsenstein’s algorithm. Finite-time transition
+ * probabilities for each edge are loaded directly if considering a
+ * nondiagonalizable model or calculated in parallel from the eigen
+ * decomposition and edge lengths specified. This is performed within
+ * BEAGLE’s memory space to minimize data transfers. A single function call
+ * will then request one or more integration operations to calculate
+ * partial likelihoods over some or all nodes. The operations are performed
+ * in the order they are provided, typically dictated by a postorder
+ * traversal of the tree topology. The client needs only specify nodes for
+ * which the partial likelihoods need updating, but it is up to the calling
+ * software to keep track of these dependencies. The final step in
+ * evaluating the phylogenetic model is done using an API call that yields
+ * a single log likelihood for the model given the data.
+ * 
+ * Aspects of the BEAGLE API design support both maximum likelihood (ML)
+ * and Bayesian phylogenetic tree inference. For ML inference, API calls
+ * can calculate first and second derivatives of the likelihood with
+ * respect to the lengths of edges (branches). In both cases, BEAGLE
+ * provides the ability to cache and reuse previously computed partial
+ * likelihood results, which can yield a tremendous speedup over
+ * recomputing the entire likelihood every time a new phylogenetic model is
+ * evaluated.
  *
  * @author Likelihood API Working Group
  *
@@ -108,7 +169,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
     BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,   /**< Use FPGA as main processor */
-    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,    /**< Use Cell as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,   /**< Use Cell as main processor */
     
     BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
     BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23    /**< Use OpenCL implementation with GPU resources */
@@ -166,11 +227,12 @@ extern "C" {
 #endif
     
 /**
- * @brief
+ * @brief Get list of hardware resources
  *
- * LONG DESCRIPTION
+ * This function returns a pointer to a BeagleResourceList struct, which includes
+ * a BeagleResource array describing the available hardware resources.
  *
- * @return A list of resources available to the library as a ResourceList array
+ * @return A list of hardware resources available to the library as a BeagleResourceList
  */
 BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
 
@@ -337,7 +399,7 @@ BEAGLE_DLLEXPORT int beagleSetEigenDecomposition(int instance,
  * This function copies a state frequency array into an instance buffer.
  *
  * @param instance              Instance number (input)
- * @param eigenIndex            Index of state frequencies buffer (input)
+ * @param stateFrequenciesIndex Index of state frequencies buffer (input)
  * @param inStateFrequencies    State frequencies array (stateCount) (input)
  *
  * @return error code
@@ -352,7 +414,7 @@ BEAGLE_DLLEXPORT int beagleSetStateFrequencies(int instance,
  * This function copies a category weights array into an instance buffer.
  *
  * @param instance              Instance number (input)
- * @param eigenIndex            Index of category weights buffer (input)
+ * @param categoryWeightsIndex  Index of category weights buffer (input)
  * @param inCategoryWeights     Category weights array (categoryCount) (input)
  *
  * @return error code
@@ -472,14 +534,18 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
                                                  const double* paddedValues,
                                                  int count);
 
+    
+/**
+ * @brief A list of integer indices which specify a partial likelihoods operation.
+ */
 typedef struct {
-	int destinationPartials;
-	int destinationScaleWrite;
-	int destinationScaleRead;
-	int child1Partials;
-	int child1TransitionMatrix;
-	int child2Partials;
-	int child2TransitionMatrix;
+	int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+	int destinationScaleWrite;  /**< index of scaling buffer to write to (if set to BEAGLE_OP_NONE then calculation of new scalers is disabled)  */
+	int destinationScaleRead;   /**< index of scaling buffer to read from (if set to BEAGLE_OP_NONE then use of existing scale factors is disabled)  */
+	int child1Partials;         /**< index of first child partials buffer */
+	int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+	int child2Partials;         /**< index of second child partials buffer */
+	int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
 } BeagleOperation;
 
 /**
@@ -488,18 +554,9 @@ typedef struct {
  * This function either calculates or queues for calculation a list partials. Implementations
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
- *
- * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
- * Format of 7-tuple operation: {destinationPartials,
- *                               destinationScaleWrite,
- *                               destinationScaleRead,
- *                               child1Partials,
- *                               child1TransitionMatrix,
- *                               child2Partials,
- *                               child2TransitionMatrix}
- *
+*
  * @param instance                  Instance number (input)
- * @param operations                List of 7-tuples specifying operations (input)
+ * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex   	Index number of scaleBuffer to store accumulated factors (input)
  *
