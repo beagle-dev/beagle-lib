@@ -19,6 +19,7 @@ libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 #
 # CPU plugin with custom SSE code
 #
+if HAVE_SSE2
 libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     SSEDefinitions.h BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
@@ -26,6 +27,7 @@ libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 
 libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS)
 libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+endif
 
 #
 # CPU plugin with OpenMP parallel threads

@@ -202,6 +202,8 @@ fi
 # Setup SSE
 # ------------------------------------------------------------------------------
 
+AX_EXT
+
 AC_ARG_ENABLE(sse,
 	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
 
