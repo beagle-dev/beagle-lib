@@ -152,6 +152,26 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+	// /////////////////////////
+	// ---TODO: Epoch model---//
+	// /////////////////////////
+
+	public void convolveTransitionMatrices(final int[] firstIndices, 
+                                           final int[] secondIndices,
+                                           final int[] resultIndices, 
+                                           int matrixCount) {
+
+        int errCode = BeagleJNIWrapper.INSTANCE.convolveTransitionMatrices(instance,
+                                                                           firstIndices, 
+                                                                           secondIndices,
+                                                                           resultIndices, 
+                                                                           matrixCount);
+        if (errCode != 0) {
+            throw new BeagleException("convolveTransitionMatrices", errCode);
+        }
+		
+	}//END: convolveTransitionMatrices    
+    
     public void updateTransitionMatrices(int eigenIndex,
                                          final int[] probabilityIndices,
                                          final int[] firstDerivativeIndices,
