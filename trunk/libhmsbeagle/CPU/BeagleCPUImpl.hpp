@@ -27,7 +27,7 @@
  */
 
 ///@TODO: wrap partials, eigen calcs, and transition matrices in a small structs
-//      so that we can flag them. This would this would be helpful for
+//      so that we can flag them. This would be helpful for
 //      implementing:
 //          1. an error-checking version that double-checks (to the extent
 //              possible) that the client is using the API correctly.  This would
@@ -664,6 +664,116 @@ if (T_PAD != 0) {
     
     return BEAGLE_SUCCESS;
 }
+
+///////////////////////////
+//---TODO: Epoch model---//
+///////////////////////////
+
+//TODO: move to EigenDecompositionSquare
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
+		const int* secondIndices,
+		const int* resultIndices,
+		int matrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t Entering BeagleCPUImpl::convolveTransitionMatrices \n");
+#endif
+
+	int returnCode = BEAGLE_SUCCESS;
+
+	for (int u = 0; u < matrixCount; u++) {
+
+		if(firstIndices[u] == resultIndices[u] || secondIndices[u] == resultIndices[u]) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+			fprintf(stderr, "In-place convolution is not allowed \n");
+#endif
+
+			returnCode = BEAGLE_ERROR_OUT_OF_RANGE;
+			break;
+
+		}//END: overwrite check
+
+		REALTYPE* C = gTransitionMatrices[resultIndices[u]];
+		REALTYPE* A = gTransitionMatrices[firstIndices[u]];
+		REALTYPE* B = gTransitionMatrices[secondIndices[u]];
+
+		int n = 0;
+		for (int l = 0; l < kCategoryCount; l++) {
+
+			for (int i = 0; i < kStateCount; i++) {
+				for (int j = 0; j < kStateCount; j++) {
+
+					REALTYPE sum = 0.0;
+					for (int k = 0; k < kStateCount; k++) {
+						sum += A[k + kTransPaddedStateCount * i] * B[j + kTransPaddedStateCount * k];
+					}
+//					printf("%.30f %.30f %d: \n", C[n], sum, l);
+					C[n] = sum;
+					n++;
+
+				}//END: j loop
+
+				if (T_PAD != 0) {
+
+					//						A[n] = 1.0;
+					//						B[n] = 1.0;
+					C[n] = 1.0;
+
+					n += T_PAD;
+
+				}//END: padding check
+
+			}//END: i loop
+
+			A += kStateCount * kTransPaddedStateCount;
+			B += kStateCount * kTransPaddedStateCount;
+
+
+			///////////////
+			//	    printf("rate category: %d \n", l);
+			//
+			//		printf("A:");
+			//		for (int i = 0; i < kStateCount; i++) {
+			//			printf("| ");
+			//			for (int j = 0; j < kStateCount; j++)
+			//			printf("%f ", A[j + i * kTransPaddedStateCount]);
+			//			printf("|\n");
+			//		}
+			//		printf("\n");
+			//
+			//		printf("A:");
+			//		for (int i = 0; i < kStateCount; i++) {
+			//			printf("| ");
+			//			for (int j = 0; j < kStateCount; j++)
+			//			printf("%f ", B[j + i * kTransPaddedStateCount]);
+			//			printf("|\n");
+			//		}
+			//		printf("\n");
+			//
+//						printf("C: \n");
+//						for (int i = 0; i < kStateCount; i++) {
+//							printf("| ");
+//							for (int j = 0; j < kTransPaddedStateCount; j++)
+//							printf("%.20f ", C[j + i * kTransPaddedStateCount]);
+//							printf("|\n");
+//						}
+//						printf("\n");
+			////////////////
+
+		}//END: rates loop
+
+	}//END: u loop
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t Leaving BeagleCPUImpl::convolveTransitionMatrices \n");
+#endif
+
+	return returnCode;
+}//END: convolveTransitionMatrices
+
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
