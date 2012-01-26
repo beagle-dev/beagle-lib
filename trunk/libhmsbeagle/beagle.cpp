@@ -437,6 +437,7 @@ int beagleCreateInstance(int tipCount,
         return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
     }
     loaded = 1;
+
 }
 
 
@@ -687,6 +688,29 @@ int beagleGetTransitionMatrix(int instance,
 		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 	return beagleInstance->getTransitionMatrix(matrixIndex,outMatrix);
 }
+
+///////////////////////////
+//---TODO: Epoch model---//
+///////////////////////////
+
+int beagleConvolveTransitionMatrices(int instance,
+		                             const int* firstIndices,
+		                             const int* secondIndices,
+		                             const int* resultIndices,
+		                             const int matrixCount) {
+
+	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	} else {
+
+		return beagleInstance->convolveTransitionMatrices(firstIndices,
+				secondIndices, resultIndices, matrixCount);
+
+	}
+
+}//END: beagleConvolveTransitionMatrices
 
 int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,
