@@ -128,6 +128,15 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
   (JNIEnv *, jobject, jint, jint, jdoubleArray);
 
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    convolveTransitionMatrices
+ * Signature: (I[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
+   (JNIEnv *env, jobject obj, jint instance, jintArray inFirstIndices, jintArray inSecondIndices, jintArray inResultIndices, jint matrixCount);
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updateTransitionMatrices
