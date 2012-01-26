@@ -350,6 +350,34 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
 }
 
 
+///////////////////////////
+//---TODO: Epoch model---//
+///////////////////////////
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    convolveTransitionMatrices
+ * Signature: (I[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
+   (JNIEnv *env, jobject obj, jint instance, jintArray inFirstIndices, jintArray inSecondIndices, jintArray inResultIndices, jint matrixCount)
+{
+    jint errCode;
+
+        jint *firstIndices = env->GetIntArrayElements(inFirstIndices, NULL);
+        jint *secondIndices = env->GetIntArrayElements(inSecondIndices, NULL);
+        jint *resultIndices = env->GetIntArrayElements(inResultIndices, NULL);
+
+        errCode = (jint)beagleConvolveTransitionMatrices(instance, (int *)firstIndices, (int *)secondIndices, (int *)resultIndices, matrixCount);
+
+        env->ReleaseIntArrayElements(inFirstIndices, firstIndices, JNI_ABORT);
+        env->ReleaseIntArrayElements(inSecondIndices, secondIndices, JNI_ABORT);
+        env->ReleaseIntArrayElements(inResultIndices, resultIndices, JNI_ABORT);
+
+    return errCode;
+}
+
+
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updateTransitionMatrices
