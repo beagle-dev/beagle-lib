@@ -448,6 +448,31 @@ BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
 BEAGLE_DLLEXPORT int beagleSetPatternWeights(int instance,
                                        const double* inPatternWeights);
     
+
+///////////////////////////
+//---TODO: Epoch model---//
+///////////////////////////
+
+/**
+ * @brief Convolve lists of transition probability matrices
+ *
+ * This function convolves two lists of transition probability matrices.
+ *
+ * @param instance                  Instance number (input)
+ * @param firstIndices              List of indices of the first transition probability matrices 
+ *                                   to convolve (input)
+ * @param secondIndices             List of indices of the second transition probability matrices
+ *                                   to convolve (input)
+ * @param resultIndices             List of indices of resulting transition probability matrices 
+ *                                   (input)
+ * @param matrixCount               Length of lists
+ */
+BEAGLE_DLLEXPORT int beagleConvolveTransitionMatrices(int instance,
+                                    const int* firstIndices,
+                                    const int* secondIndices,
+                                    const int* resultIndices,
+		                            int matrixCount);
+
 /**
  * @brief Calculate a list of transition probability matrices
  *
