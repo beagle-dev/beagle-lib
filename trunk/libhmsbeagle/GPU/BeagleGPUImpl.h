@@ -204,6 +204,15 @@ public:
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);
 
+    ///////////////////////////
+    //---TODO: Epoch model---//
+    ///////////////////////////
+
+	int convolveTransitionMatrices(const int* firstIndices,
+                                   const int* secondIndices,
+                                   const int* resultIndices,
+                                   int matrixCount);
+
     int updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
