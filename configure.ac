@@ -202,16 +202,14 @@ fi
 # Setup SSE
 # ------------------------------------------------------------------------------
 
-AX_EXT
 
 AC_ARG_ENABLE(sse,
 	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
 
-SSE_CFLAGS=
 if test  "$enable_sse" = yes; then
-	SSE_CFLAGS+="-DENABLE_SSE"
-    AM_CXXFLAGS="$AM_CXXFLAGS -msse2"
+	AX_EXT
 fi
+
 
 # ------------------------------------------------------------------------------
 # Setup native cpu architecture optimization flag
@@ -298,7 +296,6 @@ AC_SUBST(CUDA_CFLAGS)
 AC_SUBST(CUDA_LIBS)
 AC_SUBST(OPENCL_CFLAGS)
 AC_SUBST(OPENCL_LIBS)
-AC_SUBST(SSE_CFLAGS)
 AC_SUBST(JNI_EXTRA_LDFLAGS)
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(LDFLAGS)

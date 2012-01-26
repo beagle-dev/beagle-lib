@@ -25,7 +25,7 @@ libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
 		BeagleCPUSSEPlugin.h BeagleCPUSSEPlugin.cpp
 
-libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS)
+libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS) -msse2
 libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 endif
 

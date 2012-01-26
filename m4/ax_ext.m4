@@ -62,6 +62,7 @@ AC_DEFUN([AX_EXT],
     ax_cv_have_sse2_ext=no
     if test "$((0x$edx>>26&0x01))" = 1; then
       ax_cv_have_sse2_ext=yes
+      AM_CONDITIONAL(HAVE_SSE2, true)
     fi
   ])
 
