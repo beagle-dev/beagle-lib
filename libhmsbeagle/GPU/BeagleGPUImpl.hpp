@@ -1031,6 +1031,72 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
     return BEAGLE_SUCCESS;
 }
 
+///////////////////////////
+//---TODO: Epoch model---//
+///////////////////////////
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
+		const int* secondIndices,
+		const int* resultIndices,
+		int matrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t Entering BeagleGPUImpl::convolveTransitionMatrices \n");
+#endif
+
+	int returnCode = BEAGLE_SUCCESS;
+
+	if (matrixCount > 0) {
+
+		for(int u = 0; u < matrixCount; u++) {
+			if(firstIndices[u] == resultIndices[u] || secondIndices[u] == resultIndices[u]) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+				fprintf(stderr, "In-place convolution is not allowed \n");
+#endif
+
+				returnCode = BEAGLE_ERROR_GENERAL;
+				break;
+
+			}//END: overwrite check
+		}//END: u loop
+
+		int totalMatrixCount = matrixCount * kCategoryCount;
+
+		int ptrIndex = 0;
+		int indexOffset = kMatrixSize * kCategoryCount;
+		int categoryOffset = kMatrixSize;
+
+#ifdef CUDA
+
+		for (int i = 0; i < matrixCount; i++) {
+			for (int j = 0; j < kCategoryCount; j++) {
+
+				hPtrQueue[ptrIndex] = firstIndices[i] * indexOffset + j * categoryOffset;
+				hPtrQueue[ptrIndex + totalMatrixCount] = secondIndices[i] * indexOffset + j * categoryOffset;
+				hPtrQueue[ptrIndex + totalMatrixCount*2] = resultIndices[i] * indexOffset + j * categoryOffset;
+
+				ptrIndex++;
+
+			}//END: kCategoryCount loop
+		}//END: matrices count loop
+
+		gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * totalMatrixCount * 3);
+
+		kernels->ConvolveTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
+
+	}//END: count check
+
+#endif// END: if CUDA
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t Leaving BeagleGPUImpl::convolveTransitionMatrices \n");
+#endif
+
+	return returnCode;
+}//END: convolveTransitionMatrices
+
+
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                             const int* probabilityIndices,
