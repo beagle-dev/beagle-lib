@@ -24,6 +24,10 @@
 
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
 #define DETERMINE_INDICES() \
     int state = threadIdx.x; \
     int patIdx = threadIdx.y; \
@@ -36,6 +40,113 @@
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
 extern "C" {
+
+__global__ void kernelMatrixConvolution(REAL* dMatrices,
+								        unsigned int* list,
+								        int totalMatrixCount
+								        ) {
+	   __shared__ REAL* A;
+	   __shared__ REAL* B;
+	   __shared__ REAL* C;
+
+	    int wMatrix = blockIdx.x % totalMatrixCount;
+
+	    // Block index
+	    int bx = blockIdx.x / totalMatrixCount;
+	    int by = blockIdx.y;
+
+	    // Thread index
+	    int tx = threadIdx.x;
+	    int ty = threadIdx.y;
+	    int BLOCKS = gridDim.y;
+
+	    if (tx == 0 && ty == 0) {
+
+	    	A = dMatrices + list[wMatrix]; // Non-coalescent read
+	    	B = dMatrices + list[wMatrix + totalMatrixCount]; // Non-coalescent read
+	    	C = dMatrices + list[wMatrix + totalMatrixCount*2]; // Non-coalescent read
+
+	    }
+
+	    __syncthreads();
+
+	    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+	    // Step size used to iterate through the sub-matrices of A
+	    int aStep = MULTIPLY_BLOCK_SIZE;
+
+	    // Step size used to iterate through the sub-matrices of B
+	    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+	    // Csub is used to store the element of the block sub-matrix
+	    // that is computed by the thread
+	    REAL Csub = 0;
+
+	    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+	    int b = MULTIPLY_BLOCK_SIZE * bx;
+
+	    __shared__ REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+	    __shared__ REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+
+	    for (int i = 0; i < BLOCKS - 1; i++) {
+
+	        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+	        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+	        __syncthreads();
+
+	        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
+	            Csub += As[ty][k]  * Bs[k][tx];
+
+	        __syncthreads();
+
+	        a += aStep;
+	        b += bStep;
+	    }//END: BLOCKS loop
+
+	    // Last block is too long
+	    if (tx < EDGE && ty < EDGE) {
+
+	#ifndef KERNEL_PRINT_ENABLED
+	        __syncthreads();
+	#endif
+
+	        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+	        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+	    } else {
+
+	        As[ty][tx] = 0;
+	        Bs[ty][tx] = 0;
+
+	    }//END: EDGE check
+
+	    __syncthreads();
+
+	    for (int k = 0; k < EDGE; k++) {
+	        Csub += As[ty][k] *  Bs[k][tx];
+	    }
+
+	    __syncthreads();
+
+	    // Write the block sub-matrix to device memory;
+	    // each thread writes one element
+
+	    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+	        if (Csub < 0) {
+
+	        	C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+	              PADDED_STATE_COUNT * ty + tx] = 0;
+
+	        } else {
+
+	        	C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+	              PADDED_STATE_COUNT * ty + tx] = Csub;
+
+	        }//END: Csub check
+	    }//END: EDGE check
+
+}//END: kernelMatrixConvolution
 
 __global__ void kernelMatrixMulADB(REAL* dMatrices,
                                    unsigned int* listC,
@@ -418,7 +529,7 @@ __global__ void kernelMatrixMulADBSecondDeriv(REAL* dMatrices,
 
         CFirstDeriv[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
           PADDED_STATE_COUNT * ty + tx] = CFirstDerivSub;
-          
+
         CSecondDeriv[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
           PADDED_STATE_COUNT * ty + tx] = CSecondDerivSub;
     }
@@ -619,20 +730,20 @@ __global__ void kernelSumSites1(REAL* dArray,
 
     int tx = threadIdx.x;
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
+
     if (pattern < patternCount)
         sum[tx] = dArray[pattern] * dPatternWeights[pattern];
     else
         sum[tx] = 0.0;
-        
+
     __syncthreads();
-    
+
     for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
         if (tx < s)
             sum[tx] += sum[tx + s];
         __syncthreads();
     }
-    
+
     if (tx == 0)
         dSum[blockIdx.x] = sum[0];
 }
@@ -649,7 +760,7 @@ __global__ void kernelSumSites2(REAL* dArray1,
 
     int tx = threadIdx.x;
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
+
     if (pattern < patternCount) {
         REAL pWeight = dPatternWeights[pattern];
         sum1[tx] = dArray1[pattern] * pWeight;
@@ -658,9 +769,9 @@ __global__ void kernelSumSites2(REAL* dArray1,
         sum1[tx] = 0.0;
         sum2[tx] = 0.0;
     }
-        
+
     __syncthreads();
-    
+
     for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
         if (tx < s) {
             sum1[tx] += sum1[tx + s];
@@ -668,7 +779,7 @@ __global__ void kernelSumSites2(REAL* dArray1,
         }
         __syncthreads();
     }
-    
+
     if (tx == 0) {
         dSum1[blockIdx.x] = sum1[0];
         dSum2[blockIdx.x] = sum2[0];
@@ -690,7 +801,7 @@ __global__ void kernelSumSites3(REAL* dArray1,
 
     int tx = threadIdx.x;
     int pattern = threadIdx.x + blockIdx.x * SUM_SITES_BLOCK_SIZE;
-    
+
     if (pattern < patternCount) {
         REAL pWeight = dPatternWeights[pattern];
         sum1[tx] = dArray1[pattern] * pWeight;
@@ -701,9 +812,9 @@ __global__ void kernelSumSites3(REAL* dArray1,
         sum2[tx] = 0.0;
         sum3[tx] = 0.0;
     }
-        
+
     __syncthreads();
-    
+
     for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
         if (tx < s) {
             sum1[tx] += sum1[tx + s];
@@ -712,7 +823,7 @@ __global__ void kernelSumSites3(REAL* dArray1,
         }
         __syncthreads();
     }
-    
+
     if (tx == 0) {
         dSum1[blockIdx.x] = sum1[0];
         dSum2[blockIdx.x] = sum2[0];
@@ -831,7 +942,7 @@ __global__ void kernelRemoveFactors(REAL* dScalingFactors,
 
     if (pattern < patternCount)
         rootScaling[pattern] -= total;
-} 
+}
 
 __global__ void kernelRemoveFactorsScalersLog(REAL* dScalingFactors,
                                              unsigned int* dNodePtrQueue,
@@ -859,7 +970,7 @@ __global__ void kernelRemoveFactorsScalersLog(REAL* dScalingFactors,
 
     if (pattern < patternCount)
         rootScaling[pattern] -= total;
-} 
+}
 
 __global__ void kernelPartialsDynamicScalingSlow(REAL* allPartials,
                                                  REAL* scalingFactors,
