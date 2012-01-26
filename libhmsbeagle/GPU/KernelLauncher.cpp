@@ -145,6 +145,9 @@ void KernelLauncher::LoadKernels() {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
 	}
 
+	//TODO: Epoch Model
+	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
+
     fMatrixMulADBFirstDeriv = gpu->GetFunction("kernelMatrixMulADBFirstDeriv");
     
     fMatrixMulADBSecondDeriv = gpu->GetFunction("kernelMatrixMulADBSecondDeriv");
@@ -266,6 +269,60 @@ void KernelLauncher::LoadKernels() {
 }
 
 #ifdef CUDA
+
+void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
+                                                     GPUPtr dParentPartials,
+                                                     GPUPtr dChildParials,
+                                                     GPUPtr dTransMatrix,
+                                                     unsigned int patternCount,
+                                                     unsigned int categoryCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
+#endif
+
+    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoods,
+                               bgPeelingBlock, bgPeelingGrid,
+                               4, 5,
+                               dPartialsTmp, dParentPartials, dChildParials, dTransMatrix,
+                               patternCount);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
+#endif
+
+}
+
+///////////////////////////
+//---TODO: Epoch Model---//
+///////////////////////////
+
+void KernelLauncher::ConvolveTransitionMatrices(GPUPtr dMatrices,
+		                                        GPUPtr dPtrQueue,
+		                                        unsigned int totalMatrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t \t Entering KernelLauncher::ConvolveMatrices \n");
+#endif
+
+	bgTransitionProbabilitiesGrid.x *= totalMatrixCount;
+
+	//Dim3Int grid(1);// = totalMatrixCount;
+	//Dim3Int block(4,4);// = totalMatrixCount;
+
+	int parameterCountV = 2;
+	int totalParameterCount = 3;
+
+	gpu->LaunchKernel(fMatrixConvolution, bgTransitionProbabilitiesBlock,
+			bgTransitionProbabilitiesGrid, parameterCountV,
+			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);
+
+	bgTransitionProbabilitiesGrid.x /= totalMatrixCount; // Reset value
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t \t Leaving  KernelLauncher::ConvolveMatrices \n");
+#endif
+}//END: ConvolveMatrices
+
 void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
                                                       GPUPtr dPtrQueue,
                                                       GPUPtr dEvec,
@@ -726,28 +783,6 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResul
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv\n");
 #endif
-}
-
-void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
-                                                     GPUPtr dParentPartials,
-                                                     GPUPtr dChildParials,
-                                                     GPUPtr dTransMatrix,
-                                                     unsigned int patternCount,
-                                                     unsigned int categoryCount) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
-#endif
-        
-    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoods,
-                               bgPeelingBlock, bgPeelingGrid,
-                               4, 5,
-                               dPartialsTmp, dParentPartials, dChildParials, dTransMatrix,
-                               patternCount);
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
-#endif
-    
 }
 
 void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
