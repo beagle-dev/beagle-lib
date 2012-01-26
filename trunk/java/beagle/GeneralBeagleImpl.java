@@ -215,6 +215,52 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(this.matrices[matrixIndex],0,outMatrix,0,outMatrix.length);
     }
 
+    
+	// /////////////////////////
+	// ---TODO: Epoch model---//
+	// /////////////////////////
+    public void convolveTransitionMatrices(
+            final int[] firstIndices,
+            final int[] secondIndices,
+            final int[] resultIndices,
+            int matrixCount) {
+
+		for (int u = 0; u < matrixCount; u++) {
+			
+			  int firstIndex = firstIndices[u];
+			  int secondIndex = secondIndices[u];
+			  int resultIndex = resultIndices[u];
+		
+			     if (DEBUG) {
+			    	 System.err.println("Convolving matrix " + firstIndex + " with matrix  " + secondIndex + " into " + resultIndex);
+			    	 }
+			  
+			for (int l = 0; l < categoryCount; l++) {
+
+				for (int i = 0; i < stateCount; i++) {
+					for (int j = 0; j < stateCount; j++) {
+
+						
+						for (int k = 0; k < stateCount; k++) {
+							
+//							sum += 
+							
+						}//END: k loop
+						
+						
+						
+						
+						
+						
+					}// END: j loop
+				}// END: i loop
+			}// /END: l loop
+
+		}// END: u loop
+
+	}// END: convolveTransitionMatrices
+    
+    
     public void updateTransitionMatrices(final int eigenIndex,
                                          final int[] probabilityIndices,
                                          final int[] firstDerivativeIndices,
