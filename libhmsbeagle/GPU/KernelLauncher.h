@@ -38,6 +38,7 @@ class KernelLauncher {
 private:
     GPUInterface* gpu;
     
+    GPUFunction fMatrixConvolution;
     GPUFunction fMatrixMulADB;
     GPUFunction fMatrixMulADBFirstDeriv;
     GPUFunction fMatrixMulADBSecondDeriv;
@@ -106,6 +107,12 @@ public:
     
 // Kernel links
 #ifdef CUDA
+
+
+    void ConvolveTransitionMatrices(GPUPtr dMatrices,
+                          GPUPtr dPtrQueue,
+                          unsigned int totalMatrixCount);
+
     void GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
                                           GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
