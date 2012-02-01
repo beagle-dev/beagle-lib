@@ -11,7 +11,9 @@
 #include <iostream>
 
 #ifdef __GNUC__
-#include "cpuid.h"
+	#if !defined(DLS_MACOS)
+		#include <cpuid.h>
+	#endif
 #endif
 
 namespace beagle {
@@ -83,6 +85,7 @@ bool check_sse2(){
 #endif
 
 #ifdef __GNUC__
+#if !defined(DLS_MACOS) // For non-Mac OS X GNU C
 bool check_sse2()
 {
   unsigned int eax, ebx, ecx, edx;
@@ -103,7 +106,15 @@ bool check_sse2()
 
 	return false;
 }
-
+#else // For Mac OS X GNU C
+bool check_sse2(){
+     int op = 0x00000001, eax, ebx, ecx, edx;
+      __asm__("cpuid"
+        : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+        : "a" (op));
+	return edx & 0x04000000;  
+}
+#endif
 #endif
 
 
