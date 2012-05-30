@@ -1,4 +1,4 @@
-lib_LTLIBRARIES=libhmsbeagle-cpu.la libhmsbeagle-cpu-sse.la
+lib_LTLIBRARIES=libhmsbeagle-cpu.la 
 
 BEAGLE_CPU_COMMON = Precision.h EigenDecomposition.h \
                     EigenDecompositionCube.hpp EigenDecompositionCube.h \
@@ -20,6 +20,8 @@ libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 # CPU plugin with custom SSE code
 #
 if HAVE_SSE2
+lib_LTLIBRARIES += libhmsbeagle-cpu-sse.la
+
 libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     SSEDefinitions.h BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
