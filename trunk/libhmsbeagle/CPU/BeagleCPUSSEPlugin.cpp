@@ -10,9 +10,9 @@
 #include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
 #include <iostream>
 
-#ifdef __GNUC__
+#ifdef HAVE_CPUID_H
 	#if !defined(DLS_MACOS)
-//		#include <cpuid.h>
+		#include <cpuid.h>
 	#endif
 #endif
 
@@ -88,23 +88,26 @@ bool check_sse2(){
 #if !defined(DLS_MACOS) // For non-Mac OS X GNU C
 bool check_sse2()
 {
-//  unsigned int eax, ebx, ecx, edx;
-//  unsigned int ext, sig;
-//
-//  ext = 0;
-//  __get_cpuid_max( ext, &sig );
-//  printf( "ext=0x%x sig=0x%x\n", ext, sig );
-//
-//  if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx)) {
-//    printf( "__get_cpuid returned 0\n" );
-//    return 0;
-//  }
-//
-//  /* Run SSE2 test only if host has SSE2 support.  */
-//  if (edx & bit_SSE2)
+#ifdef HAVE_CPUID_H
+  unsigned int eax, ebx, ecx, edx;
+  unsigned int ext, sig;
+
+  ext = 0;
+  __get_cpuid_max( ext, &sig );
+  printf( "ext=0x%x sig=0x%x\n", ext, sig );
+
+  if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx)) {
+    printf( "__get_cpuid returned 0\n" );
+    return 0;
+  }
+
+  /* Run SSE2 test only if host has SSE2 support.  */
+  if (edx & bit_SSE2)
 	return true;
-//
-//	return false;
+  return false;
+#else
+	return false;
+#endif
 }
 #else // For Mac OS X GNU C
 bool check_sse2(){

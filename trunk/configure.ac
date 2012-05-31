@@ -208,6 +208,7 @@ AC_ARG_ENABLE(sse,
 
 if test  "$enable_sse" = yes; then
 	AX_EXT
+	AC_CHECK_HEADERS([cpuid.h])
 else
 	AM_CONDITIONAL(HAVE_SSE2,false)
 fi
