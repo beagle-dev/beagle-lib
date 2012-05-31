@@ -94,20 +94,49 @@ bool check_sse2()
 
   ext = 0;
   __get_cpuid_max( ext, &sig );
-  printf( "ext=0x%x sig=0x%x\n", ext, sig );
+//  printf( "ext=0x%x sig=0x%x\n", ext, sig );
 
   if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx)) {
-    printf( "__get_cpuid returned 0\n" );
-    return 0;
+//    printf( "__get_cpuid returned 0\n" );
+    return false;
   }
 
   /* Run SSE2 test only if host has SSE2 support.  */
   if (edx & bit_SSE2)
 	return true;
   return false;
-#else
-	return false;
-#endif
+#else // HAVE_CPUID.H
+	// Determine if cpuid supported:
+    unsigned int res;
+    __asm__("mov %%ecx, %%eax;"
+            "xor $200000, %%eax;"
+            "xor %%ecx, %%eax;"
+            "je no;"
+            "mov $1, %%eax;"
+            "jmp end;"
+            "no: mov $0, %%eax;"
+            "end:;"
+            : "=a" (res)
+            :
+            : "cc");
+
+    if (res == 0) {
+    	return false; // cpuid is not supported
+    }
+
+    // Determine if SSE2 supported, PIC compliant version
+    unsigned int opcode = 0x00000001;
+    unsigned int[4] result;
+    __asm__("cpuid;"
+            "movl %%ebx, %1;"
+            : "=a" (result[0]), // EAX register -> result[0]
+              "=r" (result[1]), // EBX register -> result[1]
+              "=c" (result[2]), // ECX register -> result[2]
+              "=d" (result[3])  // EDX register -> result[3]
+            : "0" (opcode)
+            : "cc");
+    return result[3] & 0x04000000;
+#endif // HAVE_CPUID.H
 }
 #else // For Mac OS X GNU C
 bool check_sse2(){
