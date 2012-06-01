@@ -119,16 +119,16 @@ bool check_sse2()
             : "=a" (res)
             :
             : "cc");
-
     if (res == 0) {
     	return false; // cpuid is not supported
     }
-
     // Determine if SSE2 supported, PIC compliant version
     unsigned int opcode = 0x00000001;
-    unsigned int[4] result;
-    __asm__("cpuid;"
+    unsigned int result[4];
+    __asm__("pushl %%ebx;"
+            "cpuid;"
             "movl %%ebx, %1;"
+            "popl %%ebx;"
             : "=a" (result[0]), // EAX register -> result[0]
               "=r" (result[1]), // EBX register -> result[1]
               "=c" (result[2]), // ECX register -> result[2]
