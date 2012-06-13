@@ -1086,9 +1086,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* fir
 
 		kernels->ConvolveTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
 
+#endif// END: if CUDA
 	}//END: count check
 
-#endif// END: if CUDA
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\t Leaving BeagleGPUImpl::convolveTransitionMatrices \n");
 #endif
