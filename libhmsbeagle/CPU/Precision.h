@@ -8,6 +8,8 @@
 #ifndef PRECISION_H_
 #define PRECISION_H_
 
+#include <cstring>
+
 #define DOUBLE_PRECISION (sizeof(REALTYPE) == 8)
 
 template<typename T, typename F> 
