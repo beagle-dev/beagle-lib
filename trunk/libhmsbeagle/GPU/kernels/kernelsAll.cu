@@ -28,6 +28,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifndef M_LN2 /* Work around for OS X 10.8 and gcc 4.7.1 */
+	#define M_LN2          0.69314718055994530942  /* log_e 2 */
+#endif
+
 #define DETERMINE_INDICES() \
     int state = threadIdx.x; \
     int patIdx = threadIdx.y; \
