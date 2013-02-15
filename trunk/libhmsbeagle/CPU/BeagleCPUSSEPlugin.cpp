@@ -125,10 +125,19 @@ bool check_sse2()
     // Determine if SSE2 supported, PIC compliant version
     unsigned int opcode = 0x00000001;
     unsigned int result[4];
-    __asm__("pushl %%ebx;"
+    __asm__(
+#ifdef __i386__
+    		"pushl %%ebx;"
+#else
+    		"pushq %%rbx;"
+#endif
             "cpuid;"
             "movl %%ebx, %1;"
+#ifdef __i386__
             "popl %%ebx;"
+#else
+    		"popq %%rbx;"
+#endif
             : "=a" (result[0]), // EAX register -> result[0]
               "=r" (result[1]), // EBX register -> result[1]
               "=c" (result[2]), // ECX register -> result[2]
