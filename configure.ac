@@ -64,7 +64,7 @@ AM_DISABLE_STATIC
 AC_PROG_LIBTOOL
 AM_PROG_LIBTOOL
 
-AM_CONFIG_HEADER(libhmsbeagle/config.h)
+AC_CONFIG_HEADERS(libhmsbeagle/config.h)
 
 # needed to support old automake versions
 AC_SUBST(abs_top_builddir)
