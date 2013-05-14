@@ -32,6 +32,21 @@ libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 endif
 
 #
+# CPU plugin with custom AVX code
+#
+if HAVE_SSE2
+lib_LTLIBRARIES += libhmsbeagle-cpu-avx.la
+
+libhmsbeagle_cpu_avx_la_SOURCES = $(BEAGLE_CPU_COMMON) \
+                    SSEDefinitions.h BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
+                    BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
+		BeagleCPUAVXPlugin.h BeagleCPUAVXPlugin.cpp
+
+libhmsbeagle_cpu_avx_la_CXXFLAGS = $(AM_CXXFLAGS) -msse2
+libhmsbeagle_cpu_avx_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+endif
+
+#
 # CPU plugin with OpenMP parallel threads
 #
 if HAVE_OPENMP
