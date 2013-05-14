@@ -115,6 +115,11 @@ void beagleLoadPlugins(void) {
 		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
 		plugins->push_back(sseplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}
+	
+	try{
+		beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
+		plugins->push_back(avxplug);
+	}catch(beagle::plugin::SharedLibraryException sle){}	
 
 	try{
 		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
