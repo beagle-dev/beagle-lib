@@ -1291,11 +1291,9 @@ BEAGLE_CPU_TEMPLATE
                                           outSumLogLikelihood);
 		} else {
             fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and derivatives\n");
-        }
-            
-
+        }            
     }
-
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
