@@ -12,7 +12,7 @@ namespace beagle {
 namespace gpu {
     
 OpenCLPlugin::OpenCLPlugin() :
-Plugin("OpenCL", "GPU")
+Plugin("GPU-OpenCL", "GPU-OpenCL")
     {
         GPUInterface gpu;
         bool anyGPUSupportsOpenCL = false;
@@ -56,10 +56,10 @@ Plugin("OpenCL", "GPU")
         // list with compatible factories
         //	if(beagleResources.size() > 0) {
         if (anyGPUSupportsOpenCL) {
-            beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float>());
+            beagleFactories.push_back(new BeagleGPUImplFactory<float, FW_OPENCL>());
             if (anyGPUSupportsDP) {
                 // TODO Uncomment when working
-                beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double>());
+                beagleFactories.push_back(new BeagleGPUImplFactory<double, FW_OPENCL>());
             }
         }
     }

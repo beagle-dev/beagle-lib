@@ -106,8 +106,6 @@ public:
     ~KernelLauncher();
     
 // Kernel links
-#ifdef CUDA
-
 
     void ConvolveTransitionMatrices(GPUPtr dMatrices,
                           GPUPtr dPtrQueue,
@@ -137,16 +135,6 @@ public:
                                           GPUPtr distanceQueue,
                                           unsigned int totalMatrix);
 
-#else //OpenCL
-    void GetTransitionProbabilitiesSquare(GPUPtr dPtr,
-                                          GPUPtr dEvec,
-                                          GPUPtr dIevc,
-                                          GPUPtr dEigenValues,
-                                          GPUPtr distanceQueue,
-                                          unsigned int totalMatrix,
-                                          unsigned int index);    
-#endif
-    
     void PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1,
                                                     GPUPtr partials2,
                                                     GPUPtr partials3,

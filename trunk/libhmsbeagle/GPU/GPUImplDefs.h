@@ -25,18 +25,22 @@
 #ifndef __GPUImplDefs__
 #define __GPUImplDefs__
 
-#ifdef HAVE_CONFIG_H
-#include "libhmsbeagle/config.h"
-#endif
-#include "libhmsbeagle/platform.h"
+#ifndef OPENCL_KERNEL_BUILD
+    #ifdef HAVE_CONFIG_H
+    #include "libhmsbeagle/config.h"
+    #endif
+    #include "libhmsbeagle/platform.h"
 
-#include <cfloat>
+    #include <cfloat>
+#else
+    #define M_LN2   0.69314718055994530942  /* log_e 2 */
+#endif // OPENCL_KERNEL_BUILD
 
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH
 
-#define BEAGLE_MEMORY_PINNED
+//#define BEAGLE_MEMORY_PINNED
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
 //#define BEAGLE_FILL_4_STATE_SCALAR_SP
 
@@ -66,6 +70,31 @@
 #define SIZE_REAL   sizeof(REAL)
 #define INT         int
 #define SIZE_INT    sizeof(INT)
+
+/* Define keywords for parallel frameworks */
+#ifdef CUDA
+    #define KW_GLOBAL_KERNEL __global__
+    #define KW_GLOBAL_VAR
+    #define KW_LOCAL_MEM     __shared__
+    #define KW_LOCAL_FENCE   __syncthreads()
+    #define KW_LOCAL_ID_0    threadIdx.x
+    #define KW_LOCAL_ID_1    threadIdx.y
+    #define KW_GROUP_ID_0    blockIdx.x
+    #define KW_GROUP_ID_1    blockIdx.y
+    #define KW_NUM_GROUPS_0  gridDim.x
+    #define KW_NUM_GROUPS_1  gridDim.y
+#elif OPENCL
+    #define KW_GLOBAL_KERNEL __kernel
+    #define KW_GLOBAL_VAR    __global
+    #define KW_LOCAL_MEM     __local
+    #define KW_LOCAL_FENCE   barrier(CLK_LOCAL_MEM_FENCE)
+    #define KW_LOCAL_ID_0    get_local_id(0)
+    #define KW_LOCAL_ID_1    get_local_id(1)
+    #define KW_GROUP_ID_0    get_group_id(0)
+    #define KW_GROUP_ID_1    get_group_id(1)
+    #define KW_NUM_GROUPS_0  get_num_groups(0)
+    #define KW_NUM_GROUPS_1  get_num_groups(1)
+#endif
 
 /* Compiler definitions
  *

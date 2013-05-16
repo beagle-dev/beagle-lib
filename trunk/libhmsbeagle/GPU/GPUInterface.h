@@ -34,6 +34,7 @@
 
 #include <map>
 
+#include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
@@ -48,7 +49,11 @@
     typedef CUfunction GPUFunction;
 #else
 #ifdef OPENCL
-    #include <OpenCL/opencl.h>
+#   ifdef DLS_MACOS
+        #include <OpenCL/opencl.h>
+#   else
+        #include <opencl.h>
+#   endif
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h"
 #   else
@@ -73,6 +78,7 @@ private:
     cl_command_queue openClCommandQueue;     // compute command queue
     cl_program openClProgram;                // compute program
     cl_uint openClNumDevices;
+    cl_platform_id openClPlatform;
     const char* GetCLErrorDescription(int errorCode);
 #endif
 #endif
@@ -115,6 +121,8 @@ public:
     GPUPtr AllocateRealMemory(size_t length);
 
     GPUPtr AllocateIntMemory(size_t length);
+
+    GPUPtr CreateSubPointer(GPUPtr dPtr, size_t offset, size_t size);
     
     void MemsetShort(GPUPtr dest,
                      unsigned short val,
@@ -137,8 +145,8 @@ public:
     void FreePinnedHostMemory(void* hPtr);
     
     void FreeMemory(GPUPtr dPtr);
-    
-    GPUPtr GetDevicePointer(void* hPtr);
+
+    GPUPtr GetDeviceHostPointer(void* hPtr);
     
     unsigned int GetAvailableMemory();
     

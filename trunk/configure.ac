@@ -128,8 +128,8 @@ OPENCL_LIBS=
 
 if test "x$enable_opencl" != "xno"
 then
-   OPENCL_CFLAGS+=" -DOPENCL -framework OpenCL"
-   OPENCL_LIBS+=" -framework OpenCL"
+   OPENCL_CFLAGS=" -DOPENCL -I/usr/include/CL"
+   OPENCL_LIBS=" -lOpenCL"
 fi
 
 AM_CONDITIONAL(BUILDOPENCL, test ! x$enable_opencl = xno)
@@ -201,6 +201,8 @@ fi
 # ------------------------------------------------------------------------------
 # Setup SSE
 # ------------------------------------------------------------------------------
+
+
 AC_ARG_ENABLE(sse,
 	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
 
@@ -241,6 +243,7 @@ fi
 # ------------------------------------------------------------------------------
 # Setup native cpu architecture optimization flag
 # ------------------------------------------------------------------------------
+
 AC_ARG_ENABLE(march_native,
     AC_HELP_STRING([--enable-march-native],[build with native architecture optimization @<:@default=yes@:>@]), , [enable_march_native=yes])
 
@@ -265,6 +268,13 @@ case $host_os in
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
      NVCCFLAGS+=" -D_POSIX_C_SOURCE"
+  fi
+  
+
+  if test "x$enable_opencl" != "xno"
+  then
+     OPENCL_CFLAGS=" -DOPENCL -framework OpenCL"
+     OPENCL_LIBS=" -framework OpenCL"
   fi
 
   AC_ARG_ENABLE(osx_leopard,

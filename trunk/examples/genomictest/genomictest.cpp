@@ -132,7 +132,8 @@ void runBeagle(int resource,
                int eigenCount,
                bool eigencomplex,
                bool ievectrans,
-               bool setmatrix)
+               bool setmatrix,
+               bool opencl)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -156,6 +157,7 @@ void runBeagle(int resource,
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
                 0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                 (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                 (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
                 (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
@@ -638,7 +640,7 @@ void runBeagle(int resource,
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -668,7 +670,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* eigenCount,
                                     bool* eigencomplex,
                                     bool* ievectrans,
-                                    bool* setmatrix)	{
+                                    bool* setmatrix,
+                                    bool* opencl)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -759,6 +762,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*ievectrans = true;
         } else if (option == "--setmatrix") {
         	*setmatrix = true;
+        } else if (option == "--opencl") {
+        	*opencl = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -851,6 +856,7 @@ int main( int argc, const char* argv[] )
     bool eigencomplex = false;
     bool ievectrans = false;
     bool setmatrix = false;
+    bool opencl = false;
 
     int rsrc = -1;
     int nreps = 5;
@@ -862,7 +868,7 @@ int main( int argc, const char* argv[] )
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
                                    &requireDoublePrecision, &requireSSE, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
-                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix);
+                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -894,7 +900,8 @@ int main( int argc, const char* argv[] )
                   eigenCount,
                   eigencomplex,
                   ievectrans,
-                  setmatrix);
+                  setmatrix,
+                  opencl);
     } else {
         BeagleResourceList* rl = beagleGetResourceList();
         if(rl != NULL){
@@ -920,7 +927,33 @@ int main( int argc, const char* argv[] )
                           eigenCount,
                           eigencomplex,
                           ievectrans,
-                          setmatrix);
+                          setmatrix,
+                          false);
+                if (opencl && i > 0) {
+                    runBeagle(i,
+                              stateCount,
+                              ntaxa,
+                              nsites,
+                              manualScaling,
+                              autoScaling,
+                              dynamicScaling,
+                              rateCategoryCount,
+                              nreps,
+                              fullTiming,
+                              requireDoublePrecision,
+                              requireSSE,
+                              compactTipCount,
+                              randomSeed,
+                              rescaleFrequency,
+                              unrooted,
+                              calcderivs,
+                              logscalers,
+                              eigenCount,
+                              eigencomplex,
+                              ievectrans,
+                              setmatrix,
+                              opencl);
+                }
             }
         }else{
             runBeagle(0,
@@ -944,7 +977,8 @@ int main( int argc, const char* argv[] )
                       eigenCount,
                       eigencomplex,
                       ievectrans,
-                      setmatrix);
+                      setmatrix,
+                      opencl);
         }
 	}
 

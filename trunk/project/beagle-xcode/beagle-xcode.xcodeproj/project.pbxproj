@@ -113,13 +113,6 @@
 			remoteGlobalIDString = 6407BBF11214886100BA8C93;
 			remoteInfo = "hmsbeagle-cpu-sse";
 		};
-		6407BBFB121488D500BA8C93 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6407BB9B1214832300BA8C93;
-			remoteInfo = "hmsbeagle-cuda";
-		};
 		640C784A1211AFFC00B62295 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
@@ -162,6 +155,13 @@
 			remoteGlobalIDString = 6407BA0E1211EFF800BA8C93;
 			remoteInfo = hmsbeagle;
 		};
+		647D1BED17452DC90019BDFF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6407BB9B1214832300BA8C93;
+			remoteInfo = "hmsbeagle-cuda";
+		};
 		64859C7A13A96F3000BFDE68 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
@@ -169,7 +169,7 @@
 			remoteGlobalIDString = 64859C6513A96C2100BFDE68;
 			remoteInfo = "OpenCL kernels";
 		};
-		64859C9813A9BDA200BFDE68 /* PBXContainerItemProxy */ = {
+		64B488DC173BD9CD00D21FC9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 649FE0EC12108B60006E8768 /* Project object */;
 			proxyType = 1;
@@ -239,9 +239,8 @@
 		64020B7812149DFA00C76EFB /* CUDAPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CUDAPlugin.h; sourceTree = "<group>"; };
 		64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = GPUInterfaceCUDA.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		64020B7A12149E0D00C76EFB /* kernels4.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernels4.cu; path = kernels/kernels4.cu; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
-		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; };
-		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; };
-		64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.opencl; name = BeagleOpenCL_kernels.cl; path = kernels/BeagleOpenCL_kernels.cl; sourceTree = "<group>"; };
+		64020B7B12149E0D00C76EFB /* kernelsAll.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsAll.cu; path = kernels/kernelsAll.cu; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		64020B7C12149E0D00C76EFB /* kernelsX.cu */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = kernelsX.cu; path = kernels/kernelsX.cu; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.opencl; };
 		64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GPUInterfaceOpenCL.cpp; sourceTree = "<group>"; };
 		64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = OpenCLPlugin.cpp; sourceTree = "<group>"; };
 		64020B8012149E2E00C76EFB /* OpenCLPlugin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = OpenCLPlugin.h; sourceTree = "<group>"; };
@@ -304,7 +303,7 @@
 		646A84C81210961500F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84C91210961C00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		646A84CA1210962600F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
-		646A84CB1210962E00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
+		646A84CB1210962E00F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.sh; };
 		646A84CC1210963800F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-opencl.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		64859C8413A9717E00BFDE68 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
@@ -546,6 +545,9 @@
 				64020B7612149DC300C76EFB /* KernelResource.h */,
 				64020B7512149DC300C76EFB /* KernelResource.cpp */,
 				64020B7212149DC300C76EFB /* GPUInterface.h */,
+				64020B7A12149E0D00C76EFB /* kernels4.cu */,
+				64020B7C12149E0D00C76EFB /* kernelsX.cu */,
+				64020B7B12149E0D00C76EFB /* kernelsAll.cu */,
 				6425C83D12108D6200E7ED58 /* CUDA */,
 				6425C83E12108D8400E7ED58 /* OpenCL */,
 			);
@@ -558,9 +560,6 @@
 				64020B7812149DFA00C76EFB /* CUDAPlugin.h */,
 				64020B7712149DFA00C76EFB /* CUDAPlugin.cpp */,
 				64020B7912149DFA00C76EFB /* GPUInterfaceCUDA.cpp */,
-				64020B7A12149E0D00C76EFB /* kernels4.cu */,
-				64020B7C12149E0D00C76EFB /* kernelsX.cu */,
-				64020B7B12149E0D00C76EFB /* kernelsAll.cu */,
 			);
 			name = CUDA;
 			sourceTree = "<group>";
@@ -572,7 +571,6 @@
 				64020B8012149E2E00C76EFB /* OpenCLPlugin.h */,
 				64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */,
 				64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */,
-				64020B7D12149E2E00C76EFB /* BeagleOpenCL_kernels.cl */,
 			);
 			name = OpenCL;
 			sourceTree = "<group>";
@@ -871,8 +869,8 @@
 				6407BA671211F2E500BA8C93 /* PBXTargetDependency */,
 				6407BABA1213ACA900BA8C93 /* PBXTargetDependency */,
 				6407BBFA121488D500BA8C93 /* PBXTargetDependency */,
-				6407BBFC121488D500BA8C93 /* PBXTargetDependency */,
-				64859C9913A9BDA200BFDE68 /* PBXTargetDependency */,
+				647D1BEE17452DC90019BDFF /* PBXTargetDependency */,
+				64B488DD173BD9CD00D21FC9 /* PBXTargetDependency */,
 			);
 			name = hmsbeagle;
 			productName = hmsbeagle;
@@ -1040,6 +1038,9 @@
 /* Begin PBXProject section */
 		649FE0EC12108B60006E8768 /* Project object */ = {
 			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0460;
+			};
 			buildConfigurationList = 649FE0EF12108B60006E8768 /* Build configuration list for PBXProject "beagle-xcode" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
@@ -1088,7 +1089,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "\ncd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels_xcode.ptx\nrm -f BeagleCUDA_kernels_xcode.h\n\nif [ \"$CURRENT_ARCH\" == \"i386\" ]\nthen\n    GPU_ARCH=32\nelse\n    GPU_ARCH=64\nfi\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels_xcode.h\n\n# \tCompile 4-state model\necho \"Making state count = 4 SP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_SP_4 \\\"\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s SP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_SP_$s \\\"\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\ndone\n\n# DOUBLE PRECISION\n\n# \tCompile 4-state model\necho \"Making state count = 4 DP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -arch compute_13 -DSTATE_COUNT=4 -DDOUBLE_PRECISION ./kernels4.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_DP_4 \\\"\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s DP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -arch compute_13 -DSTATE_COUNT=$s -DDOUBLE_PRECISION ./kernelsX.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_DP_$s \\\"\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\ndone\n";
+			shellScript = "\ncd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleCUDA_kernels_xcode.ptx\nrm -f BeagleCUDA_kernels_xcode.h\n\nif [ \"$CURRENT_ARCH\" == \"i386\" ]\nthen\n    GPU_ARCH=32\nelse\n    GPU_ARCH=64\nfi\n\necho \"// auto-generated header file with CUDA kernels PTX code\" > BeagleCUDA_kernels_xcode.h\n\n# \tCompile 4-state model\necho \"Making state count = 4 SP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -DSTATE_COUNT=4 ./kernels4.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_SP_4 \\\"\\\\n\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s SP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -DSTATE_COUNT=$s ./kernelsX.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_SP_$s \\\"\\\\n\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\ndone\n\n# DOUBLE PRECISION\n\n# \tCompile 4-state model\necho \"Making state count = 4 DP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -arch compute_13 -DSTATE_COUNT=4 -DDOUBLE_PRECISION ./kernels4.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_DP_4 \\\"\\\\n\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s DP\"\n/usr/local/cuda/bin/nvcc -D_POSIX_C_SOURCE -o BeagleCUDA_kernels_xcode.ptx -ptx -arch compute_13 -DSTATE_COUNT=$s -DDOUBLE_PRECISION ./kernelsX.cu -O3 -m$GPU_ARCH -I$BEAGLE_SOURCE_ROOT -DCUDA\necho \"#define KERNELS_STRING_DP_$s \\\"\\\\n\\\\\" >> BeagleCUDA_kernels_xcode.h\ncat BeagleCUDA_kernels_xcode.ptx | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleCUDA_kernels_xcode.h\necho \"\\\"\" >> BeagleCUDA_kernels_xcode.h\ndone\n";
 		};
 		640C784C1211B00400B62295 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1117,7 +1118,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "cd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleOpenCL_kernels_xcode.h\n\necho \"// auto-generated header file with OpenCL kernels code\" > BeagleOpenCL_kernels_xcode.h\n\necho \"#define KERNELS_STRING \\\"\\\\\" >> BeagleOpenCL_kernels_xcode.h\n\ncat BeagleOpenCL_kernels.cl | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\n\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\n\n";
+			shellScript = "cd $BEAGLE_SOURCE_ROOT/libhmsbeagle/GPU/kernels\n\nrm -f BeagleOpenCL_kernels_xcode.h\n\necho \"// auto-generated header file with OpenCL kernels code\" > BeagleOpenCL_kernels_xcode.h\n\n# \tCompile 4-state model\necho \"Making state count = 4 SP\"\necho \"#define KERNELS_STRING_SP_4 \\\"\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define STATE_COUNT 4\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\ncat ../GPUImplDefs.h | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsAll.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernels4.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s SP\"\necho \"#define KERNELS_STRING_SP_$s \\\"\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define STATE_COUNT $s\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\ncat ../GPUImplDefs.h | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsAll.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsX.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\ndone\n\n# DOUBLE PRECISION\n\n# \tCompile 4-state model\necho \"Making state count = 4 DP\"\necho \"#define KERNELS_STRING_DP_4 \\\"\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define STATE_COUNT 4\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define DOUBLE_PRECISION\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\ncat ../GPUImplDefs.h | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsAll.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernels4.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\n\n#\n#\tHERE IS THE LOOP FOR GENERIC KERNELS\n#\n\nfor s in 16 32 48 64 80 128 192\ndo\necho \"Making state count = $s DP\"\necho \"#define KERNELS_STRING_DP_$s \\\"\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define STATE_COUNT $s\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\necho \"#define DOUBLE_PRECISION\\\\n\\\\\" >> BeagleOpenCL_kernels_xcode.h\ncat ../GPUImplDefs.h | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsAll.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\ncat kernelsX.cu | sed 's/\\\"/\\\\\"/g' | sed 's/$/\\\\n\\\\/' >> BeagleOpenCL_kernels_xcode.h\necho \"\\\"\" >> BeagleOpenCL_kernels_xcode.h\ndone\n\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1256,11 +1257,6 @@
 			target = 6407BBF11214886100BA8C93 /* hmsbeagle-cpu-sse */;
 			targetProxy = 6407BBF9121488D500BA8C93 /* PBXContainerItemProxy */;
 		};
-		6407BBFC121488D500BA8C93 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */;
-			targetProxy = 6407BBFB121488D500BA8C93 /* PBXContainerItemProxy */;
-		};
 		640C784B1211AFFC00B62295 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 64EE9C3A1211AC8600A284AE /* libhmsbeagle make */;
@@ -1291,15 +1287,20 @@
 			target = 6407BA0E1211EFF800BA8C93 /* hmsbeagle */;
 			targetProxy = 643E19831214B64600B7E5A1 /* PBXContainerItemProxy */;
 		};
+		647D1BEE17452DC90019BDFF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6407BB9B1214832300BA8C93 /* hmsbeagle-cuda */;
+			targetProxy = 647D1BED17452DC90019BDFF /* PBXContainerItemProxy */;
+		};
 		64859C7B13A96F3000BFDE68 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 64859C6513A96C2100BFDE68 /* OpenCL kernels */;
 			targetProxy = 64859C7A13A96F3000BFDE68 /* PBXContainerItemProxy */;
 		};
-		64859C9913A9BDA200BFDE68 /* PBXTargetDependency */ = {
+		64B488DD173BD9CD00D21FC9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 64859C6B13A96EA100BFDE68 /* hmsbeagle-opencl */;
-			targetProxy = 64859C9813A9BDA200BFDE68 /* PBXContainerItemProxy */;
+			targetProxy = 64B488DC173BD9CD00D21FC9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1307,8 +1308,8 @@
 		6407B9B61211EE3400BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = "hmsbeagle-cpu";
 			};
 			name = Debug;
@@ -1316,8 +1317,8 @@
 		6407B9B71211EE3400BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu";
 			};
 			name = Release;
@@ -1325,7 +1326,7 @@
 		6407BA011211EF8F00BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = plugin;
 			};
 			name = Debug;
@@ -1333,7 +1334,7 @@
 		6407BA021211EF8F00BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = plugin;
 			};
 			name = Release;
@@ -1341,8 +1342,8 @@
 		6407BA101211EFF900BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = hmsbeagle;
 			};
 			name = Debug;
@@ -1350,8 +1351,8 @@
 		6407BA111211EFF900BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = hmsbeagle;
 			};
 			name = Release;
@@ -1359,7 +1360,6 @@
 		6407BA751211F38C00BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = tinytest;
 			};
 			name = Debug;
@@ -1367,7 +1367,6 @@
 		6407BA761211F38C00BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = tinytest;
 			};
 			name = Release;
@@ -1375,8 +1374,8 @@
 		6407BB9D1214832300BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
@@ -1392,8 +1391,8 @@
 		6407BB9E1214832300BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
@@ -1409,6 +1408,7 @@
 		6407BBAF121483F100BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "CUDA kernels";
 			};
 			name = Debug;
@@ -1416,7 +1416,7 @@
 		6407BBB0121483F100BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "CUDA kernels";
 			};
 			name = Release;
@@ -1424,8 +1424,8 @@
 		6407BBF31214886100BA8C93 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = "hmsbeagle-cpu-sse";
 			};
 			name = Debug;
@@ -1433,8 +1433,8 @@
 		6407BBF41214886100BA8C93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = "hmsbeagle-cpu-sse";
 			};
 			name = Release;
@@ -1442,6 +1442,7 @@
 		640C78471211AFE700B62295 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "libhmsbeagle install";
 			};
 			name = Debug;
@@ -1449,6 +1450,7 @@
 		640C78481211AFE700B62295 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "libhmsbeagle install";
 			};
 			name = Release;
@@ -1456,7 +1458,6 @@
 		643E192B1214B3D800B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				INSTALL_PATH = /usr/local/bin;
 				PRODUCT_NAME = complextest;
 			};
@@ -1465,7 +1466,6 @@
 		643E192C1214B3D800B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				INSTALL_PATH = /usr/local/bin;
 				PRODUCT_NAME = complextest;
 			};
@@ -1474,7 +1474,6 @@
 		643E19431214B4AB00B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = fourtaxon;
 			};
 			name = Debug;
@@ -1482,7 +1481,6 @@
 		643E19441214B4AB00B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = fourtaxon;
 			};
 			name = Release;
@@ -1490,7 +1488,6 @@
 		643E19591214B54700B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = matrixtest;
 			};
 			name = Debug;
@@ -1498,7 +1495,6 @@
 		643E195A1214B54700B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = matrixtest;
 			};
 			name = Release;
@@ -1506,7 +1502,6 @@
 		643E196D1214B5D300B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = oddstatetest;
 			};
 			name = Debug;
@@ -1514,7 +1509,6 @@
 		643E196E1214B5D300B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = oddstatetest;
 			};
 			name = Release;
@@ -1522,7 +1516,6 @@
 		643E19811214B63E00B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				PRODUCT_NAME = genomictest;
 			};
 			name = Debug;
@@ -1530,7 +1523,6 @@
 		643E19821214B63E00B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				PRODUCT_NAME = genomictest;
 			};
 			name = Release;
@@ -1538,6 +1530,7 @@
 		64859C6813A96C2100BFDE68 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "OpenCL kernels";
 			};
 			name = Debug;
@@ -1545,7 +1538,7 @@
 		64859C6913A96C2100BFDE68 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "OpenCL kernels";
 			};
 			name = Release;
@@ -1553,8 +1546,8 @@
 		64859C7713A96EA100BFDE68 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
@@ -1567,8 +1560,8 @@
 		64859C7813A96EA100BFDE68 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
@@ -1584,12 +1577,19 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../Resources";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
@@ -1601,12 +1601,19 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				BEAGLE_SOURCE_ROOT = "$(PROJECT_DIR)/../..";
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				LD_RUNPATH_SEARCH_PATHS = "@loader_path/../Resources";
 				USER_HEADER_SEARCH_PATHS = "$(BEAGLE_SOURCE_ROOT)";
 			};
@@ -1616,6 +1623,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BEAGLE_CXXFLAGS = "CXXFLAGS=-g";
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "libhmsbeagle make";
 			};
 			name = Debug;
@@ -1623,6 +1631,7 @@
 		64EE9C3C1211AC8600A284AE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				PRODUCT_NAME = "libhmsbeagle make";
 			};
 			name = Release;
