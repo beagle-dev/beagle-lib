@@ -34,7 +34,7 @@ endif
 #
 # CPU plugin with custom AVX code
 #
-if HAVE_SSE2
+if HAVE_AVX
 lib_LTLIBRARIES += libhmsbeagle-cpu-avx.la
 
 libhmsbeagle_cpu_avx_la_SOURCES = $(BEAGLE_CPU_COMMON) \
@@ -42,7 +42,7 @@ libhmsbeagle_cpu_avx_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
 		BeagleCPUAVXPlugin.h BeagleCPUAVXPlugin.cpp
 
-libhmsbeagle_cpu_avx_la_CXXFLAGS = $(AM_CXXFLAGS) -msse2
+libhmsbeagle_cpu_avx_la_CXXFLAGS = $(AM_CXXFLAGS) -mavx
 libhmsbeagle_cpu_avx_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 endif
 
