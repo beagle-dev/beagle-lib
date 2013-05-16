@@ -110,7 +110,7 @@ function print_system {
 function run_print_test {
     if [ "$1" == "genomictest" ]
     then
-        CMD_FLAGS="--states $2 --taxa $3 --sites $4 --rates $5 --reps $6 --rsrc $7 --compact-tips ${11} --seed ${12} --rescale-frequency ${13} --eigencount ${20}"
+        CMD_FLAGS="--states $2 --taxa $3 --sites $4 --rates $5 --reps $6 --rsrc $7 --compact-tips ${12} --seed ${13} --rescale-frequency ${14} --eigencount ${21}"
         if [ "$8" == "manual" ]
         then
             CMD_FLAGS="$CMD_FLAGS --manualscale"
@@ -123,27 +123,31 @@ function run_print_test {
         then
             CMD_FLAGS="$CMD_FLAGS --SSE"
         fi
-        if [ "${14}" == "no" ]
+        if [ "${11}" == "yes" ]
+        then
+            CMD_FLAGS="$CMD_FLAGS --opencl"
+        fi
+        if [ "${15}" == "no" ]
         then
             CMD_FLAGS="$CMD_FLAGS --unrooted"
         fi
-        if [ "${15}" == "yes" ]
+        if [ "${16}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --calcderivs"
         fi
-        if [ "${19}" == "yes" ]
+        if [ "${20}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --logscalers"
         fi
-        if [ "${21}" == "yes" ]
+        if [ "${22}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --eigencomplex"
         fi
-        if [ "${22}" == "yes" ]
+        if [ "${23}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --ievectrans"
         fi
-        if [ "${23}" == "yes" ]
+        if [ "${24}" == "yes" ]
         then
             CMD_FLAGS="$CMD_FLAGS --setmatrix"
         fi
@@ -178,10 +182,10 @@ function run_print_test {
     then
         echo "*** ERROR: `grep "error" screen_output`" 1>&2;
     else
-        set -v; echo -n $1","$2","$3","$4","$5","$6","$7","$8","$9","${10}","${11}","${12}","${13}","${14}","${15}","${19}","${20}","${21}","${22}","${23}; set +v
+        set -v; echo -n $1","$2","$3","$4","$5","$6","$7","$8","$9","${10}","${11}","${12}","${13}","${14}","${15}","${19}","${20}","${21}","${22}","${23}","${24}; set +v
         if [ "$1" == "genomictest" ]
         then
-            grep_print_genomictest ${15} ${16} ${17} ${18}
+            grep_print_genomictest ${16} ${17} ${18} ${19}
         else
             grep_print_fourtaxon
         fi
@@ -193,11 +197,11 @@ function run_print_test {
 
 }
 
-if [ -z "${18}" ];
+if [ -z "${24}" ];
 then
     set -v
-    echo "parse_test.sh requires 23 arguments, as follows:"
-    echo "parse_test.sh <program> <states> <taxa> <sites> <rates> <reps> <rsrc> <rescaling> <precision> <sse> <compact-tips> <rseed> <rescale-frequency> <rooted> <calc-derivs> <lnl-exp> <d1-exp> <d2-exp> <lscalers> <ecount> <ecomplex> <ievect> <smatrix>"
+    echo "parse_test.sh requires 24 arguments, as follows:"
+    echo "parse_test.sh <program> <states> <taxa> <sites> <rates> <reps> <rsrc> <rescaling> <precision> <sse> <opencl> <compact-tips> <rseed> <rescale-frequency> <rooted> <calc-derivs> <lnl-exp> <d1-exp> <d2-exp> <lscalers> <ecount> <ecomplex> <ievect> <smatrix>"
     echo "(see run_tests.sh for examples)"
     set +v
 else
@@ -205,8 +209,8 @@ else
 
     grep_system
 
-    #               program     states  taxa    sites   rates   reps    rsrc    rescaling   precision   sse     ctips   rseed   rfreq   rooted  derivs  lnl_exp  d1_exp  d2_exp  lscalers  ecount  ecomplex  ievect  smatrix
-    run_print_test  $1          $2      $3      $4      $5      $6      $7      $8          $9          ${10}   ${11}   ${12}   ${13}   ${14}   ${15}   ${16}    ${17}   ${18}   ${19}     ${20}   ${21}     ${22}   ${23}
+    #               program     states  taxa    sites   rates   reps    rsrc    rescaling   precision   sse     opencl  ctips   rseed   rfreq   rooted  derivs  lnl_exp  d1_exp  d2_exp  lscalers  ecount  ecomplex  ievect  smatrix
+    run_print_test  $1          $2      $3      $4      $5      $6      $7      $8          $9          ${10}   ${11}   ${12}   ${13}   ${14}   ${15}   ${16}    ${17}   ${18}   ${19}     ${20}   ${21}     ${22}   ${23}   ${24}
 
     cat screen_output >> screen_log
     rm screen_output

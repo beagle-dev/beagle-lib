@@ -38,7 +38,6 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
-#include "libhmsbeagle/GPU/BeagleGPUImpl.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
@@ -124,6 +123,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             gpu->FreeMemory(dFrequencies[i]);
         }
 
+        // TODO: free subpointers
         gpu->FreeMemory(dMatrices[0]);
         
         if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
@@ -382,7 +382,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     sizeof(int) * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
     sizeof(GPUPtr) * ptrQueueLength;  // dPtrQueue
     
-    
+#ifdef CUDA    
     unsigned int availableMem = gpu->GetAvailableMemory();
     
 #ifdef BEAGLE_DEBUG_VALUES
@@ -392,7 +392,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     
     if (availableMem < neededMemory) 
         return BEAGLE_ERROR_OUT_OF_MEMORY;
-    
+#endif
+
     kernels = new KernelLauncher(gpu);
     
     // TODO: only allocate if necessary on the fly
@@ -417,31 +418,37 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
     dMatrices[0] = gpu->AllocateMemory(kMatrixCount * kMatrixSize * kCategoryCount * sizeof(Real));
     
-#ifdef CUDA
+    size_t ptrIncrement = kMatrixSize * kCategoryCount * sizeof(Real);
     for (int i = 1; i < kMatrixCount; i++) {
-        dMatrices[i] = dMatrices[i-1] + kMatrixSize * kCategoryCount * sizeof(Real);
+        dMatrices[i] = gpu->CreateSubPointer(dMatrices[0], ptrIncrement*i, ptrIncrement);
     }
     
     if (kScaleBufferCount > 0) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             dScalingFactors[0] =  gpu->AllocateMemory(sizeof(signed char) * kScaleBufferSize * kScaleBufferCount); // TODO: char won't work for double-precision
+            ptrIncrement = kScaleBufferSize * sizeof(signed char);
             for (int i=1; i < kScaleBufferCount; i++)
-                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(signed char);
+                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+#ifdef CUDA
             dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
             dScalingFactorsMaster = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
             hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
-            dRescalingTrigger = gpu->GetDevicePointer((void*) hRescalingTrigger);
+            dRescalingTrigger = gpu->GetDeviceHostPointer((void*) hRescalingTrigger);
+#elif OPENCL
+            return BEAGLE_ERROR_NO_IMPLEMENTATION;
+#endif
         } else {
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             dScalingFactors[0] = gpu->AllocateMemory(kScaleBufferSize * kScaleBufferCount * sizeof(Real));
+            ptrIncrement = kScaleBufferSize * sizeof(Real);
             for (int i=1; i < kScaleBufferCount; i++) {
-                dScalingFactors[i] = dScalingFactors[i-1] + kScaleBufferSize * sizeof(Real);
+                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
             }
-        }        
+        }
     }
-#endif
+
     
     for(int i=0; i<kEigenDecompCount; i++) {
     	dEvec[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
@@ -518,25 +525,37 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #endif
     
     kInitialized = 1;
-    
+
+#ifdef CUDA    
 #ifdef BEAGLE_DEBUG_VALUES
     gpu->Synchronize();
     int usedMemory = availableMem - gpu->GetAvailableMemory();
     fprintf(stderr, "actual used memory: %d\n", usedMemory);
     fprintf(stderr, "        difference: %d\n\n", usedMemory-neededMemory);
 #endif
+#endif
     
     return BEAGLE_SUCCESS;
 }
 
 template<>
-char* BeagleGPUImpl<double>::getInstanceName() {
+char* BeagleGPUImpl<double, FW_CUDA>::getInstanceName() {
 	return (char*) "CUDA-Double";
 }
 
 template<>
-char* BeagleGPUImpl<float>::getInstanceName() {
+char* BeagleGPUImpl<float, FW_CUDA>::getInstanceName() {
 	return (char*) "CUDA-Single";
+}
+
+template<>
+char* BeagleGPUImpl<double, FW_OPENCL>::getInstanceName() {
+    return (char*) "OpenCL-Double";
+}
+
+template<>
+char* BeagleGPUImpl<float, FW_OPENCL>::getInstanceName() {
+    return (char*) "OpenCL-Single";
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -549,6 +568,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
                             BEAGLE_FLAG_PROCESSOR_GPU;
         Real r = 0;
         modifyFlagsForPrecision(&(returnInfo->flags), r);
+
+#ifdef CUDA
+        kFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
+#else
+        kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
+#endif
 
         returnInfo->flags |= kFlags;        
         
@@ -1068,8 +1093,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* fir
 		int indexOffset = kMatrixSize * kCategoryCount;
 		int categoryOffset = kMatrixSize;
 
-#ifdef CUDA
-
 		for (int i = 0; i < matrixCount; i++) {
 			for (int j = 0; j < kCategoryCount; j++) {
 
@@ -1086,7 +1109,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* fir
 
 		kernels->ConvolveTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
 
-#endif// END: if CUDA
 	}//END: count check
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1113,8 +1135,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
         
         int indexOffset =  kMatrixSize * kCategoryCount;
         int categoryOffset = kMatrixSize;
-        
-    #ifdef CUDA
         
         if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
             for (int i = 0; i < count; i++) {        
@@ -1172,31 +1192,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                                       dEigenValues[eigenIndex], dDistanceQueue, totalCount);        
         }
         
-        
-    #else
-        // TODO: update OpenCL implementation with derivs
-        
-        for (int i = 0; i < count; i++) {        
-            for (int j = 0; j < kCategoryCount; j++) {
-                hDistanceQueue[totalCount] = (Real) (edgeLengths[i] * hCategoryRates[j]);
-                totalCount++;
-            }
-        }
-        
-        gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * totalCount);
-        
-        // Set-up and call GPU kernel
-        for (int i = 0; i < count; i++) {        
-            kernels->GetTransitionProbabilitiesSquare(dMatrices[probabilityIndices[i]], dEvec[eigenIndex], dIevc[eigenIndex], 
-                                                      dEigenValues[eigenIndex], dDistanceQueue, kCategoryCount,
-                                                      i * kCategoryCount);
-        }
-            
-    #endif
-        
     #ifdef BEAGLE_DEBUG_VALUES
         Real r = 0;
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < count; i++) {
             fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);        
             gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount, r);
             for(int j=0; j<kCategoryCount; j++)
@@ -1417,15 +1415,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
         
 
-    #ifdef CUDA    
-        // Compute scaling factors at the root
-        kernels->AccumulateFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
-    #else // OpenCL
-//        for (int i = 0; i < count; i++) {
-//            kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
-//                                                     1, kPaddedPatternCount);
-//        }
-    #endif
+    // Compute scaling factors at the root
+    kernels->AccumulateFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
     }
     
 #ifdef BEAGLE_DEBUG_SYNCH    
@@ -1466,16 +1457,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndi
         hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
     gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
     
-#ifdef CUDA    
     // Compute scaling factors at the root
     kernels->RemoveFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex],
                                          count, kPaddedPatternCount);
-#else // OpenCL
-//    for (int i = 0; i < count; i++) {
-//        kernels->RemoveFactorsDynamicScaling(dScalingFactors[scalingIndices[i]], dScalingFactors[cumulativeScalingIndex],
-//                                             1, kPaddedPatternCount);
-//    }    
-#endif
     
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
@@ -1995,20 +1979,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
     return returnCode;
 }
 
-template<>
-int BeagleGPUImpl<float>::getSiteLogLikelihoods(double* outLogLikelihoods) {
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikelihoods) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getSiteLogLikelihoods\n");
 #endif
 
-//#ifdef DOUBLE_PRECISION
-//    gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, sizeof(Real) * kPatternCount);
-//#else
-    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, sizeof(float) * kPatternCount);
-//    MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
+// TODO: copy directly to outLogLikelihoods when GPU is running in double precision
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, sizeof(Real) * kPatternCount);
     beagleMemCpy(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount);
-//#endif
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteLogLikelihoods\n");
@@ -2017,90 +1997,27 @@ int BeagleGPUImpl<float>::getSiteLogLikelihoods(double* outLogLikelihoods) {
     return BEAGLE_SUCCESS;
 }
 
-template<>
-int BeagleGPUImpl<double>::getSiteLogLikelihoods(double* outLogLikelihoods) {
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::getSiteLogLikelihoods\n");
-#endif
-    
-//#ifdef DOUBLE_PRECISION
-    gpu->MemcpyDeviceToHost(outLogLikelihoods, dIntegrationTmp, sizeof(double) * kPatternCount);
-//#else
-//    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dIntegrationTmp, sizeof(Real) * kPatternCount);
-//    MEMCNV(outLogLikelihoods, hLogLikelihoodsCache, kPatternCount, double);
-//#endif
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteLogLikelihoods\n");
-#endif    
-    
-    return BEAGLE_SUCCESS;
-}
 
-template<>
-int BeagleGPUImpl<double>::getSiteDerivatives(double* outFirstDerivatives,
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteDerivatives(double* outFirstDerivatives,
                                       double* outSecondDerivatives) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getSiteDerivatives\n");
 #endif
 
-//#ifdef DOUBLE_PRECISION
-    gpu->MemcpyDeviceToHost(outFirstDerivatives, dOutFirstDeriv, sizeof(double) * kPatternCount);
-//#else
-//    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount);
-//    MEMCNV(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount, double);
-//#endif
-
-    if (outSecondDerivatives != NULL) {
-//#ifdef DOUBLE_PRECISION
-        gpu->MemcpyDeviceToHost(outSecondDerivatives, dOutSecondDeriv, sizeof(double) * kPatternCount);
-//#else
-//        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutSecondDeriv, sizeof(Real) * kPatternCount);
-//        MEMCNV(outSecondDerivatives, hLogLikelihoodsCache, kPatternCount, double);
-//#endif
-    }
-
-
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteDerivatives\n");
-#endif
-
-    return BEAGLE_SUCCESS;
-}
-
-template<>
-int BeagleGPUImpl<float>::getSiteDerivatives(double* outFirstDerivatives,
-                                      double* outSecondDerivatives) {
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::getSiteDerivatives\n");
-#endif
-    
-//#ifdef DOUBLE_PRECISION
-//    gpu->MemcpyDeviceToHost(outFirstDerivatives, dOutFirstDeriv, sizeof(Real) * kPatternCount);
-//#else
-    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(float) * kPatternCount);
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount);
     beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount);
-//    MEMCNV(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount, double);
-//#endif
 
     if (outSecondDerivatives != NULL) {
-//#ifdef DOUBLE_PRECISION
-//        gpu->MemcpyDeviceToHost(outSecondDerivatives, dOutSecondDeriv, sizeof(Real) * kPatternCount);
-//#else
-        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutSecondDeriv, sizeof(float) * kPatternCount);
+        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutSecondDeriv, sizeof(Real) * kPatternCount);
         beagleMemCpy(outSecondDerivatives, hLogLikelihoodsCache, kPatternCount);
-//        MEMCNV(outSecondDerivatives, hLogLikelihoodsCache, kPatternCount, double);
-//#endif
     }
-    
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteDerivatives\n");
-#endif    
-    
+#endif
+
     return BEAGLE_SUCCESS;
 }
 
@@ -2145,13 +2062,24 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
 }
 
 template<>
-const char* BeagleGPUImplFactory<double>::getName() {
-	return "GPU-DP";
+const char* BeagleGPUImplFactory<double, FW_CUDA>::getName() {
+    return "GPU-DP-CUDA";
 }
 
 template<>
-const char* BeagleGPUImplFactory<float>::getName() {
-	return "GPU-SP";
+const char* BeagleGPUImplFactory<double, FW_OPENCL>::getName() {
+    return "GPU-DP-OpenCL";
+
+}
+    
+template<>
+const char* BeagleGPUImplFactory<float, FW_CUDA>::getName() {
+    return "GPU-SP-CUDA";
+}
+    
+template<>
+const char* BeagleGPUImplFactory<float, FW_OPENCL>::getName() {
+    return "GPU-SP-OpenCL";
 }
 
 template<>
@@ -2174,6 +2102,11 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+
+if (Framework == FW_CUDA) 
+    flags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
+else if (Framework == FW_OPENCL)
+    flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
 	Real r = 0;
 	modifyFlagsForPrecision(&flags, r);

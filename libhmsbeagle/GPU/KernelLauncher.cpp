@@ -139,12 +139,6 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
 void KernelLauncher::LoadKernels() {
 	
-	if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
-		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADBComplex");
-	} else {
-		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
-	}
-
 	//TODO: Epoch Model
 	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
 
@@ -152,6 +146,12 @@ void KernelLauncher::LoadKernels() {
     
     fMatrixMulADBSecondDeriv = gpu->GetFunction("kernelMatrixMulADBSecondDeriv");
     
+	if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADBComplex");
+	} else {
+		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
+	}
+
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelPartialsPartialsNoScale");
     
@@ -268,7 +268,6 @@ void KernelLauncher::LoadKernels() {
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 }
 
-#ifdef CUDA
 
 void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                                      GPUPtr dParentPartials,
@@ -415,45 +414,6 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
 #endif
 }
-
-
-#else //OpenCL
-void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dPtr,
-                                                      GPUPtr dEvec,
-                                                      GPUPtr dIevc,
-                                                      GPUPtr dEigenValues,
-                                                      GPUPtr distanceQueue,
-                                                      unsigned int totalMatrix,
-                                                      unsigned int index) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquare\n");
-#endif
-    
-    Dim3Int block(kMultiplyBlockSize, kMultiplyBlockSize); // TODO Construct once
-    Dim3Int grid(kPaddedStateCount / kMultiplyBlockSize,
-            kPaddedStateCount / kMultiplyBlockSize);
-    if (kPaddedStateCount % kMultiplyBlockSize != 0) {
-        grid.x += 1;
-        grid.y += 1;
-    }
-    
-    grid.x *= totalMatrix;
-    
-    // Transposed (interchanged Ievc and Evec)    
-    int parameterCountV = 5;
-    int totalParameterCount = 9;
-    gpu->LaunchKernel(fMatrixMulADB,
-                               block, grid,
-                               parameterCountV, totalParameterCount,
-                               dPtr, dIevc, dEigenValues, dEvec, distanceQueue,
-                               kPaddedStateCount, kPaddedStateCount, totalMatrix,
-                               index);
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
-#endif
-}
-#endif
 
 
 void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1,

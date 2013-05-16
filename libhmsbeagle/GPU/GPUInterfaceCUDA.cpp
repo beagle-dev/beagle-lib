@@ -500,6 +500,22 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
     return ptr;
 }
 
+GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
+                                      size_t offset, 
+                                      size_t size) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::CreateSubPointer\n");
+#endif    
+    
+    GPUPtr subPtr = dPtr + offset;
+        
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::CreateSubPointer\n");
+#endif    
+    
+    return subPtr;
+}
+
 void GPUInterface::MemsetShort(GPUPtr dest,
                                unsigned short val,
                                size_t count) {
@@ -600,9 +616,9 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 #endif
 }
 
-GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
+GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDevicePointer\n");
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceHostPointer\n");
 #endif
     
     GPUPtr dPtr;
@@ -610,7 +626,7 @@ GPUPtr GPUInterface::GetDevicePointer(void* hPtr) {
     SAFE_CUPP(cuMemHostGetDevicePointer(&dPtr, hPtr, 0));
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDevicePointer\n");
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceHostPointer\n");
 #endif
 
     return dPtr;
