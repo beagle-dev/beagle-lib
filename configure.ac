@@ -201,8 +201,6 @@ fi
 # ------------------------------------------------------------------------------
 # Setup SSE
 # ------------------------------------------------------------------------------
-
-
 AC_ARG_ENABLE(sse,
 	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
 
@@ -213,11 +211,36 @@ else
 	AM_CONDITIONAL(HAVE_SSE2,false)
 fi
 
+# ------------------------------------------------------------------------------
+# Setup AVX
+# ------------------------------------------------------------------------------
+AC_ARG_ENABLE(avx,
+	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled @<:@default=no@:>@]), , [enable_avx=no])
+
+AM_CONDITIONAL(HAVE_AVX,false)
+if test  "$enable_avx" = yes; then
+	AX_EXT
+	AC_CHECK_HEADERS([cpuid.h])
+	if test "$ax_cv_have_avx_ext" = yes; then		
+		AM_CONDITIONAL(HAVE_AVX,true)
+	else
+		AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)	
+	fi
+fi
+
+# ------------------------------------------------------------------------------
+# Setup Intel Phi
+# ------------------------------------------------------------------------------
+AC_ARG_ENABLE(phi,
+	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled @<:@default=no@:>@]), , [enable_phi=no])
+
+if test  "$enable_phi" = yes; then
+	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)	
+fi
 
 # ------------------------------------------------------------------------------
 # Setup native cpu architecture optimization flag
 # ------------------------------------------------------------------------------
-
 AC_ARG_ENABLE(march_native,
     AC_HELP_STRING([--enable-march-native],[build with native architecture optimization @<:@default=yes@:>@]), , [enable_march_native=yes])
 
