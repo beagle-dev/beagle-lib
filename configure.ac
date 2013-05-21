@@ -224,7 +224,7 @@ if test  "$enable_avx" = yes; then
 	AX_EXT
 	AC_CHECK_HEADERS([cpuid.h])
 	if test "$ax_cv_have_avx_ext" = yes; then		
-		AM_CONDITIONAL(HAVE_AVX,true)
+		AM_CONDITIONAL(HAVE_AVX,true)		
 	else
 		AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)	
 	fi
@@ -277,6 +277,11 @@ case $host_os in
      OPENCL_LIBS=" -framework OpenCL"
   fi
 
+  if test "$CXX" = "clang"
+  then
+	  AM_CXXFLAGS="$AM_CXXFLAGS -stdlib=libc++"  
+  fi
+  
   AC_ARG_ENABLE(osx_leopard,
       AC_HELP_STRING([--enable-osx-leopard],[build with OS X v10.5 Leopard backwards compatibility  @<:@default=no@:>@]), , [enable-osx-leopard=yes])
   if test  "$enable_osx_leopard" = yes; then
