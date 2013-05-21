@@ -123,6 +123,7 @@ void runBeagle(int resource,
                bool fullTiming,
                bool requireDoublePrecision,
                bool requireSSE,
+               bool requireAVX,
                int compactTipCount,
                int randomSeed,
                int rescaleFrequency,
@@ -161,10 +162,11 @@ void runBeagle(int resource,
                 (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                 (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
                 (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
-                (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) | 
+                (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) |
                 (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
                 (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
-                (requireSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                (requireSSE ? BEAGLE_FLAG_VECTOR_SSE :
+                		  (requireAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
 				&instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -640,7 +642,7 @@ void runBeagle(int resource,
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl]\n\n";
+	std::cerr << "genomictest [--help] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -661,6 +663,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
                                     bool* requireSSE,
+                                    bool* requireAVX,
                                     int* compactTipCount,
                                     int* randomSeed,
                                     int* rescaleFrequency,
@@ -748,6 +751,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *fullTiming = true;
         } else if (option == "--SSE") {
         	*requireSSE = true;
+        } else if (option == "--AVX") {
+        	*requireAVX = true;
         } else if (option == "--unrooted") {
         	*unrooted = true;
         } else if (option == "--calcderivs") {
@@ -846,6 +851,7 @@ int main( int argc, const char* argv[] )
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
     bool requireSSE = false;
+    bool requireAVX = false;
     bool unrooted = false;
     bool calcderivs = false;
     int compactTipCount = 0;
@@ -866,7 +872,7 @@ int main( int argc, const char* argv[] )
     
     interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
-                                   &requireDoublePrecision, &requireSSE, &compactTipCount, &randomSeed,
+                                   &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl);
     
@@ -891,6 +897,7 @@ int main( int argc, const char* argv[] )
                   fullTiming,
                   requireDoublePrecision,
                   requireSSE,
+                  requireAVX,
                   compactTipCount,
                   randomSeed,
                   rescaleFrequency,
@@ -918,6 +925,7 @@ int main( int argc, const char* argv[] )
                           fullTiming,
                           requireDoublePrecision,
                           requireSSE,
+                          requireAVX,
                           compactTipCount,
                           randomSeed,
                           rescaleFrequency,
@@ -942,6 +950,7 @@ int main( int argc, const char* argv[] )
                               fullTiming,
                               requireDoublePrecision,
                               requireSSE,
+                              requireAVX,
                               compactTipCount,
                               randomSeed,
                               rescaleFrequency,
@@ -968,6 +977,7 @@ int main( int argc, const char* argv[] )
                       fullTiming,
                       requireDoublePrecision,
                       requireSSE,
+                      requireAVX,
                       compactTipCount,
                       randomSeed,
                       rescaleFrequency,
