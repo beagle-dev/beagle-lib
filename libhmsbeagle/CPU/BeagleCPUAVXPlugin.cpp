@@ -6,8 +6,8 @@
  */
 
 #include "libhmsbeagle/CPU/BeagleCPUAVXPlugin.h"
-#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
-#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPU4StateAVXImpl.h"
+//#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
 #include <iostream>
 
 #ifdef HAVE_CPUID_H
@@ -16,7 +16,7 @@
 	#endif
 #endif
 
-namespace beagle {
+namespace beagle { 
 namespace cpu {
 
 
@@ -35,15 +35,16 @@ Plugin("CPU-AVX", "CPU-AVX")
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                                          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
-        resource.supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
+        resource.supportFlags |= BEAGLE_FLAG_VECTOR_AVX;
         resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_CPU;
 	beagleResources.push_back(resource);
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories and resources
 	// TODO Write AVX specific implementation
-	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
-	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>());
+	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateAVXImplFactory<double>());
+
+//	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>());
 }
 
 }	// namespace cpu

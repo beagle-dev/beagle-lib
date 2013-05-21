@@ -38,7 +38,7 @@ if HAVE_AVX
 lib_LTLIBRARIES += libhmsbeagle-cpu-avx.la
 
 libhmsbeagle_cpu_avx_la_SOURCES = $(BEAGLE_CPU_COMMON) \
-                    SSEDefinitions.h BeagleCPU4StateSSEImpl.hpp BeagleCPU4StateSSEImpl.h \
+                    AVXDefinitions.h BeagleCPU4StateAVXImpl.hpp BeagleCPU4StateAVXImpl.h \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
 		BeagleCPUAVXPlugin.h BeagleCPUAVXPlugin.cpp
 

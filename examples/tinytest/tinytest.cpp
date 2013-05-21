@@ -107,6 +107,7 @@ void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_SCALERS_LOG)        fprintf(stdout, " SCALERS_LOG");
     if (inFlags & BEAGLE_FLAG_VECTOR_NONE)        fprintf(stdout, " VECTOR_NONE");
     if (inFlags & BEAGLE_FLAG_VECTOR_SSE)         fprintf(stdout, " VECTOR_SSE");
+    if (inFlags & BEAGLE_FLAG_VECTOR_AVX)  		  fprintf(stdout, " VECTOR_AVX");
     if (inFlags & BEAGLE_FLAG_THREADING_NONE)     fprintf(stdout, " THREADING_NONE");
     if (inFlags & BEAGLE_FLAG_THREADING_OPENMP)   fprintf(stdout, " THREADING_OPENMP");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     fprintf(stdout, " FRAMEWORK_CUDA");
@@ -163,7 +164,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                                 BEAGLE_FLAG_FRAMEWORK_OPENCL |
-                                BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                BEAGLE_FLAG_VECTOR_AVX | BEAGLE_FLAG_PROCESSOR_GPU | (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0),	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   0,                /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
