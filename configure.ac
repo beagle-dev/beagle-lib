@@ -279,7 +279,7 @@ case $host_os in
 
   if test "$CXX" = "clang"
   then
-	  AM_CXXFLAGS="$AM_CXXFLAGS -stdlib=libc++"  
+	  CXX="clang++" 
   fi
   
   AC_ARG_ENABLE(osx_leopard,
