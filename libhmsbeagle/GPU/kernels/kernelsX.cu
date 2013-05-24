@@ -40,11 +40,11 @@
 
 extern "C" {
     
-#elif OPENCL
+#elif FW_OPENCL
     
 #define DETERMINE_INDICES() int state = KW_LOCAL_ID_0; int patIdx = KW_LOCAL_ID_1; int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx; int matrix = KW_GROUP_ID_1; int patternCount = totalPatterns; int deltaPartialsByState = pattern * PADDED_STATE_COUNT; int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-#endif //OPENCL
+#endif //FW_OPENCL
 
 // kernels shared by CUDA and OpenCL
     

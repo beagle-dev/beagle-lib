@@ -78,6 +78,7 @@ bool compareRsrcImpl(const RsrcImpl &left, const RsrcImpl &right) {
 std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
 BeagleResourceList* rsrcList = NULL;
+std::map<int, int> ResourceMap;
 
 int loaded = 0; // Indicates is the initial library constructors have been run
                 // This patches a bug with JVM under Linux that calls the finalizer twice
@@ -229,7 +230,7 @@ BeagleResourceList* beagleGetResourceList() {
         
         // allocate space for a complete list of resources
         rsrcList->list = (BeagleResource*) malloc(sizeof(BeagleResource) * rsrcList->length);
-        
+
         // copy in resource lists from each plugin
         int rI=0;
         for(plugin_iter = plugins->begin(); plugin_iter != plugins->end(); plugin_iter++ ){
@@ -248,8 +249,10 @@ BeagleResourceList* beagleGetResourceList() {
                     }
                 }
                 
-                if (!rsrcExists)
+                if (!rsrcExists) {
+                    ResourceMap.insert(std::pair<int, int>(rI, (rI - prev_rI)));
                     rsrcList->list[rI++] = *r_iter;
+                }
             }
         }
     }
@@ -356,7 +359,7 @@ int beagleCreateInstance(int tipCount,
 #endif
                 if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Factory meets requirementFlags
                     && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
-                    && ((resourceSupportedFlags & factoryFlags) >= factoryFlags) // Resource meets factoryFlags
+                    && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
                     ) {
                     int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                     int totalScore = resourceScore + implementationScore;
@@ -403,6 +406,7 @@ int beagleCreateInstance(int tipCount,
                                                                 matrixBufferCount, categoryCount,
                                                                 scaleBufferCount,
                                                                 resource,
+                                                                ResourceMap[resource],
                                                                 preferenceFlags,
                                                                 requirementFlags,
                                                                 &errorCode);

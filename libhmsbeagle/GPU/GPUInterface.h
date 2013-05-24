@@ -48,7 +48,7 @@
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
 #else
-#ifdef OPENCL
+#ifdef FW_OPENCL
 #   ifdef DLS_MACOS
         #include <OpenCL/opencl.h>
 #   else
@@ -71,17 +71,15 @@ private:
     CUcontext cudaContext;
     CUmodule cudaModule;
     const char* GetCUDAErrorDescription(int errorCode);
-#else
-#ifdef OPENCL
+#elif FW_OPENCL
     cl_device_id openClDeviceId;             // compute device id 
     cl_context openClContext;                // compute context
     cl_command_queue openClCommandQueue;     // compute command queue
     cl_program openClProgram;                // compute program
-    cl_uint openClNumDevices;
-    cl_platform_id openClPlatform;
+    std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
 #endif
-#endif
+
 public:
     GPUInterface();
     
@@ -157,6 +155,10 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
+#ifdef FW_OPENCL
+    long GetDeviceTypeFlag(int deviceNumber);
+#endif
+
     bool GetSupportsDoublePrecision(int deviceNumber);
 
     template<typename Real>

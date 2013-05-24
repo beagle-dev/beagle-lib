@@ -26,7 +26,6 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
                 char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
                 gpu.GetDeviceName(i, dName, nameDescSize);
                 gpu.GetDeviceDescription(i, dDesc);
-                
                 BeagleResource resource;
                 resource.name = dName;
                 resource.description = dDesc;
@@ -36,18 +35,23 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
                                         BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
                                         BEAGLE_FLAG_THREADING_NONE |
                                         BEAGLE_FLAG_VECTOR_NONE |
-                                        BEAGLE_FLAG_PROCESSOR_GPU |
                                         BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
                                         BEAGLE_FLAG_FRAMEWORK_OPENCL;
+
+                long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
+                
+                resource.supportFlags |= deviceTypeFlag;
+
                 // Determine DP capability
                 if (gpu.GetSupportsDoublePrecision(i)) {
                 	resource.supportFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
                 	anyGPUSupportsDP = true;
                 }
                 
-                resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
+                resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_OPENCL;
+                
                 beagleResources.push_back(resource);
             }
         }

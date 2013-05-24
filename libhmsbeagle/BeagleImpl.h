@@ -53,6 +53,7 @@ public:
                                int categoryCount,
                                int scaleBufferCount,
                                int resourceNumber,
+                               int pluginResourceNumber,
                                long preferenceFlags,
                                long requirementFlags) = 0;
     
@@ -174,6 +175,7 @@ public:
                                    int categoryCount,
                                    int scaleBufferCount,
                                    int resourceNumber,
+                                   int pluginResourceNumber,
                                    long preferenceFlags,
                                    long requirementFlags,
                                    int* errorCode) = 0; // pure virtual

@@ -778,6 +778,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(i
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
+                                             int pluginResourceNumber,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
@@ -792,6 +793,7 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(i
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
                                  categoryCount,scaleBufferCount, resourceNumber,
+                                 pluginResourceNumber,
                                  preferenceFlags, requirementFlags) == 0)
             return impl;
     }
@@ -821,7 +823,8 @@ const long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
                   BEAGLE_FLAG_VECTOR_NONE |
                   BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                   BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                  BEAGLE_FLAG_FRAMEWORK_CPU;
     
     if (DOUBLE_PRECISION)
     	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;

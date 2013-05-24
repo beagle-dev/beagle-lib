@@ -1551,7 +1551,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
-					OPENCL,
+					FW_OPENCL,
 				);
 				PRODUCT_NAME = "hmsbeagle-opencl";
 			};
@@ -1565,7 +1565,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					DLS_MACOS,
 					BEAGLE_XCODE,
-					OPENCL,
+					FW_OPENCL,
 				);
 				PRODUCT_NAME = "hmsbeagle-opencl";
 			};

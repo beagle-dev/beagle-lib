@@ -34,9 +34,10 @@ Plugin("CPU-SSE", "CPU-SSE")
                                          BEAGLE_FLAG_VECTOR_NONE |
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                                         BEAGLE_FLAG_FRAMEWORK_CPU;
         resource.supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
-        resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_CPU;
+        resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
 	beagleResources.push_back(resource);
 
 	// Optional for plugins: check if the hardware is compatible and only populate
