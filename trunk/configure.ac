@@ -128,7 +128,7 @@ OPENCL_LIBS=
 
 if test "x$enable_opencl" != "xno"
 then
-   OPENCL_CFLAGS=" -DOPENCL -I/usr/include/CL"
+   OPENCL_CFLAGS=" -D FW_OPENCL -I/usr/include/CL"
    OPENCL_LIBS=" -lOpenCL"
 fi
 
@@ -273,7 +273,7 @@ case $host_os in
 
   if test "x$enable_opencl" != "xno"
   then
-     OPENCL_CFLAGS=" -DOPENCL -framework OpenCL"
+     OPENCL_CFLAGS=" -D FW_OPENCL -framework OpenCL"
      OPENCL_LIBS=" -framework OpenCL"
   fi
 

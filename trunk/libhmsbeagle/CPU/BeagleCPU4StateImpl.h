@@ -163,6 +163,7 @@ public:
                                    int categoryCount,
                                    int scaleBufferCount,
                                    int resourceNumber,
+                                   int pluginResourceNumber,
                                    long preferenceFlags,
                                    long requirementFlags,
                                    int* errorCode);

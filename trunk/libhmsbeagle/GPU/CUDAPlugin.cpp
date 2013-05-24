@@ -47,7 +47,8 @@ Plugin("GPU-CUDA", "GPU-CUDA")
                 	anyGPUSupportsDP = true;
                 }
                 
-                resource.requiredFlags = BEAGLE_FLAG_PROCESSOR_GPU;
+                resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA;
+                
                 beagleResources.push_back(resource);
             }
         }

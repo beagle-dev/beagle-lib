@@ -51,7 +51,7 @@
 
 extern "C" {
     
-#elif OPENCL
+#elif FW_OPENCL
 
 #define DETERMINE_INDICES_4() int tx = KW_LOCAL_ID_0; int state = tx & 0x3; int pat = tx >> 2; int patIdx = KW_LOCAL_ID_1; int matrix = KW_GROUP_ID_1; int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat; int deltaPartialsByState = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx); int deltaPartialsByMatrix = (matrix * multBy4(totalPatterns)); int x2 = multBy16(matrix); int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 

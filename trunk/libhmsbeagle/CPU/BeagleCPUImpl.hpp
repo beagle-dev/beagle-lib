@@ -113,14 +113,16 @@ inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SY
                                                       BEAGLE_FLAG_THREADING_NONE |
                                                       BEAGLE_FLAG_PROCESSOR_CPU |
                                                       BEAGLE_FLAG_PRECISION_DOUBLE |
-                                                      BEAGLE_FLAG_VECTOR_NONE; };
+                                                      BEAGLE_FLAG_VECTOR_NONE |
+                                                      BEAGLE_FLAG_FRAMEWORK_CPU; };
 
 template<>
 inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                      BEAGLE_FLAG_THREADING_NONE |
                                                      BEAGLE_FLAG_PROCESSOR_CPU |
                                                      BEAGLE_FLAG_PRECISION_SINGLE |
-                                                     BEAGLE_FLAG_VECTOR_NONE; };
+                                                     BEAGLE_FLAG_VECTOR_NONE |
+                                                     BEAGLE_FLAG_FRAMEWORK_CPU; };
 
 
 
@@ -200,6 +202,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int categoryCount,
                                   int scaleBufferCount,
                                   int resourceNumber,
+                                  int pluginResourceNumber,
                                   long preferenceFlags,
                                   long requirementFlags) {
     if (DEBUGGING_OUTPUT)
@@ -2275,6 +2278,7 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
+                                             int pluginResourceNumber,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
@@ -2285,7 +2289,9 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
         *errorCode =
             impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags);
+                                 categoryCount,scaleBufferCount, resourceNumber,
+                                 pluginResourceNumber, 
+                                 preferenceFlags, requirementFlags);
         if (*errorCode == BEAGLE_SUCCESS) {
             return impl;
         }
@@ -2319,7 +2325,8 @@ const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
                  BEAGLE_FLAG_VECTOR_NONE |
                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                  BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                 BEAGLE_FLAG_FRAMEWORK_CPU;
 	if (DOUBLE_PRECISION)
 		flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 	else
