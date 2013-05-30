@@ -321,8 +321,6 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartials(doubl
     int v = 0;
     int w = 0;
 
-    fprintf(stderr,"Here!\n");
-
     V_Real	destq_0123, destr_0123;
  	VecUnion vu_mq[OFFSET], vu_mr[OFFSET];
 	V_Real *destPvec = (V_Real *)destP;
@@ -792,7 +790,8 @@ const long BeagleCPU4StateAVXImplFactory<double>::getFlags() {
            BEAGLE_FLAG_PRECISION_DOUBLE |
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL|
-           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+           BEAGLE_FLAG_FRAMEWORK_CPU;           
 }
 
 template <>
@@ -805,7 +804,8 @@ const long BeagleCPU4StateAVXImplFactory<float>::getFlags() {
            BEAGLE_FLAG_PRECISION_SINGLE |
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+           BEAGLE_FLAG_FRAMEWORK_CPU;           
 }
 
 
