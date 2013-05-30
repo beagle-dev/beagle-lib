@@ -192,6 +192,9 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcStatesPartials(double*
     int v = 0;
     int w = 0;
 
+    fprintf(stderr, "Not yet implemented!\n");
+    exit(-1);
+
  	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 	V_Real *destPvec = (V_Real *)destP;
 	V_Real destr_01, destr_23;
@@ -318,7 +321,7 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartials(doubl
     int v = 0;
     int w = 0;
 
-//    fprintf(stderr,"Here!\n");
+    fprintf(stderr,"Here!\n");
 
     V_Real	destq_0123, destr_0123;
  	VecUnion vu_mq[OFFSET], vu_mr[OFFSET];
@@ -349,10 +352,10 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartials(doubl
 
         for (int k = 0; k < kPatternCount; k++) {
             
-//#           if 1 && !defined(_WIN32)
-//            __builtin_prefetch (&partials_q[v+64]);
-//            __builtin_prefetch (&partials_r[v+64]);
-//#           endif
+#           if 1 && !defined(_WIN32)
+            __builtin_prefetch (&partials_q[v+64]);
+            __builtin_prefetch (&partials_r[v+64]);
+#           endif
 
         	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
         	AVX_PREFETCH_PARTIALS(vpq_,partials_q,v);
@@ -395,14 +398,18 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartials(doubl
         	destr_0123 = VEC_MADD(vpr_2, vu_mr[2].vx, destr_0123);
         	destr_0123 = VEC_MADD(vpr_3, vu_mr[3].vx, destr_0123);
 
-        	*destPvec = VEC_MULT(destq_0123, destr_0123); // Single store
+//        	*destPvec = VEC_MULT(destq_0123, destr_0123); // Single store
+//        	destPvec += 1;
+
+        	VEC_STORE(destP, VEC_MULT(destq_0123, destr_0123));
+        	destP += 4;
 
 //        	for (int i = 0; i < 4; ++i) {
 //        		fprintf(stderr, " %5.3e", ((double*)destPvec)[i]);
 //        	}
 //        	fprintf(stderr, "\n");
 
-        	destPvec += 1;
+
             v += 4;
         }
         w += OFFSET*4;
