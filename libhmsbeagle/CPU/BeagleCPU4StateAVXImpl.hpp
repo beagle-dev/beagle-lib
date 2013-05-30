@@ -742,6 +742,7 @@ BeagleImpl* BeagleCPU4StateAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
+                                             int pluginResourceNumber,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
@@ -761,7 +762,9 @@ BeagleImpl* BeagleCPU4StateAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
     try {
         if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags) == 0)
+                                 categoryCount,scaleBufferCount, resourceNumber, 
+                                 pluginResourceNumber,
+                                 preferenceFlags, requirementFlags) == 0)
             return impl;
     }
     catch(...) {
