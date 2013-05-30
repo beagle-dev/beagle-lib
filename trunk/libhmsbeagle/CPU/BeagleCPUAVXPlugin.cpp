@@ -6,8 +6,7 @@
  */
 
 #include "libhmsbeagle/CPU/BeagleCPUAVXPlugin.h"
-#include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
-//#include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPU4StateAVXImpl.h"
 #include <iostream>
 
 #ifdef HAVE_CPUID_H
