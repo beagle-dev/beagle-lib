@@ -30,6 +30,7 @@
 #include <cstring>
 #include <cassert>
 #include <cstdarg>
+#include <cmath>
 #include <map>
 
 #include "libhmsbeagle/beagle.h"
@@ -42,7 +43,7 @@
                             int error = call; \
                             if(error != CL_SUCCESS) { \
                                 fprintf(stderr, \
-                                    "OpenCL error: \"%s\" from file <%s>, line %i.\n", \
+                                    "\nOpenCL error: %s from file <%s>, line %i.\n", \
                                     GetCLErrorDescription(error), __FILE__, __LINE__); \
                                 exit(-1); \
                             } \
@@ -249,8 +250,13 @@ void GPUInterface::SetDevice(int deviceNumber,
         fprintf(stderr, "OpenCL error: Failed to create kernels\n");
         exit(-1);
     }
-    
-    err = clBuildProgram(openClProgram, 0, NULL, "-D FW_OPENCL -D OPENCL_KERNEL_BUILD", NULL, NULL);
+
+    char buildDefs[256] = "-D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
+#ifdef DLS_MACOS
+    strcat(buildDefs, "-D DLS_MACOS ");
+#endif
+
+    err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
     if (err != CL_SUCCESS) {
         size_t len;
         char buffer[2048];
@@ -264,14 +270,15 @@ void GPUInterface::SetDevice(int deviceNumber,
         
         exit(-1);
     }
-    
-#ifdef CL_VERSION_1_2
-    cl_platform_id platform;
-    SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clUnloadPlatformCompiler(platform));
-#else
-    SAFE_CL(clUnloadCompiler());
-#endif
+
+// TODO unloading compiler to free resources is causing seg fault for Intel and NVIDIA platforms
+// #ifdef CL_VERSION_1_2
+//     cl_platform_id platform;
+//     SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+//     SAFE_CL(clUnloadPlatformCompiler(platform));
+// #else
+//     SAFE_CL(clUnloadCompiler());
+// #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SetDevice\n");
@@ -498,7 +505,7 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     cl_buffer_region dPtrRegion;
     dPtrRegion.origin = offset;
     dPtrRegion.size = size;
-    
+
     int err;
     subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
     SAFE_CL(err);
@@ -510,6 +517,32 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     return subPtr;
 }
 
+size_t GPUInterface::AlignMemOffset(size_t offset) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::AlignMemOffset\n");
+#endif    
+    
+    size_t alignedOffset = offset;
+
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+
+    if (strcmp(param_value, "NVIDIA Corporation") != 0) {
+        cl_uint baseAlign;
+        SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &baseAlign, NULL));
+        baseAlign /= 8; // convert bits to bytes;
+        alignedOffset = ceil((float)offset/baseAlign) * baseAlign;
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AlignMemOffset\n");
+#endif    
+    
+    return alignedOffset;
+}
 
 void GPUInterface::MemsetShort(GPUPtr dest,
                                unsigned short val,
@@ -744,6 +777,14 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_IMAGE_FORMAT_NOT_SUPPORTED: errorDesc = "CL_IMAGE_FORMAT_NOT_SUPPORTED"; break;
         case CL_BUILD_PROGRAM_FAILURE: errorDesc = "CL_BUILD_PROGRAM_FAILURE"; break;
         case CL_MAP_FAILURE: errorDesc = "CL_MAP_FAILURE"; break;
+        case CL_MISALIGNED_SUB_BUFFER_OFFSET: errorDesc = "CL_MISALIGNED_SUB_BUFFER_OFFSET"; break;
+        case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: errorDesc = "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST"; break;
+        case CL_COMPILE_PROGRAM_FAILURE: errorDesc = "CL_COMPILE_PROGRAM_FAILURE"; break;
+        case CL_LINKER_NOT_AVAILABLE: errorDesc = "CL_LINKER_NOT_AVAILABLE"; break;
+        case CL_LINK_PROGRAM_FAILURE: errorDesc = "CL_LINK_PROGRAM_FAILURE"; break;
+        case CL_DEVICE_PARTITION_FAILED: errorDesc = "CL_DEVICE_PARTITION_FAILED"; break;
+        case CL_KERNEL_ARG_INFO_NOT_AVAILABLE: errorDesc = "CL_KERNEL_ARG_INFO_NOT_AVAILABLE"; break;
+
             
         case CL_INVALID_VALUE: errorDesc = "CL_INVALID_VALUE"; break;
         case CL_INVALID_DEVICE_TYPE: errorDesc = "CL_INVALID_DEVICE_TYPE"; break;
@@ -769,7 +810,7 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_ARG_SIZE: errorDesc = "CL_INVALID_ARG_SIZE"; break;
         case CL_INVALID_KERNEL_ARGS: errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
         case CL_INVALID_WORK_DIMENSION: errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
-        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE"; break;
+        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\nIf using an AMD GPU, please set the GPU_MAX_WORKGROUP_SIZE environment variable to 1024 with:\n\"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
         case CL_INVALID_WORK_ITEM_SIZE: errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
         case CL_INVALID_GLOBAL_OFFSET: errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
         case CL_INVALID_EVENT_WAIT_LIST: errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;
@@ -778,7 +819,13 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_GL_OBJECT: errorDesc = "CL_INVALID_GL_OBJECT"; break;
         case CL_INVALID_BUFFER_SIZE: errorDesc = "CL_INVALID_BUFFER_SIZE"; break;
         case CL_INVALID_MIP_LEVEL: errorDesc = "CL_INVALID_MIP_LEVEL"; break;
-            
+        case CL_INVALID_GLOBAL_WORK_SIZE       : errorDesc = "CL_INVALID_GLOBAL_WORK_SIZE"; break;
+        case CL_INVALID_PROPERTY               : errorDesc = "CL_INVALID_PROPERTY"; break;
+        case CL_INVALID_IMAGE_DESCRIPTOR       : errorDesc = "CL_INVALID_IMAGE_DESCRIPTOR"; break;
+        case CL_INVALID_COMPILER_OPTIONS: errorDesc = "CL_INVALID_COMPILER_OPTIONS"; break;
+        case CL_INVALID_LINKER_OPTIONS: errorDesc = "CL_INVALID_LINKER_OPTIONS"; break;
+        case CL_INVALID_DEVICE_PARTITION_COUNT : errorDesc = "CL_INVALID_DEVICE_PARTITION_COUNT"; break;
+
         default: errorDesc = "Unknown error";
     }
     

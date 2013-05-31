@@ -1,33 +1,32 @@
 #!/bin/bash
 
 function test_all_impls {
-    #               program        states  taxa   sites  rates  reps   rsrc  rescaling  precision  sse  opencl ctips  rseed  rfreq    root   derivs  lnl_exp  d1_exp   d2_exp   lscalers  ecount   ecomplex  ievect   smatrix
+    #               program        states  taxa   sites  rates  reps   rsrc  rescaling  precision  sse    ctips  rseed  rfreq    root   derivs  lnl_exp  d1_exp   d2_exp   lscalers  ecount   ecomplex  ievect   smatrix
 
-    echo -n "   testing resource=0 precision=SINGLE sse=NO  opencl=NO " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "single"   "no" "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
+    echo -n "   testing resource=0  precision=SINGLE sse=NO  " 1>&2;
+    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "single"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
 
-    echo -n "   testing resource=1 precision=SINGLE sse=NO  opencl=NO " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "1"   "${10}"    "single"   "no" "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
+    echo -n "   testing resource=$R precision=SINGLE sse=NO  " 1>&2;
+    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "$R"  "${10}"    "single"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
 
-    echo -n "   testing resource=1 precision=SINGLE sse=NO  opencl=YES " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "1"   "${10}"    "single"   "no" "yes"  "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
+    echo -n "   testing resource=0  precision=DOUBLE sse=NO  " 1>&2;
+    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "double"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
 
-    echo -n "   testing resource=0 precision=DOUBLE sse=NO  opencl=NO " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "double"   "no" "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
-
-    echo -n "   testing resource=0 precision=DOUBLE sse=YES opencl=NO " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "double"   "yes" "no"  "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
-
-    echo -n "   testing resource=1 precision=DOUBLE sse=NO  opencl=NO " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "1"   "${10}"    "double"   "no"  "no"  "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
-
-    echo -n "   testing resource=1 precision=DOUBLE sse=NO  opencl=YES" 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "1"   "${10}"    "double"   "no"  "yes" "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
+    echo -n "   testing resource=$R precision=DOUBLE sse=NO  " 1>&2;
+    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "$R"  "${10}"    "double"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> test_results.csv
 }
+
+
+if [ -z "${1}" ];
+then
+    R=1
+else
+    R=${1}
+fi
 
 if [ ! -f test_results.csv ]
 then
-    echo "program,states,taxa,sites,rates,reps,rsrc,rescaling,precision,sse,opencl,ctips,rseed,rfreq,root,derivs,lscalers,ecount,ecomplex,ievect,smatrix,rsrc_name,impl_name,lnl,lnl_diff,d1,d1_diff,d2,d2_diff,best_run,time_real,time_user,time_sys,cpu,gcc_version,revision,date" >> test_results.csv
+    echo "program,states,taxa,sites,rates,reps,rsrc,rescaling,precision,sse,ctips,rseed,rfreq,root,derivs,lscalers,ecount,ecomplex,ievect,smatrix,rsrc_name,impl_name,lnl,lnl_diff,d1,d1_diff,d2,d2_diff,best_run,time_real,time_user,time_sys,cpu,gcc_version,revision,date" >> test_results.csv
 fi
 
 rm screen_output
