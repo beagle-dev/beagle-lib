@@ -32,7 +32,7 @@
     #include "libhmsbeagle/platform.h"
 
     #include <cfloat>
-#elif DLS_MACOS
+#elif defined(DLS_MACOS)
     #define M_LN2   0.69314718055994530942  /* log_e 2 */
 #endif // OPENCL_KERNEL_BUILD
 
@@ -83,7 +83,7 @@
     #define KW_GROUP_ID_1    blockIdx.y
     #define KW_NUM_GROUPS_0  gridDim.x
     #define KW_NUM_GROUPS_1  gridDim.y
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_GLOBAL_VAR    __global
     #define KW_LOCAL_MEM     __local

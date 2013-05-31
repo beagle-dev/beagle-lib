@@ -936,33 +936,7 @@ int main( int argc, const char* argv[] )
                           eigencomplex,
                           ievectrans,
                           setmatrix,
-                          false);
-                if (opencl && i > 0) {
-                    runBeagle(i,
-                              stateCount,
-                              ntaxa,
-                              nsites,
-                              manualScaling,
-                              autoScaling,
-                              dynamicScaling,
-                              rateCategoryCount,
-                              nreps,
-                              fullTiming,
-                              requireDoublePrecision,
-                              requireSSE,
-                              requireAVX,
-                              compactTipCount,
-                              randomSeed,
-                              rescaleFrequency,
-                              unrooted,
-                              calcderivs,
-                              logscalers,
-                              eigenCount,
-                              eigencomplex,
-                              ievectrans,
-                              setmatrix,
-                              opencl);
-                }
+                          opencl);
             }
         }else{
             runBeagle(0,

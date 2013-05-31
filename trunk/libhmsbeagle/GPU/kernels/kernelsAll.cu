@@ -43,7 +43,7 @@
 
 extern "C" {
     
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     
 #ifdef DOUBLE_PRECISION
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
@@ -79,7 +79,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
         C = dMatrices + listC[wMatrix]; // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     KW_GLOBAL_VAR REAL* C;
     REAL distance;
     C = dMatrices + listC[wMatrix];
@@ -197,7 +197,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     KW_GLOBAL_VAR REAL* C;
     KW_GLOBAL_VAR REAL* CFirstDeriv;
     REAL distanceLength;
@@ -341,7 +341,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     KW_GLOBAL_VAR REAL* C;
     KW_GLOBAL_VAR REAL* CFirstDeriv;
     KW_GLOBAL_VAR REAL* CSecondDeriv;
@@ -488,7 +488,7 @@ KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
             B = dMatrices + list[wMatrix + totalMatrixCount]; // Non-coalescent read
             C = dMatrices + list[wMatrix + totalMatrixCount*2]; // Non-coalescent read
         }
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
         KW_GLOBAL_VAR REAL* A;
         KW_GLOBAL_VAR REAL* B;
         KW_GLOBAL_VAR REAL* C;
@@ -605,7 +605,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
         C = dMatrices + listC[wMatrix];
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     KW_GLOBAL_VAR REAL* C;
     REAL distance;
     C = dMatrices + listC[wMatrix];
@@ -641,7 +641,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
    	REAL* Bm1 = &Bs[0][0];
    	REAL* Bp1 = &Bs[2][0];
    	REAL* E0  = &Es[1];
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
    	KW_LOCAL_MEM REAL* B0  = &Bs[1][0];
    	KW_LOCAL_MEM REAL* Bm1 = &Bs[0][0];
    	KW_LOCAL_MEM REAL* Bp1 = &Bs[2][0];

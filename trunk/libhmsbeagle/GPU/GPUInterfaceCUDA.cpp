@@ -516,6 +516,18 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     return subPtr;
 }
 
+size_t GPUInterface::AlignMemOffset(size_t offset) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::AlignMemOffset\n");
+#endif
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AlignMemOffset\n");
+#endif    
+    
+    return offset;
+}
+
 void GPUInterface::MemsetShort(GPUPtr dest,
                                unsigned short val,
                                size_t count) {

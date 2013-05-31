@@ -421,9 +421,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     
     dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
-    dMatrices[0] = gpu->AllocateMemory(kMatrixCount * kMatrixSize * kCategoryCount * sizeof(Real));
-    
-    size_t ptrIncrement = kMatrixSize * kCategoryCount * sizeof(Real);
+
+    size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
+    dMatrices[0] = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
     for (int i = 1; i < kMatrixCount; i++) {
         dMatrices[i] = gpu->CreateSubPointer(dMatrices[0], ptrIncrement*i, ptrIncrement);
     }
@@ -431,8 +431,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     if (kScaleBufferCount > 0) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-            dScalingFactors[0] =  gpu->AllocateMemory(sizeof(signed char) * kScaleBufferSize * kScaleBufferCount); // TODO: char won't work for double-precision
-            ptrIncrement = kScaleBufferSize * sizeof(signed char);
+            ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(signed char)); // TODO: char won't work for double-precision
+            dScalingFactors[0] =  gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
             for (int i=1; i < kScaleBufferCount; i++)
                 dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
@@ -441,13 +441,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             dScalingFactorsMaster = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
             hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
             dRescalingTrigger = gpu->GetDeviceHostPointer((void*) hRescalingTrigger);
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
             return BEAGLE_ERROR_NO_IMPLEMENTATION;
 #endif
         } else {
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
-            dScalingFactors[0] = gpu->AllocateMemory(kScaleBufferSize * kScaleBufferCount * sizeof(Real));
-            ptrIncrement = kScaleBufferSize * sizeof(Real);
+            ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(Real));
+            kScaleBufferSize = ptrIncrement / sizeof(Real);
+            dScalingFactors[0] = gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
             for (int i=1; i < kScaleBufferCount; i++) {
                 dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
             }
@@ -518,8 +519,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 	hPatternWeightsCache = (Real*) gpu->MallocHost(sizeof(double) * kPatternCount);
     checkHostMemory(hPatternWeightsCache);
     
-	dMaxScalingFactors = gpu->AllocateMemory(kPaddedPatternCount * sizeof(Real));
-	dIndexMaxScalingFactors = gpu->AllocateMemory(kPaddedPatternCount * sizeof(int));
+	dMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+	dIndexMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(unsigned int));
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
@@ -1138,7 +1139,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
         // TODO: improve performance of calculation of derivatives
         int totalCount = 0;
         
-        int indexOffset =  kMatrixSize * kCategoryCount;
+        int indexOffset =  gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real)) / sizeof(Real);
         int categoryOffset = kMatrixSize;
         
         if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {

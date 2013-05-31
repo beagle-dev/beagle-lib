@@ -51,7 +51,7 @@
 
 extern "C" {
     
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
 
 #define DETERMINE_INDICES_4() int tx = KW_LOCAL_ID_0; int state = tx & 0x3; int pat = tx >> 2; int patIdx = KW_LOCAL_ID_1; int matrix = KW_GROUP_ID_1; int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat; int deltaPartialsByState = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx); int deltaPartialsByMatrix = (matrix * multBy4(totalPatterns)); int x2 = multBy16(matrix); int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
@@ -1785,7 +1785,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR RE
                                               KW_GLOBAL_VAR REAL* dScalingFactors,
 											  KW_GLOBAL_VAR unsigned int* dPtrQueue,
 											  KW_GLOBAL_VAR REAL* dMaxScalingFactors,
-											  KW_GLOBAL_VAR REAL* dIndexMaxScalingFactors,
+											  KW_GLOBAL_VAR unsigned int* dIndexMaxScalingFactors,
                                               int matrixCount,
                                               int patternCount,
 											  int subsetCount,
@@ -1853,6 +1853,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR RE
 			
 		if (state == 0)
 			dResult[pattern] = sum[pat][state];
+
+        #ifdef FW_OPENCL
+        KW_LOCAL_FENCE;
+        #endif
 	} else {
 		if (subsetIndex != dIndexMaxScalingFactors[pattern])
 			sum[pat][state] *= exp((REAL)(cumulativeScalingFactor - dMaxScalingFactors[pattern]));

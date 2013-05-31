@@ -71,7 +71,7 @@ private:
     CUcontext cudaContext;
     CUmodule cudaModule;
     const char* GetCUDAErrorDescription(int errorCode);
-#elif FW_OPENCL
+#elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id 
     cl_context openClContext;                // compute context
     cl_command_queue openClCommandQueue;     // compute command queue
@@ -121,6 +121,8 @@ public:
     GPUPtr AllocateIntMemory(size_t length);
 
     GPUPtr CreateSubPointer(GPUPtr dPtr, size_t offset, size_t size);
+
+    size_t AlignMemOffset(size_t offset);
     
     void MemsetShort(GPUPtr dest,
                      unsigned short val,
