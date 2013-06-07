@@ -2253,7 +2253,7 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
     #if (T_PAD == 1)	
         const size_t align = 32;
     #else // T_PAD == 2
-        const size_t align = 16;
+        const size_t align = 32; // Changed from 16 (under SSE) to ensure AVX alignment
     #endif
 	int res;
 	res = posix_memalign(&ptr, align, size);
