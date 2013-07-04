@@ -810,7 +810,7 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_ARG_SIZE: errorDesc = "CL_INVALID_ARG_SIZE"; break;
         case CL_INVALID_KERNEL_ARGS: errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
         case CL_INVALID_WORK_DIMENSION: errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
-        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\nIf using an AMD GPU, please set the GPU_MAX_WORKGROUP_SIZE environment variable to 1024 with:\n\"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
+        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\nIf using an AMD GPU, please set the GPU_MAX_WORKGROUP_SIZE environment variable to 1024. For example:\n\"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
         case CL_INVALID_WORK_ITEM_SIZE: errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
         case CL_INVALID_GLOBAL_OFFSET: errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
         case CL_INVALID_EVENT_WAIT_LIST: errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;
