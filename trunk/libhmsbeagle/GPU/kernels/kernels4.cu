@@ -1487,17 +1487,14 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
     }
 
     sum[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2)
         sum[pat][state] += sum[pat][state + 2];
     KW_LOCAL_FENCE;
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    
-    // TODO: remove this extra syncthreads for all integrate kernels
-    KW_LOCAL_FENCE;
-    
+
     if (state == 0)
         dResult[pattern] = log(sum[pat][state]);
         
@@ -1543,14 +1540,13 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScale(KW_GLOBAL_VAR REAL* d
     }
 
     sum[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2)
         sum[pat][state] += sum[pat][state + 2];
     KW_LOCAL_FENCE;
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
     
     if (state == 0)
         dResult[pattern] = (log(sum[pat][state]) + dRootScalingFactors[pattern]);
@@ -1612,7 +1608,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(KW_GLOBAL_
     sum[pat][state] *= stateFreq[state];
     sumD1[pat][state] *= stateFreq[state];
     sumD2[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2) {
         sum[pat][state] += sum[pat][state + 2];
         sumD1[pat][state] += sumD1[pat][state + 2];
@@ -1624,7 +1620,6 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(KW_GLOBAL_
         sumD1[pat][state] += sumD1[pat][state + 1];
         sumD2[pat][state] += sumD2[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
     
     if (state == 0) {
         tmpLogLike = sum[pat][state];
@@ -1692,7 +1687,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* 
     sum[pat][state] *= stateFreq[state];
     sumD1[pat][state] *= stateFreq[state];
     sumD2[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2) {
         sum[pat][state] += sum[pat][state + 2];
         sumD1[pat][state] += sumD1[pat][state + 2];
@@ -1704,7 +1699,6 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* 
         sumD1[pat][state] += sumD1[pat][state + 1];
         sumD2[pat][state] += sumD2[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
     
     if (state == 0) {
         tmpLogLike = sum[pat][state];
@@ -1758,14 +1752,13 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsMulti(KW_GLOBAL_VAR REAL* dResul
     }
 
     sum[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2)
         sum[pat][state] += sum[pat][state + 2];
     KW_LOCAL_FENCE;
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
     
     if (state == 0) {
 		if (takeLog == 0)
@@ -1823,14 +1816,13 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR RE
     }
 
     sum[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2)
         sum[pat][state] += sum[pat][state + 2];
     KW_LOCAL_FENCE;
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
 
 	REAL cumulativeScalingFactor = (dScalingFactors + dPtrQueue[subsetIndex])[pattern];
 	
@@ -1926,15 +1918,14 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
     }
 
     sum[pat][state] *= stateFreq[state];
-        
+    KW_LOCAL_FENCE;
     if (state < 2)
         sum[pat][state] += sum[pat][state + 2];
     KW_LOCAL_FENCE;
     if (state < 1) {
         sum[pat][state] += sum[pat][state + 1];
     }
-    KW_LOCAL_FENCE;
-    
+
     if (state == 0)
         dResult[pattern] = (log(sum[pat][state]) + (M_LN2 * maxScaleFactor));
 }
