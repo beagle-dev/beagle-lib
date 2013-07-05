@@ -1,13 +1,13 @@
 # @author Marc A. Suchard
 # @author Andrew Rambaut
 
-This is a stem README file.   This fill will contain:
+This is a stem README file.   This file will contain:
 
 1. General overview of BEAGLE
 
 2. Compilation instructions
 
-Quick and dirty instructions to compile and install the BEAGLE library from the SVN repository 'trunk':
+Quick and dirty instructions on how to compile and install the BEAGLE library from the SVN repository 'trunk':
 
       $ svn checkout http://beagle-lib.googlecode.com/svn/trunk BEAGLE
       $ cd BEAGLE
@@ -16,8 +16,20 @@ Quick and dirty instructions to compile and install the BEAGLE library from the 
       $ make
       $ sudo make install
 
+Remarks:
+
+When compiling in the MacOS Unix environment ("Terminal"), you need to install the autotools first. They are no
+longer shipped with Xcode. For instance, you can install them using MacPorts (http://www.macports.org). First
+install MacPorts, then do:
+
+      $ sudo port install autoconf
+      $ sudo port install automake
+      $ sudo port install libtool
+      $ sudo port install pkgconfig
+
+The last tool is not needed by BEAGLE but by many other software packages. Other options to install autotools
+include Homebrew (http://mxcl.github.io/homebrew/) and directly from GNU source (http://www.gnu.org).
+
 3. Contact information
-
-
 
 
