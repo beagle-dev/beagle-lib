@@ -779,12 +779,13 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_MAP_FAILURE: errorDesc = "CL_MAP_FAILURE"; break;
         case CL_MISALIGNED_SUB_BUFFER_OFFSET: errorDesc = "CL_MISALIGNED_SUB_BUFFER_OFFSET"; break;
         case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: errorDesc = "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST"; break;
+#ifdef CL_VERSION_1_2
         case CL_COMPILE_PROGRAM_FAILURE: errorDesc = "CL_COMPILE_PROGRAM_FAILURE"; break;
         case CL_LINKER_NOT_AVAILABLE: errorDesc = "CL_LINKER_NOT_AVAILABLE"; break;
         case CL_LINK_PROGRAM_FAILURE: errorDesc = "CL_LINK_PROGRAM_FAILURE"; break;
         case CL_DEVICE_PARTITION_FAILED: errorDesc = "CL_DEVICE_PARTITION_FAILED"; break;
         case CL_KERNEL_ARG_INFO_NOT_AVAILABLE: errorDesc = "CL_KERNEL_ARG_INFO_NOT_AVAILABLE"; break;
-
+#endif
             
         case CL_INVALID_VALUE: errorDesc = "CL_INVALID_VALUE"; break;
         case CL_INVALID_DEVICE_TYPE: errorDesc = "CL_INVALID_DEVICE_TYPE"; break;
@@ -821,11 +822,12 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_MIP_LEVEL: errorDesc = "CL_INVALID_MIP_LEVEL"; break;
         case CL_INVALID_GLOBAL_WORK_SIZE       : errorDesc = "CL_INVALID_GLOBAL_WORK_SIZE"; break;
         case CL_INVALID_PROPERTY               : errorDesc = "CL_INVALID_PROPERTY"; break;
+#ifdef CL_VERSION_1_2
         case CL_INVALID_IMAGE_DESCRIPTOR       : errorDesc = "CL_INVALID_IMAGE_DESCRIPTOR"; break;
         case CL_INVALID_COMPILER_OPTIONS: errorDesc = "CL_INVALID_COMPILER_OPTIONS"; break;
         case CL_INVALID_LINKER_OPTIONS: errorDesc = "CL_INVALID_LINKER_OPTIONS"; break;
         case CL_INVALID_DEVICE_PARTITION_COUNT : errorDesc = "CL_INVALID_DEVICE_PARTITION_COUNT"; break;
-
+#endif
         default: errorDesc = "Unknown error";
     }
     
