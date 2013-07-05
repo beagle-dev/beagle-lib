@@ -52,7 +52,7 @@
 #   ifdef DLS_MACOS
         #include <OpenCL/opencl.h>
 #   else
-        #include <opencl.h>
+        #include <CL/opencl.h>
 #   endif
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h"

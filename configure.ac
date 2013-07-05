@@ -120,19 +120,25 @@ AC_SUBST(OPENMP_CXXFLAGS)
 # ------------------------------------------------------------------------------
 #AX_OPENCL([C++])
 
-AC_ARG_ENABLE(opencl,
-    AC_HELP_STRING([--enable-opencl],[build OpenCL implementation @<:@default=no@:>@]), , [enable_opencl=no])
+AC_ARG_WITH(opencl,
+    AC_HELP_STRING([--with-opencl=PATH],[prefix to location of OpenCL include directory @<:@default=auto@:>@]), , [with_opencl=auto])
 
 OPENCL_CFLAGS=
 OPENCL_LIBS=
 
-if test "x$enable_opencl" != "xno"
+if test "x$with_opencl" != "xno"
 then
-   OPENCL_CFLAGS=" -D FW_OPENCL -I/usr/include/CL"
-   OPENCL_LIBS=" -lOpenCL"
+   OPENCL_CFLAGS+=" -D FW_OPENCL"
+   OPENCL_LIBS+=" -lOpenCL"
+   if test "x$with_opencl" != "xauto"
+   then
+      OPENCL_CFLAGS+=" -I$with_opencl/include"
+   else
+      AC_CHECK_FILE(/usr/include/CL,[OPENCL_CFLAGS+=" -I/usr/include"],[with_opencl="no"])
+   fi
 fi
 
-AM_CONDITIONAL(BUILDOPENCL, test ! x$enable_opencl = xno)
+AM_CONDITIONAL(BUILDOPENCL, test ! x$with_opencl = xno)
 
 # ------------------------------------------------------------------------------
 # Setup CUDA paths
@@ -159,7 +165,7 @@ then
       CUDA_LIBS+=" -L$with_cuda/lib"
    else
       AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
-      AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS+=" -I/usr/local/cuda/include"],[])
+      AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS+=" -I/usr/local/cuda/include"],[CUDA_CFLAGS=""])
       AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS+=" -L/usr/local/cuda/lib"],[])
    fi
 
@@ -271,7 +277,7 @@ case $host_os in
   fi
   
 
-  if test "x$enable_opencl" != "xno"
+  if test "x$with_opencl" != "xno"
   then
      OPENCL_CFLAGS=" -D FW_OPENCL -framework OpenCL"
      OPENCL_LIBS=" -framework OpenCL"
@@ -379,8 +385,13 @@ AC_OUTPUT
 # ------------------------------------------------------------------------------
 # warn the user about missing functionality
 # ------------------------------------------------------------------------------
+if( test x$with_opencl = xno ) then
+        AC_MSG_WARN([OpenCL not found or disabled.  OpenCL implementation  will not be built. If OpenCL support is desired, check the path to OpenCL and specify --with-opencl=/path/to/opencl])
+fi
+
+
 if( test x$NVCC = xno ) then
-	AC_MSG_WARN([NVIDIA CUDA nvcc compiler not found.  CUDA support will not be built.  Check the path to CUDA and specify --with-cuda=/path/to/cuda])
+	AC_MSG_WARN([NVIDIA CUDA nvcc compiler not found or CUDA support disabled.  CUDA implementation will not be built. If CUDA support is desired, check the path to CUDA and specify --with-cuda=/path/to/cuda])
 fi
 
 if( test x$with_jdk = xno ) then
