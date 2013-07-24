@@ -409,6 +409,7 @@ void* GPUInterface::CallocHost(size_t size, size_t length) {
 
 void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined, bool mapped) {
     assert(0); // TODO: write function
+	return NULL;
 //#ifdef BEAGLE_DEBUG_FLOW
 //    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
 //#endif
@@ -653,6 +654,7 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 
 GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
     assert(0); // TODO: write function
+	return NULL;
 //#ifdef BEAGLE_DEBUG_FLOW
 //    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceHostPointer\n");
 //#endif
@@ -670,6 +672,7 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 
 unsigned int GPUInterface::GetAvailableMemory() {
     assert(0); // TODO: write function
+	return NULL;
 //    return availableMem;
 }
 
