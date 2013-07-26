@@ -113,6 +113,11 @@ void beagleLoadPlugins(void) {
 	}catch(beagle::plugin::SharedLibraryException sle){}
 
 	try{
+		beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
+		plugins->push_back(openclalteraplug);
+	}catch(beagle::plugin::SharedLibraryException sle){}
+
+	try{
 		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
 		plugins->push_back(sseplug);
 	}catch(beagle::plugin::SharedLibraryException sle){}

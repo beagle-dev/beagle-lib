@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="libhmsbeagle">
+      <UniqueIdentifier>{978f8c98-e4af-4e73-9456-54e9207b225f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\GPU">
+      <UniqueIdentifier>{a6317826-feb6-4551-b58a-fc6efc70c033}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\GPU\kernels">
+      <UniqueIdentifier>{f0ce9642-352a-470f-93c3-f06329972cf1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\libhmsbeagle\beagle.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\BeagleImpl.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\platform.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\GPUImplDefs.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\GPUImplHelper.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\KernelLauncher.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\KernelResource.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\GPUImplHelper.cpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\KernelLauncher.cpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\KernelResource.cpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\GPUInterfaceOpenCL.cpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\OpenCLAlteraPlugin.cpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CUDA_Build_Rule Include="..\..\..\libhmsbeagle\GPU\kernels\kernels4.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CUDA_Build_Rule>
+    <CUDA_Build_Rule Include="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CUDA_Build_Rule>
+    <CUDA_Build_Rule Include="..\..\..\libhmsbeagle\GPU\kernels\kernelsX.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CUDA_Build_Rule>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\libhmsbeagle\GPU\GPUInterface.h">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\..\libhmsbeagle\GPU\kernels\BeagleOpenCL_kernels.h">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

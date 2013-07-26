@@ -21,6 +21,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "oddstatetest", "oddstatetes
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-opencl", "libhmsbeagle-opencl\libhmsbeagle-opencl.vcxproj", "{F1F21869-5443-4CCD-A38F-2E9A00E80762}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-opencl-altera", "libhmsbeagle-opencl-altera\libhmsbeagle-opencl-altera.vcxproj", "{8293E262-1EBB-4007-B979-B7E92D37ADB4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -101,6 +103,12 @@ Global
 		{F1F21869-5443-4CCD-A38F-2E9A00E80762}.Release|Win32.Build.0 = Release|Win32
 		{F1F21869-5443-4CCD-A38F-2E9A00E80762}.Release|x64.ActiveCfg = Release|x64
 		{F1F21869-5443-4CCD-A38F-2E9A00E80762}.Release|x64.Build.0 = Release|x64
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Debug|x64.ActiveCfg = Debug|x64
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Debug|x64.Build.0 = Debug|x64
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Release|Win32.ActiveCfg = Release|Win32
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Release|x64.ActiveCfg = Release|x64
+		{8293E262-1EBB-4007-B979-B7E92D37ADB4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
