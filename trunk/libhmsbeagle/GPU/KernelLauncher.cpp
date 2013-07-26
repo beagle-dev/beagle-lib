@@ -138,7 +138,16 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 }
 
 void KernelLauncher::LoadKernels() {
-	
+
+#ifdef FW_OPENCL_TESTING
+	fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
+    fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
+            "kernelPartialsPartialsNoScale");
+    fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
+    fSumSites1 = gpu->GetFunction("kernelSumSites1");
+    fSumSites2 = gpu->GetFunction("kernelSumSites2");
+    fSumSites3 = gpu->GetFunction("kernelSumSites3");
+#else
 	//TODO: Epoch Model
 	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
 
@@ -266,6 +275,7 @@ void KernelLauncher::LoadKernels() {
     fSumSites1 = gpu->GetFunction("kernelSumSites1");
     fSumSites2 = gpu->GetFunction("kernelSumSites2");
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
+#endif // !FW_OPENCL_TESTING
 }
 
 

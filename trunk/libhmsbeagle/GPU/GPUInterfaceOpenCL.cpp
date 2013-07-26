@@ -117,7 +117,7 @@ int GPUInterface::Initialize() {
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices));
         cl_device_id* deviceIds = new cl_device_id[numDevices];
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
-        for (int j=0; j<numDevices; j++){
+        for (int j=0; j<numDevices; j++) {
             openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j]));
         }
         delete[] deviceIds;
@@ -197,6 +197,7 @@ void GPUInterface::InitializeKernelMap() {
         LOAD_KERNEL_INTO_MAP(128, DP, kernelMap, -128);
         LOAD_KERNEL_INTO_MAP(192, DP, kernelMap, -192);
     }
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
 #endif            
@@ -241,10 +242,47 @@ void GPUInterface::SetDevice(int deviceNumber,
     kernelResource->categoryCount = categoryCount;
     kernelResource->patternCount = paddedPatternCount;
     kernelResource->flags = flags;
-    
-    openClProgram = clCreateProgramWithSource(openClContext, 1,
-                                              (const char**) &kernelResource->kernelCode, NULL,
-                                              &err);
+
+#ifdef FW_OPENCL_BINARY
+    //=========================================================================================================
+    // Read the pre-compiled FPGA configuration file, and create program using it
+    FILE *fp = NULL;
+    const char *file_name = "kernels.aocx";
+
+#ifdef _WIN32
+	if (fopen_s(&fp, file_name, "rb") != 0)
+	{
+		printf("ERROR: Failed to open kernels binary.\n");
+		exit(-1);
+	}
+#else
+	fp = fopen(file_name, "rb");
+	if (fp == 0)
+	{
+		printf("ERROR: Failed to open kernels binary.\n");
+		exit(-1);
+	}
+#endif
+    fseek(fp, 0, SEEK_END);
+    size_t binary_length = ftell(fp);
+    const unsigned char *binary = (unsigned char*) malloc(sizeof(unsigned char) * binary_length);
+    assert( binary && "Malloc failed" );
+    rewind(fp);
+    if (fread((void *)binary, binary_length, 1, fp) == 0)
+    {
+    	printf("Failed to read kernels binary.\n");
+    	exit(-1);
+    }
+    fclose(fp);
+    cl_int error_num, status;
+    openClProgram = clCreateProgramWithBinary(openClContext, 1, &openClDeviceId, &binary_length, (const unsigned char **)&binary, &status, &error_num);
+    //=========================================================================================================
+#else
+	openClProgram = clCreateProgramWithSource(openClContext, 1,
+		                                      (const char**) &kernelResource->kernelCode, NULL,
+		                                      &err);
+#endif
+
     SAFE_CL(err);
     if (!openClProgram) {
         fprintf(stderr, "OpenCL error: Failed to create kernels\n");
@@ -259,7 +297,7 @@ void GPUInterface::SetDevice(int deviceNumber,
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
     if (err != CL_SUCCESS) {
         size_t len;
-        char buffer[2048];
+        char buffer[16384];
         
         fprintf(stderr, "OpenCL error: Failed to build kernels\n");
         
@@ -499,8 +537,11 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
                                       size_t size) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::CreateSubPointer\n");
-#endif    
-    
+#endif
+
+#ifdef FW_OPENCL_ALTERA
+    GPUPtr subPtr = dPtr;// + offset;
+#else
     GPUPtr subPtr;
     
     cl_buffer_region dPtrRegion;
@@ -510,6 +551,7 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     int err;
     subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
     SAFE_CL(err);
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::CreateSubPointer\n");
@@ -824,7 +866,9 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_BUFFER_SIZE: errorDesc = "CL_INVALID_BUFFER_SIZE"; break;
         case CL_INVALID_MIP_LEVEL: errorDesc = "CL_INVALID_MIP_LEVEL"; break;
         case CL_INVALID_GLOBAL_WORK_SIZE       : errorDesc = "CL_INVALID_GLOBAL_WORK_SIZE"; break;
+#ifndef FW_OPENCL_ALTERA
         case CL_INVALID_PROPERTY               : errorDesc = "CL_INVALID_PROPERTY"; break;
+#endif
 #ifdef CL_VERSION_1_2
         case CL_INVALID_IMAGE_DESCRIPTOR       : errorDesc = "CL_INVALID_IMAGE_DESCRIPTOR"; break;
         case CL_INVALID_COMPILER_OPTIONS: errorDesc = "CL_INVALID_COMPILER_OPTIONS"; break;
