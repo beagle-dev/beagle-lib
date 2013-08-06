@@ -220,7 +220,7 @@ void GPUInterface::SetDevice(int deviceNumber,
     openClContext = clCreateContext(NULL, 1, &openClDeviceId, NULL, NULL, &err);
     SAFE_CL(err);
     
-    cl_command_queue_properties queueProperties = CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    cl_command_queue_properties queueProperties = 0; //CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     openClCommandQueue = clCreateCommandQueue(openClContext, openClDeviceId,
                                               queueProperties, &err);
     SAFE_CL(err);
