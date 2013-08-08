@@ -118,14 +118,21 @@ int GPUInterface::Initialize() {
         cl_device_id* deviceIds = new cl_device_id[numDevices];
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
         for (int j=0; j<numDevices; j++) {
-            openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j]));
+            size_t param_value_t = 0;
+            SAFE_CL(clGetDeviceInfo(deviceIds[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(param_value_t), &param_value_t, NULL));
+            size_t* max_work_items = new size_t[param_value_t];
+            SAFE_CL(clGetDeviceInfo(deviceIds[j], CL_DEVICE_MAX_WORK_ITEM_SIZES,
+                    sizeof(size_t)*param_value_t, max_work_items, NULL));
+            if (max_work_items[1] > 1) // TODO: make this device compatibility check more robust
+                openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j]));
+           delete[] max_work_items;
         }
         delete[] deviceIds;
     }
     delete[] platforms;
 
 #ifdef BEAGLE_DEBUG_VALUES
-    printf("OpenCL devices: %d\n", openClDeviceMap.size());
+    printf("OpenCL devices: %lu\n", openClDeviceMap.size());
     for (int i=0; i<openClDeviceMap.size(); i++) {
         const size_t param_size = 256;
         char param_value[param_size];
@@ -133,18 +140,23 @@ int GPUInterface::Initialize() {
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_NAME, param_size, param_value, NULL));
         printf("\tDevice name: %s\n", param_value);
 
-        size_t param_value_t;
-        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(param_value_t), &param_value_t, NULL));
-        printf("\tCL_DEVICE_MAX_WORK_GROUP_SIZE: %d\n", param_value_t);
-        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(param_value_t), &param_value_t, NULL));
-        printf("\tCL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: %d\n", param_value_t);
-        size_t max_work_items[param_value_t];
-        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_items), &max_work_items, NULL));
-        for (int j=0; j<param_value_t   ; j++)
-            printf("\tCL_DEVICE_MAX_WORK_ITEM_SIZES[%d]: %d\n", j, max_work_items[j]);
+        size_t param_value_t = 0;
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                                sizeof(param_value_t), &param_value_t, NULL));
+        printf("\tCL_DEVICE_MAX_WORK_GROUP_SIZE: %lu\n", param_value_t);
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,
+                                sizeof(param_value_t), &param_value_t, NULL));
+        printf("\tCL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: %lu\n", param_value_t);
+        size_t* max_work_items = new size_t[param_value_t];
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_SIZES,
+                                sizeof(size_t)*param_value_t, max_work_items, NULL));
+        for (int j=0; j<param_value_t; j++)
+            printf("\tCL_DEVICE_MAX_WORK_ITEM_SIZES[%d]: %lu\n", j, max_work_items[j]);
+        delete[] max_work_items;
 
         cl_platform_id platform;
-        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PLATFORM,
+                                sizeof(cl_platform_id), &platform, NULL));
         printf("\tOpenCL platform: ");
         SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
         printf("%s | ", param_value);
@@ -726,7 +738,7 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 
 unsigned int GPUInterface::GetAvailableMemory() {
     assert(0); // TODO: write function
-	return NULL;
+	return 0;
 //    return availableMem;
 }
 
@@ -868,7 +880,7 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_ARG_SIZE: errorDesc = "CL_INVALID_ARG_SIZE"; break;
         case CL_INVALID_KERNEL_ARGS: errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
         case CL_INVALID_WORK_DIMENSION: errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
-        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\nIf using an AMD GPU, please set the GPU_MAX_WORKGROUP_SIZE environment variable to 1024. For example:\n\"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
+        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\n Your OpenCL device might be incompatible with this run. If using an AMD GPU, please try setting the GPU_MAX_WORKGROUP_SIZE environment variable to 1024. For example: \"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
         case CL_INVALID_WORK_ITEM_SIZE: errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
         case CL_INVALID_GLOBAL_OFFSET: errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
         case CL_INVALID_EVENT_WAIT_LIST: errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;
