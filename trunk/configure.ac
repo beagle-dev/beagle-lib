@@ -134,7 +134,13 @@ then
    then
       OPENCL_CFLAGS+=" -I$with_opencl/include"
    else
-      AC_CHECK_FILE(/usr/include/CL,[OPENCL_CFLAGS+=" -I/usr/include"],[with_opencl="no"])
+      case $host_os in
+      *darwin*)
+        AC_CHECK_FILE(/System/Library/Frameworks/OpenCL.framework,,[with_opencl="no"])
+        ;;
+      *)
+        AC_CHECK_FILE(/usr/include/CL,[OPENCL_CFLAGS+=" -I/usr/include"],[with_opencl="no"])
+      esac
    fi
 fi
 

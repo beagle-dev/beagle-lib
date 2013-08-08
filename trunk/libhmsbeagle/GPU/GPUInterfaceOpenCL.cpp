@@ -133,6 +133,16 @@ int GPUInterface::Initialize() {
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_NAME, param_size, param_value, NULL));
         printf("\tDevice name: %s\n", param_value);
 
+        size_t param_value_t;
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(param_value_t), &param_value_t, NULL));
+        printf("\tCL_DEVICE_MAX_WORK_GROUP_SIZE: %d\n", param_value_t);
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(param_value_t), &param_value_t, NULL));
+        printf("\tCL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: %d\n", param_value_t);
+        size_t max_work_items[param_value_t];
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_items), &max_work_items, NULL));
+        for (int j=0; j<param_value_t   ; j++)
+            printf("\tCL_DEVICE_MAX_WORK_ITEM_SIZES[%d]: %d\n", j, max_work_items[j]);
+
         cl_platform_id platform;
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
         printf("\tOpenCL platform: ");
