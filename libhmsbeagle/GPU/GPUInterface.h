@@ -47,6 +47,8 @@
 #   endif
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
+
+    namespace cuda_device {
 #else
 #ifdef FW_OPENCL
 #   ifdef DLS_MACOS
@@ -61,6 +63,8 @@
 #   endif
     typedef cl_mem GPUPtr;
     typedef cl_kernel GPUFunction;
+
+    namespace opencl_device {
 #endif
 #endif
 
@@ -222,5 +226,7 @@ protected:
 
     bool supportDoublePrecision;
 };
+
+}; // namespace
 
 #endif // __GPUInterface__

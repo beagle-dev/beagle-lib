@@ -34,7 +34,14 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 
+#ifdef CUDA
+	namespace cuda_device {
+#else
+	namespace opencl_device {
+#endif
+
 class KernelLauncher {
+
 private:
     GPUInterface* gpu;
     
@@ -342,4 +349,7 @@ protected:
     void LoadKernels();
 
 };
+
+}; // namespace
+
 #endif // __KernelLauncher__

@@ -45,11 +45,19 @@
 #define BEAGLE_GPU_GENERIC	Real, Framework
 #define BEAGLE_GPU_TEMPLATE template <typename Real, int Framework>
 
+#ifdef CUDA
+	using namespace cuda_device;
+#else
+	using namespace opencl_device;
+#endif
+
 namespace beagle {
 namespace gpu {
 
 BEAGLE_GPU_TEMPLATE
 class BeagleGPUImpl : public BeagleImpl {
+
+
 private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
