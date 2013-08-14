@@ -53,6 +53,7 @@
 	        0,0,0); \
 	    map->insert(std::make_pair(id,kernel##state##prec));
 
+namespace cuda_device {
 
 std::map<int, KernelResource>* kernelMap = NULL;
 
@@ -230,14 +231,14 @@ void GPUInterface::InitializeKernelMap() {
     LOAD_KERNEL_INTO_MAP(192, SP, kernelMap, 192);
 
     if (supportDoublePrecision) {
-        LOAD_KERNEL_INTO_MAP(4,   DP, kernelMap, -4  );
-        LOAD_KERNEL_INTO_MAP(16,  DP, kernelMap, -16 );
-        LOAD_KERNEL_INTO_MAP(32,  DP, kernelMap, -32 );
-        LOAD_KERNEL_INTO_MAP(48,  DP, kernelMap, -48 );
-        LOAD_KERNEL_INTO_MAP(64,  DP, kernelMap, -64 );
-        LOAD_KERNEL_INTO_MAP(80,  DP, kernelMap, -80 );
-        LOAD_KERNEL_INTO_MAP(128, DP, kernelMap, -128);
-        LOAD_KERNEL_INTO_MAP(192, DP, kernelMap, -192);
+    	LOAD_KERNEL_INTO_MAP(4,   DP, kernelMap, -4  );
+    	LOAD_KERNEL_INTO_MAP(16,  DP, kernelMap, -16 );
+    	LOAD_KERNEL_INTO_MAP(32,  DP, kernelMap, -32 );
+    	LOAD_KERNEL_INTO_MAP(48,  DP, kernelMap, -48 );
+    	LOAD_KERNEL_INTO_MAP(64,  DP, kernelMap, -64 );
+    	LOAD_KERNEL_INTO_MAP(80,  DP, kernelMap, -80 );
+    	LOAD_KERNEL_INTO_MAP(128, DP, kernelMap, -128);
+    	LOAD_KERNEL_INTO_MAP(192, DP, kernelMap, -192);
     }
 }
 
@@ -781,3 +782,4 @@ const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
     return errorDesc;
 }
 
+}; // namespace

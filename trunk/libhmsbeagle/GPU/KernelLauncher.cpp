@@ -36,6 +36,12 @@
 
 /**************CODE***********/
 
+#ifdef CUDA
+namespace cuda_device {
+#else
+namespace opencl_device {
+#endif
+
 REAL* ones = NULL; // TODO: Memory leak, need to free at some point.
 
 KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
@@ -1152,6 +1158,7 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
     
 }
 
+}; // namespace
 
 
 

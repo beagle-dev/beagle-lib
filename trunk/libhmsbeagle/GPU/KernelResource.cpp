@@ -7,6 +7,15 @@
 
 #include "KernelResource.h"
 
+
+//#ifdef CUDA
+//    using namespace cuda_device;
+//#else
+//#ifdef FW_OPENCL
+//    using namespace opencl_device;
+//#endif
+//#endif
+
 KernelResource::KernelResource() {
 }
 
