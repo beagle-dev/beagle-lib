@@ -32,7 +32,11 @@ public enum BeagleFlag {
     PROCESSOR_CPU(1 << 15, "use CPU as main processor"),
     PROCESSOR_GPU(1 << 16, "use GPU as main processor"),
     PROCESSOR_FPGA(1 << 17, "use FPGA as main processor"),
-    PROCESSOR_CELL(1 << 18, "use CELL as main processor");
+    PROCESSOR_CELL(1 << 18, "use CELL as main processor"),
+
+    FRAMEWORK_CUDA(1 << 22, "use CUDA implementation with GPU resources"),
+    FRAMEWORK_OPENCL(1 << 23, "use OpenCL implementation with CPU or GPU resources"),
+    FRAMEWORK_CPU(1 << 27, "use CPU implementation");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
