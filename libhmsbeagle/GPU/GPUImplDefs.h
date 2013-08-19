@@ -36,6 +36,9 @@
     #define M_LN2   0.69314718055994530942  /* log_e 2 */
 #endif // OPENCL_KERNEL_BUILD
 
+//#define FW_OPENCL_BINARY
+//#define FW_OPENCL_TESTING
+
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH

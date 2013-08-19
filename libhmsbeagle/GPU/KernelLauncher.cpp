@@ -151,8 +151,6 @@ void KernelLauncher::LoadKernels() {
             "kernelPartialsPartialsNoScale");
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
     fSumSites1 = gpu->GetFunction("kernelSumSites1");
-    fSumSites2 = gpu->GetFunction("kernelSumSites2");
-    fSumSites3 = gpu->GetFunction("kernelSumSites3");
 #else
 	//TODO: Epoch Model
 	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
