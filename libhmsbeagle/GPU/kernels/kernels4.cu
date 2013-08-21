@@ -65,66 +65,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
                                                               KW_GLOBAL_VAR REAL* matrices1,
                                                               KW_GLOBAL_VAR REAL* matrices2,
                                                               int totalPatterns) {
-    REAL sum1;
-    REAL sum2;
-    int i;
+
 
     DETERMINE_INDICES_4();
 
-    int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
-    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + x2;
+    partials3[u] = 0.1;
 
-#ifdef KERNEL_PRINT_ENABLED
-    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
-           state, u);
-#endif
-
-    // Load values into shared memory
-    KW_LOCAL_MEM REAL sMatrix1[16];
-    KW_LOCAL_MEM REAL sMatrix2[16];
-
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
-
-    // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
-        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
-    } else {
-        sPartials1[multBy16(patIdx) | tx] = 0;
-        sPartials2[multBy16(patIdx) | tx] = 0;
-    }
-
-    if (patIdx == 0 ) {
-        sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
-        sMatrix2[tx] = matrix2[tx];
-    }
-
-    KW_LOCAL_FENCE;
-
-    if (pattern < totalPatterns) { // Remove padded threads!
-
-        i = pat;
-        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-
-        partials3[u] = sum1 * sum2;
-    }
 
 }
 
