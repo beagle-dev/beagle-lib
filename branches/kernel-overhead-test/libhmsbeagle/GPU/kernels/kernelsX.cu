@@ -54,59 +54,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
                                                              KW_GLOBAL_VAR REAL* matrices1,
                                                              KW_GLOBAL_VAR REAL* matrices2,
                                                              int totalPatterns) {
-    REAL sum1 = 0;
-    REAL sum2 = 0;
-    int i;
-
     DETERMINE_INDICES();
 
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
-    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + deltaMatrix;
-
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        // These are all coherent global memory reads; checked in Profiler
-        sPartials1[patIdx][state] = partials1[y + state];
-        sPartials2[patIdx][state] = partials2[y + state];
-    } else {
-        sPartials1[patIdx][state] = 0;
-        sPartials2[patIdx][state] = 0;
-    }
-
-    for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        // load one row of matrices
-        if (patIdx < BLOCK_PEELING_SIZE) {
-            // These are all coherent global memory reads.
-            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-
-            // sMatrix now filled with starting in state and ending in i
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-        }
-        KW_LOCAL_FENCE;
-
-        int j;
-        for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
-            sum1 += sMatrix1[j][state] * sPartials1[patIdx][i + j];
-            sum2 += sMatrix2[j][state] * sPartials2[patIdx][i + j];
-        }
-
-        KW_LOCAL_FENCE; // GTX280 FIX HERE
-
-    }
-
-    if (pattern < totalPatterns)
-        partials3[u] = sum1 * sum2;
+    partials3[u] = 0.1;
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partials1,
