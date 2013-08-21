@@ -1,0 +1,56 @@
+<?xml version="1.0" ?>
+
+<project name="BEAGLE" default="dist" basedir=".">
+	<description>
+		Build file for BEAGLE Java library
+		$Id:$
+	</description>
+
+	<!-- set global properties for this build -->
+	<property name="src" location="java"/>
+	<property name="build" location="build"/>
+
+	<property name="lib" location="lib"/>
+	<property name="dist" location="lib"/>
+
+	<property environment="env"/>
+
+	<target name="clean">
+		<mkdir dir="${build}"/>
+		<delete includeEmptyDirs="true">
+			<fileset dir="${build}" includes="**/*"/>
+		</delete>
+
+	</target>
+
+	<target name="init">
+		<!-- Create the time stamp -->
+		<tstamp/>
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${build}"/>
+		<mkdir dir="${dist}"/>
+		<mkdir dir="${lib}"/>
+	</target>
+
+	<target name="compile" depends="init">
+		<!-- Compile the java code from ${src} into ${build} -->
+		<javac source="1.5" target="1.5" srcdir="${src}" destdir="${build}" classpath="">
+			<include name="beagle/**"/>
+		</javac>
+	</target>
+
+	<target name="dist" depends="compile" description="generate the distribution">
+		<!-- Create the distribution directory -->
+		<mkdir dir="${dist}"/>
+
+		<jar jarfile="${dist}/beagle.jar">
+			<fileset dir="${build}" includes="**/*.class,**/*.properties"/>
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Main-Class" value="beagle.BeagleFactory"/>
+			</manifest>
+		</jar>
+
+	</target>
+
+</project>

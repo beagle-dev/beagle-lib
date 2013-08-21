@@ -1,0 +1,28 @@
+This is a proof-of-concept of wrapping libhmsbeagle using SWIG to generate Python wrappers. This has been tested only on Linux; building the module can be done either by the shell script
+
+bash ./build.sh
+
+or by using python setuptools
+
+python setup.py build_ext --inplace
+
+You can then run a test, which is basically a 1:1 translation of hellobeagle:
+
+python test.py
+
+This prints out
+-84.8523582328
+Woof!
+
+If you get a strange message like this:
+Traceback (most recent call last):
+  File "setup.py", line 10, in <module>
+    beagle_module = Extension("_beagle",sources=['beagle_wrap.c'],**pkgconfig('hmsbeagle-1'))
+TypeError: __init__() keywords must be strings
+
+it's probably because pkgconfig can't find hmsbeagle.
+
+Simon Frost
+Cambridge 2/2/12
+sdf22 at cam dot ac dot uk
+
