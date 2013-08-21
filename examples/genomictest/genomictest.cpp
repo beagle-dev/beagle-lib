@@ -579,7 +579,7 @@ void runBeagle(int resource,
             bestTimeUpdatePartials = getTimeDiff(time2, time3);
         if (i == 0 || getTimeDiff(time3, time4) < bestTimeAccumulateScaleFactors)
             bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
-        if (i == 0 || getTimeDiff(time4, time5) < bestTimeUpdateTransitionMatrices)
+        if (i == 0 || getTimeDiff(time4, time5) < bestTimeCalculateRootLogLikelihoods)
             bestTimeCalculateRootLogLikelihoods = getTimeDiff(time4, time5);
         if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal)
             bestTimeTotal = getTimeDiff(time1, time5);
