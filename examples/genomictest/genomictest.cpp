@@ -629,7 +629,7 @@ void runBeagle(int resource,
         std::cout << " partials:   ";
         printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, bestTimeTotal, percentPrecision);
 		unsigned int partialsOps = internalCount * eigenCount;
-		unsigned int flopsPerPartial = (stateCount * 4) + 1;
+		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
 		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
 		unsigned long long partialsTotal = partialsSize * partialsOps;
 		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
