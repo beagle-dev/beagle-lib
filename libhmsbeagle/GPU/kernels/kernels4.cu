@@ -74,13 +74,44 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
-    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + x2;
-
 #ifdef KERNEL_PRINT_ENABLED
     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n", matrix, pattern, tx,
            state, u);
 #endif
+
+    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
+    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + x2;
+
+#ifdef FW_OPENCL_INTEL
+
+    KW_GLOBAL_VAR REAL* sMatrix1 = matrix1;
+    KW_GLOBAL_VAR REAL* sMatrix2 = matrix2;
+
+    int deltaPartials = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + deltaPartialsByMatrix;
+    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;
+    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;
+
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+    sum1 =     sMatrix1[0 * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
+    sum1 = fma(sMatrix1[1 * 4 + state],  sPartials1[patIdx * 16 + pat * 4 + 1], sum1);
+    sum1 = fma(sMatrix1[2 * 4 + state],  sPartials1[patIdx * 16 + pat * 4 + 2], sum1);
+    sum1 = fma(sMatrix1[3 * 4 + state],  sPartials1[patIdx * 16 + pat * 4 + 3], sum1);
+    sum2 =     sMatrix2[0 * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
+    sum2 = fma(sMatrix2[1 * 4 + state],  sPartials2[patIdx * 16 + pat * 4 + 1], sum2);
+    sum2 = fma(sMatrix2[2 * 4 + state],  sPartials2[patIdx * 16 + pat * 4 + 2], sum2);
+    sum2 = fma(sMatrix2[3 * 4 + state],  sPartials2[patIdx * 16 + pat * 4 + 3], sum2);
+#else //FP_FAST_FMA
+    sum1 =  sMatrix1[0 * 4 + state] * sPartials1[patIdx * 16 + pat * 4];
+    sum1 += sMatrix1[1 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 1];
+    sum1 += sMatrix1[2 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 2];
+    sum1 += sMatrix1[3 * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + 3];
+    sum2 =  sMatrix2[0 * 4 + state] * sPartials2[patIdx * 16 + pat * 4];
+    sum2 += sMatrix2[1 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 1];
+    sum2 += sMatrix2[2 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 2];
+    sum2 += sMatrix2[3 * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + 3];
+#endif //FP_FAST_FMA
+
+#else
 
     // Load values into shared memory
     KW_LOCAL_MEM REAL sMatrix1[16];
@@ -90,13 +121,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     // copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
-        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
-    } else {
-        sPartials1[multBy16(patIdx) | tx] = 0;
-        sPartials2[multBy16(patIdx) | tx] = 0;
-    }
+    sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; // All coalesced memory reads
+    sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
 
     if (patIdx == 0 ) {
         sMatrix1[tx] = matrix1[tx]; // All coalesced memory reads
@@ -105,27 +131,36 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
     KW_LOCAL_FENCE;
 
-    if (pattern < totalPatterns) { // Remove padded threads!
+    i = pat;
 
-        i = pat;
-        sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    sum1  =     sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2  =     sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+    sum1  = fma(sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);
+    sum2  = fma(sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+    i = (++i) & 0x3;
+    sum1  = fma(sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);
+    sum2  = fma(sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+    i = (++i) & 0x3;
+    sum1  = fma(sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);
+    sum2  = fma(sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+#else //FP_FAST_FMA
+    sum1 +=     sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 +=     sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
+    sum1 +=     sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 +=     sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+    i = (++i) & 0x3;
+    sum1 +=     sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
+    sum2 +=     sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+#endif //FP_FAST_FMA
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-        i = (++i) & 0x3;
-        sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
-        sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+#endif
 
-        partials3[u] = sum1 * sum2;
-    }
-
+    partials3[u] = sum1 * sum2;
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* partials1,
