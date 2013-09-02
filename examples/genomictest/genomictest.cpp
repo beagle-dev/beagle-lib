@@ -521,7 +521,7 @@ void runBeagle(int resource,
         
         // update the partials
         beagleUpdatePartials( instance,      // instance
-                        (BeagleOperation*)operations,     // eigenIndex
+                        (BeagleOperation*)operations,     // operations
                         internalCount*eigenCount,              // operationCount
                         (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
 
@@ -585,17 +585,17 @@ void runBeagle(int resource,
             bestTimeTotal = getTimeDiff(time1, time5);
         
         if (!(logL - logL == 0.0))
-            abort("error: invalid lnL");
+            fprintf(stdout, "error: invalid lnL");
         
         if (i > 0 && abs(logL - previousLogL) > MAX_DIFF)
-            abort("error: large lnL difference between reps");
+            fprintf(stdout, "error: large lnL difference between reps");
         
         if (calcderivs) {
             if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
-                abort("error: invalid deriv");
+                fprintf(stdout, "error: invalid deriv");
             
             if (i > 0 && ((abs(deriv1 - previousDeriv1) > MAX_DIFF) || (abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
-                abort("error: large deriv difference between reps");
+                fprintf(stdout, "error: large deriv difference between reps");
         }
 
         previousLogL = logL;
@@ -628,6 +628,14 @@ void runBeagle(int resource,
         printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";
         printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, bestTimeTotal, percentPrecision);
+		unsigned int partialsOps = internalCount * eigenCount;
+		unsigned int flopsPerPartial = (stateCount * 4) + 1;
+		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+		unsigned long long partialsTotal = partialsSize * partialsOps;
+		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+		std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
+		std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
+		// std::cout << " memory bandwidth:   " << ((partialsTotal*3.125)/bestTimeUpdatePartials)/1073741824.0 << " GB/s " << std::endl;
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);

@@ -256,6 +256,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\libhmsbeagle\beagle.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\BeagleImpl.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.hpp" />
     <ClInclude Include="..\..\..\libhmsbeagle\platform.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\GPU\GPUImplDefs.h" />

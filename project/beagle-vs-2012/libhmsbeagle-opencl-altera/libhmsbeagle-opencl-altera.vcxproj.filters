@@ -36,6 +36,9 @@
     <ClInclude Include="..\..\..\libhmsbeagle\GPU\KernelResource.h">
       <Filter>libhmsbeagle\GPU</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.hpp">
+      <Filter>libhmsbeagle\GPU</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\libhmsbeagle\GPU\GPUImplHelper.cpp">
