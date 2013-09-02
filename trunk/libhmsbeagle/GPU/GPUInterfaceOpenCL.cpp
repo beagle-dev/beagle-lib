@@ -142,6 +142,12 @@ int GPUInterface::Initialize() {
         printf("Device %d:\n", i);
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_NAME, param_size, param_value, NULL));
         printf("\tDevice name: %s\n", param_value);
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_VENDOR, param_size, param_value, NULL));
+        printf("\tDevice vendor: %s\n", param_value);
+
+        cl_uint param_value_uint;
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_VENDOR_ID, sizeof(param_value_uint), &param_value_uint, NULL));
+        printf("\tDevice vendor id: %d\n", param_value_uint);
 
         size_t param_value_t = 0;
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_MAX_WORK_GROUP_SIZE,
@@ -320,6 +326,15 @@ void GPUInterface::SetDevice(int deviceNumber,
 #ifdef DLS_MACOS
     strcat(buildDefs, "-D DLS_MACOS ");
 #endif
+
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+    if (!strncmp("Intel", param_value, strlen("Intel")))
+        strcat(buildDefs, "-D FW_OPENCL_INTEL");
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
     if (err != CL_SUCCESS) {

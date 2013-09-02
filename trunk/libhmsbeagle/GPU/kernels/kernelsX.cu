@@ -65,6 +65,25 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
+#ifdef FW_OPENCL_INTEL
+    KW_GLOBAL_VAR REAL* sMatrix1 = matrix1;
+    KW_GLOBAL_VAR REAL* sMatrix2 = matrix2;
+
+    int deltaPartials = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT) + deltaPartialsByMatrix;
+    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;
+    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;
+
+    for(i = 0; i < PADDED_STATE_COUNT; i++) {
+    #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+        sum1 = fma(sMatrix1[i * PADDED_STATE_COUNT + state],  sPartials1[patIdx * PADDED_STATE_COUNT  + i], sum1);
+        sum2 = fma(sMatrix2[i * PADDED_STATE_COUNT + state],  sPartials2[patIdx * PADDED_STATE_COUNT  + i], sum2);
+    #else //FP_FAST_FMA
+        sum1 +=    sMatrix1[i * PADDED_STATE_COUNT + state] * sPartials1[patIdx * PADDED_STATE_COUNT  + i];
+        sum2 +=    sMatrix2[i * PADDED_STATE_COUNT + state] * sPartials2[patIdx * PADDED_STATE_COUNT  + i];
+    #endif //FP_FAST_FMA
+    }
+
+#else
     // Load values into shared memory
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
@@ -73,14 +92,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
-    if (pattern < totalPatterns) {
-        // These are all coherent global memory reads; checked in Profiler
-        sPartials1[patIdx][state] = partials1[y + state];
-        sPartials2[patIdx][state] = partials2[y + state];
-    } else {
-        sPartials1[patIdx][state] = 0;
-        sPartials2[patIdx][state] = 0;
-    }
+    // These are all coherent global memory reads; checked in Profiler
+    sPartials1[patIdx][state] = partials1[y + state];
+    sPartials2[patIdx][state] = partials2[y + state];
 
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         // load one row of matrices
@@ -97,16 +111,21 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
         int j;
         for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
+        #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+            sum1 = fma(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
+            sum2 = fma(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);   
+        #else //FP_FAST_FMA
             sum1 += sMatrix1[j][state] * sPartials1[patIdx][i + j];
             sum2 += sMatrix2[j][state] * sPartials2[patIdx][i + j];
+        #endif //FP_FAST_FMA
         }
 
-        KW_LOCAL_FENCE; // GTX280 FIX HERE
+        KW_LOCAL_FENCE;
 
     }
+#endif
 
-    if (pattern < totalPatterns)
-        partials3[u] = sum1 * sum2;
+    partials3[u] = sum1 * sum2;
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partials1,

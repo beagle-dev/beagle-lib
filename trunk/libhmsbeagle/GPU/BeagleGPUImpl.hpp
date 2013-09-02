@@ -255,30 +255,44 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     kInternalPartialsBufferCount = kBufferCount - kTipCount;
     
-    if (kStateCount <= 4)
+    int patternBlockSize = 0;
+
+    if (kStateCount <= 4) {
         kPaddedStateCount = 4;
-    else if (kStateCount <= 16)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
+    } else if (kStateCount <= 16) {
         kPaddedStateCount = 16;
-    else if (kStateCount <= 32)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_16 : PATTERN_BLOCK_SIZE_SP_16);
+    } else if (kStateCount <= 32) {
         kPaddedStateCount = 32;
-    else if (kStateCount <= 48)
-    	kPaddedStateCount = 48;    
-    else if (kStateCount <= 64)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_32 : PATTERN_BLOCK_SIZE_SP_32);
+    } else if (kStateCount <= 48) {
+    	kPaddedStateCount = 48;  
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_48 : PATTERN_BLOCK_SIZE_SP_48);  
+    } else if (kStateCount <= 64) {
         kPaddedStateCount = 64;
-    else if (kStateCount <= 80)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_64 : PATTERN_BLOCK_SIZE_SP_64);
+    } else if (kStateCount <= 80) {
 		kPaddedStateCount = 80;
-    else if (kStateCount <= 128)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_80 : PATTERN_BLOCK_SIZE_SP_80);
+    } else if (kStateCount <= 128) {
         kPaddedStateCount = 128;
-    else if (kStateCount <= 192)
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_128 : PATTERN_BLOCK_SIZE_SP_128);
+    } else if (kStateCount <= 192){ 
         kPaddedStateCount = 192;
-    else
+        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_192 : PATTERN_BLOCK_SIZE_SP_192);
+    } else {
         kPaddedStateCount = kStateCount + kStateCount % 16;
+    }
         
     // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
     int paddedPatterns = 0;
-    if (kPaddedStateCount == 4 && kPatternCount % 4 != 0) 
-        paddedPatterns = 4 - kPatternCount % 4;
-            
+    if (kPaddedStateCount == 4) {
+        paddedPatterns = (patternBlockSize * 4) - (kPatternCount % (patternBlockSize * 4));
+    } else if (patternBlockSize != 0) {
+        paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
+    } 
+    
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
@@ -287,7 +301,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     int patternBlockSizeFour = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
     if (kPaddedStateCount == 4 && kPaddedPatternCount % patternBlockSizeFour != 0)
         resultPaddedPatterns = patternBlockSizeFour - kPaddedPatternCount % patternBlockSizeFour;
-        
+
+#ifdef BEAGLE_DEBUG_VALUES
+    printf("kPatternCount %d, paddedPatterns %d, resultPaddedPatterns %d, kPaddedPatternCount %d\n", kPatternCount, paddedPatterns, resultPaddedPatterns, kPaddedPatternCount);
+#endif
+
     kScaleBufferSize = kPaddedPatternCount;
     
     kFlags = 0;
