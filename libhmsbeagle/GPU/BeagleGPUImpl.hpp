@@ -315,7 +315,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         if (kPaddedStateCount == 4) {
             partialsPerWorkGroup = patternBlockSize * 4 * PARTIALS_PER_WORKITEM_4;
         } else if (patternBlockSize != 0) {
-            partialsPerWorkGroup = patternBlockSize * kPaddedStateCount;
+            partialsPerWorkGroup = patternBlockSize * PARTIALS_PER_WORKITEM_X;
         } 
         if (kPatternCount % partialsPerWorkGroup) {
             paddedPatterns = partialsPerWorkGroup - (kPatternCount % partialsPerWorkGroup);
