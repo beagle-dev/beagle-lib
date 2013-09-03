@@ -99,12 +99,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
             bgPeelingGrid.x += 1;
     } else {
         bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
-        if (intelPlatform) {
-            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * PARTIALS_PER_WORKITEM_X),
-                                     kCategoryCount);
-        } else {
-            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
-        }
+        bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
         if (kPatternCount % kPatternBlockSize != 0)
             bgPeelingGrid.x += 1;
     } 
