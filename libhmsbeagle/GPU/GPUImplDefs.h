@@ -129,8 +129,7 @@
 /* Table of pre-optimized compiler definitions
  */
 
- #define PARTIALS_PER_WORKITEM_4 4
- #define PARTIALS_PER_WORKITEM_X 1
+#define PARTIALS_PER_WORKITEM_4 4
 
 // SINGLE PRECISION definitions
 
