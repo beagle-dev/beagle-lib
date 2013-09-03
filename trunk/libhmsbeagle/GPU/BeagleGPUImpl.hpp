@@ -284,16 +284,44 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     } else {
         kPaddedStateCount = kStateCount + kStateCount % 16;
     }
-        
-    // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
-    int paddedPatterns = 0;
-    if (kPaddedStateCount == 4 && (kPatternCount % (patternBlockSize * 4))) {
-        paddedPatterns = (patternBlockSize * 4) - (kPatternCount % (patternBlockSize * 4));
-    } else if (patternBlockSize != 0 && (kPatternCount % patternBlockSize)) {
-        paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
-    } 
+
+    gpu = new GPUInterface();
     
+    gpu->Initialize();
+
+    int numDevices = 0;
+    numDevices = gpu->GetDeviceCount();
+    if (numDevices == 0) {
+        fprintf(stderr, "Error: No GPU devices\n");
+        return BEAGLE_ERROR_NO_RESOURCE;
+    }
+    if (pluginResourceNumber > numDevices) {
+        fprintf(stderr,"Error: Trying to initialize device # %d (which does not exist)\n",resourceNumber);
+        return BEAGLE_ERROR_NO_RESOURCE;
+    }
+
+    int paddedPatterns = 0;
+    // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
+    if (kPaddedStateCount == 4 && kPatternCount % 4 != 0) 
+        paddedPatterns = 4 - kPatternCount % 4;    
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
+
+#ifdef FW_OPENCL
+    const size_t platformVendorSize = 256;
+    char platformVendor[platformVendorSize];
+    gpu->GetPlatformVendor(pluginResourceNumber, platformVendor);
+    if (!strncmp("Intel", platformVendor, strlen("Intel"))) {
+        int partialsPerWorkGroup = 1;
+        if (kPaddedStateCount == 4) {
+            partialsPerWorkGroup = patternBlockSize * 4 * PARTIALS_PER_WORKITEM_4;
+        } else if (patternBlockSize != 0) {
+            partialsPerWorkGroup = patternBlockSize * kPaddedStateCount * PARTIALS_PER_WORKITEM_X;
+        } 
+        if (kPatternCount % partialsPerWorkGroup) {
+            paddedPatterns = partialsPerWorkGroup - (kPatternCount % partialsPerWorkGroup);
+        }
+    }
+#endif
     
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
@@ -359,21 +387,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
-        
-    gpu = new GPUInterface();
-    
-    gpu->Initialize();
-    
-    int numDevices = 0;
-    numDevices = gpu->GetDeviceCount();
-    if (numDevices == 0) {
-        fprintf(stderr, "Error: No GPU devices\n");
-        return BEAGLE_ERROR_NO_RESOURCE;
-    }
-    if (pluginResourceNumber > numDevices) {
-        fprintf(stderr,"Error: Trying to initialize device # %d (which does not exist)\n",resourceNumber);
-        return BEAGLE_ERROR_NO_RESOURCE;
-    }
     
     // TODO: recompiling kernels for every instance, probably not ideal
     gpu->SetDevice(pluginResourceNumber,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kFlags);

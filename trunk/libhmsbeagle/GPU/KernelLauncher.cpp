@@ -29,6 +29,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -54,6 +55,15 @@ KernelLauncher::~KernelLauncher() {
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
+    bool intelPlatform = false;
+
+#ifdef FW_OPENCL
+    const size_t platformVendorSize = 256;
+    char platformVendor[platformVendorSize];
+    gpu->GetPlatformVendor(-1, platformVendor);
+    if (!strncmp("Intel", platformVendor, strlen("Intel")))
+        intelPlatform = true;
+#endif
 
     kPaddedStateCount = gpu->kernelResource->paddedStateCount;
     kCategoryCount = gpu->kernelResource->categoryCount;
@@ -74,20 +84,31 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgTransitionProbabilitiesGrid.x += 1;
         bgTransitionProbabilitiesGrid.y += 1;
     }
-    
+
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
         bgPeelingBlock = Dim3Int(16, kPatternBlockSize);
-        bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4), kCategoryCount);
+        if (intelPlatform) {
+            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4 * PARTIALS_PER_WORKITEM_4),
+                                     kCategoryCount);
+        } else {
+            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4),
+                                     kCategoryCount);            
+        }
         if (kPatternCount % (kPatternBlockSize * 4) != 0)
             bgPeelingGrid.x += 1;
     } else {
         bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
-        bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        if (intelPlatform) {
+            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * PARTIALS_PER_WORKITEM_X),
+                                     kCategoryCount);
+        } else {
+            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        }
         if (kPatternCount % kPatternBlockSize != 0)
             bgPeelingGrid.x += 1;
     } 
-    
+
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
         int likePatternBlockSize = kPatternBlockSize;

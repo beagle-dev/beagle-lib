@@ -327,13 +327,10 @@ void GPUInterface::SetDevice(int deviceNumber,
     strcat(buildDefs, "-D DLS_MACOS ");
 #endif
 
-    const size_t param_size = 256;
-    char param_value[param_size];
-    cl_platform_id platform;
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
-    if (!strncmp("Intel", param_value, strlen("Intel")))
+    const size_t platformVendorSize = 256;
+    char platformVendor[platformVendorSize];
+    GetPlatformVendor(deviceNumber, platformVendor);
+    if (!strncmp("Intel", platformVendor, strlen("Intel")))
         strcat(buildDefs, "-D FW_OPENCL_INTEL");
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
@@ -844,6 +841,33 @@ long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 #endif
 
     return deviceTypeFlag;
+}
+
+void GPUInterface::GetPlatformVendor(int deviceNumber,
+                                     char* platformVendor) {       
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetPlatformVendor\n");
+#endif
+
+    cl_device_id deviceId;
+
+    if (deviceNumber < 0)
+        deviceId = openClDeviceId;
+    else
+        deviceId = openClDeviceMap[deviceNumber];
+
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+
+    strcpy(platformVendor, param_value);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetPlatformVendor\n");
+#endif
 }
 
 const char* GPUInterface::GetCLErrorDescription(int errorCode) {

@@ -129,6 +129,9 @@
 /* Table of pre-optimized compiler definitions
  */
 
+ #define PARTIALS_PER_WORKITEM_4 4
+ #define PARTIALS_PER_WORKITEM_X 1
+
 // SINGLE PRECISION definitions
 
 // PADDED_STATE_COUNT == 4
