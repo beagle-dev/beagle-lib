@@ -287,9 +287,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         
     // Make sure that kPaddedPatternCount + paddedPatterns is multiple of 4 for DNA model
     int paddedPatterns = 0;
-    if (kPaddedStateCount == 4) {
+    if (kPaddedStateCount == 4 && (kPatternCount % (patternBlockSize * 4))) {
         paddedPatterns = (patternBlockSize * 4) - (kPatternCount % (patternBlockSize * 4));
-    } else if (patternBlockSize != 0) {
+    } else if (patternBlockSize != 0 && (kPatternCount % patternBlockSize)) {
         paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
     } 
     
