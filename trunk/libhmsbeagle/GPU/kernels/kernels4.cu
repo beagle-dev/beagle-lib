@@ -65,25 +65,26 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
                                                               KW_GLOBAL_VAR REAL* matrices1,
                                                               KW_GLOBAL_VAR REAL* matrices2,
                                                               int totalPatterns) {
-    REAL sum1;
-    REAL sum2;
+
     int i;
 
 #ifdef FW_OPENCL_INTEL
-    int tx = KW_LOCAL_ID_0; 
-    int state = tx & 0x3; 
-    int pat = tx >> 2; 
-    int patIdx = KW_LOCAL_ID_1; 
-    int matrix = KW_GROUP_ID_1; 
-    int deltaPartialsByState = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * PARTIALS_PER_WORKITEM_4 + patIdx); 
-    int deltaPartialsByMatrix = (matrix * multBy4(totalPatterns)); 
-    int x2 = multBy16(matrix); 
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
-    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState + multBy4(pat);
-    int workGroupSize = multBy16(PATTERN_BLOCK_SIZE);
+    REAL sum1 = 0;
+    REAL sum2 = 0;
 
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2; // Points to *this* matrix
-    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + x2;
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int matrix = KW_GROUP_ID_1;
+    int pattern = KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * PARTIALS_PER_WORKITEM_4 + patIdx;
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+    int workGroupSize = PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
+    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + deltaMatrix;
 
     KW_GLOBAL_VAR REAL* sMatrix1 = matrix1;
     KW_GLOBAL_VAR REAL* sMatrix2 = matrix2;
@@ -94,23 +95,25 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     int j;
     for (j = 0; j < PARTIALS_PER_WORKITEM_4; j++) {
 #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
-        sum1 =     sMatrix1[0 * 4 + state] * sPartials1[0];
-        sum1 = fma(sMatrix1[1 * 4 + state],  sPartials1[1], sum1);
-        sum1 = fma(sMatrix1[2 * 4 + state],  sPartials1[2], sum1);
-        sum1 = fma(sMatrix1[3 * 4 + state],  sPartials1[3], sum1);
-        sum2 =     sMatrix2[0 * 4 + state] * sPartials2[0];
-        sum2 = fma(sMatrix2[1 * 4 + state],  sPartials2[1], sum2);
-        sum2 = fma(sMatrix2[2 * 4 + state],  sPartials2[2], sum2);
-        sum2 = fma(sMatrix2[3 * 4 + state],  sPartials2[3], sum2);
+        sum1 = fma(sMatrix1[0 * PADDED_STATE_COUNT + state],  sPartials1[0], sum1);
+        sum1 = fma(sMatrix1[1 * PADDED_STATE_COUNT + state],  sPartials1[1], sum1);
+        sum1 = fma(sMatrix1[2 * PADDED_STATE_COUNT + state],  sPartials1[2], sum1);
+        sum1 = fma(sMatrix1[3 * PADDED_STATE_COUNT + state],  sPartials1[3], sum1);
+
+        sum2 = fma(sMatrix2[0 * PADDED_STATE_COUNT + state],  sPartials2[0], sum2);
+        sum2 = fma(sMatrix2[1 * PADDED_STATE_COUNT + state],  sPartials2[1], sum2);
+        sum2 = fma(sMatrix2[2 * PADDED_STATE_COUNT + state],  sPartials2[2], sum2);
+        sum2 = fma(sMatrix2[3 * PADDED_STATE_COUNT + state],  sPartials2[3], sum2);
 #else //FP_FAST_FMA
-        sum1 =  sMatrix1[0 * 4 + state] * sPartials1[0];
-        sum1 += sMatrix1[1 * 4 + state] * sPartials1[1];
-        sum1 += sMatrix1[2 * 4 + state] * sPartials1[2];
-        sum1 += sMatrix1[3 * 4 + state] * sPartials1[3];
-        sum2 =  sMatrix2[0 * 4 + state] * sPartials2[0];
-        sum2 += sMatrix2[1 * 4 + state] * sPartials2[1];
-        sum2 += sMatrix2[2 * 4 + state] * sPartials2[2];
-        sum2 += sMatrix2[3 * 4 + state] * sPartials2[3];
+        sum1 +=    sMatrix1[0 * PADDED_STATE_COUNT + state] * sPartials1[0];
+        sum1 +=    sMatrix1[1 * PADDED_STATE_COUNT + state] * sPartials1[1];
+        sum1 +=    sMatrix1[2 * PADDED_STATE_COUNT + state] * sPartials1[2];
+        sum1 +=    sMatrix1[3 * PADDED_STATE_COUNT + state] * sPartials1[3];
+
+        sum2 +=    sMatrix2[0 * PADDED_STATE_COUNT + state] * sPartials2[0];
+        sum2 +=    sMatrix2[1 * PADDED_STATE_COUNT + state] * sPartials2[1];
+        sum2 +=    sMatrix2[2 * PADDED_STATE_COUNT + state] * sPartials2[2];
+        sum2 +=    sMatrix2[3 * PADDED_STATE_COUNT + state] * sPartials2[3];
 #endif //FP_FAST_FMA
 
         partials3[u] = sum1 * sum2;
@@ -118,9 +121,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
         u += workGroupSize;
         sPartials1 += workGroupSize;
         sPartials2 += workGroupSize;
+        sum1 = 0; sum2 = 0;
     }
 
 #else
+    REAL sum1;
+    REAL sum2;
+
     DETERMINE_INDICES_4();
     
 #ifdef KERNEL_PRINT_ENABLED
