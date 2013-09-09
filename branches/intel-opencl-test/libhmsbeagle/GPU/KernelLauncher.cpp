@@ -88,7 +88,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
         if (intelPlatform) {
-            bgPeelingBlock = Dim3Int(4, kPatternBlockSize);
+            bgPeelingBlock = Dim3Int(kPatternBlockSize, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * PARTIALS_PER_WORKITEM_4),
                                      kCategoryCount);
         } else {

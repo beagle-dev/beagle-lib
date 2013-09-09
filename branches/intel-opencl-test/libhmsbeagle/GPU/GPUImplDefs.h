@@ -129,13 +129,13 @@
 /* Table of pre-optimized compiler definitions
  */
 
- #define PARTIALS_PER_WORKITEM_4 8
+ #define PARTIALS_PER_WORKITEM_4 4
  #define PARTIALS_PER_WORKITEM_X 1
 
 // SINGLE PRECISION definitions
 
 // PADDED_STATE_COUNT == 4
-#define PATTERN_BLOCK_SIZE_SP_4          16
+#define PATTERN_BLOCK_SIZE_SP_4          64
 #define MATRIX_BLOCK_SIZE_SP_4           8
 #define BLOCK_PEELING_SIZE_SP_4          8
 #define IS_POWER_OF_TWO_SP_4             1
