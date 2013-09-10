@@ -39,11 +39,8 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
 
-#define FW_CUDA     0
-#define FW_OPENCL   1
-
-#define BEAGLE_GPU_GENERIC	Real, Framework
-#define BEAGLE_GPU_TEMPLATE template <typename Real, int Framework>
+#define BEAGLE_GPU_GENERIC	Real
+#define BEAGLE_GPU_TEMPLATE template <typename Real>
 
 #ifdef CUDA
 	using namespace cuda_device;

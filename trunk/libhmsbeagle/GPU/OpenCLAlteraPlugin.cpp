@@ -60,10 +60,10 @@ Plugin("GPU-OpenCL-Altera", "GPU-OpenCL-Altera")
         // list with compatible factories
         //	if(beagleResources.size() > 0) {
         if (anyGPUSupportsOpenCL) {
-            beagleFactories.push_back(new BeagleGPUImplFactory<float, FW_OPENCL>());
+            beagleFactories.push_back(new BeagleGPUImplFactory<float>());
             if (anyGPUSupportsDP) {
                 // TODO Uncomment when working
-                beagleFactories.push_back(new BeagleGPUImplFactory<double, FW_OPENCL>());
+                beagleFactories.push_back(new BeagleGPUImplFactory<double>());
             }
         }
     }

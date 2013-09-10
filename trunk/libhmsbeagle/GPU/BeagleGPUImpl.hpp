@@ -322,7 +322,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         }
     }
 #endif
-    
+
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
     int resultPaddedPatterns = 0;
@@ -391,10 +391,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     // TODO: recompiling kernels for every instance, probably not ideal
     gpu->SetDevice(pluginResourceNumber,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kFlags);
 
-#ifdef OPENCL
-    kFlags |= gpu->GetDeviceTypeFlag(pluginResourceNumber)
+#ifdef FW_OPENCL
+    kFlags |= gpu->GetDeviceTypeFlag(pluginResourceNumber);
 #endif
-      
+
     int ptrQueueLength = kMatrixCount * kCategoryCount * 3;
     if (kPartialsBufferCount > ptrQueueLength)
         ptrQueueLength = kPartialsBufferCount;
@@ -418,16 +418,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     sizeof(int) * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
     sizeof(GPUPtr) * ptrQueueLength;  // dPtrQueue
     
-#ifdef CUDA    
-    unsigned int availableMem = gpu->GetAvailableMemory();
-    
+#ifdef CUDA
+        unsigned int availableMem = gpu->GetAvailableMemory();
 #ifdef BEAGLE_DEBUG_VALUES
-    fprintf(stderr, "     needed memory: %d\n", neededMemory);
-    fprintf(stderr, "  available memory: %d\n", availableMem);
+        fprintf(stderr, "     needed memory: %d\n", neededMemory);
+        fprintf(stderr, "  available memory: %d\n", availableMem);
 #endif     
-    
-    if (availableMem < neededMemory) 
-        return BEAGLE_ERROR_OUT_OF_MEMORY;
+        if (availableMem < neededMemory) 
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
 #endif
 
     kernels = new KernelLauncher(gpu);
@@ -472,7 +470,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             dScalingFactorsMaster = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
             hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
             dRescalingTrigger = gpu->GetDeviceHostPointer((void*) hRescalingTrigger);
-#elif defined(FW_OPENCL)
+#else
             return BEAGLE_ERROR_NO_IMPLEMENTATION;
 #endif
         } else {
@@ -563,7 +561,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     
     kInitialized = 1;
 
-#ifdef CUDA    
+#ifdef CUDA
 #ifdef BEAGLE_DEBUG_VALUES
     gpu->Synchronize();
     int usedMemory = availableMem - gpu->GetAvailableMemory();
@@ -571,29 +569,31 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     fprintf(stderr, "        difference: %d\n\n", usedMemory-neededMemory);
 #endif
 #endif
-    
+
     return BEAGLE_SUCCESS;
 }
 
+#ifdef CUDA
 template<>
-char* BeagleGPUImpl<double, FW_CUDA>::getInstanceName() {
+char* BeagleGPUImpl<double>::getInstanceName() {
 	return (char*) "CUDA-Double";
 }
 
 template<>
-char* BeagleGPUImpl<float, FW_CUDA>::getInstanceName() {
+char* BeagleGPUImpl<float>::getInstanceName() {
 	return (char*) "CUDA-Single";
 }
-
+#elif defined(FW_OPENCL)
 template<>
-char* BeagleGPUImpl<double, FW_OPENCL>::getInstanceName() {
+char* BeagleGPUImpl<double>::getInstanceName() {
     return (char*) "OpenCL-Double";
 }
 
 template<>
-char* BeagleGPUImpl<float, FW_OPENCL>::getInstanceName() {
+char* BeagleGPUImpl<float>::getInstanceName() {
     return (char*) "OpenCL-Single";
 }
+#endif
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
@@ -608,7 +608,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
 #ifdef CUDA
         kFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
         kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
-#else
+#elif defined(FW_OPENCL)
         kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
 #endif
 
@@ -2099,26 +2099,27 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
     return NULL;
 }
 
+#ifdef CUDA
 template<>
-const char* BeagleGPUImplFactory<double, FW_CUDA>::getName() {
+const char* BeagleGPUImplFactory<double>::getName() {
     return "GPU-DP-CUDA";
 }
 
 template<>
-const char* BeagleGPUImplFactory<double, FW_OPENCL>::getName() {
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "GPU-SP-CUDA";
+}
+#elif defined(FW_OPENCL)
+template<>
+const char* BeagleGPUImplFactory<double>::getName() {
     return "DP-OpenCL";
 
 }
-    
 template<>
-const char* BeagleGPUImplFactory<float, FW_CUDA>::getName() {
-    return "GPU-SP-CUDA";
-}
-    
-template<>
-const char* BeagleGPUImplFactory<float, FW_OPENCL>::getName() {
+const char* BeagleGPUImplFactory<float>::getName() {
     return "SP-OpenCL";
 }
+#endif
 
 template<>
 void modifyFlagsForPrecision(long *flags, double r) {
@@ -2140,13 +2141,13 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
 
-if (Framework == FW_CUDA) 
+#ifdef CUDA
     flags |= BEAGLE_FLAG_FRAMEWORK_CUDA |
              BEAGLE_FLAG_PROCESSOR_GPU;
-else if (Framework == FW_OPENCL) {
+#elif defined(FW_OPENCL)
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
-}
+#endif
 
 	Real r = 0;
 	modifyFlagsForPrecision(&flags, r);
