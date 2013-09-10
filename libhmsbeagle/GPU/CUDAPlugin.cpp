@@ -57,10 +57,10 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 	// list with compatible factories
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
-        beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float, FW_CUDA>());
+        beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float>());
 		if (anyGPUSupportsDP) {
 			// TODO Uncomment when working
-            beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double, FW_CUDA>());
+            beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<double>());
 		}
 	}
 }
