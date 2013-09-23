@@ -55,14 +55,12 @@ KernelLauncher::~KernelLauncher() {
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
-    bool intelPlatform = false;
+    bool intelCPUorMIC = false;
 
 #ifdef FW_OPENCL
-    const size_t platformVendorSize = 256;
-    char platformVendor[platformVendorSize];
-    gpu->GetPlatformVendor(-1, platformVendor);
-    if (!strncmp("Intel", platformVendor, strlen("Intel")))
-        intelPlatform = true;
+    BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC)
+        intelCPUorMIC = true;
 #endif
 
     kPaddedStateCount = gpu->kernelResource->paddedStateCount;
@@ -87,27 +85,23 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
-        if (intelPlatform) {
-            bgPeelingBlock = Dim3Int(4, kPatternBlockSize);
-            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * PARTIALS_PER_WORKITEM_4),
-                                     kCategoryCount);
+        if (intelCPUorMIC) {
+            bgPeelingBlock = Dim3Int(kPatternBlockSize, 1);
+            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
         } else {
             bgPeelingBlock = Dim3Int(16, kPatternBlockSize);
             bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4),
-                                     kCategoryCount);            
+                                     kCategoryCount);
+            if (kPatternCount % (kPatternBlockSize * 4) != 0) {
+                bgPeelingGrid.x += 1;
+            }
         }
-        if (kPatternCount % (kPatternBlockSize * 4) != 0)
-            bgPeelingGrid.x += 1;
     } else {
         bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
-        if (intelPlatform) {
-            bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * PARTIALS_PER_WORKITEM_X),
-                                     kCategoryCount);
-        } else {
-            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
-        }
-        if (kPatternCount % kPatternBlockSize != 0)
+        bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        if (!intelCPUorMIC && (kPatternCount % kPatternBlockSize != 0)) {
             bgPeelingGrid.x += 1;
+        }
     } 
 
     // Set up block/grid for likelihood computation

@@ -307,18 +307,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
 
 #ifdef FW_OPENCL
-    const size_t platformVendorSize = 256;
-    char platformVendor[platformVendorSize];
-    gpu->GetPlatformVendor(pluginResourceNumber, platformVendor);
-    if (!strncmp("Intel", platformVendor, strlen("Intel"))) {
-        int partialsPerWorkGroup = 1;
-        if (kPaddedStateCount == 4) {
-            partialsPerWorkGroup = patternBlockSize * 4 * PARTIALS_PER_WORKITEM_4;
-        } else if (patternBlockSize != 0) {
-            partialsPerWorkGroup = patternBlockSize * PARTIALS_PER_WORKITEM_X;
-        } 
-        if (kPatternCount % partialsPerWorkGroup) {
-            paddedPatterns = partialsPerWorkGroup - (kPatternCount % partialsPerWorkGroup);
+    BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC) {
+        if (patternBlockSize != 0 && kPatternCount % patternBlockSize) {
+            paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
         }
     }
 #endif
