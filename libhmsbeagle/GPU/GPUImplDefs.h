@@ -47,6 +47,14 @@
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
 //#define BEAGLE_FILL_4_STATE_SCALAR_SP
 
+// define platform/device specific implementations
+enum BeagleDeviceImplementationCodes {
+    BEAGLE_OPENCL_DEVICE_GENERIC   = 0,
+    BEAGLE_OPENCL_DEVICE_INTEL_CPU = 1,
+    BEAGLE_OPENCL_DEVICE_INTEL_GPU = 2,
+    BEAGLE_OPENCL_DEVICE_INTEL_MIC = 3
+};
+
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
 
 /* Definition of REAL can be switched between 'double' and 'float' */
@@ -129,8 +137,6 @@
 /* Table of pre-optimized compiler definitions
  */
 
- #define PARTIALS_PER_WORKITEM_4 8
- #define PARTIALS_PER_WORKITEM_X 1
 
 // SINGLE PRECISION definitions
 

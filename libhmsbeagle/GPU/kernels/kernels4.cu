@@ -68,21 +68,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
     int i;
 
-#ifdef FW_OPENCL_INTEL
+#ifdef FW_OPENCL_INTEL_CPU_MIC
 
-    REAL sum1[PARTIALS_PER_WORKITEM_4];
-    REAL sum2[PARTIALS_PER_WORKITEM_4];
+    REAL sum10, sum11, sum12, sum13;
+    REAL sum20, sum21, sum22, sum23;
 
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
+    int patIdx = KW_LOCAL_ID_0;
     int matrix = KW_GROUP_ID_1;
-    int pattern = KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE * PARTIALS_PER_WORKITEM_4 + patIdx;
+    int pattern = KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx;
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
     int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
-    int workGroupSize = PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT;
 
     KW_GLOBAL_VAR REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
     KW_GLOBAL_VAR REAL* matrix2 = matrices2 + deltaMatrix;
@@ -90,31 +87,47 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     KW_GLOBAL_VAR REAL* sMatrix1 = matrix1;
     KW_GLOBAL_VAR REAL* sMatrix2 = matrix2;
 
-    KW_GLOBAL_VAR REAL* sPartials1 =  partials1 + deltaPartials;
-    KW_GLOBAL_VAR REAL* sPartials2 =  partials2 + deltaPartials;
+    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;
+    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;
 
-    int j;
-    for (j = 0; j < PARTIALS_PER_WORKITEM_4; j++) {
-        sum1[j] =    sMatrix1[0 * 4 + state] * sPartials1[workGroupSize * j + 0];
-        sum2[j] =    sMatrix2[0 * 4 + state] * sPartials2[workGroupSize * j + 0];
-    }
+    sum10 = sMatrix1[0 * 4 + 0] * sPartials1[0];
+    sum11 = sMatrix1[0 * 4 + 1] * sPartials1[0];
+    sum12 = sMatrix1[0 * 4 + 2] * sPartials1[0];
+    sum13 = sMatrix1[0 * 4 + 3] * sPartials1[0];
 
-    for (j = 0; j < PARTIALS_PER_WORKITEM_4; j++) {
-        for (i = 1; i < 4; i++) {
+    sum20 = sMatrix2[0 * 4 + 0] * sPartials2[0];
+    sum21 = sMatrix2[0 * 4 + 1] * sPartials2[0];
+    sum22 = sMatrix2[0 * 4 + 2] * sPartials2[0];
+    sum23 = sMatrix2[0 * 4 + 3] * sPartials2[0];
+
+    for (i = 1; i < 4; i++) {
 #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
-            sum1[j]  = fma(sMatrix1[i * 4 + state],  sPartials1[workGroupSize * j + i], sum1[j]);
-            sum2[j]  = fma(sMatrix2[i * 4 + state],  sPartials2[workGroupSize * j + i], sum2[j]);
+        sum10  = fma(sMatrix1[i * 4 + 0],  sPartials1[i], sum10);
+        sum11  = fma(sMatrix1[i * 4 + 1],  sPartials1[i], sum11);
+        sum12  = fma(sMatrix1[i * 4 + 2],  sPartials1[i], sum12);
+        sum13  = fma(sMatrix1[i * 4 + 3],  sPartials1[i], sum13);
+
+        sum20  = fma(sMatrix2[i * 4 + 0],  sPartials2[i], sum20);
+        sum21  = fma(sMatrix2[i * 4 + 1],  sPartials2[i], sum21);
+        sum22  = fma(sMatrix2[i * 4 + 2],  sPartials2[i], sum22);
+        sum23  = fma(sMatrix2[i * 4 + 3],  sPartials2[i], sum23);
 #else //FP_FAST_FMA
-            sum1[j] +=     sMatrix1[i * 4 + state] * sPartials1[workGroupSize * j + i];
-            sum2[j] +=     sMatrix2[i * 4 + state] * sPartials2[workGroupSize * j + i];
+        sum10 +=     sMatrix1[i * 4 + 0] * sPartials1[i];
+        sum11 +=     sMatrix1[i * 4 + 1] * sPartials1[i];
+        sum12 +=     sMatrix1[i * 4 + 2] * sPartials1[i];
+        sum13 +=     sMatrix1[i * 4 + 3] * sPartials1[i];
+
+        sum20 +=     sMatrix2[i * 4 + 0] * sPartials2[i];
+        sum21 +=     sMatrix2[i * 4 + 1] * sPartials2[i];
+        sum22 +=     sMatrix2[i * 4 + 2] * sPartials2[i];
+        sum23 +=     sMatrix2[i * 4 + 3] * sPartials2[i];
 #endif //FP_FAST_FMA
-        }
     }
 
-    for (j = 0; j < PARTIALS_PER_WORKITEM_4; j++) {
-        partials3[u + workGroupSize * j] = sum1[j] * sum2[j];
-    }
-
+    partials3[deltaPartials + 0] = sum10 * sum20;
+    partials3[deltaPartials + 1] = sum11 * sum21;
+    partials3[deltaPartials + 2] = sum12 * sum22;
+    partials3[deltaPartials + 3] = sum13 * sum23;
 
 #else
     REAL sum1;

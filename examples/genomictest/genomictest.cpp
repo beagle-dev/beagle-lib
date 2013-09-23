@@ -585,17 +585,17 @@ void runBeagle(int resource,
             bestTimeTotal = getTimeDiff(time1, time5);
         
         if (!(logL - logL == 0.0))
-            fprintf(stdout, "error: invalid lnL");
+            fprintf(stdout, "error: invalid lnL\n");
         
         if (i > 0 && abs(logL - previousLogL) > MAX_DIFF)
-            fprintf(stdout, "error: large lnL difference between reps");
+            fprintf(stdout, "error: large lnL difference between reps\n");
         
         if (calcderivs) {
             if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
-                fprintf(stdout, "error: invalid deriv");
+                fprintf(stdout, "error: invalid deriv\n");
             
             if (i > 0 && ((abs(deriv1 - previousDeriv1) > MAX_DIFF) || (abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
-                fprintf(stdout, "error: large deriv difference between reps");
+                fprintf(stdout, "error: large deriv difference between reps\n");
         }
 
         previousLogL = logL;

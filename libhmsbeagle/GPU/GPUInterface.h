@@ -164,7 +164,7 @@ public:
 #ifdef FW_OPENCL
     long GetDeviceTypeFlag(int deviceNumber);
 
-    void GetPlatformVendor(int deviceNumber, char* platformVendor);
+    BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
 #endif
 
     bool GetSupportsDoublePrecision(int deviceNumber);
