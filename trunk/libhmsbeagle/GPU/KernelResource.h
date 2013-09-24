@@ -40,6 +40,7 @@ public:
         int inMultiplyBlockSize,
         int inCategoryCount,
         int inPatternCount,
+        int inUnpaddedPatternCount,
         long inFlags
         );
     
@@ -51,6 +52,7 @@ public:
     int paddedStateCount;
     int categoryCount;
     int patternCount;
+    int unpaddedPatternCount;
     char* kernelCode;
     int patternBlockSize;
     int matrixBlockSize;

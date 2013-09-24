@@ -100,6 +100,7 @@ private:
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
     unsigned int kPatternCount;
+    unsigned int kUnpaddedPatternCount;
     unsigned int kPatternBlockSize;
     unsigned int kMatrixBlockSize;
     unsigned int kSlowReweighing;  

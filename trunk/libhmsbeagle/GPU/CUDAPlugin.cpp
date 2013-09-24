@@ -67,14 +67,7 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 
 CUDAPlugin::~CUDAPlugin()
 {
-	// Destory GPU kernel info
-	if(beagleResources.size()>0)
-	{
-		GPUInterface gpu;
-		gpu.DestroyKernelMap();
-	}
 }
-
 
 }	// namespace gpu
 }	// namespace beagle

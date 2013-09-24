@@ -29,6 +29,7 @@ KernelResource::KernelResource(
         int inMultiplyBlockSize,
         int inCategoryCount,
         int inPatternCount,
+        int inUnpaddedPatternCount,
         long inFlags
         ) {
     paddedStateCount = inPaddedStateCount;
@@ -40,6 +41,7 @@ KernelResource::KernelResource(
     multiplyBlockSize = inMultiplyBlockSize;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
+    unpaddedPatternCount = inUnpaddedPatternCount;
     flags = inFlags;
 }
 
@@ -54,6 +56,7 @@ KernelResource::KernelResource(const KernelResource& krIn,
     multiplyBlockSize = krIn.multiplyBlockSize;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
+    unpaddedPatternCount = krIn.unpaddedPatternCount;
     flags = krIn.flags;
 }
 
@@ -71,5 +74,6 @@ KernelResource* KernelResource::copy(void) {
             multiplyBlockSize,
             categoryCount,
             patternCount,
+            unpaddedPatternCount,
             flags);
 }

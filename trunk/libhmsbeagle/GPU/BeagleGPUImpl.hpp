@@ -309,6 +309,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC) {
+        if (kStateCount <= 4) {
+            patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4_CPU : PATTERN_BLOCK_SIZE_SP_4_CPU);
+        }
         if (patternBlockSize != 0 && kPatternCount % patternBlockSize) {
             paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
         }
@@ -381,7 +384,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kLastTipPartialsBufferIndex = -1;
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(pluginResourceNumber,kPaddedStateCount,kCategoryCount,kPaddedPatternCount,kFlags);
+    gpu->SetDevice(pluginResourceNumber,kPaddedStateCount,kCategoryCount,kPaddedPatternCount, kPatternCount,kFlags);
 
 #ifdef FW_OPENCL
     kFlags |= gpu->GetDeviceTypeFlag(pluginResourceNumber);

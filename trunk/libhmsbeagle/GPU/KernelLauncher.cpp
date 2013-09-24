@@ -55,17 +55,18 @@ KernelLauncher::~KernelLauncher() {
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
-    bool intelCPUorMIC = false;
+    bool CPUImplementation = false;
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC)
-        intelCPUorMIC = true;
+        CPUImplementation = true;
 #endif
 
     kPaddedStateCount = gpu->kernelResource->paddedStateCount;
     kCategoryCount = gpu->kernelResource->categoryCount;
     kPatternCount = gpu->kernelResource->patternCount;
+    kUnpaddedPatternCount = gpu->kernelResource->unpaddedPatternCount;
     kMultiplyBlockSize = gpu->kernelResource->multiplyBlockSize;
     kPatternBlockSize = gpu->kernelResource->patternBlockSize;
     kSlowReweighing = gpu->kernelResource->slowReweighing;
@@ -75,9 +76,8 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
-    bgTransitionProbabilitiesGrid = Dim3Int(
-            kPaddedStateCount/kMultiplyBlockSize, 
-            kPaddedStateCount/kMultiplyBlockSize);
+    bgTransitionProbabilitiesGrid = Dim3Int(kPaddedStateCount/kMultiplyBlockSize, 
+                                            kPaddedStateCount/kMultiplyBlockSize);
     if(kPaddedStateCount % kMultiplyBlockSize != 0) {
         bgTransitionProbabilitiesGrid.x += 1;
         bgTransitionProbabilitiesGrid.y += 1;
@@ -85,7 +85,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
-        if (intelCPUorMIC) {
+        if (CPUImplementation) {
             bgPeelingBlock = Dim3Int(kPatternBlockSize, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
         } else {
@@ -99,7 +99,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     } else {
         bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
         bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
-        if (!intelCPUorMIC && (kPatternCount % kPatternBlockSize != 0)) {
+        if (!CPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
             bgPeelingGrid.x += 1;
         }
     } 
@@ -151,12 +151,12 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         }        
     }
     
-    // Set up block/grid for site likelihood accumulation
+    // Set up block for site likelihood accumulation
     bgSumSitesBlock = Dim3Int(kSumSitesBlockSize);
-    bgSumSitesGrid  = Dim3Int(kPatternCount / kSumSitesBlockSize);
-    if (kPatternCount % kSumSitesBlockSize != 0)
+    bgSumSitesGrid  = Dim3Int(kUnpaddedPatternCount / kSumSitesBlockSize);
+    if (kUnpaddedPatternCount % kSumSitesBlockSize != 0)
         bgSumSitesGrid.x += 1;
-    
+
 }
 
 void KernelLauncher::LoadKernels() {
@@ -1105,7 +1105,7 @@ void KernelLauncher::SumSites1(GPUPtr dArray1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::SumSites1\n");
 #endif
-    
+
     int parameterCountV = 3;
     int totalParameterCount = 4;
     gpu->Synchronize();  
@@ -1130,6 +1130,7 @@ void KernelLauncher::SumSites2(GPUPtr dArray1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::SumSites2\n");
 #endif
+
     int parameterCountV = 5;
     int totalParameterCount = 6;
     gpu->Synchronize();
