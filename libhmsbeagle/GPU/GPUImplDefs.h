@@ -52,7 +52,9 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_GENERIC   = 0,
     BEAGLE_OPENCL_DEVICE_INTEL_CPU = 1,
     BEAGLE_OPENCL_DEVICE_INTEL_GPU = 2,
-    BEAGLE_OPENCL_DEVICE_INTEL_MIC = 3
+    BEAGLE_OPENCL_DEVICE_INTEL_MIC = 3,
+    BEAGLE_OPENCL_DEVICE_AMD_CPU   = 4,
+    BEAGLE_OPENCL_DEVICE_AMD_GPU   = 5
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
@@ -169,40 +171,50 @@ enum BeagleDeviceImplementationCodes {
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_SP_48         8
+#define PATTERN_BLOCK_SIZE_SP_48_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_SP_48          8
 #define BLOCK_PEELING_SIZE_SP_48         8
+#define BLOCK_PEELING_SIZE_SP_48_AMDGPU  4
 #define IS_POWER_OF_TWO_SP_48            0
 #define SMALLEST_POWER_OF_TWO_SP_48      64
 #define SLOW_REWEIGHING_SP_48            0
 
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_SP_64         8
+#define PATTERN_BLOCK_SIZE_SP_64_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_SP_64          8
 #define BLOCK_PEELING_SIZE_SP_64         8
+#define BLOCK_PEELING_SIZE_SP_64_AMDGPU  4
 #define IS_POWER_OF_TWO_SP_64            1
 #define SMALLEST_POWER_OF_TWO_SP_64      64
 #define SLOW_REWEIGHING_SP_64            0
 
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_SP_80         8
+#define PATTERN_BLOCK_SIZE_SP_80_AMDGPU  2
 #define MATRIX_BLOCK_SIZE_SP_80          8
 #define BLOCK_PEELING_SIZE_SP_80         8
+#define BLOCK_PEELING_SIZE_SP_80_AMDGPU  2
 #define IS_POWER_OF_TWO_SP_80            0
 #define SMALLEST_POWER_OF_TWO_SP_80      128
 #define SLOW_REWEIGHING_SP_80            1
 
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_SP_128        4
+#define PATTERN_BLOCK_SIZE_SP_128_AMDGPU 2
 #define MATRIX_BLOCK_SIZE_SP_128         8
 #define BLOCK_PEELING_SIZE_SP_128        2
+#define BLOCK_PEELING_SIZE_SP_128_AMDGPU 2
 #define IS_POWER_OF_TWO_SP_128           1
 #define SMALLEST_POWER_OF_TWO_SP_128     128
 #define SLOW_REWEIGHING_SP_128           1
  
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_SP_192        2
+#define PATTERN_BLOCK_SIZE_SP_192_AMDGPU 1
 #define MATRIX_BLOCK_SIZE_SP_192         8
 #define BLOCK_PEELING_SIZE_SP_192        2
+#define BLOCK_PEELING_SIZE_SP_192_AMDGPU 1
 #define IS_POWER_OF_TWO_SP_192           0
 #define SMALLEST_POWER_OF_TWO_SP_192     256
 #define SLOW_REWEIGHING_SP_192           1
@@ -236,40 +248,50 @@ enum BeagleDeviceImplementationCodes {
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_DP_48         8
+#define PATTERN_BLOCK_SIZE_DP_48_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_DP_48          8
 #define BLOCK_PEELING_SIZE_DP_48         8
+#define BLOCK_PEELING_SIZE_DP_48_AMDGPU  4
 #define IS_POWER_OF_TWO_DP_48            0
 #define SMALLEST_POWER_OF_TWO_DP_48      64
 #define SLOW_REWEIGHING_DP_48            0
 
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_DP_64         8
+#define PATTERN_BLOCK_SIZE_DP_64_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_DP_64          8
 #define BLOCK_PEELING_SIZE_DP_64         4 // Can use 8 on GTX480
+#define BLOCK_PEELING_SIZE_DP_64_AMDGPU  4
 #define IS_POWER_OF_TWO_DP_64            1
 #define SMALLEST_POWER_OF_TWO_DP_64      64
 #define SLOW_REWEIGHING_DP_64            0
 
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_DP_80         8
+#define PATTERN_BLOCK_SIZE_DP_80_AMDGPU  2
 #define MATRIX_BLOCK_SIZE_DP_80          8
 #define BLOCK_PEELING_SIZE_DP_80         4 // Can use 8 on GTX480
+#define BLOCK_PEELING_SIZE_DP_80_AMDGPU  2
 #define IS_POWER_OF_TWO_DP_80            0
 #define SMALLEST_POWER_OF_TWO_DP_80      128
 #define SLOW_REWEIGHING_DP_80            1
 
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_DP_128        4
+#define PATTERN_BLOCK_SIZE_DP_128_AMDGPU 2
 #define MATRIX_BLOCK_SIZE_DP_128         8
 #define BLOCK_PEELING_SIZE_DP_128        2
+#define BLOCK_PEELING_SIZE_DP_128_AMDGPU 2
 #define IS_POWER_OF_TWO_DP_128           1
 #define SMALLEST_POWER_OF_TWO_DP_128     128
 #define SLOW_REWEIGHING_DP_128           1
 
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_DP_192        2
+#define PATTERN_BLOCK_SIZE_DP_192_AMDGPU 1
 #define MATRIX_BLOCK_SIZE_DP_192         8
 #define BLOCK_PEELING_SIZE_DP_192        2
+#define BLOCK_PEELING_SIZE_DP_192_AMDGPU 1
 #define IS_POWER_OF_TWO_DP_192           0
 #define SMALLEST_POWER_OF_TWO_DP_192     256
 #define SLOW_REWEIGHING_DP_192           1
@@ -283,10 +305,12 @@ enum BeagleDeviceImplementationCodes {
 #endif
 
 // Need nested macros: first for replacement, second for evaluation
-#define GET2_NO_CALL(x, y)	x##_##y
-#define	GET2_VALUE(x, y)		GET2_NO_CALL(x, y)
-#define GET_NO_CALL(x, y, z)	x##_##y##_##z
-#define	GET_VALUE(x, y, z)		GET_NO_CALL(x, y, z)
+#define GET2_NO_CALL(x, y)	       x##_##y
+#define	GET2_VALUE(x, y)		   GET2_NO_CALL(x, y)
+#define GET_NO_CALL(x, y, z)	   x##_##y##_##z
+#define	GET_VALUE(x, y, z)		   GET_NO_CALL(x, y, z)
+#define GET4_NO_CALL(x, y, z, w)   x##_##y##_##z##_##w
+#define GET4_VALUE(x, y, z, w)     GET4_NO_CALL(x, y, z, w)
 
 #ifdef DOUBLE_PRECISION
 	#define PREC	DP
@@ -295,13 +319,22 @@ enum BeagleDeviceImplementationCodes {
 #endif
 
 #if defined(FW_OPENCL_CPU) && (STATE_COUNT == 4)
-    #define PATTERN_BLOCK_SIZE     GET_VALUE(PATTERN_BLOCK_SIZE, PREC, 4_CPU)
+    #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, CPU)
+#elif defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
+   #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
 #else
     #define PATTERN_BLOCK_SIZE     GET_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
 #endif
 
 #define MATRIX_BLOCK_SIZE		GET_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
-#define BLOCK_PEELING_SIZE		GET_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT)
+
+
+#if defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
+    #define BLOCK_PEELING_SIZE      GET4_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
+#else
+    #define BLOCK_PEELING_SIZE      GET_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT)
+#endif
+
 #define CHECK_IS_POWER_OF_TWO	GET_VALUE(IS_POWER_OF_TWO, PREC, PADDED_STATE_COUNT)
 #if (CHECK_IS_POWER_OF_TWO == 1)
 	#define IS_POWER_OF_TWO
