@@ -68,7 +68,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
     int i;
 
-#ifdef FW_OPENCL_INTEL_CPU_MIC
+#ifdef FW_OPENCL_CPU
 
     REAL sum10, sum11, sum12, sum13;
     REAL sum20, sum21, sum22, sum23;

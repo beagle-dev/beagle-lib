@@ -69,12 +69,6 @@ Plugin("GPU-OpenCL-Altera", "GPU-OpenCL-Altera")
     }
 OpenCLAlteraPlugin::~OpenCLAlteraPlugin()
 {
-	// Destory GPU kernel info
-	if(beagleResources.size()>0)
-	{
-		GPUInterface gpu;
-		gpu.DestroyKernelMap();
-	}
 }
 
 

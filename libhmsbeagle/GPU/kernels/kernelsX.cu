@@ -58,7 +58,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     REAL sum2 = 0;
     int i;
 
-#ifdef FW_OPENCL_INTEL_CPU_MIC
+#ifdef FW_OPENCL_CPU
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
     int matrix = KW_GROUP_ID_1;

@@ -97,6 +97,7 @@ public:
                    int paddedStateCount, 
                    int categoryCount, 
                    int patternCount,
+                   int unpaddedPatternCount,
                    long flags);
     
     void Synchronize();
@@ -216,13 +217,12 @@ public:
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
-    
-    void DestroyKernelMap();
-    
+        
     KernelResource* kernelResource;
     
 protected:
-	void InitializeKernelMap();
+	void InitializeKernelResource(int paddedStateCount,
+                                  bool doublePrecision);
     
     std::map<int, int>* resourceMap;
 

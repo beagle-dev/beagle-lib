@@ -41,21 +41,18 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
-#define LOAD_KERNEL_INTO_MAP(state, prec, map, id) \
-	    KernelResource kernel##state##prec = KernelResource( \
-	        state, \
-	        (char*) KERNELS_STRING_##prec##_##state, \
-	        PATTERN_BLOCK_SIZE_##prec##_##state, \
-	        MATRIX_BLOCK_SIZE_##prec##_##state, \
-	        BLOCK_PEELING_SIZE_##prec##_##state, \
-	        SLOW_REWEIGHING_##prec##_##state, \
-	        MULTIPLY_BLOCK_SIZE_##prec, \
-	        0,0,0); \
-	    map->insert(std::make_pair(id,kernel##state##prec));
+#define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
+        kernelResource = new KernelResource( \
+            state, \
+            (char*) KERNELS_STRING_##prec##_##state, \
+            PATTERN_BLOCK_SIZE_##prec##_##state, \
+            MATRIX_BLOCK_SIZE_##prec##_##state, \
+            BLOCK_PEELING_SIZE_##prec##_##state, \
+            SLOW_REWEIGHING_##prec##_##state, \
+            MULTIPLY_BLOCK_SIZE_##prec, \
+            0,0,0,0);
 
 namespace cuda_device {
-
-std::map<int, KernelResource>* kernelMap = NULL;
 
 //static int nGpuArchCoresPerSM[] = { -1, 8, 32 };
 
@@ -207,42 +204,38 @@ int GPUInterface::GetDeviceCount() {
     return resourceMap->size();
 }
 
-void GPUInterface::DestroyKernelMap() {
-    if (kernelMap) {
-        delete kernelMap;
-    }
-}
-
-void GPUInterface::InitializeKernelMap() {
-
+void GPUInterface::InitializeKernelResource(int paddedStateCount,
+                                            bool doublePrecision) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
 #endif
 
-    kernelMap = new std::map<int, KernelResource>;
-
-    LOAD_KERNEL_INTO_MAP(4,   SP, kernelMap, 4  );
-    LOAD_KERNEL_INTO_MAP(16,  SP, kernelMap, 16 );
-    LOAD_KERNEL_INTO_MAP(32,  SP, kernelMap, 32 );
-    LOAD_KERNEL_INTO_MAP(48,  SP, kernelMap, 48 );
-    LOAD_KERNEL_INTO_MAP(64,  SP, kernelMap, 64 );
-    LOAD_KERNEL_INTO_MAP(80,  SP, kernelMap, 80 );
-    LOAD_KERNEL_INTO_MAP(128, SP, kernelMap, 128);
-    LOAD_KERNEL_INTO_MAP(192, SP, kernelMap, 192);
-
-    if (supportDoublePrecision) {
-    	LOAD_KERNEL_INTO_MAP(4,   DP, kernelMap, -4  );
-    	LOAD_KERNEL_INTO_MAP(16,  DP, kernelMap, -16 );
-    	LOAD_KERNEL_INTO_MAP(32,  DP, kernelMap, -32 );
-    	LOAD_KERNEL_INTO_MAP(48,  DP, kernelMap, -48 );
-    	LOAD_KERNEL_INTO_MAP(64,  DP, kernelMap, -64 );
-    	LOAD_KERNEL_INTO_MAP(80,  DP, kernelMap, -80 );
-    	LOAD_KERNEL_INTO_MAP(128, DP, kernelMap, -128);
-    	LOAD_KERNEL_INTO_MAP(192, DP, kernelMap, -192);
+    if (doublePrecision) {
+        switch(paddedStateCount) {
+            case   4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4); break;
+            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16); break;
+            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32); break;
+            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48); break;
+            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64); break;
+            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80); break;
+            case 128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
+            case 192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
+        }
+    } else {
+        switch(paddedStateCount) {
+            case   4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
+            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
+            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
+            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48); break;
+            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64); break;
+            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
+            case 128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
+            case 192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
+        }
     }
 }
 
-void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount,
+void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount, int unpaddedPatternCount,
                              long flags) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
@@ -256,25 +249,15 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
         SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     }
     
-    
-    if (kernelMap == NULL) {
-        // kernels have not yet been initialized; do so now.  Hopefully, this only occurs once per library load.
-        InitializeKernelMap();
+    InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
+
+    if (!kernelResource) {
+        fprintf(stderr,"Critical error: unable to find kernel code for %d states.\n",paddedStateCount);
+        exit(-1);
     }
-    
-    int id = paddedStateCount;
-    if (flags & BEAGLE_FLAG_PRECISION_DOUBLE) {
-    	id *= -1;        
-    }
-    
-    if (kernelMap->count(id) == 0) {
-    	fprintf(stderr,"Critical error: unable to find kernel code for %d states.\n",paddedStateCount);
-    	exit(-1);
-    }
-    
-    kernelResource = (*kernelMap)[id].copy();
     kernelResource->categoryCount = categoryCount;
     kernelResource->patternCount = paddedPatternCount;
+    kernelResource->unpaddedPatternCount = unpaddedPatternCount;
     kernelResource->flags = flags;
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
