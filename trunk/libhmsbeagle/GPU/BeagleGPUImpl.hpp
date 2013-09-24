@@ -255,32 +255,22 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     kInternalPartialsBufferCount = kBufferCount - kTipCount;
     
-    int patternBlockSize = 0;
-
     if (kStateCount <= 4) {
         kPaddedStateCount = 4;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
     } else if (kStateCount <= 16) {
         kPaddedStateCount = 16;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_16 : PATTERN_BLOCK_SIZE_SP_16);
     } else if (kStateCount <= 32) {
         kPaddedStateCount = 32;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_32 : PATTERN_BLOCK_SIZE_SP_32);
     } else if (kStateCount <= 48) {
     	kPaddedStateCount = 48;  
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_48 : PATTERN_BLOCK_SIZE_SP_48);  
     } else if (kStateCount <= 64) {
         kPaddedStateCount = 64;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_64 : PATTERN_BLOCK_SIZE_SP_64);
     } else if (kStateCount <= 80) {
 		kPaddedStateCount = 80;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_80 : PATTERN_BLOCK_SIZE_SP_80);
     } else if (kStateCount <= 128) {
         kPaddedStateCount = 128;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_128 : PATTERN_BLOCK_SIZE_SP_128);
     } else if (kStateCount <= 192){ 
         kPaddedStateCount = 192;
-        patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_192 : PATTERN_BLOCK_SIZE_SP_192);
     } else {
         kPaddedStateCount = kStateCount + kStateCount % 16;
     }
@@ -306,12 +296,41 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         paddedPatterns = 4 - kPatternCount % 4;    
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
 
+    bool CPUImpl = false;
+
 #ifdef FW_OPENCL
+    // pad patterns for CPU/MIC implementation
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC) {
-        if (kStateCount <= 4) {
-            patternBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4_CPU : PATTERN_BLOCK_SIZE_SP_4_CPU);
+    
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
+        
+        CPUImpl = true;
+
+        int patternBlockSize = 0;
+        int id = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ?
+                  kPaddedStateCount : (-1 * kPaddedStateCount));
+    
+        switch(id) {
+            case   -4: patternBlockSize = PATTERN_BLOCK_SIZE_DP_4_CPU; break;
+            case  -16: patternBlockSize = PATTERN_BLOCK_SIZE_DP_16;    break;
+            case  -32: patternBlockSize = PATTERN_BLOCK_SIZE_DP_32;    break;
+            case  -48: patternBlockSize = PATTERN_BLOCK_SIZE_DP_48;    break;
+            case  -64: patternBlockSize = PATTERN_BLOCK_SIZE_DP_64;    break;
+            case  -80: patternBlockSize = PATTERN_BLOCK_SIZE_DP_80;    break;
+            case -128: patternBlockSize = PATTERN_BLOCK_SIZE_DP_128;   break;
+            case -192: patternBlockSize = PATTERN_BLOCK_SIZE_DP_192;   break;
+            case    4: patternBlockSize = PATTERN_BLOCK_SIZE_SP_4_CPU; break;
+            case   16: patternBlockSize = PATTERN_BLOCK_SIZE_SP_16;    break;
+            case   32: patternBlockSize = PATTERN_BLOCK_SIZE_SP_32;    break;
+            case   48: patternBlockSize = PATTERN_BLOCK_SIZE_SP_48;    break;
+            case   64: patternBlockSize = PATTERN_BLOCK_SIZE_SP_64;    break;
+            case   80: patternBlockSize = PATTERN_BLOCK_SIZE_SP_80;    break;
+            case  128: patternBlockSize = PATTERN_BLOCK_SIZE_SP_128;   break;
+            case  192: patternBlockSize = PATTERN_BLOCK_SIZE_SP_192;   break;
         }
+    
         if (patternBlockSize != 0 && kPatternCount % patternBlockSize) {
             paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
         }
@@ -321,10 +340,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPaddedPatternCount = kPatternCount + paddedPatterns;
     
     int resultPaddedPatterns = 0;
-    int patternBlockSizeFour = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
-    if (kPaddedStateCount == 4 && kPaddedPatternCount % patternBlockSizeFour != 0)
-        resultPaddedPatterns = patternBlockSizeFour - kPaddedPatternCount % patternBlockSizeFour;
 
+    if (!CPUImpl) {
+        int patternBlockSizeFour = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? PATTERN_BLOCK_SIZE_DP_4 : PATTERN_BLOCK_SIZE_SP_4);
+        if (kPaddedStateCount == 4 && kPaddedPatternCount % patternBlockSizeFour != 0)
+            resultPaddedPatterns = patternBlockSizeFour - kPaddedPatternCount % patternBlockSizeFour;
+    }
+    
 #ifdef BEAGLE_DEBUG_VALUES
     printf("kPatternCount %d, paddedPatterns %d, resultPaddedPatterns %d, kPaddedPatternCount %d\n", kPatternCount, paddedPatterns, resultPaddedPatterns, kPaddedPatternCount);
 #endif

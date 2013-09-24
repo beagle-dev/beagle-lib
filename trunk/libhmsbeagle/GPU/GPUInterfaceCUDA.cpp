@@ -210,28 +210,26 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
     fprintf(stderr,"\t\t\tLoading kernel information for CUDA!\n");
 #endif
 
-    if (doublePrecision) {
-        switch(paddedStateCount) {
-            case   4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4); break;
-            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16); break;
-            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32); break;
-            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48); break;
-            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64); break;
-            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80); break;
-            case 128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
-            case 192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
-        }
-    } else {
-        switch(paddedStateCount) {
-            case   4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
-            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
-            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
-            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48); break;
-            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64); break;
-            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
-            case 128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
-            case 192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
-        }
+    if (doublePrecision)
+        paddedStateCount *= -1;
+
+    switch(paddedStateCount) {
+        case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4); break;
+        case  -16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16); break;
+        case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32); break;
+        case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48); break;
+        case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64); break;
+        case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80); break;
+        case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
+        case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
+        case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
+        case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
+        case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
+        case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48); break;
+        case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64); break;
+        case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
+        case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
+        case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
     }
 }
 

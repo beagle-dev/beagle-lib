@@ -200,41 +200,57 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
     fprintf(stderr,"\t\t\tEntering GPUInterface::InitializeKernelResource\n");
 #endif        
 
-    BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
+    int id = paddedStateCount;
+    if (doublePrecision)
+        id *= -1;
 
-    if (doublePrecision) {
-        switch(paddedStateCount) {
-            case   4:
-                if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC) {
-                    LOAD_KERNEL_INTO_RESOURCE(    4, DP,   4, _CPU);
-                } else {
-                    LOAD_KERNEL_INTO_RESOURCE(    4, DP,   4,);
-                }
-                break;
-            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16,); break;
-            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32,); break;
-            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48,); break;
-            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64,); break;
-            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,); break;
-            case 128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,); break;
-            case 192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,); break;
+    bool CPUImpl = false;
+    bool AMDImpl = false;
+    BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || 
+        deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
+        CPUImpl = true;
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) {
+        AMDImpl = true;
+    }
+
+    if (CPUImpl && paddedStateCount == 4) {
+        switch(id) {
+            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4, _CPU); break;
+            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4, _CPU); break;
+        }
+    } else if (AMDImpl && paddedStateCount > 32) {
+        switch(id) {
+            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48, _AMDGPU); break;
+            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64, _AMDGPU); break;
+            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80, _AMDGPU); break;
+            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128, _AMDGPU); break;
+            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192, _AMDGPU); break;
+            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48, _AMDGPU); break;
+            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64, _AMDGPU); break;
+            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80, _AMDGPU); break;
+            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128, _AMDGPU); break;
+            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192, _AMDGPU); break;
         }
     } else {
-        switch(paddedStateCount) {
-            case   4:
-                if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC) {
-                    LOAD_KERNEL_INTO_RESOURCE(    4, SP,   4, _CPU);
-                } else {
-                    LOAD_KERNEL_INTO_RESOURCE(    4, SP,   4,);
-                }
-                break;
-            case  16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,); break;
-            case  32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,); break;
-            case  48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48,); break;
-            case  64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64,); break;
-            case  80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,); break;
-            case 128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,); break;
-            case 192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,); break;
+        switch(id) {
+            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4,); break;
+            case  -16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16,); break;
+            case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32,); break;
+            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48,); break;
+            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64,); break;
+            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,); break;
+            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,); break;
+            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,); break;
+            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4,); break;
+            case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,); break;
+            case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,); break;
+            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48,); break;
+            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64,); break;
+            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,); break;
+            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,); break;
+            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,); break;
         }
     }
 
@@ -330,8 +346,13 @@ void GPUInterface::SetDevice(int deviceNumber,
 #endif
 
     BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(deviceNumber);
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC)
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
         strcat(buildDefs, "-D FW_OPENCL_CPU");
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) {
+        strcat(buildDefs, "-D FW_OPENCL_AMDGPU");
+    }
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
     if (err != CL_SUCCESS) {
@@ -427,7 +448,13 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     localWorkSize[0] = block.x;
     localWorkSize[1] = block.y;
     localWorkSize[2] = block.z;
-    
+
+#ifdef BEAGLE_DEBUG_VALUES
+    for (int i=0; i<3; i++)
+        printf("localWorkSize[%d] = %d\n", i, localWorkSize[i]);
+    printf("\n");
+#endif
+
     size_t globalWorkSize[3];
     globalWorkSize[0] = block.x * grid.x;
     globalWorkSize[1] = block.y * grid.y;
@@ -869,16 +896,22 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
     cl_platform_id platform;
     SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM,
                             sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, param_size, param_value, NULL));
+
+    long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
 
     if (!strncmp("Intel", param_value, strlen("Intel"))) {
-        long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_CPU;
         else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_GPU;
         else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_OTHER)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_MIC;
+    } else if (!strncmp("AMD", param_value, strlen("AMD"))) {
+        if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
+            deviceCode = BEAGLE_OPENCL_DEVICE_AMD_CPU;
+        else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU)
+            deviceCode = BEAGLE_OPENCL_DEVICE_AMD_GPU;
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -940,7 +973,7 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
         case CL_INVALID_ARG_SIZE: errorDesc = "CL_INVALID_ARG_SIZE"; break;
         case CL_INVALID_KERNEL_ARGS: errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
         case CL_INVALID_WORK_DIMENSION: errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
-        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE\n\n Your OpenCL device might be incompatible with this run. If using an AMD GPU, please try setting the GPU_MAX_WORKGROUP_SIZE environment variable to 1024. For example: \"export GPU_MAX_WORKGROUP_SIZE=1024\"\n\n"; break;
+        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE"; break;
         case CL_INVALID_WORK_ITEM_SIZE: errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
         case CL_INVALID_GLOBAL_OFFSET: errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
         case CL_INVALID_EVENT_WAIT_LIST: errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;

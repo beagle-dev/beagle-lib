@@ -59,8 +59,11 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU || deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC)
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
         CPUImplementation = true;
+    }
 #endif
 
     kPaddedStateCount = gpu->kernelResource->paddedStateCount;
