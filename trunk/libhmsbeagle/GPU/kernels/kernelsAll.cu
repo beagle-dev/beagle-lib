@@ -800,7 +800,29 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
                                 KW_GLOBAL_VAR REAL* dSum,
                                 KW_GLOBAL_VAR REAL* dPatternWeights,
                                 int patternCount) {
+#ifdef FW_OPENCL_CPU
+    
+    REAL sum = 0;
 
+    int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+    int maxPattern = (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
+
+    if (maxPattern > patternCount)
+        maxPattern = patternCount;
+
+    while (pattern < maxPattern) {
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+        sum  = fma(dArray[pattern],  dPatternWeights[pattern], sum);
+#else //FP_FAST_FMA
+        sum +=     dArray[pattern] * dPatternWeights[pattern];
+#endif //FP_FAST_FMA
+        pattern++;
+    }
+
+    dSum[KW_GROUP_ID_0] = sum;
+
+#else
+    
     KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
 
     int tx = KW_LOCAL_ID_0;
@@ -821,6 +843,8 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
 
     if (tx == 0)
         dSum[KW_GROUP_ID_0] = sum[0];
+
+#endif
 }
 
 KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,

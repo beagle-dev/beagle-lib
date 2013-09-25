@@ -1305,6 +1305,32 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
                                               KW_GLOBAL_VAR REAL* dFrequencies,
                                               int matrixCount,
                                               int patternCount) {
+
+#ifdef FW_OPENCL_CPU
+
+    int pattern = KW_GROUP_ID_0;
+    int u = pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;
+
+    REAL sumTotal = 0;
+
+    for (int i = 0; i < PADDED_STATE_COUNT; i++) {
+        REAL sumState = dRootPartials[i + u] * dWeights[0];;
+        for(int r = 1; r < matrixCount; r++) {
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+            sumState  = fma(dRootPartials[i + u + delta * r],  dWeights[r], sumState);
+#else  //FP_FAST_FMA
+            sumState +=     dRootPartials[i + u + delta * r] * dWeights[r];
+#endif //FP_FAST_FMA   
+        }
+        sumState *= dFrequencies[i];
+        sumTotal += sumState;
+    }
+
+    dResult[pattern] = log(sumTotal);
+
+#else
+
     int state   = KW_LOCAL_ID_0;
     int pattern = KW_GROUP_ID_0;
 //    int patternCount = KW_NUM_GROUPS_0;
@@ -1352,6 +1378,9 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
 
     if (state == 0)
         dResult[pattern] = log(sum[state]);
+
+#endif
+
 }
 
 KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* dResult,

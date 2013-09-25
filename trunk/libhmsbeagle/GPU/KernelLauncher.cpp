@@ -110,12 +110,20 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
         int likePatternBlockSize = kPatternBlockSize;
-        bgLikelihoodBlock = Dim3Int(4,likePatternBlockSize);
+        if (CPUImplementation) {
+            bgLikelihoodBlock = Dim3Int(likePatternBlockSize,1);
+        } else {
+            bgLikelihoodBlock = Dim3Int(4,likePatternBlockSize);
+        }
         bgLikelihoodGrid = Dim3Int(kPatternCount/likePatternBlockSize);
         if (kPatternCount % likePatternBlockSize != 0)
             bgLikelihoodGrid.x += 1;
     } else {
-        bgLikelihoodBlock = Dim3Int(kPaddedStateCount);
+        if (CPUImplementation) {
+            bgLikelihoodBlock = Dim3Int(1);
+        } else {
+            bgLikelihoodBlock = Dim3Int(kPaddedStateCount);
+        }
         bgLikelihoodGrid  = Dim3Int(kPatternCount);
     }
     
@@ -155,7 +163,11 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     }
     
     // Set up block for site likelihood accumulation
-    bgSumSitesBlock = Dim3Int(kSumSitesBlockSize);
+    if (CPUImplementation) {
+        bgSumSitesBlock = Dim3Int(1);
+    } else {
+        bgSumSitesBlock = Dim3Int(kSumSitesBlockSize);
+    }
     bgSumSitesGrid  = Dim3Int(kUnpaddedPatternCount / kSumSitesBlockSize);
     if (kUnpaddedPatternCount % kSumSitesBlockSize != 0)
         bgSumSitesGrid.x += 1;

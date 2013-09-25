@@ -68,7 +68,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 
     int i;
 
-#ifdef FW_OPENCL_CPU
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
 
     REAL sum10, sum11, sum12, sum13;
     REAL sum20, sum21, sum22, sum23;
@@ -129,7 +129,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
     partials3[deltaPartials + 2] = sum12 * sum22;
     partials3[deltaPartials + 3] = sum13 * sum23;
 
-#else
+#else // GPU implementation
+
     REAL sum1;
     REAL sum2;
 
@@ -1528,10 +1529,50 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
                                               KW_GLOBAL_VAR REAL* dFrequencies,
                                               int matrixCount,
                                               int patternCount) {
+
+#ifdef FW_OPENCL_CPU
+
+    int pat = KW_LOCAL_ID_0;
+    int pattern = KW_GROUP_ID_0 * LIKE_PATTERN_BLOCK_SIZE + pat;
+    int u = pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;
+
+    REAL sum[4];
+
+    sum[0] = dRootPartials[0 + u] * dWeights[0];
+    sum[1] = dRootPartials[1 + u] * dWeights[0];
+    sum[2] = dRootPartials[2 + u] * dWeights[0];
+    sum[3] = dRootPartials[3 + u] * dWeights[0];
+
+    for(int r = 1; r < matrixCount; r++) {
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+        sum[0]  = fma(dRootPartials[0 + u + delta * r],  dWeights[r], sum[0]);
+        sum[1]  = fma(dRootPartials[1 + u + delta * r],  dWeights[r], sum[1]);
+        sum[2]  = fma(dRootPartials[2 + u + delta * r],  dWeights[r], sum[2]);
+        sum[3]  = fma(dRootPartials[3 + u + delta * r],  dWeights[r], sum[3]);
+#else  //FP_FAST_FMA
+        sum[0] +=     dRootPartials[0 + u + delta * r] * dWeights[r];
+        sum[1] +=     dRootPartials[1 + u + delta * r] * dWeights[r];
+        sum[2] +=     dRootPartials[2 + u + delta * r] * dWeights[r];
+        sum[3] +=     dRootPartials[3 + u + delta * r] * dWeights[r];
+#endif //FP_FAST_FMA
+    }
+
+    sum[0] *= dFrequencies[0];
+    sum[1] *= dFrequencies[1];
+    sum[2] *= dFrequencies[2];
+    sum[3] *= dFrequencies[3];
+
+    dResult[pattern] = log(sum[0] + sum[1] + sum[2] + sum[3]);
+
+#else
+
     int state   = KW_LOCAL_ID_0;
     int pat = KW_LOCAL_ID_1;
     int pattern = KW_GROUP_ID_0 * LIKE_PATTERN_BLOCK_SIZE + KW_LOCAL_ID_1;
-    
+    int u = state + pattern * PADDED_STATE_COUNT;
+    int delta = patternCount * PADDED_STATE_COUNT;
+
     KW_LOCAL_MEM REAL stateFreq[4];
     
     // TODO: Currently assumes MATRIX_BLOCK_SIZE >= matrixCount
@@ -1553,9 +1594,6 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
 
     KW_LOCAL_FENCE;
 
-    int u = state + pattern * PADDED_STATE_COUNT;
-    int delta = patternCount * PADDED_STATE_COUNT;;
-
     for(int r = 0; r < matrixCount; r++) {
         sum[pat][state] += dRootPartials[u + delta * r] * matrixProp[r];
     }
@@ -1571,6 +1609,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
 
     if (state == 0)
         dResult[pattern] = log(sum[pat][state]);
+#endif
         
 }
 
