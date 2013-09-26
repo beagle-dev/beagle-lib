@@ -87,6 +87,7 @@ enum BeagleDeviceImplementationCodes {
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
     #define KW_GLOBAL_KERNEL __global__
+    #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR
     #define KW_LOCAL_MEM     __shared__
     #define KW_LOCAL_FENCE   __syncthreads()
@@ -98,6 +99,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  gridDim.y
 #elif defined(FW_OPENCL)
     #define KW_GLOBAL_KERNEL __kernel
+    #define KW_DEVICE_FUNC   
     #define KW_GLOBAL_VAR    __global
     #define KW_LOCAL_MEM     __local
     #define KW_LOCAL_FENCE   barrier(CLK_LOCAL_MEM_FENCE)
@@ -173,6 +175,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_SP_48         8
 #define PATTERN_BLOCK_SIZE_SP_48_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_SP_48          8
+#define MATRIX_BLOCK_SIZE_SP_48_AMDGPU   4
 #define BLOCK_PEELING_SIZE_SP_48         8
 #define BLOCK_PEELING_SIZE_SP_48_AMDGPU  4
 #define IS_POWER_OF_TWO_SP_48            0
@@ -183,6 +186,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_SP_64         8
 #define PATTERN_BLOCK_SIZE_SP_64_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_SP_64          8
+#define MATRIX_BLOCK_SIZE_SP_64_AMDGPU   4
 #define BLOCK_PEELING_SIZE_SP_64         8
 #define BLOCK_PEELING_SIZE_SP_64_AMDGPU  4
 #define IS_POWER_OF_TWO_SP_64            1
@@ -193,6 +197,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_SP_80         8
 #define PATTERN_BLOCK_SIZE_SP_80_AMDGPU  2
 #define MATRIX_BLOCK_SIZE_SP_80          8
+#define MATRIX_BLOCK_SIZE_SP_80_AMDGPU   2
 #define BLOCK_PEELING_SIZE_SP_80         8
 #define BLOCK_PEELING_SIZE_SP_80_AMDGPU  2
 #define IS_POWER_OF_TWO_SP_80            0
@@ -203,6 +208,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_SP_128        4
 #define PATTERN_BLOCK_SIZE_SP_128_AMDGPU 2
 #define MATRIX_BLOCK_SIZE_SP_128         8
+#define MATRIX_BLOCK_SIZE_SP_128_AMDGPU  2
 #define BLOCK_PEELING_SIZE_SP_128        2
 #define BLOCK_PEELING_SIZE_SP_128_AMDGPU 2
 #define IS_POWER_OF_TWO_SP_128           1
@@ -213,6 +219,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_SP_192        2
 #define PATTERN_BLOCK_SIZE_SP_192_AMDGPU 1
 #define MATRIX_BLOCK_SIZE_SP_192         8
+#define MATRIX_BLOCK_SIZE_SP_192_AMDGPU  1
 #define BLOCK_PEELING_SIZE_SP_192        2
 #define BLOCK_PEELING_SIZE_SP_192_AMDGPU 1
 #define IS_POWER_OF_TWO_SP_192           0
@@ -250,6 +257,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_DP_48         8
 #define PATTERN_BLOCK_SIZE_DP_48_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_DP_48          8
+#define MATRIX_BLOCK_SIZE_DP_48_AMDGPU   4
 #define BLOCK_PEELING_SIZE_DP_48         8
 #define BLOCK_PEELING_SIZE_DP_48_AMDGPU  4
 #define IS_POWER_OF_TWO_DP_48            0
@@ -260,6 +268,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_DP_64         8
 #define PATTERN_BLOCK_SIZE_DP_64_AMDGPU  4
 #define MATRIX_BLOCK_SIZE_DP_64          8
+#define MATRIX_BLOCK_SIZE_DP_64_AMDGPU   4
 #define BLOCK_PEELING_SIZE_DP_64         4 // Can use 8 on GTX480
 #define BLOCK_PEELING_SIZE_DP_64_AMDGPU  4
 #define IS_POWER_OF_TWO_DP_64            1
@@ -270,6 +279,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_DP_80         8
 #define PATTERN_BLOCK_SIZE_DP_80_AMDGPU  2
 #define MATRIX_BLOCK_SIZE_DP_80          8
+#define MATRIX_BLOCK_SIZE_DP_80_AMDGPU   2
 #define BLOCK_PEELING_SIZE_DP_80         4 // Can use 8 on GTX480
 #define BLOCK_PEELING_SIZE_DP_80_AMDGPU  2
 #define IS_POWER_OF_TWO_DP_80            0
@@ -280,6 +290,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_DP_128        4
 #define PATTERN_BLOCK_SIZE_DP_128_AMDGPU 2
 #define MATRIX_BLOCK_SIZE_DP_128         8
+#define MATRIX_BLOCK_SIZE_DP_128_AMDGPU  2
 #define BLOCK_PEELING_SIZE_DP_128        2
 #define BLOCK_PEELING_SIZE_DP_128_AMDGPU 2
 #define IS_POWER_OF_TWO_DP_128           1
@@ -290,6 +301,7 @@ enum BeagleDeviceImplementationCodes {
 #define PATTERN_BLOCK_SIZE_DP_192        2
 #define PATTERN_BLOCK_SIZE_DP_192_AMDGPU 1
 #define MATRIX_BLOCK_SIZE_DP_192         8
+#define MATRIX_BLOCK_SIZE_DP_192_AMDGPU  1
 #define BLOCK_PEELING_SIZE_DP_192        2
 #define BLOCK_PEELING_SIZE_DP_192_AMDGPU 1
 #define IS_POWER_OF_TWO_DP_192           0
@@ -321,17 +333,16 @@ enum BeagleDeviceImplementationCodes {
 #if defined(FW_OPENCL_CPU) && (STATE_COUNT == 4)
     #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, CPU)
 #elif defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
-   #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
+    #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
 #else
     #define PATTERN_BLOCK_SIZE     GET_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
 #endif
 
-#define MATRIX_BLOCK_SIZE		GET_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
-
-
 #if defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
+    #define MATRIX_BLOCK_SIZE       GET4_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
     #define BLOCK_PEELING_SIZE      GET4_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
 #else
+    #define MATRIX_BLOCK_SIZE       GET_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
     #define BLOCK_PEELING_SIZE      GET_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT)
 #endif
 
