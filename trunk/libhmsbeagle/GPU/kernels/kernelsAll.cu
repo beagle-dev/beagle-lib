@@ -50,6 +50,12 @@ extern "C" {
 #endif
 
 #endif //FW_OPENCL
+
+#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
+    #define FMA(x, y, z) (z = fma(x, y, z))
+#else //FP_FAST_FMA
+    #define FMA(x, y, z) (z += x * y)
+#endif //FP_FAST_FMA
     
 KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
@@ -811,11 +817,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
         maxPattern = patternCount;
 
     while (pattern < maxPattern) {
-#if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
-        sum  = fma(dArray[pattern],  dPatternWeights[pattern], sum);
-#else //FP_FAST_FMA
-        sum +=     dArray[pattern] * dPatternWeights[pattern];
-#endif //FP_FAST_FMA
+        FMA(dArray[pattern],  dPatternWeights[pattern], sum);
         pattern++;
     }
 
@@ -987,29 +989,6 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dSca
         rootScaling[pattern] += total;
 }
 
-KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed char* dScalingFactors,
-                                                   KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
-                                                   KW_GLOBAL_VAR int* rootScaling,
-                                                   int nodeCount,
-                                                   int patternCount,
-                                                   int scaleBufferSize) {
-    int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
-    int index = pattern + KW_GROUP_ID_1 * patternCount;
-
-    int total = 0;
-    KW_GLOBAL_VAR signed char* nodeScales;
-
-    int n;
-    for(n = 0; n < nodeCount; n++) {
-//        int sIndex = dNodePtrQueue[n];
-        nodeScales = dScalingFactors + dNodePtrQueue[n] * scaleBufferSize;
-
-        total += nodeScales[index];
-    }
-
-    if (pattern < patternCount)
-        rootScaling[index] = total;
-}
 
 KW_GLOBAL_KERNEL void kernelRemoveFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
                                     KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
@@ -1182,6 +1161,33 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlowScalersLog(KW_GLOBAL_VAR R
         allPartials[m * patternCount * PADDED_STATE_COUNT + pattern * PADDED_STATE_COUNT +
                     state] /= max;
 
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+// scaling experiments kernels
+
+KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed char* dScalingFactors,
+                                                   KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                                   KW_GLOBAL_VAR int* rootScaling,
+                                                   int nodeCount,
+                                                   int patternCount,
+                                                   int scaleBufferSize) {
+    int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+    int index = pattern + KW_GROUP_ID_1 * patternCount;
+
+    int total = 0;
+    KW_GLOBAL_VAR signed char* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+//        int sIndex = dNodePtrQueue[n];
+        nodeScales = dScalingFactors + dNodePtrQueue[n] * scaleBufferSize;
+
+        total += nodeScales[index];
+    }
+
+    if (pattern < patternCount)
+        rootScaling[index] = total;
 }
 
 #ifdef CUDA

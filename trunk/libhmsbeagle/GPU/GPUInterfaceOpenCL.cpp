@@ -49,13 +49,13 @@
                             } \
                         }
 
-#define LOAD_KERNEL_INTO_RESOURCE(state, prec, id, impl) \
+#define LOAD_KERNEL_INTO_RESOURCE(state, prec, id, impl, impl2) \
         kernelResource = new KernelResource( \
             state, \
             (char*) KERNELS_STRING_##prec##_##state, \
             PATTERN_BLOCK_SIZE_##prec##_##state##impl, \
-            MATRIX_BLOCK_SIZE_##prec##_##state, \
-            BLOCK_PEELING_SIZE_##prec##_##state, \
+            MATRIX_BLOCK_SIZE_##prec##_##state##impl2, \
+            BLOCK_PEELING_SIZE_##prec##_##state##impl2, \
             SLOW_REWEIGHING_##prec##_##state, \
             MULTIPLY_BLOCK_SIZE_##prec, \
             0,0,0,0);
@@ -217,40 +217,40 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
 
     if (CPUImpl && paddedStateCount == 4) {
         switch(id) {
-            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4, _CPU); break;
-            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4, _CPU); break;
+            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4, _CPU,); break;
+            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4, _CPU,); break;
         }
     } else if (AMDImpl && paddedStateCount > 32) {
         switch(id) {
-            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48, _AMDGPU); break;
-            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64, _AMDGPU); break;
-            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80, _AMDGPU); break;
-            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128, _AMDGPU); break;
-            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192, _AMDGPU); break;
-            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48, _AMDGPU); break;
-            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64, _AMDGPU); break;
-            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80, _AMDGPU); break;
-            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128, _AMDGPU); break;
-            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192, _AMDGPU); break;
+            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48, _AMDGPU, _AMDGPU); break;
+            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64, _AMDGPU, _AMDGPU); break;
+            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80, _AMDGPU, _AMDGPU); break;
+            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128, _AMDGPU, _AMDGPU); break;
+            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192, _AMDGPU, _AMDGPU); break;
+            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48, _AMDGPU, _AMDGPU); break;
+            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64, _AMDGPU, _AMDGPU); break;
+            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80, _AMDGPU, _AMDGPU); break;
+            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128, _AMDGPU, _AMDGPU); break;
+            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192, _AMDGPU, _AMDGPU); break;
         }
     } else {
         switch(id) {
-            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4,); break;
-            case  -16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16,); break;
-            case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32,); break;
-            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48,); break;
-            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64,); break;
-            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,); break;
-            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,); break;
-            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,); break;
-            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4,); break;
-            case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,); break;
-            case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,); break;
-            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48,); break;
-            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64,); break;
-            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,); break;
-            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,); break;
-            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,); break;
+            case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4,,); break;
+            case  -16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16,,); break;
+            case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32,,); break;
+            case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48,,); break;
+            case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64,,); break;
+            case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,,); break;
+            case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,,); break;
+            case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,,); break;
+            case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4,,); break;
+            case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,,); break;
+            case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,,); break;
+            case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48,,); break;
+            case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64,,); break;
+            case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,,); break;
+            case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,,); break;
+            case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,,); break;
         }
     }
 
