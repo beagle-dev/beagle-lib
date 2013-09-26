@@ -573,16 +573,13 @@ void runBeagle(int resource,
         // end timing!
         gettimeofday(&time5,NULL);
         
-        if (i == 0 || getTimeDiff(time1, time2) < bestTimeUpdateTransitionMatrices)
-            bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
-        if (i == 0 || getTimeDiff(time2, time3) < bestTimeUpdatePartials)
-            bestTimeUpdatePartials = getTimeDiff(time2, time3);
-        if (i == 0 || getTimeDiff(time3, time4) < bestTimeAccumulateScaleFactors)
-            bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
-        if (i == 0 || getTimeDiff(time4, time5) < bestTimeCalculateRootLogLikelihoods)
-            bestTimeCalculateRootLogLikelihoods = getTimeDiff(time4, time5);
-        if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal)
+        if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time1, time5);
+            bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
+            bestTimeUpdatePartials = getTimeDiff(time2, time3);
+            bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
+            bestTimeCalculateRootLogLikelihoods = getTimeDiff(time4, time5);
+        }
         
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
