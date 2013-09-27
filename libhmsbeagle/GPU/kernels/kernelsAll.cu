@@ -23,32 +23,16 @@
  */
 
 #ifdef CUDA
-
-#include "libhmsbeagle/GPU/GPUImplDefs.h"
-
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
-#define DETERMINE_INDICES() \
-    int state = KW_LOCAL_ID_0; \
-    int patIdx = KW_LOCAL_ID_1; \
-    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx; \
-    int matrix = KW_GROUP_ID_1; \
-    int patternCount = totalPatterns; \
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT; \
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; \
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; \
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
-
-extern "C" {
-    
-#elif defined(FW_OPENCL)
-    
-#ifdef DOUBLE_PRECISION
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
-#endif
-
+    #include "libhmsbeagle/GPU/GPUImplDefs.h"
+    #include <stdlib.h>
+    #include <string.h>
+    #include <stdio.h>
+    extern "C" {    
+#elif defined(FW_OPENCL)    
+    #ifdef DOUBLE_PRECISION
+        #pragma OPENCL EXTENSION cl_khr_fp64: enable
+    #endif
+    #define __umul24(x, y) (x * y)
 #endif //FW_OPENCL
 
 #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || (defined DOUBLE_PRECISION && defined FP_FAST_FMA)
@@ -56,7 +40,7 @@ extern "C" {
 #else //FP_FAST_FMA
     #define FMA(x, y, z) (z += x * y)
 #endif //FP_FAST_FMA
-    
+
 KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,

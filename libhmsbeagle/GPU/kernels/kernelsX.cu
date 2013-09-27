@@ -23,31 +23,22 @@
  */
 
 #ifdef CUDA
+    #include "libhmsbeagle/GPU/GPUImplDefs.h"
+    #include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
+    extern "C" {    
+#endif
 
-#include "libhmsbeagle/GPU/GPUImplDefs.h"
-#include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
-
-#define DETERMINE_INDICES() \
-    int state = KW_LOCAL_ID_0; \
-    int patIdx = KW_LOCAL_ID_1; \
-    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx; \
-    int matrix = KW_GROUP_ID_1; \
-    int patternCount = totalPatterns; \
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT; \
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; \
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; \
+#define DETERMINE_INDICES()\
+    int state = KW_LOCAL_ID_0;\
+    int patIdx = KW_LOCAL_ID_1;\
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;\
+    int matrix = KW_GROUP_ID_1;\
+    int patternCount = totalPatterns;\
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;\
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-extern "C" {
-    
-#elif defined(FW_OPENCL)
-    
-#define DETERMINE_INDICES() int state = KW_LOCAL_ID_0; int patIdx = KW_LOCAL_ID_1; int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx; int matrix = KW_GROUP_ID_1; int patternCount = totalPatterns; int deltaPartialsByState = pattern * PADDED_STATE_COUNT; int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount; int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT; int u = state + deltaPartialsByState + deltaPartialsByMatrix;
-
-#endif //FW_OPENCL
-
-// kernels shared by CUDA and OpenCL
-    
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials1,
                                                              KW_GLOBAL_VAR REAL* partials2,
                                                              KW_GLOBAL_VAR REAL* partials3,
