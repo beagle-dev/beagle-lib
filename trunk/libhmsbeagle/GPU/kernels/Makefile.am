@@ -77,9 +77,9 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 # 	Compile 4-state model
 	echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "#define STATE_COUNT 4" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat ../GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat kernelsAll.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat kernels4.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat ../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -89,9 +89,9 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 		echo "Making state count = $$s" ; \
 		echo "#define KERNELS_STRING_SP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "#define STATE_COUNT $$s" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat ../GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat kernelsAll.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat kernelsX.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat ../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "\"" >> BeagleOpenCL_kernels.h; \
 	done
 
@@ -102,9 +102,9 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 	echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "#define STATE_COUNT 4" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "#define DOUBLE_PRECISION" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat ../GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat kernelsAll.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
-	cat kernels4.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat ../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -115,9 +115,9 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 		echo "#define KERNELS_STRING_DP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "#define STATE_COUNT $$s" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "#define DOUBLE_PRECISION" | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat ../GPUImplDefs.h | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat kernelsAll.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
-		cat kernelsX.cu | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat ../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "\"" >> BeagleOpenCL_kernels.h; \
 	done
 

@@ -3,14 +3,8 @@
 function test_all_impls {
     #               program        states  taxa   sites  rates  reps   rsrc  rescaling  precision  sse    ctips  rseed  rfreq    root   derivs  lnl_exp  d1_exp   d2_exp   lscalers  ecount   ecomplex  ievect   smatrix
 
-    echo -n "   testing resource=0  precision=SINGLE sse=NO  " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "single"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> benchmark_results.csv
-
     echo -n "   testing resource=$R precision=SINGLE sse=NO  " 1>&2;
     ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "$R"  "${10}"    "single"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> benchmark_results.csv
-
-    echo -n "   testing resource=0  precision=DOUBLE sse=NO  " 1>&2;
-    ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "0"   "${10}"    "double"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> benchmark_results.csv
 
     echo -n "   testing resource=$R precision=DOUBLE sse=NO  " 1>&2;
     ./parse_test.sh "genomictest"  "${1}"  "${2}" "${3}" "${4}" "${5}" "$R"  "${10}"    "double"   "no"   "${6}" "${7}" "${11}"  "${8}" "${9}"  "${17}"  "${18}"  "${19}"  "${12}"   "${13}"  "${14}"   "${15}"  "${16}" >> benchmark_results.csv
@@ -18,7 +12,7 @@ function test_all_impls {
 
 if [ -z "${1}" ];
 then
-    R=1
+    R=0
 else
     R=${1}
 fi
