@@ -15,6 +15,16 @@ public class BeagleFactory {
 
     private static Map<Integer, ResourceDetails> resourceDetailsMap = new HashMap<Integer, ResourceDetails>();
 
+    public static String getVersionInformation() {
+        getBeagleJNIWrapper();
+
+        if (BeagleJNIWrapper.INSTANCE != null) {
+            return  BeagleJNIWrapper.INSTANCE.getVersionInformation();
+        }
+
+        return "BEAGLE not installed/found";
+    }
+
     public static List<ResourceDetails> getResourceDetails() {
         getBeagleJNIWrapper();
 
@@ -77,19 +87,6 @@ public class BeagleFactory {
                 Logger.getLogger("beagle").info("  "+beagleException.getMessage());
             }
         }
-
-//        if (stateCount == 4) {
-//            return new FourStateBeagleImpl(
-//                    tipCount,
-//                    partialsBufferCount,
-//                    compactBufferCount,
-//                    patternCount,
-//                    eigenBufferCount,
-//                    matrixBufferCount,
-//                    categoryCount,
-//                    scaleBufferCount
-//            );
-//        }
 
         if (!forceJava) {
             throw new RuntimeException("No acceptable BEAGLE library plugins found. " +

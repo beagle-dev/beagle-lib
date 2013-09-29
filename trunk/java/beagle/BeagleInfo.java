@@ -9,6 +9,12 @@ import java.util.List;
  */
 public class BeagleInfo {
 
+    public static void printVersionInformation() {
+
+        System.out.println(BeagleFactory.getVersionInformation());
+        System.out.println();
+    }
+
     public static void printResourceList() {
 
         List<ResourceDetails> resourceDetails = BeagleFactory.getResourceDetails();
@@ -22,6 +28,7 @@ public class BeagleInfo {
     }
 
     public static void main(String[] argv) {
+        printVersionInformation();
         printResourceList();
     }
 
