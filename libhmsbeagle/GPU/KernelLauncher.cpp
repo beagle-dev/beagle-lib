@@ -138,30 +138,35 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgAccumulateGrid.x += 1;        
     
     // Set up block/grid for scaling partials
-    if (kSlowReweighing) {
-        bgScaleBlock = Dim3Int(kPaddedStateCount);
-        bgScaleGrid  = Dim3Int(kPatternCount);        
+    if (CPUImplementation && kPaddedStateCount == 4) {
+        bgScaleBlock = Dim3Int(kPatternBlockSize);
+        bgScaleGrid  = Dim3Int(kPatternCount/kPatternBlockSize);
     } else {
-        if (kPaddedStateCount == 4) {
-            bgScaleBlock = Dim3Int(16, kMatrixBlockSize);
-            bgScaleGrid  = Dim3Int(kPatternCount / 4, kCategoryCount/kMatrixBlockSize);
-            if (kPatternCount % 4 != 0) {
-                bgScaleGrid.x += 1; // 
-                fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
-                exit(-1);
+        if (kSlowReweighing) {
+            bgScaleBlock = Dim3Int(kPaddedStateCount);
+            bgScaleGrid  = Dim3Int(kPatternCount);        
+        } else {
+            if (kPaddedStateCount == 4) {
+                bgScaleBlock = Dim3Int(16, kMatrixBlockSize);
+                bgScaleGrid  = Dim3Int(kPatternCount / 4, kCategoryCount/kMatrixBlockSize);
+                if (kPatternCount % 4 != 0) {
+                    bgScaleGrid.x += 1; // 
+                    fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
+                    exit(-1);
+                }                
+            } else { 
+                bgScaleBlock = Dim3Int(kPaddedStateCount, kMatrixBlockSize);
+                bgScaleGrid  = Dim3Int(kPatternCount, kCategoryCount/kMatrixBlockSize);
             }
-        } else { 
-            bgScaleBlock = Dim3Int(kPaddedStateCount, kMatrixBlockSize);
-            bgScaleGrid  = Dim3Int(kPatternCount, kCategoryCount/kMatrixBlockSize);
+            if (kCategoryCount % kMatrixBlockSize != 0)
+                bgScaleGrid.y += 1;
+            if (bgScaleGrid.y > 1) { 
+                fprintf(stderr, "Not yet implemented! Try slow reweighing.\n");
+                exit(-1);
+            }        
         }
-        if (kCategoryCount % kMatrixBlockSize != 0)
-            bgScaleGrid.y += 1;
-        if (bgScaleGrid.y > 1) { 
-            fprintf(stderr, "Not yet implemented! Try slow reweighing.\n");
-            exit(-1);
-        }        
-    }
-    
+    }    
+
     // Set up block for site likelihood accumulation
     if (CPUImplementation) {
         bgSumSitesBlock = Dim3Int(1);

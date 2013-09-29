@@ -840,6 +840,27 @@ KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
                                 KW_GLOBAL_VAR REAL* dPatternWeights,
                                 int patternCount) {
 
+#ifdef FW_OPENCL_CPU
+    
+    REAL sum1 = 0, sum2 = 0;
+
+    int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+    int maxPattern = (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
+
+    if (maxPattern > patternCount)
+        maxPattern = patternCount;
+
+    while (pattern < maxPattern) {
+        FMA(dArray1[pattern],  dPatternWeights[pattern], sum1);
+        FMA(dArray2[pattern],  dPatternWeights[pattern], sum2);
+        pattern++;
+    }
+
+    dSum1[KW_GROUP_ID_0] = sum1;
+    dSum2[KW_GROUP_ID_0] = sum2;
+
+#else
+
     KW_LOCAL_MEM REAL sum1[SUM_SITES_BLOCK_SIZE];
     KW_LOCAL_MEM REAL sum2[SUM_SITES_BLOCK_SIZE];
 
@@ -869,6 +890,8 @@ KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
         dSum1[KW_GROUP_ID_0] = sum1[0];
         dSum2[KW_GROUP_ID_0] = sum2[0];
     }
+
+#endif
 }
 
 KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
@@ -879,6 +902,30 @@ KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
                                 KW_GLOBAL_VAR REAL* dSum3,
                                 KW_GLOBAL_VAR REAL* dPatternWeights,
                                 int patternCount) {
+
+#ifdef FW_OPENCL_CPU
+    
+    REAL sum1 = 0, sum2 = 0, sum3 = 0;
+
+    int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+    int maxPattern = (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
+
+    if (maxPattern > patternCount)
+        maxPattern = patternCount;
+
+    while (pattern < maxPattern) {
+        FMA(dArray1[pattern],  dPatternWeights[pattern], sum1);
+        FMA(dArray2[pattern],  dPatternWeights[pattern], sum2);
+        FMA(dArray3[pattern],  dPatternWeights[pattern], sum3);
+
+        pattern++;
+    }
+
+    dSum1[KW_GROUP_ID_0] = sum1;
+    dSum2[KW_GROUP_ID_0] = sum2;
+    dSum3[KW_GROUP_ID_0] = sum3;
+
+#else
 
     KW_LOCAL_MEM REAL sum1[SUM_SITES_BLOCK_SIZE];
     KW_LOCAL_MEM REAL sum2[SUM_SITES_BLOCK_SIZE];
@@ -914,13 +961,16 @@ KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
         dSum2[KW_GROUP_ID_0] = sum2[0];
         dSum3[KW_GROUP_ID_0] = sum3[0];
     }
+
+#endif
 }
 
 KW_GLOBAL_KERNEL void kernelAccumulateFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
-                                        KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
-                                                   KW_GLOBAL_VAR REAL* rootScaling,
-                                                   int nodeCount,
-                                                   int patternCount) {
+                                              KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                              KW_GLOBAL_VAR REAL* rootScaling,
+                                              int nodeCount,
+                                              int patternCount) {
+
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -932,18 +982,22 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactors(KW_GLOBAL_VAR REAL* dScalingFactor
         nodeScales = dScalingFactors + dNodePtrQueue[n];
 //      KW_LOCAL_FENCE;
 
-#ifdef KERNEL_PRINT_ENABLED
+    #ifdef KERNEL_PRINT_ENABLED
         if (pattern == 1)
             printf("added %1.2e\n", nodeScales[pattern]);
-#endif
+    #endif
         REAL factor = nodeScales[pattern];
         if (factor != 1.0) {
             total += log(factor);
         }
     }
 
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    rootScaling[pattern] += total;
+#else // GPU implementation
     if (pattern < patternCount)
         rootScaling[pattern] += total;
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dScalingFactors,
@@ -969,8 +1023,12 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dSca
         total += nodeScales[pattern];
     }
 
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    rootScaling[pattern] += total;
+#else // GPU implementation
     if (pattern < patternCount)
         rootScaling[pattern] += total;
+#endif // FW_OPENCL_CPU
 }
 
 
@@ -1000,8 +1058,12 @@ KW_GLOBAL_KERNEL void kernelRemoveFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
         }
     }
 
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    rootScaling[pattern] -= total;
+#else // GPU implementation
     if (pattern < patternCount)
         rootScaling[pattern] -= total;
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLog(KW_GLOBAL_VAR REAL* dScalingFactors,
@@ -1028,8 +1090,12 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLog(KW_GLOBAL_VAR REAL* dScaling
         total += nodeScales[pattern];
     }
 
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    rootScaling[pattern] -= total;
+#else // GPU implementation
     if (pattern < patternCount)
         rootScaling[pattern] -= total;
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlow(KW_GLOBAL_VAR REAL* allPartials,
