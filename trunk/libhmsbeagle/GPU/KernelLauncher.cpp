@@ -138,7 +138,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgAccumulateGrid.x += 1;        
     
     // Set up block/grid for scaling partials
-    if (CPUImplementation && kPaddedStateCount == 4) {
+    if (CPUImplementation) {
         bgScaleBlock = Dim3Int(kPatternBlockSize);
         bgScaleGrid  = Dim3Int(kPatternCount/kPatternBlockSize);
     } else {

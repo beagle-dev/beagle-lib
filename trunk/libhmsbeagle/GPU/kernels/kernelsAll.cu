@@ -41,6 +41,8 @@
     #define FMA(x, y, z) (z += x * y)
 #endif //FP_FAST_FMA
 
+///////////////////////////////////////////////////////////////////////////////
+
 KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,
@@ -787,9 +789,9 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
 }
     
 KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
-                                KW_GLOBAL_VAR REAL* dSum,
-                                KW_GLOBAL_VAR REAL* dPatternWeights,
-                                int patternCount) {
+                                      KW_GLOBAL_VAR REAL* dSum,
+                                      KW_GLOBAL_VAR REAL* dPatternWeights,
+                                      int patternCount) {
 #ifdef FW_OPENCL_CPU
     
     REAL sum = 0;
@@ -834,11 +836,11 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
 }
 
 KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
-                                KW_GLOBAL_VAR REAL* dSum1,
-                                KW_GLOBAL_VAR REAL* dArray2,
-                                KW_GLOBAL_VAR REAL* dSum2,
-                                KW_GLOBAL_VAR REAL* dPatternWeights,
-                                int patternCount) {
+                                      KW_GLOBAL_VAR REAL* dSum1,
+                                      KW_GLOBAL_VAR REAL* dArray2,
+                                      KW_GLOBAL_VAR REAL* dSum2,
+                                      KW_GLOBAL_VAR REAL* dPatternWeights,
+                                      int patternCount) {
 
 #ifdef FW_OPENCL_CPU
     
@@ -895,13 +897,13 @@ KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
 }
 
 KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
-                                KW_GLOBAL_VAR REAL* dSum1,
-                                KW_GLOBAL_VAR REAL* dArray2,
-                                KW_GLOBAL_VAR REAL* dSum2,
-                                KW_GLOBAL_VAR REAL* dArray3,
-                                KW_GLOBAL_VAR REAL* dSum3,
-                                KW_GLOBAL_VAR REAL* dPatternWeights,
-                                int patternCount) {
+                                      KW_GLOBAL_VAR REAL* dSum1,
+                                      KW_GLOBAL_VAR REAL* dArray2,
+                                      KW_GLOBAL_VAR REAL* dSum2,
+                                      KW_GLOBAL_VAR REAL* dArray3,
+                                      KW_GLOBAL_VAR REAL* dSum3,
+                                      KW_GLOBAL_VAR REAL* dPatternWeights,
+                                      int patternCount) {
 
 #ifdef FW_OPENCL_CPU
     
