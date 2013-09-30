@@ -256,10 +256,6 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices
             Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
                 }
 
-#ifndef KERNEL_PRINT_ENABLED
-        KW_LOCAL_FENCE;
-#endif
-
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
 
@@ -405,10 +401,6 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
             Ds[tx][1] = scaledEigenTmp * Ds[tx][0];
             Ds[tx][2] = scaledEigenTmp * Ds[tx][1];
                 }
-
-#ifndef KERNEL_PRINT_ENABLED
-        KW_LOCAL_FENCE;
-#endif
 
         As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
         Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
