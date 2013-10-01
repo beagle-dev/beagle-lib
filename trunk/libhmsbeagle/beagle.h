@@ -26,7 +26,7 @@
  * 
  * The key to BEAGLE performance lies in delivering fine-scale
  * parallelization while minimizing data transfer and memory copy overhead.
- * To accomplish this, the library lacks the concept or data structure for
+ * To accomplish this, the library lacks the concept of data structure for
  * a tree, in spite of the intended use for phylogenetic analysis. Instead,
  * BEAGLE acts directly on flexibly indexed data storage (called buffers)
  * for observed character states and partial likelihoods. The client

@@ -1648,7 +1648,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
 
         *outSumLogLikelihood = 0.0;
         for (int i = 0; i < kSumSitesBlockCount; i++) {
-            if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+            if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                 returnCode = BEAGLE_ERROR_FLOATING_POINT;
             
             *outSumLogLikelihood += hLogLikelihoodsCache[i];
@@ -1705,7 +1705,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
@@ -1820,7 +1820,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
@@ -1869,7 +1869,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
@@ -1926,7 +1926,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
             
             *outSumLogLikelihood = 0.0;
             for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                     returnCode = BEAGLE_ERROR_FLOATING_POINT;
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
@@ -2012,7 +2012,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                 
                 *outSumLogLikelihood = 0.0;
                 for (int i = 0; i < kSumSitesBlockCount; i++) {
-                    if (!(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
+                    if (!isinf(hLogLikelihoodsCache[i]) && !(hLogLikelihoodsCache[i] - hLogLikelihoodsCache[i] == 0.0))
                         returnCode = BEAGLE_ERROR_FLOATING_POINT;
                     
                     *outSumLogLikelihood += hLogLikelihoodsCache[i];
