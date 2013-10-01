@@ -135,7 +135,7 @@ void FourTaxonExample::defineOperations()
 		like_parent_index = 4;
 	else
 		like_parent_index = 5;
-	transmat_index = (like_child_index == 4 ? 4 : like_child_index);
+    transmat_index = like_child_index;
 	
 	// 	std::cerr << "Tip chosen to serve as likelihood root:\n";
 	// 	std::cerr << "  like_root_node     = " << like_root_node << '\n';
@@ -332,7 +332,7 @@ void FourTaxonExample::initBeagleLib()
     fprintf(stdout, "\n");        
         
 	brlens.resize(5);
-	transition_matrix_index.resize(5 * 3);
+    transition_matrix_index.resize(5 * 3); //number of branches * 3 (because we are also calculating first and second derivatives
 	for (unsigned i = 0; i < 5; ++i)
 		{
 		brlens[i] = 0.01;
