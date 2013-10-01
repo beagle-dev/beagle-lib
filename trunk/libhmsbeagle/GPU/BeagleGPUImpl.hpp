@@ -35,6 +35,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
+#include <cmath>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
