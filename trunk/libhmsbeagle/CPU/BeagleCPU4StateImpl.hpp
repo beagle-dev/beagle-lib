@@ -447,11 +447,8 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
         *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
     }    
     
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }
@@ -753,11 +750,8 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
     
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }

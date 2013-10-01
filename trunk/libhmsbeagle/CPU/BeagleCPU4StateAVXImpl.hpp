@@ -675,11 +675,8 @@ int BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcEdgeLogLikelihoods(cons
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
         
     return returnCode;
 }

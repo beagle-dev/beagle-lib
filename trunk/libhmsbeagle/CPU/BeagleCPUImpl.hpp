@@ -1082,11 +1082,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bu
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 
@@ -1148,12 +1145,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIn
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     // TODO: merge the three kPatternCount loops above into one
 
@@ -1415,11 +1408,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int parIndex
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
 
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }
@@ -1571,11 +1561,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsMulti(const int* pa
         *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
     }
     
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }
@@ -1690,11 +1677,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsFirstDeriv(const in
         *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
     }
     
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
 
     return returnCode;
 }
@@ -1822,11 +1806,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDeriv(const i
         *outSumSecondDerivative += outSecondDerivativesTmp[i] * gPatternWeights[i];
     }
 
-    if(!isinf(*outSumLogLikelihood)) { //safeguard for when lk is 0.0 (i.e. log(lk) is -inf). Otherwise the next would always fail
-      if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
-          returnCode = BEAGLE_ERROR_FLOATING_POINT;
-    }
-
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
     return returnCode;
 }
