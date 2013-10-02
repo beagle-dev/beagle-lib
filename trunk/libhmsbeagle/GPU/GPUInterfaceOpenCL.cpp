@@ -294,40 +294,48 @@ void GPUInterface::SetDevice(int deviceNumber,
     kernelResource->unpaddedPatternCount = unpaddedPatternCount;
     kernelResource->flags = flags;
 
-#ifdef FW_OPENCL_BINARY
+#if defined(FW_OPENCL_BINARY) || defined(FW_OPENCL_PROFILING)
     //=========================================================================================================
-    // Read the pre-compiled FPGA configuration file, and create program using it
     FILE *fp = NULL;
-    const char *file_name = "kernels.aocx";
-
-#ifdef _WIN32
-	if (fopen_s(&fp, file_name, "rb") != 0)
-	{
-		printf("ERROR: Failed to open kernels binary.\n");
-		exit(-1);
-	}
-#else
-	fp = fopen(file_name, "rb");
-	if (fp == 0)
-	{
-		printf("ERROR: Failed to open kernels binary.\n");
-		exit(-1);
-	}
-#endif
+    #if defined(FW_OPENCL_BINARY)
+        const char *file_name = "kernels.ir";
+    #else // FW_OPENCL_PROFILING
+	    const char *file_name = "kernels.cl";
+    #endif
+    #ifdef _WIN32
+    	if (fopen_s(&fp, file_name, "rb") != 0)
+    	{
+    		printf("ERROR: Failed to open kernels.\n");
+    		exit(-1);
+    	}
+    #else
+    	fp = fopen(file_name, "rb");
+    	if (fp == 0)
+    	{
+    		printf("ERROR: Failed to open kernels.\n");
+    		exit(-1);
+    	}
+    #endif
     fseek(fp, 0, SEEK_END);
-    size_t binary_length = ftell(fp);
-    const unsigned char *binary = (unsigned char*) malloc(sizeof(unsigned char) * binary_length);
-    assert( binary && "Malloc failed" );
+    size_t kernels_length = ftell(fp);
+    const unsigned char *kernels = (unsigned char*) malloc(sizeof(unsigned char) * kernels_length);
+    assert( kernels && "Malloc failed" );
     rewind(fp);
-    if (fread((void *)binary, binary_length, 1, fp) == 0)
+    if (fread((void *)kernels, kernels_length, 1, fp) == 0)
     {
-    	printf("Failed to read kernels binary.\n");
+    	printf("Failed to read kernels.\n");
     	exit(-1);
     }
     fclose(fp);
-    cl_int error_num, status;
-    openClProgram = clCreateProgramWithBinary(openClContext, 1, &openClDeviceId, &binary_length, (const unsigned char **)&binary, &status, &error_num);
-    //=========================================================================================================
+
+    #if defined(FW_OPENCL_BINARY)
+        openClProgram = clCreateProgramWithBinary(openClContext, 1, &openClDeviceId, &kernels_length,
+                                                  (const unsigned char **)&kernels, NULL, &err);
+    #else // FW_OPENCL_PROFILING
+	    openClProgram = clCreateProgramWithSource(openClContext, 1, (const char **)&kernels,
+                                                  &kernels_length, &err);
+    #endif
+	//=========================================================================================================
 #else
 	openClProgram = clCreateProgramWithSource(openClContext, 1,
 		                                      (const char**) &kernelResource->kernelCode, NULL,
@@ -340,9 +348,11 @@ void GPUInterface::SetDevice(int deviceNumber,
         exit(-1);
     }
 
-    char buildDefs[256] = "-D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
+    char buildDefs[1024] = "-D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
 #ifdef DLS_MACOS
     strcat(buildDefs, "-D DLS_MACOS ");
+#elif defined(FW_OPENCL_PROFILING)
+	strcat(buildDefs, "-profiling -s \"C:\\developer\\beagle-lib\\project\\beagle-vs-2012\\x64\\Release\\kernels.cl\" ");
 #endif
 
     BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(deviceNumber);
