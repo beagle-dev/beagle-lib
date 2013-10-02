@@ -38,6 +38,7 @@
 
 //#define FW_OPENCL_BINARY
 //#define FW_OPENCL_TESTING
+//#define FW_OPENCL_PROFILING
 
 //#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
