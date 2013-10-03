@@ -31,8 +31,8 @@
     extern "C" {
 #endif 
 
-#define multBy4(x)  (x << 2)
-#define multBy16(x) (x << 4)
+#define multBy4(x)  ((x) << 2)
+#define multBy16(x) ((x) << 4)
 #define LIKE_PATTERN_BLOCK_SIZE PATTERN_BLOCK_SIZE
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -50,10 +50,10 @@
 #define SUM_PARTIALS_PARTIALS_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
     REAL sum2[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrix2 = matrices2 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = partials1 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
         sum1[i] = sMatrix1[0 * PADDED_STATE_COUNT + i] * sPartials1[0];\
         sum2[i] = sMatrix2[0 * PADDED_STATE_COUNT + i] * sPartials2[0];\
@@ -68,9 +68,9 @@
 #define SUM_STATES_PARTIALS_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
     REAL sum2[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrix2 = matrices2 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     int state1 = states1[pattern];\
     if (state1 < PADDED_STATE_COUNT) {\
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
@@ -92,9 +92,9 @@
 
 #define SUM_PARTIALS_SINGLE_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = partials1 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
         sum1[i] = sMatrix1[0 * PADDED_STATE_COUNT + i] * sPartials1[0];\
     }\
@@ -106,8 +106,8 @@
 
 #define SUM_STATES_SINGLE_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     int state1 = dChildStates[pattern];\
     if (state1 < PADDED_STATE_COUNT) {\
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
@@ -122,11 +122,11 @@
 #define SUM_PARTIALS_DERIV_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
     REAL sumFirstDeriv[PADDED_STATE_COUNT], sumSecondDeriv[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials1 = partials1 + deltaPartials;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = partials1 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
         sum1[i]           = sMatrix1[          0 * PADDED_STATE_COUNT + i] * sPartials1[0];\
         sumFirstDeriv[i]  = sMatrixFirstDeriv[ 0 * PADDED_STATE_COUNT + i] * sPartials1[0];\
@@ -143,10 +143,10 @@
 #define SUM_STATES_DERIV_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
     REAL sumFirstDeriv[PADDED_STATE_COUNT], sumSecondDeriv[PADDED_STATE_COUNT];\
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;\
-    KW_GLOBAL_VAR REAL* sPartials2 = partials2 + deltaPartials;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;\
     int state1 = dChildStates[pattern];\
     if (state1 < PADDED_STATE_COUNT) {\
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {\
@@ -283,8 +283,8 @@
     }
 
 #define LOAD_MATRIX_4_GPU()\
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2; /*Points to *this* matrix*/\
-    KW_GLOBAL_VAR REAL* matrix2 = matrices2 + x2;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2; /*Points to *this* matrix*/\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + x2;\
     KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/\
     KW_LOCAL_MEM REAL sMatrix2[16];\
     if (patIdx == 0 ) {\
@@ -294,7 +294,7 @@
     KW_LOCAL_FENCE;
     
 #define LOAD_MATRIX_SINGLE_4_GPU()\
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2;\
     KW_LOCAL_MEM REAL sMatrix1[16];\
     if (patIdx == 0 ) {\
         sMatrix1[tx] = matrix1[tx];\
@@ -302,9 +302,9 @@
     KW_LOCAL_FENCE;
 
 #define LOAD_MATRIX_DERIV_4_GPU()\
-    KW_GLOBAL_VAR REAL* matrix1 = matrices1 + x2;\
-    KW_GLOBAL_VAR REAL* matrixFirstDeriv = dFirstDerivMatrix + x2;\
-    KW_GLOBAL_VAR REAL* matrixSecondDeriv = dSecondDerivMatrix + x2;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrixFirstDeriv = dFirstDerivMatrix + x2;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrixSecondDeriv = dSecondDerivMatrix + x2;\
     KW_LOCAL_MEM REAL sMatrix1[16];\
     KW_LOCAL_MEM REAL sMatrixFirstDeriv[16];\
     KW_LOCAL_MEM REAL sMatrixSecondDeriv[16];\
@@ -525,11 +525,11 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials1,
-                                                    KW_GLOBAL_VAR REAL* partials2,
-                                                    KW_GLOBAL_VAR REAL* partials3,
-                                                    KW_GLOBAL_VAR REAL* matrices1,
-                                                    KW_GLOBAL_VAR REAL* matrices2,
+KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
@@ -554,12 +554,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* partials
 #endif
 }
 
-KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* partials1,
-                                                       KW_GLOBAL_VAR REAL* partials2,
-                                                       KW_GLOBAL_VAR REAL* partials3,
-                                                       KW_GLOBAL_VAR REAL* matrices1,
-                                                       KW_GLOBAL_VAR REAL* matrices2,
-                                                       KW_GLOBAL_VAR REAL* scalingFactors,
+KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                        int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
@@ -579,11 +579,11 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* parti
 #endif // FW_OPENCL_CPU
 }
     
-KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* states1,
-                                                  KW_GLOBAL_VAR REAL* partials2,
-                                                  KW_GLOBAL_VAR REAL* partials3,
-                                                  KW_GLOBAL_VAR REAL* matrices1,
-                                                  KW_GLOBAL_VAR REAL* matrices2,
+KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                   int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
@@ -602,12 +602,12 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* states1,
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* states1,
-                                                     KW_GLOBAL_VAR REAL* partials2,
-                                                     KW_GLOBAL_VAR REAL* partials3,
-                                                     KW_GLOBAL_VAR REAL* matrices1,
-                                                     KW_GLOBAL_VAR REAL* matrices2,
-                                                     KW_GLOBAL_VAR REAL* scalingFactors,
+KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
+                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                      int totalPatterns) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -628,16 +628,16 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* states1,
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* states1,
-                                                KW_GLOBAL_VAR int* states2,
-                                                KW_GLOBAL_VAR REAL* partials3,
-                                                KW_GLOBAL_VAR REAL* matrices1,
-                                                KW_GLOBAL_VAR REAL* matrices2,
+KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
+                                                KW_GLOBAL_VAR int* KW_RESTRICT states2,
+                                                KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                 int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;
-    KW_GLOBAL_VAR REAL* sMatrix2 = matrices2 + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
@@ -676,17 +676,17 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* states1,
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* states1,
-                                                   KW_GLOBAL_VAR int* states2,
-                                                   KW_GLOBAL_VAR REAL* partials3,
-                                                   KW_GLOBAL_VAR REAL* matrices1,
-                                                   KW_GLOBAL_VAR REAL* matrices2,
-                                                   KW_GLOBAL_VAR REAL* scalingFactors,
+KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
+                                                   KW_GLOBAL_VAR int* KW_RESTRICT states2,
+                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                    int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
-    KW_GLOBAL_VAR REAL* sMatrix1 = matrices1 + deltaMatrix;
-    KW_GLOBAL_VAR REAL* sMatrix2 = matrices2 + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
@@ -729,8 +729,8 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* states1,
 }
 
 // Find a scaling factor for each pattern
-KW_GLOBAL_KERNEL void kernelPartialsDynamicScaling(KW_GLOBAL_VAR REAL* allPartials,
-                                                   KW_GLOBAL_VAR REAL* scalingFactors,
+KW_GLOBAL_KERNEL void kernelPartialsDynamicScaling(KW_GLOBAL_VAR REAL* KW_RESTRICT allPartials,
+                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                    int matrixCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     FIND_MAX_PARTIALS_4_CPU();
@@ -751,8 +751,8 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScaling(KW_GLOBAL_VAR REAL* allPartia
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingScalersLog(KW_GLOBAL_VAR REAL* allPartials,
-                                                             KW_GLOBAL_VAR REAL* scalingFactors,
+KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingScalersLog(KW_GLOBAL_VAR REAL* KW_RESTRICT allPartials,
+                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                              int matrixCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     FIND_MAX_PARTIALS_4_CPU();
@@ -779,9 +779,9 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingScalersLog(KW_GLOBAL_VAR REAL*
 }
 
 // Find a scaling factor for each pattern and accumulate into buffer
-KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL* allPartials,
-                                                             KW_GLOBAL_VAR REAL* scalingFactors,
-                                                             KW_GLOBAL_VAR REAL* cumulativeScaling,
+KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL* KW_RESTRICT allPartials,
+                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT cumulativeScaling,
                                                              int matrixCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     FIND_MAX_PARTIALS_4_CPU();
@@ -803,9 +803,9 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL*
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL_VAR REAL* allPartials,
-                                                                       KW_GLOBAL_VAR REAL* scalingFactors,
-                                                                       KW_GLOBAL_VAR REAL* cumulativeScaling,
+KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL_VAR REAL* KW_RESTRICT allPartials,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT cumulativeScaling,
                                                                        int matrixCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     FIND_MAX_PARTIALS_4_CPU();
@@ -835,10 +835,10 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
-                                                 KW_GLOBAL_VAR REAL* dRootPartials,
-                                                 KW_GLOBAL_VAR REAL* dWeights,
-                                                 KW_GLOBAL_VAR REAL* dFrequencies,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
                                                  int matrixCount,
                                                  int patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -851,11 +851,11 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoods(KW_GLOBAL_VAR REAL* dResult,
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScale(KW_GLOBAL_VAR REAL* dResult,
-                                                           KW_GLOBAL_VAR REAL* dRootPartials,
-                                                           KW_GLOBAL_VAR REAL* dWeights,
-                                                           KW_GLOBAL_VAR REAL* dFrequencies,
-                                                           KW_GLOBAL_VAR REAL* dRootScalingFactors,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
+                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dRootScalingFactors,
                                                            int matrixCount,
                                                            int patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -868,10 +868,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScale(KW_GLOBAL_VAR REAL* d
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsMulti(KW_GLOBAL_VAR REAL* dResult,
-                                                      KW_GLOBAL_VAR REAL* dRootPartials,
-                                                      KW_GLOBAL_VAR REAL* dWeights,
-                                                      KW_GLOBAL_VAR REAL* dFrequencies,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsMulti(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
                                                       int matrixCount,
                                                       int patternCount,
                                                       int takeLog) {
@@ -896,14 +896,14 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsMulti(KW_GLOBAL_VAR REAL* dResul
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR REAL* dResult,
-                                                                KW_GLOBAL_VAR REAL* dRootPartials,
-                                                                KW_GLOBAL_VAR REAL* dWeights,
-                                                                KW_GLOBAL_VAR REAL* dFrequencies,
-                                                                KW_GLOBAL_VAR REAL* dScalingFactors,
-                                                                KW_GLOBAL_VAR unsigned int* dPtrQueue,
-                                                                KW_GLOBAL_VAR REAL* dMaxScalingFactors,
-                                                                KW_GLOBAL_VAR unsigned int* dIndexMaxScalingFactors,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT dScalingFactors,
+                                                                KW_GLOBAL_VAR unsigned int* KW_RESTRICT dPtrQueue,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT dMaxScalingFactors,
+                                                                KW_GLOBAL_VAR unsigned int* KW_RESTRICT dIndexMaxScalingFactors,
                                                                 int matrixCount,
                                                                 int patternCount,
                                                                 int subsetCount,
@@ -970,10 +970,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleMulti(KW_GLOBAL_VAR RE
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // edge and deriv kernels
 
-KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* dPartialsTmp,
-                                                            KW_GLOBAL_VAR REAL* partials1,
-                                                            KW_GLOBAL_VAR REAL* partials2,
-                                                            KW_GLOBAL_VAR REAL* matrices1,
+KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                             int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU();
@@ -992,14 +992,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* 
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* dPartialsTmp,
-                                                                       KW_GLOBAL_VAR REAL* dFirstDerivTmp,
-                                                                       KW_GLOBAL_VAR REAL* dSecondDerivTmp,
-                                                                       KW_GLOBAL_VAR REAL* partials1,
-                                                                       KW_GLOBAL_VAR REAL* partials2,
-                                                                       KW_GLOBAL_VAR REAL* matrices1,
-                                                                       KW_GLOBAL_VAR REAL* dFirstDerivMatrix,
-                                                                       KW_GLOBAL_VAR REAL* dSecondDerivMatrix,
+KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivTmp,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivTmp,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
+                                                                       KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
                                                                        int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU();
@@ -1022,10 +1022,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* dPartialsTmp,
-                                                          KW_GLOBAL_VAR REAL* partials2,
-                                                          KW_GLOBAL_VAR int* dChildStates,
-                                                          KW_GLOBAL_VAR REAL* matrices1,
+KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                          KW_GLOBAL_VAR int* KW_RESTRICT dChildStates,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                           int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU();
@@ -1045,14 +1045,14 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* dP
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* dPartialsTmp,
-                                                                     KW_GLOBAL_VAR REAL* dFirstDerivTmp,
-                                                                     KW_GLOBAL_VAR REAL* dSecondDerivTmp,
-                                                                     KW_GLOBAL_VAR REAL* partials2,
-                                                                     KW_GLOBAL_VAR int* dChildStates,
-                                                                     KW_GLOBAL_VAR REAL* matrices1,
-                                                                     KW_GLOBAL_VAR REAL* dFirstDerivMatrix,
-                                                                     KW_GLOBAL_VAR REAL* dSecondDerivMatrix,
+KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivTmp,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivTmp,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                                     KW_GLOBAL_VAR int* KW_RESTRICT dChildStates,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
+                                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
                                                                      int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU();
@@ -1076,14 +1076,14 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_V
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* dResult,
-                                                            KW_GLOBAL_VAR REAL* dFirstDerivResult,
-                                                            KW_GLOBAL_VAR REAL* dSecondDerivResult,
-                                                            KW_GLOBAL_VAR REAL* dRootPartials,
-                                                            KW_GLOBAL_VAR REAL* dRootFirstDeriv,
-                                                            KW_GLOBAL_VAR REAL* dRootSecondDeriv,
-                                                            KW_GLOBAL_VAR REAL* dWeights,
-                                                            KW_GLOBAL_VAR REAL* dFrequencies,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivResult,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivResult,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dRootFirstDeriv,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dRootSecondDeriv,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
                                                             int matrixCount,
                                                             int patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -1105,15 +1105,15 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* 
 #endif // FW_OPENCL_CPU
 }
 
-KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(KW_GLOBAL_VAR REAL* dResult,
-                                                                      KW_GLOBAL_VAR REAL* dFirstDerivResult,
-                                                                      KW_GLOBAL_VAR REAL* dSecondDerivResult,
-                                                                      KW_GLOBAL_VAR REAL* dRootPartials,
-                                                                      KW_GLOBAL_VAR REAL* dRootFirstDeriv,
-                                                                      KW_GLOBAL_VAR REAL* dRootSecondDeriv,
-                                                                      KW_GLOBAL_VAR REAL* dWeights,
-                                                                      KW_GLOBAL_VAR REAL* dFrequencies,
-                                                                      KW_GLOBAL_VAR REAL* dRootScalingFactors,
+KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScaleSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivResult,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivResult,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dRootPartials,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dRootFirstDeriv,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dRootSecondDeriv,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dWeights,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dFrequencies,
+                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dRootScalingFactors,
                                                                       int matrixCount,
                                                                       int patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation

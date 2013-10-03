@@ -98,6 +98,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_GROUP_ID_1    blockIdx.y
     #define KW_NUM_GROUPS_0  gridDim.x
     #define KW_NUM_GROUPS_1  gridDim.y
+    #define KW_RESTRICT      
 #elif defined(FW_OPENCL)
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC   
@@ -110,6 +111,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_GROUP_ID_1    get_group_id(1)
     #define KW_NUM_GROUPS_0  get_num_groups(0)
     #define KW_NUM_GROUPS_1  get_num_groups(1)
+    #define KW_RESTRICT      restrict
 #endif
 
 /* Compiler definitions
