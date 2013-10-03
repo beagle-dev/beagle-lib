@@ -279,7 +279,7 @@ case $host_os in
   then
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin=/usr/bin/gcc -I/usr/include/c++/4.2.1"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE"
   fi
   
 
