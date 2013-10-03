@@ -287,7 +287,6 @@ public interface Beagle {
      *
      * This function copies scale factors from one buffer to another.
      *
-     * @param instance                  Instance number (input)
      * @param destScalingIndex          Destination scaleBuffer (input)
      * @param srcScalingIndex           Source scaleBuffer (input)
      */
