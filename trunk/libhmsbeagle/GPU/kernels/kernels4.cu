@@ -539,9 +539,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
-    LOAD_MATRIX_4_GPU();
     LOAD_PARTIALS_PARTIALS_4_GPU();
-    KW_LOCAL_FENCE;
+    LOAD_MATRIX_4_GPU();
     if (pattern < totalPatterns) { // Remove padded threads!
         SUM_PARTIALS_PARTIALS_4_GPU();
         partials3[u] = sum1 * sum2;
