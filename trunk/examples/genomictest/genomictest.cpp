@@ -627,12 +627,14 @@ void runBeagle(int resource,
         printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, bestTimeTotal, percentPrecision);
 		unsigned int partialsOps = internalCount * eigenCount;
 		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+        unsigned int bytesPerPartial = 3 * (requireDoublePrecision ? 8 : 4);
+        unsigned int matrixBytes = partialsOps * 2 * stateCount*stateCount*rateCategoryCount * (requireDoublePrecision ? 8 : 4);
 		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
 		unsigned long long partialsTotal = partialsSize * partialsOps;
 		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
 		std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
 		std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
-		// std::cout << " memory bandwidth:   " << ((partialsTotal*3.125)/bestTimeUpdatePartials)/1073741824.0 << " GB/s " << std::endl;
+		std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1073741824.0 << " GB/s " << std::endl;
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);
