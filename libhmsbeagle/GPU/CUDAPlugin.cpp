@@ -57,6 +57,7 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 	// list with compatible factories
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
+    	using namespace cuda;
         beagleFactories.push_back(new beagle::gpu::BeagleGPUImplFactory<float>());
 		if (anyGPUSupportsDP) {
 			// TODO Uncomment when working

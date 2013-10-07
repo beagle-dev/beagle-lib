@@ -51,6 +51,12 @@
 namespace beagle {
 namespace gpu {
 
+#ifdef CUDA
+	namespace cuda {
+#else
+	namespace opencl {
+#endif
+
 BEAGLE_GPU_TEMPLATE
 class BeagleGPUImpl : public BeagleImpl {
 
@@ -304,6 +310,7 @@ public:
 template <typename Real>
 void modifyFlagsForPrecision(long* flags, Real r);
 
+} // namspace device
 }	// namespace gpu
 }	// namespace beagle
 

@@ -46,6 +46,12 @@
 namespace beagle {
 namespace gpu {
 
+#ifdef CUDA
+	namespace cuda {
+#else
+	namespace opencl {
+#endif
+
 BEAGLE_GPU_TEMPLATE
 BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     
@@ -2171,5 +2177,6 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 	return flags;
 }
 
+} // end of device namespace
 } // end of gpu namespace
 } // end of beagle namespace
