@@ -38,12 +38,12 @@
 
 
 // Pad transition matrix rows with an extra 1.0 for ambiguous characters
-#define T_PAD_SSE_EVEN  2   // for even state counts
-#define T_PAD_SSE_ODD   1   // for odd state counts
+#define T_PAD_AVX_EVEN  2   // for even state counts
+#define T_PAD_AVX_ODD   1   // for odd state counts
 
 // Partials padding
-#define P_PAD_SSE_EVEN  0   // for even state counts
-#define P_PAD_SSE_ODD   1   // for odd state counts
+#define P_PAD_AVX_EVEN  0   // for even state counts
+#define P_PAD_AVX_ODD   1   // for odd state counts
 
 
 #define BEAGLE_CPU_AVX_FLOAT	float, T_PAD, P_PAD

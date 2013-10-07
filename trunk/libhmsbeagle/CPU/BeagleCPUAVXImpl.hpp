@@ -218,13 +218,7 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartials(double* __res
     	int v = l*kPartialsPaddedStateCount*kPatternCount;
         for (int k = 0; k < kPatternCount; k++) {
             int w = l * kMatrixSize;
-            for (int i = 0; i < kStateCount;
-#ifdef DOUBLE_UNROLL
-            		i += 2 // TODO This only works if stateCount is even
-#else
-            		++i
-#endif
-            ) {
+            for (int i = 0; i < kStateCount; ++i) {
             	register V_Real sum1_vecA = VEC_SETZERO();
             	register V_Real sum2_vecA = VEC_SETZERO();
             	for (int j = 0; j < stateCountMinusOne; j += 2) {
@@ -248,7 +242,8 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartials(double* __res
 
 #ifndef DOUBLE_UNROLL
                 // Store single value
-                VEC_STORE_SCALAR(destPu, sum1_vecA);
+//                VEC_STORE_SCALAR(destPu, sum1_vecA);
+                *destPu = sum1_vecA[0];
                 destPu++;
 #endif
 
@@ -320,16 +315,16 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartialsFixedScaling(
 								 VEC_LOAD(partials2 + v + j),
 								 sum2_vec);
             	}
-                VEC_STORE_SCALAR(destPu,
+                		sum1_vec =
                 		VEC_DIV(VEC_MULT(
                 				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
                 				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
-                		), scalar));
+                		), scalar);
 
 
                 // increment for the extra column at the end
                 w += kStateCount + T_PAD;
-
+                *destPu = sum1_vec[0];
                 destPu++;
             }
             destPu += P_PAD;
@@ -595,7 +590,7 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
         try {
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
-                                     categoryCount,scaleBufferCount, resourceNumber, preferenceFlags, requirementFlags) == 0)
+                                     categoryCount,scaleBufferCount, resourceNumber,  pluginResourceNumber, preferenceFlags, requirementFlags) == 0)
                 return impl;
         }
         catch(...) {

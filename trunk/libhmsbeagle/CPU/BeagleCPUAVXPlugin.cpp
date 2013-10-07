@@ -7,6 +7,7 @@
 
 #include "libhmsbeagle/CPU/BeagleCPUAVXPlugin.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateAVXImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUAVXImpl.h"
 #include <iostream>
 
 #ifdef HAVE_CPUID_H
@@ -44,7 +45,7 @@ Plugin("CPU-AVX", "CPU-AVX")
 	// TODO Write AVX specific implementation
   beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateAVXImplFactory<double>());
 
-//  beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>());
+  beagleFactories.push_back(new beagle::cpu::BeagleCPUAVXImplFactory<double>());
 }
 
 }	// namespace cpu
