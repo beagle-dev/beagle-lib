@@ -60,6 +60,7 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
         // list with compatible factories
         //	if(beagleResources.size() > 0) {
         if (anyGPUSupportsOpenCL) {
+        	using namespace opencl;
             beagleFactories.push_back(new BeagleGPUImplFactory<float>());
             if (anyGPUSupportsDP) {
                 // TODO Uncomment when working
