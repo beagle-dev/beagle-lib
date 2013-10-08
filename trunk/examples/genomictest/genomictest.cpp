@@ -634,7 +634,7 @@ void runBeagle(int resource,
 		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
 		std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
 		std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
-		std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1073741824.0 << " GB/s " << std::endl;
+		std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);
