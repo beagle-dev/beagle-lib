@@ -38,7 +38,7 @@
 
 
 // Pad transition matrix rows with an extra 1.0 for ambiguous characters
-#define T_PAD_AVX_EVEN  2   // for even state counts
+#define T_PAD_AVX_EVEN  4   // for even state counts
 #define T_PAD_AVX_ODD   1   // for odd state counts
 
 // Partials padding

@@ -205,6 +205,8 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcStatesPartials(double* destP,
 
 //#define DOUBLE_UNROLL // Does not appear to save any time
 
+
+
 BEAGLE_CPU_AVX_TEMPLATE
 void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartials(double* __restrict destP,
                                               const double* __restrict partials1,
@@ -212,6 +214,25 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartials(double* __res
                                               const double* __restrict partials2,
                                               const double* __restrict matrices2) {
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
+
+    struct IO {
+    	void operator()(V_Real v) {
+    		double x[4];
+    		_mm256_storeu_pd(x, v);
+    		fprintf(stderr,"%5.3e %5.3e %5.3e %5.3e\n",x[0],x[1],x[2],x[3]);
+    	}
+    };
+
+    struct math {
+    	static inline double horizontal_add (V_Real & a) {
+    	    __m256d t1 = _mm256_hadd_pd(a,a);
+    	    __m128d t2 = _mm256_extractf128_pd(t1,1);
+    	    __m128d t3 = _mm_add_sd(_mm256_castpd256_pd128(t1),t2);
+    	    return _mm_cvtsd_f64(t3);
+    	}
+    };
+
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
     	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
@@ -221,59 +242,43 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartials(double* __res
             for (int i = 0; i < kStateCount; ++i) {
             	register V_Real sum1_vecA = VEC_SETZERO();
             	register V_Real sum2_vecA = VEC_SETZERO();
-            	for (int j = 0; j < stateCountMinusOne; j += 2) {
+            	for (int j = 0; j < stateCountMinusOne; j += 4) {
+//            		IO()(VEC_LOAD(matrices1 + w + j));
+//            		IO()(VEC_LOAD(partials1 + v + j));
+
             		sum1_vecA = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
 								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
 								 sum1_vecA);
+//            		IO()(sum1_vecA);
             		sum2_vecA = VEC_MADD(
 								 VEC_LOAD(matrices2 + w + j),
 								 VEC_LOAD(partials2 + v + j),
 								 sum2_vecA);
+//            		fprintf(stderr,"\n");
             	}
 
-            	sum1_vecA = VEC_MULT(
-            	               VEC_ADD(sum1_vecA, VEC_SWAP(sum1_vecA)),
-            	               VEC_ADD(sum2_vecA, VEC_SWAP(sum2_vecA))
-            	           );
+
+//            	sum1_vecA = VEC_MULT(
+//            	               VEC_ADD(sum1_vecA, VEC_SWAP(sum1_vecA)),
+//            	               VEC_ADD(sum2_vecA, VEC_SWAP(sum2_vecA))
+//            	           );
+//            	sum1_vecA = VEC_MULT(math::horizontal_add(sum1_vecA), math::horizontal_add(sum2_vecA));
+//            	IO()(sum1_vecA);
+//            	exit(-1);
 
                 // increment for the extra column at the end
                 w += kStateCount + T_PAD;
 
-#ifndef DOUBLE_UNROLL
                 // Store single value
-//                VEC_STORE_SCALAR(destPu, sum1_vecA);
-                *destPu = sum1_vecA[0];
+//                double x[4];
+//                _mm256_storeu_pd(x, VEC_MULT(sum1_vecA,sum2_vecA));
+//                *destPu = x[0];
+                *destPu = math::horizontal_add(sum1_vecA) * math::horizontal_add(sum2_vecA);
+
+//                *destPu = 1.0; //sum1_vecA[0];
                 destPu++;
-#endif
-
-#ifdef DOUBLE_UNROLL
-            	register V_Real sum1_vecB = VEC_SETZERO();
-            	register V_Real sum2_vecB = VEC_SETZERO();
-            	for (int j = 0; j < stateCountMinusOne; j += 2) {
-            		sum1_vecB = VEC_MADD(
-								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
-								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
-								 sum1_vecB);
-            		sum2_vecB = VEC_MADD(
-								 VEC_LOAD(matrices2 + w + j),
-								 VEC_LOAD(partials2 + v + j),
-								 sum2_vecB);
-            	}
-
-            	sum1_vecB = VEC_MULT(
-            	               VEC_ADD(sum1_vecB, VEC_SWAP(sum1_vecB)),
-            	               VEC_ADD(sum2_vecB, VEC_SWAP(sum2_vecB))
-            	           );
-
-                // increment for the extra column at the end
-                w += kStateCount + T_PAD;
-
-                // Store both partials in one transaction
-                VEC_STORE(destPu, VEC_MOVE(sum1_vecA, sum1_vecB));
-                destPu += 2;
-#endif
-
+//                fprintf(stderr,"clear\n");
             }
             destPu += P_PAD;
             v += kPartialsPaddedStateCount;
