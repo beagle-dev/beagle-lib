@@ -176,6 +176,7 @@
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
       <TargetMachine>MachineX86</TargetMachine>
+      <ImportLibrary>$(OutDir)hmsbeagle32.lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
       <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>
@@ -209,6 +210,7 @@
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <DataExecutionPrevention />
       <TargetMachine>MachineX64</TargetMachine>
+      <ImportLibrary>$(OutDir)hmsbeagle64.lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
       <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>

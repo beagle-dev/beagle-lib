@@ -1892,6 +1892,7 @@
 		<row><td>copying</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYING</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING</td><td>1</td><td/></row>
 		<row><td>copying.lesser</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYIN~1.LES|COPYING.LESSER</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING.LESSER</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.dll</td><td>hmsbeagle64.dll</td><td>HMSBEA~1.DLL|hmsbeagle64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle64.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle64.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.lib</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu64.dll</td><td>hmsbeagle_cpu64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu64.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_opencl64.dll</td><td>hmsbeagle_opencl64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-opencl64.dll</td><td>1</td><td/></row>
 		<row><td>platform.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>platform.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\platform.h</td><td>1</td><td/></row>
@@ -4127,7 +4128,7 @@ UwBpAG4AZwBsAGUASQBtAGEAZwBlAAEARQB4AHAAcgBlAHMAcwA=
 		<row><td>ISTheme</td><td>InstallShield Blue.theme</td></row>
 		<row><td>ISUSLock</td><td>{184B4187-08CA-486E-871D-69C3C4E7048E}</td></row>
 		<row><td>ISUSSignature</td><td>{2B78E361-5F88-4AC2-99FB-3EB8F63770A5}</td></row>
-		<row><td>ISVisitedViews</td><td>viewAssistant,viewUI,viewEnvironmentVariables,viewTextMessages,viewRelease,viewBillboards</td></row>
+		<row><td>ISVisitedViews</td><td>viewAssistant,viewUI,viewEnvironmentVariables,viewTextMessages,viewRelease,viewBillboards,viewAppFiles</td></row>
 		<row><td>Limited</td><td>1</td></row>
 		<row><td>LockPermissionMode</td><td>1</td></row>
 		<row><td>MsiExecCmdLineOptions</td><td/></row>
