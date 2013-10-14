@@ -346,8 +346,11 @@
 		<row><td>ISX_DEFAULTCOMPONENT</td><td>{5462FFC2-E3D8-4AE5-8769-065A40F95E24}</td><td>LIBHMSBEAGLE_2.0</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>ISX_DEFAULTCOMPONENT1</td><td>{FDD94A82-0459-4F71-8660-99F512FB529A}</td><td>LIBHMSBEAGLE</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td>{1EC117A0-635B-4436-A942-C3B56E4F42E5}</td><td>INSTALLDIR</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle32.dll</td><td>{9A3CDAC2-5278-4399-968E-B57B2B438D73}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle64.dll</td><td>{8AE396B8-839E-4E69-8471-F9CCC5D5313D}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_cpu32.dll</td><td>{A6C3C79B-8340-48F9-933A-1F9D610442A4}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_cpu64.dll</td><td>{C8D79FF4-A91C-492B-973E-D9EAECD398A8}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_opencl32.dll</td><td>{13A0D851-1D94-4433-BEDA-913234A2A825}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_opencl64.dll</td><td>{992A1D77-DECD-4AF7-8511-9ABEB4DC2234}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 	</table>
 
@@ -1871,8 +1874,11 @@
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT</td></row>
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT1</td></row>
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT2</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle32.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle64.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu32.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu64.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl32.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl64.dll</td></row>
 	</table>
 
@@ -1891,9 +1897,13 @@
 		<row><td>beagle.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>beagle.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\beagle.h</td><td>1</td><td/></row>
 		<row><td>copying</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYING</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING</td><td>1</td><td/></row>
 		<row><td>copying.lesser</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYIN~1.LES|COPYING.LESSER</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING.LESSER</td><td>1</td><td/></row>
+		<row><td>hmsbeagle32.dll</td><td>hmsbeagle32.dll</td><td>HMSBEA~1.DLL|hmsbeagle32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle32.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle32.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle32.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle32.lib</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.dll</td><td>hmsbeagle64.dll</td><td>HMSBEA~1.DLL|hmsbeagle64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle64.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.lib</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_cpu32.dll</td><td>hmsbeagle_cpu32.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cpu32.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu64.dll</td><td>hmsbeagle_cpu64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu64.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_opencl32.dll</td><td>hmsbeagle_opencl32.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-opencl32.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_opencl64.dll</td><td>hmsbeagle_opencl64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-opencl64.dll</td><td>1</td><td/></row>
 		<row><td>platform.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>platform.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\platform.h</td><td>1</td><td/></row>
 	</table>
@@ -2155,8 +2165,11 @@
 		<row><td>ISX_DEFAULTCOMPONENT</td><td/><td/><td>_340B2462_2BF4_4EA1_9502_7D72F5690A6E_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>ISX_DEFAULTCOMPONENT1</td><td/><td/><td>_735977A4_4B16_4EA6_9EEB_4C90DB86244D_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td/><td/><td>_A9E072B8_0777_41EE_8986_5C2A528DA3EA_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle32.dll</td><td/><td/><td>_CD75308F_A51A_4741_A1DE_0781B2C2F67E_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle64.dll</td><td/><td/><td>_7FC0CB3E_7691_464B_913D_50079A521F01_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_cpu32.dll</td><td/><td/><td>_3BDBBA49_16E5_4C58_9D7A_F7645398F75B_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_cpu64.dll</td><td/><td/><td>_067B2166_2B3C_4D3F_8432_5232DB5FD660_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_opencl32.dll</td><td/><td/><td>_BF203915_0890_4EE6_92ED_7EBCC87BD684_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_opencl64.dll</td><td/><td/><td>_1E9C588E_E646_48B4_8BD1_EFB80DC1B65A_FILTER</td><td/><td/><td/><td/></row>
 	</table>
 
