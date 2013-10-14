@@ -49,6 +49,11 @@
 
 #include "libhmsbeagle/plugin/Plugin.h"
 
+#define BEAGLE_VERSION  "2.0"
+#define BEAGLE_CITATION "Using BEAGLE library v2.0 for accelerated, parallel likelihood evaluation\n\
+2009-2013, BEAGLE Working Group - http://beagle-lib.googlecode.com/\n\
+Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
+
 typedef std::list< std::pair<int,int> > PairedList;
 typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> >	RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
@@ -216,6 +221,14 @@ int beagleFinalize() {
     if (loaded)
         beagle_library_finalize();
     return BEAGLE_SUCCESS;
+}
+
+const char* beagleGetVersion() {
+    return BEAGLE_VERSION;
+}
+
+const char* beagleGetCitation() {
+    return BEAGLE_CITATION;
 }
 
 BeagleResourceList* beagleGetResourceList() {

@@ -675,6 +675,10 @@ void printFlags(long inFlags) {
 }
 
 void printResourceList() {
+    // print version and citation info
+    fprintf(stdout, "BEAGLE version %s\n", beagleGetVersion());
+    fprintf(stdout, "%s\n", beagleGetCitation());     
+
     // print resource list
     BeagleResourceList* rList;
     rList = beagleGetResourceList();
