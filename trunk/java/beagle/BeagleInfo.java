@@ -9,6 +9,10 @@ import java.util.List;
  */
 public class BeagleInfo {
 
+    public static String getVersion() {
+        return BeagleFactory.getVersion();
+    }
+
     public static void printVersionInformation() {
 
         System.out.println(BeagleFactory.getVersionInformation());
