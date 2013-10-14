@@ -1,7 +1,7 @@
 /**
  * @file beagle.h
  *
- * Copyright 2009-2011 Phylogenetic Likelihood Working Group
+ * Copyright 2009-2013 Phylogenetic Likelihood Working Group
  *
  * This file is part of BEAGLE.
  *
@@ -229,7 +229,26 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
+
+/**
+ * @brief Get version
+ *
+ * This function returns a pointer to a string with the library version number.
+ *
+ * @return A string with the version number
+ */
+BEAGLE_DLLEXPORT const char* beagleGetVersion(void);
+
+/**
+ * @brief Get citation
+ *
+ * This function returns a pointer to a string describing the version of the
+ * library and how to cite it.
+ *
+ * @return A string describing the version of the library and how to cite it
+ */
+BEAGLE_DLLEXPORT const char* beagleGetCitation(void);
+
 /**
  * @brief Get list of hardware resources
  *

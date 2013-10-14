@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 1.0.0, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 2.0.0, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=" -O3"}
 
@@ -11,11 +11,11 @@ dnl -----------------------------------------------
 GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #API version
-GENERIC_API_VERSION=1
+GENERIC_API_VERSION=2
 AC_SUBST(GENERIC_API_VERSION)
 
 #revision version
-GENERIC_REVISION_VERSION=1
+GENERIC_REVISION_VERSION=0
 
 #release versioning
 GENERIC_MAJOR_VERSION=$GENERIC_API_VERSION
@@ -23,7 +23,7 @@ GENERIC_MINOR_VERSION=$GENERIC_REVISION_VERSION
 GENERIC_MICRO_VERSION=0
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=$GENERIC_API_VERSION:$GENERIC_REVISION_VERSION:0
+GENERIC_LIBRARY_VERSION=$GENERIC_API_VERSION:$GENERIC_REVISION_VERSION:1
 #
 #             current:revision:age
 #                |        |     |
@@ -279,7 +279,7 @@ case $host_os in
   then
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     NVCCFLAGS+=" -D_POSIX_C_SOURCE"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang -I/usr/include/c++/4.2.1"
   fi
   
 
@@ -373,7 +373,7 @@ DX_INIT_DOXYGEN([$PACKAGE_NAME],[beagle.dox],[doc])
 # All done, create Makefiles
 # ------------------------------------------------------------------------------
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([hmsbeagle-1.pc])
+AC_CONFIG_FILES([hmsbeagle-${GENERIC_API_VERSION}.pc])
 AC_CONFIG_FILES([libhmsbeagle/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
