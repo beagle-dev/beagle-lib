@@ -28,11 +28,21 @@ public class BeagleJNIWrapper {
      * Currently not a native call but will be in BEAGLE API 2.0
      * @return a string containing BEAGLE version info and citation
      */
-    public String getVersionInformation() {
-        return "Using BEAGLE library v1.x for accelerated, parallel likelihood evaluation\n" +
+    public String getVersionString() {
+        String versionInformation = "Using BEAGLE library v1.x for accelerated, parallel likelihood evaluation\n" +
                 "2009-2013, BEAGLE Working Group - http://beagle-lib.googlecode.com/\n" +
-                "Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n";
+                "Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100";
+
+        try {
+            versionInformation = getVersionInformation();
+        } catch (UnsatisfiedLinkError ule) {
+
+        }
+
+        return versionInformation;
     }
+
+    private native String getVersionInformation();
 
     public native ResourceDetails[] getResourceList();
 
