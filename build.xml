@@ -34,7 +34,7 @@
 
 	<target name="compile" depends="init">
 		<!-- Compile the java code from ${src} into ${build} -->
-		<javac source="1.5" target="1.5" srcdir="${src}" destdir="${build}" classpath="">
+		<javac source="1.6" target="1.6" srcdir="${src}" destdir="${build}" classpath="">
 			<include name="beagle/**"/>
 		</javac>
 	</target>
