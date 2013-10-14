@@ -9,6 +9,22 @@ extern "C" {
 #endif
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getVersion
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_beagle_BeagleJNIWrapper_getVersion
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getCitation
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_beagle_BeagleJNIWrapper_getCitation
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    getResourceList
  * Signature: ()[Lbeagle/ResourceDetails;
  */
@@ -54,7 +70,6 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTipStates
   (JNIEnv *, jobject, jint, jint, jintArray);
-
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -128,14 +143,13 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
   (JNIEnv *, jobject, jint, jint, jdoubleArray);
 
-
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    convolveTransitionMatrices
- * Signature: (I[D)I
+ * Signature: (I[I[I[II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
-   (JNIEnv *env, jobject obj, jint instance, jintArray inFirstIndices, jintArray inSecondIndices, jintArray inResultIndices, jint matrixCount);
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -188,7 +202,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    copyScaleFactors
- * Signature: (II)II
+ * Signature: (III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_copyScaleFactors
   (JNIEnv *, jobject, jint, jint, jint);
