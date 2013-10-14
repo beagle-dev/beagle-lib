@@ -19,7 +19,32 @@ public class BeagleFactory {
         getBeagleJNIWrapper();
 
         if (BeagleJNIWrapper.INSTANCE != null) {
-            return BeagleJNIWrapper.INSTANCE.getVersionString();
+
+            try {
+                return BeagleJNIWrapper.INSTANCE.getCitation();
+            } catch (UnsatisfiedLinkError ule) {
+                // If this method is not available then we must be linked to a v1.x BEAGLE library
+                return "Using BEAGLE library v1.x for accelerated, parallel likelihood evaluation\n" +
+                        "2009-2013, BEAGLE Working Group - http://beagle-lib.googlecode.com/\n" +
+                        "Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100";
+
+            }
+        }
+
+        return "BEAGLE not installed/found";
+    }
+
+    public static String getVersion() {
+        getBeagleJNIWrapper();
+
+        if (BeagleJNIWrapper.INSTANCE != null) {
+
+            try {
+                return BeagleJNIWrapper.INSTANCE.getVersion();
+            } catch (UnsatisfiedLinkError ule) {
+                // If this method is not available then we must be linked to a v1.x BEAGLE library
+                return "1.0";
+            }
         }
 
         return "BEAGLE not installed/found";

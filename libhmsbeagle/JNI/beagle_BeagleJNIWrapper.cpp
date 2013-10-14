@@ -13,6 +13,28 @@
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getVersion
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_beagle_BeagleJNIWrapper_getVersion
+  (JNIEnv *env, jobject obj)
+{
+    return env->NewStringUTF(beagleGetVersion());
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getCitation
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_beagle_BeagleJNIWrapper_getCitation
+  (JNIEnv *env, jobject obj)
+{
+    return env->NewStringUTF(beagleGetCitation());
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    getResourceList
  * Signature: ()[Lbeagle/ResourceDetails;
  */
