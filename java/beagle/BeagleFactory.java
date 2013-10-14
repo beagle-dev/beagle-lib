@@ -19,7 +19,7 @@ public class BeagleFactory {
         getBeagleJNIWrapper();
 
         if (BeagleJNIWrapper.INSTANCE != null) {
-            return  BeagleJNIWrapper.INSTANCE.getVersionInformation();
+            return BeagleJNIWrapper.INSTANCE.getVersionString();
         }
 
         return "BEAGLE not installed/found";
@@ -207,6 +207,8 @@ public class BeagleFactory {
 
         // get the number of site patterns
         int nPatterns = human.length();
+
+        BeagleInfo.printVersionInformation();
 
         BeagleInfo.printResourceList();
 
