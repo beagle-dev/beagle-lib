@@ -283,11 +283,11 @@ public class BeagleFactory {
 //        instance.setPartials(1, getPartials(chimp));
 //        instance.setPartials(2, getPartials(gorilla));
 
-        final double[] rates = { 1.0, 1.0 };
+        final double[] rates = { 1.0 };
         instance.setCategoryRates(rates);
 
         // create an array containing site category weights
-        final double[] weights = { 0.5, 0.5 };
+        final double[] weights = { 1.0 };
         instance.setCategoryWeights(0, weights);
 
         // create base frequency array
