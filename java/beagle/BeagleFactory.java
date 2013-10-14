@@ -43,7 +43,7 @@ public class BeagleFactory {
                 return BeagleJNIWrapper.INSTANCE.getVersion();
             } catch (UnsatisfiedLinkError ule) {
                 // If this method is not available then we must be linked to a v1.x BEAGLE library
-                return "1.0";
+                return "1.x";
             }
         }
 
