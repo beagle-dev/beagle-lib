@@ -8,8 +8,8 @@ To install BEAGLE on Linux-based operating systems you will need to build BEAGLE
 ===Installing from source===
 ====Step 1. Obtain prerequisites====
 
-You will need the following software to build BEAGLE:
-  * gcc
+You will need the following software to download and build BEAGLE from source:
+  * gcc (or other equivalent compiler)
   * make
   * autoconf
   * automake
@@ -18,16 +18,22 @@ You will need the following software to build BEAGLE:
   * pkg-config
 
 Additionally we recommended installing the following optional prerequisites:
-  * NVIDIA CUDA drivers and toolkit (if you want to use BEAGLE with an NVIDIA GPU)
+  * OpenCL implementations for your hardware resources
+  * NVIDIA CUDA drivers and toolkit (if you want to use BEAGLE with CUDA on an NVIDIA GPU)
   * Java JDK (if you want to use BEAGLE with BEAST)
 
 The prerequisite software should be fairly easy to install.
-On Ubuntu and other Debian Linux distributions all the requisite software (except for the NVIDIA CUDA tools) can be obtained via apt-get:
+On Ubuntu and other Debian Linux distributions all the requisite software can be obtained via apt-get:
 {{{
 sudo apt-get install build-essential autoconf automake libtool subversion pkg-config openjdk-6-jdk
 }}}
 
-The NVIDIA CUDA drivers and toolkit can be downloaded from [http://www.nvidia.com/object/cuda_get.html http://www.nvidia.com/object/cuda_get.html]. They need to be installed for BEAGLE to use GPU acceleration. 
+OpenCL implementations are available from:
+    * Intel [http://software.intel.com/en-us/vcsource/tools/opencl-sdk]
+    * AMD [http://developer.amd.com/tools-and-sdks/heterogeneous-computing/amd-accelerated-parallel-processing-app-sdk/downloads/]
+    * NVIDIA [https://developer.nvidia.com/opencl]
+
+The NVIDIA CUDA drivers and toolkit can be downloaded from [http://www.nvidia.com/object/cuda_get.html http://www.nvidia.com/object/cuda_get.html]. They need to be installed for BEAGLE to use CUDA for GPU acceleration. 
 
 ====Step 2. Build from the source repository====
 
