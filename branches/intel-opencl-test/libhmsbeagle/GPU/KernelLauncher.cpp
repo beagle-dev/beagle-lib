@@ -89,8 +89,17 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
         if (CPUImplementation) {
-            bgPeelingBlock = Dim3Int(kPatternBlockSize, 1);
-            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+/////////////////////////////////////////////////////////////////////////////////////
+// edit here for Intel OpenCL test 4-state test
+            int block_size = 256;
+#if   1 // for use with kernels 1, 2, and 3
+            bgPeelingBlock = Dim3Int(block_size, 1);
+            bgPeelingGrid  = Dim3Int(kPatternCount / block_size, kCategoryCount);
+#else   // for use with kernel 4 (3-dimensional NDRange)
+            bgPeelingBlock = Dim3Int(4, block_size, 1);
+            bgPeelingGrid  = Dim3Int(1, kPatternCount / block_size, kCategoryCount);
+#endif
+/////////////////////////////////////////////////////////////////////////////////////
         } else {
             bgPeelingBlock = Dim3Int(16, kPatternBlockSize);
             bgPeelingGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4),

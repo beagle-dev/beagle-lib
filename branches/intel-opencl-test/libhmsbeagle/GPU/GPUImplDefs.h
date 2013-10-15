@@ -376,6 +376,11 @@ enum BeagleDeviceImplementationCodes {
                                                 } \
                                             }
 
+
+#define GET_VECTOR_4_NO_CALL(x) x##4
+#define GET_VECTOR_4(x)         GET_VECTOR_4_NO_CALL(x)
+#define REAL4                   GET_VECTOR_4(REAL)
+
 typedef struct Dim3Int Dim3Int;
 
 struct Dim3Int

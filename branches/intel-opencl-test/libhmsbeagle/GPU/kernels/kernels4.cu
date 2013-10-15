@@ -23,6 +23,142 @@
  * @author Andrew Rambaut
  */
 
+#define KERNEL_1
+
+#if   defined(KERNEL_1) // currently being used in trunk, best performing
+__kernel void kernelPartialsPartialsNoScale(__global REAL* restrict p1,
+                                            __global REAL* restrict p2,
+                                            __global REAL* restrict p3,
+                                            __global REAL* restrict m1,
+                                            __global REAL* restrict m2,
+                                            int tp) {
+
+    //int categories = get_global_size(1);
+    int sites =  get_global_size(0);
+
+    int i = get_global_id(1);
+    int j = get_global_id(0);
+
+    //for (int i = 0; i < categories; i++) {
+    //    for (int j = 0; j < sites; j++) {
+            REAL s1[4] = {0,0,0,0}, s2[4] = {0,0,0,0};
+            for (int n = 0; n < 4; n++) {
+                for (int k = 0; k < 4; k++) {
+                    s1[k] += m1[i*16 + n*4 + k] * p1[i*sites*4 + j*4 + n];
+                    s2[k] += m2[i*16 + n*4 + k] * p2[i*sites*4 + j*4 + n];
+                }
+            }
+            for (int k = 0; k < 4; k++) {
+                p3[i*sites*4 + j*4 + k] = s1[k] * s2[k];
+            }
+    //    }
+    //}
+}
+
+#elif defined(KERNEL_2) // simpler version of kernel 1, easier to understand algorithm
+__kernel void kernelPartialsPartialsNoScale(__global REAL* restrict p1,
+                                            __global REAL* restrict p2,
+                                            __global REAL* restrict p3,
+                                            __global REAL* restrict m1,
+                                            __global REAL* restrict m2,
+                                            int tp) {
+    //int categories = get_global_size(1);
+    int sites =  get_global_size(0);
+
+    int i = get_global_id(1);
+    int j = get_global_id(0);
+
+    //for (int i = 0; i < categories; i++) {
+    //    for (int j = 0; j < sites; j++) {
+            for (int k = 0; k < 4; k++) {
+                REAL s1 = 0, s2 = 0;
+                for (int n = 0; n < 4; n++) {
+                    s1 += m1[i*16 + n*4 + k] * p1[i*sites*4 + j*4 + n];
+                    s2 += m2[i*16 + n*4 + k] * p2[i*sites*4 + j*4 + n];
+                }
+                p3[i*sites*4 + j*4 + k] = s1 * s2;
+            }
+    //    }
+    //}
+}
+
+#elif defined(KERNEL_3) // same as kernel 2 but with vector operations for k loop
+__kernel void kernelPartialsPartialsNoScale(__global REAL* restrict p1,
+                                            __global REAL* restrict p2,
+                                            __global REAL* restrict p3,
+                                            __global REAL* restrict m1,
+                                            __global REAL* restrict m2,
+                                            int tp) {
+    //int categories = get_global_size(1);
+    int sites =  get_global_size(0);
+
+    int i = get_global_id(1);
+    int j = get_global_id(0);
+
+    // for (int i = 0; i < categories; i++) {
+    //     for (int j = 0; j < sites; j++) {
+            //for (int k = 0; k < 4; k++) {
+                REAL4 m1v0 = vload4(i*4 + 0, m1);
+                REAL4 m1v1 = vload4(i*4 + 1, m1);
+                REAL4 m1v2 = vload4(i*4 + 2, m1);
+                REAL4 m1v3 = vload4(i*4 + 3, m1);
+                                
+                REAL4 m2v0 = vload4(i*4 + 0, m2);
+                REAL4 m2v1 = vload4(i*4 + 1, m2);
+                REAL4 m2v2 = vload4(i*4 + 2, m2);
+                REAL4 m2v3 = vload4(i*4 + 3, m2);
+
+                REAL4 s1v  = m1v0 * p1[i*sites*4 + j*4 + 0];
+                      s1v += m1v1 * p1[i*sites*4 + j*4 + 1];
+                      s1v += m1v2 * p1[i*sites*4 + j*4 + 2];
+                      s1v += m1v3 * p1[i*sites*4 + j*4 + 3];
+
+                REAL4 s2v  = m2v0 * p2[i*sites*4 + j*4 + 0];
+                      s2v += m2v1 * p2[i*sites*4 + j*4 + 1];
+                      s2v += m2v2 * p2[i*sites*4 + j*4 + 2];
+                      s2v += m2v3 * p2[i*sites*4 + j*4 + 3];
+
+                vstore4(s1v * s2v, i*sites + j, p3);
+            //}
+    //     }
+    // }
+
+}
+
+#elif defined(KERNEL_4) // 3D NDRange, dimension 0 is inner k loop of count 4
+                        // (must edit KernelLauncher.cpp line 95 to use this kernel)
+__kernel void kernelPartialsPartialsNoScale(__global REAL* restrict p1,
+                                            __global REAL* restrict p2,
+                                            __global REAL* restrict p3,
+                                            __global REAL* restrict m1,
+                                            __global REAL* restrict m2,
+                                            int tp) {
+    //int categories = get_global_size(2);
+    int sites =  get_global_size(1);
+
+    int i = get_global_id(2);
+    int j = get_global_id(1);
+    int k = get_global_id(0);
+
+    //for (int i = 0; i < categories; i++) {
+    //    for (int j = 0; j < sites; j++) {
+    //        for (int k = 0; k < 4; k++) {
+                REAL s1 = 0, s2 = 0;
+                for (int n = 0; n < 4; n++) {
+                    s1 += m1[i*16 + n*4 + k] * p1[i*sites*4 + j*4 + n];
+                    s2 += m2[i*16 + n*4 + k] * p2[i*sites*4 + j*4 + n];
+                }
+                p3[i*sites*4 + j*4 + k] = s1 * s2;
+    //        }
+    //    }
+    //}
+}
+
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+
 #define STATE_COUNT 4
 
 #ifdef CUDA
@@ -525,33 +661,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    int totalPatterns) {
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_4_CPU()
-    SUM_PARTIALS_PARTIALS_4_CPU();
-    for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-        partials3[deltaPartials + i] = sum1[i] * sum2[i];
-    }
-#else // GPU implementation
-    DETERMINE_INDICES_4_GPU();
-    LOAD_PARTIALS_PARTIALS_4_GPU();
-    LOAD_MATRIX_4_GPU();
-    if (pattern < totalPatterns) { // Remove padded threads!
-        SUM_PARTIALS_PARTIALS_4_GPU();
-        partials3[u] = sum1 * sum2;
-    }
-#endif // FW_OPENCL_CPU
 
-#ifdef KERNEL_PRINT_ENABLED
-    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n",
-           matrix, pattern, tx, state, u);
-#endif
-}
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
