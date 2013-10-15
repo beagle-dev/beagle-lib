@@ -1,3 +1,3 @@
-<map id="G" name="G">
-<area shape="rect" id="node2" href="$struct_beagle_resource.html" title="Description of a hardware resource." alt="" coords="17,6,143,34"/>
+<map id="BeagleResourceList" name="BeagleResourceList">
+<area shape="rect" id="node2" href="$struct_beagle_resource.html" title="Description of a hardware resource. " alt="" coords="16,5,132,32"/>
 </map>
