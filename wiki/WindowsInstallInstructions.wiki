@@ -1,6 +1,5 @@
-#labels Featured
-
 #summary How to install BEAGLE on Windows
+#labels Featured
 
 ===Installing BEAGLE on Windows===
 The easiest way to install BEAGLE is to use the binary installer.
@@ -42,4 +41,4 @@ http://beagle-lib.googlecode.com/svn/trunk
 	libhmsbeagle-opencl
 }}}
 
-*Step 5.* The previus step will create three BEAGLE *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory of the application you want to use with BEAGLE.
+*Step 5.* The previus step will create three *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory of the application you want to use with BEAGLE.
