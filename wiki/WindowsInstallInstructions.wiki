@@ -1,5 +1,6 @@
-#summary How to install BEAGLE on Windows
 #labels Featured
+
+#summary How to install BEAGLE on Windows
 
 ===Installing BEAGLE on Windows===
 The easiest way to install BEAGLE is to use the binary installer.
@@ -21,28 +22,24 @@ If you have problems with the binary installer or wish to use the very latest SV
 
 The following software prerequisites must be installed prior to building libhmsbeagle on Windows:
 
-  * A 64-bit Windows OS (XP or later)
-  * Visual Studio Professional 2008 (express edition will not work)
-  * Java Development Kit 1.5 or later
-  * NVIDIA CUDA toolkit
-  ** The video card driver is required to use the library, but not to build it
+  * Visual Studio 2012
+  * Java Development Kit 1.6 or later
+  * Intel OpenCL SDK (if you wish to build the OpenCL plugin)
 
-*Step 1.* Checkout the source code repository:
+*Step 1.* Obtain a subversion client (such as [http://tortoisesvn.net TortoiseSVN]) and checkout the source code from the repository: 
 {{{
-svn co http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
+http://beagle-lib.googlecode.com/svn/trunk
 }}}
 
-*Step 2.* Configure your Java path by navigating to `project\beagle-vs` and running `findJava.bat`
+*Step 2.* Configure your Java path by navigating to *`project\beagle-vs-2012`* and running *`findJava.bat`*.
 
-*Step 3.* Open the Visual Studio 2008 project:
-  * It's located at `project\beagle-vs\libhmsbeagle_vc90.sln`
+*Step 3.* Open the Visual Studio 2012 project located at *`project\beagle-vs-2012\libhmsbeagle.sln`*.
 
-*Step 4.* Set the configuration to `Release|x64` and build the solution (`Build -> Build Solution`)
+*Step 4.* Set the configuration to *`Release|x64`* or *`Release|Win32`* and build the following projects within the solution:
+{{{
+	libhmsbeagle
+	libhmsbeagle-cpu
+	libhmsbeagle-opencl
+}}}
 
-*Step 5.* Set the configuration to `Release|Win32` and build the solution (`Build -> Build Solution`)
-
-*Step 6.* Right-click on the `hmsbeagle library` installer project (at the left hand side in the project explorer) and select `build`
-
-*Step 7.* The installer will be located in `project\beagle-vs\beagleinstaller\Release`, assuming a release build.  Note that if error messages appear that the build system was unable to find Java, then you must build from the command line with `build_installer.bat`.  See below.
-
-*Alternate approach:*  Edit the file `project\beagle-vs\build_installer.bat` to point to the Visual Studio installation, and run it.  Skip steps 2-6.
+*Step 5.* The previus step will create three BEAGLE *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory of the application you want to use with BEAGLE.
