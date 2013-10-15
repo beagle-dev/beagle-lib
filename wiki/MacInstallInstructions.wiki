@@ -21,15 +21,20 @@ If you have problems with the binary installer or wish to use the very latest SV
 
 *Step 1.* You will need to install Xcode, which includes Apple's developer tools. You can download Xcode from the [https://itunes.apple.com/us/app/xcode/id497799835 Mac App Store].
 
-*Step 2. (optional)* To use BEAGLE with CUDA for NVIDIA graphics cards you will need to download and install the [https://developer.nvidia.com/cuda-downloads CUDA Toolkit for Mac OS X from nvidia.com]. You will also need to download and install the standalone version of the [https://developer.apple.com/downloads/index.action?q=command%20line%20tools Command Line Tools for Xcode from developer.apple.com] (you will need a free Apple developer account for this download).
+*Step 2.* Next, you need to obtain the following software packages: _autoconf_, _automake_, and _libtool_. The easiest way to install these is with the [http://brew.sh Homebrew package manager]. Open 'Terminal.app' and paste the installation command from the [http://brew.sh Homebrew website] (you will find it at the bottom of the page, under _Install Homebrew_). Next enter the following to install the required packages: 
+{{{
+brew install libtool autoconf automake
+}}}
 
-*Step 3.* Next you will need to download the BEAGLE source code. Open 'Terminal.app' and type:
+*Step 3. (optional)* To use BEAGLE with CUDA for NVIDIA graphics cards you will need to download and install the [https://developer.nvidia.com/cuda-downloads CUDA Toolkit for Mac OS X]. You will also need to download and install the standalone version of the [https://developer.apple.com/downloads/index.action?q=command%20line%20tools Command Line Tools for Xcode] (you will need a free Apple developer account for this download).
+
+*Step 4.* Next you will need to download the BEAGLE source code. In the Terminal, type:
 {{{
 svn checkout http://beagle-lib.googlecode.com/svn/trunk/ beagle-lib
 }}} 
 This will download the BEAGLE source into a folder called 'beagle-lib'.
 
-*Step 4.* The next step is to compile the BEAGLE library. Type:
+*Step 5.* The next step is to compile the BEAGLE library. Type:
 {{{
 cd beagle-lib
 ./autogen.sh
@@ -39,7 +44,7 @@ sudo make install
 }}}
 You will have to enter your user password for the last of these commands. 
 
-*Step 5.* Finally, to check that the installation worked type:
+*Step 6.* Finally, to check that the installation worked type:
 {{{
 make check
 }}}
