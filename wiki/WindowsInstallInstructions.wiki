@@ -17,7 +17,7 @@ For instructions on how to use BEAGLE with BEAST please refer to [http://beast.b
 ----
 
 ====Installing from source====
-If you have problems with the binary installer or wish to use the very latest SVN revision you may build BEAGLE from source.
+If you have problems with the binary installer or wish to use the latest SVN revision you may build BEAGLE from source.
 
 The following software prerequisites must be installed prior to building libhmsbeagle on Windows:
 
