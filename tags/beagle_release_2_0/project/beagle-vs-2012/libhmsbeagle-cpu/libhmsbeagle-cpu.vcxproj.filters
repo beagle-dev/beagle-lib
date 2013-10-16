@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="libhmsbeagle-cpu">
+      <UniqueIdentifier>{a4c46978-16dc-4d85-8870-52b69683fc69}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle-cpu\CPU">
+      <UniqueIdentifier>{c33039d6-4a88-4801-a698-d559a049628a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\BeagleCPU4StateImpl.hpp">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\BeagleCPUImpl.hpp">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\EigenDecomposition.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\EigenDecompositionCube.hpp">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.h">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\CPU\EigenDecompositionSquare.hpp">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\libhmsbeagle\CPU\BeagleCPUPlugin.cpp">
+      <Filter>libhmsbeagle-cpu\CPU</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
