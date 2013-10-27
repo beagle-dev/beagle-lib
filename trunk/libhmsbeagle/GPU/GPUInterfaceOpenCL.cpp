@@ -496,8 +496,6 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     }
 
-    Synchronize();
-
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
 #endif                
