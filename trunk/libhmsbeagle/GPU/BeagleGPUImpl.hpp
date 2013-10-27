@@ -305,12 +305,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     bool CPUImpl = false;
 
 #ifdef FW_OPENCL
-    // pad patterns for CPU/MIC implementation
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
     
+    // TODO: Apple OpenCL on CPU for state count > 4
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU && kPaddedStateCount > 4) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
         deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         
         CPUImpl = true;
 
@@ -337,6 +342,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             case  192: patternBlockSize = PATTERN_BLOCK_SIZE_SP_192;   break;
         }
     
+        // pad patterns for CPU/MIC implementation
         if (patternBlockSize != 0 && kPatternCount % patternBlockSize) {
             paddedPatterns = patternBlockSize - (kPatternCount % patternBlockSize);
         }

@@ -61,7 +61,8 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
         deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU   ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         CPUImplementation = true;
     }
 #endif
