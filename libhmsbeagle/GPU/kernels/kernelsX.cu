@@ -29,22 +29,19 @@
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-// kernel macros
+// kernel macros CPU
 
-#define DETERMINE_INDICES_X()\
+#define DETERMINE_INDICES_X_CPU()\
     int state = KW_LOCAL_ID_0;\
-    int patIdx = KW_LOCAL_ID_1;\
+    int patIdx = KW_GROUP_ID_1;\
     int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;\
-    int matrix = KW_GROUP_ID_1;\
+    int matrix = KW_GROUP_ID_2;\
     int patternCount = totalPatterns;\
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;\
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
-///////////////////////////////////////////////////////////////////////////////
-// kernel macros CPU
-    
 #define SUM_PARTIALS_PARTIALS_X_CPU()\
     REAL sum1 = 0, sum2 = 0;\
     int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;\
@@ -135,6 +132,17 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // kernel macros GPU
+
+#define DETERMINE_INDICES_X_GPU()\
+    int state = KW_LOCAL_ID_0;\
+    int patIdx = KW_LOCAL_ID_1;\
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;\
+    int matrix = KW_GROUP_ID_1;\
+    int patternCount = totalPatterns;\
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;\
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
 
 #define LOAD_SCALING_X_GPU()\
     KW_LOCAL_MEM REAL fixedScalingFactors[PATTERN_BLOCK_SIZE];\
@@ -366,11 +374,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                     int totalPatterns) {
-    DETERMINE_INDICES_X();
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     SUM_PARTIALS_PARTIALS_X_CPU();
     partials3[u] = sum1 * sum2;
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
     SUM_PARTIALS_PARTIALS_X_GPU();
     if (pattern < totalPatterns)
         partials3[u] = sum1 * sum2;
@@ -384,11 +393,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RE
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                        int totalPatterns) {
-    DETERMINE_INDICES_X();
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     SUM_PARTIALS_PARTIALS_X_CPU();
     partials3[u] = sum1 * sum2 / scalingFactors[pattern];
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
     LOAD_SCALING_X_GPU();
     SUM_PARTIALS_PARTIALS_X_GPU();
     if (pattern < totalPatterns)
@@ -402,11 +412,12 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                   int totalPatterns) {
-    DETERMINE_INDICES_X();
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     SUM_STATES_PARTIALS_X_CPU();
     partials3[u] = sum1 * sum2;
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
     SUM_STATES_PARTIALS_X_GPU();
     if (pattern < totalPatterns)
         partials3[u] = sum1 * sum2;
@@ -420,11 +431,12 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTR
                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                      int totalPatterns) {
-    DETERMINE_INDICES_X();
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     SUM_STATES_PARTIALS_X_CPU();
     partials3[u] = sum1 * sum2 / scalingFactors[pattern];
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
     LOAD_SCALING_X_GPU();
     SUM_STATES_PARTIALS_X_GPU();
     if (pattern < totalPatterns)
@@ -438,12 +450,12 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                 int totalPatterns) {
-    DETERMINE_INDICES_X();
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;    
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
         partials3[u] = matrix1[state] * matrix2[state];
     } else if (state1 < PADDED_STATE_COUNT) {
@@ -454,6 +466,11 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
         partials3[u] = 1.0;
     }
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+    int state1 = states1[pattern];
+    int state2 = states2[pattern];
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;    
     if (pattern < totalPatterns) {
         if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
             partials3[u] = matrix1[state] * matrix2[state];
@@ -475,12 +492,12 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* KW_RESTRIC
                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
                                                    int totalPatterns) {
-    DETERMINE_INDICES_X();
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
         partials3[u] = matrix1[state] * matrix2[state] / scalingFactors[pattern];
     } else if (state1 < PADDED_STATE_COUNT) {
@@ -491,6 +508,11 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* KW_RESTRIC
         partials3[u] = 1.0 / scalingFactors[pattern];
     }
 #else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+    int state1 = states1[pattern];
+    int state2 = states2[pattern];
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
     LOAD_SCALING_X_GPU();
     KW_LOCAL_FENCE;
     if (pattern < totalPatterns) {
@@ -1129,7 +1151,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     REAL sum2 = 0;
     int i;
 
-    DETERMINE_INDICES_X();
+    DETERMINE_INDICES_X_GPU();
 
     KW_GLOBAL_VAR REAL* matrix1 = matrices1 + deltaMatrix; // Points to *this* matrix
     KW_GLOBAL_VAR REAL* matrix2 = matrices2 + deltaMatrix;

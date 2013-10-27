@@ -96,10 +96,13 @@ enum BeagleDeviceImplementationCodes {
     #define KW_LOCAL_FENCE   __syncthreads()
     #define KW_LOCAL_ID_0    threadIdx.x
     #define KW_LOCAL_ID_1    threadIdx.y
+    #define KW_LOCAL_ID_2    threadIdx.z
     #define KW_GROUP_ID_0    blockIdx.x
     #define KW_GROUP_ID_1    blockIdx.y
+    #define KW_GROUP_ID_2    blockIdx.z
     #define KW_NUM_GROUPS_0  gridDim.x
     #define KW_NUM_GROUPS_1  gridDim.y
+    #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      
 #elif defined(FW_OPENCL)
     #define KW_GLOBAL_KERNEL __kernel
@@ -109,10 +112,13 @@ enum BeagleDeviceImplementationCodes {
     #define KW_LOCAL_FENCE   barrier(CLK_LOCAL_MEM_FENCE)
     #define KW_LOCAL_ID_0    get_local_id(0)
     #define KW_LOCAL_ID_1    get_local_id(1)
+    #define KW_LOCAL_ID_2    get_local_id(2)
     #define KW_GROUP_ID_0    get_group_id(0)
     #define KW_GROUP_ID_1    get_group_id(1)
+    #define KW_GROUP_ID_2    get_group_id(2)
     #define KW_NUM_GROUPS_0  get_num_groups(0)
     #define KW_NUM_GROUPS_1  get_num_groups(1)
+    #define KW_NUM_GROUPS_2  get_num_groups(2)
     #define KW_RESTRICT      restrict
 #endif
 
