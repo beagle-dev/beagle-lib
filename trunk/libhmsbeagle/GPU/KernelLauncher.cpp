@@ -101,8 +101,13 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
             }
         }
     } else {
-        bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
-        bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        if (CPUImplementation) {
+            bgPeelingBlock = Dim3Int(kPaddedStateCount, 1, 1);
+            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, kCategoryCount);
+        } else {
+            bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
+            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        }
         if (!CPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
             bgPeelingGrid.x += 1;
         }

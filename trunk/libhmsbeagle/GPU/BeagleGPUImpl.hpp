@@ -307,8 +307,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
     
-    // TODO: Apple OpenCL on CPU for state count > 4
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU && kPaddedStateCount > 4) {
+    // TODO: Apple OpenCL on CPU for state count > 128
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU && kPaddedStateCount > 128) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+
+    // TODO: Apple and AMD GPU implementation for high state and category counts
+    if ((deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_GPU || 
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) &&
+        ((kPaddedStateCount > 64 && kCategoryCount > 2) || 
+          (kPaddedStateCount == 192 && kCategoryCount > 1))) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
 
