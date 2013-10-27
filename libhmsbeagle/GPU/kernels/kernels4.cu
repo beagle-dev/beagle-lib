@@ -652,9 +652,10 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
             partials3[deltaPartials + i] = sMatrix2[state2 * 4 + i];
         }
     } else {
-        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-            partials3[deltaPartials + i] = 1.0;
-        }
+        partials3[deltaPartials + 0] = 1.0; // unrolled to work around Apple OpenCL bug
+        partials3[deltaPartials + 1] = 1.0;
+        partials3[deltaPartials + 2] = 1.0;
+        partials3[deltaPartials + 3] = 1.0;
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
