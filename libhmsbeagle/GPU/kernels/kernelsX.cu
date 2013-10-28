@@ -33,7 +33,7 @@
 
 #define DETERMINE_INDICES_X_CPU()\
     int state = KW_LOCAL_ID_0;\
-    int patIdx = KW_GROUP_ID_1;\
+    int patIdx = get_global_id(1);\
     int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;\
     int matrix = KW_GROUP_ID_2;\
     int patternCount = totalPatterns;\
@@ -816,20 +816,16 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* 
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT dParentPartials,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT dChildParials,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
-                                                            int patternCount) {
+                                                            int totalPatterns) {
     REAL sum1 = 0;
 
     int i;
 
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = KW_GROUP_ID_1;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+#else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+#endif // FW_OPENCL_CPU
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
 
@@ -888,22 +884,18 @@ kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT
                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
-                                                 int patternCount) {
+                                                 int totalPatterns) {
     REAL sum1 = 0;
     REAL sumFirstDeriv = 0;
     REAL sumSecondDeriv = 0;
 
     int i;
 
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = KW_GROUP_ID_1;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+#else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+#endif // FW_OPENCL_CPU
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;
@@ -966,18 +958,14 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW
                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dParentPartials,
                                                           KW_GLOBAL_VAR int* KW_RESTRICT dChildStates,
                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
-                                                          int patternCount) {
+                                                          int totalPatterns) {
     REAL sum1 = 0;
 
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = KW_GROUP_ID_1;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+#else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+#endif // FW_OPENCL_CPU
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
@@ -1014,20 +1002,16 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_V
                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
-                                                                     int patternCount) {
+                                                                     int totalPatterns) {
     REAL sum1 = 0;
     REAL sumFirstDeriv = 0;
     REAL sumSecondDeriv = 0;
 
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = (KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = KW_GROUP_ID_1;
-    int totalPatterns = patternCount;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+#else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+#endif // FW_OPENCL_CPU
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
