@@ -56,14 +56,17 @@ KernelLauncher::~KernelLauncher() {
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
     bool CPUImplementation = false;
+    bool AppleCPUImplementation = false;
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
         deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU   ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
+        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
         CPUImplementation = true;
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
+        CPUImplementation = true;
+        AppleCPUImplementation = true;
     }
 #endif
 
@@ -101,9 +104,12 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
             }
         }
     } else {
-        if (CPUImplementation) {
+        if (AppleCPUImplementation) {
             bgPeelingBlock = Dim3Int(kPaddedStateCount, 1, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, kCategoryCount);
+        } else if (CPUImplementation) {
+            bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize, 1);
+            bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1, kCategoryCount);
         } else {
             bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
