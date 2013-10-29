@@ -61,6 +61,6 @@ libhmsbeagle/*/*/*.gcda libhmsbeagle/*/*/*.gcno \
 examples/*/*/*.gcda examples/*/*/*.gcno
 
 
-SUBDIRS = libhmsbeagle examples
+SUBDIRS = libhmsbeagle libhmsbeagle/JNI examples
 
 

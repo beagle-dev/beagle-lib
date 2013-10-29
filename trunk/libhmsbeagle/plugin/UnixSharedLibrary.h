@@ -45,6 +45,10 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
 #else
     libname += ".so";
 #endif
+    libname += ".";
+    libname += PACKAGE_VERSION;
+    libname += ".0";
+
     m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_GLOBAL);
     if (m_handle == 0)
     {
