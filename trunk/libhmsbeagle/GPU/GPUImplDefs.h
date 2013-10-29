@@ -32,8 +32,8 @@
     #include "libhmsbeagle/platform.h"
 
     #include <cfloat>
-#elif defined(DLS_MACOS)
-    #define M_LN2   0.69314718055994530942  /* log_e 2 */
+#elif !defined(M_LN2)
+    #define M_LN2   0.693147180559945309417232121458176568  /* log_e 2 */
 #endif // OPENCL_KERNEL_BUILD
 
 //#define FW_OPENCL_BINARY
