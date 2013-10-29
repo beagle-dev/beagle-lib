@@ -26,7 +26,7 @@ If you have problems with the binary installer or wish to use the very latest SV
 brew install libtool autoconf automake
 }}}
 
-*Step 3. (optional)* To use BEAGLE with CUDA for NVIDIA graphics cards you will need to download and install the [https://developer.nvidia.com/cuda-downloads CUDA Toolkit for Mac OS X]. You will also need to download and install the standalone version of the [https://developer.apple.com/downloads/index.action?q=command%20line%20tools Command Line Tools for Xcode] (you will need a free Apple developer account for this download).
+*Step 3. (optional)* To use BEAGLE with CUDA for NVIDIA graphics cards you will need to download and install the [https://developer.nvidia.com/cuda-downloads CUDA Toolkit for Mac OS X].
 
 *Step 4.* Next you will need to download the BEAGLE source code. In the Terminal, type:
 {{{
