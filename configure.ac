@@ -15,7 +15,7 @@ GENERIC_API_VERSION=2
 AC_SUBST(GENERIC_API_VERSION)
 
 #revision version
-GENERIC_REVISION_VERSION=0
+GENERIC_REVISION_VERSION=1
 
 #release versioning
 GENERIC_MAJOR_VERSION=$GENERIC_API_VERSION
@@ -279,7 +279,8 @@ case $host_os in
   then
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang -I/usr/include/c++/4.2.1"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang"
+     CUDA_LIBS+=" -F/Library/Frameworks -framework CUDA"
   fi
   
 

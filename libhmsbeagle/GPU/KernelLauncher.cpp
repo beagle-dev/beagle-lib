@@ -331,28 +331,6 @@ void KernelLauncher::LoadKernels() {
 }
 
 
-void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
-                                                     GPUPtr dParentPartials,
-                                                     GPUPtr dChildParials,
-                                                     GPUPtr dTransMatrix,
-                                                     unsigned int patternCount,
-                                                     unsigned int categoryCount) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
-#endif
-
-    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoods,
-                               bgPeelingBlock, bgPeelingGrid,
-                               4, 5,
-                               dPartialsTmp, dParentPartials, dChildParials, dTransMatrix,
-                               patternCount);
-
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
-#endif
-
-}
-
 ///////////////////////////
 //---TODO: Epoch Model---//
 ///////////////////////////
@@ -639,7 +617,20 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                                          int doRescaling) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::StatesPartialsPruningDynamicScaling\n");
-#endif    
+#endif
+
+#ifdef FW_OPENCL
+    // fix for Apple CPU OpenCL limitations
+    size_t blockX = bgPeelingBlock.x;
+    size_t gridX  = bgPeelingGrid.x;
+    bool AppleCPUImplementation = false;
+    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+        kPaddedStateCount == 4) {
+        bgPeelingBlock.x = 1;
+        bgPeelingGrid.x  = gridX * blockX;
+        AppleCPUImplementation = true;
+    }
+#endif
            
     if (doRescaling != 0)    {
         
@@ -686,6 +677,14 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         }
 #endif
     }
+
+#ifdef FW_OPENCL
+    // restore values if used fix for Apple CPU OpenCL limitations
+    if (AppleCPUImplementation) {
+        bgPeelingBlock.x = blockX;
+        bgPeelingGrid.x  = gridX;
+    }
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tLeaving  KernelLauncher::StatesPartialsPruningDynamicScaling\n");
@@ -705,7 +704,20 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                                        int doRescaling) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::StatesStatesPruningDynamicScaling\n");
-#endif    
+#endif
+
+#ifdef FW_OPENCL
+    // fix for Apple CPU OpenCL limitations
+    size_t blockX = bgPeelingBlock.x;
+    size_t gridX  = bgPeelingGrid.x;
+    bool AppleCPUImplementation = false;
+    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+        kPaddedStateCount == 4) {
+        bgPeelingBlock.x = 1;
+        bgPeelingGrid.x  = gridX * blockX;
+        AppleCPUImplementation = true;
+    }
+#endif
        
     if (doRescaling != 0)    {
         
@@ -753,6 +765,14 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         }
 #endif
     }
+
+#ifdef FW_OPENCL
+    // restore values if used fix for Apple CPU OpenCL limitations
+    if (AppleCPUImplementation) {
+        bgPeelingBlock.x = blockX;
+        bgPeelingGrid.x  = gridX;
+    }
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesStatesPruningDynamicScaling\n");
@@ -807,6 +827,29 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResul
 #endif
 }
 
+
+void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
+                                                     GPUPtr dParentPartials,
+                                                     GPUPtr dChildParials,
+                                                     GPUPtr dTransMatrix,
+                                                     unsigned int patternCount,
+                                                     unsigned int categoryCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
+#endif
+
+    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoods,
+                               bgPeelingBlock, bgPeelingGrid,
+                               4, 5,
+                               dPartialsTmp, dParentPartials, dChildParials, dTransMatrix,
+                               patternCount);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoods\n");
+#endif
+
+}
+
 void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                                 GPUPtr dFirstDerivTmp,
                                                                 GPUPtr dSecondDerivTmp,
@@ -845,11 +888,32 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoods\n");
 #endif
     
+#ifdef FW_OPENCL
+    // fix for Apple CPU OpenCL limitations
+    size_t blockX = bgPeelingBlock.x;
+    size_t gridX  = bgPeelingGrid.x;
+    bool AppleCPUImplementation = false;
+    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+        kPaddedStateCount == 4) {
+        bgPeelingBlock.x = 1;
+        bgPeelingGrid.x  = gridX * blockX;
+        AppleCPUImplementation = true;
+    }
+#endif
+
     gpu->LaunchKernel(fStatesPartialsEdgeLikelihoods,
                                bgPeelingBlock, bgPeelingGrid,
                                4, 5,
                                dPartialsTmp, dParentPartials, dChildStates, dTransMatrix,
                                patternCount);  
+
+#ifdef FW_OPENCL
+    // restore values if used fix for Apple CPU OpenCL limitations
+    if (AppleCPUImplementation) {
+        bgPeelingBlock.x = blockX;
+        bgPeelingGrid.x  = gridX;
+    }
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoods\n");
@@ -870,6 +934,19 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
+
+#ifdef FW_OPENCL
+    // fix for Apple CPU OpenCL limitations
+    size_t blockX = bgPeelingBlock.x;
+    size_t gridX  = bgPeelingGrid.x;
+    bool AppleCPUImplementation = false;
+    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+        kPaddedStateCount == 4) {
+        bgPeelingBlock.x = 1;
+        bgPeelingGrid.x  = gridX * blockX;
+        AppleCPUImplementation = true;
+    }
+#endif
     
     gpu->LaunchKernel(fStatesPartialsEdgeLikelihoodsSecondDeriv,
                                bgPeelingBlock, bgPeelingGrid,
@@ -883,6 +960,14 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
     
+#ifdef FW_OPENCL
+    // restore values if used fix for Apple CPU OpenCL limitations
+    if (AppleCPUImplementation) {
+        bgPeelingBlock.x = blockX;
+        bgPeelingGrid.x  = gridX;
+    }
+#endif
+
 }
 
 void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,

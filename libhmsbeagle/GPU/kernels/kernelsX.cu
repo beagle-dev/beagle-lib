@@ -817,58 +817,49 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* 
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT dChildParials,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
                                                             int totalPatterns) {
-    REAL sum1 = 0;
-
-    int i;
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_X_CPU();
+    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = dTransMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = dParentPartials + deltaPartials;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = dChildParials + deltaPartials;
+    REAL sum1 = 0;
+    for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+        FMA(sMatrix1[i * PADDED_STATE_COUNT + state],  sPartials1[i], sum1);
+    }
+    dPartialsTmp[u] = sum1 * sPartials2[state];
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
-#endif // FW_OPENCL_CPU
-
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
-
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix;
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
-        // These are all coherent global memory reads; checked in Profiler
         sPartials1[patIdx][state] = dParentPartials[y + state];
         sPartials2[patIdx][state] = dChildParials[y + state];
     } else {
         sPartials1[patIdx][state] = 0;
         sPartials2[patIdx][state] = 0;
     }
-
+    REAL sum1 = 0;
+    int i;
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        // load one row of matrices
         if (patIdx < BLOCK_PEELING_SIZE) {
-            // These are all coherent global memory reads.
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-
-            // sMatrix now filled with starting in state and ending in i
             matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
         }
         KW_LOCAL_FENCE;
-
         int j;
         for(j = 0; j < BLOCK_PEELING_SIZE; j++) {
             FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
         }
-
-        KW_LOCAL_FENCE; // GTX280 FIX HERE
-
+        KW_LOCAL_FENCE;
     }
-
     if (pattern < totalPatterns)
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
+#endif // FW_OPENCL_CPU
 }
 
 
@@ -885,73 +876,71 @@ kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT
                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
                                                  int totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = dTransMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = dParentPartials + deltaPartials;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = dChildParials + deltaPartials;
     REAL sum1 = 0;
     REAL sumFirstDeriv = 0;
     REAL sumSecondDeriv = 0;
-
-    int i;
-
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_X_CPU();
+    for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+        FMA(sMatrix1[          i * PADDED_STATE_COUNT + state], sPartials1[i], sum1);
+        FMA(sMatrixFirstDeriv[ i * PADDED_STATE_COUNT + state], sPartials1[i], sumFirstDeriv);
+        FMA(sMatrixSecondDeriv[i * PADDED_STATE_COUNT + state], sPartials1[i], sumSecondDeriv);
+    }
+    dPartialsTmp[u]    = sum1           * sPartials2[state];
+    dFirstDerivTmp[u]  = sumFirstDeriv  * sPartials2[state];
+    dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[state];
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
-#endif // FW_OPENCL_CPU
-
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix; // Points to *this* matrix
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;
-
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrixFirstDeriv[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrixSecondDeriv[BLOCK_PEELING_SIZE/2][PADDED_STATE_COUNT];
-
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
-        // These are all coherent global memory reads; checked in Profiler
         sPartials1[patIdx][state] = dParentPartials[y + state];
         sPartials2[patIdx][state] = dChildParials[y + state];
     } else {
         sPartials1[patIdx][state] = 0;
         sPartials2[patIdx][state] = 0;
     }
-
+    REAL sum1 = 0;
+    REAL sumFirstDeriv = 0;
+    REAL sumSecondDeriv = 0;
+    int i;
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE/2) {
-        // load one row of matrices
         if (patIdx < BLOCK_PEELING_SIZE/2) {
-            // These are all coherent global memory reads.
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
             sMatrixFirstDeriv[patIdx][state] = matrixFirstDeriv[patIdx * PADDED_STATE_COUNT + state];
             sMatrixSecondDeriv[patIdx][state] = matrixSecondDeriv[patIdx * PADDED_STATE_COUNT + state];
-
-            // sMatrix now filled with starting in state and ending in i
             matrix1 += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
             matrixFirstDeriv += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
             matrixSecondDeriv += BLOCK_PEELING_SIZE/2 * PADDED_STATE_COUNT;
         }
         KW_LOCAL_FENCE;
-
         int j;
         for(j = 0; j < BLOCK_PEELING_SIZE/2; j++) {
             FMA(sMatrix1[j][state]          , sPartials1[patIdx][i + j], sum1          );
             FMA(sMatrixFirstDeriv[j][state] , sPartials1[patIdx][i + j], sumFirstDeriv );
             FMA(sMatrixSecondDeriv[j][state], sPartials1[patIdx][i + j], sumSecondDeriv);
         }
-
-        KW_LOCAL_FENCE; // GTX280 FIX HERE
-
+        KW_LOCAL_FENCE;
     }
-
     if (pattern < totalPatterns) {
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
         dFirstDerivTmp[u] = sumFirstDeriv * sPartials2[patIdx][state];
         dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];
     }
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
@@ -959,39 +948,39 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW
                                                           KW_GLOBAL_VAR int* KW_RESTRICT dChildStates,
                                                           KW_GLOBAL_VAR REAL* KW_RESTRICT dTransMatrix,
                                                           int totalPatterns) {
-    REAL sum1 = 0;
-
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_X_CPU();
+    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = dTransMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = dParentPartials + deltaPartials;
+    REAL sum1 = 0;
+    int state1 = dChildStates[pattern];
+    if (state1 < PADDED_STATE_COUNT)
+        sum1 = sMatrix1[state1 * PADDED_STATE_COUNT + state];
+    else
+        sum1 = 1.0;
+    dPartialsTmp[u] = sum1 * sPartials2[state];
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
-#endif // FW_OPENCL_CPU
-
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
         sPartials2[patIdx][state] = dParentPartials[y + state];
     } else {
         sPartials2[patIdx][state] = 0;
     }
-
+    REAL sum1 = 0;
     if (pattern < totalPatterns) {
-        int state1 = dChildStates[pattern]; // Coalesced; no need to share
-
+        int state1 = dChildStates[pattern];
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
-
         if (state1 < PADDED_STATE_COUNT)
             sum1 = matrix1[state];
         else
             sum1 = 1.0;
     }
-
     if (pattern < totalPatterns)
-        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];                         
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
@@ -1003,35 +992,44 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_V
                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivMatrix,
                                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivMatrix,
                                                                      int totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+    int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = dTransMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixFirstDeriv = dFirstDerivMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrixSecondDeriv = dSecondDerivMatrix + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = dParentPartials + deltaPartials;
     REAL sum1 = 0;
     REAL sumFirstDeriv = 0;
     REAL sumSecondDeriv = 0;
-
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_X_CPU();
+    int state1 = dChildStates[pattern];
+    if (state1 < PADDED_STATE_COUNT) {
+        sum1           = sMatrix1[          state1 * PADDED_STATE_COUNT + state];
+        sumFirstDeriv  = sMatrixFirstDeriv[ state1 * PADDED_STATE_COUNT + state];
+        sumSecondDeriv = sMatrixSecondDeriv[state1 * PADDED_STATE_COUNT + state];
+    } else {
+        sum1 = 1.0;
+    }
+    dPartialsTmp[u]    = sum1           * sPartials2[state];
+    dFirstDerivTmp[u]  = sumFirstDeriv  * sPartials2[state];
+    dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[state];
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
-#endif // FW_OPENCL_CPU
-
     int y = deltaPartialsByState + deltaPartialsByMatrix;
-
-    // Load values into shared memory
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-
-    // copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials
     if (pattern < totalPatterns) {
         sPartials2[patIdx][state] = dParentPartials[y + state];
     } else {
         sPartials2[patIdx][state] = 0;
     }
-
+    REAL sum1 = 0;
+    REAL sumFirstDeriv = 0;
+    REAL sumSecondDeriv = 0;
     if (pattern < totalPatterns) {
         int state1 = dChildStates[pattern]; // Coalesced; no need to share
-
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = dTransMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrixFirstDeriv = dFirstDerivMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrixSecondDeriv = dSecondDerivMatrix + deltaMatrix + state1 * PADDED_STATE_COUNT;
-
         if (state1 < PADDED_STATE_COUNT) {
             sum1 = matrix1[state];
             sumFirstDeriv = matrixFirstDeriv[state];
@@ -1042,13 +1040,12 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_V
             sumSecondDeriv = 0.0;
         }
     }
-
     if (pattern < totalPatterns) {
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
         dFirstDerivTmp[u] = sumFirstDeriv * sPartials2[patIdx][state];
-        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];
-        
+        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];   
     }
+#endif // FW_OPENCL_CPU
 }
 
 KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dResult,

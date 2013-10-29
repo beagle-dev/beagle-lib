@@ -56,7 +56,7 @@
 #endif
 
 #ifndef M_LN2 /* Work around for OS X 10.8 and gcc 4.7.1 */
-#define M_LN2   0.69314718055994530942  /* log_e 2 */
+#define M_LN2   0.693147180559945309417232121458176568  /* log_e 2 */
 #endif
 
 #endif
