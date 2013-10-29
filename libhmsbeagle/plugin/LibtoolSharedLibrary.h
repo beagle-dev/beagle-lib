@@ -44,9 +44,12 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
 {
     lt_dlinit();
     std::string libname = "lib";
-    libname += name;    
+    libname += name;
+    libname += ".so.";
+    libname += PACKAGE_VERSION;
+    libname += ".0";
 
-    m_handle = lt_dlopenext(libname.c_str());
+    m_handle = lt_dlopen(libname.c_str());
     if (m_handle == 0)
     {
     const char* s = lt_dlerror();

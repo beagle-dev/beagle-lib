@@ -11,7 +11,7 @@ KernelLauncher.h KernelResource.cpp KernelResource.h \
 CUDAPlugin.h CUDAPlugin.cpp Precision.h
 
 libhmsbeagle_cuda_la_CXXFLAGS = $(AM_CXXFLAGS) $(CUDA_CFLAGS) 
-libhmsbeagle_cuda_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION) 
+libhmsbeagle_cuda_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 libhmsbeagle_cuda_la_LIBADD= $(CUDA_LIBS)
 
 endif
@@ -25,7 +25,7 @@ KernelLauncher.h KernelResource.cpp KernelResource.h \
 OpenCLPlugin.h OpenCLPlugin.cpp Precision.h
 
 libhmsbeagle_opencl_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENCL_CFLAGS)
-libhmsbeagle_opencl_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+libhmsbeagle_opencl_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 libhmsbeagle_opencl_la_LIBADD= $(OPENCL_LIBS)
 
 endif

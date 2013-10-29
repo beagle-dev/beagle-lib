@@ -461,8 +461,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         fprintf(stderr, "     needed memory: %d\n", neededMemory);
         fprintf(stderr, "  available memory: %d\n", availableMem);
 #endif     
-        if (availableMem < neededMemory) 
-            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        // TODO: fix memory check on CUDA and implement for OpenCL
+        // if (availableMem < neededMemory) 
+        //     return BEAGLE_ERROR_OUT_OF_MEMORY;
 #endif
 
     kernels = new KernelLauncher(gpu);

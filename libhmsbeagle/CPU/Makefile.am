@@ -13,7 +13,7 @@ libhmsbeagle_cpu_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUPlugin.h BeagleCPUPlugin.cpp
 
 libhmsbeagle_cpu_la_CXXFLAGS = $(AM_CXXFLAGS)
-libhmsbeagle_cpu_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+libhmsbeagle_cpu_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 
 
 #
@@ -28,7 +28,7 @@ libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUSSEPlugin.h BeagleCPUSSEPlugin.cpp
 
 libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS) -msse2
-libhmsbeagle_cpu_sse_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+libhmsbeagle_cpu_sse_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 endif
 
 #
@@ -43,7 +43,7 @@ libhmsbeagle_cpu_avx_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUAVXPlugin.h BeagleCPUAVXPlugin.cpp
 
 libhmsbeagle_cpu_avx_la_CXXFLAGS = $(AM_CXXFLAGS) -mavx
-libhmsbeagle_cpu_avx_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+libhmsbeagle_cpu_avx_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 endif
 
 #
@@ -58,7 +58,7 @@ libhmsbeagle_cpu_openmp_la_SOURCES = $(BEAGLE_CPU_COMMON) \
 		BeagleCPUOpenMPPlugin.h BeagleCPUOpenMPPlugin.cpp
 
 libhmsbeagle_cpu_openmp_la_CXXFLAGS = $(AM_CXXFLAGS) $(OPENMP_CXXFLAGS)
-libhmsbeagle_cpu_openmp_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
+libhmsbeagle_cpu_openmp_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 libhmsbeagle_cpu_openmp_la_LIBADD = $(OPENMP_CXXFLAGS)
 endif
 
