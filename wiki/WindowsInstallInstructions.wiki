@@ -12,7 +12,9 @@ The easiest way to install BEAGLE is to use the binary installer.
 *Step 3. (optional)* If you wish to use BEAGLE with a multicore Intel CPU via OpenCL, please download and install the latest Intel OpenCL CPU runtime from intel.com:
   * [http://software.intel.com/en-us/vcsource/tools/opencl-sdk Intel OpenCL]
 
-After the installations above are complete, restart your computer and you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, and GARLI. 
+*Step 4.* Restart your computer (this is required so Windows finds the new libraries).
+
+After the installations above are complete, you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, PhyML and GARLI. 
 
 For instructions on how to use BEAGLE with BEAST please refer to [http://beast.bio.ed.ac.uk/BEAGLE Using BEAGLE with BEAST]
 
