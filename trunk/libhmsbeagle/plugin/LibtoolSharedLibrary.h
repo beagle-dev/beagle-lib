@@ -46,8 +46,8 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
     std::string libname = "lib";
     libname += name;
     libname += ".so.";
-    libname += PACKAGE_VERSION;
-    libname += ".0";
+    libname += PLUGIN_VERSION;
+    libname += ".0.0";
 
     m_handle = lt_dlopen(libname.c_str());
     if (m_handle == 0)
