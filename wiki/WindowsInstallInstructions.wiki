@@ -42,4 +42,4 @@ http://beagle-lib.googlecode.com/svn/trunk
 
 *Step 5.* Build the solution (*BUILD* -> *Build Solution*).
 
-*Step 6.* The previous step will create three *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory which contains the executable of the application you wish to use with BEAGLE.
+*Step 6.* The previous step will create *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory which contains the executable of the application you wish to use with BEAGLE.
