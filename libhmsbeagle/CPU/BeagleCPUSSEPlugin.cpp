@@ -57,6 +57,10 @@ extern "C" {
 
 #ifdef _WIN32
 bool check_sse2(){
+#ifdef _WIN64
+    // TODO: win64 sse check
+    return 1;
+#else
     unsigned int features;
 
     __asm
@@ -81,6 +85,7 @@ bool check_sse2(){
 
 // Bit 26 for SSE2 support
     return features & 0x04000000;
+#endif
 }
 
 #endif
