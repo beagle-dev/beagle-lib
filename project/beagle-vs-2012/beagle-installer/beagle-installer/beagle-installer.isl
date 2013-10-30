@@ -348,10 +348,10 @@
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td>{1EC117A0-635B-4436-A942-C3B56E4F42E5}</td><td>INSTALLDIR</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle32.dll</td><td>{9A3CDAC2-5278-4399-968E-B57B2B438D73}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle64.dll</td><td>{8AE396B8-839E-4E69-8471-F9CCC5D5313D}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
-		<row><td>hmsbeagle_cpu32.dll</td><td>{A6C3C79B-8340-48F9-933A-1F9D610442A4}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
-		<row><td>hmsbeagle_cpu64.dll</td><td>{C8D79FF4-A91C-492B-973E-D9EAECD398A8}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
-		<row><td>hmsbeagle_opencl32.dll</td><td>{13A0D851-1D94-4433-BEDA-913234A2A825}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
-		<row><td>hmsbeagle_opencl64.dll</td><td>{992A1D77-DECD-4AF7-8511-9ABEB4DC2234}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_cpu32_21.dll</td><td>{6E771ADB-FBE2-4FDD-8DF7-C7F7FC507826}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu32_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_cpu64_21.dll</td><td>{066BB1F1-0A5F-41C2-A450-21F218E69750}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_opencl32_21.dll</td><td>{4A4CD10C-C42A-4E28-8F90-827BE66BE3B8}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl32_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_opencl64_21.dll</td><td>{C97C14FB-C2DF-4029-A33A-018ED9F39C20}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 	</table>
 
 	<table name="Condition">
@@ -1877,10 +1877,10 @@
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT2</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle32.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle64.dll</td></row>
-		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu32.dll</td></row>
-		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu64.dll</td></row>
-		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl32.dll</td></row>
-		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl64.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu32_21.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu64_21.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl32_21.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl64_21.dll</td></row>
 	</table>
 
 	<table name="File">
@@ -1902,10 +1902,10 @@
 		<row><td>hmsbeagle32.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle32.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle32.lib</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.dll</td><td>hmsbeagle64.dll</td><td>HMSBEA~1.DLL|hmsbeagle64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle64.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.lib</td><td>1</td><td/></row>
-		<row><td>hmsbeagle_cpu32.dll</td><td>hmsbeagle_cpu32.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cpu32.dll</td><td>1</td><td/></row>
-		<row><td>hmsbeagle_cpu64.dll</td><td>hmsbeagle_cpu64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu64.dll</td><td>1</td><td/></row>
-		<row><td>hmsbeagle_opencl32.dll</td><td>hmsbeagle_opencl32.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-opencl32.dll</td><td>1</td><td/></row>
-		<row><td>hmsbeagle_opencl64.dll</td><td>hmsbeagle_opencl64.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-opencl64.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_cpu32_21.dll</td><td>hmsbeagle_cpu32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cpu32-21.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_cpu64_21.dll</td><td>hmsbeagle_cpu64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu64-21.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_opencl32_21.dll</td><td>hmsbeagle_opencl32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-opencl32-21.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_opencl64_21.dll</td><td>hmsbeagle_opencl64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-opencl64-21.dll</td><td>1</td><td/></row>
 		<row><td>platform.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>platform.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\platform.h</td><td>1</td><td/></row>
 	</table>
 
@@ -2168,10 +2168,10 @@
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td/><td/><td>_A9E072B8_0777_41EE_8986_5C2A528DA3EA_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle32.dll</td><td/><td/><td>_CD75308F_A51A_4741_A1DE_0781B2C2F67E_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle64.dll</td><td/><td/><td>_7FC0CB3E_7691_464B_913D_50079A521F01_FILTER</td><td/><td/><td/><td/></row>
-		<row><td>hmsbeagle_cpu32.dll</td><td/><td/><td>_3BDBBA49_16E5_4C58_9D7A_F7645398F75B_FILTER</td><td/><td/><td/><td/></row>
-		<row><td>hmsbeagle_cpu64.dll</td><td/><td/><td>_067B2166_2B3C_4D3F_8432_5232DB5FD660_FILTER</td><td/><td/><td/><td/></row>
-		<row><td>hmsbeagle_opencl32.dll</td><td/><td/><td>_BF203915_0890_4EE6_92ED_7EBCC87BD684_FILTER</td><td/><td/><td/><td/></row>
-		<row><td>hmsbeagle_opencl64.dll</td><td/><td/><td>_1E9C588E_E646_48B4_8BD1_EFB80DC1B65A_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_cpu32_21.dll</td><td/><td/><td>_6B1108A8_8E19_45EB_85DA_32E386A005F4_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_cpu64_21.dll</td><td/><td/><td>_C9DCFC3B_BDC5_40D4_8BB3_3ABF12FD0709_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_opencl32_21.dll</td><td/><td/><td>_DBFDC185_F3E9_4757_B035_144BD3AA7905_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_opencl64_21.dll</td><td/><td/><td>_085F124B_53FE_4271_A068_5AA07B2FAE9E_FILTER</td><td/><td/><td/><td/></row>
 	</table>
 
 	<table name="ISCustomActionReference">
@@ -2799,7 +2799,7 @@
 		<col def="I2">Encoded</col>
 		<col def="S0">Comment</col>
 		<col def="I4">TimeStamp</col>
-		<row><td>COMPANY_NAME</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-316564016</td></row>
+		<row><td>COMPANY_NAME</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-182364307</td></row>
 		<row><td>DN_AlwaysInstall</td><td>1033</td><td>Always Install</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDPROP_EXPRESS_LAUNCH_CONDITION_COLOR</td><td>1033</td><td>The color settings of your system are not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDPROP_EXPRESS_LAUNCH_CONDITION_OS</td><td>1033</td><td>The operating system is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
@@ -3898,8 +3898,8 @@
 		<row><td>IDS__TargetReq_DESC_PROCESSOR</td><td>1033</td><td>The processor is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RAM</td><td>1033</td><td>The amount of RAM is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RESOLUTION</td><td>1033</td><td>The screen resolution is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
-		<row><td>ID_STRING1</td><td>1033</td><td>http://beagle-lib.googlecode.com</td><td>0</td><td/><td>-316597358</td></row>
-		<row><td>ID_STRING2</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-316564016</td></row>
+		<row><td>ID_STRING1</td><td>1033</td><td>http://www.BEAGLELikelihoodWorkingGroup.com</td><td>0</td><td/><td>-182364307</td></row>
+		<row><td>ID_STRING2</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-182364307</td></row>
 		<row><td>ID_STRING3</td><td>1033</td><td>*=-Path</td><td>0</td><td/><td>1965116916</td></row>
 		<row><td>ID_STRING4</td><td>1033</td><td>[INSTALLDIR];[~]</td><td>0</td><td/><td>1965114868</td></row>
 		<row><td>IIDS_UITEXT_FeatureUninstalled</td><td>1033</td><td>This feature will remain uninstalled.</td><td>0</td><td/><td>1965122644</td></row>
