@@ -294,48 +294,54 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartialsFixedScaling(
                                               const double* __restrict partials2,
                                               const double* __restrict matrices2,
                                               const double* __restrict scaleFactors) {
-    int stateCountMinusOne = kPartialsPaddedStateCount - 1;
-#pragma omp parallel for num_threads(kCategoryCount)
-    for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
-    	int v = l*kPartialsPaddedStateCount*kPatternCount;
-        for (int k = 0; k < kPatternCount; k++) {
-            int w = l * kMatrixSize;
-            const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
-            for (int i = 0; i < kStateCount; i++) {
 
-            	register V_Real sum1_vec;
-            	register V_Real sum2_vec;
+	fprintf(stderr, "Not yet implemented: BeagleCPUAVXImpl::calcPartialsPartialsFixedScaling\n");
+	exit(-1);
 
-              	int j = 0;
-            	sum1_vec = VEC_SETZERO();
-            	sum2_vec = VEC_SETZERO();
-            	for ( ; j < stateCountMinusOne; j += 2) {
-            		sum1_vec = VEC_MADD(
-								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
-								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
-								 sum1_vec);
-            		sum2_vec = VEC_MADD(
-								 VEC_LOAD(matrices2 + w + j),
-								 VEC_LOAD(partials2 + v + j),
-								 sum2_vec);
-            	}
-                		sum1_vec =
-                		VEC_DIV(VEC_MULT(
-                				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
-                				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
-                		), scalar);
-
-
-                // increment for the extra column at the end
-                w += kStateCount + T_PAD;
-                *destPu = sum1_vec[0];
-                destPu++;
-            }
-            destPu += P_PAD;
-            v += kPartialsPaddedStateCount;
-        }
-    }
+//    int stateCountMinusOne = kPartialsPaddedStateCount - 1;
+//#pragma omp parallel for num_threads(kCategoryCount)
+//    for (int l = 0; l < kCategoryCount; l++) {
+//    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
+//    	int v = l*kPartialsPaddedStateCount*kPatternCount;
+//        for (int k = 0; k < kPatternCount; k++) {
+//            int w = l * kMatrixSize;
+//            const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
+//            for (int i = 0; i < kStateCount; i++) {
+//
+//            	register V_Real sum1_vec;
+//            	register V_Real sum2_vec;
+//
+//              	int j = 0;
+//            	sum1_vec = VEC_SETZERO();
+//            	sum2_vec = VEC_SETZERO();
+//            	for ( ; j < stateCountMinusOne; j += 2) {
+//            		sum1_vec = VEC_MADD(
+//								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
+//								 VEC_LOAD(partials1 + v + j),  // TODO This only works if v is even
+//								 sum1_vec);
+//            		sum2_vec = VEC_MADD(
+//								 VEC_LOAD(matrices2 + w + j),
+//								 VEC_LOAD(partials2 + v + j),
+//								 sum2_vec);
+//            	}
+//                		sum1_vec =
+//                		VEC_DIV(VEC_MULT(
+//                				VEC_ADD(sum1_vec, VEC_SWAP(sum1_vec)),
+//                				VEC_ADD(sum2_vec, VEC_SWAP(sum2_vec))
+//                		), scalar);
+//
+//
+//                // increment for the extra column at the end
+//                w += kStateCount + T_PAD;
+//                *destPu = sum1_vec[0];
+//    TODO: Could try
+//  #define VEC_STORE(dest, source) _mm_store_sd(dest, _mm256_castpd256_pd128(source))
+//                destPu++;
+//            }
+//            destPu += P_PAD;
+//            v += kPartialsPaddedStateCount;
+//        }
+//    }
 }
 
     
