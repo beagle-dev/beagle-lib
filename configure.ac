@@ -232,7 +232,7 @@ fi
 # Setup AVX
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(avx,
-	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled @<:@default=no@:>@]), , [enable_avx=no])
+	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled EXPERIMENTAL @<:@default=no@:>@]), , [enable_avx=no])
 
 AM_CONDITIONAL(HAVE_AVX,false)
 if test  "$enable_avx" = yes; then
@@ -249,7 +249,7 @@ fi
 # Setup Intel Phi
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(phi,
-	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled @<:@default=no@:>@]), , [enable_phi=no])
+	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL @<:@default=no@:>@]), , [enable_phi=no])
 
 if test  "$enable_phi" = yes; then
 	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)	
