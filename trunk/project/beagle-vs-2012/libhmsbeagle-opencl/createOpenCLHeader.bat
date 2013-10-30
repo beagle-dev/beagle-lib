@@ -46,8 +46,8 @@ echo #define __BeagleOpenCL_kernels__ >> %OUTFILE%
 
 FOR %%G IN (4 16 32 48 64 80 128 192) DO (
 
-bin2c.exe -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
-bin2c.exe -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2012\libhmsbeagle-opencl\bin2c.exe -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2012\libhmsbeagle-opencl\bin2c.exe -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
 
 del kernels%%G.cl
 del kernels_dp_%%G.cl
