@@ -109,7 +109,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";_DEBUG;_CONSOLE;FW_OPENCL;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -148,7 +148,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";_DEBUG;_CONSOLE;FW_OPENCL;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -187,7 +187,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";_CONSOLE;FW_OPENCL;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
@@ -235,7 +235,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";_CONSOLE;FW_OPENCL;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
