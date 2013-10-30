@@ -38,11 +38,8 @@ http://beagle-lib.googlecode.com/svn/trunk
 
 *Step 3.* Open the Visual Studio 2012 project located at *`project\beagle-vs-2012\libhmsbeagle.sln`*.
 
-*Step 4.* Set the configuration to *`Release|x64`* or *`Release|Win32`* and build the following projects within the solution:
-{{{
-	libhmsbeagle
-	libhmsbeagle-cpu
-	libhmsbeagle-opencl
-}}}
+*Step 4.* Go to *BUILD* -> *Configuration Manager...* in the top menu bar and set the solution configuration to *Release* and the platform to *x64* or *Win32*, according to the architecture of the application you wish to use with BEAGLE.
 
-*Step 5.* The previus step will create three *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory of the application you want to use with BEAGLE.
+*Step 5.* Build the solution (*BUILD* -> *Build Solution*).
+
+*Step 6.* The previous step will create three *`hmsbeagle*.dll`* files located at *`project\beagle-vs-2012\x64\Release`* or *`project\beagle-vs-2012\Release`*. Copy these *`hmsbeagle*.dll`* files to the directory which contains the executable of the application you wish to use with BEAGLE.
