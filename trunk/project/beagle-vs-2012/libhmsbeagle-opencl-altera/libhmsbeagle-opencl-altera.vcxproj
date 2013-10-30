@@ -50,18 +50,22 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
@@ -105,7 +109,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>$(ALTERAOCLSDKROOT)\host\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -115,7 +119,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>alterahalmmd.lib;alterammdpcie.lib;alteracl.lib;pkg_editor.lib;libelf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)hmsbeagle-opencl-altera32D.dll</OutputFile>
+      <OutputFile>$(OutDir)hmsbeagle-opencl-altera32D-$(BeaglePluginVersion).dll</OutputFile>
       <AdditionalLibraryDirectories>$(ALTERAOCLSDKROOT)\host\windows64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)libhmsbeagle-cuda.pdb</ProgramDatabaseFile>
@@ -144,7 +148,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>$(ALTERAOCLSDKROOT)\host\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -154,7 +158,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>alterahalmmd.lib;alterammdpcie.lib;alteracl.lib;pkg_editor.lib;libelf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)hmsbeagle-opencl-altera64D.dll</OutputFile>
+      <OutputFile>$(OutDir)hmsbeagle-opencl-altera64D-$(BeaglePluginVersion).dll</OutputFile>
       <AdditionalLibraryDirectories>$(ALTERAOCLSDKROOT)\host\windows64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)libhmsbeagle-opencl-altera.pdb</ProgramDatabaseFile>
@@ -183,7 +187,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <AdditionalIncludeDirectories>$(ALTERAOCLSDKROOT)\host\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_CONSOLE;FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_CONSOLE;FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
@@ -191,7 +195,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>alterahalmmd.lib;alterammdpcie.lib;alteracl.lib;pkg_editor.lib;libelf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)hmsbeagle-opencl-altera32.dll</OutputFile>
+      <OutputFile>$(OutDir)hmsbeagle-opencl-altera32-$(BeaglePluginVersion).dll</OutputFile>
       <AdditionalLibraryDirectories>$(ALTERAOCLSDKROOT)\host\windows64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -231,7 +235,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalIncludeDirectories>$(ALTERAOCLSDKROOT)\host\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_CONSOLE;FW_OPENCL_TESTING;FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";FW_OPENCL;FW_OPENCL_BINARY;FW_OPENCL_ALTERA;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
@@ -239,7 +243,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>alterahalmmd.lib;alterammdpcie.lib;alteracl.lib;pkg_editor.lib;libelf.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)hmsbeagle-opencl-altera64.dll</OutputFile>
+      <OutputFile>$(OutDir)hmsbeagle-opencl-altera64-$(BeaglePluginVersion).dll</OutputFile>
       <AdditionalLibraryDirectories>$(ALTERAOCLSDKROOT)\host\windows64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
