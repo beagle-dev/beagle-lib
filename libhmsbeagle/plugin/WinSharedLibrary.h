@@ -54,7 +54,7 @@ WinSharedLibrary::WinSharedLibrary(const char* name)
 #endif
 #endif
     libname += "-";
-    libname += PACKAGE_VERSION;
+    libname += PLUGIN_VERSION;
 
 	UINT emode = SetErrorMode(SEM_FAILCRITICALERRORS);
     m_handle = LoadLibrary(libname.c_str());

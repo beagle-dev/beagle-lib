@@ -41,13 +41,14 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
     std::string libname = "lib";
     libname += name;
 #ifdef DLS_MACOS
-    libname += ".dylib";
-#else
-    libname += ".so";
-#endif
     libname += ".";
-    libname += PACKAGE_VERSION;
-    libname += ".0";
+    libname += PLUGIN_VERSION;
+    libname += ".so";
+#else
+    libname += ".so.";
+    libname += PLUGIN_VERSION;
+    libname += ".0.0";
+#endif
 
     m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_GLOBAL);
     if (m_handle == 0)
