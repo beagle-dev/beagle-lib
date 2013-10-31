@@ -12,7 +12,10 @@ The easiest way to install BEAGLE is to use the binary installer.
 *Step 3. (optional)* If you wish to use BEAGLE with a multicore Intel CPU via OpenCL, please download and install the latest Intel OpenCL CPU runtime from intel.com:
   * [http://software.intel.com/en-us/vcsource/tools/opencl-sdk Intel OpenCL]
 
-*Step 4.* Restart your computer (this is required so Windows finds the new libraries).
+*Step 4. (optional)* If you wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA drivers for your graphics card from nvidia.com:
+  * [http://www.nvidia.com/page/drivers.html NVIDIA Driver Downloads]
+
+*Step 5.* Restart your computer (this is required so Windows finds the new libraries).
 
 After the installations above are complete, you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, PhyML and GARLI. 
 
@@ -28,6 +31,7 @@ The following software prerequisites must be installed prior to building libhmsb
   * Visual Studio 2012
   * Java Development Kit 1.6 or later
   * Intel OpenCL SDK (if you wish to build the OpenCL plugin)
+  * NVIDIA CUDA toolkit (if you wish to build the CUDA plugin)
 
 *Step 1.* Obtain a subversion client (such as [http://tortoisesvn.net TortoiseSVN]) and checkout the source code from the repository: 
 {{{
