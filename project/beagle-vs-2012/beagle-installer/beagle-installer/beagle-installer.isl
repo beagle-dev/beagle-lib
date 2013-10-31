@@ -344,7 +344,6 @@
 		<col def="S0">ISDotNetInstallerArgsUninstall</col>
 		<col def="S0">ISDotNetInstallerArgsRollback</col>
 		<row><td>ISX_DEFAULTCOMPONENT</td><td>{5462FFC2-E3D8-4AE5-8769-065A40F95E24}</td><td>LIBHMSBEAGLE_2.0</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
-		<row><td>ISX_DEFAULTCOMPONENT1</td><td>{FDD94A82-0459-4F71-8660-99F512FB529A}</td><td>LIBHMSBEAGLE</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td>{1EC117A0-635B-4436-A942-C3B56E4F42E5}</td><td>INSTALLDIR</td><td>2</td><td/><td/><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle32.dll</td><td>{9A3CDAC2-5278-4399-968E-B57B2B438D73}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle32.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle64.dll</td><td>{8AE396B8-839E-4E69-8471-F9CCC5D5313D}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle64.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
@@ -352,6 +351,8 @@
 		<row><td>hmsbeagle_cpu64_21.dll</td><td>{066BB1F1-0A5F-41C2-A450-21F218E69750}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_cpu_sse32_21.dll</td><td>{4B61DDC1-3C7C-47CE-BBEB-F2CF0A5B43C6}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu_sse32_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_cpu_sse64_21.dll</td><td>{40F3F64D-0F69-49E4-A3E8-48CAFE7DCCEE}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cpu_sse64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_cuda32_21.dll</td><td>{F6018E22-22CE-495D-912D-D88C18F6AC41}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cuda32_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>hmsbeagle_cuda64_21.dll</td><td>{2BACF85C-F42F-4890-A1ED-9A7D8D8C887C}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_cuda64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_opencl32_21.dll</td><td>{4A4CD10C-C42A-4E28-8F90-827BE66BE3B8}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl32_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 		<row><td>hmsbeagle_opencl64_21.dll</td><td>{C97C14FB-C2DF-4029-A33A-018ED9F39C20}</td><td>INSTALLDIR</td><td>2</td><td/><td>hmsbeagle_opencl64_21.dll</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 	</table>
@@ -1062,6 +1063,7 @@
 	<table name="CreateFolder">
 		<col key="yes" def="s72">Directory_</col>
 		<col key="yes" def="s72">Component_</col>
+		<row><td>INSTALLDIR</td><td>ISX_DEFAULTCOMPONENT2</td></row>
 		<row><td>LIBHMSBEAGLE_2.0</td><td>ISX_DEFAULTCOMPONENT</td></row>
 	</table>
 
@@ -1159,7 +1161,6 @@
 		<row><td>ISMyCompanyDir</td><td>ProgramFilesFolder</td><td>MYCOMP~1|My Company Name</td><td/><td>0</td><td/></row>
 		<row><td>ISMyProductDir</td><td>ISMyCompanyDir</td><td>MYPROD~1|My Product Name</td><td/><td>0</td><td/></row>
 		<row><td>ISYourDataBaseDir</td><td>INSTALLDIR</td><td>Database</td><td/><td>0</td><td/></row>
-		<row><td>LIBHMSBEAGLE</td><td>LIBHMSBEAGLE_2.0</td><td>LIBHMS~1|libhmsbeagle</td><td/><td>0</td><td/></row>
 		<row><td>LIBHMSBEAGLE_2.0</td><td>CommonFilesFolder</td><td>LIBHMS~1|libhmsbeagle</td><td/><td>0</td><td/></row>
 		<row><td>LocalAppDataFolder</td><td>TARGETDIR</td><td>.:LocalA~1|LocalAppData</td><td/><td>0</td><td/></row>
 		<row><td>MY_PRODUCT_NAME</td><td>BEAGLE_LIKELIHOOD_WORKING_GROUP</td><td>MYPROD~1|My Product Name</td><td/><td>0</td><td/></row>
@@ -1875,7 +1876,6 @@
 		<col key="yes" def="s38">Feature_</col>
 		<col key="yes" def="s72">Component_</col>
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT</td></row>
-		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT1</td></row>
 		<row><td>AlwaysInstall</td><td>ISX_DEFAULTCOMPONENT2</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle32.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle64.dll</td></row>
@@ -1883,6 +1883,8 @@
 		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu64_21.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu_sse32_21.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_cpu_sse64_21.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_cuda32_21.dll</td></row>
+		<row><td>AlwaysInstall</td><td>hmsbeagle_cuda64_21.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl32_21.dll</td></row>
 		<row><td>AlwaysInstall</td><td>hmsbeagle_opencl64_21.dll</td></row>
 	</table>
@@ -1899,20 +1901,16 @@
 		<col def="S255">ISBuildSourcePath</col>
 		<col def="I4">ISAttributes</col>
 		<col def="S72">ISComponentSubFolder_</col>
-		<row><td>beagle.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>beagle.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\beagle.h</td><td>1</td><td/></row>
-		<row><td>copying</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYING</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING</td><td>1</td><td/></row>
-		<row><td>copying.lesser</td><td>ISX_DEFAULTCOMPONENT2</td><td>COPYIN~1.LES|COPYING.LESSER</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\COPYING.LESSER</td><td>1</td><td/></row>
 		<row><td>hmsbeagle32.dll</td><td>hmsbeagle32.dll</td><td>HMSBEA~1.DLL|hmsbeagle32.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle32.dll</td><td>1</td><td/></row>
-		<row><td>hmsbeagle32.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle32.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle32.lib</td><td>1</td><td/></row>
 		<row><td>hmsbeagle64.dll</td><td>hmsbeagle64.dll</td><td>HMSBEA~1.DLL|hmsbeagle64.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.dll</td><td>1</td><td/></row>
-		<row><td>hmsbeagle64.lib</td><td>ISX_DEFAULTCOMPONENT2</td><td>HMSBEA~1.LIB|hmsbeagle64.lib</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle64.lib</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu32_21.dll</td><td>hmsbeagle_cpu32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cpu32-21.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu64_21.dll</td><td>hmsbeagle_cpu64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu64-21.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu_sse32_21.dll</td><td>hmsbeagle_cpu_sse32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu-sse32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cpu-sse32-21.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_cpu_sse64_21.dll</td><td>hmsbeagle_cpu_sse64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cpu-sse64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cpu-sse64-21.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_cuda32_21.dll</td><td>hmsbeagle_cuda32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cuda32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-cuda32-21.dll</td><td>1</td><td/></row>
+		<row><td>hmsbeagle_cuda64_21.dll</td><td>hmsbeagle_cuda64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-cuda64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-cuda64-21.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_opencl32_21.dll</td><td>hmsbeagle_opencl32_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl32-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\Release\hmsbeagle-opencl32-21.dll</td><td>1</td><td/></row>
 		<row><td>hmsbeagle_opencl64_21.dll</td><td>hmsbeagle_opencl64_21.dll</td><td>HMSBEA~1.DLL|hmsbeagle-opencl64-21.dll</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\project\beagle-vs-2012\x64\Release\hmsbeagle-opencl64-21.dll</td><td>1</td><td/></row>
-		<row><td>platform.h</td><td>ISX_DEFAULTCOMPONENT1</td><td>platform.h</td><td>0</td><td/><td/><td/><td>1</td><td>C:\developer\beagle-lib\libhmsbeagle\platform.h</td><td>1</td><td/></row>
 	</table>
 
 	<table name="FileSFPCatalog">
@@ -2170,7 +2168,6 @@
 		<col def="S0">HTTPLocation</col>
 		<col def="S0">Miscellaneous</col>
 		<row><td>ISX_DEFAULTCOMPONENT</td><td/><td/><td>_340B2462_2BF4_4EA1_9502_7D72F5690A6E_FILTER</td><td/><td/><td/><td/></row>
-		<row><td>ISX_DEFAULTCOMPONENT1</td><td/><td/><td>_735977A4_4B16_4EA6_9EEB_4C90DB86244D_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>ISX_DEFAULTCOMPONENT2</td><td/><td/><td>_A9E072B8_0777_41EE_8986_5C2A528DA3EA_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle32.dll</td><td/><td/><td>_CD75308F_A51A_4741_A1DE_0781B2C2F67E_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle64.dll</td><td/><td/><td>_7FC0CB3E_7691_464B_913D_50079A521F01_FILTER</td><td/><td/><td/><td/></row>
@@ -2178,6 +2175,8 @@
 		<row><td>hmsbeagle_cpu64_21.dll</td><td/><td/><td>_C9DCFC3B_BDC5_40D4_8BB3_3ABF12FD0709_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_cpu_sse32_21.dll</td><td/><td/><td>_47A8C900_ED29_4ACA_8FD9_425A55A56E64_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_cpu_sse64_21.dll</td><td/><td/><td>_B888D369_E826_4A95_BA36_54C39412C343_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_cuda32_21.dll</td><td/><td/><td>_D12363F7_04FD_4000_B7E6_4797600C097C_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>hmsbeagle_cuda64_21.dll</td><td/><td/><td>_1AC884DC_DBAE_4599_903E_7A6DD0683F57_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_opencl32_21.dll</td><td/><td/><td>_DBFDC185_F3E9_4757_B035_144BD3AA7905_FILTER</td><td/><td/><td/><td/></row>
 		<row><td>hmsbeagle_opencl64_21.dll</td><td/><td/><td>_085F124B_53FE_4271_A068_5AA07B2FAE9E_FILTER</td><td/><td/><td/><td/></row>
 	</table>
@@ -2807,7 +2806,7 @@
 		<col def="I2">Encoded</col>
 		<col def="S0">Comment</col>
 		<col def="I4">TimeStamp</col>
-		<row><td>COMPANY_NAME</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-182364307</td></row>
+		<row><td>COMPANY_NAME</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-48143377</td></row>
 		<row><td>DN_AlwaysInstall</td><td>1033</td><td>Always Install</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDPROP_EXPRESS_LAUNCH_CONDITION_COLOR</td><td>1033</td><td>The color settings of your system are not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDPROP_EXPRESS_LAUNCH_CONDITION_OS</td><td>1033</td><td>The operating system is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
@@ -3770,7 +3769,7 @@
 		<row><td>IDS__IsErrorDlg_Retry</td><td>1033</td><td>&amp;Retry</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__IsErrorDlg_Yes</td><td>1033</td><td>&amp;Yes</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__IsExitDialog_Finish</td><td>1033</td><td>&amp;Finish</td><td>0</td><td/><td>1965122644</td></row>
-		<row><td>IDS__IsExitDialog_InstallSuccess</td><td>1033</td><td>The InstallShield Wizard has successfully installed [ProductName]. Click Finish to exit the wizard.</td><td>0</td><td/><td>1965122644</td></row>
+		<row><td>IDS__IsExitDialog_InstallSuccess</td><td>1033</td><td>The InstallShield Wizard has successfully installed [ProductName]. Click Finish to exit the wizard (please restart your computer before using BEAGLE).</td><td>0</td><td/><td>-48164052</td></row>
 		<row><td>IDS__IsExitDialog_LaunchProgram</td><td>1033</td><td>Launch the program</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__IsExitDialog_ShowReadMe</td><td>1033</td><td>Show the readme file</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__IsExitDialog_UninstallSuccess</td><td>1033</td><td>The InstallShield Wizard has successfully uninstalled [ProductName]. Click Finish to exit the wizard.</td><td>0</td><td/><td>1965122644</td></row>
@@ -3906,8 +3905,8 @@
 		<row><td>IDS__TargetReq_DESC_PROCESSOR</td><td>1033</td><td>The processor is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RAM</td><td>1033</td><td>The amount of RAM is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RESOLUTION</td><td>1033</td><td>The screen resolution is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
-		<row><td>ID_STRING1</td><td>1033</td><td>http://beagle-lib.googlecode.com</td><td>0</td><td/><td>-182386418</td></row>
-		<row><td>ID_STRING2</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-182364307</td></row>
+		<row><td>ID_STRING1</td><td>1033</td><td>http://www.BEAGLELikelihoodWorkingGroup.com</td><td>0</td><td/><td>-48143377</td></row>
+		<row><td>ID_STRING2</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-48143377</td></row>
 		<row><td>ID_STRING3</td><td>1033</td><td>*=-Path</td><td>0</td><td/><td>1965116916</td></row>
 		<row><td>ID_STRING4</td><td>1033</td><td>[INSTALLDIR];[~]</td><td>0</td><td/><td>1965114868</td></row>
 		<row><td>IIDS_UITEXT_FeatureUninstalled</td><td>1033</td><td>This feature will remain uninstalled.</td><td>0</td><td/><td>1965122644</td></row>
@@ -4137,7 +4136,7 @@
 UwBpAG4AZwBsAGUASQBtAGEAZwBlAAEARQB4AHAAcgBlAHMAcwA=
 			</td></row>
 		<row><td>DefaultProductConfiguration</td><td>Express</td></row>
-		<row><td>EnableSwidtag</td><td>1</td></row>
+		<row><td>EnableSwidtag</td><td>0</td></row>
 		<row><td>ISCompilerOption_CompileBeforeBuild</td><td>1</td></row>
 		<row><td>ISCompilerOption_Debug</td><td>0</td></row>
 		<row><td>ISCompilerOption_IncludePath</td><td/></row>

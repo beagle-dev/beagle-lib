@@ -36,8 +36,7 @@ type kernelsX.cu >> kernels_dp_%%G.cl
 
 ) 
 
-
-set OUTFILE="..\..\..\libhmsbeagle\GPU\kernels\BeagleOpenCL_kernels.h"
+set OUTFILE="BeagleOpenCL_kernels.h"
 
 echo // auto-generated header file with OpenCL kernels code > %OUTFILE%
 
@@ -46,8 +45,8 @@ echo #define __BeagleOpenCL_kernels__ >> %OUTFILE%
 
 FOR %%G IN (4 16 32 48 64 80 128 192) DO (
 
-..\..\..\project\beagle-vs-2012\libhmsbeagle-opencl\bin2c.exe -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
-..\..\..\project\beagle-vs-2012\libhmsbeagle-opencl\bin2c.exe -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2012\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2012\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
 
 del kernels%%G.cl
 del kernels_dp_%%G.cl
