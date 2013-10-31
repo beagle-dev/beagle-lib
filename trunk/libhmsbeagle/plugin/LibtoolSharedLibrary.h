@@ -45,9 +45,15 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
     lt_dlinit();
     std::string libname = "lib";
     libname += name;
+#ifdef DLS_MACOS
+    libname += ".";
+    libname += PLUGIN_VERSION;
+    libname += ".so";
+#else
     libname += ".so.";
     libname += PLUGIN_VERSION;
     libname += ".0.0";
+#endif
 
     m_handle = lt_dlopen(libname.c_str());
     if (m_handle == 0)
