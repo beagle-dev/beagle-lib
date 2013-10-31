@@ -3905,7 +3905,7 @@
 		<row><td>IDS__TargetReq_DESC_PROCESSOR</td><td>1033</td><td>The processor is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RAM</td><td>1033</td><td>The amount of RAM is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
 		<row><td>IDS__TargetReq_DESC_RESOLUTION</td><td>1033</td><td>The screen resolution is not adequate for running [ProductName].</td><td>0</td><td/><td>1965122644</td></row>
-		<row><td>ID_STRING1</td><td>1033</td><td>http://www.BEAGLELikelihoodWorkingGroup.com</td><td>0</td><td/><td>-48143377</td></row>
+		<row><td>ID_STRING1</td><td>1033</td><td>http://beagle-lib.googlecode.com</td><td>0</td><td/><td>-48145232</td></row>
 		<row><td>ID_STRING2</td><td>1033</td><td>BEAGLE Likelihood Working Group</td><td>0</td><td/><td>-48143377</td></row>
 		<row><td>ID_STRING3</td><td>1033</td><td>*=-Path</td><td>0</td><td/><td>1965116916</td></row>
 		<row><td>ID_STRING4</td><td>1033</td><td>[INSTALLDIR];[~]</td><td>0</td><td/><td>1965114868</td></row>
