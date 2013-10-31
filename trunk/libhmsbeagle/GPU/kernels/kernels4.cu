@@ -41,7 +41,7 @@
 #define DETERMINE_INDICES_4_CPU()\
     int patIdx = KW_LOCAL_ID_0;\
     int matrix = KW_GROUP_ID_1;\
-    int pattern = KW_GROUP_ID_0 * KW_LOCAL_SIZE_0   + patIdx;\
+    int pattern = KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + patIdx;\
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;\
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\

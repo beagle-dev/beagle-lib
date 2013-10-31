@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="libhmsbeagle">
+      <UniqueIdentifier>{978f8c98-e4af-4e73-9456-54e9207b225f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\GPU">
+      <UniqueIdentifier>{a6317826-feb6-4551-b58a-fc6efc70c033}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\GPU\kernels">
+      <UniqueIdentifier>{f0ce9642-352a-470f-93c3-f06329972cf1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels4.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_4.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_16.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_32.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_48.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_64.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_80.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_128.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels_dp_192.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels16.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels32.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels48.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels64.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels80.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels128.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels192.cu">
+      <Filter>libhmsbeagle\GPU\kernels</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
