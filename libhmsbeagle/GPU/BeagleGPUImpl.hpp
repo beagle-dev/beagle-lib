@@ -312,8 +312,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
 
-    // TODO: Apple and AMD GPU implementation for high state and category counts
-    if ((deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_GPU || 
+    // TODO: AMD GPU implementation for high state and category counts
+    if ((deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU || 
         deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) &&
         ((kPaddedStateCount > 64 && kCategoryCount > 2) || 
           (kPaddedStateCount == 192 && kCategoryCount > 1))) {

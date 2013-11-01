@@ -214,7 +214,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         AppleCPUImpl = true;
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
-               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_GPU) {
+               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU) {
         AMDImpl = true;
     }
 
@@ -384,9 +384,10 @@ void GPUInterface::SetDevice(int deviceNumber,
         strcat(buildDefs, "-D FW_OPENCL_CPU");
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         strcat(buildDefs, "-D FW_OPENCL_CPU -D FW_OPENCL_APPLECPU");
-    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
-               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_GPU) {
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) {
         strcat(buildDefs, "-D FW_OPENCL_AMDGPU");
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU) {
+        strcat(buildDefs, "-D FW_OPENCL_AMDGPU -D FW_OPENCL_APPLEAMDGPU");
     }
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
@@ -938,31 +939,34 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
         deviceId = openClDeviceMap[deviceNumber];
 
     const size_t param_size = 256;
-    char param_value[param_size];
+    char device_string[param_size];
+    char platform_string[param_size];
     cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, param_size, device_string, NULL));
     SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM,
                             sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, param_size, param_value, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, param_size, platform_string, NULL));
 
     long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
 
-    if (!strncmp("Intel", param_value, strlen("Intel"))) {
+    if (!strncmp("Intel", platform_string, strlen("Intel"))) {
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_CPU;
         else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_GPU;
         else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_OTHER)
             deviceCode = BEAGLE_OPENCL_DEVICE_INTEL_MIC;
-    } else if (!strncmp("AMD", param_value, strlen("AMD"))) {
+    } else if (!strncmp("AMD", platform_string, strlen("AMD"))) {
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_AMD_CPU;
         else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_AMD_GPU;
-    } else if (!strncmp("Apple", param_value, strlen("Apple"))) {
+    } else if (!strncmp("Apple", platform_string, strlen("Apple"))) {
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
             deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_CPU;
-        else if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU)
-            deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_GPU;
+        else if (!strncmp("AMD", device_string, strlen("AMD")) && 
+                 (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
+            deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU;
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
