@@ -570,7 +570,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    int length,
                                    int wB,
                                    int totalMatrix) {
-
+#if !(defined(FW_OPENCL_APPLEAMDGPU) && defined(DOUBLE_PRECISION)) // TODO: fix this issue
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
 
     // Block index
@@ -778,6 +778,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
         C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
               PADDED_STATE_COUNT * ty + tx] = Csub;
     }
+#endif
 }
     
 KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,

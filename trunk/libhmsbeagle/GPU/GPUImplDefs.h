@@ -50,14 +50,14 @@
 
 // define platform/device specific implementations
 enum BeagleDeviceImplementationCodes {
-    BEAGLE_OPENCL_DEVICE_GENERIC   = 0,
-    BEAGLE_OPENCL_DEVICE_INTEL_CPU = 1,
-    BEAGLE_OPENCL_DEVICE_INTEL_GPU = 2,
-    BEAGLE_OPENCL_DEVICE_INTEL_MIC = 3,
-    BEAGLE_OPENCL_DEVICE_AMD_CPU   = 4,
-    BEAGLE_OPENCL_DEVICE_AMD_GPU   = 5,
-    BEAGLE_OPENCL_DEVICE_APPLE_CPU = 6,
-    BEAGLE_OPENCL_DEVICE_APPLE_GPU = 7
+    BEAGLE_OPENCL_DEVICE_GENERIC       = 0,
+    BEAGLE_OPENCL_DEVICE_INTEL_CPU     = 1,
+    BEAGLE_OPENCL_DEVICE_INTEL_GPU     = 2,
+    BEAGLE_OPENCL_DEVICE_INTEL_MIC     = 3,
+    BEAGLE_OPENCL_DEVICE_AMD_CPU       = 4,
+    BEAGLE_OPENCL_DEVICE_AMD_GPU       = 5,
+    BEAGLE_OPENCL_DEVICE_APPLE_CPU     = 6,
+    BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU = 7
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
