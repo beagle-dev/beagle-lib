@@ -4,18 +4,16 @@
 ===Installing BEAGLE on Windows===
 The easiest way to install BEAGLE is to use the binary installer.
 
-*Step 1.* If you have BEAGLE v1.0 installed, uninstall it first. You can find the v1.0 uninstaller at: *Control Panel* -> *Programs and Features* -> *libhmsbeagle*.
+*Step 1.* Download and run the v2.1 binary installer:
+  * [http://beagle-lib.googlecode.com/files/BEAGLE-2.1.msi BEAGLE-2.1.msi]
 
-*Step 2.* Download and run the v2.0 binary installer:
-  * [http://beagle-lib.googlecode.com/files/BEAGLE-2.0.msi BEAGLE-2.0.msi]
-
-*Step 3. (optional)* If you wish to use BEAGLE with a multicore Intel CPU via OpenCL, please download and install the latest Intel OpenCL CPU runtime from intel.com:
+*Step 2. (optional)* If you wish to use BEAGLE with a multicore Intel CPU via OpenCL, please download and install the latest Intel OpenCL CPU runtime from intel.com:
   * [http://software.intel.com/en-us/vcsource/tools/opencl-sdk Intel OpenCL]
 
-*Step 4. (optional)* If you wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA drivers for your graphics card from nvidia.com:
+*Step 3. (optional)* If you wish to use BEAGLE with an NVIDIA GPU please download and install the latest NVIDIA drivers for your graphics card from nvidia.com:
   * [http://www.nvidia.com/page/drivers.html NVIDIA Driver Downloads]
 
-*Step 5.* Restart your computer (this is required so Windows finds the new libraries).
+*Step 4.* Restart your computer (this is required so Windows finds the new libraries).
 
 After the installations above are complete, you will be ready to use BEAGLE with compatible applications such as BEAST, MrBayes, PhyML and GARLI. 
 
