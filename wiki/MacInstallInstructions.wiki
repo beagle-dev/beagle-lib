@@ -5,7 +5,7 @@
 The easiest way to install BEAGLE is to use the binary installer.
 
 *Step 1.* Download and run the binary installer:
-  * [http://beagle-lib.googlecode.com/files/BEAGLE-2.0.pkg BEAGLE-2.0.pkg]
+  * [http://beagle-lib.googlecode.com/files/BEAGLE-2.1.pkg BEAGLE-2.1.pkg]
 
 *Step 2. (optional)* If you have OS X v10.6 or later and wish to use BEAGLE with an NVIDIA GPU via CUDA, please download and install the latest NVIDIA CUDA drivers for Mac OS from nvidia.com:
   * [http://www.nvidia.com/object/mac-driver-archive.html NVIDIA CUDA drivers for Mac]
