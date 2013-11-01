@@ -4,7 +4,7 @@
 ===Installing BEAGLE on Windows===
 The easiest way to install BEAGLE is to use the binary installer.
 
-*Step 1.* Download and run the v2.1 binary installer:
+*Step 1.* Download and run the binary installer:
   * [http://beagle-lib.googlecode.com/files/BEAGLE-2.1.msi BEAGLE-2.1.msi]
 
 *Step 2. (optional)* If you wish to use BEAGLE with a multicore Intel CPU via OpenCL, please download and install the latest Intel OpenCL CPU runtime from intel.com:
