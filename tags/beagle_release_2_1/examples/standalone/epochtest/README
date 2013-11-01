@@ -1,0 +1,7 @@
+To start editing as Eclipse project:
+
+(1)./autoconf.sh 
+(2)./configure
+(3) Import to Your workspace as an existing Eclipse project
+
+

@@ -1,0 +1,16 @@
+# Suppression for CUDA
+{
+	<insert a suppression name>
+	Memcheck:Leak
+	...
+	obj:/usr/local/cuda/lib/libcuda.dylib
+	...
+}
+
+{
+	<insert a suppression name>
+	Memcheck:Cond
+	...
+	fun:cuGLUnregisterBufferObject
+	...
+}
