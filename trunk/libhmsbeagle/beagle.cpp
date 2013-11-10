@@ -54,7 +54,8 @@
 2009-2013, BEAGLE Working Group - http://beagle-lib.googlecode.com/\n\
 Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
 
-typedef std::list< std::pair<int,int> > PairedList;
+typedef std::pair<int, int> IntPair;
+typedef std::list<IntPair> PairedList;
 typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> >	RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 
@@ -77,6 +78,11 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
 
 // A specialized comparator that only reorders based on score
 bool compareRsrcImpl(const RsrcImpl &left, const RsrcImpl &right) {
+	return left.first < right.first;
+}
+
+// A specialized comparator that only reorders based on first entry
+bool compareOnFirst(const IntPair &left, const IntPair &right) {
 	return left.first < right.first;
 }
 
@@ -352,8 +358,9 @@ int beagleCreateInstance(int tipCount,
         }
         
         beagle::BeagleImpl* bestBeagle = NULL;
-        possibleResources->sort(); // Attempt in rank order, lowest score wins
-        
+
+        possibleResources->sort(compareOnFirst); // Attempt in rank order, lowest score wins
+
         int errorCode = BEAGLE_ERROR_NO_RESOURCE;
         
         // Score each resource-implementation pair given preferences
@@ -410,7 +417,7 @@ int beagleCreateInstance(int tipCount,
         for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
 				it != possibleResourceImplementations->end(); ++it) {
         	beagle::BeagleImplFactory* factory = (*it).second.second;
-        	fprintf(stderr,"\t %s (%d)\n", factory->getName(), (*it).first);
+        	fprintf(stderr,"\t %s (%d)  (%d)\n", factory->getName(), (*it).first, (*it).second.first);
         }
 #endif
         
