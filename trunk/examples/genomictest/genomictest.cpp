@@ -10,9 +10,11 @@
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
+#include <vector>
+#include <algorithm>
+#include <sstream>
 
 #ifdef _WIN32
-	#include <vector>
 	#include <winsock.h>
 	#include <string>
 #else
@@ -711,7 +713,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* autoScaling,
                                     bool* dynamicScaling,
                                     int* rateCategoryCount,
-                                    int* rsrc,
+                                    std::vector<int>* rsrc,
                                     int* nreps,
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
@@ -755,7 +757,13 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *rateCategoryCount = (unsigned)atoi(option.c_str());
             expecting_rateCategoryCount = false;
         } else if (expecting_rsrc) {
-            *rsrc = (unsigned)atoi(option.c_str());
+            std::stringstream ss(option);
+            int j;
+            while (ss >> j) {
+                rsrc->push_back(j);
+                if (ss.peek() == ',')
+                    ss.ignore();
+            }
             expecting_rsrc = false;            
         } else if (expecting_nreps) {
             *nreps = (unsigned)atoi(option.c_str());
@@ -919,7 +927,9 @@ int main( int argc, const char* argv[] )
     bool setmatrix = false;
     bool opencl = false;
 
-    int rsrc = -1;
+    std::vector<int> rsrc;
+    rsrc.push_back(-1);
+
     int nreps = 5;
     bool fullTiming = false;
     
@@ -939,35 +949,11 @@ int main( int argc, const char* argv[] )
     std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
     std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ")\n\n";
 
-    if (rsrc != -1) {
-        runBeagle(rsrc,
-                  stateCount,
-                  ntaxa,
-                  nsites,
-                  manualScaling,
-                  autoScaling,
-                  dynamicScaling,
-                  rateCategoryCount,
-                  nreps,
-                  fullTiming,
-                  requireDoublePrecision,
-                  requireSSE,
-                  requireAVX,
-                  compactTipCount,
-                  randomSeed,
-                  rescaleFrequency,
-                  unrooted,
-                  calcderivs,
-                  logscalers,
-                  eigenCount,
-                  eigencomplex,
-                  ievectrans,
-                  setmatrix,
-                  opencl);
-    } else {
-        BeagleResourceList* rl = beagleGetResourceList();
-        if(rl != NULL){
-            for(int i=0; i<rl->length; i++){
+
+    BeagleResourceList* rl = beagleGetResourceList();
+    if(rl != NULL){
+        for(int i=0; i<rl->length; i++){
+            if (rsrc.size() == 1 || std::find(rsrc.begin(), rsrc.end(), i)!=rsrc.end()) {
                 runBeagle(i,
                           stateCount,
                           ntaxa,
@@ -993,33 +979,10 @@ int main( int argc, const char* argv[] )
                           setmatrix,
                           opencl);
             }
-        }else{
-            runBeagle(0,
-                      stateCount,
-                      ntaxa,
-                      nsites,
-                      manualScaling,
-                      autoScaling,
-                      dynamicScaling,
-                      rateCategoryCount,
-                      nreps,
-                      fullTiming,
-                      requireDoublePrecision,
-                      requireSSE,
-                      requireAVX,
-                      compactTipCount,
-                      randomSeed,
-                      rescaleFrequency,
-                      unrooted,
-                      calcderivs,
-                      logscalers,
-                      eigenCount,
-                      eigencomplex,
-                      ievectrans,
-                      setmatrix,
-                      opencl);
         }
-	}
+    } else {
+        abort("no BEAGLE resources found");
+    }
 
 //#ifdef _WIN32
 //    std::cout << "\nPress ENTER to exit...\n";
