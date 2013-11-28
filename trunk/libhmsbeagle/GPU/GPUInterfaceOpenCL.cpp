@@ -139,6 +139,8 @@ int GPUInterface::Initialize() {
         printf("Device %d:\n", i);
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_NAME, param_size, param_value, NULL));
         printf("\tDevice name: %s\n", param_value);
+        SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_VERSION, param_size, param_value, NULL));
+        printf("\tDevice version: %s\n", param_value);
         SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_VENDOR, param_size, param_value, NULL));
         printf("\tDevice vendor: %s\n", param_value);
 
