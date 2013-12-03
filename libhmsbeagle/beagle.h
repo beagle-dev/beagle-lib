@@ -150,9 +150,9 @@ enum BeagleFlags {
     BEAGLE_FLAG_EIGEN_COMPLEX       = 1 << 5,    /**< Complex eigenvalue computation */
     
     BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< Manual scaling */
-    BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< Auto-scaling on */
-    BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< Scale at every updatePartials */
-    BEAGLE_FLAG_SCALING_DYNAMIC     = 1 << 25,   /**< Manual scaling with dynamic checking  */
+    BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< Auto-scaling on (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< Scale at every updatePartials (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_DYNAMIC     = 1 << 25,   /**< Manual scaling with dynamic checking (deprecated, may not work correctly) */
     
     BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< Save raw scalers */
     BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< Save log scalers */
@@ -175,8 +175,8 @@ enum BeagleFlags {
     BEAGLE_FLAG_PROCESSOR_OTHER     = 1 << 26,   /**< Use other type of processor */
     
     BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,    /**< Use OpenCL implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27   /**< Use CPU implementation */
+    BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,   /**< Use OpenCL implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27    /**< Use CPU implementation */
 };
 
 /**
