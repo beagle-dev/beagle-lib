@@ -131,6 +131,7 @@ int GPUInterface::Initialize() {
     }
     delete[] platforms;
 
+
 #ifdef BEAGLE_DEBUG_VALUES
     printf("OpenCL devices: %lu\n", openClDeviceMap.size());
     for (int i=0; i<openClDeviceMap.size(); i++) {
@@ -846,7 +847,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     char param_value[param_size];
     cl_platform_id platform;
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VERSION, param_size, param_value, NULL));
+    SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_VERSION, param_size, param_value, NULL));
 
     strcat(deviceName, " (");
     strcat(deviceName, param_value);
