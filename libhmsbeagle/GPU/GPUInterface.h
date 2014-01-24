@@ -68,11 +68,17 @@
 #endif
 #endif
 
+
+#define CUDA_ASYNC
+
 class GPUInterface {
 private:
 #ifdef CUDA
     CUdevice cudaDevice;
     CUcontext cudaContext;
+#ifdef CUDA_ASYNC
+ 	CUstream cudaStream;   
+#endif
     CUmodule cudaModule;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
@@ -169,6 +175,8 @@ public:
 #endif
 
     bool GetSupportsDoublePrecision(int deviceNumber);
+
+    bool GetSupportsAsyncKernels(int deviceNumber);
 
     template<typename Real>
     void PrintfDeviceVector(GPUPtr dPtr, int length, Real r) {
