@@ -55,6 +55,7 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories
+	
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
     	using namespace cuda;

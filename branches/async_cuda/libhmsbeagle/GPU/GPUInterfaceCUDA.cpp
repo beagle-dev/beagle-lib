@@ -119,6 +119,9 @@ GPUInterface::GPUInterface() {
     
     cudaDevice = (CUdevice) 0;
     cudaContext = NULL;
+#ifdef CUDA_ASYNC
+	cudaStream = NULL;
+#endif
     cudaModule = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
@@ -132,6 +135,12 @@ GPUInterface::~GPUInterface() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
 #endif    
+
+#ifdef CUDA_ASYNC
+	if (cudaStream != NULL) {
+		SAFE_CUDA(cuStreamDestroy(cudaStream));
+	}
+#endif
     
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
@@ -247,6 +256,17 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
         SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     }
     
+#ifdef CUDA_ASYNC
+    fprintf(stderr, "Creating CUDA stream: ");
+    if (GetSupportsAsyncKernels(deviceNumber)) {
+    	SAFE_CUDA(cuStreamCreate(&cudaStream, 0));
+    	fprintf(stderr, "YES");
+    } else {
+    	fprintf(stderr, "Not support");
+    }
+    fprintf(stderr,"\n");
+#endif
+    
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
     if (!kernelResource) {
@@ -275,6 +295,7 @@ void GPUInterface::Synchronize() {
 #endif                
     
     SAFE_CUPP(cuCtxSynchronize());
+//    cuStreamSynchronize(cudaStream); // TODO Which is better to use?
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Synchronize\n");
@@ -341,9 +362,12 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     va_end(parameters);
     
     SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
-    
+#ifdef CUDA_ASYNC
+ 	SAFE_CUDA(cuLaunchGridAsync(deviceFunction, grid.x, grid.y, cudaStream));
+#else    
     SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
-    
+#endif
+
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -665,6 +689,15 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
 	int minor = 0;
 	SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
 	return (major >= 2 || (major >= 1 && minor >= 3));
+}
+
+bool GPUInterface::GetSupportsAsyncKernels(int deviceNumber) {
+	CUdevice tmpCudaDevice;
+	SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
+
+	int support = 0;
+	SAFE_CUDA(cuDeviceGetAttribute(&support,CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS, tmpCudaDevice));
+	return (support == 1);
 }
 
 void GPUInterface::GetDeviceDescription(int deviceNumber,

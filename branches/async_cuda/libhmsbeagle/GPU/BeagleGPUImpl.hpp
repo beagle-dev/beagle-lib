@@ -612,6 +612,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 }
 
 #ifdef CUDA
+#ifdef CUDA_ASYNC
+template<>
+char* BeagleGPUImpl<double>::getInstanceName() {
+	return (char*) "CUDA-Double-Async";
+}
+
+template<>
+char* BeagleGPUImpl<float>::getInstanceName() {
+	return (char*) "CUDA-Single-Async";
+}
+#else
 template<>
 char* BeagleGPUImpl<double>::getInstanceName() {
 	return (char*) "CUDA-Double";
@@ -621,6 +632,7 @@ template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
 	return (char*) "CUDA-Single";
 }
+#endif // CUDA_ASYNC
 #elif defined(FW_OPENCL)
 template<>
 char* BeagleGPUImpl<double>::getInstanceName() {
@@ -2138,6 +2150,17 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
 }
 
 #ifdef CUDA
+#ifdef CUDA_ASYNC
+template<>
+const char* BeagleGPUImplFactory<double>::getName() {
+    return "GPU-DP-CUDA-SYNC";
+}
+
+template<>
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "GPU-SP-CUDA-SYNC";
+}
+#else
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
     return "GPU-DP-CUDA";
@@ -2147,6 +2170,7 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "GPU-SP-CUDA";
 }
+#endif
 #elif defined(FW_OPENCL)
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
