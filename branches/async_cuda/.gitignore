@@ -1,0 +1,175 @@
+
+# /
+/beagle-lib-1.0.pc
+/configure
+/Makefile.in
+/config.log
+/INSTALL
+/COPYING
+/Makefile
+/.config
+/config.status
+/libtool
+/autom4te.cache
+/aclocal.m4
+/hmsbeagle-1.0.pc
+/doc
+/.idea
+/Beagle-lib.iml
+/hmsbeagle-1.pc
+
+# /examples/
+/examples/Makefile.in
+/examples/Makefile
+/examples/extensivetest
+
+# /examples/complextest/
+/examples/complextest/Makefile.in
+/examples/complextest/Makefile
+/examples/complextest/complextest
+/examples/complextest/.deps
+
+# /examples/fourtaxon/
+/examples/fourtaxon/check_lnL_using_paup.nex
+/examples/fourtaxon/fourtaxon.o
+/examples/fourtaxon/fourtaxon
+/examples/fourtaxon/Makefile.in
+/examples/fourtaxon/.deps
+/examples/fourtaxon/Makefile
+/examples/fourtaxon/fourtaxonrun.sh
+
+# /examples/genomictest/
+/examples/genomictest/Makefile.in
+/examples/genomictest/.deps
+/examples/genomictest/Makefile
+/examples/genomictest/genomictest
+/examples/genomictest/genomictest.sh
+
+# /examples/matrixtest/
+/examples/matrixtest/Makefile.in
+/examples/matrixtest/matrixtest
+/examples/matrixtest/.deps
+/examples/matrixtest/Makefile
+
+# /examples/oddstatetest/
+/examples/oddstatetest/Makefile.in
+/examples/oddstatetest/.deps
+/examples/oddstatetest/Makefile
+/examples/oddstatetest/oddstatetest
+
+# /examples/tinytest/
+/examples/tinytest/Makefile.in
+/examples/tinytest/.deps
+/examples/tinytest/Makefile
+/examples/tinytest/tinytest
+
+# /libhmsbeagle/
+/libhmsbeagle/config.h.in
+/libhmsbeagle/Makefile.in
+/libhmsbeagle/.deps
+/libhmsbeagle/stamp-h1
+/libhmsbeagle/config.h
+/libhmsbeagle/Makefile
+
+# /libhmsbeagle/CPU/
+/libhmsbeagle/CPU/Makefile.in
+/libhmsbeagle/CPU/.deps
+/libhmsbeagle/CPU/Makefile
+
+# /libhmsbeagle/GPU/
+/libhmsbeagle/GPU/Makefile.in
+/libhmsbeagle/GPU/PeelingFunctions.linkinfo
+/libhmsbeagle/GPU/.deps
+/libhmsbeagle/GPU/TransitionFunctions.linkinfo
+/libhmsbeagle/GPU/Makefile
+/libhmsbeagle/GPU/BeagleCUDA_kernels.h
+/libhmsbeagle/GPU/BeagleCUDA_kernels.ptx
+
+# /libhmsbeagle/GPU/kernels/
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_64.ptx
+/libhmsbeagle/GPU/kernels/Makefile.in
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_48.ptx
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.ptx
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_4.ptx
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_32.ptx
+/libhmsbeagle/GPU/kernels/Makefile
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h
+/libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.ptx
+
+# /libhmsbeagle/JNI/
+/libhmsbeagle/JNI/Makefile.in
+/libhmsbeagle/JNI/.deps
+/libhmsbeagle/JNI/Makefile
+
+# /libhmsbeagle/plugin/
+/libhmsbeagle/plugin/Makefile.in
+/libhmsbeagle/plugin/.deps
+/libhmsbeagle/plugin/Makefile
+
+# /m4/
+/m4/libtool.m4
+/m4/lt~obsolete.m4
+/m4/ltsugar.m4
+/m4/ltversion.m4
+/m4/ltoptions.m4
+
+# /project/beagle-xcode/
+/project/beagle-xcode/build
+
+# /project/beagle-xcode/beagle-xcode.xcodeproj/
+/project/beagle-xcode/beagle-xcode.xcodeproj/*.pbxuser
+/project/beagle-xcode/beagle-xcode.xcodeproj/*.perspectivev3
+/project/beagle-xcode/beagle-xcode.xcodeproj/xcuserdata
+/project/beagle-xcode/beagle-xcode.xcodeproj/project.xcworkspace
+
+# other
+.DS_Store
+installed/
+libhmsbeagle/.libs/
+libhmsbeagle/CPU/.libs/
+libhmsbeagle/CPU/libhmsbeagle-cpu-sse.la
+libhmsbeagle/CPU/libhmsbeagle-cpu.la
+libhmsbeagle/CPU/libhmsbeagle_cpu_la-BeagleCPUPlugin.lo
+libhmsbeagle/CPU/libhmsbeagle_cpu_sse_la-BeagleCPUSSEPlugin.lo
+libhmsbeagle/GPU/.libs/
+libhmsbeagle/GPU/libhmsbeagle-cuda.la
+libhmsbeagle/GPU/libhmsbeagle_cuda_la-CUDAPlugin.lo
+libhmsbeagle/GPU/libhmsbeagle_cuda_la-GPUImplHelper.lo
+libhmsbeagle/GPU/libhmsbeagle_cuda_la-GPUInterfaceCUDA.lo
+libhmsbeagle/GPU/libhmsbeagle_cuda_la-KernelLauncher.lo
+libhmsbeagle/GPU/libhmsbeagle_cuda_la-KernelResource.lo
+libhmsbeagle/libhmsbeagle-jni.la
+libhmsbeagle/libhmsbeagle.la
+libhmsbeagle/libhmsbeagle_jni_la-beagle_BeagleJNIWrapper.lo
+libhmsbeagle/libhmsbeagle_la-beagle.lo
+libhmsbeagle/plugin/.libs/
+libhmsbeagle/plugin/libplugin.la
+libhmsbeagle/plugin/libplugin_la-Plugin.lo
+libhmsbeagle/plugin/libplugin_la-UnixSharedLibrary.lo
+project/.DS_Store
+project/beagle-xcode/.DS_Store
+project/beagle-xcode/BEAGLEv1.0.pkg
+examples/complextest/.libs/
+examples/complextest/complextest.o
+examples/fourtaxon/.libs/
+examples/genomictest/.libs/
+examples/genomictest/genomictest.o
+examples/genomictest/linalg.o
+examples/matrixtest/.libs/
+examples/matrixtest/matrixtest.o
+examples/oddstatetest/.libs/
+examples/oddstatetest/oddstatetest.o
+examples/tinytest/.libs/
+examples/tinytest/tinytest.o
+libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h
+libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h
+libhmsbeagle/GPU/libhmsbeagle-opencl.la
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUImplHelper.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUInterfaceOpenCL.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelLauncher.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelResource.lo
+libhmsbeagle/GPU/libhmsbeagle_opencl_la-OpenCLPlugin.lo
+libhmsbeagle/config.h.in~
+project/beagle-xcode/BEAGLE-1.0.pkg
+
