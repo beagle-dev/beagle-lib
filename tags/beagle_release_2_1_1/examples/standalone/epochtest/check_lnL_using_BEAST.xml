@@ -1,0 +1,143 @@
+<?xml version="1.0" standalone="yes"?>
+<!-- Tests the tree likelihood -->
+
+<beast>
+
+	<!-- The list of taxa analyse (can also include dates/ages).                 -->
+	<!-- ntax=3                                                                  -->
+	<taxa id="taxa1">
+		<taxon id="SimSeq1">
+		<date value="1994" direction="forwards" units="years"/>
+		</taxon>
+		
+		<taxon id="SimSeq2">
+		<date value="1964" direction="forwards" units="years"/>
+		</taxon>
+		
+		<taxon id="SimSeq3">
+		<date value="1984" direction="forwards" units="years"/>
+		</taxon>
+	</taxa>
+
+	<!-- The sequence alignment (each sequence refers to a taxon above).         -->
+	<!-- ntax=3 nchar=1000                                                        -->
+	<alignment id="alignment" dataType="nucleotide">
+	
+		<sequence>
+			<taxon idref="SimSeq1"/>
+			TCAAGTGAGGTACACACGATTCATAAGATACCGAGAGGGACGTGGGATCATGTCCGTTGGAGGCATGCTCAACTGGCGTAAGTGGTAAACTGGATGTCTCTAGTAGTGGGCAAGCGTCGTGAGGCGCAAAAGTACTTGTGGTAAGGACCAGAGATGCACAGGCTATCTTCTTTAATCTAATGCGATACTCGTTGAAGTCTATCTTTGAGATAGCTAAGATCACATAGGGACTTTGATAGCCAACAGTGTGCATGGCACTGTAATAATTTTTTGGCAGACCACACTTGGGTGGGGAGAGTAGAGAAAGTGAATCGATGAGCAGGTTCCGCGGCTGGGGGGGTTAGGGATATCACAAGATTGTCTCTTAAACACGGGGTTTAGGGTTACTTACAAGAAGATGAATGCCGGAGCAGGGGGTCATCTTAAGGAATCGGGGAATTTGTCCTCGGGCAAGAATTGACACCTGCCTCATTATTATTCATGAGACTACAAAAAGGGGATAGTTGAATTACATTAGCGCGCGGTCGAACTCCGACTGAAAATAATAAGCGTAAATGGAACCCAGCCACAGTGACTGGTAAGCAAATGTTTAGTTTAAACAACCAGGGTAATGGTGCATTTCAGAAACTGGGGACAAGTCGATTACGGCGGTTGATTACCGGGTCCTGTTAGGTGTAGGGAGCCCATCTACTGGCACATTTTTTTGTGCGTATCGACGGGGACCCAGTGAAAAGGAGTAACTGATAAAGTACAGTGAATGAATAATGTAAAAGCGGGACGAGTAAAAGCATACATAGTGCGTGAAAGGTGTCAGTTTACCTACCTGGGACAATCTCTGTACGTGAGTAAGTTTGGATCCAGCGGAAAACCACAGGTGAGAGGGCTTCTGAAACGCATGCCCGATTAGATAACTGATAATGTAAACCAGGACGCTTCAGCTGTGAATGCCTGTATAAAATCCCTGGGTTTTCAGGAATGGAAATAACGCTGACCAGCTATT
+		</sequence>
+		
+		<sequence>
+			<taxon idref="SimSeq2"/>
+			ATAAAAAAGGGGTGCAAAAGAACACGTGCAATTAAAATAAGGCCGGTCGATGTATAAGGTTACATCGCCAGTGAGTTATCTGGATCAATCTTGTTTCTTCTTAGAAAACGAAACATCTAAAGAGTTCATTGAGGAGTATGGCGGAGTTTATGGGATGGTTCTCGATCTTCTGCAGACACGAGAAGCAGCAGCAAAACTATATGATCAAGCGAATGAAGATAAAATTGGGGATTGATCAATGGGGGCTGCATACGGACTTGCACCATAGTAAGCAGCTAACGTGTCATAATAATGGTGATTAGAAGAGTAGGTTAGTGAGAATTAATAATCGGCGGAAATTGGGATTATACCTTATGCTGGCGCCGATAAGAGGTAATGAGTGACACAAATAAAGGGTAAATATAATCGGACGGAGCGTAATTCGGAGAGACTAATGGACGGGATGTAAAGTTCACACTAGGACTGTAACTGTTGGAACGTAAGAAAAAATCGAGAAGGAGCAAATGGGGTATAGGATGTACCGCAAGGTCTTACATTAAAAAGACGAAGTGGATGGCGGGTCTGAGTGAACAGGTTGTTCATTTGGGACGATGACCAGGTTATGGAACCAATAAGAAGTTATAGTAGAACAGGATAAATCCACAGAATTTCATCATGAGAGAGTTAAAATGACTATGGCGGCCCTATCTGTGGCAGAGAAACCATTAACTCGCCAGTGAATTCTCCTTGCGAGGCTGGGAGCATCAGCGTGAGACGAACAAAGATTGCATCGGTTAGATAAAACCAGTAATGCGTATCAGACCAAGTGTGTCAAAGAGTTTATTCAGAGGGCGGGACACATGGATCTAAGATCAGCTCGACCGGCGGATTCCAGTTAGTGGAGATATGCGGGGCTCTTATTGAATGGGTCCATCAGTGGTTATGGAGAAATTCGATTAACAGTAATCTTCAGGCGAGATGTGTGATCCTTTCAAACGGACAGAAGCGCGAGGTAAAATCC
+		</sequence>
+		
+		<sequence>
+			<taxon idref="SimSeq3"/>
+			ACAGGGTGCGAACCCGAGAGAATTGATAAAATCCAAATGGGTATGGTGGGTATGAACAAATGAATCATAAATAAATCGTCTGCATCGAGTTTATCCCTCGTTTGATGGCGCGGAGTTCAACAACTTATTGATCAGAAAAGGGAGAATTTGTGAGACCGCAGTTCTCTTCCTACCAGAGCAGAATGCATTGACCAAGCTCCATACGCACACAAACCCCTTTGTGATCGGGAATTGATCACAAAACGTCATACAGGAAGTAGCCTCGTCATCGGCAATCAATAGAAAAAGACCACAAGGAACGGAAGGGAAGTTCAAGGAAGAATAAGAGTAGTAAGGAACGATGTGTATATTGGTAAATTACGGCAACCAGAAGCGATGAGCCGTGCGTTCATAAGACAGACGCTATGGAACGGGGCATGACCTGGAGAGACTAATGATTAGTATATAGAATCCGACCAAGCGTGGTGGCCATTCTAATATGAGGAGACGTTGAGAAAAATGAGCCAGGAAGGGTAGCATGCCAGAAAACTCTATGCAGGAAGTAATTTAGACATATCCCTTCTGGTGCAGTAATTTGCTTATCCAAGACATTGATTCGACTCTGGGGGTCACATGGTGGTCTCATGGAATGACGAGGACTCACCGGACTATACTTGAACATAGGTGAGACAATCATGACGAATTCGCCCAAGGCGGTGCTGTTATTAGTATTGGACCGGTATCGCTGCACAAATTCAAGTAGATCGTTTGGGGGAGGATTAGGGTCACCCGGAATGAGCAATTGCGTGAATAAGAAACCCACTGAACTCGGAAGATTGATAGTTTAGTGGGTCGGATCTGTACGCTCTGGCAGAGCTCAGTTAGGAGACTTCAAAAGGAAGAATCCTACGCTTCGCCTGCGAGGTTAGGCAGATATGGGGAATGAGATGTTTCAGGTGATAATAGCTTGATGACACAAAATTAAGTCATCCCAAATCAGCAGGCAAACAGAGCAGAGCAC 
+		</sequence>
+		
+	</alignment>
+
+	<!-- The unique patterns for all positions                                   -->
+	<patterns id="patterns" from="1">
+		<alignment idref="alignment"/>
+	</patterns>
+
+<newick id="treeML" units="years">
+(SimSeq1:73.7468,(SimSeq2:25.256989999999995,SimSeq3:45.256989999999995):18.48981);
+</newick>
+
+<!--	<tree id="treeML" units="years">-->
+<!--		<node height="73.7468">-->
+<!--	<node height="0.000000">-->
+<!--				<taxon idref="SimSeq1"/>-->
+<!--			</node>-->
+<!--			<node height="55.257">-->
+<!--				<node height="30.0">-->
+<!--					<taxon idref="SimSeq2"/>-->
+<!--				</node>-->
+<!--				<node height="10.0">-->
+<!--					<taxon idref="SimSeq3"/>-->
+<!--				</node>-->
+<!--			</node>-->
+<!--		</node>-->
+<!--	</tree>-->
+
+	<treeModel id="treeModel">
+		<tree idref="treeML"/>
+		<rootHeight>
+			<parameter id="treeModel.rootHeight"/>
+		</rootHeight>
+		<nodeHeights internalNodes="true">
+			<parameter id="treeModel.internalNodeHeights"/>
+		</nodeHeights>
+		<nodeHeights internalNodes="true" rootNode="true">
+			<parameter id="treeModel.allInternalNodeHeights"/>
+		</nodeHeights>
+	</treeModel>
+
+    <report>
+        Newick Tree: <tree idref="treeML"/>
+    </report>
+
+	  <frequencyModel id="freqModel" dataType="nucleotide">
+<!--                 <alignment idref="alignment"/>-->
+                 <frequencies>
+                      <parameter dimension="4" value="0.25 0.25 0.25 0.25"/>
+                 </frequencies>
+     </frequencyModel>
+
+<gtrModel id="gtr">
+<frequencies>
+   <frequencyModel idref="freqModel"/>
+</frequencies>
+<rateAC>
+<parameter id="ac" value="1.0" lower="0.0" upper="Infinity"/>
+</rateAC>
+<rateAG>
+<parameter id="ag" value="1.0" lower="0.0" upper="Infinity"/>
+</rateAG>
+<rateAT>
+<parameter id="at" value="1.0" lower="0.0" upper="Infinity"/>
+</rateAT>
+<rateCG>
+<parameter id="cg" value="1.0" lower="0.0" upper="Infinity"/>
+</rateCG>
+<rateGT>
+<parameter id="gt" value="1.0" lower="0.0" upper="Infinity"/>
+</rateGT>
+</gtrModel>
+
+     <hkyModel id="hky.1">
+         <frequencies>
+             <frequencyModel idref="freqModel"/>
+         </frequencies>
+         <kappa>
+             <parameter id="hky.kappa.1" value="1.0" lower="0.0" upper="100.0"/>
+         </kappa>
+     </hkyModel>
+
+	<siteModel id="siteModel">
+		<substitutionModel>
+			<hkyModel idref="hky.1"/>
+<!--              <gtrModel idref="gtr"/>-->
+		</substitutionModel>
+                <gammaShape gammaCategories="1">
+			<parameter id="siteModel.alpha" value="0.5" lower="0.0" upper="1000.0"/>
+		</gammaShape>
+	</siteModel>
+
+	<treeLikelihood id="treeLikelihood">
+		<patterns idref="patterns"/>
+		<treeModel idref="treeModel"/>
+		<siteModel idref="siteModel"/>
+	</treeLikelihood>
+
+	<report>
+		ln L = <likelihood idref="treeLikelihood"/>
+	</report>
+
+</beast>
+

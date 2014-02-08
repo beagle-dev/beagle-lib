@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="libhmsbeagle">
+      <UniqueIdentifier>{62694a42-9f86-4f3e-8550-5e77420a08b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\JNI">
+      <UniqueIdentifier>{d78ce690-4071-4dfd-a21b-2623d9c63591}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libhmsbeagle\plugin">
+      <UniqueIdentifier>{33a18028-f838-4228-8cd1-21300f1c45e2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\libhmsbeagle\beagle.cpp">
+      <Filter>libhmsbeagle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.cpp">
+      <Filter>libhmsbeagle\JNI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\plugin\Plugin.cpp">
+      <Filter>libhmsbeagle\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.cpp">
+      <Filter>libhmsbeagle\plugin</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\libhmsbeagle\beagle.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\BeagleImpl.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\platform.h">
+      <Filter>libhmsbeagle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.h">
+      <Filter>libhmsbeagle\JNI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\plugin\Plugin.h">
+      <Filter>libhmsbeagle\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\plugin\SharedLibrary.h">
+      <Filter>libhmsbeagle\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.h">
+      <Filter>libhmsbeagle\plugin</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
