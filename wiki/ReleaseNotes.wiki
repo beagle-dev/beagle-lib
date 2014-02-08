@@ -1,6 +1,6 @@
-#summary BEAGLE Release Notes.
+#summary BEAGLE release notes.
 
-== BEAGLE Release Notes ==
+== BEAGLE release notes ==
 
 === version 2.1.1 ===
   * Fixed OS X binary release compatibility with system versions 10.6, 10.7, and 10.8.
