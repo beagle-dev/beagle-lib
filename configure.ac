@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 2.1, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 2.1.1, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=" -O3"}
 
@@ -13,6 +13,7 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 #release versioning
 GENERIC_MAJOR_VERSION=2
 GENERIC_MINOR_VERSION=1
+GENERIC_MICRO_VERSION=1
 
 #API version
 GENERIC_API_VERSION=1
@@ -42,7 +43,7 @@ AC_SUBST(GENERIC_LIBRARY_VERSION)
 PACKAGE=$GENERIC_LIBRARY_NAME
 AC_SUBST(GENERIC_LIBRARY_NAME)
 
-GENERIC_VERSION=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION
+GENERIC_VERSION=$GENERIC_MAJOR_VERSION.$GENERIC_MINOR_VERSION.$GENERIC_MICRO_VERSION
 AC_SUBST(GENERIC_VERSION)
 
 VERSION=$GENERIC_VERSION
@@ -298,10 +299,10 @@ case $host_os in
 	  CXX="clang++" 
   fi
   
-  AC_ARG_ENABLE(osx_leopard,
-      AC_HELP_STRING([--enable-osx-leopard],[build with OS X v10.5 Leopard backwards compatibility  @<:@default=no@:>@]), , [enable-osx-leopard=yes])
-  if test  "$enable_osx_leopard" = yes; then
-      AM_CXXFLAGS="$AM_CXXFLAGS -isysroot /Developer/SDKs/MacOSX10.5.sdk -mmacosx-version-min=10.5"
+  AC_ARG_ENABLE(osx_snowleopard,
+      AC_HELP_STRING([--enable-osx-snowleopard],[build with OS X v10.6 Snow Leopard backwards compatibility  @<:@default=no@:>@]), , [enable-osx-snowleopard=yes])
+  if test  "$enable_osx_snowleopard" = yes; then
+      AM_CXXFLAGS="$AM_CXXFLAGS -mmacosx-version-min=10.6"
   fi
 esac
 
