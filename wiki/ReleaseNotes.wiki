@@ -2,6 +2,9 @@
 
 == BEAGLE release notes ==
 
+=== version 2.1.2 ===
+  * Fixed OS X binary release issue with GNU libtool shared library dependency.
+
 === version 2.1.1 ===
   * Fixed OS X binary release compatibility with system versions 10.6, 10.7, and 10.8.
 
