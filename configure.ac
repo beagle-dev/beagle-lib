@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 2.1.1, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 2.1.2, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=" -O3"}
 
@@ -13,7 +13,7 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 #release versioning
 GENERIC_MAJOR_VERSION=2
 GENERIC_MINOR_VERSION=1
-GENERIC_MICRO_VERSION=1
+GENERIC_MICRO_VERSION=2
 
 #API version
 GENERIC_API_VERSION=1
@@ -80,10 +80,17 @@ AC_SUBST(CHECK_LIB_PATH)
 # ------------------------------------------------------------------------------
 # Check for libtool development libraries for plugin loading
 # ------------------------------------------------------------------------------
-AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
-if test "x$ac_cv_search_lt_dlinit" == "xno"
-then
-   AC_SEARCH_LIBS(dlopen,dl)
+
+AC_ARG_ENABLE(libtool_dev,
+    AC_HELP_STRING([--disable-libtool-dev],[do not use libtool development libraries]), , [enable_libtool_dev=yes])
+if test  "$enable_libtool_dev" = yes; then
+  AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
+  if test "x$ac_cv_search_lt_dlinit" == "xno"
+  then
+     AC_SEARCH_LIBS(dlopen,dl)
+  fi
+else
+  AC_SEARCH_LIBS(dlopen,dl)
 fi
 
 # ------------------------------------------------------------------------------
@@ -220,7 +227,7 @@ fi
 
 
 AC_ARG_ENABLE(sse,
-	AC_HELP_STRING([--enable-sse],[build with sse implementation enabled @<:@default=yes@:>@]), , [enable_sse=yes])
+	AC_HELP_STRING([--disable-sse],[disable native sse implementation]), , [enable_sse=yes])
 
 if test  "$enable_sse" = yes; then
 	AX_EXT
@@ -233,7 +240,7 @@ fi
 # Setup AVX
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(avx,
-	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled EXPERIMENTAL @<:@default=no@:>@]), , [enable_avx=no])
+	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled EXPERIMENTAL]), , [enable_avx=no])
 
 AM_CONDITIONAL(HAVE_AVX,false)
 if test  "$enable_avx" = yes; then
@@ -250,7 +257,7 @@ fi
 # Setup Intel Phi
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(phi,
-	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL @<:@default=no@:>@]), , [enable_phi=no])
+	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL]), , [enable_phi=no])
 
 if test  "$enable_phi" = yes; then
 	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)	
@@ -261,7 +268,7 @@ fi
 # ------------------------------------------------------------------------------
 
 AC_ARG_ENABLE(march_native,
-    AC_HELP_STRING([--enable-march-native],[build with native architecture optimization @<:@default=yes@:>@]), , [enable_march_native=yes])
+    AC_HELP_STRING([--disable-march-native],[disable native architecture optimization]), , [enable_march_native=yes])
 
 if test  "$enable_march_native" = yes; then
     if test x$GCC = xyes 
@@ -300,7 +307,7 @@ case $host_os in
   fi
   
   AC_ARG_ENABLE(osx_snowleopard,
-      AC_HELP_STRING([--enable-osx-snowleopard],[build with OS X v10.6 Snow Leopard backwards compatibility  @<:@default=no@:>@]), , [enable-osx-snowleopard=yes])
+      AC_HELP_STRING([--enable-osx-snowleopard],[build with OS X v10.6 Snow Leopard backwards compatibility]), , [enable_osx_snowleopard=no])
   if test  "$enable_osx_snowleopard" = yes; then
       AM_CXXFLAGS="$AM_CXXFLAGS -mmacosx-version-min=10.6"
   fi
