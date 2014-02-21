@@ -690,7 +690,20 @@ BEAGLE_DLLEXPORT int beagleResetScaleFactors(int instance,
 BEAGLE_DLLEXPORT int beagleCopyScaleFactors(int instance,
                                             int destScalingIndex,
                                             int srcScalingIndex);
-    
+                                            
+/**
+ * @brief Get scale factors
+ *
+ * This function retrieves a buffer of scale factors.
+ *
+ * @param instance                  Instance number (input)
+ * @param srcScalingIndex           Source scaleBuffer (input)
+ * @param outScaleFactors           Pointer to which to receive scaleFactors (output)
+ */
+BEAGLE_DLLEXPORT int beagleGetScaleFactors(int instance,                                            
+                                           int srcScalingIndex,
+                                           double* outScaleFactors);     
+                                                                                                                                                                                                   
 /**
  * @brief Calculate site log likelihoods at a root node
  *

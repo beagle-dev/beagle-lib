@@ -254,6 +254,9 @@ public:
     
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);
+                         
+    int getScaleFactors(int srcScalingIndex,
+                        double* scaleFactors);                          
     
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const int* categoryWeightsIndices,

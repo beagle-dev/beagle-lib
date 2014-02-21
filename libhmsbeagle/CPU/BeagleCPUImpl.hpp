@@ -1233,6 +1233,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::copyScaleFactors(int destScalingIndex,
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getScaleFactors(int srcScalingIndex,
+                        							   double* scaleFactors) {
+	// Do nothing                        							   
+	return BEAGLE_SUCCESS;                        							   
+}                        							   
+
+BEAGLE_CPU_TEMPLATE
     int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                                              const int* childBufferIndices,
                                                              const int* probabilityIndices,

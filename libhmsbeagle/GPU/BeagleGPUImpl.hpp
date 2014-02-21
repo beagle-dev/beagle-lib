@@ -1607,6 +1607,26 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getScaleFactors(int srcScalingIndex,
+                        							   double* scaleFactors) {                        							   
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getScaleFactors\n");
+#endif
+
+	// Do nothing
+	
+#ifdef BEAGLE_DEBUG_SYNCH    
+    gpu->Synchronize();
+#endif
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getScaleFactors\n");
+#endif  
+                         							   
+	return BEAGLE_SUCCESS;                        							   
+}   
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bufferIndices,
                                                const int* categoryWeightsIndices,
                                                const int* stateFrequenciesIndices,
