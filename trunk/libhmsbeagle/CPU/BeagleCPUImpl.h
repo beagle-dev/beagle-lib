@@ -256,6 +256,9 @@ public:
 
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);    
+                         
+	int getScaleFactors(int srcScalingIndex,
+                        double* scaleFactors);                          
     
     // calculate the site log likelihoods at a particular node
     //
