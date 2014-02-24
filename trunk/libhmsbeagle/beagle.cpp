@@ -943,11 +943,14 @@ int beagleCopyScaleFactors(int instance,
 int beagleGetScaleFactors(int instance,                        
                            int srcScalingIndex,
                            double* scaleFactors) {
+    DEBUG_START_TIME();
     //    try {
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    return beagleInstance->getScaleFactors(srcScalingIndex, scaleFactors);
+    int returnValue = beagleInstance->getScaleFactors(srcScalingIndex, scaleFactors);
+    DEBUG_END_TIME();
+    return returnValue;
     //    }
     //    catch (std::bad_alloc &) {
     //        return BEAGLE_ERROR_OUT_OF_MEMORY;
