@@ -119,13 +119,7 @@ int GPUInterface::Initialize() {
         cl_device_id* deviceIds = new cl_device_id[numDevices];
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
         for (int j=0; j<numDevices; j++) {
-            size_t param_value_t = 0;
-            SAFE_CL(clGetDeviceInfo(deviceIds[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(param_value_t), &param_value_t, NULL));
-            size_t* max_work_items = new size_t[param_value_t];
-            SAFE_CL(clGetDeviceInfo(deviceIds[j], CL_DEVICE_MAX_WORK_ITEM_SIZES,
-                    sizeof(size_t)*param_value_t, max_work_items, NULL));
-            openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j]));
-            delete[] max_work_items;
+            openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
         }
         delete[] deviceIds;
     }
@@ -192,7 +186,18 @@ int GPUInterface::GetDeviceCount() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
 #endif            
-    
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+    for (int i=0; i<openClDeviceMap.size(); i++) {
+        BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(i);
+        if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
+            cl_uint param_value_uint;
+            SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PARTITION_MAX_SUB_DEVICES, sizeof(param_value_uint), &param_value_uint, NULL));
+            return openClDeviceMap.size() + param_value_uint;
+        }
+    }
+#endif
+
     return openClDeviceMap.size();
 }
 
@@ -295,6 +300,10 @@ void GPUInterface::SetDevice(int deviceNumber,
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif                
     
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+    CreateDevice(deviceNumber);
+#endif
+
     openClDeviceId = openClDeviceMap[deviceNumber];
         
     int err;
@@ -840,13 +849,23 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceName\n");
 #endif    
-    
+
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+    cl_uint mpCount = 0;
+    SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_MAX_COMPUTE_UNITS,
+                            sizeof(cl_uint), &mpCount, NULL));
+
+    char mpCountStr[12];
+    sprintf(mpCountStr, "%d", mpCount);
+    strcat(deviceName, " (");
+    strcat(deviceName, mpCountStr);
+    (mpCount==1?strcat(deviceName, " core)"):strcat(deviceName, " cores)"));
+#endif
 
     const size_t param_size = 256;
     char param_value[param_size];
-    cl_platform_id platform;
-    SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_VERSION, param_size, param_value, NULL));
 
     strcat(deviceName, " (");
@@ -859,7 +878,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 }
 
 bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
-    
+
     cl_uint supportsDouble = 0;
     
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, sizeof(cl_uint), &supportsDouble, NULL));
@@ -889,7 +908,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     sprintf(deviceDescription,
             "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of multiprocessors: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
 #endif    
@@ -984,77 +1003,115 @@ const char* GPUInterface::GetCLErrorDescription(int errorCode) {
     
     // Error Codes (from cl.h)
     switch(errorCode) {
-        case CL_SUCCESS: errorDesc = "CL_SUCCESS"; break;
-        case CL_DEVICE_NOT_FOUND: errorDesc = "CL_DEVICE_NOT_FOUND"; break;
-        case CL_DEVICE_NOT_AVAILABLE: errorDesc = "CL_DEVICE_NOT_AVAILABLE"; break;
-        case CL_COMPILER_NOT_AVAILABLE: errorDesc = "CL_COMPILER_NOT_AVAILABLE"; break;
-        case CL_MEM_OBJECT_ALLOCATION_FAILURE: errorDesc = "CL_MEM_OBJECT_ALLOCATION_FAILURE"; break;
-        case CL_OUT_OF_RESOURCES: errorDesc = "CL_OUT_OF_RESOURCES"; break;
-        case CL_OUT_OF_HOST_MEMORY: errorDesc = "CL_OUT_OF_HOST_MEMORY"; break;
-        case CL_PROFILING_INFO_NOT_AVAILABLE: errorDesc = "CL_PROFILING_INFO_NOT_AVAILABLE"; break;
-        case CL_MEM_COPY_OVERLAP: errorDesc = "CL_MEM_COPY_OVERLAP"; break;
-        case CL_IMAGE_FORMAT_MISMATCH: errorDesc = "CL_IMAGE_FORMAT_MISMATCH"; break;
-        case CL_IMAGE_FORMAT_NOT_SUPPORTED: errorDesc = "CL_IMAGE_FORMAT_NOT_SUPPORTED"; break;
-        case CL_BUILD_PROGRAM_FAILURE: errorDesc = "CL_BUILD_PROGRAM_FAILURE"; break;
-        case CL_MAP_FAILURE: errorDesc = "CL_MAP_FAILURE"; break;
-        case CL_MISALIGNED_SUB_BUFFER_OFFSET: errorDesc = "CL_MISALIGNED_SUB_BUFFER_OFFSET"; break;
+        case CL_SUCCESS                                  : errorDesc = "CL_SUCCESS"; break;
+        case CL_DEVICE_NOT_FOUND                         : errorDesc = "CL_DEVICE_NOT_FOUND"; break;
+        case CL_DEVICE_NOT_AVAILABLE                     : errorDesc = "CL_DEVICE_NOT_AVAILABLE"; break;
+        case CL_COMPILER_NOT_AVAILABLE                   : errorDesc = "CL_COMPILER_NOT_AVAILABLE"; break;
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE            : errorDesc = "CL_MEM_OBJECT_ALLOCATION_FAILURE"; break;
+        case CL_OUT_OF_RESOURCES                         : errorDesc = "CL_OUT_OF_RESOURCES"; break;
+        case CL_OUT_OF_HOST_MEMORY                       : errorDesc = "CL_OUT_OF_HOST_MEMORY"; break;
+        case CL_PROFILING_INFO_NOT_AVAILABLE             : errorDesc = "CL_PROFILING_INFO_NOT_AVAILABLE"; break;
+        case CL_MEM_COPY_OVERLAP                         : errorDesc = "CL_MEM_COPY_OVERLAP"; break;
+        case CL_IMAGE_FORMAT_MISMATCH                    : errorDesc = "CL_IMAGE_FORMAT_MISMATCH"; break;
+        case CL_IMAGE_FORMAT_NOT_SUPPORTED               : errorDesc = "CL_IMAGE_FORMAT_NOT_SUPPORTED"; break;
+        case CL_BUILD_PROGRAM_FAILURE                    : errorDesc = "CL_BUILD_PROGRAM_FAILURE"; break;
+        case CL_MAP_FAILURE                              : errorDesc = "CL_MAP_FAILURE"; break;
+        case CL_MISALIGNED_SUB_BUFFER_OFFSET             : errorDesc = "CL_MISALIGNED_SUB_BUFFER_OFFSET"; break;
         case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: errorDesc = "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST"; break;
 #ifdef CL_VERSION_1_2
-        case CL_COMPILE_PROGRAM_FAILURE: errorDesc = "CL_COMPILE_PROGRAM_FAILURE"; break;
-        case CL_LINKER_NOT_AVAILABLE: errorDesc = "CL_LINKER_NOT_AVAILABLE"; break;
-        case CL_LINK_PROGRAM_FAILURE: errorDesc = "CL_LINK_PROGRAM_FAILURE"; break;
-        case CL_DEVICE_PARTITION_FAILED: errorDesc = "CL_DEVICE_PARTITION_FAILED"; break;
-        case CL_KERNEL_ARG_INFO_NOT_AVAILABLE: errorDesc = "CL_KERNEL_ARG_INFO_NOT_AVAILABLE"; break;
-#endif
-            
-        case CL_INVALID_VALUE: errorDesc = "CL_INVALID_VALUE"; break;
-        case CL_INVALID_DEVICE_TYPE: errorDesc = "CL_INVALID_DEVICE_TYPE"; break;
-        case CL_INVALID_PLATFORM: errorDesc = "CL_INVALID_PLATFORM"; break;
-        case CL_INVALID_DEVICE: errorDesc = "CL_INVALID_DEVICE"; break;
-        case CL_INVALID_CONTEXT: errorDesc = "CL_INVALID_CONTEXT"; break;
-        case CL_INVALID_QUEUE_PROPERTIES: errorDesc = "CL_INVALID_QUEUE_PROPERTIES"; break;
-        case CL_INVALID_COMMAND_QUEUE: errorDesc = "CL_INVALID_COMMAND_QUEUE"; break;
-        case CL_INVALID_HOST_PTR: errorDesc = "CL_INVALID_HOST_PTR"; break;
-        case CL_INVALID_MEM_OBJECT: errorDesc = "CL_INVALID_MEM_OBJECT"; break;
-        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR: errorDesc = "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR"; break;
-        case CL_INVALID_IMAGE_SIZE: errorDesc = "CL_INVALID_IMAGE_SIZE"; break;
-        case CL_INVALID_SAMPLER: errorDesc = "CL_INVALID_SAMPLER"; break;
-        case CL_INVALID_BINARY: errorDesc = "CL_INVALID_BINARY"; break;
-        case CL_INVALID_BUILD_OPTIONS: errorDesc = "CL_INVALID_BUILD_OPTIONS"; break;
-        case CL_INVALID_PROGRAM: errorDesc = "CL_INVALID_PROGRAM"; break;
-        case CL_INVALID_PROGRAM_EXECUTABLE: errorDesc = "CL_INVALID_PROGRAM_EXECUTABLE"; break;
-        case CL_INVALID_KERNEL_NAME: errorDesc = "CL_INVALID_KERNEL_NAME"; break;
-        case CL_INVALID_KERNEL_DEFINITION: errorDesc = "CL_INVALID_KERNEL_DEFINITION"; break;
-        case CL_INVALID_KERNEL: errorDesc = "CL_INVALID_KERNEL"; break;
-        case CL_INVALID_ARG_INDEX: errorDesc = "CL_INVALID_ARG_INDEX"; break;
-        case CL_INVALID_ARG_VALUE: errorDesc = "CL_INVALID_ARG_VALUE"; break;
-        case CL_INVALID_ARG_SIZE: errorDesc = "CL_INVALID_ARG_SIZE"; break;
-        case CL_INVALID_KERNEL_ARGS: errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
-        case CL_INVALID_WORK_DIMENSION: errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
-        case CL_INVALID_WORK_GROUP_SIZE: errorDesc = "CL_INVALID_WORK_GROUP_SIZE"; break;
-        case CL_INVALID_WORK_ITEM_SIZE: errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
-        case CL_INVALID_GLOBAL_OFFSET: errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
-        case CL_INVALID_EVENT_WAIT_LIST: errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;
-        case CL_INVALID_EVENT: errorDesc = "CL_INVALID_EVENT"; break;
-        case CL_INVALID_OPERATION: errorDesc = "CL_INVALID_OPERATION"; break;
-        case CL_INVALID_GL_OBJECT: errorDesc = "CL_INVALID_GL_OBJECT"; break;
-        case CL_INVALID_BUFFER_SIZE: errorDesc = "CL_INVALID_BUFFER_SIZE"; break;
-        case CL_INVALID_MIP_LEVEL: errorDesc = "CL_INVALID_MIP_LEVEL"; break;
-        case CL_INVALID_GLOBAL_WORK_SIZE       : errorDesc = "CL_INVALID_GLOBAL_WORK_SIZE"; break;
+        case CL_COMPILE_PROGRAM_FAILURE                  : errorDesc = "CL_COMPILE_PROGRAM_FAILURE"; break;
+        case CL_LINKER_NOT_AVAILABLE                     : errorDesc = "CL_LINKER_NOT_AVAILABLE"; break;
+        case CL_LINK_PROGRAM_FAILURE                     : errorDesc = "CL_LINK_PROGRAM_FAILURE"; break;
+        case CL_DEVICE_PARTITION_FAILED                  : errorDesc = "CL_DEVICE_PARTITION_FAILED"; break;
+        case CL_KERNEL_ARG_INFO_NOT_AVAILABLE            : errorDesc = "CL_KERNEL_ARG_INFO_NOT_AVAILABLE"; break;
+#endif      
+        case CL_INVALID_VALUE                            : errorDesc = "CL_INVALID_VALUE"; break;
+        case CL_INVALID_DEVICE_TYPE                      : errorDesc = "CL_INVALID_DEVICE_TYPE"; break;
+        case CL_INVALID_PLATFORM                         : errorDesc = "CL_INVALID_PLATFORM"; break;
+        case CL_INVALID_DEVICE                           : errorDesc = "CL_INVALID_DEVICE"; break;
+        case CL_INVALID_CONTEXT                          : errorDesc = "CL_INVALID_CONTEXT"; break;
+        case CL_INVALID_QUEUE_PROPERTIES                 : errorDesc = "CL_INVALID_QUEUE_PROPERTIES"; break;
+        case CL_INVALID_COMMAND_QUEUE                    : errorDesc = "CL_INVALID_COMMAND_QUEUE"; break;
+        case CL_INVALID_HOST_PTR                         : errorDesc = "CL_INVALID_HOST_PTR"; break;
+        case CL_INVALID_MEM_OBJECT                       : errorDesc = "CL_INVALID_MEM_OBJECT"; break;
+        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR          : errorDesc = "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR"; break;
+        case CL_INVALID_IMAGE_SIZE                       : errorDesc = "CL_INVALID_IMAGE_SIZE"; break;
+        case CL_INVALID_SAMPLER                          : errorDesc = "CL_INVALID_SAMPLER"; break;
+        case CL_INVALID_BINARY                           : errorDesc = "CL_INVALID_BINARY"; break;
+        case CL_INVALID_BUILD_OPTIONS                    : errorDesc = "CL_INVALID_BUILD_OPTIONS"; break;
+        case CL_INVALID_PROGRAM                          : errorDesc = "CL_INVALID_PROGRAM"; break;
+        case CL_INVALID_PROGRAM_EXECUTABLE               : errorDesc = "CL_INVALID_PROGRAM_EXECUTABLE"; break;
+        case CL_INVALID_KERNEL_NAME                      : errorDesc = "CL_INVALID_KERNEL_NAME"; break;
+        case CL_INVALID_KERNEL_DEFINITION                : errorDesc = "CL_INVALID_KERNEL_DEFINITION"; break;
+        case CL_INVALID_KERNEL                           : errorDesc = "CL_INVALID_KERNEL"; break;
+        case CL_INVALID_ARG_INDEX                        : errorDesc = "CL_INVALID_ARG_INDEX"; break;
+        case CL_INVALID_ARG_VALUE                        : errorDesc = "CL_INVALID_ARG_VALUE"; break;
+        case CL_INVALID_ARG_SIZE                         : errorDesc = "CL_INVALID_ARG_SIZE"; break;
+        case CL_INVALID_KERNEL_ARGS                      : errorDesc = "CL_INVALID_KERNEL_ARGS"; break;
+        case CL_INVALID_WORK_DIMENSION                   : errorDesc = "CL_INVALID_WORK_DIMENSION"; break;
+        case CL_INVALID_WORK_GROUP_SIZE                  : errorDesc = "CL_INVALID_WORK_GROUP_SIZE"; break;
+        case CL_INVALID_WORK_ITEM_SIZE                   : errorDesc = "CL_INVALID_WORK_ITEM_SIZE"; break;
+        case CL_INVALID_GLOBAL_OFFSET                    : errorDesc = "CL_INVALID_GLOBAL_OFFSET"; break;
+        case CL_INVALID_EVENT_WAIT_LIST                  : errorDesc = "CL_INVALID_EVENT_WAIT_LIST"; break;
+        case CL_INVALID_EVENT                            : errorDesc = "CL_INVALID_EVENT"; break;
+        case CL_INVALID_OPERATION                        : errorDesc = "CL_INVALID_OPERATION"; break;
+        case CL_INVALID_GL_OBJECT                        : errorDesc = "CL_INVALID_GL_OBJECT"; break;
+        case CL_INVALID_BUFFER_SIZE                      : errorDesc = "CL_INVALID_BUFFER_SIZE"; break;
+        case CL_INVALID_MIP_LEVEL                        : errorDesc = "CL_INVALID_MIP_LEVEL"; break;
+        case CL_INVALID_GLOBAL_WORK_SIZE                 : errorDesc = "CL_INVALID_GLOBAL_WORK_SIZE"; break;
 #ifndef FW_OPENCL_ALTERA
-        case CL_INVALID_PROPERTY               : errorDesc = "CL_INVALID_PROPERTY"; break;
+        case CL_INVALID_PROPERTY                         : errorDesc = "CL_INVALID_PROPERTY"; break;
 #endif
 #ifdef CL_VERSION_1_2
-        case CL_INVALID_IMAGE_DESCRIPTOR       : errorDesc = "CL_INVALID_IMAGE_DESCRIPTOR"; break;
-        case CL_INVALID_COMPILER_OPTIONS: errorDesc = "CL_INVALID_COMPILER_OPTIONS"; break;
-        case CL_INVALID_LINKER_OPTIONS: errorDesc = "CL_INVALID_LINKER_OPTIONS"; break;
-        case CL_INVALID_DEVICE_PARTITION_COUNT : errorDesc = "CL_INVALID_DEVICE_PARTITION_COUNT"; break;
+        case CL_INVALID_IMAGE_DESCRIPTOR                 : errorDesc = "CL_INVALID_IMAGE_DESCRIPTOR"; break;
+        case CL_INVALID_COMPILER_OPTIONS                 : errorDesc = "CL_INVALID_COMPILER_OPTIONS"; break;
+        case CL_INVALID_LINKER_OPTIONS                   : errorDesc = "CL_INVALID_LINKER_OPTIONS"; break;
+        case CL_INVALID_DEVICE_PARTITION_COUNT           : errorDesc = "CL_INVALID_DEVICE_PARTITION_COUNT"; break;
 #endif
         default: errorDesc = "Unknown error";
     }
     
     return errorDesc;
 }
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+void GPUInterface::CreateDevice(int deviceNumber) {
+    if (deviceNumber >= openClDeviceMap.size()) {
+        int coreCount = deviceNumber - openClDeviceMap.size() + 1;
+        for (int i=0; i<openClDeviceMap.size(); i++) {
+            BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(i);
+            if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
+                cl_device_id subdevice_id;
+                cl_uint num_entries_returned = 0;
+                cl_device_partition_property props[] = { CL_DEVICE_PARTITION_BY_COUNTS,
+                                                         coreCount,
+                                                         CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
+                                                         0 };
+                SAFE_CL(clCreateSubDevices(openClDeviceMap[i],
+                                           props,
+                                           1,
+                                           &subdevice_id,
+                                           &num_entries_returned));
+
+                openClDeviceMap.insert(std::pair<int, cl_device_id>(openClDeviceMap.size()+coreCount-1, subdevice_id));
+
+                break;
+            }
+        }
+    }
+}
+
+void GPUInterface::ReleaseDevice(int deviceNumber) {
+    const size_t param_size = sizeof(cl_device_id);
+    cl_device_id parent_device = NULL;
+    SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PARENT_DEVICE, param_size, &parent_device, NULL));
+    if (parent_device != NULL) {
+        SAFE_CL(clReleaseDevice(openClDeviceMap[deviceNumber]));
+        openClDeviceMap.erase(deviceNumber);
+    }
+}
+#endif
+
 
 }; // namespace
 

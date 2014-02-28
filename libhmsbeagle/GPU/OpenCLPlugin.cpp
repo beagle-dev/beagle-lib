@@ -21,6 +21,10 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
             int gpuDeviceCount = gpu.GetDeviceCount();
             anyGPUSupportsOpenCL = (gpuDeviceCount > 0);
             for (int i = 0; i < gpuDeviceCount; i++) {
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+                gpu.CreateDevice(i);
+#endif
+
                 int nameDescSize = 256;
                 char* dName = (char*) malloc(sizeof(char) * nameDescSize);
                 char* dDesc = (char*) malloc(sizeof(char) * nameDescSize);
@@ -53,6 +57,10 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
                 resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_OPENCL;
                 
                 beagleResources.push_back(resource);
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+                gpu.ReleaseDevice(i);
+#endif
             }
         }
         

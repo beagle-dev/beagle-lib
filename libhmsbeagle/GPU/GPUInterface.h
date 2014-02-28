@@ -219,6 +219,12 @@ public:
                    int length);
         
     KernelResource* kernelResource;
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+    void CreateDevice(int deviceNumber);
+
+    void ReleaseDevice(int deviceNumber);
+#endif
     
 protected:
 	void InitializeKernelResource(int paddedStateCount,
