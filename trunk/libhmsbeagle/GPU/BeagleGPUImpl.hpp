@@ -115,6 +115,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     hRescalingTrigger = NULL;
     dRescalingTrigger = (GPUPtr)NULL;
     dScalingFactorsMaster = NULL;
+    
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -303,6 +304,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     // TODO Should do something similar for 4 < kStateCount <= 8 as well
 
     bool CPUImpl = false;
+
+#ifdef BEAGLE_DEBUG_OPENCL_CORES
+    gpu->CreateDevice(pluginResourceNumber);
+#endif
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
