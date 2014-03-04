@@ -643,6 +643,9 @@ void runBeagle(int resource,
         }
         std::cout << " rootLnL:    ";
         printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision, 1, bestTimeTotal, percentPrecision);
+
+        std::cout << " tree throughput total:   " << (partialsTotal/bestTimeTotal)/1000000.0 << " M partials/second " << std::endl;
+
     }
     std::cout << "\n";
     
