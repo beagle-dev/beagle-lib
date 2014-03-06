@@ -254,7 +254,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartialsFixedSca
 
         for (int k = 0; k < kPatternCount; k++) {
 
-        	const V_Real scaleFactor = VEC_SPLAT(scaleFactors[k]);
+        	const V_Real scaleFactor = VEC_SPLAT(1.0/scaleFactors[k]);
 
             const int state_q = states_q[k];
             V_Real vp0, vp1, vp2, vp3;
@@ -269,8 +269,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartialsFixedSca
 			destr_23 = VEC_MADD(vp2, vu_mr[2][1].vx, destr_23);
 			destr_23 = VEC_MADD(vp3, vu_mr[3][1].vx, destr_23);
 
-            *destPvec++ = VEC_DIV(VEC_MULT(vu_mq[state_q][0].vx, destr_01), scaleFactor);
-            *destPvec++ = VEC_DIV(VEC_MULT(vu_mq[state_q][1].vx, destr_23), scaleFactor);
+            *destPvec++ = VEC_MULT(VEC_MULT(vu_mq[state_q][0].vx, destr_01), scaleFactor);
+            *destPvec++ = VEC_MULT(VEC_MULT(vu_mq[state_q][1].vx, destr_23), scaleFactor);
 
             v += 4;
         }
@@ -451,7 +451,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
             // Prefetch scale factor
 //            const V_Real scaleFactor = VEC_LOAD_SCALAR(scaleFactors + k);
         	// Option below appears faster, why?
-        	const V_Real scaleFactor = VEC_SPLAT(scaleFactors[k]);
+        	const V_Real scaleFactor = VEC_SPLAT(1.0/scaleFactors[k]);
 
         	V_Real vpq_0, vpq_1, vpq_2, vpq_3;
         	SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
@@ -478,8 +478,9 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
 			destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
 			destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
 
-            destPvec[0] = VEC_DIV(VEC_MULT(destq_01, destr_01), scaleFactor);
-            destPvec[1] = VEC_DIV(VEC_MULT(destq_23, destr_23), scaleFactor);
+
+            destPvec[0] = VEC_MULT(VEC_MULT(destq_01, destr_01), scaleFactor);
+            destPvec[1] = VEC_MULT(VEC_MULT(destq_23, destr_23), scaleFactor);
 
             destPvec += 2;
             v += 4;
