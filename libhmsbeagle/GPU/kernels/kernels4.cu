@@ -563,8 +563,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RE
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
     SUM_PARTIALS_PARTIALS_4_CPU();
+    REAL oneOverScaling = 1.0/scalingFactors[pattern];
     for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-        partials3[deltaPartials + i] = sum1[i] * sum2[i] / scalingFactors[pattern];
+        partials3[deltaPartials + i] = sum1[i] * sum2[i] * oneOverScaling;
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
@@ -612,8 +613,9 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTR
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
     SUM_STATES_PARTIALS_4_CPU();
+    REAL oneOverScaling = 1.0/scalingFactors[pattern];
     for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-        partials3[deltaPartials + i] = sum1[i] * sum2[i] / scalingFactors[pattern];
+        partials3[deltaPartials + i] = sum1[i] * sum2[i] * oneOverScaling;
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
@@ -689,22 +691,23 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScale(KW_GLOBAL_VAR int* KW_RESTRIC
     KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
     int state1 = states1[pattern];
     int state2 = states2[pattern];
+    REAL oneOverScaling = 1.0/scalingFactors[pattern];
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {
             partials3[deltaPartials + i] = sMatrix1[state1 * 4 + i] * sMatrix2[state2 * 4 + i]
-                                           / scalingFactors[pattern];
+                                           * oneOverScaling;
         }
     } else if (state1 < PADDED_STATE_COUNT) {
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-            partials3[deltaPartials + i] = sMatrix1[state1 * 4 + i] / scalingFactors[pattern];
+            partials3[deltaPartials + i] = sMatrix1[state1 * 4 + i] * oneOverScaling;
         }
     } else if (state2 < PADDED_STATE_COUNT) {
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-            partials3[deltaPartials + i] = sMatrix2[state2 * 4 + i] / scalingFactors[pattern];
+            partials3[deltaPartials + i] = sMatrix2[state2 * 4 + i] * oneOverScaling;
         }
     } else {
         for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-            partials3[deltaPartials + i] = 1.0 / scalingFactors[pattern];
+            partials3[deltaPartials + i] = 1.0 * oneOverScaling;
         }
     }
 #else // GPU implementation
