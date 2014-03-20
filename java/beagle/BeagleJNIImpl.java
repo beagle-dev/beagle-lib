@@ -102,6 +102,13 @@ public class BeagleJNIImpl implements Beagle {
             throw new BeagleException("getPartials", errCode);
         }
     }
+    
+    public void getLogScaleFactors(int scaleIndex, final double[] outFactors) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getLogScaleFactors(instance, scaleIndex, outFactors);
+        if (errCode != 0) {
+            throw new BeagleException("getScaleFactors", errCode);
+        }
+    }
 
     public void setEigenDecomposition(int eigenIndex,
                                       final double[] eigenVectors,

@@ -109,7 +109,20 @@ public interface Beagle {
     void getPartials(
             int bufferIndex,
             int scaleIndex,
-            final double []outPartials);
+            final double[] outPartials);
+                        
+    /**
+     * Get scale factors from instance buffer on log-scale
+     *
+     * This function copies an array of scale factors from an instance buffer. The outFactors array should
+     * be patternCount in length.
+     *   
+     * @param scaleIndex    Index of scaleBuffer to get (input)
+     * @param  outPartials  Pointer to which to receive partialsBuffer (output)
+     */
+    void getLogScaleFactors(           
+            int scaleIndex,
+            final double[] outFactors);            
 
     /**
      * Set an eigen-decomposition buffer

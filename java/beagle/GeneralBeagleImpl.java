@@ -181,6 +181,10 @@ public class GeneralBeagleImpl implements Beagle {
     public void getPartials(final int bufferIndex, final int scaleIndex, final double[] partials) {
         System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
     }
+    
+    public void getScaleFactors(final int scaleIndex, final double[] partials) {
+        throw new RuntimeException("Not yet implemented.");
+    }
 
     public void setEigenDecomposition(int eigenIndex, double[] eigenVectors, double[] inverseEigenValues, double[] eigenValues) {
         int l =0;
