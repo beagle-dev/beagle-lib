@@ -70,6 +70,7 @@
 
 
 #define CUDA_ASYNC
+#define CUDA_ASYNC_MEMORY
 
 class GPUInterface {
 private:
