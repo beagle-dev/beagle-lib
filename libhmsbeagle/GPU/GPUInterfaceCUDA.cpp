@@ -556,7 +556,11 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
 #endif    
     
+#ifdef CUDA_ASYNC_MEMORY
+	SAFE_CUPP(cuMemcpyHtoDAsync(dest, src, memSize, cudaStream));
+#else 
     SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
@@ -571,7 +575,11 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif        
     
+#ifdef CUDA_ASYNC_MEMORY
+	SAFE_CUPP(cuMemcpyDtoHAsync(dest, src, memSize, cudaStream));
+#else  
     SAFE_CUPP(cuMemcpyDtoH(dest, src, memSize));
+#endif
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");
