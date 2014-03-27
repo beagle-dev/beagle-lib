@@ -119,9 +119,7 @@ GPUInterface::GPUInterface() {
     
     cudaDevice = (CUdevice) 0;
     cudaContext = NULL;
-#ifdef CUDA_ASYNC
 	cudaStream = NULL;
-#endif
     cudaModule = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
@@ -136,11 +134,9 @@ GPUInterface::~GPUInterface() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
 #endif    
 
-#ifdef CUDA_ASYNC
 	if (cudaStream != NULL) {
 		SAFE_CUDA(cuStreamDestroy(cudaStream));
 	}
-#endif
     
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
@@ -256,16 +252,14 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
         SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
     }
     
-#ifdef CUDA_ASYNC
     fprintf(stderr, "Creating CUDA stream: ");
-    if (GetSupportsAsyncKernels(deviceNumber)) {
+    if (flags & BEAGLE_FLAG_COMPUTATION_ASYNCH) {
     	SAFE_CUDA(cuStreamCreate(&cudaStream, 0));
     	fprintf(stderr, "YES");
     } else {
     	fprintf(stderr, "Not support");
     }
     fprintf(stderr,"\n");
-#endif
     
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
@@ -362,11 +356,11 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     va_end(parameters);
     
     SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
-#ifdef CUDA_ASYNC
- 	SAFE_CUDA(cuLaunchGridAsync(deviceFunction, grid.x, grid.y, cudaStream));
-#else    
-    SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
-#endif
+	if (cudaStream != NULL) {
+	 	SAFE_CUDA(cuLaunchGridAsync(deviceFunction, grid.x, grid.y, cudaStream));
+	} else {
+	    SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
+    }
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
@@ -556,11 +550,11 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
 #endif    
     
-#ifdef CUDA_ASYNC_MEMORY
-	SAFE_CUPP(cuMemcpyHtoDAsync(dest, src, memSize, cudaStream));
-#else 
-    SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
-#endif
+	if (cudaStream != NULL) {
+		SAFE_CUPP(cuMemcpyHtoDAsync(dest, src, memSize, cudaStream));
+	} else { 
+    	SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
+    }
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
@@ -575,11 +569,11 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif        
     
-#ifdef CUDA_ASYNC_MEMORY
-	SAFE_CUPP(cuMemcpyDtoHAsync(dest, src, memSize, cudaStream));
-#else  
-    SAFE_CUPP(cuMemcpyDtoH(dest, src, memSize));
-#endif
+	if (cudaStream != NULL) {
+		SAFE_CUPP(cuMemcpyDtoHAsync(dest, src, memSize, cudaStream));
+	} else {
+	    SAFE_CUPP(cuMemcpyDtoH(dest, src, memSize));
+    }
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");

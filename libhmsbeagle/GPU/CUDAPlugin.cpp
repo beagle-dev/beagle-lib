@@ -16,7 +16,7 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 {
         GPUInterface gpu;
         bool anyGPUSupportsCUDA = false;
-        bool anyGPUSupportsDP = false;
+        bool anyGPUSupportsDP = false;  
         if (gpu.Initialize()) {
             int gpuDeviceCount = gpu.GetDeviceCount();
             anyGPUSupportsCUDA = (gpuDeviceCount > 0);
@@ -47,6 +47,10 @@ Plugin("GPU-CUDA", "GPU-CUDA")
                 	anyGPUSupportsDP = true;
                 }
                 
+                if (gpu.GetSupportsAsyncKernels(i)) {
+                	resource.supportFlags |= BEAGLE_FLAG_COMPUTATION_ASYNCH;
+                }
+                
                 resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA;
                 
                 beagleResources.push_back(resource);
@@ -59,10 +63,10 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
     	using namespace cuda;
-        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
+        beagleFactories.push_back(new BeagleGPUImplFactory<float>());      
 		if (anyGPUSupportsDP) {
 			// TODO Uncomment when working
-            beagleFactories.push_back(new BeagleGPUImplFactory<double>());
+            beagleFactories.push_back(new BeagleGPUImplFactory<double>());            
 		}
 	}
 }
