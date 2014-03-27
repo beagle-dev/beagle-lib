@@ -409,6 +409,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     Real r = 0;
     modifyFlagsForPrecision(&kFlags, r);
     
+#ifdef CUDA
+	if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH || requirementFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) {
+		kFlags |= BEAGLE_FLAG_COMPUTATION_ASYNCH;
+	}
+#endif
+        
     int sumSitesBlockSize = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE ? SUM_SITES_BLOCK_SIZE_DP : SUM_SITES_BLOCK_SIZE_SP);
     kSumSitesBlockCount = kPatternCount / sumSitesBlockSize;
     if (kPatternCount % sumSitesBlockSize != 0)
@@ -2111,8 +2117,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteDerivatives(double* outFirstDeriva
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleGPUImplFactory public methods
 
-BEAGLE_GPU_TEMPLATE
-BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
+BEAGLE_GPU_FACTORY_TEMPLATE
+BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_FACTORY_GENERIC>::createImpl(int tipCount,
                                               int partialsBufferCount,
                                               int compactBufferCount,
                                               int stateCount,
@@ -2150,17 +2156,28 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
 }
 
 #ifdef CUDA
-#ifdef CUDA_ASYNC
-template<>
-const char* BeagleGPUImplFactory<double>::getName() {
-    return "GPU-DP-CUDA-SYNC";
-}
+// #ifdef CUDA_ASYNC
+// template<>
+// const char* BeagleGPUImplFactory<double>::getName() {
+//     return "GPU-DP-CUDA-ASYNC";
+// }
+// 
+// template<>
+// const char* BeagleGPUImplFactory<float>::getName() {
+//     return "GPU-SP-CUDA-ASYNC";
+// }
+// #else
+// template<>
+// const char* BeagleGPUImplFactory<double>::getName() {
+//     return "GPU-DP-CUDA";
+// }
+// 
+// template<>
+// const char* BeagleGPUImplFactory<float>::getName() {
+//     return "GPU-SP-CUDA";
+// }
+// #endif
 
-template<>
-const char* BeagleGPUImplFactory<float>::getName() {
-    return "GPU-SP-CUDA-SYNC";
-}
-#else
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
     return "GPU-DP-CUDA";
@@ -2170,7 +2187,7 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "GPU-SP-CUDA";
 }
-#endif
+
 #elif defined(FW_OPENCL)
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
@@ -2193,8 +2210,8 @@ void modifyFlagsForPrecision(long *flags, float r) {
 	*flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
 
-BEAGLE_GPU_TEMPLATE
-const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+BEAGLE_GPU_FACTORY_TEMPLATE
+const long BeagleGPUImplFactory<BEAGLE_GPU_FACTORY_GENERIC>::getFlags() {
 	long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
@@ -2205,6 +2222,7 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 
 #ifdef CUDA
     flags |= BEAGLE_FLAG_FRAMEWORK_CUDA |
+    		 BEAGLE_FLAG_COMPUTATION_ASYNCH |
              BEAGLE_FLAG_PROCESSOR_GPU;
 #elif defined(FW_OPENCL)
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |

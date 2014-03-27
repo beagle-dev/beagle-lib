@@ -36,11 +36,18 @@
 
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
-#include "libhmsbeagle/GPU/GPUInterface.h"
+//#include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
+#include "libhmsbeagle/GPU/BeagleGPUMixin.h"
 
 #define BEAGLE_GPU_GENERIC	Real
 #define BEAGLE_GPU_TEMPLATE template <typename Real>
+
+// #define BEAGLE_GPU_FACTORY_GENERIC Real, Flow
+// #define BEAGLE_GPU_FACTORY_TEMPLATE template <typename Real, class Flow>
+
+#define BEAGLE_GPU_FACTORY_GENERIC Real
+#define BEAGLE_GPU_FACTORY_TEMPLATE template <typename Real>
 
 #ifdef CUDA
 	using namespace cuda_device;
@@ -285,7 +292,7 @@ private:
 
 };
 
-BEAGLE_GPU_TEMPLATE
+BEAGLE_GPU_FACTORY_TEMPLATE
 class BeagleGPUImplFactory : public BeagleImplFactory {
 public:
     virtual BeagleImpl* createImpl(int tipCount,
@@ -309,6 +316,9 @@ public:
 
 template <typename Real>
 void modifyFlagsForPrecision(long* flags, Real r);
+
+template <typename Flow>
+void modifyFlagsForFlow(long* flags, const Flow& flow);
 
 } // namspace device
 }	// namespace gpu

@@ -77,9 +77,7 @@ private:
 #ifdef CUDA
     CUdevice cudaDevice;
     CUcontext cudaContext;
-#ifdef CUDA_ASYNC
- 	CUstream cudaStream;   
-#endif
+ 	CUstream cudaStream;
     CUmodule cudaModule;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
