@@ -38,7 +38,7 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 //#include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
-#include "libhmsbeagle/GPU/BeagleGPUMixin.h"
+//#include "libhmsbeagle/GPU/BeagleGPUMixin.h"
 
 #define BEAGLE_GPU_GENERIC	Real
 #define BEAGLE_GPU_TEMPLATE template <typename Real>
