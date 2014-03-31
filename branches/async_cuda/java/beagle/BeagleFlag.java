@@ -6,14 +6,14 @@ package beagle;
  * @version $Id$
  */
 public enum BeagleFlag {
-    PRECISION_SINGLE(1 << 0, "double precision computation"),
-    PRECISION_DOUBLE(1 << 1, "single precision computation"),
+    PRECISION_SINGLE(1 << 0, "single precision computation"),
+    PRECISION_DOUBLE(1 << 1, "double precision computation"),
 
     COMPUTATION_SYNCH(1 << 2, "synchronous computation (blocking"),
     COMPUTATION_ASYNCH(1 << 3, "asynchronous computation (non-blocking)"),
 
-    EIGEN_REAL(1 <<4, "real eigenvalue computation"),
-    EIGEN_COMPLEX(1 <<5, "complex eigenvalue computation"),
+    EIGEN_REAL(1 << 4, "real eigenvalue computation"),
+    EIGEN_COMPLEX(1 << 5, "complex eigenvalue computation"),
 
     SCALING_MANUAL(1 << 6, "manual scaling"),
     SCALING_AUTO(1 << 7, "auto-scaling on"),
