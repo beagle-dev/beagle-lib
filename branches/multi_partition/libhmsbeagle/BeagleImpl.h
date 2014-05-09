@@ -83,6 +83,8 @@ public:
     virtual int setCategoryWeights(int categoryWeightsIndex,
                                  const double* inCategoryWeights) = 0;
     
+    virtual int setPatternEigens(const int* inPatterCounts) = 0;
+
     virtual int setPatternWeights(const double* inPatternWeights) = 0;
     
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
@@ -135,7 +137,7 @@ public:
     virtual int copyScaleFactors(int destScalingIndex,
                                  int srcScalingIndex) = 0; 
                                  
-    virtual int getScaleFactors(int srcScalingIndex,
+    virtual int getLogScaleFactors(int srcScalingIndex,
                                  double* scaleFactors) = 0; 
                                      
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,

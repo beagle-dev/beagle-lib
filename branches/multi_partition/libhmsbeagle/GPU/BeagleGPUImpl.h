@@ -202,6 +202,8 @@ public:
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
     
+    int setPatternEigens(const int* inPatterCounts);
+
     int setPatternWeights(const double* inPatternWeights);
     
     
@@ -255,7 +257,7 @@ public:
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);
                          
-    int getScaleFactors(int srcScalingIndex,
+    int getLogScaleFactors(int srcScalingIndex,
                         double* scaleFactors);                          
     
     int calculateRootLogLikelihoods(const int* bufferIndices,

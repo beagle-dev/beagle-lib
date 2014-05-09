@@ -458,6 +458,21 @@ BEAGLE_DLLEXPORT int beagleSetCategoryWeights(int instance,
  */
 BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
                            const double* inCategoryRates);
+
+/**
+ * @brief Set pattern eigen-decompositions
+ *
+ * This function sets the vector of pattern eigen-decompositions indices for an instance.
+ *
+ * @param instance             Instance number (input)
+ * @param inPatternCounts      Array containing eigenBufferCount patterns counts for each
+ * 							   eigen-decomposition model (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetPatternEigens(int instance,
+                                            const int* inPatternCounts);
+
 /**
  * @brief Set pattern weights
  *
@@ -700,7 +715,7 @@ BEAGLE_DLLEXPORT int beagleCopyScaleFactors(int instance,
  * @param srcScalingIndex           Source scaleBuffer (input)
  * @param outScaleFactors           Pointer to which to receive scaleFactors (output)
  */
-BEAGLE_DLLEXPORT int beagleGetScaleFactors(int instance,                                            
+BEAGLE_DLLEXPORT int beagleGetLogScaleFactors(int instance,
                                            int srcScalingIndex,
                                            double* outScaleFactors);     
                                                                                                                                                                                                    

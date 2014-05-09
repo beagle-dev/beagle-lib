@@ -176,6 +176,8 @@ public:
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
     
+    int setPatternEigens(const int* inPatterCounts);
+
     int setPatternWeights(const double* inPatternWeights);    
     
     // set the vector of category rates
@@ -257,7 +259,7 @@ public:
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);    
                          
-	int getScaleFactors(int srcScalingIndex,
+	int getLogScaleFactors(int srcScalingIndex,
                         double* scaleFactors);                          
     
     // calculate the site log likelihoods at a particular node

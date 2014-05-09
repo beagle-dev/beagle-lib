@@ -541,6 +541,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCategoryRates(const double* inCategory
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternEigens(const int* inPatterCounts) {
+	return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternWeights(const double* inPatternWeights) {
     assert(inPatternWeights != 0L);
     memcpy(gPatternWeights, inPatternWeights, sizeof(double) * kPatternCount);
@@ -1233,9 +1238,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::copyScaleFactors(int destScalingIndex,
 }
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getScaleFactors(int srcScalingIndex,
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getLogScaleFactors(int srcScalingIndex,
                         							   double* scaleFactors) {
-	// Do nothing                        							   
+	beagleMemCpy(scaleFactors, gScaleBuffers[srcScalingIndex], kPatternCount);
+
+	if (!(kFlags & BEAGLE_FLAG_SCALERS_LOG)) {
+		for (int i = 0; i < kPatternCount; ++i) {
+			scaleFactors[i] = log(scaleFactors[i]);
+		}
+	}
+
 	return BEAGLE_SUCCESS;                        							   
 }                        							   
 

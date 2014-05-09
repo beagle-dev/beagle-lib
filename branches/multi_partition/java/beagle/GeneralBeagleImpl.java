@@ -128,6 +128,10 @@ public class GeneralBeagleImpl implements Beagle {
     public void finalize() throws Throwable {
         super.finalize();
     }
+    
+    public void setPatternEigens(final int[] patternCounts) {
+        throw new RuntimeException("Not yet implemented");
+    }
 
     public void setPatternWeights(final double[] patternWeights) {
         System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);

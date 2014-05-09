@@ -23,7 +23,6 @@ public interface Beagle {
     public static int OPERATION_TUPLE_SIZE = 7;
     public static int NONE = -1;
 
-
     /**
      * Finalize this instance
      *
@@ -31,6 +30,11 @@ public interface Beagle {
      */
     void finalize() throws Throwable;
 
+    /**
+     * Set the patterns counts for each eigen-decomposition
+     * @param patternCounts     Array containing patternCounts
+     */
+    void setPatternEigens(final int[] patternCounts);
 
     /**
      * Set the weights for each pattern
