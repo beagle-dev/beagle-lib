@@ -1,0 +1,331 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectName>libhmsbeagle-cuda</ProjectName>
+    <ProjectGuid>{94DD4F9A-6D41-44B2-A141-72CBD8452C50}</ProjectGuid>
+    <RootNamespace>libhmsbeagle-cuda</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v110</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
+    <Import Project="..\libhmsbeagle\PropertySheet.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>11.0.60610.1</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <PreBuildEvent>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CUDA_Build_Rule>
+      <Include>"../../../"</Include>
+      <NvccCompilation>4</NvccCompilation>
+      <compileout>2</compileout>
+      <CompilerPath>0</CompilerPath>
+      <AlternateNvccPath />
+      <ExtraNvccOptions>-m32</ExtraNvccOptions>
+    </CUDA_Build_Rule>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";CUDA;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)hmsbeagle-cuda32D-$(BeaglePluginVersion).dll</OutputFile>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\Win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(OutDir)libhmsbeagle-cuda.pdb</ProgramDatabaseFile>
+      <SubSystem>Console</SubSystem>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention />
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <PostBuildEvent>
+      <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <PreBuildEvent>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command />
+    </CustomBuildStep>
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";CUDA;_DEBUG;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)hmsbeagle-cuda64D-$(BeaglePluginVersion).dll</OutputFile>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(OutDir)libhmsbeagle-cuda.pdb</ProgramDatabaseFile>
+      <SubSystem>Console</SubSystem>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention />
+      <TargetMachine>MachineX64</TargetMachine>
+    </Link>
+    <PostBuildEvent>
+      <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <PreBuildEvent>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CUDA_Build_Rule>
+      <Include>"../../../"</Include>
+      <NvccCompilation>4</NvccCompilation>
+      <compileout>2</compileout>
+      <ExtraNvccOptions>-m32</ExtraNvccOptions>
+    </CUDA_Build_Rule>
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";CUDA;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)hmsbeagle-cuda32-$(BeaglePluginVersion).dll</OutputFile>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\Win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention />
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <PostBuildEvent>
+      <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <PreBuildEvent>
+      <Message>
+      </Message>
+      <Command>
+      </Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command />
+    </CustomBuildStep>
+    <CUDA_Build_Rule>
+      <Include>"../../../"</Include>
+      <NvccCompilation>4</NvccCompilation>
+      <compileout>2</compileout>
+      <CompilerPath>0</CompilerPath>
+      <AlternateNvccPath />
+      <ExtraNvccOptions>-m64</ExtraNvccOptions>
+    </CUDA_Build_Rule>
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+    </Midl>
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalIncludeDirectories>$(CUDA_PATH)\include;../../../;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;PACKAGE_VERSION="$(BeaglePackageVersion)";PLUGIN_VERSION="$(BeaglePluginVersion)";CUDA;_CONSOLE;_EXPORTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)hmsbeagle-cuda64-$(BeaglePluginVersion).dll</OutputFile>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention />
+      <TargetMachine>MachineX64</TargetMachine>
+    </Link>
+    <PostBuildEvent>
+      <Command>IF EXIST cg_variables.h move cg_variables.h $(Configuration)\</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\libhmsbeagle\beagle.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\BeagleImpl.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.hpp" />
+    <ClInclude Include="..\..\..\libhmsbeagle\platform.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\BeagleGPUImpl.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\GPUImplDefs.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\GPUImplHelper.h" />
+    <CustomBuild Include="..\..\..\libhmsbeagle\GPU\GPUInterface.h">
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </Command>
+    </CustomBuild>
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\KernelLauncher.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\GPU\KernelResource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\GPUImplHelper.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\GPUInterfaceCUDA.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\KernelLauncher.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\KernelResource.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\GPU\CUDAPlugin.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\..\..\libhmsbeagle\GPU\kernels\kernels4.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Release|x64'">data\%(Filename).ptx</CompileOut>
+      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ptx</NvccCompilation>
+      <CudaRuntime Condition="'$(Configuration)|$(Platform)'=='Release|x64'">None</CudaRuntime>
+      <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Release|x64'">64</TargetMachinePlatform>
+      <Defines Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </Defines>
+      <AdditionalCompilerOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </AdditionalCompilerOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">-DCUDA %(AdditionalOptions)</AdditionalOptions>
+      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">data\%(Filename).ptx</CompileOut>
+      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ptx</NvccCompilation>
+      <CudaRuntime Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">None</CudaRuntime>
+      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">data\%(Filename).ptx</CompileOut>
+      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ptx</NvccCompilation>
+      <CudaRuntime Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">None</CudaRuntime>
+      <CompileOut Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">data\%(Filename).ptx</CompileOut>
+      <NvccCompilation Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ptx</NvccCompilation>
+      <CudaRuntime Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">None</CudaRuntime>
+      <TargetMachinePlatform Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">64</TargetMachinePlatform>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">-DCUDA %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">-DCUDA %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">-DCUDA %(AdditionalOptions)</AdditionalOptions>
+    </CudaCompile>
+    <CUDA_Build_Rule Include="..\..\..\libhmsbeagle\GPU\kernels\kernelsAll.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </CUDA_Build_Rule>
+    <CUDA_Build_Rule Include="..\..\..\libhmsbeagle\GPU\kernels\kernelsX.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </CUDA_Build_Rule>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 5.5.targets" />
+  </ImportGroup>
+</Project>
