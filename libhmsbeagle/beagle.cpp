@@ -653,6 +653,17 @@ int beagleSetCategoryWeights(int instance,
     return returnValue;
 }
 
+int beagleSetPatternEigens(int instance,
+                           const int* inPatternCounts) {
+	DEBUG_START_TIME();
+	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL)
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	int returnValue = beagleInstance->setPatternEigens(inPatternCounts);
+	DEBUG_END_TIME();
+	return returnValue;
+}
+
 int beagleSetPatternWeights(int instance,
                             const double* inPatternWeights) {
     DEBUG_START_TIME();
@@ -940,7 +951,7 @@ int beagleCopyScaleFactors(int instance,
     //    }
 }
 
-int beagleGetScaleFactors(int instance,                        
+int beagleGetLogScaleFactors(int instance,
                            int srcScalingIndex,
                            double* scaleFactors) {
     DEBUG_START_TIME();
@@ -948,7 +959,7 @@ int beagleGetScaleFactors(int instance,
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->getScaleFactors(srcScalingIndex, scaleFactors);
+    int returnValue = beagleInstance->getLogScaleFactors(srcScalingIndex, scaleFactors);
     DEBUG_END_TIME();
     return returnValue;
     //    }

@@ -148,6 +148,9 @@ public class BeagleJNIWrapper {
 
     public native int getSiteLogLikelihoods(final int instance,
                                             final double[] outLogLikelihoods);
+                                            
+    public native int setPatternEigens(final int instance, 
+                                       final int[] patternCounts);                                            
 
     /* Library loading routines */
 

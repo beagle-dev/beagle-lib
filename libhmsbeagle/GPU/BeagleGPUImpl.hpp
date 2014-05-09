@@ -35,6 +35,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
+#include <cmath>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -982,6 +983,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCategoryRates(const double* inCategory
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternEigens(const int* inPatterCounts) {
+	return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPatternWeights) {
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1612,13 +1618,44 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
 }
 
 BEAGLE_GPU_TEMPLATE
-int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getScaleFactors(int srcScalingIndex,
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogScaleFactors(int srcScalingIndex,
                         							   double* scaleFactors) {                        							   
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::getScaleFactors\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getLogScaleFactors\n");
 #endif
 
-	// Do nothing
+
+
+    gpu->MemcpyDeviceToHost(hPartialsCache, dScalingFactors[srcScalingIndex], sizeof(Real) * kPatternCount);
+
+//    double* outPartialsOffset = outPartials;
+//    Real* tmpRealPartialsOffset = hPartialsCache;
+//
+//    for (int i = 0; i < kPatternCount; i++) {
+////#ifdef DOUBLE_PRECISION
+////        memcpy(outPartialsOffset, tmpRealPartialsOffset, sizeof(Real) * kStateCount);
+////#else
+////        MEMCNV(outPartialsOffset, tmpRealPartialsOffset, kStateCount, double);
+////#endif
+//    	beagleMemCpy(outPartialsOffset, tmpRealPartialsOffset, kStateCount);
+//        tmpRealPartialsOffset += kPaddedStateCount;
+//        outPartialsOffset += kStateCount;
+//    }
+//
+//
+//    gpu->MemcpyDeviceToDevice(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], sizeof(Real)*kScaleBufferSize);
+//
+	beagleMemCpy(scaleFactors, hPartialsCache, kPatternCount);
+
+	if (!(kFlags & BEAGLE_FLAG_SCALERS_LOG)) {
+		for (int i = 0; i < kPatternCount; ++i) {
+			scaleFactors[i] = log(scaleFactors[i]);
+		}
+	}
+
+	return BEAGLE_SUCCESS;
+
+
 	
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
