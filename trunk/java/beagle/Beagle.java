@@ -118,7 +118,7 @@ public interface Beagle {
      * be patternCount in length.
      *   
      * @param scaleIndex    Index of scaleBuffer to get (input)
-     * @param  outPartials  Pointer to which to receive partialsBuffer (output)
+     * @param  outFactors  Pointer to which to receive partialsBuffer (output)
      */
     void getLogScaleFactors(           
             int scaleIndex,
