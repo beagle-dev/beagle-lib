@@ -5,6 +5,8 @@
 
 package beagle;
 
+import java.io.Serializable;
+
 /**
  * Beagle - An interface exposing the BEAGLE likelihood evaluation library.
  *
@@ -18,7 +20,7 @@ package beagle;
  * @version $Id:$
  */
 
-public interface Beagle {
+public interface Beagle extends Serializable {
 
     public static int OPERATION_TUPLE_SIZE = 7;
     public static int NONE = -1;
