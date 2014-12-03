@@ -1,5 +1,7 @@
 package beagle;
 
+import java.io.Serializable;
+
 /**
  * An interface for reporting information about a particular instance
  * as reported by the BEAGLE API.
@@ -7,7 +9,7 @@ package beagle;
  * @author Marc Suchard
  * @version $Id$
  */
-public class InstanceDetails {
+public class InstanceDetails implements Serializable {
 
     public InstanceDetails() {
     }
