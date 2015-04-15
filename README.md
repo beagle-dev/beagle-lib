@@ -5,37 +5,26 @@ The project involves an open API and fast implementations of a library for evalu
 The aim is to provide high performance evaluation 'services' to a wide range of phylogenetic software, both Bayesian samplers and Maximum Likelihood optimizers. This allows these packages to make use of implementations that make use of optimized hardware such as graphics processing units.
 
 Currently the following software packages can make use of the BEAGLE library:
+- BEAST http://beast.bio.ed.ac.uk/
+- Garli https://garli.googlecode.com/
+- MrBayes http://mrbayes.sourceforge.net/
+- PhyML https://phyml.googlecode.com/
 
-  * BEAST http://beast.bio.ed.ac.uk/
-  * Garli https://garli.googlecode.com/
-  * MrBayes http://mrbayes.sourceforge.net/
-  * PhyML https://phyml.googlecode.com/
-
-A manuscript describes the BEAGLE API and library:
-
+A manuscript describes the BEAGLE API and library:  
 http://sysbio.oxfordjournals.org/content/61/1/170
 
-The paper describing the algorithms used for calculating likelihoods of sequences on trees using many core devices like graphics processing units (GPUs) is available from:
+The paper describing the algorithms used for calculating likelihoods of sequences on trees using many core devices like graphics processing units (GPUs) is available from:  
+http://tree.bio.ed.ac.uk/publications/390/  
 
-http://tree.bio.ed.ac.uk/publications/390/
+Binary installers:
+- [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
+- [BEAGLE v2.1 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
 
-<br>
+Installation instructions:
+- [Instructions for installing BEAGLE on Mac OS X](https://github.com/ayresdl/beagle-lib/wiki/MacInstallInstructions)
+- [Instructions for installing BEAGLE on Windows](https://github.com/ayresdl/beagle-lib/wiki/WindowsInstallInstructions)
+- [Instructions for installing BEAGLE on Linux](https://github.com/ayresdl/beagle-lib/wiki/LinuxInstallInstructions) 
 
-Binary installers:<br>
-<br>
-<ul><li><a href='https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg'>BEAGLE v2.1.2 for Mac OS X 10.6 and later</a></li></ul>
-
-<ul><li><a href='http://beagle-lib.googlecode.com/files/BEAGLE-2.1.msi'>BEAGLE v2.1 for Windows XP and later</a></li></ul>
-
-Installation instructions:<br>
-<br>
-<ul><li><a href='http://code.google.com/p/beagle-lib/wiki/MacInstallInstructions'>Instructions for installing BEAGLE on Mac OS X</a></li></ul>
-
-<ul><li><a href='http://code.google.com/p/beagle-lib/wiki/WindowsInstallInstructions'>Instructions for installing BEAGLE on Windows</a></li></ul>
-
-<ul><li><a href='http://code.google.com/p/beagle-lib/wiki/LinuxInstallInstructions'>Instructions for installing BEAGLE on Linux</a></li></ul>
-
-Documentation:<br>
-<br>
-<ul><li><a href='http://beagle-lib.googlecode.com/svn/doc/html/beagle_8h.html'>API documentation</a>
-</li><li><a href='http://code.google.com/p/beagle-lib/wiki/ReleaseNotes'>Release notes</a>
+Documentation:
+- [API documentation](http://beagle-lib.googlecode.com/svn/doc/html/beagle_8h.html)
+- [Release notes](https://github.com/ayresdl/beagle-lib/wiki/ReleaseNotes)
