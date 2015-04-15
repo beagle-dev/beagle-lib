@@ -21,10 +21,10 @@ Binary installers:
 - [BEAGLE v2.1 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
 
 Installation instructions:
-- [Instructions for installing BEAGLE on Mac OS X](https://github.com/ayresdl/beagle-lib/wiki/MacInstallInstructions)
-- [Instructions for installing BEAGLE on Windows](https://github.com/ayresdl/beagle-lib/wiki/WindowsInstallInstructions)
-- [Instructions for installing BEAGLE on Linux](https://github.com/ayresdl/beagle-lib/wiki/LinuxInstallInstructions) 
+- [Instructions for installing BEAGLE on Mac OS X](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
+- [Instructions for installing BEAGLE on Windows](https://github.com/beagle-dev/beagle-lib/wiki/WindowsInstallInstructions)
+- [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions) 
 
 Documentation:
 - [API documentation](http://beagle-lib.googlecode.com/svn/doc/html/beagle_8h.html)
-- [Release notes](https://github.com/ayresdl/beagle-lib/wiki/ReleaseNotes)
+- [Release notes](https://github.com/beagle-dev/beagle-lib/wiki/ReleaseNotes)
