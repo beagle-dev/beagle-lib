@@ -408,26 +408,15 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
   (JNIEnv *env, jobject obj, jint instance, jint eigenIndex, jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDerivativeIndices, jdoubleArray inEdgeLengths, jint count)
 {
-    jint errCode;
-
     jint *probabilityIndices = env->GetIntArrayElements(inProbabilityIndices, NULL);
-    if (inFirstDerivativeIndices == NULL) {
-        jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
+    jint *firstDerivativeIndices = inFirstDerivativeIndices != NULL ? env->GetIntArrayElements(inFirstDerivativeIndices, NULL) : NULL;
+    jint *secondDerivativeIndices = inSecondDerivativeIndices != NULL ? env->GetIntArrayElements(inSecondDerivativeIndices, NULL) : NULL;
+    jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
+    jint errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDerivativeIndices, (double *)edgeLengths, count);
 
-        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, NULL, NULL, (double *)edgeLengths, count);
-
-        env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
-    } else {
-        jint *firstDerivativeIndices = env->GetIntArrayElements(inFirstDerivativeIndices, NULL);
-        jint *secondDerivativeIndices = env->GetIntArrayElements(inSecondDerivativeIndices, NULL);
-        jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
-
-        errCode = (jint)beagleUpdateTransitionMatrices(instance, eigenIndex, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDerivativeIndices, (double *)edgeLengths, count);
-
-        env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
-        env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
-        env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
-    }
+    env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
+    if (inSecondDerivativeIndices != NULL) env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
+    if (inFirstDerivativeIndices != NULL) env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);
 
     return errCode;
