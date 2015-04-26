@@ -561,16 +561,16 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     jint *parentBufferIndices = env->GetIntArrayElements(inParentBufferIndices, NULL);
     jint *childBufferIndices = env->GetIntArrayElements(inChildBufferIndices, NULL);
     jint *probabilityIndices = env->GetIntArrayElements(inProbabilityIndices, NULL);
-    jint *firstDerivativeIndices = env->GetIntArrayElements(inFirstDerivativeIndices, NULL);
-    jint *secondDerivativeIndices = env->GetIntArrayElements(inSecondDerivativeIndices, NULL);
+    jint *firstDerivativeIndices = inFirstDerivativeIndices != NULL ? env->GetIntArrayElements(inFirstDerivativeIndices, NULL) : NULL;
+    jint *secondDerivativeIndices = inSecondDerivativeIndices != NULL ? env->GetIntArrayElements(inSecondDerivativeIndices, NULL) : NULL;
 
     jint *weightsIndices = env->GetIntArrayElements(inCatagoryWeightsIndices, NULL);
     jint *frequenciesIndices = env->GetIntArrayElements(inStateFrequenciesIndices, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
     //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
     jdouble *sumLogLikelihoods = env->GetDoubleArrayElements(outSumLogLikelihoods, NULL);
-    jdouble *sumFirstDerivatives = env->GetDoubleArrayElements(outSumFirstDerivatives, NULL);
-    jdouble *sumSecondDerivatives = env->GetDoubleArrayElements(outSumSecondDerivatives, NULL);
+    jdouble *sumFirstDerivatives = outSumFirstDerivatives != NULL ? env->GetDoubleArrayElements(outSumFirstDerivatives, NULL) : NULL;
+    jdouble *sumSecondDerivatives = outSumSecondDerivatives != NULL ? env->GetDoubleArrayElements(outSumSecondDerivatives, NULL) : NULL;
 
 	jint errCode = (jint)beagleCalculateEdgeLogLikelihoods(instance, (int *)parentBufferIndices, (int *)childBufferIndices,
 	                                                    (int *)probabilityIndices, (int *)firstDerivativeIndices,
@@ -584,8 +584,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
 	                                                    (double *)sumSecondDerivatives);
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
-    env->ReleaseDoubleArrayElements(outSumSecondDerivatives, sumSecondDerivatives, 0);
-    env->ReleaseDoubleArrayElements(outSumFirstDerivatives, sumFirstDerivatives, 0);
+    if (outSumSecondDerivatives != NULL) env->ReleaseDoubleArrayElements(outSumSecondDerivatives, sumSecondDerivatives, 0);
+    if (outSumFirstDerivatives != NULL) env->ReleaseDoubleArrayElements(outSumFirstDerivatives, sumFirstDerivatives, 0);
     env->ReleaseDoubleArrayElements(outSumLogLikelihoods, sumLogLikelihoods, 0);
 
     //    env->ReleaseIntArrayElements(inScalingCount, scalingCount, JNI_ABORT);
@@ -594,8 +594,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     env->ReleaseIntArrayElements(inStateFrequenciesIndices, frequenciesIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inCatagoryWeightsIndices, weightsIndices, JNI_ABORT);
 
-    env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
-    env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
+    if (inSecondDerivativeIndices != NULL) env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
+    if (inFirstDerivativeIndices != NULL) env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inChildBufferIndices, childBufferIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inParentBufferIndices, parentBufferIndices, JNI_ABORT);
