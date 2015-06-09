@@ -28,3 +28,6 @@ Installation instructions:
 Documentation:
 - [API documentation](http://beagle-lib.googlecode.com/svn/doc/html/beagle_8h.html)
 - [Release notes](https://github.com/beagle-dev/beagle-lib/wiki/ReleaseNotes)
+
+# Acknowledgements
+- This project is supported in part through the National Science Foundation grants IIS 1251151 and DMS 1264153.
