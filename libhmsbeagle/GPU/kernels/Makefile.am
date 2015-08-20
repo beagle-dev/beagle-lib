@@ -22,7 +22,7 @@ BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplD
 		$(srcdir)/kernels4.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)
 	echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
-	echo "\"" >> BeagleCUDA_kernels.h	
+	echo "\"" >> BeagleCUDA_kernels.h
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
@@ -39,17 +39,17 @@ BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplD
 # Compile double-precision kernels
 #
 # 	Compile 4-state model
-	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx -arch compute_13 -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
+	$(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
 		$(srcdir)/kernels4.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)
 	echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
 	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h
-	echo "\"" >> BeagleCUDA_kernels.h	
+	echo "\"" >> BeagleCUDA_kernels.h
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
 	for s in $(STATE_COUNT_LIST); do \
 		echo "Making state count = $$s" ; \
-		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -arch compute_13 -DCUDA -DSTATE_COUNT=$$s -DDOUBLE_PRECISION \
+		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=$$s -DDOUBLE_PRECISION \
 			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)) || exit; \
 		echo "#define KERNELS_STRING_DP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
 		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \

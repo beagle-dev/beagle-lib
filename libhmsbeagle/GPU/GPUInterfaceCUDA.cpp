@@ -162,12 +162,8 @@ int GPUInterface::Initialize() {
     // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
     CUresult error = cuInit(0);
     
-    if (error == CUDA_ERROR_NO_DEVICE) {
+    if (error != CUDA_SUCCESS) {
         return 0;
-    } else if (error != CUDA_SUCCESS) {
-        fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n",
-                GetCUDAErrorDescription(error), __FILE__, __LINE__);
-        exit(-1);
     }
     
     int numDevices = 0;
