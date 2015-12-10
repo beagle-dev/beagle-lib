@@ -132,6 +132,10 @@ public class GeneralBeagleImpl implements Beagle {
     public void setPatternWeights(final double[] patternWeights) {
         System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);
     }
+    
+    public void setPatternMapping(final int[] patternMapping) {
+    	throw new RuntimeException("Not yet implemented");
+    }
 
     /**
      * Sets partials for a tip - these are numbered from 0 and remain

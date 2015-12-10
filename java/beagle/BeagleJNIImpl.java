@@ -67,6 +67,13 @@ public class BeagleJNIImpl implements Beagle {
             throw new BeagleException("setPatternWeights", errCode);
         }
     }
+    
+    public void setPatternMapping(final int[] patternMapping) {
+    	int errCode = BeagleJNIWrapper.INSTANCE.setPatternMapping(instance, patternMapping);
+    	if (errCode != 0) {
+    		throw new BeagleException("setPatternMapping", errCode);
+    	}
+    }
 
     public void setTipStates(int tipIndex, final int[] states) {
         int errCode = BeagleJNIWrapper.INSTANCE.setTipStates(instance, tipIndex, states);

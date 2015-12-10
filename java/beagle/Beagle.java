@@ -161,6 +161,14 @@ public interface Beagle extends Serializable {
      */
     void setCategoryWeights(int categoryWeightsIndex,
                             final double[] categoryWeights);
+                            
+	/**
+	 * Set pattern substitution mapping
+	 *
+	 * This function sets the vector of integer pattern-specific substitution matrix mapping
+	 * @param inPatternMapping		Array containing patternCount maps (input)
+	 */
+	 void setPatternMapping(final int[] inPatternMapping);
 
     /**
      * Set category rates
