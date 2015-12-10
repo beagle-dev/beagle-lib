@@ -133,35 +133,35 @@ void beagleLoadPlugins(void) {
 		std::cerr << "Please check for proper libhmsbeagle installation.\n";
 	}
 
-	try{
-		beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
-		plugins->push_back(cudaplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-
-	try{
-		beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
-		plugins->push_back(openclplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-
-	try{
-		beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
-		plugins->push_back(openclalteraplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-
-	try{
-		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
-		plugins->push_back(sseplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-	
-	try{
-		beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
-		plugins->push_back(avxplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}	
-
-	try{
-		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-		plugins->push_back(openmpplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
+// 	try{
+// 		beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
+// 		plugins->push_back(cudaplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}
+// 
+// 	try{
+// 		beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
+// 		plugins->push_back(openclplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}
+// 
+// 	try{
+// 		beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
+// 		plugins->push_back(openclalteraplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}
+// 
+// 	try{
+// 		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
+// 		plugins->push_back(sseplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}
+// 	
+// 	try{
+// 		beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
+// 		plugins->push_back(avxplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}	
+// 
+// 	try{
+// 		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
+// 		plugins->push_back(openmpplug);
+// 	}catch(beagle::plugin::SharedLibraryException sle){}
 }
 
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {

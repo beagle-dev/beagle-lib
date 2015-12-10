@@ -34,8 +34,8 @@ Plugin("CPU", "CPU")
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories
-	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateImplFactory<double>());
-	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
+// 	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateImplFactory<double>());
+// 	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateImplFactory<float>());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUImplFactory<double>());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUImplFactory<float>());
 }
