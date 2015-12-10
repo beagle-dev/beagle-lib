@@ -68,10 +68,10 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
     
-    public void setPatternMapping(final int[] patternMapping) {
-    	int errCode = BeagleJNIWrapper.INSTANCE.setPatternMapping(instance, patternMapping);
+    public void setPatternMap(final int[] patternMapping) {
+    	int errCode = BeagleJNIWrapper.INSTANCE.setPatternMap(instance, patternMapping);
     	if (errCode != 0) {
-    		throw new BeagleException("setPatternMapping", errCode);
+    		throw new BeagleException("setPatternMap", errCode);
     	}
     }
 

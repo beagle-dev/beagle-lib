@@ -133,7 +133,7 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);
     }
     
-    public void setPatternMapping(final int[] patternMapping) {
+    public void setPatternMap(final int[] patternMap) {
     	throw new RuntimeException("Not yet implemented");
     }
 

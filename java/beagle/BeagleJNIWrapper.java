@@ -51,7 +51,7 @@ public class BeagleJNIWrapper {
     public native int setPatternWeights(int instance,
                                         final double[] patternWeights);
                                         
-    public native int setPatternMapping(int instance, final int[] patternMapping);
+    public native int setPatternMap(int instance, final int[] patternMap);
 
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 

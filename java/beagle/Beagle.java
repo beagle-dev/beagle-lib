@@ -166,9 +166,9 @@ public interface Beagle extends Serializable {
 	 * Set pattern substitution mapping
 	 *
 	 * This function sets the vector of integer pattern-specific substitution matrix mapping
-	 * @param inPatternMapping		Array containing patternCount maps (input)
+	 * @param inPatternMap		Array containing patternCount maps (input)
 	 */
-	 void setPatternMapping(final int[] inPatternMapping);
+	 void setPatternMap(final int[] inPatternMap);
 
     /**
      * Set category rates
