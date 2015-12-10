@@ -85,6 +85,8 @@ public:
     
     virtual int setPatternWeights(const double* inPatternWeights) = 0;
     
+    virtual int setPatternMap(const int* inPatternMap) = 0;
+    
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,

@@ -204,6 +204,7 @@ public:
     
     int setPatternWeights(const double* inPatternWeights);
     
+    int setPatternMap(const int* inPatternMap);
     
     int setCategoryRates(const double* inCategoryRates);
     

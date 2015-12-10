@@ -548,6 +548,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternWeights(const double* inPattern
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternMap(const int* inPatternMap) {
+	assert(inPatternMap != 0L);
+	// TODO
+	return BEAGLE_SUCCESS;
+}
+
+
+BEAGLE_CPU_TEMPLATE
     int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setStateFrequencies(int stateFrequenciesIndex,
                                                      const double* inStateFrequencies) {
     if (stateFrequenciesIndex < 0 || stateFrequenciesIndex >= kEigenDecompCount)

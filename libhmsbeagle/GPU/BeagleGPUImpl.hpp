@@ -1007,6 +1007,22 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPattern
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternMap(const int* inPatternWeights) {
+    
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\tEntering BeagleGPUImpl::setPatternMap\n");
+#endif
+	
+	// TODO
+	    
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPatternMap\n");
+#endif
+    
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 									   double* outMatrix) {
 #ifdef BEAGLE_DEBUG_FLOW
