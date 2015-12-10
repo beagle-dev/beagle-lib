@@ -99,12 +99,12 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
- * Signature: (IIIIIIIII[IIJJLbeagle/InstanceDetails;)I
+ * Signature: (IIIIIIIIII[IIJJLbeagle/InstanceDetails;)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
     (JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
     jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
-     categoryCount, jint scaleBufferCount, 
+     categoryCount, jint scaleBufferCount, jint mapBufferCount,
 	 jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags,
 	 jobject outInstanceDetails)
 {
@@ -123,6 +123,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
                                     matrixBufferCount,
                                     categoryCount,
                                     scaleBufferCount,
+                                    mapBufferCount,
                                     (int *)resourceList,
                                     resourceCount,
                                     preferenceFlags,

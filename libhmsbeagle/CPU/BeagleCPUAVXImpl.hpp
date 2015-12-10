@@ -565,6 +565,7 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
                                              int matrixBufferCount,
                                              int categoryCount,
                                              int scaleBufferCount,
+                                             int mapBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,                                             
                                              long preferenceFlags,

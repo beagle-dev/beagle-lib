@@ -172,4 +172,6 @@ libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelResource.lo
 libhmsbeagle/GPU/libhmsbeagle_opencl_la-OpenCLPlugin.lo
 libhmsbeagle/config.h.in~
 project/beagle-xcode/BEAGLE-1.0.pkg
-
+libhmsbeagle/JNI/libhmsbeagle-jni.la
+libhmsbeagle/JNI/libhmsbeagle_jni_la-beagle_BeagleJNIWrapper.lo
+libhmsbeagle/JNI/.libs

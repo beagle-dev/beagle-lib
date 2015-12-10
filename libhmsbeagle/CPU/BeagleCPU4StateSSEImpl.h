@@ -224,6 +224,7 @@ public:
                                    int matrixBufferCount,
                                    int categoryCount,
                                    int scaleBufferCount,
+                                   int mapBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
                                    long preferenceFlags,

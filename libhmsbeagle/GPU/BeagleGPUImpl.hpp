@@ -234,6 +234,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
                                   int matrixCount,
                                   int categoryCount,
                                   int scaleBufferCount,
+                                  int mapBufferCount,
                                   int globalResourceNumber,
                                   int pluginResourceNumber,
                                   long preferenceFlags,
@@ -2134,6 +2135,7 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
                                               int matrixBufferCount,
                                               int categoryCount,
                                               int scaleBufferCount,
+                                              int mapBufferCount,
                                               int resourceNumber,
                                               int pluginResourceNumber,
                                               long preferenceFlags,
@@ -2144,7 +2146,7 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
         *errorCode =
             impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, resourceNumber, pluginResourceNumber, preferenceFlags, requirementFlags);      
+                                 categoryCount,scaleBufferCount, mapBufferCount, resourceNumber, pluginResourceNumber, preferenceFlags, requirementFlags);      
         if (*errorCode == BEAGLE_SUCCESS) {
             return impl;
         }

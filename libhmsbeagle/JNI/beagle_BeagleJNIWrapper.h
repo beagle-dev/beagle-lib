@@ -34,10 +34,10 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
- * Signature: (IIIIIIIII[IIJJLbeagle/InstanceDetails;)I
+ * Signature: (IIIIIIIIII[IIJJLbeagle/InstanceDetails;)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
-  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint, jint, jint, jint, jintArray, jint, jlong, jlong, jobject);
+  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint, jint, jint, jint, jint, jintArray, jint, jlong, jlong, jobject);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

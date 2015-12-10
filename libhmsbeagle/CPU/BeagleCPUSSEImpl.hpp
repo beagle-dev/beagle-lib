@@ -562,6 +562,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
                                              int matrixBufferCount,
                                              int categoryCount,
                                              int scaleBufferCount,
+                                             int mapBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
                                              long preferenceFlags,
@@ -579,7 +580,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
         try {
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
-                                     categoryCount,scaleBufferCount, resourceNumber, 
+                                     categoryCount,scaleBufferCount, mapBufferCount, resourceNumber, 
                                      pluginResourceNumber, 
                                      preferenceFlags, requirementFlags) == 0)
                 return impl;
@@ -600,7 +601,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
         try {
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
-                                     categoryCount,scaleBufferCount, resourceNumber,
+                                     categoryCount,scaleBufferCount, mapBufferCount, resourceNumber,
                                      pluginResourceNumber, 
                                      preferenceFlags, requirementFlags) == 0)
                 return impl;

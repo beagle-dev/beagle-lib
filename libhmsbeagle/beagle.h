@@ -276,6 +276,7 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param matrixBufferCount     Number of transition probability matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
  * @param scaleBufferCount		Number of scale buffers to create, ignored for auto scale or always scale (input)
+ * @param mapBufferCount        Number of transition probability matrix map buffers (input)
  * @param resourceList          List of potential resources on which this instance is allowed
  *                               (input, NULL implies no restriction)
  * @param resourceCount         Length of resourceList list (input)
@@ -299,6 +300,7 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int matrixBufferCount,
                          int categoryCount,
                          int scaleBufferCount,
+                         int mapBufferCount,
                          int* resourceList,
                          int resourceCount,
                          long preferenceFlags,
@@ -470,11 +472,6 @@ BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
  */
 BEAGLE_DLLEXPORT int beagleSetPatternWeights(int instance,
                                        const double* inPatternWeights);
-    
-
-///////////////////////////
-//---TODO: Epoch model---//
-///////////////////////////
 
 /**
  * @brief Convolve lists of transition probability matrices

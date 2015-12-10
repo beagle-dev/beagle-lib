@@ -201,6 +201,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int matrixCount,
                                   int categoryCount,
                                   int scaleBufferCount,
+                                  int mapBufferCount,
                                   int resourceNumber,
                                   int pluginResourceNumber,
                                   long preferenceFlags,
@@ -2283,6 +2284,7 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
                                              int matrixBufferCount,
                                              int categoryCount,
                                              int scaleBufferCount,
+                                             int mapBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
                                              long preferenceFlags,
@@ -2295,7 +2297,7 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
         *errorCode =
             impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                  patternCount, eigenBufferCount, matrixBufferCount,
-                                 categoryCount,scaleBufferCount, resourceNumber,
+                                 categoryCount,scaleBufferCount, mapBufferCount, resourceNumber,
                                  pluginResourceNumber, 
                                  preferenceFlags, requirementFlags);
         if (*errorCode == BEAGLE_SUCCESS) {
