@@ -653,6 +653,17 @@ int beagleSetCategoryWeights(int instance,
     return returnValue;
 }
 
+int beagleSetPatternMap(int instance,
+                        const int* inPatternMap) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setPatternMap(inPatternMap);
+    DEBUG_END_TIME();
+    return returnValue;                                                                        
+}
+
 int beagleSetPatternWeights(int instance,
                             const double* inPatternWeights) {
     DEBUG_START_TIME();

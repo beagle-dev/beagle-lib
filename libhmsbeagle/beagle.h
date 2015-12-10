@@ -470,11 +470,19 @@ BEAGLE_DLLEXPORT int beagleSetCategoryRates(int instance,
  */
 BEAGLE_DLLEXPORT int beagleSetPatternWeights(int instance,
                                        const double* inPatternWeights);
-    
-
-///////////////////////////
-//---TODO: Epoch model---//
-///////////////////////////
+                                       
+/**
+ * @brief Set pattern-specific transition matrix mapping for an instance
+ *
+ * This function sets the vector of pattern transition matrix mapping for an instance.
+ *
+ * @param instance              Instance number (input)
+ * @param inPatternMap          Array containing patternCount indices to transition matrices (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetPatternMap(int instance,
+                                         const int* inPatternMap);                                       
 
 /**
  * @brief Convolve lists of transition probability matrices
