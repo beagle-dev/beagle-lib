@@ -2,6 +2,10 @@
 #      http://www.gnu.org/software/autoconf-archive/ax_gcc_version.html
 # ===========================================================================
 #
+# OBSOLETE MACRO
+#
+#   Use AX_COMPILER_VERSION instead
+#
 # SYNOPSIS
 #
 #   AX_GCC_VERSION
@@ -41,26 +45,20 @@
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
 
-#serial 7
+#serial 10
 
 AC_DEFUN([AX_GCC_VERSION], [
+  AC_OBSOLETE([$0], [;please use AX_COMPILER_VERSION instead])
+  AC_LANG_PUSH([C])
+  AC_REQUIRE([AX_COMPILER_VENDOR])
+  AC_REQUIRE([AX_COMPILER_VERSION])
+  AC_LANG_POP([C])
   GCC_VERSION=""
-  AX_GCC_OPTION([-dumpversion],[],[],[
-    ax_gcc_version_option=yes
-  ],[
-    ax_gcc_version_option=no
-  ])
-  AS_IF([test "x$GCC" = "xyes"],[
-    AS_IF([test "x$ax_gcc_version_option" != "xno"],[
-      AC_CACHE_CHECK([gcc version],[ax_cv_gcc_version],[
-        ax_cv_gcc_version="`$CC -dumpversion`"
-        AS_IF([test "x$ax_cv_gcc_version" = "x"],[
-          ax_cv_gcc_version=""
-        ])
-      ])
-      GCC_VERSION=$ax_cv_gcc_version
+  ax_cv_gcc_version=""
+  AS_IF([test "X$ax_cv_c_compiler_vendor" = "Xgnu"],
+    [dnl
+    ax_cv_gcc_version=$ax_cv_c_compiler_version
+    GCC_VERSION=$ax_cv_gcc_version
     ])
-  ])
   AC_SUBST([GCC_VERSION])
 ])
-
