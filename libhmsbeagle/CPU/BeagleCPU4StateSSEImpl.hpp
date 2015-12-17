@@ -584,10 +584,12 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoods(cons
                 V_Real vwt = VEC_SPLAT(wt[l]);
 
                 V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
-                *vcl_p++ = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+                *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+                vcl_p++;
 
                 wtdPartials = VEC_MULT(*vcl_r++, vwt);
-                *vcl_p++ = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
+                *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
+                vcl_p++;
             }
            w += OFFSET*4;
            vcl_r += 2 * kExtraPatterns;
@@ -624,8 +626,10 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoods(cons
                 vclp_01 = VEC_MULT(vclp_01, vwt);
                 vclp_23 = VEC_MULT(vclp_23, vwt);
 
-                *vcl_p++ = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
-                *vcl_p++ = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+                *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+                vcl_p++;
+                *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+                vcl_p++;
 
                 v += 4;
             }
