@@ -1,33 +1,32 @@
 # ===========================================================================
-#   http://www.gnu.org/software/autoconf-archive/ax_check_compile_flag.html
+#   http://www.gnu.org/software/autoconf-archive/ax_gcc_x86_avx_xgetbv.html
 # ===========================================================================
 #
 # SYNOPSIS
 #
-#   AX_CHECK_COMPILE_FLAG(FLAG, [ACTION-SUCCESS], [ACTION-FAILURE], [EXTRA-FLAGS], [INPUT])
+#   AX_GCC_X86_AVX_XGETBV
 #
 # DESCRIPTION
 #
-#   Check whether the given FLAG works with the current language's compiler
-#   or gives an error.  (Warnings, however, are ignored)
+#   On later x86 processors with AVX SIMD support, with gcc or a compiler
+#   that has a compatible syntax for inline assembly instructions, run a
+#   small program that executes the xgetbv instruction with input OP. This
+#   can be used to detect if the OS supports AVX instruction usage.
 #
-#   ACTION-SUCCESS/ACTION-FAILURE are shell commands to execute on
-#   success/failure.
+#   On output, the values of the eax and edx registers are stored as
+#   hexadecimal strings as "eax:edx" in the cache variable
+#   ax_cv_gcc_x86_avx_xgetbv.
 #
-#   If EXTRA-FLAGS is defined, it is added to the current language's default
-#   flags (e.g. CFLAGS) when the check is done.  The check is thus made with
-#   the flags: "CFLAGS EXTRA-FLAGS FLAG".  This can for example be used to
-#   force the compiler to issue an error when a bad flag is given.
+#   If the xgetbv instruction fails (because you are running a
+#   cross-compiler, or because you are not using gcc, or because you are on
+#   a processor that doesn't have this instruction),
+#   ax_cv_gcc_x86_avx_xgetbv_OP is set to the string "unknown".
 #
-#   INPUT gives an alternative input source to AC_COMPILE_IFELSE.
-#
-#   NOTE: Implementation based on AX_CFLAGS_GCC_OPTION. Please keep this
-#   macro in sync with AX_CHECK_{PREPROC,LINK}_FLAG.
+#   This macro mainly exists to be used in AX_EXT.
 #
 # LICENSE
 #
-#   Copyright (c) 2008 Guido U. Draheim <guidod@gmx.de>
-#   Copyright (c) 2011 Maarten Bosmans <mkbosmans@gmail.com>
+#   Copyright (c) 2013 Michael Petch <mpetch@capp-sysware.com>
 #
 #   This program is free software: you can redistribute it and/or modify it
 #   under the terms of the GNU General Public License as published by the
@@ -55,20 +54,26 @@
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
 
-#serial 4
+#serial 2
 
-AC_DEFUN([AX_CHECK_COMPILE_FLAG],
-[AC_PREREQ(2.64)dnl for _AC_LANG_PREFIX and AS_VAR_IF
-AS_VAR_PUSHDEF([CACHEVAR],[ax_cv_check_[]_AC_LANG_ABBREV[]flags_$4_$1])dnl
-AC_CACHE_CHECK([whether _AC_LANG compiler accepts $1], CACHEVAR, [
-  ax_check_save_flags=$[]_AC_LANG_PREFIX[]FLAGS
-  _AC_LANG_PREFIX[]FLAGS="$[]_AC_LANG_PREFIX[]FLAGS $4 $1"
-  AC_COMPILE_IFELSE([m4_default([$5],[AC_LANG_PROGRAM()])],
-    [AS_VAR_SET(CACHEVAR,[yes])],
-    [AS_VAR_SET(CACHEVAR,[no])])
-  _AC_LANG_PREFIX[]FLAGS=$ax_check_save_flags])
-AS_VAR_IF(CACHEVAR,yes,
-  [m4_default([$2], :)],
-  [m4_default([$3], :)])
-AS_VAR_POPDEF([CACHEVAR])dnl
-])dnl AX_CHECK_COMPILE_FLAGS
+AC_DEFUN([AX_GCC_X86_AVX_XGETBV],
+[AC_REQUIRE([AC_PROG_CC])
+AC_LANG_PUSH([C])
+AC_CACHE_CHECK(for x86-AVX xgetbv $1 output, ax_cv_gcc_x86_avx_xgetbv_$1,
+ [AC_RUN_IFELSE([AC_LANG_PROGRAM([#include <stdio.h>], [
+     int op = $1, eax, edx;
+     FILE *f;
+      /* Opcodes for xgetbv */
+      __asm__ __volatile__ (".byte 0x0f, 0x01, 0xd0"
+        : "=a" (eax), "=d" (edx)
+        : "c" (op));
+     f = fopen("conftest_xgetbv", "w"); if (!f) return 1;
+     fprintf(f, "%x:%x\n", eax, edx);
+     fclose(f);
+     return 0;
+])],
+     [ax_cv_gcc_x86_avx_xgetbv_$1=`cat conftest_xgetbv`; rm -f conftest_xgetbv],
+     [ax_cv_gcc_x86_avx_xgetbv_$1=unknown; rm -f conftest_xgetbv],
+     [ax_cv_gcc_x86_avx_xgetbv_$1=unknown])])
+AC_LANG_POP([C])
+])
