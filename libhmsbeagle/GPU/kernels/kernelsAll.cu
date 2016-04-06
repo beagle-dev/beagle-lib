@@ -717,7 +717,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
 			if (Cs[tx]) {
             	REAL expat = Ds[tx];
             	REAL cosbt = cos(Cs[tx]);
-            	Cs[tx] = -expat * sin(Cs[tx]);
+            	Cs[tx] = -expat * sin(Cs[tx] + 0.0);
             	Ds[tx] *= cosbt;
             }
         }
