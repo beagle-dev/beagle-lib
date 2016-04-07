@@ -169,7 +169,8 @@ public:
                                                GPUPtr cumulativeScaling,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
-                                               int doRescaling);
+                                               int doRescaling,
+                                               int streamIndex);
     
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,

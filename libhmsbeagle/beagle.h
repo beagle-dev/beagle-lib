@@ -187,8 +187,9 @@ enum BeagleFlags {
  * This enumerates all possible BEAGLE operation codes.
  */
 enum BeagleOpCodes {
-	BEAGLE_OP_COUNT    = 7,	/**< Total number of integers per beagleUpdatePartials operation */
-	BEAGLE_OP_NONE     = -1	/**< Specify no use for indexed buffer */
+	BEAGLE_OP_COUNT           = 7,	/**< Total number of integers per beagleUpdatePartials operation */
+    BEAGLE_OP_COUNT_CONCUR    = 8, /**< Total number of integers per beagleUpdatePartialsConcurrent operation */
+	BEAGLE_OP_NONE            = -1	/**< Specify no use for indexed buffer */
 };
 
 /**
@@ -614,6 +615,42 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
                          const BeagleOperation* operations,
                          int operationCount,
                          int cumulativeScaleIndex);
+
+/**
+ * @brief A list of integer indices which specify a parallel partial likelihoods operation.
+ */
+typedef struct {
+    int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+    int destinationScaleWrite;  /**< index of scaling buffer to write to (if set to BEAGLE_OP_NONE
+                                     then calculation of new scalers is disabled)  */
+    int destinationScaleRead;   /**< index of scaling buffer to read from (if set to BEAGLE_OP_NONE
+                                     then use of existing scale factors is disabled)  */
+    int child1Partials;         /**< index of first child partials buffer */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+    int child2Partials;         /**< index of second child partials buffer */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int streamIndex;            /**< operations with different streamIndex values may be
+                                     performed concurrently */
+} BeagleOperationConcurrent;
+
+/**
+ * @brief Calculate or queue for concurrent calculation partials using a list of operations
+ *
+ * This function either calculates or queues for concurrent calculation a list of partials.
+ * Implementations supporting ASYNCH may queue these calculations while other implementations
+ * perform these operations immediately.
+ *
+ * @param instance                  Instance number (input)
+ * @param operations                BeagleOperationConcurrent list specifying operations (input)
+ * @param operationCount            Number of operations (input)
+ * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleUpdatePartialsConcurrent(const int instance,
+                                                    const BeagleOperationConcurrent* operations,
+                                                    int operationCount,
+                                                    int cumulativeScaleIndex);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

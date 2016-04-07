@@ -560,7 +560,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr cumulativeScaling,
                                                            unsigned int patternCount,
                                                            unsigned int categoryCount,
-                                                           int doRescaling) {
+                                                           int doRescaling,
+                                                           int streamIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruningDynamicScaling\n");
 #endif
@@ -574,11 +575,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     } else if (doRescaling != 0) {
         
         // Compute partials without any rescaling        
-        gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
-                          bgPeelingBlock, bgPeelingGrid,
-                          5, 6,
-                          partials1, partials2, partials3, matrices1, matrices2,
-                          patternCount);
+        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+                                    bgPeelingBlock, bgPeelingGrid,
+                                    streamIndex,
+                                    5, 6,
+                                    partials1, partials2, partials3, matrices1, matrices2,
+                                    patternCount);
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {

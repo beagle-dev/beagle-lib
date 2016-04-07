@@ -348,6 +348,103 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     
 }
 
+void GPUInterface::StreamCreate(int nStreams) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamCreate\n");
+#endif                    
+
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+    
+    cudaStreams = (CUstream*) malloc(sizeof(CUstream) * nStreams);
+    
+    for(int i=0; i<nStreams; i++) {
+        CUstream stream;
+        SAFE_CUDA(cuStreamCreate(&stream, 0));
+        cudaStreams[i] = stream;
+    }
+    printf("streams created: %d\n", nStreams);
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+        
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamCreate\n");
+#endif                
+}
+
+void GPUInterface::StreamDestroy(int nStreams) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamDestroy\n");
+#endif                    
+
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+    
+    for(int i=0; i<nStreams; i++) {
+        SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
+    }
+    
+    free(cudaStreams);
+    
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamDestroy\n");
+#endif                
+}
+
+void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
+                                         Dim3Int block,
+                                         Dim3Int grid,
+                                         int streamIndex,
+                                         int parameterCountV,
+                                         int totalParameterCount,
+                                         ...) { // parameters
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
+#endif                
+    
+    
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+    
+    SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
+    
+    int offset = 0;
+    va_list parameters;
+    va_start(parameters, totalParameterCount);  
+    for(int i = 0; i < parameterCountV; i++) {
+        void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        
+        // adjust offset alignment requirements
+        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        
+        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
+        
+        offset += sizeof(void*);
+    }
+    for(int i = parameterCountV; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+        
+        // adjust offset alignment requirements
+        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
+        
+        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
+        
+        offset += sizeof(param);
+        
+    }
+
+    va_end(parameters);
+    
+    SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
+    printf("stream index: %d\n", streamIndex);
+    SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
+    
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
+#endif                
+    
+}
+
 void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");

@@ -237,7 +237,8 @@ public:
     
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex);
+                       int cumulativeScalingIndex,
+                       int concurrentMode);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);

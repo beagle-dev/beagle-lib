@@ -793,7 +793,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
                                   int count,
-                                  int cumulativeScaleIndex) {
+                                  int cumulativeScaleIndex,
+                                  int concurrentMode) {
 
     REALTYPE* cumulativeScaleBuffer = NULL;
     if (cumulativeScaleIndex != BEAGLE_OP_NONE)
@@ -801,22 +802,28 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
 
     for (int op = 0; op < count; op++) {
         if (DEBUGGING_OUTPUT) {
-            std::cerr << "op[0]= " << operations[0] << "\n";
-            std::cerr << "op[1]= " << operations[1] << "\n";
-            std::cerr << "op[2]= " << operations[2] << "\n";
-            std::cerr << "op[3]= " << operations[3] << "\n";
-            std::cerr << "op[4]= " << operations[4] << "\n";
-            std::cerr << "op[5]= " << operations[5] << "\n";
-            std::cerr << "op[6]= " << operations[6] << "\n";
+            std::cerr << "op[0]= " << operations[op*0] << "\n";
+            std::cerr << "op[1]= " << operations[op*1] << "\n";
+            std::cerr << "op[2]= " << operations[op*2] << "\n";
+            std::cerr << "op[3]= " << operations[op*3] << "\n";
+            std::cerr << "op[4]= " << operations[op*4] << "\n";
+            std::cerr << "op[5]= " << operations[op*5] << "\n";
+            std::cerr << "op[6]= " << operations[op*6] << "\n";
+            if (concurrentMode)
+                std::cerr << "op[7]= " << operations[op*7] << "\n";
         }
 
-        const int parIndex = operations[op * 7];
-        const int writeScalingIndex = operations[op * 7 + 1];
-        const int readScalingIndex = operations[op * 7 + 2];
-        const int child1Index = operations[op * 7 + 3];
-        const int child1TransMatIndex = operations[op * 7 + 4];
-        const int child2Index = operations[op * 7 + 5];
-        const int child2TransMatIndex = operations[op * 7 + 6];
+        int numOps = BEAGLE_OP_COUNT;
+        if (concurrentMode)
+            numOps = BEAGLE_OP_COUNT_CONCUR;
+
+        const int parIndex = operations[op * numOps];
+        const int writeScalingIndex = operations[op * numOps + 1];
+        const int readScalingIndex = operations[op * numOps + 2];
+        const int child1Index = operations[op * numOps + 3];
+        const int child1TransMatIndex = operations[op * numOps + 4];
+        const int child2Index = operations[op * numOps + 5];
+        const int child2TransMatIndex = operations[op * numOps + 6];
 
         const REALTYPE* partials1 = gPartials[child1Index];
         const REALTYPE* partials2 = gPartials[child2Index];

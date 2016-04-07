@@ -528,6 +528,92 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif                
 }
 
+void GPUInterface::StreamCreate(int nStreams) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamCreate\n");
+#endif                    
+
+// TODO: write function
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamCreate\n");
+#endif                
+}
+
+void GPUInterface::StreamDestroy(int nStreams) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamDestroy\n");
+#endif                    
+
+// TODO: write function
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamDestroy\n");
+#endif                
+}
+
+void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
+                                          Dim3Int block,
+                                          Dim3Int grid,
+                                          int streamIndex,
+                                          int parameterCountV,
+                                          int totalParameterCount,
+                                          ...) { // parameters   
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
+#endif                
+    
+    va_list parameters;
+    va_start(parameters, totalParameterCount);  
+    for(int i = 0; i < parameterCountV; i++) {
+        void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        
+        SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(param), &param));
+    }
+    for(int i = parameterCountV; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+        
+        SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(unsigned int), &param));       
+    }
+    
+    va_end(parameters);
+    
+    size_t localWorkSize[3];
+    localWorkSize[0] = block.x;
+    localWorkSize[1] = block.y;
+    localWorkSize[2] = block.z;
+
+    size_t globalWorkSize[3];
+    globalWorkSize[0] = block.x * grid.x;
+    globalWorkSize[1] = block.y * grid.y;
+    globalWorkSize[2] = block.z * grid.z;
+  
+#ifdef BEAGLE_DEBUG_VALUES
+    for (int i=0; i<3; i++) {
+        printf("localWorkSize[%d]  = %lu\n", i, localWorkSize[i]);
+        printf("globalWorkSize[%d] = %lu\n", i, globalWorkSize[i]);
+    }
+    size_t local;
+    clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE, sizeof(local), &local, NULL);
+    printf("local = %lu\n\n", local);
+#endif
+
+    if (globalWorkSize[1] == 1 && globalWorkSize[2] == 1) {
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 1, NULL,
+                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+    } else if (globalWorkSize[2] == 1) {
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 2, NULL,
+                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+    } else {
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 3, NULL,
+                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
+#endif                
+}
+
 void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");

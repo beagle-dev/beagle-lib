@@ -74,6 +74,7 @@ private:
     CUdevice cudaDevice;
     CUcontext cudaContext;
     CUmodule cudaModule;
+    CUstream* cudaStreams;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id 
@@ -107,6 +108,18 @@ public:
     void LaunchKernel(GPUFunction deviceFunction,
                                Dim3Int block,
                                Dim3Int grid,
+                               int parameterCountV,
+                               int totalParameterCount,
+                               ...); // parameters
+
+    void StreamCreate(int nStreams);
+    
+    void StreamDestroy(int nStreams);
+
+    void LaunchKernelConcurrent(GPUFunction deviceFunction,
+                               Dim3Int block,
+                               Dim3Int grid,
+                               int streamIndex,
                                int parameterCountV,
                                int totalParameterCount,
                                ...); // parameters

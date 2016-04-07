@@ -117,7 +117,8 @@ public:
     
     virtual int updatePartials(const int* operations,
                                int operationCount,
-                               int cumulativeScalingIndex) = 0;
+                               int cumulativeScalingIndex,
+                               int concurrentMode) = 0;
     
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;

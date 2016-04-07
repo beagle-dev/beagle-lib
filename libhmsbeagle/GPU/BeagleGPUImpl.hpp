@@ -1297,7 +1297,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                   int operationCount,
-                                  int cumulativeScalingIndex) {
+                                  int cumulativeScalingIndex,
+                                  int concurrentMode) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePartials\n");
@@ -1306,17 +1307,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
     GPUPtr cumulativeScalingBuffer = 0;
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
-    
-    // Serial version
+
+    int numOps = BEAGLE_OP_COUNT;
+
+    if (concurrentMode) {
+        numOps = BEAGLE_OP_COUNT_CONCUR;
+        gpu->StreamCreate(operationCount);
+    }
+
     for (int op = 0; op < operationCount; op++) {
-        const int parIndex = operations[op * 7];
-        const int writeScalingIndex = operations[op * 7 + 1];
-        const int readScalingIndex = operations[op * 7 + 2];
-        const int child1Index = operations[op * 7 + 3];
-        const int child1TransMatIndex = operations[op * 7 + 4];
-        const int child2Index = operations[op * 7 + 5];
-        const int child2TransMatIndex = operations[op * 7 + 6];
-        
+        const int parIndex = operations[op * numOps];
+        const int writeScalingIndex = operations[op * numOps + 1];
+        const int readScalingIndex = operations[op * numOps + 2];
+        const int child1Index = operations[op * numOps + 3];
+        const int child1TransMatIndex = operations[op * numOps + 4];
+        const int child2Index = operations[op * numOps + 5];
+        const int child2TransMatIndex = operations[op * numOps + 6];
+        int streamIndex = 0;
+        if (concurrentMode)
+            streamIndex = operations[op * numOps + 7];
+
+
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
         
@@ -1402,7 +1413,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                                    matrices1, matrices2, scalingFactors,
                                                                    cumulativeScalingBuffer, 
                                                                    kPaddedPatternCount, kCategoryCount,
-                                                                   rescale);
+                                                                   rescale, streamIndex);
                 }
             }
         }
@@ -1435,8 +1446,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         else
         	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
 #endif
-    }
+    } //end for loop over operationCount
     
+    if (concurrentMode) {
+        gpu->StreamDestroy(operationCount);
+    }    
+
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
 #endif
