@@ -581,7 +581,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                     5, 6,
                                     partials1, partials2, partials3, matrices1, matrices2,
                                     patternCount);
-        
+
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
             gpu->Synchronize();

@@ -1323,7 +1323,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         const int child1TransMatIndex = operations[op * numOps + 4];
         const int child2Index = operations[op * numOps + 5];
         const int child2TransMatIndex = operations[op * numOps + 6];
-        int streamIndex = 0;
+        int streamIndex = -1;
         if (concurrentMode)
             streamIndex = operations[op * numOps + 7];
 

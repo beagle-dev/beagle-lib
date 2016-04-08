@@ -533,7 +533,7 @@ void runBeagle(int resource,
                     
                     lowDest = operations[BEAGLE_OP_COUNT*j+0];
 
-                    printf("opsMerged = %d\n", opsMerged);
+                    // printf("opsMerged = %d\n", opsMerged);
                    
                     for (int k=0; k<opsMerged; k++) {
                         int kOp = j - opsMerged + k;
@@ -544,13 +544,13 @@ void runBeagle(int resource,
 
                         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+(BEAGLE_OP_COUNT_CONCUR-1)] = k;
 
-                        printf("opsCon i %d dest %d c1 %d c2 %d sw %d sr %d st %d\n",
-                                kOp, operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+0],
-                                operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+3],
-                                operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+5],
-                                operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+1],
-                                operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+2],
-                                operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+(BEAGLE_OP_COUNT_CONCUR-1)]);
+                        // printf("opsCon i %d dest %d c1 %d c2 %d sw %d sr %d st %d\n",
+                        //         kOp, operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+0],
+                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+3],
+                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+5],
+                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+1],
+                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+2],
+                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+(BEAGLE_OP_COUNT_CONCUR-1)]);
 
                     }
 
