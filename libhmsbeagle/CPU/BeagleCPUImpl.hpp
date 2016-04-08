@@ -578,6 +578,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCategoryWeights(int categoryWeightsInd
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setMaxConcurrency(int inMaxConcurrentStreams) {
+
+    // do nothing here; only applies to parallel implementations
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 												 double* outMatrix) {
 	// TODO Test with multiple rate categories

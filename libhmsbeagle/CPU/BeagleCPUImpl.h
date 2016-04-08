@@ -178,6 +178,8 @@ public:
     
     int setPatternWeights(const double* inPatternWeights);    
     
+    int setMaxConcurrency(int inMaxConcurrentStreams);
+
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers

@@ -122,6 +122,9 @@ BEAGLE_GPU_TEMPLATE
 BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
     	
 	if (kInitialized) {
+        if (kMaxStreams > 0)
+            gpu->StreamDestroy(kMaxStreams);
+
         for (int i=0; i < kEigenDecompCount; i++) {
             gpu->FreeMemory(dEigenValues[i]);
             gpu->FreeMemory(dEvec[i]);
@@ -245,6 +248,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     
     kInitialized = 0;
     
+    kMaxStreams = 0;
+
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
     kCompactBufferCount = compactBufferCount;
@@ -1007,6 +1012,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPattern
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setMaxConcurrency(int inMaxConcurrentStreams) {
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setMaxConcurrency\n");
+#endif
+    
+    kMaxStreams = inMaxConcurrentStreams;
+
+    if (inMaxConcurrentStreams > 0)
+        gpu->StreamCreate(kMaxStreams);
+    else
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setMaxConcurrency\n");
+#endif
+    
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 									   double* outMatrix) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1294,6 +1320,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
     return BEAGLE_SUCCESS;
 }
 
+
+
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                   int operationCount,
@@ -1312,7 +1340,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
 
     if (concurrentMode) {
         numOps = BEAGLE_OP_COUNT_CONCUR;
-        gpu->StreamCreate(operationCount);
     }
 
     for (int op = 0; op < operationCount; op++) {
@@ -1324,8 +1351,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         const int child2Index = operations[op * numOps + 5];
         const int child2TransMatIndex = operations[op * numOps + 6];
         int streamIndex = -1;
-        if (concurrentMode)
-            streamIndex = operations[op * numOps + 7];
+        if (concurrentMode) {
+            if (streamIndex < kMaxStreams) {
+                streamIndex = operations[op * numOps + 7];
+            } else {
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+            }
+        }
 
 
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
@@ -1447,10 +1479,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
 #endif
     } //end for loop over operationCount
-    
-    if (concurrentMode) {
-        gpu->StreamDestroy(operationCount);
-    }    
 
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();

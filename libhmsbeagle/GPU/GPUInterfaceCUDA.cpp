@@ -132,7 +132,7 @@ GPUInterface::~GPUInterface() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
 #endif    
-    
+
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
         SAFE_CUDA(cuCtxDetach(cudaContext));
@@ -180,7 +180,7 @@ int GPUInterface::Initialize() {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
     }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
 #endif    
@@ -255,7 +255,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     kernelResource->flags = flags;
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
-    
+
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -380,7 +380,7 @@ void GPUInterface::StreamDestroy(int nStreams) {
     for(int i=0; i<nStreams; i++) {
         SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
     }
-    
+
     free(cudaStreams);
     
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));

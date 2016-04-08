@@ -95,6 +95,8 @@ private:
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
+
+    int kMaxStreams;
     
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -218,6 +220,8 @@ public:
     
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);
+
+    int setMaxConcurrency(int inMaxConcurrentStreams);
 
     ///////////////////////////
     //---TODO: Epoch model---//
