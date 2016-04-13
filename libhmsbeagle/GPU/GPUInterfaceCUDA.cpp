@@ -120,6 +120,7 @@ GPUInterface::GPUInterface() {
     cudaDevice = (CUdevice) 0;
     cudaContext = NULL;
     cudaModule = NULL;
+    cudaStreams = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
     
