@@ -183,10 +183,6 @@ void runBeagle(int resource,
     
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
-    
-    if (mergeOps) {
-        beagleSetMaxConcurrency(instance, internalCount*eigenCount);
-    }
 
     // set the sequences for each tip using partial likelihood arrays
 	gt_srand(randomSeed);	// fix the random seed...

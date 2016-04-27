@@ -122,9 +122,6 @@ BEAGLE_GPU_TEMPLATE
 BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
     	
 	if (kInitialized) {
-        if (kMaxStreams > 0)
-            gpu->StreamDestroy(kMaxStreams);
-
         for (int i=0; i < kEigenDecompCount; i++) {
             gpu->FreeMemory(dEigenValues[i]);
             gpu->FreeMemory(dEvec[i]);
@@ -247,8 +244,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #endif
     
     kInitialized = 0;
-    
-    kMaxStreams = 0;
 
     kTipCount = tipCount;
     kPartialsBufferCount = partialsBufferCount;
@@ -1012,27 +1007,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPattern
 }
 
 BEAGLE_GPU_TEMPLATE
-int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setMaxConcurrency(int inMaxConcurrentStreams) {
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::setMaxConcurrency\n");
-#endif
-    
-    kMaxStreams = inMaxConcurrentStreams;
-
-    if (inMaxConcurrentStreams > 0)
-        gpu->StreamCreate(kMaxStreams);
-    else
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setMaxConcurrency\n");
-#endif
-    
-    return BEAGLE_SUCCESS;
-}
-
-BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 									   double* outMatrix) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1352,13 +1326,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         const int child2TransMatIndex = operations[op * numOps + 6];
         int streamIndex = -1;
         if (concurrentMode) {
-            if (streamIndex < kMaxStreams) {
-                streamIndex = operations[op * numOps + 7];
-            } else {
-                return BEAGLE_ERROR_OUT_OF_RANGE;
-            }
+            streamIndex = operations[op * numOps + 7];
         }
-
 
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -1445,7 +1414,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                                    matrices1, matrices2, scalingFactors,
                                                                    cumulativeScalingBuffer, 
                                                                    kPaddedPatternCount, kCategoryCount,
-                                                                   rescale, streamIndex);
+                                                                   rescale,
+                                                                   parIndex, child1Index, child2Index);
                 }
             }
         }
@@ -1734,7 +1704,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
                                     kPatternCount);
 
         gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-
+        gpu->Synchronize();
         *outSumLogLikelihood = 0.0;
         for (int i = 0; i < kSumSitesBlockCount; i++) {
             if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])

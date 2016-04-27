@@ -95,8 +95,6 @@ private:
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
-
-    int kMaxStreams;
     
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;

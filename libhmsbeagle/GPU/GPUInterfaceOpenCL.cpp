@@ -536,53 +536,12 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif                
 }
 
-void GPUInterface::StreamCreate(int nStreams) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamCreate\n");
-#endif
-
-    numStreams = nStreams;
-
-    StreamDestroy(1);
-
-    openClCommandQueues = (cl_command_queue*) malloc(sizeof(cl_command_queue) * nStreams);
-
-    cl_command_queue_properties queueProperties = CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    int err;
-    for(int i=0; i<nStreams; i++) {
-        openClCommandQueues[i] = clCreateCommandQueue(openClContext, openClDeviceId,
-                                              queueProperties, &err);
-        SAFE_CL(err);
-    }
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamCreate\n");
-#endif                
-}
-
-void GPUInterface::StreamDestroy(int nStreams) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tEntering GPUInterface::StreamDestroy\n");
-#endif                    
-
-
-    for(int i=0; i<nStreams; i++) {
-        if (openClCommandQueues[i] != NULL)
-            SAFE_CL(clReleaseCommandQueue(openClCommandQueues[i]));
-    }
-
-    free(openClCommandQueues);
-    openClCommandQueues = NULL;
-    
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::StreamDestroy\n");
-#endif                
-}
-
 void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                           Dim3Int block,
                                           Dim3Int grid,
                                           int streamIndex,
+                                          int waitIndex1,
+                                          int waitIndex2,
                                           int parameterCountV,
                                           int totalParameterCount,
                                           ...) { // parameters   

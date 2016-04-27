@@ -616,21 +616,6 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
                          int operationCount,
                          int cumulativeScaleIndex);
 
-
-/**
- * @brief Set max concurrency
- *
- * This function sets the maximum number of concurrent streams, or in other words, the max
- *  value that streamIndex in BeagleOperationConcurrent may take.
- *
- * @param instance              Instance number (input)
- * @param maxConcurrentStreams  Integer with max number of concurrent streams (input)
- *
- * @return error code
- */
-BEAGLE_DLLEXPORT int beagleSetMaxConcurrency(int instance,
-                                             int inMaxConcurrentStreams);
-
 /**
  * @brief A list of integer indices which specify a parallel partial likelihoods operation.
  */

@@ -99,8 +99,6 @@ public:
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
 
-    virtual int setMaxConcurrency(int inMaxConcurrentStreams) = 0;
-
     ///////////////////////////
     //---TODO: Epoch model---//
     ///////////////////////////

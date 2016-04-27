@@ -824,17 +824,6 @@ int beagleUpdatePartials(const int instance,
 //    }
 }
 
-int beagleSetMaxConcurrency(int instance,
-                            int inMaxConcurrentStreams) {
-    DEBUG_START_TIME();
-    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL)
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->setMaxConcurrency(inMaxConcurrentStreams);
-    DEBUG_END_TIME();
-    return returnValue;
-}
-
 int beagleUpdatePartialsConcurrent(const int instance,
                    const BeagleOperationConcurrent* operations,
                    int operationCount,
