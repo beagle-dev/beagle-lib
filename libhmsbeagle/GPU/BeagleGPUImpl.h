@@ -157,6 +157,8 @@ private:
     
     GPUPtr* dScalingFactorsMaster;
     
+    int* kStreamIndices;
+
 public:    
     BeagleGPUImpl();
     
@@ -219,8 +221,6 @@ public:
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);
 
-    int setMaxConcurrency(int inMaxConcurrentStreams);
-
     ///////////////////////////
     //---TODO: Epoch model---//
     ///////////////////////////
@@ -239,8 +239,7 @@ public:
     
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex,
-                       int concurrentMode);
+                       int cumulativeScalingIndex);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);

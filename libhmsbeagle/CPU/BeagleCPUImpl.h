@@ -177,8 +177,6 @@ public:
                            const double* inCategoryWeights);
     
     int setPatternWeights(const double* inPatternWeights);    
-    
-    int setMaxConcurrency(int inMaxConcurrentStreams);
 
     // set the vector of category rates
     //
@@ -227,8 +225,7 @@ public:
     // rescale indicate if partials should be rescaled during peeling
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex,
-                       int concurrentMode);
+                       int cumulativeScalingIndex);
 
     // Block until all calculations that write to the specified partials have completed.
     //

@@ -118,8 +118,7 @@ public:
                                Dim3Int block,
                                Dim3Int grid,
                                int streamIndex,
-                               int waitIndex1,
-                               int waitIndex2,
+                               int waitIndex,
                                int parameterCountV,
                                int totalParameterCount,
                                ...); // parameters

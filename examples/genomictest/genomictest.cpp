@@ -136,8 +136,7 @@ void runBeagle(int resource,
                bool eigencomplex,
                bool ievectrans,
                bool setmatrix,
-               bool opencl,
-               bool mergeOps)
+               bool opencl)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -522,57 +521,11 @@ void runBeagle(int resource,
 
         gettimeofday(&time2, NULL);
         
-        if (mergeOps) {
-            int opCount = internalCount*eigenCount;
-            int* operationsConcurrent = new int[BEAGLE_OP_COUNT_CONCUR*opCount];
-            int lowDest = operations[0];
-            int opsMerged = 1;
-            int j = 1;
-            for (;j<=opCount; j++) {
-                if (operations[BEAGLE_OP_COUNT*j+3] == lowDest || operations[BEAGLE_OP_COUNT*j+5] == lowDest || j == opCount) {
-                    
-                    lowDest = operations[BEAGLE_OP_COUNT*j+0];
-
-                    // printf("opsMerged = %d\n", opsMerged);
-                   
-                    for (int k=0; k<opsMerged; k++) {
-                        int kOp = j - opsMerged + k;
-
-                        for (int m=0; m<BEAGLE_OP_COUNT; m++) {
-                            operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+m] = operations[BEAGLE_OP_COUNT*kOp+m];
-                        }
-
-                        operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+(BEAGLE_OP_COUNT_CONCUR-1)] = k;
-
-                        // printf("opsCon i %d dest %d c1 %d c2 %d sw %d sr %d st %d\n",
-                        //         kOp, operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+0],
-                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+3],
-                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+5],
-                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+1],
-                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+2],
-                        //         operationsConcurrent[BEAGLE_OP_COUNT_CONCUR*kOp+(BEAGLE_OP_COUNT_CONCUR-1)]);
-
-                    }
-
-                    opsMerged = 1;
-                } else {
-                    opsMerged++;
-                }
-            }
-
-            // update the partials
-            beagleUpdatePartialsConcurrent(instance,
-                                           (BeagleOperationConcurrent*)operationsConcurrent,
-                                           opCount,
-                                           (dynamicScaling ? internalCount : BEAGLE_OP_NONE));
-
-        } else {
-            // update the partials
-            beagleUpdatePartials( instance,      // instance
-                            (BeagleOperation*)operations,     // operations
-                            internalCount*eigenCount,              // operationCount
-                            (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
-        }
+        // update the partials
+        beagleUpdatePartials( instance,      // instance
+                        (BeagleOperation*)operations,     // operations
+                        internalCount*eigenCount,              // operationCount
+                        (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
 
         gettimeofday(&time3, NULL);
 
@@ -748,7 +701,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--mergeops]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -779,8 +732,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* eigencomplex,
                                     bool* ievectrans,
                                     bool* setmatrix,
-                                    bool* opencl,
-                                    bool* mergeOps)	{
+                                    bool* opencl)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -883,8 +835,6 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*setmatrix = true;
         } else if (option == "--opencl") {
         	*opencl = true;
-        } else if (option == "--mergeops") {
-            *mergeOps = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -979,7 +929,6 @@ int main( int argc, const char* argv[] )
     bool ievectrans = false;
     bool setmatrix = false;
     bool opencl = false;
-    bool mergeOps = false;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
@@ -993,7 +942,7 @@ int main( int argc, const char* argv[] )
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
-                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl, &mergeOps);
+                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -1031,8 +980,7 @@ int main( int argc, const char* argv[] )
                           eigencomplex,
                           ievectrans,
                           setmatrix,
-                          opencl,
-                          mergeOps);
+                          opencl);
             }
         }
     } else {

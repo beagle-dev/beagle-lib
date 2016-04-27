@@ -199,6 +199,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(dCompactBuffers);
         free(dTipPartialsBuffers);
 
+        free(kStreamIndices);
+
         gpu->FreeHostMemory(hPtrQueue);
         
         gpu->FreeHostMemory(hCategoryRates);
@@ -216,7 +218,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeHostMemory(hMatrixCache);
         
     }
-    
+
     if (kernels)
         delete kernels;        
     if (gpu) 
@@ -560,6 +562,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
     
+    kStreamIndices = (int*) malloc(sizeof(int) * kBufferCount);
+
     for (int i = 0; i < kBufferCount; i++) {        
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
@@ -569,6 +573,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         } else {
             dPartials[i] = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
         }
+        kStreamIndices[i] = -1;
     }
     
     kLastCompactBufferIndex = kCompactBufferCount - 1;
@@ -1299,8 +1304,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                   int operationCount,
-                                  int cumulativeScalingIndex,
-                                  int concurrentMode) {
+                                  int cumulativeScalingIndex) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePartials\n");
@@ -1312,10 +1316,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
 
     int numOps = BEAGLE_OP_COUNT;
 
-    if (concurrentMode) {
-        numOps = BEAGLE_OP_COUNT_CONCUR;
-    }
-
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * numOps];
         const int writeScalingIndex = operations[op * numOps + 1];
@@ -1324,11 +1324,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         const int child1TransMatIndex = operations[op * numOps + 4];
         const int child2Index = operations[op * numOps + 5];
         const int child2TransMatIndex = operations[op * numOps + 6];
-        int streamIndex = -1;
-        if (concurrentMode) {
-            streamIndex = operations[op * numOps + 7];
-        }
 
+        if (kStreamIndices[child1Index] != -1)
+            kStreamIndices[parIndex] = kStreamIndices[child1Index];
+        else
+            kStreamIndices[parIndex] = child1Index;
+        
+        const int streamIndex = kStreamIndices[parIndex];
+        
+        int waitIndex = -1;
+        if (kStreamIndices[child2Index] != -1)
+            waitIndex = kStreamIndices[child2Index];
+        
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
         
@@ -1415,7 +1422,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                                    cumulativeScalingBuffer, 
                                                                    kPaddedPatternCount, kCategoryCount,
                                                                    rescale,
-                                                                   parIndex, child1Index, child2Index);
+                                                                   streamIndex, waitIndex);
                 }
             }
         }

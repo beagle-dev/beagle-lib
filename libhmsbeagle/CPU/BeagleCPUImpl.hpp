@@ -793,8 +793,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
                                   int count,
-                                  int cumulativeScaleIndex,
-                                  int concurrentMode) {
+                                  int cumulativeScaleIndex) {
 
     REALTYPE* cumulativeScaleBuffer = NULL;
     if (cumulativeScaleIndex != BEAGLE_OP_NONE)
@@ -809,13 +808,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
             std::cerr << "op[4]= " << operations[op*4] << "\n";
             std::cerr << "op[5]= " << operations[op*5] << "\n";
             std::cerr << "op[6]= " << operations[op*6] << "\n";
-            if (concurrentMode)
-                std::cerr << "op[7]= " << operations[op*7] << "\n";
         }
 
         int numOps = BEAGLE_OP_COUNT;
-        if (concurrentMode)
-            numOps = BEAGLE_OP_COUNT_CONCUR;
 
         const int parIndex = operations[op * numOps];
         const int writeScalingIndex = operations[op * numOps + 1];

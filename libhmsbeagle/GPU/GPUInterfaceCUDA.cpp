@@ -41,6 +41,8 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
+#include <cmath>
+
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
@@ -124,7 +126,7 @@ GPUInterface::GPUInterface() {
     cudaEvents = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
 #endif    
@@ -383,8 +385,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                          Dim3Int block,
                                          Dim3Int grid,
                                          int streamIndex,
-                                         int waitIndex1,
-                                         int waitIndex2,
+                                         int waitIndex,
                                          int parameterCountV,
                                          int totalParameterCount,
                                          ...) { // parameters
@@ -415,17 +416,16 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     }
 
     va_end(parameters);
-    
+
     int streamIndexMod = streamIndex % BEAGLE_STREAM_COUNT;
 
-    // printf("streamIndexMod: %d; waitIndex1Mod %d; waitIndex2Mod %d\n",
-    //        streamIndexMod, waitIndex1 % BEAGLE_STREAM_COUNT, waitIndex2 % BEAGLE_STREAM_COUNT);
+    // printf("streamIndexMod:  %d; waitIndexMod %d\n",
+    //        streamIndexMod, waitIndex % BEAGLE_STREAM_COUNT);
 
-    SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndex1 % BEAGLE_STREAM_COUNT], 0));
-    SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndex2 % BEAGLE_STREAM_COUNT], 0));
+    if (waitIndex >= 0) {
+        SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndex % BEAGLE_STREAM_COUNT], 0));
+    }
 
-    // SAFE_CUDA(cuStreamSynchronize(cudaStreams[waitIndex1 % BEAGLE_STREAM_COUNT]));
-    // SAFE_CUDA(cuStreamSynchronize(cudaStreams[waitIndex2 % BEAGLE_STREAM_COUNT]));
 
     SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                              block.x, block.y, block.z, 0,
