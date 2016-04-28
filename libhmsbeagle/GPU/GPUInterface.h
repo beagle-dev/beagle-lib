@@ -82,6 +82,7 @@ private:
     cl_device_id openClDeviceId;             // compute device id 
     cl_context openClContext;                // compute context
     cl_command_queue* openClCommandQueues;   // compute command queue
+    cl_event* openClEvents;                  // compute events
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);

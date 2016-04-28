@@ -45,7 +45,7 @@
 //#define BEAGLE_DEBUG_SYNCH
 //#define BEAGLE_DEBUG_OPENCL_CORES
 
-#define BEAGLE_MEMORY_PINNED
+//#define BEAGLE_MEMORY_PINNED
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
 //#define BEAGLE_FILL_4_STATE_SCALAR_SP
 
@@ -62,7 +62,6 @@ enum BeagleDeviceImplementationCodes {
 };
 
 
-#define BEAGLE_STREAM_COUNT 1024 // should cause no perf. loss for up 512 taxa; TODO: dynamically set
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
 
 /* Definition of REAL can be switched between 'double' and 'float' */
@@ -92,6 +91,7 @@ enum BeagleDeviceImplementationCodes {
 
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
+    #define BEAGLE_STREAM_COUNT 1024 // should cause no perf. loss for up 512 taxa; TODO: dynamically set
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR
@@ -109,6 +109,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      
 #elif defined(FW_OPENCL)
+    #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC   
     #define KW_GLOBAL_VAR    __global
