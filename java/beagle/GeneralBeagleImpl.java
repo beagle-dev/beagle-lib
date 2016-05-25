@@ -670,6 +670,7 @@ public class GeneralBeagleImpl implements Beagle {
         assert(count == 1); // @todo implement integration across multiple subtrees
 
         double[] rootPartials = partials[bufferIndices[0]];
+        double[] categoryLogLikelihoods = new double[categoryCount];
 
         int u = 0;
         int v = 0;
@@ -678,6 +679,7 @@ public class GeneralBeagleImpl implements Beagle {
             for (int i = 0; i < stateCount; i++) {
 
                 tmpPartials[u] = rootPartials[v] * categoryWeights[categoryWeightsIndices[0]][0];
+
                 u++;
                 v++;
             }
@@ -692,6 +694,7 @@ public class GeneralBeagleImpl implements Beagle {
                 for (int i = 0; i < stateCount; i++) {
 
                     tmpPartials[u] += rootPartials[v] *  categoryWeights[categoryWeightsIndices[0]][l];
+
                     u++;
                     v++;
                 }
