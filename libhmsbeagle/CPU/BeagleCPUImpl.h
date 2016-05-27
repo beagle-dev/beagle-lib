@@ -177,7 +177,7 @@ public:
                            const double* inCategoryWeights);
     
     int setPatternWeights(const double* inPatternWeights);    
-
+    
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers

@@ -40,7 +40,7 @@
 //#define FW_OPENCL_TESTING
 //#define FW_OPENCL_PROFILING
 
-// #define BEAGLE_DEBUG_FLOW
+//#define BEAGLE_DEBUG_FLOW
 //#define BEAGLE_DEBUG_VALUES
 //#define BEAGLE_DEBUG_SYNCH
 //#define BEAGLE_DEBUG_OPENCL_CORES
@@ -48,6 +48,7 @@
 //#define BEAGLE_MEMORY_PINNED
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
 //#define BEAGLE_FILL_4_STATE_SCALAR_SP
+// #define BEAGLE_3D_GRID
 
 // define platform/device specific implementations
 enum BeagleDeviceImplementationCodes {
@@ -60,7 +61,6 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_APPLE_CPU     = 6,
     BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU = 7
 };
-
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
 
@@ -107,7 +107,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_0  gridDim.x
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
-    #define KW_RESTRICT      
+    #define KW_RESTRICT      __restrict__
 #elif defined(FW_OPENCL)
     #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
     #define KW_GLOBAL_KERNEL __kernel

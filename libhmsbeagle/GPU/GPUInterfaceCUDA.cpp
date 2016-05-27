@@ -126,7 +126,7 @@ GPUInterface::GPUInterface() {
     cudaEvents = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
-
+    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
 #endif    
@@ -157,7 +157,7 @@ GPUInterface::~GPUInterface() {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
         SAFE_CUDA(cuCtxDetach(cudaContext));
     }
-
+    
     if (kernelResource != NULL) {
         delete kernelResource;
     }
@@ -200,7 +200,7 @@ int GPUInterface::Initialize() {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
     }
-
+    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
 #endif    
@@ -282,7 +282,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     cudaEvents = (CUevent*) malloc(sizeof(CUevent) * nStreams);
     CUevent event;
     for(int i=0; i<nStreams; i++) {
-        SAFE_CUDA(cuStreamCreate(&stream, 0));
+        SAFE_CUDA(cuStreamCreate(&stream, 0)); //CU_STREAM_NON_BLOCKING));
         cudaStreams[i] = stream;
         SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
         cudaEvents[i] = event;
@@ -302,8 +302,8 @@ void GPUInterface::Synchronize() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::Synchronize\n");
 #endif                
     
-    // SAFE_CUPP(cuCtxSynchronize());
-    SAFE_CUPP(cuStreamSynchronize(cudaStreams[0]));
+    SAFE_CUPP(cuCtxSynchronize());
+    // SAFE_CUPP(cuStreamSynchronize(cudaStreams[0]));
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Synchronize\n");
@@ -393,7 +393,6 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelConcurrent\n");
 #endif                
     
-    
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
     
     void** params;
@@ -417,21 +416,24 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 
     va_end(parameters);
 
+#ifdef BEAGLE_3D_GRID
+    grid.z = waitIndex;
+    SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
+                             block.x, block.y, block.z, 0,
+                             NULL, params, NULL));
+#else
     int streamIndexMod = streamIndex % BEAGLE_STREAM_COUNT;
-
-    // printf("streamIndexMod:  %d; waitIndexMod %d\n",
-    //        streamIndexMod, waitIndex % BEAGLE_STREAM_COUNT);
 
     if (waitIndex >= 0) {
         SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndex % BEAGLE_STREAM_COUNT], 0));
     }
-
 
     SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                              block.x, block.y, block.z, 0,
                              cudaStreams[streamIndexMod], params, NULL));
     
     SAFE_CUDA(cuEventRecord(cudaEvents[streamIndexMod], cudaStreams[streamIndexMod]));
+#endif
 
     free(params);
     free(paramPtrs);

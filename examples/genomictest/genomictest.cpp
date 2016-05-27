@@ -182,7 +182,7 @@ void runBeagle(int resource,
     
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
-
+    
     // set the sequences for each tip using partial likelihood arrays
 	gt_srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
@@ -575,6 +575,15 @@ void runBeagle(int resource,
         // end timing!
         gettimeofday(&time5,NULL);
         
+        // std::cout.setf(std::ios::showpoint);
+        // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+        // int timePrecision = 6;
+        // int speedupPrecision = 2;
+        // int percentPrecision = 2;
+        // std::cout << "run " << i << ": ";
+        // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
+        // fprintf(stdout, "logL = %.5f  ", logL);
+
         if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time1, time5);
             bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
@@ -950,7 +959,7 @@ int main( int argc, const char* argv[] )
     else
         std::cout << stateCount << "-state data";
     std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ")\n\n";
+    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ", random seed " << randomSeed << ")\n\n";
 
 
     BeagleResourceList* rl = beagleGetResourceList();

@@ -159,7 +159,16 @@ public:
                                                     int* hRescalingTrigger,
                                                     GPUPtr dRescalingTrigger,
                                                     int sizeReal);
-    
+
+#ifdef BEAGLE_3D_GRID
+    void PartialsPartialsPruning3DGrid(GPUPtr partials,
+                                       GPUPtr matrices,
+                                       GPUPtr offsets,
+                                       unsigned int patternCount,
+                                       int gridStartOp,
+                                       int gridSize);
+#endif
+
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
                                                GPUPtr partials3,

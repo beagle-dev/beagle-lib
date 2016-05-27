@@ -137,6 +137,11 @@ private:
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
+#ifdef BEAGLE_3D_GRID
+    GPUPtr  dPartialsPtrs;
+    unsigned int* hPartialsPtrs;
+#endif
+
     unsigned int* hPtrQueue;
     
     double* hCategoryRates; // Can keep in double-precision

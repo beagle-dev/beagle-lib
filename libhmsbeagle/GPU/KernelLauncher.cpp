@@ -551,6 +551,29 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
     
 }
 
+#ifdef BEAGLE_3D_GRID
+void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
+                                                   GPUPtr matrices,
+                                                   GPUPtr offsets,
+                                                   unsigned int patternCount,
+                                                   int gridStartOp,
+                                                   int gridSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruning3DGrid\n");
+#endif
+    gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+                                bgPeelingBlock, bgPeelingGrid,
+                                gridStartOp, gridSize,
+                                3, 5,
+                                partials, matrices, offsets,
+                                gridStartOp, patternCount);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruning3DGrid\n");
+#endif
+}
+#endif
+
 void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr partials2,
                                                            GPUPtr partials3,
@@ -581,6 +604,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                     5, 6,
                                     partials1, partials2, partials3, matrices1, matrices2,
                                     patternCount);
+        // gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
+        //                             bgPeelingBlock, bgPeelingGrid,
+        //                             5, 6,
+        //                             partials1, partials2, partials3, matrices1, matrices2,
+        //                             patternCount);
+
 
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
@@ -1227,7 +1256,7 @@ void KernelLauncher::SumSites1(GPUPtr dArray1,
 
     int parameterCountV = 3;
     int totalParameterCount = 4;
-    // gpu->Synchronize();  
+    gpu->Synchronize();  
     gpu->LaunchKernel(fSumSites1,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,

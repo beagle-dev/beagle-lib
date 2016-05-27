@@ -187,8 +187,8 @@ enum BeagleFlags {
  * This enumerates all possible BEAGLE operation codes.
  */
 enum BeagleOpCodes {
-	BEAGLE_OP_COUNT           = 7,	/**< Total number of integers per beagleUpdatePartials operation */
-	BEAGLE_OP_NONE            = -1	/**< Specify no use for indexed buffer */
+	BEAGLE_OP_COUNT    = 7,	/**< Total number of integers per beagleUpdatePartials operation */
+	BEAGLE_OP_NONE     = -1	/**< Specify no use for indexed buffer */
 };
 
 /**
