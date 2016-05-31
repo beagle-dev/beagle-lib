@@ -318,7 +318,7 @@ void GPUInterface::SetDevice(int deviceNumber,
     openClCommandQueues = (cl_command_queue*) malloc(sizeof(cl_command_queue) * BEAGLE_STREAM_COUNT);
     openClEvents = (cl_event*) malloc(sizeof(cl_event) * BEAGLE_STREAM_COUNT);
 
-    cl_command_queue_properties queueProperties = 0; //CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    cl_command_queue_properties queueProperties = 0;//CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     for (int i=0; i < BEAGLE_STREAM_COUNT; i++) {
         openClCommandQueues[i] = clCreateCommandQueue(openClContext, openClDeviceId,
                                               queueProperties, &err);
@@ -602,31 +602,31 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     }
 
     // int streamIndexMod = streamIndex % BEAGLE_STREAM_COUNT;
+    // int waitIndexMod = waitIndex % BEAGLE_STREAM_COUNT;
+
     // cl_command_queue commandQueue;
     // commandQueue = openClCommandQueues[streamIndexMod];
 
-    // printf("streamIndexMod:  %d; waitIndexMod %d\n",
-    //        streamIndexMod, waitIndex % BEAGLE_STREAM_COUNT);
+    // // printf("streamIndexMod:  %d; waitIndexMod %d\n",
+    // //        streamIndexMod, waitIndex % BEAGLE_STREAM_COUNT);
 
     // if (waitIndex != -1) {
-    //     int waitIndexMod = waitIndex % BEAGLE_STREAM_COUNT;
     //     // SAFE_CL(clFinish(openClCommandQueues[waitIndexMod]));
-    //     // SAFE_CL(clEnqueueBarrierWithWaitList(commandQueue, 1, &openClEvents[waitIndexMod], NULL));
-    //     SAFE_CL(clWaitForEvents(1, &openClEvents[waitIndexMod]));
-    // } else {
-    //     Synchronize();
+    //     SAFE_CL(clEnqueueBarrierWithWaitList(commandQueue, 1, &openClEvents[waitIndexMod], NULL));
+    //     // SAFE_CL(clWaitForEvents(1, &openClEvents[waitIndexMod]));
+    // } else if (streamIndex==0) {
+    //     SAFE_CL(clFinish(commandQueue)); // unclear why this is needed for OpenCL CPU
     // }
 
-    // if (waitIndex != -1) {
-    //     int waitIndexMod = waitIndex % BEAGLE_STREAM_COUNT;
-    //     SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
-    //                                    globalWorkSize, localWorkSize,
-    //                                    1, &openClEvents[waitIndexMod], &openClEvents[streamIndexMod]));
-    // } else {
-    //     SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
-    //                                    globalWorkSize, localWorkSize,
-    //                                    0, NULL, &openClEvents[streamIndexMod]));
-    // }
+    // SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
+    //                                globalWorkSize, localWorkSize,
+    //                                0, NULL, &openClEvents[streamIndexMod]));
+
+    // // SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
+    // //                                globalWorkSize, localWorkSize,
+    // //                                0, NULL, NULL));
+    // // SAFE_CL(clEnqueueBarrierWithWaitList(commandQueue, 0, NULL, &openClEvents[streamIndexMod]));
+
 
     SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, dims, NULL,
                                    globalWorkSize, localWorkSize,

@@ -1348,6 +1348,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
     int gridLaunches = 0;
     int gridStartOp[operationCount];
     gridStartOp[gridLaunches++] = 0;
+    int newLaunchIndex = 0;
 #endif
 
     for (int op = 0; op < operationCount; op++) {
@@ -1452,7 +1453,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                                    rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
                 } else {
 #ifdef BEAGLE_3D_GRID
-                    if (streamIndex == 0 && op > 0)
+
+                    if (waitIndex == newLaunchIndex)
+                        newLaunchIndex = streamIndex;
+                    
+                    if (streamIndex == newLaunchIndex && op > 0)
                         gridStartOp[gridLaunches++] = op;
 
                     unsigned int indexOffset = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);

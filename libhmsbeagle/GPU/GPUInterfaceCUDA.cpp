@@ -425,7 +425,8 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     int streamIndexMod = streamIndex % BEAGLE_STREAM_COUNT;
 
     if (waitIndex >= 0) {
-        SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndex % BEAGLE_STREAM_COUNT], 0));
+        int waitIndexMod = waitIndex % BEAGLE_STREAM_COUNT;
+        SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndexMod], 0));
     }
 
     SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
