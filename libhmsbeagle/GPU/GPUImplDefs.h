@@ -48,7 +48,7 @@
 //#define BEAGLE_MEMORY_PINNED
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
 //#define BEAGLE_FILL_4_STATE_SCALAR_SP
-// #define BEAGLE_3D_GRID
+#define BEAGLE_3D_GRID
 
 // define platform/device specific implementations
 enum BeagleDeviceImplementationCodes {

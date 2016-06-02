@@ -132,6 +132,15 @@ public:
                                    bool writeCombined,
                                    bool mapped);
     
+#ifdef FW_OPENCL
+    void* MapMemory(GPUPtr dPtr,
+                    size_t memSize);
+
+    void UnmapMemory(GPUPtr dPtr,
+                       void* hPtr,
+                       size_t memSize);
+#endif
+
     GPUPtr AllocateMemory(size_t memSize);
     
     GPUPtr AllocateRealMemory(size_t length);

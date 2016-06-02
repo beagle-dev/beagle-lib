@@ -138,8 +138,19 @@ private:
     GPUPtr* dTipPartialsBuffers;
     
 #ifdef BEAGLE_3D_GRID
+    int kPtrsPerOp;
+    int kNumPatternBlocks;
+    size_t kOpOffsetsSize;
+    unsigned int kIndexOffsetPat;
+    unsigned int kIndexOffsetMat;
     GPUPtr  dPartialsPtrs;
+    GPUPtr  dPartialsPtrs2;
+    GPUPtr  dPartitionOffsets;
     unsigned int* hPartialsPtrs;
+    unsigned int* hPartialsPtrs2;
+    unsigned int* hPartitionOffsets;
+
+    // int testTrigger;
 #endif
 
     unsigned int* hPtrQueue;

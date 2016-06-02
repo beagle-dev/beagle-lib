@@ -554,7 +554,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
 #ifdef BEAGLE_3D_GRID
 void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
                                                    GPUPtr matrices,
-                                                   GPUPtr offsets,
+                                                   GPUPtr ptrOffsets,
+                                                   GPUPtr patOffsets,
                                                    unsigned int patternCount,
                                                    int gridStartOp,
                                                    int gridSize) {
@@ -564,8 +565,8 @@ void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
     gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                 bgPeelingBlock, bgPeelingGrid,
                                 gridStartOp, gridSize,
-                                3, 5,
-                                partials, matrices, offsets,
+                                4, 6,
+                                partials, matrices, ptrOffsets, patOffsets,
                                 gridStartOp, patternCount);
 
 #ifdef BEAGLE_DEBUG_FLOW

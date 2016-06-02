@@ -680,35 +680,47 @@ void* GPUInterface::CallocHost(size_t size, size_t length) {
 }
 
 void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined, bool mapped) {
-    assert(0); // TODO: write function
-	return NULL;
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
-//#endif
-//    
-//    void* ptr;
-//    
-//    unsigned int flags = 0;
-//    
-//    if (writeCombined)
-//        flags |= CU_MEMHOSTALLOC_WRITECOMBINED;
-//    if (mapped)
-//        flags |= CU_MEMHOSTALLOC_DEVICEMAP;
-//    
-//    SAFE_CUPP(cuMemHostAlloc(&ptr, memSize, flags));
-//    
-//    
-//#ifdef BEAGLE_DEBUG_VALUES
-//    fprintf(stderr, "Allocated pinned host (CPU) memory %ld to %lu .\n", (long)ptr, ((long)ptr + memSize));
-//#endif
-//    
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
-//#endif
-//    
-//    return ptr;
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
+#endif
+
+    cl_mem_flags flags = 0;
+
+    flags |= CL_MEM_ALLOC_HOST_PTR;
+    flags |= CL_MEM_HOST_WRITE_ONLY;
+    flags |= CL_MEM_READ_ONLY;
+
+    int err;
+    void* deviceBuffer = (void*) clCreateBuffer(openClContext, flags, memSize, NULL, &err);
+    SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
+#endif
+    
+   return deviceBuffer;
 }
 
+void* GPUInterface::MapMemory(GPUPtr dPtr, size_t memSize) {
+    int err;
+    void* hostPtr = clEnqueueMapBuffer(openClCommandQueues[0], dPtr, CL_TRUE,
+                                        CL_MAP_WRITE, 0, memSize, 0, NULL, NULL, &err);
+    SAFE_CL(err);
+
+    return hostPtr;
+}
+
+void GPUInterface::UnmapMemory(GPUPtr dPtr, void* hPtr, size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::UnmapMemory\n");
+#endif
+
+    SAFE_CL(clEnqueueUnmapMemObject(openClCommandQueues[0], dPtr, hPtr, 0, NULL, NULL));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving GPUInterface::UnmapMemory\n");
+#endif
+}
 
 GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -904,16 +916,15 @@ void GPUInterface::FreeHostMemory(void* hPtr) {
 }
 
 void GPUInterface::FreePinnedHostMemory(void* hPtr) {
-    assert(0); // TODO: write function
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
-//#endif
-//    
-//    SAFE_CUPP(cuMemFreeHost(hPtr));
-//    
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
-//#endif
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
+#endif
+
+    SAFE_CL(clReleaseMemObject((GPUPtr) hPtr));
+   
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
+#endif
 }
 
 void GPUInterface::FreeMemory(GPUPtr dPtr) {

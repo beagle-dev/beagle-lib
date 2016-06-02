@@ -163,7 +163,8 @@ public:
 #ifdef BEAGLE_3D_GRID
     void PartialsPartialsPruning3DGrid(GPUPtr partials,
                                        GPUPtr matrices,
-                                       GPUPtr offsets,
+                                       GPUPtr ptrOffsets,
+                                       GPUPtr patOffsets,
                                        unsigned int patternCount,
                                        int gridStartOp,
                                        int gridSize);

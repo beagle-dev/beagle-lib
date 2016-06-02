@@ -145,21 +145,27 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
                 gpu->FreeMemory(dScalingFactors[0]);
         }
 
-#ifndef BEAGLE_3D_GRID
-		for (int i = 0; i < kBufferCount; i++) {        
-			if (i < kTipCount) { // For the tips
-				if (i < kCompactBufferCount)
-					gpu->FreeMemory(dCompactBuffers[i]);
-				if (i < kTipPartialsBufferCount)
-					gpu->FreeMemory(dTipPartialsBuffers[i]);
-			} else {
-				gpu->FreeMemory(dPartials[i]);        
-			}
-		}
-#else
+#ifdef BEAGLE_3D_GRID
         gpu->FreeMemory(dPartials[0]);
-        gpu->FreeMemory(dPartialsPtrs);
+    #ifdef FW_OPENCL
+        gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs, kOpOffsetsSize);
+    #else
         gpu->FreeHostMemory(hPartialsPtrs);
+    #endif
+        gpu->FreeMemory(dPartialsPtrs);
+        gpu->FreeMemory(dPartitionOffsets);
+        gpu->FreeHostMemory(hPartitionOffsets);
+#else
+        for (int i = 0; i < kBufferCount; i++) {        
+            if (i < kTipCount) { // For the tips
+                if (i < kCompactBufferCount)
+                    gpu->FreeMemory(dCompactBuffers[i]);
+                if (i < kTipPartialsBufferCount)
+                    gpu->FreeMemory(dTipPartialsBuffers[i]);
+            } else {
+                gpu->FreeMemory(dPartials[i]);        
+            }
+        }
 #endif
         
         gpu->FreeMemory(dIntegrationTmp);
@@ -608,12 +614,38 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     checkHostMemory(hPtrQueue);
 
 #ifdef BEAGLE_3D_GRID
-    ptrQueueLength = kPartialsBufferCount * 5;
+    kPtrsPerOp = 5;
+    int sitesPerBlock = gpu->kernelResource->patternBlockSize * 4;
+    kNumPatternBlocks = kPaddedPatternCount / sitesPerBlock;
     ptrIncrement = gpu->AlignMemOffset(sizeof(unsigned int));
-    dPartialsPtrs = gpu->AllocateMemory(ptrQueueLength * ptrIncrement);
-    hPartialsPtrs = (unsigned int*) gpu->MallocHost(ptrQueueLength * ptrIncrement);
-    // hPartialsPtrs = (unsigned int*) gpu->AllocatePinnedHostMemory(ptrQueueLength * ptrIncrement, true, false);
-    checkHostMemory(hPartialsPtrs);    
+    kOpOffsetsSize = ptrIncrement * kPartialsBufferCount * kNumPatternBlocks * kPtrsPerOp;
+    // printf("kOpOffsetsSize size = %.2f KB\n\n", (kOpOffsetsSize)/1024.0);
+    #ifdef FW_OPENCL
+    dPartialsPtrs = (GPUPtr) gpu->AllocatePinnedHostMemory(kOpOffsetsSize, false, false);
+    hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, kOpOffsetsSize);
+    #else
+    dPartialsPtrs = gpu->AllocateMemory(kOpOffsetsSize);
+    hPartialsPtrs = (unsigned int*) gpu->MallocHost(kOpOffsetsSize);
+    #endif
+    checkHostMemory(hPartialsPtrs);
+
+
+    kIndexOffsetPat = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);
+    kIndexOffsetMat = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real)) / sizeof(Real);
+
+
+    size_t allocationSize = ptrIncrement * kNumPatternBlocks * 2;
+    dPartitionOffsets = gpu->AllocateMemory(allocationSize);
+    hPartitionOffsets = (unsigned int*) gpu->MallocHost(allocationSize);
+    checkHostMemory(hPartitionOffsets);
+
+    for (int i=0; i < kNumPatternBlocks; i++) {
+        hPartitionOffsets[i*2    ] = i*sitesPerBlock;
+        hPartitionOffsets[i*2 + 1] = (i+1)*sitesPerBlock;
+    }
+    gpu->MemcpyHostToDevice(dPartitionOffsets, hPartitionOffsets, allocationSize);
+
+    // testTrigger = 0;
 #endif
 
 	hCategoryRates = (double*) gpu->MallocHost(sizeof(double) * kCategoryCount); // Keep in double-precision
@@ -1460,14 +1492,23 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                     if (streamIndex == newLaunchIndex && op > 0)
                         gridStartOp[gridLaunches++] = op;
 
-                    unsigned int indexOffset = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);
-                    hPartialsPtrs[op*5]     = child1Index * indexOffset;
-                    hPartialsPtrs[op*5 + 1] = child2Index * indexOffset;
-                    hPartialsPtrs[op*5 + 2] = parIndex    * indexOffset;
-                    indexOffset = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real)) / sizeof(Real);
-                    hPartialsPtrs[op*5 + 3] = child1TransMatIndex * indexOffset;
-                    hPartialsPtrs[op*5 + 4] = child2TransMatIndex * indexOffset;
-#else // BEAGLE_3D_GRID
+                    // if (testTrigger == 0) {
+                    unsigned int c1Off  = child1Index * kIndexOffsetPat;
+                    unsigned int c2Off  = child2Index * kIndexOffsetPat;
+                    unsigned int paOff  = parIndex    * kIndexOffsetPat;
+                    unsigned int c1MOff = child1TransMatIndex * kIndexOffsetMat;
+                    unsigned int c2MOff = child2TransMatIndex * kIndexOffsetMat;
+                    int opIndex = op * kNumPatternBlocks * kPtrsPerOp;
+                    for (int i=0; i < kNumPatternBlocks; i++) {
+                        hPartialsPtrs[opIndex]     = c1Off;
+                        hPartialsPtrs[opIndex + 1] = c2Off;
+                        hPartialsPtrs[opIndex + 2] = paOff;
+                        hPartialsPtrs[opIndex + 3] = c1MOff;
+                        hPartialsPtrs[opIndex + 4] = c2MOff;
+                        opIndex += kPtrsPerOp;
+                    }
+                    // }
+#else // not BEAGLE_3D_GRID
                     kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                    matrices1, matrices2, scalingFactors,
                                                                    cumulativeScalingBuffer, 
@@ -1511,9 +1552,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
 
 
 #ifdef BEAGLE_3D_GRID
+
     size_t ptrIncrement = gpu->AlignMemOffset(sizeof(unsigned int));
-    size_t opsIncrement = ptrIncrement * operationCount;
-    gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, opsIncrement*5);
+    size_t transferSize = ptrIncrement * operationCount * kNumPatternBlocks * kPtrsPerOp;
+    #ifdef FW_OPENCL
+    // if (testTrigger == 0)
+    gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs, transferSize);
+    #else
+    // if (testTrigger == 0)
+    gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
+    #endif
 
     gridStartOp[gridLaunches] = operationCount;
     // printf("gridLaunches = %d\n", gridLaunches);
@@ -1521,12 +1569,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         int gridSize = gridStartOp[i+1] - gridStartOp[i];
         // printf("gridStartOp[%d] = %d\n", i, gridStartOp[i]);
         // printf("gridSize[%d]     = %d\n", i, gridSize);
-
         kernels->PartialsPartialsPruning3DGrid(dPartials[0], dMatrices[0],
-                                               dPartialsPtrs, 
+                                               dPartialsPtrs, dPartitionOffsets,
                                                kPaddedPatternCount,
                                                gridStartOp[i], gridSize);
     }
+
+    #ifdef FW_OPENCL
+    // if (testTrigger == 0)
+    hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, transferSize);
+    #endif
+
+    // testTrigger = 1;
 #endif
 
 #ifdef BEAGLE_DEBUG_SYNCH    
