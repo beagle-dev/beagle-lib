@@ -526,15 +526,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 
-#ifdef BEAGLE_3D_GRID
-
-// partitioning version
-KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
-                                                    const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
-                                                    const KW_GLOBAL_VAR unsigned int* KW_RESTRICT patOffsets,
-                                                    int gridStartOp,
-                                                    int totalPatterns) {
+KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale3D(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                     const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+                                                     const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                     const KW_GLOBAL_VAR unsigned int* KW_RESTRICT patOffsets,
+                                                     int gridStartOp,
+                                                     int totalPatterns) {
 
     int opIndexPat = KW_GROUP_ID_0 << 1;
     int startPat   = patOffsets[opIndexPat    ];
@@ -554,6 +551,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     int x2 = multBy16(matrix);
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
+    // int opIndexPtr = (gridStartOp + KW_GROUP_ID_2) * 5;
     int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr    ];
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 1];
@@ -602,13 +600,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 }
 
-#else // not BEAGLE_3D_GRID
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    int startPattern,
+                                                    int endPattern,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_CPU()
@@ -617,10 +616,42 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
         partials3[deltaPartials + i] = sum1[i] * sum2[i];
     }
 #else // GPU implementation
-    DETERMINE_INDICES_4_GPU();
-    LOAD_PARTIALS_PARTIALS_4_GPU();
+
+    int tx = KW_LOCAL_ID_0;
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+    int patIdx = KW_LOCAL_ID_1;
+    int matrix = KW_GROUP_ID_1;
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));
+    int x2 = multBy16(matrix);
+    int pattern;
+    int deltaPartialsByState;
+
+    if (endPattern == 0) {
+        endPattern = totalPatterns;
+        pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;
+        deltaPartialsByState = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);
+    } else {
+        pattern = startPattern + __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;
+        deltaPartialsByState = multBy4(startPattern) + multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);
+    }
+    
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;\
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+    /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/\
+    if (pattern < endPattern) {\
+        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; /*All coalesced memory*/\
+        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];\
+    } else {\
+        sPartials1[multBy16(patIdx) | tx] = 0;\
+        sPartials2[multBy16(patIdx) | tx] = 0;\
+    }
+
     LOAD_MATRIX_4_GPU();
-    if (pattern < totalPatterns) { // Remove padded threads!
+    if (pattern < endPattern) { // Remove padded threads!
         SUM_PARTIALS_PARTIALS_4_GPU();
         partials3[u] = sum1 * sum2;
     }
@@ -632,7 +663,33 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #endif
 }
 
-#endif // end BEAGLE_3D_GRID
+// KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+//                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+//                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+//                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+//                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+//                                                     int totalPatterns) {
+// #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+//     DETERMINE_INDICES_4_CPU()
+//     SUM_PARTIALS_PARTIALS_4_CPU();
+//     for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+//         partials3[deltaPartials + i] = sum1[i] * sum2[i];
+//     }
+// #else // GPU implementation
+//     DETERMINE_INDICES_4_GPU();
+//     LOAD_PARTIALS_PARTIALS_4_GPU();
+//     LOAD_MATRIX_4_GPU();
+//     if (pattern < totalPatterns) { // Remove padded threads!
+//         SUM_PARTIALS_PARTIALS_4_GPU();
+//         partials3[u] = sum1 * sum2;
+//     }
+// #endif // FW_OPENCL_CPU
+
+// #ifdef KERNEL_PRINT_ENABLED
+//     printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n",
+//            matrix, pattern, tx, state, u);
+// #endif
+// }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,

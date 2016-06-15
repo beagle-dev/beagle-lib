@@ -570,9 +570,9 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     
     va_end(parameters);
     
-#ifdef BEAGLE_3D_GRID
-    grid.z = waitIndex;
-#endif
+    if (streamIndex == -1) {
+        grid.z = waitIndex;
+    }
 
     size_t localWorkSize[3];
     localWorkSize[0] = block.x;

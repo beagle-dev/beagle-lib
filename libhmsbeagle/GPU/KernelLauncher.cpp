@@ -215,6 +215,9 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelPartialsPartialsNoScale");
+
+    fPartialsPartialsByPatternBlockCoherent3D = gpu->GetFunction(
+            "kernelPartialsPartialsNoScale3D");
     
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
                 "kernelPartialsPartialsAutoScale");
@@ -551,7 +554,6 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
     
 }
 
-#ifdef BEAGLE_3D_GRID
 void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
                                                    GPUPtr matrices,
                                                    GPUPtr ptrOffsets,
@@ -562,9 +564,9 @@ void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruning3DGrid\n");
 #endif
-    gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+    gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent3D,
                                 bgPeelingBlock, bgPeelingGrid,
-                                gridStartOp, gridSize,
+                                -1, gridSize,
                                 4, 6,
                                 partials, matrices, ptrOffsets, patOffsets,
                                 gridStartOp, patternCount);
@@ -573,7 +575,6 @@ void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruning3DGrid\n");
 #endif
 }
-#endif
 
 void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr partials2,
@@ -582,6 +583,8 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                            GPUPtr matrices2,
                                                            GPUPtr scalingFactors,
                                                            GPUPtr cumulativeScaling,
+                                                           unsigned int startPattern,
+                                                           unsigned int endPattern,
                                                            unsigned int patternCount,
                                                            unsigned int categoryCount,
                                                            int doRescaling,
@@ -598,13 +601,23 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                           partials1, partials2, partials3, matrices1, matrices2, scalingFactors,
                           patternCount);        
     } else if (doRescaling != 0) {
-        // Compute partials without any rescaling        
+        // Compute partials without any rescaling    
+
+        if (endPattern != 0) {
+            unsigned int launchPatternCount = endPattern - startPattern;
+            bgPeelingGrid  = Dim3Int(launchPatternCount / (kPatternBlockSize * 4),
+                                     kCategoryCount);
+            if (launchPatternCount % (kPatternBlockSize * 4) != 0) {
+                bgPeelingGrid.x += 1;
+            }
+        }
+
         gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                     bgPeelingBlock, bgPeelingGrid,
                                     streamIndex, waitIndex,
-                                    5, 6,
+                                    5, 8,
                                     partials1, partials2, partials3, matrices1, matrices2,
-                                    patternCount);
+                                    startPattern, endPattern, patternCount);
         // gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
         //                             bgPeelingBlock, bgPeelingGrid,
         //                             5, 6,

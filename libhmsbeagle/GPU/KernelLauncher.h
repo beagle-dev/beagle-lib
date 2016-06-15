@@ -51,6 +51,7 @@ private:
     GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockCoherent3D;
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
@@ -160,7 +161,6 @@ public:
                                                     GPUPtr dRescalingTrigger,
                                                     int sizeReal);
 
-#ifdef BEAGLE_3D_GRID
     void PartialsPartialsPruning3DGrid(GPUPtr partials,
                                        GPUPtr matrices,
                                        GPUPtr ptrOffsets,
@@ -168,7 +168,6 @@ public:
                                        unsigned int patternCount,
                                        int gridStartOp,
                                        int gridSize);
-#endif
 
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
@@ -177,6 +176,8 @@ public:
                                                GPUPtr matrices2,
                                                GPUPtr scalingFactors,
                                                GPUPtr cumulativeScaling,
+                                               unsigned int startPattern,
+                                               unsigned int endPattern,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
                                                int doRescaling,
