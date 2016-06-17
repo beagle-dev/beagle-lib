@@ -148,6 +148,8 @@ private:
     unsigned int* hPartialsPtrs;
     unsigned int* hPartitionOffsets;
     unsigned int* dPartialsOffsets;
+    BeagleDeviceImplementationCodes kDeviceCode;
+    long kDeviceType;
 
     unsigned int* hPtrQueue;
     

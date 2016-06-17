@@ -533,6 +533,55 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale3D(KW_GLOBAL_VAR REAL* KW_RES
                                                      int gridStartOp,
                                                      int totalPatterns) {
 
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    int opIndexPat = KW_GROUP_ID_0 << 1;
+    int startPat   = patOffsets[opIndexPat    ];
+    int endPat     = patOffsets[opIndexPat + 1];
+
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
+
+    int patIdx = KW_LOCAL_ID_0;
+    int pattern = startPat + patIdx;    
+    
+    if (pattern < endPat) {
+        int matrix = KW_GROUP_ID_1;
+        int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+        int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+        int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+        
+        int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr    ];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 1];
+              KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 2];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 3];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2 =  matrices + ptrOffsets[opIndexPtr + 4];
+
+        REAL sum1[PADDED_STATE_COUNT];
+        REAL sum2[PADDED_STATE_COUNT];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials1 = partials1 + deltaPartials;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;
+
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            sum1[i] = sMatrix1[0 * PADDED_STATE_COUNT + i] * sPartials1[0];
+            sum2[i] = sMatrix2[0 * PADDED_STATE_COUNT + i] * sPartials2[0];
+        }
+        for (int s = 1; s < PADDED_STATE_COUNT; s++) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                FMA(sMatrix1[s * PADDED_STATE_COUNT + i],  sPartials1[s], sum1[i]);
+                FMA(sMatrix2[s * PADDED_STATE_COUNT + i],  sPartials2[s], sum2[i]);
+            }
+        }
+
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            partials3[deltaPartials + i] = sum1[i] * sum2[i];
+        }
+    }
+#else // GPU implementation
+
     int opIndexPat = KW_GROUP_ID_0 << 1;
     int startPat   = patOffsets[opIndexPat    ];
     int endPat     = patOffsets[opIndexPat + 1];
@@ -598,6 +647,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale3D(KW_GLOBAL_VAR REAL* KW_RES
         FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
         partials3[u] = sum1 * sum2;
     }
+#endif // FW_OPENCL_CPU
 }
 
 
@@ -1332,15 +1382,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCheckScale(KW_GLOBAL_VAR REAL* parti
             sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i++;
+            i &= 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i++;
+            i &= 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i++;
+            i &= 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
             
@@ -1421,15 +1474,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedCheckScale(KW_GLOBAL_VAR REAL* 
         sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2  = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i++;
+        i &= 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i++;
+        i &= 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i++;
+        i &= 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
         
@@ -1496,15 +1552,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i++;
+    i &= 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i++;
+    i &= 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i++;
+    i &= 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
     

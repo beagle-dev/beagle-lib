@@ -810,6 +810,35 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     free(hPtr);
 }
 
+long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {       
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceTypeFlag\n");
+#endif
+
+    long deviceTypeFlag = BEAGLE_FLAG_PROCESSOR_GPU;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceTypeFlag\n");
+#endif
+
+    return deviceTypeFlag;
+}
+
+
+BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int deviceNumber) {       
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceImplementationCode\n");
+#endif
+
+    BeagleDeviceImplementationCodes deviceCode = BEAGLE_CUDA_DEVICE_NVIDIA_GPU;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceImplementationCode\n");
+#endif
+
+    return deviceCode;
+}
+
 const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
     
     const char* errorDesc;

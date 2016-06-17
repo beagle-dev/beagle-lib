@@ -184,11 +184,9 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
-#ifdef FW_OPENCL
     long GetDeviceTypeFlag(int deviceNumber);
 
     BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
-#endif
 
     bool GetSupportsDoublePrecision(int deviceNumber);
 

@@ -317,26 +317,28 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     gpu->CreateDevice(pluginResourceNumber);
 #endif
 
+    kDeviceType = gpu->GetDeviceTypeFlag(pluginResourceNumber);
+    kDeviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
+
 #ifdef FW_OPENCL
-    BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(pluginResourceNumber);
     
     // TODO: Apple OpenCL on CPU for state count > 128
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU && kPaddedStateCount > 128) {
+    if (kDeviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU && kPaddedStateCount > 128) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
 
     // TODO: AMD GPU implementation for high state and category counts
-    if ((deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU || 
-        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) &&
+    if ((kDeviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU || 
+        kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU) &&
         ((kPaddedStateCount > 64 && kCategoryCount > 2) || 
           (kPaddedStateCount == 192 && kCategoryCount > 1))) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
 
-    if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU ||
-        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
+    if (kDeviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
+        kDeviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
+        kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU ||
+        kDeviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         
         CPUImpl = true;
 
@@ -603,7 +605,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     checkHostMemory(hPtrQueue);
 
     kUsing3DGrid = false;
-    if (kPaddedPatternCount < BEAGLE_3D_GRID_MAX) {
+    if (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_3D_GRID_MAX) {
         kUsing3DGrid = true;
         allocate3DGridBuffers();
     }
@@ -642,7 +644,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 BEAGLE_GPU_TEMPLATE
 void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocate3DGridBuffers() {
     kPtrsPerOp = 5;
-    int sitesPerBlock = gpu->kernelResource->patternBlockSize * 4;
+    int sitesPerBlock = gpu->kernelResource->patternBlockSize;
+    if (kDeviceType == BEAGLE_FLAG_PROCESSOR_GPU) 
+        sitesPerBlock *= 4;
     kNumPatternBlocks = kPaddedPatternCount / sitesPerBlock;
     size_t ptrIncrement = gpu->AlignMemOffset(sizeof(unsigned int));
     kOpOffsetsSize = ptrIncrement * kPartialsBufferCount * kNumPatternBlocks * kPtrsPerOp;
