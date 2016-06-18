@@ -129,7 +129,6 @@ int GPUInterface::Initialize() {
     }
     delete[] platforms;
 
-
 #ifdef BEAGLE_DEBUG_VALUES
     printf("OpenCL devices: %lu\n", openClDeviceMap.size());
     for (int i=0; i<openClDeviceMap.size(); i++) {
@@ -187,20 +186,20 @@ int GPUInterface::GetDeviceCount() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetDeviceCount\n");
 #endif        
     
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
-#endif            
-
 #ifdef BEAGLE_DEBUG_OPENCL_CORES
     for (int i=0; i<openClDeviceMap.size(); i++) {
         BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(i);
         if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
             cl_uint param_value_uint;
             SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PARTITION_MAX_SUB_DEVICES, sizeof(param_value_uint), &param_value_uint, NULL));
-            return openClDeviceMap.size() + param_value_uint;
+            return openClDeviceMap.size() + param_value_uint-1;
         }
     }
 #endif
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
+#endif            
 
     return openClDeviceMap.size();
 }
@@ -972,7 +971,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));
 
-#ifdef BEAGLE_DEBUG_OPENCL_CORES
+#if defined(BEAGLE_DEBUG_OPENCL_CORES)
     cl_uint mpCount = 0;
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(cl_uint), &mpCount, NULL));
@@ -981,7 +980,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     sprintf(mpCountStr, "%d", mpCount);
     strcat(deviceName, " (");
     strcat(deviceName, mpCountStr);
-    (mpCount==1?strcat(deviceName, " core)"):strcat(deviceName, " cores)"));
+    (mpCount==1?strcat(deviceName, " compute unit)"):strcat(deviceName, " compute units)"));
 #endif
 
     const size_t param_size = 256;
@@ -1026,7 +1025,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
                             sizeof(unsigned int), &mpCount, NULL));
 
     sprintf(deviceDescription,
-            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of multiprocessors: %d",
+            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of compute units: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1203,10 +1202,13 @@ void GPUInterface::CreateDevice(int deviceNumber) {
             if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
                 cl_device_id subdevice_id;
                 cl_uint num_entries_returned = 0;
-                cl_device_partition_property props[] = { CL_DEVICE_PARTITION_BY_COUNTS,
-                                                         coreCount,
-                                                         CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
-                                                         0 };
+                cl_device_partition_property props[coreCount + 3];
+                props[0] = CL_DEVICE_PARTITION_BY_NAMES_INTEL;
+                for (int j=0; j<coreCount; j++) {
+                    props[1+j] = j;
+                }
+                props[coreCount+1] = CL_PARTITION_BY_NAMES_LIST_END_INTEL;
+                props[coreCount+2] = 0;
                 SAFE_CL(clCreateSubDevices(openClDeviceMap[i],
                                            props,
                                            1,
