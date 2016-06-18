@@ -1374,8 +1374,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
     int gridLaunches = 0;
     int gridStartOp[operationCount];
     gridStartOp[gridLaunches++] = 0;
-    int newLaunchIndex = 0;
     int parentMinIndex = operations[0];
+    int lastStreamIndex = 0;
 
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * numOps];
@@ -1389,7 +1389,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         if (kStreamIndices[child1Index] != -1)
             kStreamIndices[parIndex] = kStreamIndices[child1Index];
         else
-            kStreamIndices[parIndex] = child1Index;
+            kStreamIndices[parIndex] = lastStreamIndex++;
         
         const int streamIndex = kStreamIndices[parIndex];
         const int waitIndex = kStreamIndices[child2Index];
@@ -1513,7 +1513,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                             opIndex += kPtrsPerOp;
                         }
                     } else {
-
+                        // printf("\nop %d, par %d, c1 %d, c2 %d\n", op, parIndex, child1Index, child2Index);
+                        // printf("streamIndex %d, waitIndex %d\n", streamIndex, waitIndex);
                         kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                        matrices1, matrices2, scalingFactors,
                                                                        cumulativeScalingBuffer, 
