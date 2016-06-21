@@ -184,20 +184,6 @@ void runBeagle(int resource,
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
     
-    if (partitionCount > 1) {
-        int* patternPartitions = (int*) malloc(sizeof(int) * nsites);
-        int partitionSize = nsites/partitionCount;
-        for (int i = 0; i < nsites; i++) {
-            int sitePartition = i/partitionSize;
-            if (sitePartition > partitionCount - 1)
-                sitePartition = partitionCount - 1;
-            patternPartitions[i] = sitePartition;
-            // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
-        }    
-
-        beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
-    }
-
     // set the sequences for each tip using partial likelihood arrays
 	gt_srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
@@ -213,6 +199,23 @@ void runBeagle(int resource,
         }
     }
     
+    if (partitionCount > 1) {
+        int* patternPartitions = (int*) malloc(sizeof(int) * nsites);
+        int partitionSize = nsites/partitionCount;
+        for (int i = 0; i < nsites; i++) {
+            // int sitePartition =  gt_rand()%partitionCount;
+            // int sitePartition =  i%partitionCount;
+            int sitePartition = i/partitionSize;
+            if (sitePartition > partitionCount - 1)
+                sitePartition = partitionCount - 1;
+            patternPartitions[i] = sitePartition;
+            // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
+        }    
+
+        beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
+    }
+
+
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
 #else

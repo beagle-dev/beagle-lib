@@ -1111,12 +1111,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
     memcpy(hPatternPartitions, inPatternPartitions, sizeof(int) * kPatternCount);
     
     int currentPartition = hPatternPartitions[0];
-    assert(currentPartition < kPatternCount);
+    assert(currentPartition < partitionCount);
     hPatternPartitionsStartPatterns[currentPartition] = 0;
     for (int i=0; i<kPatternCount; i++) {
         if (hPatternPartitions[i] != currentPartition) {
             currentPartition = hPatternPartitions[i];
-            assert(currentPartition < kPatternCount);
+            assert(currentPartition < partitionCount);
             hPatternPartitionsStartPatterns[currentPartition] = i;
             // printf("gPatternPartitionsStartPatterns[%d] = %d\n", currentPartition, i);
         }

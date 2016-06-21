@@ -77,6 +77,7 @@ protected:
     int kInternalPartialsBufferCount; 
 
     int kPartitionCount;
+    int kMaxPartitionCount;
     bool kPartitionsInitialised;
 
     long kFlags;
@@ -308,6 +309,8 @@ public:
 	virtual const long getFlags();
 
 protected:
+    virtual void reorderPatternsByPartition();
+
     virtual int updatePartialsPartitions(const int* operations,
                                          int operationCount);
 

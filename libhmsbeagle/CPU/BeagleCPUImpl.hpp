@@ -228,6 +228,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kPatternCount = patternCount;
 
     kPartitionCount = 1;
+    kMaxPartitionCount = kPartitionCount;
     kPartitionsInitialised = false;
     
     kInternalPartialsBufferCount = kBufferCount - kTipCount;
@@ -561,37 +562,53 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     assert(partitionCount > 0);
     assert(inPatternPartitions != 0L);
 
+    kPartitionCount = partitionCount;
+
     if (!kPartitionsInitialised) {
         gPatternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
         if (gPatternPartitions == NULL)
             throw std::bad_alloc();        
     }
-    if (!kPartitionsInitialised || partitionCount != kPartitionCount) {
+    if (!kPartitionsInitialised || partitionCount > kMaxPartitionCount) {
         if (kPartitionsInitialised) {
             free(gPatternPartitionsStartPatterns);
         }
         gPatternPartitionsStartPatterns = (int*) malloc(sizeof(int) * (partitionCount+1));
         if (gPatternPartitionsStartPatterns == NULL)
             throw std::bad_alloc();
+        kMaxPartitionCount = partitionCount;
     }
-
-    kPartitionsInitialised = true;    
-    kPartitionCount = partitionCount;
 
     memcpy(gPatternPartitions, inPatternPartitions, sizeof(int) * kPatternCount);
 
+    bool reorderPatterns = false;
+    int contiguousPartitions = 0;
+    for (int i=0; i<kPatternCount; i++) {
+        if (i > 0 && (gPatternPartitions[i] != gPatternPartitions[i-1])) {
+            contiguousPartitions++;
+        }
+        if (contiguousPartitions != gPatternPartitions[i]) {
+            reorderPatterns = true;
+            break;
+        }
+    }
+
+    if (reorderPatterns) {
+        reorderPatternsByPartition();
+    }
+
     int currentPartition = gPatternPartitions[0];
-    assert(currentPartition < kPartitionCount);
     gPatternPartitionsStartPatterns[currentPartition] = 0;
     for (int i=0; i<kPatternCount; i++) {
         if (gPatternPartitions[i] != currentPartition) {
             currentPartition = gPatternPartitions[i];
-            assert(currentPartition < kPartitionCount);
             gPatternPartitionsStartPatterns[currentPartition] = i;
             // printf("gPatternPartitionsStartPatterns[%d] = %d\n", currentPartition, i);
         }
     }
     gPatternPartitionsStartPatterns[currentPartition+1] = kPatternCount;
+
+    kPartitionsInitialised = true;
 
     return BEAGLE_SUCCESS;
 }
@@ -1939,9 +1956,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::block(void) {
 	return BEAGLE_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// private methods
-
 /*
  * Re-scales the partial likelihoods such that the largest is one.
  */
@@ -2026,6 +2040,68 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoRescalePartials(REALTYPE* destP,
         }
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// private methods
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reorderPatternsByPartition() {
+
+    int currentPattern = 0;
+    int* newPatternPositions = (int*) malloc(sizeof(int) * kPatternCount);
+    int* partitionSizes = (int*) malloc(sizeof(int) * kPartitionCount);
+    for (int i=0; i < kPartitionCount; i++) {
+        partitionSizes[i] = 0;
+        for (int j=0; j < kPatternCount; j++) {
+            if (gPatternPartitions[j] == i) {
+                partitionSizes[i]++;
+                newPatternPositions[j] = currentPattern++;
+                // printf("newPatternPositions[%d] = %d\n", j, newPatternPositions[j]);
+            }
+        }
+    }
+
+    currentPattern = 0;
+    for (int i=0; i < kPartitionCount; i++) {
+        for (int j=0; j < partitionSizes[i]; j++) {
+            gPatternPartitions[currentPattern++] = i;
+            // printf("gPatternPartitions[%d] = %d\n", currentPattern-1, gPatternPartitions[currentPattern-1]);
+        }
+    }
+
+
+    for (int i=0; i < kTipCount; i++) {
+        REALTYPE* unsortedPartials = gPartials[i];
+        REALTYPE* sortedPartials = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+        for (int l=0; l < kCategoryCount; l++) {
+            for (int i=0; i < kPatternCount; i++) {
+                for (int j=0; j < kStateCount; j++) {
+                    int sortIndex = l*kStateCount*kPatternCount + newPatternPositions[i]*kStateCount + j;
+                    int pIndex = l*kStateCount*kPatternCount + i*kStateCount + j;
+                    sortedPartials[sortIndex] = unsortedPartials[pIndex];
+                }             
+            }
+        }
+        // printf("\n\n");
+        // for (int i=0; i < kPatternCount; i++) {
+        //     for (int j=0; j < kStateCount; j++) {
+        //         printf("uP[%d] = %f\t", i*4+j, unsortedPartials[i*4+j]);
+        //     }
+        //     printf("\n");
+        // }
+        // printf("\n");
+        // for (int i=0; i < kPatternCount; i++) {
+        //     for (int j=0; j < kStateCount; j++) {
+        //         printf("sP[%d] = %f\t", i*4+j, sortedPartials[i*4+j]);          
+        //     }           
+        //     printf("\n");
+        // }
+
+        gPartials[i] = sortedPartials;
+        free(unsortedPartials);
+    }
+}
+
 
 /*
  * Calculates partial likelihoods at a node when both children have states.
