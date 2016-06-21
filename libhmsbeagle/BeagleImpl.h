@@ -84,6 +84,9 @@ public:
                                  const double* inCategoryWeights) = 0;
     
     virtual int setPatternWeights(const double* inPatternWeights) = 0;
+
+    virtual int setPatternPartitions(int partitionCount,
+                                     const int* inPatternPartitions) = 0;
     
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
     

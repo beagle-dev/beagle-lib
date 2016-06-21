@@ -664,6 +664,18 @@ int beagleSetPatternWeights(int instance,
     return returnValue;
 }
 
+int beagleSetPatternPartitions(int instance,
+                               int partitionCount,
+                               const int* inPatternPartitions) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setPatternPartitions(partitionCount, inPatternPartitions);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates) {
     DEBUG_START_TIME();

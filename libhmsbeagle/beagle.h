@@ -619,7 +619,10 @@ typedef struct {
  * This function either calculates or queues for calculation a list partials. Implementations
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
-*
+ *
+ * If partitions have been set via beagleSetPatternPartitions, operationCount should be a 
+ * multiple of partitionCount.
+ *
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)

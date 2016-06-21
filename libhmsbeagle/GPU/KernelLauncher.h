@@ -108,12 +108,17 @@ private:
     unsigned int kMultiplyBlockSize;
     unsigned int kSumSitesBlockSize;
     long kFlags;
+    bool kCPUImplementation;
+    bool kAppleCPUImplementation;
+
     
 public:
     KernelLauncher(GPUInterface* inGpu);
     
     ~KernelLauncher();
     
+    void SetupPartitioningKernelGrid(unsigned int partitionBlockCount);
+
 // Kernel links
 
     void ConvolveTransitionMatrices(GPUPtr dMatrices,

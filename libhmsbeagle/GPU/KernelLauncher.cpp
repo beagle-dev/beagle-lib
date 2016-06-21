@@ -55,18 +55,18 @@ KernelLauncher::~KernelLauncher() {
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
-    bool CPUImplementation = false;
-    bool AppleCPUImplementation = false;
+    kCPUImplementation = false;
+    kAppleCPUImplementation = false;
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
     if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU ||
         deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_MIC ||
         deviceCode == BEAGLE_OPENCL_DEVICE_AMD_CPU) {
-        CPUImplementation = true;
+        kCPUImplementation = true;
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
-        CPUImplementation = true;
-        AppleCPUImplementation = true;
+        kCPUImplementation = true;
+        kAppleCPUImplementation = true;
     }
 #endif
 
@@ -92,7 +92,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
     // Set up block/grid for peeling computation
     if (kPaddedStateCount == 4) {
-        if (CPUImplementation) {
+        if (kCPUImplementation) {
             bgPeelingBlock = Dim3Int(kPatternBlockSize, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
         } else {
@@ -104,17 +104,17 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
             }
         }
     } else {
-        if (AppleCPUImplementation) {
+        if (kAppleCPUImplementation) {
             bgPeelingBlock = Dim3Int(kPaddedStateCount, 1, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, kCategoryCount);
-        } else if (CPUImplementation) {
+        } else if (kCPUImplementation) {
             bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize, 1);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1, kCategoryCount);
         } else {
             bgPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
             bgPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
         }
-        if (!CPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
+        if (!kCPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
             bgPeelingGrid.x += 1;
         }
     } 
@@ -122,7 +122,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
         int likePatternBlockSize = kPatternBlockSize;
-        if (CPUImplementation) {
+        if (kCPUImplementation) {
             bgLikelihoodBlock = Dim3Int(likePatternBlockSize,1);
         } else {
             bgLikelihoodBlock = Dim3Int(4,likePatternBlockSize);
@@ -131,7 +131,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         if (kPatternCount % likePatternBlockSize != 0)
             bgLikelihoodGrid.x += 1;
     } else {
-        if (CPUImplementation) {
+        if (kCPUImplementation) {
             bgLikelihoodBlock = Dim3Int(1);
         } else {
             bgLikelihoodBlock = Dim3Int(kPaddedStateCount);
@@ -150,7 +150,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgAccumulateGrid.x += 1;        
     
     // Set up block/grid for scaling partials
-    if (CPUImplementation) {
+    if (kCPUImplementation) {
         bgScaleBlock = Dim3Int(kPatternBlockSize);
         bgScaleGrid  = Dim3Int(kPatternCount/kPatternBlockSize);
     } else {
@@ -180,7 +180,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     }    
 
     // Set up block for site likelihood accumulation
-    if (CPUImplementation) {
+    if (kCPUImplementation) {
         bgSumSitesBlock = Dim3Int(1);
     } else {
         bgSumSitesBlock = Dim3Int(kSumSitesBlockSize);
@@ -333,6 +333,17 @@ void KernelLauncher::LoadKernels() {
 #endif // !FW_OPENCL_TESTING
 }
 
+void KernelLauncher::SetupPartitioningKernelGrid(unsigned int partitionBlockCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t \t Entering KernelLauncher::SetupPartitioningKernelBlocksAndGrids \n");
+#endif
+
+    bgPeelingGrid.x = partitionBlockCount;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t \t Leaving  KernelLauncher::SetupPartitioningKernelBlocksAndGrids \n");
+#endif
+}
 
 ///////////////////////////
 //---TODO: Epoch Model---//
@@ -564,6 +575,7 @@ void KernelLauncher::PartialsPartialsPruning3DGrid(GPUPtr partials,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsPruning3DGrid\n");
 #endif
+
     gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent3D,
                                 bgPeelingBlock, bgPeelingGrid,
                                 -1, gridSize,
@@ -604,12 +616,12 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         // Compute partials without any rescaling    
 
         if (endPattern != 0) {
-            unsigned int launchPatternCount = endPattern - startPattern;
-            bgPeelingGrid  = Dim3Int(launchPatternCount / (kPatternBlockSize * 4),
-                                     kCategoryCount);
-            if (launchPatternCount % (kPatternBlockSize * 4) != 0) {
-                bgPeelingGrid.x += 1;
+            int launchPatternCount = endPattern - startPattern;
+            int blockPatternCount = kPatternBlockSize;
+            if (kPaddedStateCount == 4 && !kCPUImplementation) {
+                blockPatternCount *= 4;
             }
+            bgPeelingGrid.x = (launchPatternCount + blockPatternCount - 1) / blockPatternCount;
         }
 
         gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
@@ -669,7 +681,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+    if (AppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;
@@ -756,7 +768,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+    if (AppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;
@@ -938,7 +950,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+    if (AppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;
@@ -985,7 +997,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (gpu->GetDeviceImplementationCode(-1) == BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+    if (kAppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;

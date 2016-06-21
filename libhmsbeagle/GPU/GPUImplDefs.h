@@ -91,7 +91,7 @@ enum BeagleDeviceImplementationCodes {
 
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
-    #define BEAGLE_STREAM_COUNT 1024 // should cause no perf. loss for up 512 taxa; TODO: dynamically set
+    #define BEAGLE_STREAM_COUNT 1024 // should cause no perf. loss for up to 1024 taxa; TODO: dynam. set
     #define BEAGLE_3D_GRID_MAX  2048 // use 3d-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__

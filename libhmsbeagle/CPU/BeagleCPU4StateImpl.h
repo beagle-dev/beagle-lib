@@ -87,7 +87,15 @@ public:
                                     const REALTYPE* matrices1,
                                     const REALTYPE* partials2,
                                     const REALTYPE* matrices2);
-    
+
+    virtual void calcPartialsPartialsPartitioning(REALTYPE* destP,
+                                                  const REALTYPE* partials1,
+                                                  const REALTYPE* matrices1,
+                                                  const REALTYPE* partials2,
+                                                  const REALTYPE* matrices2,
+                                                  int startPattern,
+                                                  int endPattern);
+
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,

@@ -140,6 +140,7 @@ private:
     bool kUsing3DGrid;
     int kPtrsPerOp;
     int kNumPatternBlocks;
+    int kSitesPerBlock;
     size_t kOpOffsetsSize;
     unsigned int kIndexOffsetPat;
     unsigned int kIndexOffsetMat;
@@ -150,6 +151,14 @@ private:
     unsigned int* dPartialsOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
     long kDeviceType;
+    int kPartitionCount;
+    int kMaxPartitionCount;
+    int kPaddedPartitionBlocks;
+    int kMaxPaddedPartitionBlocks;
+    bool kPartitionsInitialised;
+    int* hPatternPartitions;
+    int* hPatternPartitionsStartPatterns;
+    int* hPatternPartitionsStartBlocks;
 
     unsigned int* hPtrQueue;
     
@@ -219,7 +228,9 @@ public:
                            const double* inCategoryWeights);
     
     int setPatternWeights(const double* inPatternWeights);
-    
+
+    int setPatternPartitions(int partitionCount,
+                             const int* inPatternPartitions);
     
     int setCategoryRates(const double* inCategoryRates);
     

@@ -586,8 +586,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale3D(KW_GLOBAL_VAR REAL* KW_RES
     int startPat   = patOffsets[opIndexPat    ];
     int endPat     = patOffsets[opIndexPat + 1];
 
-    // if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_0==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
-    //     printf("startPat = %d; endPat = %d\n", startPat, endPat);
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
 
     int tx = KW_LOCAL_ID_0;
     int state = tx & 0x3;
@@ -660,10 +660,29 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
                                                     int endPattern,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_4_CPU()
-    SUM_PARTIALS_PARTIALS_4_CPU();
-    for(int i = 0; i < PADDED_STATE_COUNT; i++) {
-        partials3[deltaPartials + i] = sum1[i] * sum2[i];
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("startPat = %d; endPat = %d\n", startPattern, endPattern);
+
+    int patIdx = KW_LOCAL_ID_0;
+    int pattern;
+    if (endPattern == 0) {
+        endPattern = totalPatterns;
+        pattern = KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + patIdx;
+    } else {
+        pattern = startPattern + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + patIdx;
+    }
+    if (pattern < endPattern) {
+        int matrix = KW_GROUP_ID_1;
+        int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+        int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+        int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+
+
+        SUM_PARTIALS_PARTIALS_4_CPU();
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            partials3[deltaPartials + i] = sum1[i] * sum2[i];
+        }
     }
 #else // GPU implementation
 

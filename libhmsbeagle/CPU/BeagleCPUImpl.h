@@ -76,6 +76,9 @@ protected:
     
     int kInternalPartialsBufferCount; 
 
+    int kPartitionCount;
+    bool kPartitionsInitialised;
+
     long kFlags;
     
     REALTYPE realtypeMin;
@@ -85,6 +88,10 @@ protected:
 
     double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
     double* gPatternWeights;
+
+    int* gPatternPartitions;
+    int* gPatternPartitionsStartPatterns;
+    int* gPatternPartitionsEndPatterns;
     
     REALTYPE** gCategoryWeights;
     REALTYPE** gStateFrequencies;
@@ -176,7 +183,10 @@ public:
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
     
-    int setPatternWeights(const double* inPatternWeights);    
+    int setPatternWeights(const double* inPatternWeights); 
+
+    int setPatternPartitions(int partitionCount,
+                             const int* inPatternPartitions);
     
     // set the vector of category rates
     //
@@ -298,6 +308,9 @@ public:
 	virtual const long getFlags();
 
 protected:
+    virtual int updatePartialsPartitions(const int* operations,
+                                         int operationCount);
+
     virtual void calcStatesStates(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
@@ -316,6 +329,14 @@ protected:
                                       const REALTYPE* matrices1,
                                       const REALTYPE* partials2,
                                       const REALTYPE* matrices2);
+
+    virtual void calcPartialsPartialsPartitioning(REALTYPE* destP,
+                                                  const REALTYPE* partials1,
+                                                  const REALTYPE* matrices1,
+                                                  const REALTYPE* partials2,
+                                                  const REALTYPE* matrices2,
+                                                  int startPattern,
+                                                  int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,

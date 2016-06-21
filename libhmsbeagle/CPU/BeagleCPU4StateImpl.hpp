@@ -314,6 +314,42 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* des
         }
     }
 }
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsPartitioning(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern) {
+    
+ 
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int w = l*4*OFFSET;
+                
+        PREFETCH_MATRIX(1,matrices1,w);                
+        PREFETCH_MATRIX(2,matrices2,w);
+        for (int k = startPattern; k < endPattern; k++) {                   
+            PREFETCH_PARTIALS(1,partials1,u);
+            PREFETCH_PARTIALS(2,partials2,u);
+            
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
+            
+            // Final results
+            destP[u    ] = sum10 * sum20;
+            destP[u + 1] = sum11 * sum21;
+            destP[u + 2] = sum12 * sum22;
+            destP[u + 3] = sum13 * sum23;
+
+            u += 4;
+
+        }
+    }
+}
     
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(REALTYPE* destP,

@@ -136,7 +136,8 @@ void runBeagle(int resource,
                bool eigencomplex,
                bool ievectrans,
                bool setmatrix,
-               bool opencl)
+               bool opencl,
+               int partitionCount)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -183,6 +184,20 @@ void runBeagle(int resource,
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
     
+    if (partitionCount > 1) {
+        int* patternPartitions = (int*) malloc(sizeof(int) * nsites);
+        int partitionSize = nsites/partitionCount;
+        for (int i = 0; i < nsites; i++) {
+            int sitePartition = i/partitionSize;
+            if (sitePartition > partitionCount - 1)
+                sitePartition = partitionCount - 1;
+            patternPartitions[i] = sitePartition;
+            // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
+        }    
+
+        beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
+    }
+
     // set the sequences for each tip using partial likelihood arrays
 	gt_srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
@@ -420,33 +435,36 @@ void runBeagle(int resource,
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int* operations = new int[(internalCount)*BEAGLE_OP_COUNT*eigenCount];
+	int* operations = new int[(internalCount)*BEAGLE_OP_COUNT*eigenCount*partitionCount];
     int* scalingFactorsIndices = new int[(internalCount)*eigenCount]; // internal nodes
 	for(int i=0; i<internalCount*eigenCount; i++){
-		operations[BEAGLE_OP_COUNT*i+0] = ntaxa+i;
-        operations[BEAGLE_OP_COUNT*i+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
-        operations[BEAGLE_OP_COUNT*i+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
-        
         int child1Index;
         if (((i % internalCount)*2) < ntaxa)
             child1Index = (i % internalCount)*2;
         else
             child1Index = i*2 - internalCount * (int)(i / internalCount);
-        operations[BEAGLE_OP_COUNT*i+3] = child1Index;
-        operations[BEAGLE_OP_COUNT*i+4] = child1Index;
-
         int child2Index;
         if (((i % internalCount)*2+1) < ntaxa)
             child2Index = (i % internalCount)*2+1;
         else
             child2Index = i*2+1 - internalCount * (int)(i / internalCount);
-		operations[BEAGLE_OP_COUNT*i+5] = child2Index;
-		operations[BEAGLE_OP_COUNT*i+6] = child2Index;
+
+        for (int j=0; j<partitionCount; j++) {
+            int op = partitionCount*i + j;
+            operations[op*BEAGLE_OP_COUNT+0] = ntaxa+i;
+            operations[op*BEAGLE_OP_COUNT+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
+            operations[op*BEAGLE_OP_COUNT+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
+            operations[op*BEAGLE_OP_COUNT+3] = child1Index;
+            operations[op*BEAGLE_OP_COUNT+4] = child1Index;
+            operations[op*BEAGLE_OP_COUNT+5] = child2Index;
+            operations[op*BEAGLE_OP_COUNT+6] = child2Index;
+            // printf("op %d i %d j %d dest %d c1 %d c2 %d c1m %d c2m %d\n",
+            //        op, i, j, ntaxa+i, child1Index, child2Index,
+            //        operations[op*BEAGLE_OP_COUNT+4], operations[op*BEAGLE_OP_COUNT+6]);
+        }
 
         scalingFactorsIndices[i] = i;
-        
-//        printf("i %d dest %d c1 %d c2 %d\n", i, ntaxa+i, child1Index, child2Index);
-        
+
         if (autoScaling)
             scalingFactorsIndices[i] += ntaxa;
 	}	
@@ -524,7 +542,7 @@ void runBeagle(int resource,
         // update the partials
         beagleUpdatePartials( instance,      // instance
                         (BeagleOperation*)operations,     // operations
-                        internalCount*eigenCount,              // operationCount
+                        internalCount*eigenCount*partitionCount,              // operationCount
                         (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
 
         gettimeofday(&time3, NULL);
@@ -710,7 +728,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -741,7 +759,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* eigencomplex,
                                     bool* ievectrans,
                                     bool* setmatrix,
-                                    bool* opencl)	{
+                                    bool* opencl,
+                                    int*  partitions)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -752,6 +771,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 	bool expecting_seed = false;
     bool expecting_rescaleFrequency = false;
     bool expecting_eigenCount = false;
+    bool expecting_partitions = false;
 	
     for (unsigned i = 1; i < argc; ++i) {
 		std::string option = argv[i];
@@ -792,6 +812,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_eigenCount) {
             *eigenCount = (unsigned)atoi(option.c_str());
             expecting_eigenCount = false;
+        } else if (expecting_partitions) {
+            *partitions = (unsigned)atoi(option.c_str());
+            expecting_partitions = false;
         } else if (option == "--help") {
 			helpMessage();
         } else if (option == "--resourcelist") {
@@ -844,6 +867,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*setmatrix = true;
         } else if (option == "--opencl") {
         	*opencl = true;
+        } else if (option == "--partitions") {
+            expecting_partitions = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -880,7 +905,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (expecting_eigenCount)
 		abort("read last command line option without finding value associated with --eigencount");
-    
+
+    if (expecting_partitions)
+        abort("read last command line option without finding value associated with --partitions");
+
 	if (*stateCount < 2)
 		abort("invalid number of states supplied on the command line");
         
@@ -913,6 +941,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     
     if (*eigencomplex && (*stateCount != 4 || *eigenCount != 1))
         abort("eigencomplex option only works with stateCount=4 and eigenCount=1");
+
+    if (*partitions < 1 || *partitions > *nsites)
+        abort("invalid number for partitions supplied on the command line");
 }
 
 int main( int argc, const char* argv[] )
@@ -938,6 +969,7 @@ int main( int argc, const char* argv[] )
     bool ievectrans = false;
     bool setmatrix = false;
     bool opencl = false;
+    int partitions = 1;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
@@ -951,14 +983,19 @@ int main( int argc, const char* argv[] )
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
-                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl);
+                                   &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
+                                   &partitions);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
         std::cout << "DNA";
     else
         std::cout << stateCount << "-state data";
-    std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+    if (partitions > 1) {
+        std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+    } else {
+        std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+    }
     std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ", random seed " << randomSeed << ")\n\n";
 
 
@@ -989,7 +1026,8 @@ int main( int argc, const char* argv[] )
                           eigencomplex,
                           ievectrans,
                           setmatrix,
-                          opencl);
+                          opencl,
+                          partitions);
             }
         }
     } else {
