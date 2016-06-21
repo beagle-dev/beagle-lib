@@ -477,7 +477,7 @@ BEAGLE_DLLEXPORT int beagleSetPatternWeights(int instance,
 /**
  * @brief Set pattern partition assignments
  *
- * This function sets the vector of pattern eigen-decompositions indices for an instance.
+ * This function sets the vector of pattern partition indices for an instance.
  *
  * @param instance             Instance number (input)
  * @param partitionCount       Number of partitions (input)
