@@ -79,6 +79,7 @@ protected:
     int kPartitionCount;
     int kMaxPartitionCount;
     bool kPartitionsInitialised;
+    bool kPatternsReordered;
 
     long kFlags;
     
@@ -92,7 +93,7 @@ protected:
 
     int* gPatternPartitions;
     int* gPatternPartitionsStartPatterns;
-    int* gPatternPartitionsEndPatterns;
+    int* gPatternPartitionsNewOrder;
     
     REALTYPE** gCategoryWeights;
     REALTYPE** gStateFrequencies;

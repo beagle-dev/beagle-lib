@@ -60,11 +60,13 @@ int gt_rand_r(unsigned int *seed)
 int gt_rand(void)
 {
     return (gt_rand_r(&rand_state));
+    // return rand();
 }
 
 void gt_srand(unsigned int seed)
 {
     rand_state = seed;
+    // srand(seed);
 }
 
 void abort(std::string msg) {
@@ -137,7 +139,8 @@ void runBeagle(int resource,
                bool ievectrans,
                bool setmatrix,
                bool opencl,
-               int partitionCount)
+               int partitionCount,
+               bool sitelikes)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -236,7 +239,7 @@ void runBeagle(int resource,
 
     beagleSetPatternWeights(instance, patternWeights);
     
-    free(patternWeights);
+    // free(patternWeights);
 	
     // create base frequency array
 
@@ -645,6 +648,21 @@ void runBeagle(int resource,
     else
         fprintf(stdout, "logL = %.5f d1 = %.5f d2 = %.5f\n", logL, deriv1, deriv2);
     
+    if (sitelikes) {
+        double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
+        beagleGetSiteLogLikelihoods(instance, siteLogLs);
+        double sumLogL = 0.0;
+        fprintf(stdout, "site likelihoods = ");
+        for (int i=0; i<nsites; i++) {
+            fprintf(stdout, "%.5f \t", siteLogLs[i]);
+            sumLogL += siteLogLs[i] * patternWeights[i];
+        }
+        fprintf(stdout, "\nsumLogL = %.5f\n", sumLogL);
+        free(siteLogLs);
+    }
+
+    free(patternWeights);
+
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
     int timePrecision = 6;
@@ -731,7 +749,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -763,7 +781,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* ievectrans,
                                     bool* setmatrix,
                                     bool* opencl,
-                                    int*  partitions)	{
+                                    int*  partitions,
+                                    bool* sitelikes)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -872,6 +891,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         	*opencl = true;
         } else if (option == "--partitions") {
             expecting_partitions = true;
+        } else if (option == "--sitelikes") {
+            *sitelikes = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -972,6 +993,7 @@ int main( int argc, const char* argv[] )
     bool ievectrans = false;
     bool setmatrix = false;
     bool opencl = false;
+    bool sitelikes = false;
     int partitions = 1;
 
     std::vector<int> rsrc;
@@ -987,7 +1009,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions);
+                                   &partitions, &sitelikes);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -1030,7 +1052,8 @@ int main( int argc, const char* argv[] )
                           ievectrans,
                           setmatrix,
                           opencl,
-                          partitions);
+                          partitions,
+                          sitelikes);
             }
         }
     } else {
