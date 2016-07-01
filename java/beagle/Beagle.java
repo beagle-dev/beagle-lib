@@ -1,5 +1,107 @@
-/*
- * Beagle.java
+/**
+ * @file Beagle.java
+ *
+ * Copyright 2009-2016 Phylogenetic Likelihood Working Group
+ *
+ * This file is part of BEAGLE.
+ *
+ * BEAGLE is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * BEAGLE is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with BEAGLE.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ *
+ * @brief This file documents the API as well as header for the
+ * Broad-platform Evolutionary Analysis General Likelihood Evaluator
+ *
+ * KEY CONCEPTS
+ *
+ * The key to BEAGLE performance lies in delivering fine-scale
+ * parallelization while minimizing data transfer and memory copy overhead.
+ * To accomplish this, the library lacks the concept of data structure for
+ * a tree, in spite of the intended use for phylogenetic analysis. Instead,
+ * BEAGLE acts directly on flexibly indexed data storage (called buffers)
+ * for observed character states and partial likelihoods. The client
+ * program can set the input buffers to reflect the data and can calculate
+ * the likelihood of a particular phylogeny by invoking likelihood
+ * calculations on the appropriate input and output buffers in the correct
+ * order. Because of this design simplicity, the library can support many
+ * different tree inference algorithms and likelihood calculation on a
+ * variety of models. Arbitrary numbers of states can be used, as can
+ * nonreversible substitution matrices via complex eigen decompositions,
+ * and mixture models with multiple rate categories and/or multiple eigen
+ * decompositions. Finally, BEAGLE application programming interface (API)
+ * calls can be asynchronous, allowing the calling program to implement
+ * other coarse-scale parallelization schemes such as evaluating
+ * independent genes or running concurrent Markov chains.
+ *
+ * USAGE
+ *
+ * To use the library, a client program first creates an instance of BEAGLE
+ * by calling beagleCreateInstance; multiple instances per client are
+ * possible and encouraged. All additional functions are called with a
+ * reference to this instance. The client program can optionally request
+ * that an instance run on certain hardware (e.g., a GPU) or have
+ * particular features (e.g., double-precision math). Next, the client
+ * program must specify the data dimensions and specify key aspects of the
+ * phylogenetic model. Character state data are then loaded and can be in
+ * the form of discrete observed states or partial likelihoods for
+ * ambiguous characters. The observed data are usually unchanging and
+ * loaded only once at the start to minimize memory copy overhead. The
+ * character data can be compressed into unique “site patterns” and
+ * associated weights for each. The parameters of the substitution process
+ * can then be specified, including the equilibrium state frequencies, the
+ * rates for one or more substitution rate categories and their weights,
+ * and finally, the eigen decomposition for the substitution process.
+ *
+ * In order to calculate the likelihood of a particular tree, the client
+ * program then specifies a series of integration operations that
+ * correspond to steps in Felsenstein’s algorithm. Finite-time transition
+ * probabilities for each edge are loaded directly if considering a
+ * nondiagonalizable model or calculated in parallel from the eigen
+ * decomposition and edge lengths specified. This is performed within
+ * BEAGLE’s memory space to minimize data transfers. A single function call
+ * will then request one or more integration operations to calculate
+ * partial likelihoods over some or all nodes. The operations are performed
+ * in the order they are provided, typically dictated by a postorder
+ * traversal of the tree topology. The client needs only specify nodes for
+ * which the partial likelihoods need updating, but it is up to the calling
+ * software to keep track of these dependencies. The final step in
+ * evaluating the phylogenetic model is done using an API call that yields
+ * a single log likelihood for the model given the data.
+ *
+ * Aspects of the BEAGLE API design support both maximum likelihood (ML)
+ * and Bayesian phylogenetic tree inference. For ML inference, API calls
+ * can calculate first and second derivatives of the likelihood with
+ * respect to the lengths of edges (branches). In both cases, BEAGLE
+ * provides the ability to cache and reuse previously computed partial
+ * likelihood results, which can yield a tremendous speedup over
+ * recomputing the entire likelihood every time a new phylogenetic model is
+ * evaluated.
+ *
+ * @author Likelihood API Working Group
+ *
+ * @author Daniel Ayres
+ * @author Peter Beerli
+ * @author Michael Cummings
+ * @author Aaron Darling
+ * @author Mark Holder
+ * @author John Huelsenbeck
+ * @author Paul Lewis
+ * @author Michael Ott
+ * @author Andrew Rambaut
+ * @author Fredrik Ronquist
+ * @author Marc Suchard
+ * @author David Swofford
+ * @author Derrick Zwickl
  *
  */
 
@@ -39,6 +141,17 @@ public interface Beagle extends Serializable {
      * @param patternWeights    Array containing patternCount weights
      */
     void setPatternWeights(final double[] patternWeights);
+
+    /**
+     * Set pattern partition assignments
+     *
+     * This function sets the vector of pattern partition indices for an instance. It should
+     * only be called after setTipPartials.
+     *
+     * @param partitionCount        Number of partitions
+     * @param patternPartitions     Array containing partitionCount partition indices (input)
+     */
+    void setPatternPartitions(int partitionCount, final double[] patternPartitions);
 
     /**
      * Set the compressed state representation for tip node
@@ -223,6 +336,7 @@ public interface Beagle extends Serializable {
             int matrixIndex,			/**< Index of matrix buffer (input) */
             final double[] inMatrix, 	/**< Pointer to source transition probability matrix (input) */
             double paddedValue);
+
     /**
      * Get a finite-time transition probability matrix
      *
@@ -241,9 +355,11 @@ public interface Beagle extends Serializable {
      * Calculate or queue for calculation partials using a list of operations
      *
      * This function either calculates or queues for calculation a list partials. Implementations
-     * supporting SYNCH may queue these calculations while other implementations perform these
-     * operations immediately.  Implementations supporting GPU may perform all operations in the list
-     * simultaneously.
+     * supporting ASYNCH may queue these calculations while other implementations perform these
+     * operations immediately and in order.
+     *
+     * If partitions have been set via beagleSetPatternPartitions, operationCount should be a
+     * multiple of partitionCount.
      *
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
      * Format of 7-tuple operation: {destinationPartials,
@@ -295,7 +411,6 @@ public interface Beagle extends Serializable {
             final int count,
             final int cumulativeScaleIndex
     );
-
 
     /**
      * Copy scale factors

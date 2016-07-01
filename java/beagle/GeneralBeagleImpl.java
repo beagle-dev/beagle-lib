@@ -133,6 +133,10 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);
     }
 
+    @Override
+    public void setPatternPartitions(int partitionCount, double[] patternPartitions) {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
     /**
      * Sets partials for a tip - these are numbered from 0 and remain
      * constant throughout the run.
