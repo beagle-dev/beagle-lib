@@ -101,9 +101,9 @@ enum BeagleDeviceImplementationCodes {
     #define KW_LOCAL_ID_0    threadIdx.x
     #define KW_LOCAL_ID_1    threadIdx.y
     #define KW_LOCAL_ID_2    threadIdx.z
-    #define KW_LOCAL_SIZE_0  threadDim.x
-    #define KW_LOCAL_SIZE_1  threadDim.y
-    #define KW_LOCAL_SIZE_  threadDim.z
+    #define KW_LOCAL_SIZE_0  blockDim.x
+    #define KW_LOCAL_SIZE_1  blockDim.y
+    #define KW_LOCAL_SIZE_2  blockDim.z
     #define KW_GROUP_ID_0    blockIdx.x
     #define KW_GROUP_ID_1    blockIdx.y
     #define KW_GROUP_ID_2    blockIdx.z

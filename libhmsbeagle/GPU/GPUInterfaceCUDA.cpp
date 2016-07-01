@@ -337,42 +337,37 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif                
     
-    
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
     
-    SAFE_CUDA(cuFuncSetBlockShape(deviceFunction, block.x, block.y, block.z));
-    
-    int offset = 0;
+    void** params;
+    GPUPtr* paramPtrs;
+    unsigned int* paramInts;
+
+    params = (void**)malloc(sizeof(void*) * totalParameterCount);
+    paramPtrs = (GPUPtr*)malloc(sizeof(GPUPtr) * totalParameterCount);
+    paramInts = (unsigned int*)malloc(sizeof(unsigned int) * totalParameterCount);
+
     va_list parameters;
     va_start(parameters, totalParameterCount);  
     for(int i = 0; i < parameterCountV; i++) {
-        void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
-        
-        // adjust offset alignment requirements
-        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
-        
-        SAFE_CUDA(cuParamSetv(deviceFunction, offset, &param, sizeof(param)));
-        
-        offset += sizeof(void*);
+       paramPtrs[i] = (GPUPtr)(size_t)va_arg(parameters, GPUPtr);
+       params[i] = (void*)&paramPtrs[i];
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
-        unsigned int param = va_arg(parameters, unsigned int);
-        
-        // adjust offset alignment requirements
-        offset = (offset + __alignof(param) - 1) & ~(__alignof(param) - 1);
-        
-        SAFE_CUDA(cuParamSeti(deviceFunction, offset, param));
-        
-        offset += sizeof(param);
-        
+       paramInts[i-parameterCountV] = va_arg(parameters, unsigned int);
+       params[i] = (void*)&paramInts[i-parameterCountV];
     }
 
     va_end(parameters);
+
+    SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
+                             block.x, block.y, block.z, 0,
+                             NULL, params, NULL));
     
-    SAFE_CUDA(cuParamSetSize(deviceFunction, offset));
-    
-    SAFE_CUDA(cuLaunchGrid(deviceFunction, grid.x, grid.y));
-    
+    free(params);
+    free(paramPtrs);
+    free(paramInts);
+
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
 #ifdef BEAGLE_DEBUG_FLOW
