@@ -93,7 +93,7 @@ protected:
 
     int* gPatternPartitions;
     int* gPatternPartitionsStartPatterns;
-    int* gPatternPartitionsNewOrder;
+    int* gPatternsNewOrder;
     
     REALTYPE** gCategoryWeights;
     REALTYPE** gStateFrequencies;

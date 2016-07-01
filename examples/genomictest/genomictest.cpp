@@ -47,7 +47,7 @@
 	}
 #endif
 
-double cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
+double cpuTimeSetPartitions, cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
 
 static unsigned int rand_state = 1;
 
@@ -201,23 +201,6 @@ void runBeagle(int resource,
             free(tmpStates);                
         }
     }
-    
-    if (partitionCount > 1) {
-        int* patternPartitions = (int*) malloc(sizeof(int) * nsites);
-        int partitionSize = nsites/partitionCount;
-        for (int i = 0; i < nsites; i++) {
-            // int sitePartition =  gt_rand()%partitionCount;
-            // int sitePartition =  i%partitionCount;
-            int sitePartition = i/partitionSize;
-            if (sitePartition > partitionCount - 1)
-                sitePartition = partitionCount - 1;
-            patternPartitions[i] = sitePartition;
-            // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
-        }    
-
-        beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
-    }
-
 
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
@@ -241,6 +224,24 @@ void runBeagle(int resource,
     
     // free(patternWeights);
 	
+
+    int* patternPartitions;
+    if (partitionCount > 1) {
+        patternPartitions = (int*) malloc(sizeof(int) * nsites);
+        int partitionSize = nsites/partitionCount;
+        for (int i = 0; i < nsites; i++) {
+            // int sitePartition =  gt_rand()%partitionCount;
+            int sitePartition =  i%partitionCount;
+            // int sitePartition = i/partitionSize;
+            if (sitePartition > partitionCount - 1)
+                sitePartition = partitionCount - 1;
+            patternPartitions[i] = sitePartition;
+            // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
+        }    
+        // beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
+    }
+
+
     // create base frequency array
 
 #ifdef _WIN32
@@ -493,8 +494,8 @@ void runBeagle(int resource,
     }
 
     // start timing!
-	struct timeval time1, time2, time3, time4, time5;
-    double bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
+	struct timeval time0, time1, time2, time3, time4, time5;
+    double bestTimeSetPartitions, bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
     
     double logL = 0.0;
     double deriv1 = 0.0;
@@ -512,6 +513,12 @@ void runBeagle(int resource,
             }
         }
         
+        gettimeofday(&time0,NULL);
+
+        if (partitionCount > 1 && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
+            beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
+        }
+
         gettimeofday(&time1,NULL);
 
         for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
@@ -608,8 +615,9 @@ void runBeagle(int resource,
         // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
         // fprintf(stdout, "logL = %.5f  ", logL);
 
-        if (i == 0 || getTimeDiff(time1, time5) < bestTimeTotal) {
-            bestTimeTotal = getTimeDiff(time1, time5);
+        if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
+            bestTimeTotal = getTimeDiff(time0, time5);
+            bestTimeSetPartitions = getTimeDiff(time0, time1);
             bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
             bestTimeUpdatePartials = getTimeDiff(time2, time3);
             bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
@@ -636,6 +644,7 @@ void runBeagle(int resource,
     }
 
     if (resource == 0) {
+        cpuTimeSetPartitions = bestTimeSetPartitions;
         cpuTimeUpdateTransitionMatrices = bestTimeUpdateTransitionMatrices;
         cpuTimeUpdatePartials = bestTimeUpdatePartials;
         cpuTimeAccumulateScaleFactors = bestTimeAccumulateScaleFactors;
@@ -662,6 +671,9 @@ void runBeagle(int resource,
     }
 
     free(patternWeights);
+    if (partitionCount > 1) {
+        free(patternPartitions);
+    }
 
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
@@ -671,6 +683,8 @@ void runBeagle(int resource,
 	std::cout << "best run: ";
     printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
     if (fullTiming) {
+        std::cout << " setPartitions:  ";
+        printTiming(bestTimeSetPartitions, timePrecision, resource, cpuTimeSetPartitions, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         std::cout << " transMats:  ";
         printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";

@@ -189,6 +189,14 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     if (kUnpaddedPatternCount % kSumSitesBlockSize != 0)
         bgSumSitesGrid.x += 1;
 
+    // Set up block for reordering partials
+    if (kCPUImplementation) {
+        bgReorderPatternsBlock = Dim3Int(REORDER_BLOCK_SIZE_CPU);
+    } else {
+        bgReorderPatternsBlock = Dim3Int(kPaddedStateCount, REORDER_BLOCK_SIZE);
+    }    
+    bgReorderPatternsGrid = Dim3Int((kUnpaddedPatternCount + REORDER_BLOCK_SIZE - 1) / REORDER_BLOCK_SIZE, kCategoryCount);
+
 }
 
 void KernelLauncher::LoadKernels() {
@@ -215,6 +223,9 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelPartialsPartialsNoScale");
+
+    fPartialsPartialsByPatternBlockCoherentPartition = gpu->GetFunction(
+            "kernelPartialsPartialsNoScalePartition");    
 
     fPartialsPartialsByPatternBlockCoherent3D = gpu->GetFunction(
             "kernelPartialsPartialsNoScale3D");
@@ -330,6 +341,8 @@ void KernelLauncher::LoadKernels() {
     fSumSites1 = gpu->GetFunction("kernelSumSites1");
     fSumSites2 = gpu->GetFunction("kernelSumSites2");
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
+
+    fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");
 #endif // !FW_OPENCL_TESTING
 }
 
@@ -342,6 +355,33 @@ void KernelLauncher::SetupPartitioningKernelGrid(unsigned int partitionBlockCoun
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t \t Leaving  KernelLauncher::SetupPartitioningKernelBlocksAndGrids \n");
+#endif
+}
+
+void KernelLauncher::ReorderPatterns(GPUPtr dPartials,
+                                     GPUPtr dPartialsOffsets,
+                                     GPUPtr dPatternsNewOrder,
+                                     GPUPtr dPatternWeights,
+                                     GPUPtr dPatternWeightsSort,
+                                     int    patternCount,
+                                     int    paddedPatternCount,
+                                     int    tipCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::ReorderPatterns\n");
+#endif
+
+    bgReorderPatternsGrid.z = tipCount;
+
+    int parameterCountV = 5;
+    int totalParameterCount = 7;
+    gpu->LaunchKernel(fReorderPatterns,
+                      bgReorderPatternsBlock, bgReorderPatternsGrid,
+                      parameterCountV, totalParameterCount,
+                      dPartials, dPartialsOffsets, dPatternsNewOrder, dPatternWeights, dPatternWeightsSort,
+                      patternCount, paddedPatternCount);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReorderPatterns\n");
 #endif
 }
 
@@ -621,15 +661,26 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
             if (kPaddedStateCount == 4 && !kCPUImplementation) {
                 blockPatternCount *= 4;
             }
+            int tmpGridx = bgPeelingGrid.x;
             bgPeelingGrid.x = (launchPatternCount + blockPatternCount - 1) / blockPatternCount;
+
+            gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherentPartition,
+                                        bgPeelingBlock, bgPeelingGrid,
+                                        streamIndex, waitIndex,
+                                        5, 8,
+                                        partials1, partials2, partials3, matrices1, matrices2,
+                                        startPattern, endPattern, patternCount);
+
+            bgPeelingGrid.x = tmpGridx;
+        } else {
+            gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+                                        bgPeelingBlock, bgPeelingGrid,
+                                        streamIndex, waitIndex,
+                                        5, 6,
+                                        partials1, partials2, partials3, matrices1, matrices2,
+                                        patternCount);
         }
 
-        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
-                                    bgPeelingBlock, bgPeelingGrid,
-                                    streamIndex, waitIndex,
-                                    5, 8,
-                                    partials1, partials2, partials3, matrices1, matrices2,
-                                    startPattern, endPattern, patternCount);
         // gpu->LaunchKernel(fPartialsPartialsByPatternBlockCoherent,
         //                             bgPeelingBlock, bgPeelingGrid,
         //                             5, 6,

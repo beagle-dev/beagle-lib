@@ -181,7 +181,7 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
         free(gPatternPartitions);
         free(gPatternPartitionsStartPatterns);
         if (kPatternsReordered) {
-            free(gPatternPartitionsNewOrder);
+            free(gPatternsNewOrder);
         }
     }
 
@@ -606,7 +606,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
             if (gPatternPartitions[i] != currentPartition) {
                 currentPartition = gPatternPartitions[i];
                 gPatternPartitionsStartPatterns[currentPartition] = i;
-                // printf("gPatternPartitionsStartPatterns[%d] = %d\n", currentPartition, i);
             }
         }
         gPatternPartitionsStartPatterns[currentPartition+1] = kPatternCount;
@@ -673,7 +672,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikel
     if (kPatternsReordered) {
         REALTYPE* outLogLikelihoodsOriginalOrder = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount);
         for (int i=0; i < kPatternCount; i++) {
-            outLogLikelihoodsOriginalOrder[i] = outLogLikelihoodsTmp[gPatternPartitionsNewOrder[i]];
+            outLogLikelihoodsOriginalOrder[i] = outLogLikelihoodsTmp[gPatternsNewOrder[i]];
         }
         beagleMemCpy(outLogLikelihoods, outLogLikelihoodsOriginalOrder, kPatternCount);
         free(outLogLikelihoodsOriginalOrder);
@@ -1028,7 +1027,6 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsPartitions(const int* operations,
                                                                 int count) {
 
-    // printf("count %d, kPartitionCount %d\n", count, kPartitionCount);
     assert(count % kPartitionCount == 0);
 
     for (int op = 0; op < count; op++) {
@@ -2058,24 +2056,15 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoRescalePartials(REALTYPE* destP,
 // private methods
 
 
-// #include <iostream>
-// #include <sys/time.h>
-// double getTimeDiff(struct timeval t1,
-//                    struct timeval t2) {
-//     return ((t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec-t1.tv_usec)/1000000.0);
-// }
-
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reorderPatternsByPartition() {
     
-    // struct timeval time1, time2, time3;
-    // gettimeofday(&time1,NULL);
-
     if (!kPatternsReordered) {
-        gPatternPartitionsNewOrder = (int*) malloc(kPatternCount * sizeof(int));
+        gPatternsNewOrder = (int*) malloc(kPatternCount * sizeof(int));
     }
 
     int* partitionSizes = (int*) malloc(kPartitionCount * sizeof(int));
+    double* sortedPatternWeights = (double*) malloc(sizeof(double) * kPatternCount);
 
     for (int i=0; i < kPartitionCount; i++) {
         gPatternPartitionsStartPatterns[i] = 0;
@@ -2083,7 +2072,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reorderPatternsByPartition() {
     }
 
     for (int i=0; i < kPatternCount; i++) {
-         gPatternPartitionsNewOrder[i] = partitionSizes[gPatternPartitions[i]]++;
+         gPatternsNewOrder[i] = partitionSizes[gPatternPartitions[i]]++;
     }
 
     for (int i=0; i < kPartitionCount; i++) {
@@ -2094,7 +2083,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reorderPatternsByPartition() {
     gPatternPartitionsStartPatterns[kPartitionCount] = kPatternCount;
 
     for (int i=0; i < kPatternCount; i++) {
-        gPatternPartitionsNewOrder[i] += gPatternPartitionsStartPatterns[gPatternPartitions[i]];
+        gPatternsNewOrder[i] += gPatternPartitionsStartPatterns[gPatternPartitions[i]];
+        sortedPatternWeights[gPatternsNewOrder[i]] = gPatternWeights[i];
     }
 
 
@@ -2104,58 +2094,28 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reorderPatternsByPartition() {
             gPatternPartitions[currentPattern++] = i;
         }
     }
-    
-    // gettimeofday(&time2, NULL);
 
+    free(partitionSizes);
+    free(gPatternWeights);
+    gPatternWeights = sortedPatternWeights;
+    
+    REALTYPE* sortedPartials = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);   
     for (int i=0; i < kTipCount; i++) {
-        // int tempPartialIndex = kBufferCount - 1 - i;
-        // printf("i = %d; tempPartialIndex = %i\n", i, tempPartialIndex);
         REALTYPE* unsortedPartials = gPartials[i];
-        REALTYPE* sortedPartials;
-        // if (tempPartialIndex < kTipCount) 
-            sortedPartials = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
-        // else 
-            // sortedPartials = gPartials[tempPartialIndex];
         
         for (int l=0; l < kCategoryCount; l++) {
             for (int i=0; i < kPatternCount; i++) {
                 for (int j=0; j < kStateCount; j++) {
-                    int sortIndex = l*kStateCount*kPatternCount + gPatternPartitionsNewOrder[i]*kStateCount + j;
+                    int sortIndex = l*kStateCount*kPatternCount + gPatternsNewOrder[i]*kStateCount + j;
                     int pIndex = l*kStateCount*kPatternCount + i*kStateCount + j;
                     sortedPartials[sortIndex] = unsortedPartials[pIndex];
                 }             
             }
         }
-        // printf("\n\n");
-        // for (int i=0; i < kPatternCount; i++) {
-        //     for (int j=0; j < kStateCount; j++) {
-        //         printf("uP[%d] = %f\t", i*4+j, unsortedPartials[i*4+j]);
-        //     }
-        //     printf("\n");
-        // }
-        // printf("\n");
-        // for (int i=0; i < kPatternCount; i++) {
-        //     for (int j=0; j < kStateCount; j++) {
-        //         printf("sP[%d] = %f\t", i*4+j, sortedPartials[i*4+j]);          
-        //     }           
-        //     printf("\n");
-        // }
 
         gPartials[i] = sortedPartials;
-
-        // if (tempPartialIndex < kTipCount)
-            free(unsortedPartials);
-        // else 
-            // gPartials[tempPartialIndex] = unsortedPartials;
+        sortedPartials = unsortedPartials;
     }
-
-    // gettimeofday(&time3, NULL);
-    // std::cout.setf(std::ios::showpoint);
-    // std::cout.setf(std::ios::floatfield, std::ios::fixed);
-    // std::cout << getTimeDiff(time1, time2) << "s\n";
-    // std::cout << getTimeDiff(time2, time3) << "s\n";
-
-    free(partitionSizes);
 
     kPatternsReordered = true;
 }
@@ -2395,7 +2355,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsPartitioning(REALTYP
     matrixIncr += T_PAD;
 
     int stateCountModFour = (kStateCount / 4) * 4;
-// printf("startPattern %d, endPattern %d\n", startPattern, endPattern);
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
