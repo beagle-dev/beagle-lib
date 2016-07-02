@@ -57,6 +57,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternWeights
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setPatternPartitions
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternPartitions
+  (JNIEnv *, jobject, jint, jint, jintArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipStates
  * Signature: (II[I)I
  */
@@ -94,6 +102,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
   (JNIEnv *, jobject, jint, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getLogScaleFactors
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getLogScaleFactors
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

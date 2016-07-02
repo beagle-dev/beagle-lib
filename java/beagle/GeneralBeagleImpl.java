@@ -134,7 +134,7 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     @Override
-    public void setPatternPartitions(int partitionCount, double[] patternPartitions) {
+    public void setPatternPartitions(int partitionCount, int[] patternPartitions) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
     /**

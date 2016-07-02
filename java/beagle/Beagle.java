@@ -151,7 +151,7 @@ public interface Beagle extends Serializable {
      * @param partitionCount        Number of partitions
      * @param patternPartitions     Array containing partitionCount partition indices (input)
      */
-    void setPatternPartitions(int partitionCount, final double[] patternPartitions);
+    void setPatternPartitions(int partitionCount, final int[] patternPartitions);
 
     /**
      * Set the compressed state representation for tip node

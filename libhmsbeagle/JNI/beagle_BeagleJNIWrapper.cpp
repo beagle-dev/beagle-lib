@@ -188,6 +188,23 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternWeights
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setPatternPartitions
+ * Signature: (II[I)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternPartitions
+  (JNIEnv *env, jobject obj, jint instance, jint partitionCount, jintArray inPatternPartitions)
+{
+    jint *patternPartitions = env->GetIntArrayElements(inPatternPartitions, NULL);
+
+	jint errCode = (jint)beagleSetPatternPartitions(instance, partitionCount, (int *)patternPartitions);
+
+    env->ReleaseIntArrayElements(inPatternPartitions, patternPartitions, JNI_ABORT);
+    return errCode;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTipStates
  * Signature: (II[I)I
  */

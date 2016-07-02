@@ -68,8 +68,8 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-    public void setPatternPartitions(int partitionCount, final double[] patternPartitions) {
-        int errCode = BeagleJNIWrapper.INSTANCE.setPatternPartitions(partitionCount, patternPartitions);
+    public void setPatternPartitions(int partitionCount, final int[] patternPartitions) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setPatternPartitions(instance, partitionCount, patternPartitions);
         if (errCode != 0) {
             throw new BeagleException("setPatternPartitions", errCode);
         }

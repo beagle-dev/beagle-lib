@@ -50,7 +50,7 @@ public class BeagleJNIWrapper {
 
     public native int setPatternWeights(int instance, final double[] patternWeights);
 
-    public native int setPatternPartitions(int partitionCount, final double[] patternPartitions);
+    public native int setPatternPartitions(int instance, int partitionCount, final int[] patternPartitions);
 
     public native int setTipStates(int instance, int tipIndex, final int[] inStates);
 
