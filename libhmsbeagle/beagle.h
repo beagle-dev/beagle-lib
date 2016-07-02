@@ -478,7 +478,7 @@ BEAGLE_DLLEXPORT int beagleSetPatternWeights(int instance,
  * @brief Set pattern partition assignments
  *
  * This function sets the vector of pattern partition indices for an instance. It should
- * only be called after beagleSetTipPartials.
+ * only be called after beagleSetTipPartials and beagleSetPatternWeights.
  *
  * @param instance             Instance number (input)
  * @param partitionCount       Number of partitions (input)

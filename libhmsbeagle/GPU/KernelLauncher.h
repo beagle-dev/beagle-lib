@@ -51,6 +51,7 @@ private:
     GPUFunction fMatrixMulADBSecondDeriv;
 
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockCoherentPartition;
     GPUFunction fPartialsPartialsByPatternBlockCoherent3D;
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
@@ -77,13 +78,15 @@ private:
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
-	GPUFunction fIntegrateLikelihoodsMulti;
-	GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
+	  GPUFunction fIntegrateLikelihoodsMulti;
+	  GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
     GPUFunction fIntegrateLikelihoodsAutoScaling;
 
     GPUFunction fSumSites1;
     GPUFunction fSumSites2;
     GPUFunction fSumSites3;
+
+    GPUFunction fReorderPatterns;
     
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
@@ -97,6 +100,9 @@ private:
     Dim3Int bgScaleGrid;
     Dim3Int bgSumSitesBlock;
     Dim3Int bgSumSitesGrid;
+    Dim3Int bgReorderPatternsBlock;
+    Dim3Int bgReorderPatternsGrid;
+
     
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -120,6 +126,15 @@ public:
     void SetupPartitioningKernelGrid(unsigned int partitionBlockCount);
 
 // Kernel links
+
+    void ReorderPatterns(GPUPtr dPartials,
+                         GPUPtr dPartialsOffsets,
+                         GPUPtr dPatternsNewOrder,
+                         GPUPtr dPatternWeights,
+                         GPUPtr dPatternWeightsSort,
+                         int    patternCount,
+                         int    paddedPatternCount,
+                         int    tipCount);
 
     void ConvolveTransitionMatrices(GPUPtr dMatrices,
                           GPUPtr dPtrQueue,

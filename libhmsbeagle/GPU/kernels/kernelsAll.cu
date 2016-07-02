@@ -43,6 +43,51 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
+KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*                     dPartials,
+                                            const KW_GLOBAL_VAR unsigned int* KW_RESTRICT dPartialsOffsets,
+                                            const KW_GLOBAL_VAR int*          KW_RESTRICT dPatternsNewOrder,
+                                            const KW_GLOBAL_VAR REAL*         KW_RESTRICT dPatternWeights,
+                                                  KW_GLOBAL_VAR REAL*         KW_RESTRICT dPatternWeightsSort,
+                                                                int                       patternCount,
+                                                                int                       paddedPatternCount) {
+#ifdef FW_OPENCL_CPU 
+    int state      = 0;
+    int pattern    = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0;
+#else 
+    int state      = KW_LOCAL_ID_0;
+    int pattern    = KW_LOCAL_ID_1 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_1;
+#endif
+    int stateCount = PADDED_STATE_COUNT;
+    int category   = KW_GROUP_ID_1;
+    int tip        = KW_GROUP_ID_2;
+    int tipCount   = KW_NUM_GROUPS_2;
+
+
+    if (pattern < patternCount) {
+        int categoryOffset = category * stateCount * paddedPatternCount;
+        int sortedPattern  = dPatternsNewOrder[pattern];
+
+        int sortIndex   = categoryOffset + sortedPattern * stateCount;
+        int originIndex = categoryOffset + pattern       * stateCount;
+
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialOriginal = dPartials + dPartialsOffsets[tip];
+              KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialSorted   = dPartials + dPartialsOffsets[tip+tipCount];
+
+#ifdef FW_OPENCL_CPU 
+        for (int i=0; i < stateCount; i++) {
+            dPartialSorted[sortIndex+i] = dPartialOriginal[originIndex+i];
+        }    
+#else
+        sortIndex += state;
+        originIndex += state;
+        dPartialSorted[sortIndex] = dPartialOriginal[originIndex];
+#endif
+        if (state == 0 && category == 0 && tip == 0) {
+            dPatternWeightsSort[sortedPattern] = dPatternWeights[pattern];
+        }
+    }
+}
+
 KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,

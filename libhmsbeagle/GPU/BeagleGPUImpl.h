@@ -146,9 +146,13 @@ private:
     unsigned int kIndexOffsetMat;
     GPUPtr  dPartialsPtrs;
     GPUPtr  dPartitionOffsets;
+    GPUPtr  dPatternsNewOrder;
+    GPUPtr  dPartialsOffsets;
+    GPUPtr  dPartialsOrigin;
+    GPUPtr  dPatternWeightsSort;
     unsigned int* hPartialsPtrs;
     unsigned int* hPartitionOffsets;
-    unsigned int* dPartialsOffsets;
+    unsigned int* hPartialsOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
     long kDeviceType;
     int kPartitionCount;
@@ -156,9 +160,11 @@ private:
     int kPaddedPartitionBlocks;
     int kMaxPaddedPartitionBlocks;
     bool kPartitionsInitialised;
+    bool kPatternsReordered;
     int* hPatternPartitions;
     int* hPatternPartitionsStartPatterns;
     int* hPatternPartitionsStartBlocks;
+    int* hPatternsNewOrder;
 
     unsigned int* hPtrQueue;
     
@@ -313,6 +319,7 @@ public:
 private:
     char* getInstanceName();
     void  allocate3DGridBuffers();
+    void  reorderPatternsByPartition();
 
 };
 
