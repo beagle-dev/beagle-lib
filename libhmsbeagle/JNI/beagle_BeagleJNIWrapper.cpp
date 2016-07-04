@@ -289,6 +289,24 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getLogScaleFactors
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getLogScaleFactors
+  (JNIEnv *env, jobject obj, jint instance, jint scaleIndex, jdoubleArray outScaleFactors)
+{
+    jdouble *scaleFactors = env->GetDoubleArrayElements(outScaleFactors, NULL);
+
+    jint errCode = beagleGetScaleFactors(instance, scaleIndex, (double *)scaleFactors);
+
+    // not using JNI_ABORT flag here because we want the values to be copied back...
+    env->ReleaseDoubleArrayElements(outScaleFactors, scaleFactors, 0);
+    return errCode;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setEigenDecomposition
  * Signature: (II[D[D[D)I
  */
