@@ -550,7 +550,12 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternWeights(const double* inPattern
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternMap(const int* inPatternMap) {
 	assert(inPatternMap != 0L);
-	// TODO
+	
+	if (patternMap.size() < kPaddedPatternCount) {
+		patternMap.resize(kPaddedPatternCount);
+	}
+	beagleMemCpy(patternMap.data(), inPatternMap, kPatternCount);
+	
 	return BEAGLE_SUCCESS;
 }
 

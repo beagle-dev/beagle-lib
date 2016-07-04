@@ -115,6 +115,8 @@ protected:
 
     REALTYPE* ones;
     REALTYPE* zeros;
+    
+    std::vector<int> patternMap; // TODO BEAGLE does not use STL -- why not?
 
 public:
     virtual ~BeagleCPUImpl();
