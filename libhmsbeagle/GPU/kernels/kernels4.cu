@@ -772,6 +772,132 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RE
     }
 #endif // FW_OPENCL_CPU
 }
+
+KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale3D(KW_GLOBAL_VAR int* KW_RESTRICT states,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+                                                    const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                    const KW_GLOBAL_VAR unsigned int* KW_RESTRICT patOffsets,
+                                                    int gridStartOp,
+                                                    int totalPatterns) {
+
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    int opIndexPat = KW_GROUP_ID_0 << 1;
+    int startPat   = patOffsets[opIndexPat    ];
+    int endPat     = patOffsets[opIndexPat + 1];
+
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
+
+    int patIdx = KW_LOCAL_ID_0;
+    int pattern = startPat + patIdx;    
+    
+    if (pattern < endPat) {
+        int matrix = KW_GROUP_ID_1;
+        int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+        int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+        int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+        
+        int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
+        const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr    ];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 1];
+              KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 2];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 3];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2 =  matrices + ptrOffsets[opIndexPtr + 4];
+
+        REAL sum1[PADDED_STATE_COUNT];
+        REAL sum2[PADDED_STATE_COUNT];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT sPartials2 = partials2 + deltaPartials;
+        int state1 = states1[pattern];
+        if (state1 < PADDED_STATE_COUNT) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                sum1[i] = sMatrix1[state1 * PADDED_STATE_COUNT + i];
+            }
+        } else {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                sum1[i] = 1.0;
+            }
+        }
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            sum2[i] = sMatrix2[0 * PADDED_STATE_COUNT + i] * sPartials2[0];
+        }
+        for (int s = 1; s < PADDED_STATE_COUNT; s++) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                FMA(sMatrix2[s * PADDED_STATE_COUNT + i],  sPartials2[s], sum2[i]);
+            }
+        }
+
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            partials3[deltaPartials + i] = sum1[i] * sum2[i];
+        }
+    }
+#else // GPU implementation
+
+    int opIndexPat = KW_GROUP_ID_0 << 1;
+    int startPat   = patOffsets[opIndexPat    ];
+    int endPat     = patOffsets[opIndexPat + 1];
+
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
+
+    int tx = KW_LOCAL_ID_0;
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+    int patIdx = KW_LOCAL_ID_1;
+    int matrix = KW_GROUP_ID_1;
+    int pattern = startPat + multBy4(patIdx) + pat;
+    int deltaPartialsByState = multBy4(startPat) + multBy16(patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));
+    int x2 = multBy16(matrix);
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+    // int opIndexPtr = (gridStartOp + KW_GROUP_ID_2) * 5;
+    int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
+    const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr    ];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 1];
+          KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 2];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1   =  matrices + ptrOffsets[opIndexPtr + 3];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2   =  matrices + ptrOffsets[opIndexPtr + 4];
+
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/
+    if (pattern < endPat) {
+        sPartials2[multBy16(patIdx) | tx] = partials2[u];
+    } else {
+        sPartials2[multBy16(patIdx) | tx] = 0;
+    }
+
+    matrix1 += x2; /*Points to *this* matrix*/
+    matrix2 += x2;
+
+    KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/
+    KW_LOCAL_MEM REAL sMatrix2[16];
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; /*All coalesced memory reads*/
+        sMatrix2[tx] = matrix2[tx];
+    }
+    KW_LOCAL_FENCE;
+    if (pattern < endPat) { // Remove padded threads!
+        REAL sum1 = 1, sum2;
+        int state1 = states1[pattern];
+        if (state1 < PADDED_STATE_COUNT)
+            sum1 = sMatrix1[state1 * 4 + state];
+        int i = pat;
+        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+        sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+        i = (++i) & 0x3;
+        FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+        i = (++i) & 0x3;
+        FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+        i = (++i) & 0x3;
+        FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+        partials3[u] = sum1 * sum2;
+    }
+#endif // FW_OPENCL_CPU
+}
     
 KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
@@ -819,6 +945,116 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTR
     if (pattern < totalPatterns) { // Remove padded threads!
         SUM_STATES_PARTIALS_4_GPU();
         partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
+    }
+#endif // FW_OPENCL_CPU
+}
+
+KW_GLOBAL_KERNEL void kernelStatesStatesNoScale3D(KW_GLOBAL_VAR int* KW_RESTRICT states,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                  const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+                                                  const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                  const KW_GLOBAL_VAR unsigned int* KW_RESTRICT patOffsets,
+                                                  int gridStartOp,
+                                                  int totalPatterns) {
+
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    int opIndexPat = KW_GROUP_ID_0 << 1;
+    int startPat   = patOffsets[opIndexPat    ];
+    int endPat     = patOffsets[opIndexPat + 1];
+
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
+
+    int patIdx = KW_LOCAL_ID_0;
+    int pattern = startPat + patIdx;    
+    
+    if (pattern < endPat) {
+        int matrix = KW_GROUP_ID_1;
+        int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+        int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+        int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+        
+        int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
+        const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr    ];
+        const KW_GLOBAL_VAR int*  KW_RESTRICT states2   =  states   + ptrOffsets[opIndexPtr + 1];
+              KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 2];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 3];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2 =  matrices + ptrOffsets[opIndexPtr + 4];
+
+        KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix1 = matrices1 + deltaMatrix;
+        KW_GLOBAL_VAR REAL* KW_RESTRICT sMatrix2 = matrices2 + deltaMatrix;
+        int state1 = states1[pattern];
+        int state2 = states2[pattern];
+        if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                partials3[deltaPartials + i] = sMatrix1[state1 * 4 + i] * sMatrix2[state2 * 4 + i];
+            }
+        } else if (state1 < PADDED_STATE_COUNT) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                partials3[deltaPartials + i] = sMatrix1[state1 * 4 + i];
+            }
+        } else if (state2 < PADDED_STATE_COUNT) {
+            for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+                partials3[deltaPartials + i] = sMatrix2[state2 * 4 + i];
+            }
+        } else {
+            partials3[deltaPartials + 0] = 1.0; // unrolled to work around Apple OpenCL bug
+            partials3[deltaPartials + 1] = 1.0;
+            partials3[deltaPartials + 2] = 1.0;
+            partials3[deltaPartials + 3] = 1.0;
+        }
+    }
+#else // GPU implementation
+
+    int opIndexPat = KW_GROUP_ID_0 << 1;
+    int startPat   = patOffsets[opIndexPat    ];
+    int endPat     = patOffsets[opIndexPat + 1];
+
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("opIndexPat = %d; startPat = %d; endPat = %d\n", opIndexPat, startPat, endPat);
+
+    int tx = KW_LOCAL_ID_0;
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+    int patIdx = KW_LOCAL_ID_1;
+    int matrix = KW_GROUP_ID_1;
+    int pattern = startPat + multBy4(patIdx) + pat;
+    int deltaPartialsByState = multBy4(startPat) + multBy16(patIdx);
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));
+    int x2 = multBy16(matrix);
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+    // int opIndexPtr = (gridStartOp + KW_GROUP_ID_2) * 5;
+    int opIndexPtr = ((gridStartOp + KW_GROUP_ID_2)*KW_NUM_GROUPS_0 + KW_GROUP_ID_0) * 5;
+    const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr    ];
+    const KW_GLOBAL_VAR int*  KW_RESTRICT states2   =  states   + ptrOffsets[opIndexPtr + 1];
+          KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 2];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1   =  matrices + ptrOffsets[opIndexPtr + 3];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2   =  matrices + ptrOffsets[opIndexPtr + 4];
+
+    matrix1 += x2; /*Points to *this* matrix*/
+    matrix2 += x2;
+
+    KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/
+    KW_LOCAL_MEM REAL sMatrix2[16];
+    if (patIdx == 0 ) {
+        sMatrix1[tx] = matrix1[tx]; /*All coalesced memory reads*/
+        sMatrix2[tx] = matrix2[tx];
+    }
+    KW_LOCAL_FENCE;
+    if (pattern < endPat) { // Remove padded threads!
+        int state1 = states1[pattern];
+        int state2 = states2[pattern];
+        if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix1[state1 * 4 + state] * sMatrix2[state2 * 4 + state];
+        } else if (state1 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix1[state1 * 4 + state];
+        } else if (state2 < PADDED_STATE_COUNT) {
+            partials3[u] = sMatrix2[state2 * 4 + state];
+        } else {
+            partials3[u] = 1.0;
+        }
     }
 #endif // FW_OPENCL_CPU
 }

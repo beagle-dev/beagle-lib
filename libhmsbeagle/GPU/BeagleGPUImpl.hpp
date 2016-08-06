@@ -47,9 +47,9 @@ namespace beagle {
 namespace gpu {
 
 #ifdef CUDA
-	namespace cuda {
+    namespace cuda {
 #else
-	namespace opencl {
+    namespace opencl {
 #endif
 
 BEAGLE_GPU_TEMPLATE
@@ -70,7 +70,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dSumSecondDeriv = (GPUPtr)NULL;
     
     dPatternWeights = (GPUPtr)NULL;    
-	
+    
     dBranchLengths = (GPUPtr)NULL;
     
     dDistanceQueue = (GPUPtr)NULL;
@@ -120,8 +120,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
 
 BEAGLE_GPU_TEMPLATE
 BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
-    	
-	if (kInitialized) {
+        
+    if (kInitialized) {
         for (int i=0; i < kEigenDecompCount; i++) {
             gpu->FreeMemory(dEigenValues[i]);
             gpu->FreeMemory(dEvec[i]);
@@ -150,7 +150,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             free(hPatternPartitionsStartPatterns);
             if (kPatternsReordered) {
                 free(hPatternsNewOrder);
-                gpu->FreeMemory(dPartialsOffsets);
+                gpu->FreeMemory(dPatternsNewOrder);
             }
         }
 
@@ -164,13 +164,12 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             gpu->FreeMemory(dPartitionOffsets);
             gpu->FreeHostMemory(hPartitionOffsets);
         }
-        
-        gpu->FreeMemory(dPartialsOrigin);
-        
-        for (int i = 0; i < kCompactBufferCount; i++) {        
-            gpu->FreeMemory(dCompactBuffers[i]);
-        }
 
+        gpu->FreeMemory(dPartialsOrigin);
+
+        if (kCompactBufferCount > 0)
+            gpu->FreeMemory(dStatesOrigin);
+        
         gpu->FreeMemory(dIntegrationTmp);
         gpu->FreeMemory(dOutFirstDeriv);
         gpu->FreeMemory(dOutSecondDeriv);
@@ -196,7 +195,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             gpu->FreeMemory(dAccumulatedScalingFactors);
         }
-	        
+            
         free(dEigenValues);
         free(dEvec);
         free(dIevc);
@@ -215,6 +214,9 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(dTipPartialsBuffers);
 
         free(kStreamIndices);
+
+        free(hPartialsOffsets);
+        free(hStatesOffsets);
 
         gpu->FreeHostMemory(hPtrQueue);
         
@@ -291,11 +293,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     } else if (kStateCount <= 32) {
         kPaddedStateCount = 32;
     } else if (kStateCount <= 48) {
-    	kPaddedStateCount = 48;  
+        kPaddedStateCount = 48;  
     } else if (kStateCount <= 64) {
         kPaddedStateCount = 64;
     } else if (kStateCount <= 80) {
-		kPaddedStateCount = 80;
+        kPaddedStateCount = 80;
     } else if (kStateCount <= 128) {
         kPaddedStateCount = 128;
     } else if (kStateCount <= 192){ 
@@ -425,13 +427,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     }
     
     if (preferenceFlags & BEAGLE_FLAG_EIGEN_COMPLEX || requirementFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
-    	kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
+        kFlags |= BEAGLE_FLAG_EIGEN_COMPLEX;
     } else {
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }
     
     if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED || preferenceFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED)
-    	kFlags |= BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+        kFlags |= BEAGLE_FLAG_INVEVEC_TRANSPOSED;
     else
         kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
 
@@ -447,9 +449,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 
     if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-    	kEigenValuesSize = 2 * kPaddedStateCount;
+        kEigenValuesSize = 2 * kPaddedStateCount;
     else
-    	kEigenValuesSize = kPaddedStateCount;
+        kEigenValuesSize = kPaddedStateCount;
         
     kLastCompactBufferIndex = -1;
     kLastTipPartialsBufferIndex = -1;
@@ -553,9 +555,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     
     for(int i=0; i<kEigenDecompCount; i++) {
-    	dEvec[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
-    	dIevc[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
-    	dEigenValues[i] = gpu->AllocateMemory(kEigenValuesSize * sizeof(Real));
+        dEvec[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
+        dIevc[i] = gpu->AllocateMemory(kMatrixSize * sizeof(Real));
+        dEigenValues[i] = gpu->AllocateMemory(kEigenValuesSize * sizeof(Real));
         dWeights[i] = gpu->AllocateMemory(kCategoryCount * sizeof(Real));
         dFrequencies[i] = gpu->AllocateMemory(kPaddedStateCount * sizeof(Real));
     }
@@ -589,6 +591,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     // Internal nodes have 0s so partials are used
     dStates = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount); 
+    size_t ptrIncrementStates = gpu->AlignMemOffset(kPaddedPatternCount * sizeof(int));
+    if (kCompactBufferCount > 0) {
+        dStatesOrigin = gpu->AllocateMemory(kCompactBufferCount * ptrIncrementStates);
+    }
+    hStatesOffsets = (unsigned int*) calloc(sizeof(unsigned int), kCompactBufferCount);
+    kIndexOffsetStates = gpu->AlignMemOffset(kPaddedPatternCount * sizeof(int)) / sizeof(int);
     
     dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 
     dTipPartialsBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kTipPartialsBufferCount);
@@ -598,12 +606,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     for (int i = 0; i < bufferCountExtra; i++) {
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount)
-                dCompactBuffers[i] = gpu->AllocateMemory(kPaddedPatternCount * sizeof(int));
+                dCompactBuffers[i] = gpu->CreateSubPointer(dStatesOrigin, ptrIncrementStates*i, ptrIncrementStates);
             if (i < kTipPartialsBufferCount)
-                dTipPartialsBuffers[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*(i-kCompactBufferCount), ptrIncrement);
+                dTipPartialsBuffers[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*i, ptrIncrement);
         } else {
-            dPartials[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*(i-kCompactBufferCount), ptrIncrement);
-            hPartialsOffsets[i] = kIndexOffsetPat*(i-kCompactBufferCount);
+            int partialsSubIndex = i - (kTipCount - kTipPartialsBufferCount);
+            dPartials[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*partialsSubIndex, ptrIncrement);
+            hPartialsOffsets[i] = kIndexOffsetPat*partialsSubIndex;
         }
         kStreamIndices[i] = -1;
     }
@@ -646,14 +655,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         gpu->MemcpyHostToDevice(dPartitionOffsets, hPartitionOffsets, transferSize);
     }
 
-	hCategoryRates = (double*) gpu->MallocHost(sizeof(double) * kCategoryCount); // Keep in double-precision
+    hCategoryRates = (double*) gpu->MallocHost(sizeof(double) * kCategoryCount); // Keep in double-precision
     checkHostMemory(hCategoryRates);
 
-	hPatternWeightsCache = (Real*) gpu->MallocHost(sizeof(Real) * kPatternCount);
+    hPatternWeightsCache = (Real*) gpu->MallocHost(sizeof(Real) * kPatternCount);
     checkHostMemory(hPatternWeightsCache);
     
-	dMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
-	dIndexMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(unsigned int));
+    dMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+    dIndexMaxScalingFactors = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(unsigned int));
     
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
@@ -701,12 +710,12 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocate3DGridBuffers() {
 #ifdef CUDA
 template<>
 char* BeagleGPUImpl<double>::getInstanceName() {
-	return (char*) "CUDA-Double";
+    return (char*) "CUDA-Double";
 }
 
 template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
-	return (char*) "CUDA-Single";
+    return (char*) "CUDA-Single";
 }
 #elif defined(FW_OPENCL)
 template<>
@@ -764,7 +773,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipStates(int tipIndex,
 
     if (dStates[tipIndex] == 0) {
         assert(kLastCompactBufferIndex >= 0 && kLastCompactBufferIndex < kCompactBufferCount);
-        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex--];
+        dStates[tipIndex] = dCompactBuffers[kLastCompactBufferIndex];
+        hStatesOffsets[tipIndex] = kIndexOffsetStates * kLastCompactBufferIndex;
+        kLastCompactBufferIndex--;
     }
     // Copy to GPU device
     gpu->MemcpyHostToDevice(dStates[tipIndex], hStatesCache, sizeof(int) * kPaddedPatternCount);
@@ -794,7 +805,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex,
 //#else
 //        MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, Real);
 //#endif
-    	beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
+        beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
         tmpRealPartialsOffset += kPaddedStateCount;
         inPartialsOffset += kStateCount;
     }
@@ -809,7 +820,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex,
             assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
                    kTipPartialsBufferCount);
             dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
-            hPartialsOffsets[tipIndex] = kIndexOffsetPat*(kLastTipPartialsBufferIndex-kCompactBufferCount);
+            hPartialsOffsets[tipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
             kLastTipPartialsBufferIndex--;
         }
     }
@@ -842,7 +853,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
 //#else
 //            MEMCNV(tmpRealPartialsOffset, inPartialsOffset, kStateCount, Real);
 //#endif
-        	beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
+            beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
             tmpRealPartialsOffset += kPaddedStateCount;
             inPartialsOffset += kStateCount;
         }
@@ -854,7 +865,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
             assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
                    kTipPartialsBufferCount);
             dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
-            hPartialsOffsets[bufferIndex] = kIndexOffsetPat*(kLastTipPartialsBufferIndex-kCompactBufferCount);
+            hPartialsOffsets[bufferIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
             kLastTipPartialsBufferIndex--;
         }
     }
@@ -870,7 +881,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
-							   int scaleIndex,
+                               int scaleIndex,
                                double* outPartials) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getPartials\n");
@@ -887,7 +898,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
 //#else
 //        MEMCNV(outPartialsOffset, tmpRealPartialsOffset, kStateCount, double);
 //#endif
-    	beagleMemCpy(outPartialsOffset, tmpRealPartialsOffset, kStateCount);
+        beagleMemCpy(outPartialsOffset, tmpRealPartialsOffset, kStateCount);
         tmpRealPartialsOffset += kPaddedStateCount;
         outPartialsOffset += kStateCount;
     }
@@ -926,8 +937,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
 //        MEMCNV(tmpIevc, (inInverseEigenVectors + i * kStateCount), kStateCount, Real);
 //        MEMCNV(tmpEvec, (inEigenVectors + i * kStateCount), kStateCount, Real);
 //#endif
-    	beagleMemCpy(tmpIevc, inInverseEigenVectors + i * kStateCount, kStateCount);
-    	beagleMemCpy(tmpEvec, inEigenVectors + i * kStateCount, kStateCount);
+        beagleMemCpy(tmpIevc, inInverseEigenVectors + i * kStateCount, kStateCount);
+        beagleMemCpy(tmpEvec, inEigenVectors + i * kStateCount, kStateCount);
         tmpIevc += kPaddedStateCount;
         tmpEvec += kPaddedStateCount;
     }
@@ -941,15 +952,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
 //#ifdef DOUBLE_PRECISION
 //    memcpy(Eval, inEigenValues, sizeof(Real) * kStateCount);
 //    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-//    	memcpy(Eval+kPaddedStateCount,inEigenValues+kStateCount,sizeof(Real)*kStateCount);
+//      memcpy(Eval+kPaddedStateCount,inEigenValues+kStateCount,sizeof(Real)*kStateCount);
 //#else
 //    MEMCNV(Eval, inEigenValues, kStateCount, Real);
 //    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-//    	MEMCNV((Eval+kPaddedStateCount),(inEigenValues+kStateCount),kStateCount,Real);
+//      MEMCNV((Eval+kPaddedStateCount),(inEigenValues+kStateCount),kStateCount,Real);
 //#endif
     beagleMemCpy(Eval, inEigenValues, kStateCount);
     if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
-    	beagleMemCpy(Eval + kPaddedStateCount, inEigenValues + kStateCount, kStateCount);
+        beagleMemCpy(Eval + kPaddedStateCount, inEigenValues + kStateCount, kStateCount);
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
@@ -1001,15 +1012,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setStateFrequencies(int stateFrequenciesI
     
     if (stateFrequenciesIndex < 0 || stateFrequenciesIndex >= kEigenDecompCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
-	
+    
 //#ifdef DOUBLE_PRECISION
 //    memcpy(hFrequenciesCache, inStateFrequencies, kStateCount * sizeof(Real));
 //#else
 //    MEMCNV(hFrequenciesCache, inStateFrequencies, kStateCount, Real);
 //#endif
     beagleMemCpy(hFrequenciesCache, inStateFrequencies, kStateCount);
-	
-	gpu->MemcpyHostToDevice(dFrequencies[stateFrequenciesIndex], hFrequenciesCache,
+    
+    gpu->MemcpyHostToDevice(dFrequencies[stateFrequenciesIndex], hFrequenciesCache,
                             sizeof(Real) * kPaddedStateCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1030,15 +1041,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCategoryWeights(int categoryWeightsInd
         return BEAGLE_ERROR_OUT_OF_RANGE;
     
 //#ifdef DOUBLE_PRECISION
-//	const double* tmpWeights = inCategoryWeights;
+//  const double* tmpWeights = inCategoryWeights;
 //#else
-//	Real* tmpWeights = hWeightsCache;
-//	MEMCNV(hWeightsCache, inCategoryWeights, kCategoryCount, Real);
+//  Real* tmpWeights = hWeightsCache;
+//  MEMCNV(hWeightsCache, inCategoryWeights, kCategoryCount, Real);
 //#endif
     const Real* tmpWeights = beagleCastIfNecessary(inCategoryWeights, hWeightsCache,
-    		kCategoryCount);
+            kCategoryCount);
     
-	gpu->MemcpyHostToDevice(dWeights[categoryWeightsIndex], tmpWeights,
+    gpu->MemcpyHostToDevice(dWeights[categoryWeightsIndex], tmpWeights,
                             sizeof(Real) * kCategoryCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1052,16 +1063,16 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCategoryRates(const double* inCategoryRates) {
 
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updateCategoryRates\n");
 #endif
 
-	const double* categoryRates = inCategoryRates;
-	// Can keep these in double-precision until after multiplication by (double) branch-length
+    const double* categoryRates = inCategoryRates;
+    // Can keep these in double-precision until after multiplication by (double) branch-length
 
-	memcpy(hCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
+    memcpy(hCategoryRates, categoryRates, sizeof(double) * kCategoryCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateCategoryRates\n");
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateCategoryRates\n");
 #endif
     
     return BEAGLE_SUCCESS;
@@ -1071,22 +1082,22 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternWeights(const double* inPatternWeights) {
     
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\tEntering BeagleGPUImpl::setPatternWeights\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setPatternWeights\n");
 #endif
-	
+    
 //#ifdef DOUBLE_PRECISION
-//	const double* tmpWeights = inPatternWeights;
+//  const double* tmpWeights = inPatternWeights;
 //#else
-//	Real* tmpWeights = hPatternWeightsCache;
-//	MEMCNV(hPatternWeightsCache, inPatternWeights, kPatternCount, Real);
+//  Real* tmpWeights = hPatternWeightsCache;
+//  MEMCNV(hPatternWeightsCache, inPatternWeights, kPatternCount, Real);
 //#endif
-	const Real* tmpWeights = beagleCastIfNecessary(inPatternWeights, hPatternWeightsCache, kPatternCount);
-	
-	gpu->MemcpyHostToDevice(dPatternWeights, tmpWeights,
+    const Real* tmpWeights = beagleCastIfNecessary(inPatternWeights, hPatternWeightsCache, kPatternCount);
+    
+    gpu->MemcpyHostToDevice(dPatternWeights, tmpWeights,
                             sizeof(Real) * kPatternCount);
     
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPatternWeights\n");
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setPatternWeights\n");
 #endif
     
     return BEAGLE_SUCCESS;
@@ -1306,7 +1317,7 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::reorderPatternsByPartition() {
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
-									   double* outMatrix) {
+                                       double* outMatrix) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getTransitionMatrix\n");
 #endif
@@ -1326,7 +1337,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
 //#else
 //            MEMCNV(outMatrixOffset, tmpRealMatrixOffset, kStateCount, double);
 //#endif
-        	beagleMemCpy(outMatrixOffset, tmpRealMatrixOffset, kStateCount);
+            beagleMemCpy(outMatrixOffset, tmpRealMatrixOffset, kStateCount);
             tmpRealMatrixOffset += kPaddedStateCount;
             outMatrixOffset += kStateCount;
         }
@@ -1361,7 +1372,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrix(int matrixIndex,
 //#else
 //            MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, Real);
 //#endif
-        	beagleMemCpy(tmpRealMatrixOffset, inMatrixOffset, kStateCount);
+            beagleMemCpy(tmpRealMatrixOffset, inMatrixOffset, kStateCount);
             tmpRealMatrixOffset += kPaddedStateCount;
             inMatrixOffset += kStateCount;
         }
@@ -1408,7 +1419,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
 //        #else
 //                    MEMCNV(tmpRealMatrixOffset, inMatrixOffset, kStateCount, Real);
 //        #endif
-                	beagleMemCpy(tmpRealMatrixOffset, inMatrixOffset, kStateCount);
+                    beagleMemCpy(tmpRealMatrixOffset, inMatrixOffset, kStateCount);
                     tmpRealMatrixOffset += kPaddedStateCount;
                     inMatrixOffset += kStateCount;
                 }
@@ -1440,60 +1451,60 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
-		const int* secondIndices,
-		const int* resultIndices,
-		int matrixCount) {
+        const int* secondIndices,
+        const int* resultIndices,
+        int matrixCount) {
 
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\t Entering BeagleGPUImpl::convolveTransitionMatrices \n");
+    fprintf(stderr, "\t Entering BeagleGPUImpl::convolveTransitionMatrices \n");
 #endif
 
-	int returnCode = BEAGLE_SUCCESS;
+    int returnCode = BEAGLE_SUCCESS;
 
-	if (matrixCount > 0) {
+    if (matrixCount > 0) {
 
-		for(int u = 0; u < matrixCount; u++) {
-			if(firstIndices[u] == resultIndices[u] || secondIndices[u] == resultIndices[u]) {
+        for(int u = 0; u < matrixCount; u++) {
+            if(firstIndices[u] == resultIndices[u] || secondIndices[u] == resultIndices[u]) {
 
 #ifdef BEAGLE_DEBUG_FLOW
-				fprintf(stderr, "In-place convolution is not allowed \n");
+                fprintf(stderr, "In-place convolution is not allowed \n");
 #endif
 
-				returnCode = BEAGLE_ERROR_GENERAL;
-				break;
+                returnCode = BEAGLE_ERROR_GENERAL;
+                break;
 
-			}//END: overwrite check
-		}//END: u loop
+            }//END: overwrite check
+        }//END: u loop
 
-		int totalMatrixCount = matrixCount * kCategoryCount;
+        int totalMatrixCount = matrixCount * kCategoryCount;
 
-		int ptrIndex = 0;
-		int indexOffset = kMatrixSize * kCategoryCount;
-		int categoryOffset = kMatrixSize;
+        int ptrIndex = 0;
+        int indexOffset = kMatrixSize * kCategoryCount;
+        int categoryOffset = kMatrixSize;
 
-		for (int i = 0; i < matrixCount; i++) {
-			for (int j = 0; j < kCategoryCount; j++) {
+        for (int i = 0; i < matrixCount; i++) {
+            for (int j = 0; j < kCategoryCount; j++) {
 
-				hPtrQueue[ptrIndex] = firstIndices[i] * indexOffset + j * categoryOffset;
-				hPtrQueue[ptrIndex + totalMatrixCount] = secondIndices[i] * indexOffset + j * categoryOffset;
-				hPtrQueue[ptrIndex + totalMatrixCount*2] = resultIndices[i] * indexOffset + j * categoryOffset;
+                hPtrQueue[ptrIndex] = firstIndices[i] * indexOffset + j * categoryOffset;
+                hPtrQueue[ptrIndex + totalMatrixCount] = secondIndices[i] * indexOffset + j * categoryOffset;
+                hPtrQueue[ptrIndex + totalMatrixCount*2] = resultIndices[i] * indexOffset + j * categoryOffset;
 
-				ptrIndex++;
+                ptrIndex++;
 
-			}//END: kCategoryCount loop
-		}//END: matrices count loop
+            }//END: kCategoryCount loop
+        }//END: matrices count loop
 
-		gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * totalMatrixCount * 3);
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * totalMatrixCount * 3);
 
-		kernels->ConvolveTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
+        kernels->ConvolveTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
 
-	}//END: count check
+    }//END: count check
 
 #ifdef BEAGLE_DEBUG_FLOW
-	fprintf(stderr, "\t Leaving BeagleGPUImpl::convolveTransitionMatrices \n");
+    fprintf(stderr, "\t Leaving BeagleGPUImpl::convolveTransitionMatrices \n");
 #endif
 
-	return returnCode;
+    return returnCode;
 }//END: convolveTransitionMatrices
 
 
@@ -1609,7 +1620,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
 
     int gridLaunches = 0;
     int gridStartOp[operationCount];
-    gridStartOp[gridLaunches++] = 0;
+    int gridOpType[operationCount];
     int parentMinIndex = operations[0];
     int lastStreamIndex = 0;
     int gridOpIndex = 0;
@@ -1642,7 +1653,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
-        
+// printf("op[%d]: c1 %d (%d), c2 %d (%d), par %d\n", op, child1Index, tipStates1, child2Index, tipStates2, parIndex);        
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = (GPUPtr)NULL;
         
@@ -1683,91 +1694,137 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
             gpu->PrintfDeviceVector(partials2, kPartialsSize, r);
         fprintf(stderr, "node index = %d\n", parIndex);       
 #endif        
-        
-        if (tipStates1 != 0) {
-            if (tipStates2 != 0 ) {
-                kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
-                                                           matrices1, matrices2, scalingFactors,
-                                                           cumulativeScalingBuffer,
-                                                           kPaddedPatternCount, kCategoryCount,
-                                                           rescale);
-            } else {
-                kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
-                                                             matrices1, matrices2, scalingFactors,
-                                                             cumulativeScalingBuffer, 
-                                                             kPaddedPatternCount, kCategoryCount,
-                                                             rescale);
+
+
+        int currentPartition = op % kPartitionCount;
+        int startPattern = 0;
+        int endPattern = 0;
+
+        if (kUsing3DGrid) {
+            int opType = 0;
+            if (tipStates1 != 0 && tipStates2 != 0) {
+                opType = 2;
+            } else if (tipStates1 != 0 || tipStates2 != 0) {
+                opType = 1;
             }
-        } else {
-            if (tipStates2 != 0) {
-                kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
-                                                             matrices2, matrices1, scalingFactors,
-                                                             cumulativeScalingBuffer, 
-                                                             kPaddedPatternCount, kCategoryCount,
-                                                             rescale);
-            } else {
-                if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-                    kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
-                                                                   matrices1, matrices2, writeScalingIndex, readScalingIndex,
-                                                                   cumulativeScalingIndex, dScalingFactors, dScalingFactorsMaster,
-                                                                   kPaddedPatternCount, kCategoryCount,
-                                                                   rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
+
+            if (op == 0) {
+                gridStartOp[gridLaunches] = 0;
+                gridOpType[gridLaunches] = opType;
+                gridLaunches++;
+            }
+
+            if (currentPartition == 0) {
+                searchOps = true;
+            }
+            if (searchOps) {
+                bool newLaunch = false;
+                if (child1Index >= parentMinIndex || child2Index >= parentMinIndex) {
+                    for (int i=gridStartOp[gridLaunches-1]; i < op; i++) {
+                        int previousParentIndex = operations[i * numOps];
+                        if (child1Index == previousParentIndex || child2Index == previousParentIndex) {
+                            newLaunch = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (opType != gridOpType[gridLaunches-1]) {
+                    newLaunch = true;
+                }
+
+                if (newLaunch) {
+                    int initialOp = op - (op % kPartitionCount);
+                    gridOpType[gridLaunches] = opType;
+                    gridStartOp[gridLaunches] = op;
+                    gridLaunches++;
+                    parentMinIndex = parIndex;
+                    searchOps = false;
+                }
+
+                if (parIndex < parentMinIndex)
+                    parentMinIndex = parIndex;
+            }
+
+            int startBlock = 0;
+            int endBlock = kNumPatternBlocks;
+            if (kPartitionsInitialised && kPartitionCount > 1) { 
+                startBlock = hPatternPartitionsStartBlocks[currentPartition];
+                endBlock = hPatternPartitionsStartBlocks[currentPartition+1];
+            }
+
+            unsigned int c1Off, c2Off;
+            if (opType == 0) {
+                c1Off  = hPartialsOffsets[child1Index];
+                c2Off  = hPartialsOffsets[child2Index];
+            } else if (opType == 1) {
+                if (tipStates1 != 0) {
+                    c1Off  = hStatesOffsets[child1Index];
+                    c2Off  = hPartialsOffsets[child2Index];
                 } else {
-                    int currentPartition = op % kPartitionCount;
-                    if (kUsing3DGrid) {
-                        if (currentPartition == 0) {
-                            searchOps = true;
-                        }
-                        if (searchOps) {
-                            if (child1Index >= parentMinIndex || child2Index >= parentMinIndex) {
-                                bool newLaunch = false;
-                                for (int i=gridStartOp[gridLaunches-1]; i < op; i++) {
-                                    int previousParentIndex = operations[i * numOps];
-                                    if (child1Index == previousParentIndex || child2Index == previousParentIndex) {
-                                        newLaunch = true;
-                                        break;
-                                    }
-                                }
-                                if (newLaunch) {
-                                    int initialOp = op - (op % kPartitionCount);
-                                    gridStartOp[gridLaunches++] = op;
-                                    parentMinIndex = parIndex;
-                                    searchOps = false;
-                                }
-                            }
+                    c1Off  = hStatesOffsets[child2Index];
+                    c2Off  = hPartialsOffsets[child1Index];
+                }
+            } else {
+                c1Off  = hStatesOffsets[child1Index];
+                c2Off  = hStatesOffsets[child2Index];
+            }
+            unsigned int paOff  = hPartialsOffsets[parIndex];
+            unsigned int c1MOff = child1TransMatIndex * kIndexOffsetMat;
+            unsigned int c2MOff = child2TransMatIndex * kIndexOffsetMat;
 
-                            if (parIndex < parentMinIndex)
-                                parentMinIndex = parIndex;
-                        }
+            for (int i=startBlock; i < endBlock; i++) {
+                hPartialsPtrs[gridOpIndex++] = c1Off;
+                hPartialsPtrs[gridOpIndex++] = c2Off;
+                hPartialsPtrs[gridOpIndex++] = paOff;
+                hPartialsPtrs[gridOpIndex++] = c1MOff;
+                hPartialsPtrs[gridOpIndex++] = c2MOff;
+            }
 
-                        unsigned int c1Off  = hPartialsOffsets[child1Index];
-                        unsigned int c2Off  = hPartialsOffsets[child2Index];
-                        unsigned int paOff  = hPartialsOffsets[parIndex];
-                        unsigned int c1MOff = child1TransMatIndex * kIndexOffsetMat;
-                        unsigned int c2MOff = child2TransMatIndex * kIndexOffsetMat;
 
-                        int startBlock = 0;
-                        int endBlock = kNumPatternBlocks;
-                        if (kPartitionsInitialised && kPartitionCount > 1) { 
-                            startBlock = hPatternPartitionsStartBlocks[currentPartition];
-                            endBlock = hPatternPartitionsStartBlocks[currentPartition+1];
-                        }
 
-                        for (int i=startBlock; i < endBlock; i++) {
-                            hPartialsPtrs[gridOpIndex++] = c1Off;
-                            hPartialsPtrs[gridOpIndex++] = c2Off;
-                            hPartialsPtrs[gridOpIndex++] = paOff;
-                            hPartialsPtrs[gridOpIndex++] = c1MOff;
-                            hPartialsPtrs[gridOpIndex++] = c2MOff;
-                        }
+        } else {
+            if (kPartitionsInitialised && kPartitionCount > 1) {
+                startPattern = hPatternPartitionsStartPatterns[currentPartition];
+                endPattern = hPatternPartitionsStartPatterns[currentPartition+1];
+            }
+    
+        
+            if (tipStates1 != 0) {
+                if (tipStates2 != 0 ) {
+                    kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
+                                                               matrices1, matrices2, scalingFactors,
+                                                               cumulativeScalingBuffer,
+                                                               startPattern, endPattern,
+                                                               kPaddedPatternCount, kCategoryCount,
+                                                               rescale,
+                                                               streamIndex, waitIndex);
+                } else {
+                    kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
+                                                                 matrices1, matrices2, scalingFactors,
+                                                                 cumulativeScalingBuffer, 
+                                                                 startPattern, endPattern,
+                                                                 kPaddedPatternCount, kCategoryCount,
+                                                                 rescale,
+                                                                 streamIndex, waitIndex);
+                }
+            } else {
+                if (tipStates2 != 0) {
+                    kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
+                                                                 matrices2, matrices1, scalingFactors,
+                                                                 cumulativeScalingBuffer, 
+                                                                 startPattern, endPattern,
+                                                                 kPaddedPatternCount, kCategoryCount,
+                                                                 rescale,
+                                                                 streamIndex, waitIndex);
+                } else {
+                    if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+                        kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
+                                                                       matrices1, matrices2, writeScalingIndex, readScalingIndex,
+                                                                       cumulativeScalingIndex, dScalingFactors, dScalingFactorsMaster,
+                                                                       kPaddedPatternCount, kCategoryCount,
+                                                                       rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
                     } else {
-                        int startPattern = 0;
-                        int endPattern = 0;
-                        if (kPartitionsInitialised && kPartitionCount > 1) {
-                            startPattern = hPatternPartitionsStartPatterns[currentPartition];
-                            endPattern = hPatternPartitionsStartPatterns[currentPartition+1];
-                        }
-
                         kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                        matrices1, matrices2, scalingFactors,
                                                                        cumulativeScalingBuffer, 
@@ -1779,7 +1836,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                 }
             }
         }
-        
+
+
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             int parScalingIndex = parIndex - kTipCount;
             int child1ScalingIndex = child1Index - kTipCount;
@@ -1798,15 +1856,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         
 #ifdef BEAGLE_DEBUG_VALUES
         if (rescale > -1) {
-        	fprintf(stderr,"scalars = ");
-        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount, r);
+            fprintf(stderr,"scalars = ");
+            gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount, r);
         }
         fprintf(stderr, "parent = \n");
         int signal = 0;
         if (writeScalingIndex == -1)
-        	gpu->PrintfDeviceVector(partials3, kPartialsSize, r);
+            gpu->PrintfDeviceVector(partials3, kPartialsSize, r);
         else
-        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
+            gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
 #endif
     } //end for loop over operationCount
 
@@ -1819,17 +1877,34 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         #else
         gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
         #endif
-
+// int statesStatesCount = 0;
         gridStartOp[gridLaunches] = operationCount;
         for (int i=0; i < gridLaunches; i++) {
             int gridSize = (gridStartOp[i+1] - gridStartOp[i]) / kPartitionCount;
+// printf("gridSize[%d] = %d\n", i, gridSize);
             int gridStartOpAdjusted = gridStartOp[i] / kPartitionCount;
-            kernels->PartialsPartialsPruning3DGrid(dPartialsOrigin, dMatrices[0],
+            int opType = gridOpType[i];
+            if (opType == 0) {
+                kernels->PartialsPartialsPruning3DGrid(dPartialsOrigin, dMatrices[0],
+                                                       dPartialsPtrs, dPartitionOffsets,
+                                                       kPaddedPatternCount,
+                                                       gridStartOpAdjusted, gridSize);
+            } else if (opType == 1) {
+                kernels->StatesPartialsPruning3DGrid(dStatesOrigin, dPartialsOrigin, dMatrices[0],
+                                                     dPartialsPtrs, dPartitionOffsets,
+                                                     kPaddedPatternCount,
+                                                     gridStartOpAdjusted, gridSize);
+            } else {
+// statesStatesCount += gridSize;
+                kernels->StatesStatesPruning3DGrid(dStatesOrigin, dPartialsOrigin, dMatrices[0],
                                                    dPartialsPtrs, dPartitionOffsets,
                                                    kPaddedPatternCount,
                                                    gridStartOpAdjusted, gridSize);
+            }
+// gpu->Synchronize();
         }
-
+// printf("statesStatesCount = %d\n", statesStatesCount);
+// exit(-1);
         #ifdef FW_OPENCL
         hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, transferSize);
         #endif
@@ -1863,8 +1938,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationP
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scalingIndices,
-										  int count,
-										  int cumulativeScalingIndex) {
+                                          int count,
+                                          int cumulativeScalingIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateScaleFactors\n");
 #endif
@@ -2012,13 +2087,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getScaleFactors(int srcScalingIndex,
-                        							   double* scaleFactors) {                        							   
+                                                       double* scaleFactors) {                                                     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::getScaleFactors\n");
 #endif
 
-	// Do nothing
-	
+    // Do nothing
+    
 #ifdef BEAGLE_DEBUG_SYNCH    
     gpu->Synchronize();
 #endif
@@ -2026,8 +2101,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getScaleFactors(int srcScalingIndex,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getScaleFactors\n");
 #endif  
-                         							   
-	return BEAGLE_SUCCESS;                        							   
+                                                       
+    return BEAGLE_SUCCESS;                                                     
 }   
 
 BEAGLE_GPU_TEMPLATE
@@ -2043,7 +2118,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
 #endif
     
     int returnCode = BEAGLE_SUCCESS;
-		
+        
     if (count == 1) {         
         const int rootNodeIndex = bufferIndices[0];
         const int categoryWeightsIndex = categoryWeightsIndices[0];
@@ -2059,7 +2134,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         else if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE)
             dCumulativeScalingFactor = dScalingFactors[cumulativeScaleIndices[0]];
         else
-        	scale = 0;
+            scale = 0;
 
 #ifdef BEAGLE_DEBUG_VALUES
         Real r = 0;
@@ -2100,48 +2175,48 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         }    
         
     } else {
-		// TODO: evaluate performance, maybe break up kernels below for each subsetIndex case
-		
+        // TODO: evaluate performance, maybe break up kernels below for each subsetIndex case
+        
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
-			for(int n = 0; n < count; n++) {
+            for(int n = 0; n < count; n++) {
                 int cumulativeScalingFactor = bufferIndices[n] - kTipCount; 
-				hPtrQueue[n] = cumulativeScalingFactor * kScaleBufferSize;
+                hPtrQueue[n] = cumulativeScalingFactor * kScaleBufferSize;
             }
-			gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);    
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);    
         } else if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
-			for(int n = 0; n < count; n++)
-				hPtrQueue[n] = cumulativeScaleIndices[n] * kScaleBufferSize;
-			gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
-		}
-		
-		for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
+            for(int n = 0; n < count; n++)
+                hPtrQueue[n] = cumulativeScaleIndices[n] * kScaleBufferSize;
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+        }
+        
+        for (int subsetIndex = 0 ; subsetIndex < count; ++subsetIndex ) {
 
-			const GPUPtr tmpDWeights = dWeights[categoryWeightsIndices[subsetIndex]];
-			const GPUPtr tmpDFrequencies = dFrequencies[stateFrequenciesIndices[subsetIndex]];
-			const int rootNodeIndex = bufferIndices[subsetIndex];
+            const GPUPtr tmpDWeights = dWeights[categoryWeightsIndices[subsetIndex]];
+            const GPUPtr tmpDFrequencies = dFrequencies[stateFrequenciesIndices[subsetIndex]];
+            const int rootNodeIndex = bufferIndices[subsetIndex];
 
-			if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
-				kernels->IntegrateLikelihoodsFixedScaleMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
-															 tmpDFrequencies, dScalingFactors[0], dPtrQueue, dMaxScalingFactors,
-															 dIndexMaxScalingFactors,
+            if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
+                kernels->IntegrateLikelihoodsFixedScaleMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+                                                             tmpDFrequencies, dScalingFactors[0], dPtrQueue, dMaxScalingFactors,
+                                                             dIndexMaxScalingFactors,
                                                              kPaddedPatternCount,
-															 kCategoryCount, count, subsetIndex);
-			} else {
+                                                             kCategoryCount, count, subsetIndex);
+            } else {
                 if (subsetIndex == 0) {
-					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
-													   tmpDFrequencies,
+                    kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+                                                       tmpDFrequencies,
                                                        kPaddedPatternCount, kCategoryCount, 0);
-				} else if (subsetIndex == count - 1) { 
-					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
-													   tmpDFrequencies,
+                } else if (subsetIndex == count - 1) { 
+                    kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+                                                       tmpDFrequencies,
                                                        kPaddedPatternCount, kCategoryCount, 1);
-				} else {
-					kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
-													   tmpDFrequencies,
+                } else {
+                    kernels->IntegrateLikelihoodsMulti(dIntegrationTmp, dPartials[rootNodeIndex], tmpDWeights,
+                                                       tmpDFrequencies,
                                                        kPaddedPatternCount, kCategoryCount, 2);
-				}
-			}
-			
+                }
+            }
+            
 
             kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
                                         kPatternCount);
@@ -2155,7 +2230,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
-		}
+        }
     }
     
 #ifdef BEAGLE_DEBUG_VALUES
@@ -2270,7 +2345,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                 
                 *outSumLogLikelihood += hLogLikelihoodsCache[i];
             }    
-		} else if (secondDerivativeIndices == NULL) {
+        } else if (secondDerivativeIndices == NULL) {
             // TODO: remove this "hack" for a proper version that only calculates firstDeriv
             
             const int firstDerivIndex = firstDerivativeIndices[0];
@@ -2327,7 +2402,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                 *outSumFirstDerivative += hLogLikelihoodsCache[i];
             }                
             
-		} else {
+        } else {
             // TODO: improve performance of GPU implementation of derivatives for calculateEdgeLnL
 
             const int firstDerivIndex = firstDerivativeIndices[0];
@@ -2464,7 +2539,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                 }    
             }
 
-		} else {
+        } else {
             fprintf(stderr,"BeagleGPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and derivatives\n");
             returnCode = BEAGLE_ERROR_GENERAL;
         }
@@ -2596,17 +2671,17 @@ const char* BeagleGPUImplFactory<float>::getName() {
 
 template<>
 void modifyFlagsForPrecision(long *flags, double r) {
-	*flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+    *flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 
 template<>
 void modifyFlagsForPrecision(long *flags, float r) {
-	*flags |= BEAGLE_FLAG_PRECISION_SINGLE;
+    *flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
 
 BEAGLE_GPU_TEMPLATE
 const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
-	long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
@@ -2622,9 +2697,9 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
 #endif
 
-	Real r = 0;
-	modifyFlagsForPrecision(&flags, r);
-	return flags;
+    Real r = 0;
+    modifyFlagsForPrecision(&flags, r);
+    return flags;
 }
 
 } // end of device namespace

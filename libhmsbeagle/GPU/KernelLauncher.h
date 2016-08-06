@@ -57,8 +57,10 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
+    GPUFunction fStatesPartialsByPatternBlockCoherent3D;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
+    GPUFunction fStatesStatesByPatternBlockCoherent3D;
     GPUFunction fStatesStatesByPatternBlockCoherent;
     GPUFunction fStatesStatesByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsEdgeLikelihoods;
@@ -204,6 +206,15 @@ public:
                                                int streamIndex,
                                                int waitIndex);
     
+    void StatesPartialsPruning3DGrid(GPUPtr states,
+                                     GPUPtr partials,
+                                     GPUPtr matrices,
+                                     GPUPtr ptrOffsets,
+                                     GPUPtr patOffsets,
+                                     unsigned int patternCount,
+                                     int gridStartOp,
+                                     int gridSize);
+
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,
                                              GPUPtr partials3,
@@ -211,10 +222,23 @@ public:
                                              GPUPtr matrices2,
                                              GPUPtr scalingFactors,
                                              GPUPtr cumulativeScaling,
+                                             unsigned int startPattern,
+                                             unsigned int endPattern,
                                              unsigned int patternCount,
                                              unsigned int categoryCount,
-                                             int doRescaling);
+                                             int doRescaling,
+                                             int streamIndex,
+                                             int waitIndex);
     
+    void StatesStatesPruning3DGrid(GPUPtr states,
+                                   GPUPtr partials,
+                                   GPUPtr matrices,
+                                   GPUPtr ptrOffsets,
+                                   GPUPtr patOffsets,
+                                   unsigned int patternCount,
+                                   int gridStartOp,
+                                   int gridSize);
+
     void StatesStatesPruningDynamicScaling(GPUPtr states1,
                                            GPUPtr states2,
                                            GPUPtr partials3,
@@ -222,9 +246,13 @@ public:
                                            GPUPtr matrices2,
                                            GPUPtr scalingFactors,
                                            GPUPtr cumulativeScaling,
+                                           unsigned int startPattern,
+                                           unsigned int endPattern,
                                            unsigned int patternCount,
                                            unsigned int categoryCount,
-                                           int doRescaling);
+                                           int doRescaling,
+                                           int streamIndex,
+                                           int waitIndex);
     
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,

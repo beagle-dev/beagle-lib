@@ -26,14 +26,14 @@ BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplD
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
-	for s in $(STATE_COUNT_LIST); do \
-		echo "Making state count = $$s" ; \
-		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=$$s \
-			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)) || exit; \
-		echo "#define KERNELS_STRING_SP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
-		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
-		echo "\"" >> BeagleCUDA_kernels.h; \
-	done
+#	for s in $(STATE_COUNT_LIST); do \
+#		echo "Making state count = $$s" ; \
+#		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=$$s \
+#			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)) || exit; \
+#		echo "#define KERNELS_STRING_SP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
+#		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
+#		echo "\"" >> BeagleCUDA_kernels.h; \
+#	done
 
 #
 # Compile double-precision kernels
@@ -47,14 +47,14 @@ BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplD
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
-	for s in $(STATE_COUNT_LIST); do \
-		echo "Making state count = $$s" ; \
-		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=$$s -DDOUBLE_PRECISION \
-			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)) || exit; \
-		echo "#define KERNELS_STRING_DP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
-		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
-		echo "\"" >> BeagleCUDA_kernels.h; \
-	done
+#	for s in $(STATE_COUNT_LIST); do \
+#		echo "Making state count = $$s" ; \
+#		($(NVCC) -o BeagleCUDA_kernels.ptx -ptx -DCUDA -DSTATE_COUNT=$$s -DDOUBLE_PRECISION \
+#			$(srcdir)/kernelsX.cu $(NVCCFLAGS) -DHAVE_CONFIG_H $(INCLUDE_DIRS)) || exit; \
+#		echo "#define KERNELS_STRING_DP_$$s \"" | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
+#		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleCUDA_kernels.h; \
+#		echo "\"" >> BeagleCUDA_kernels.h; \
+#	done
 
 EXTRA_DIST += kernels4.cu kernelsX.cu kernelsAll.cu
 
