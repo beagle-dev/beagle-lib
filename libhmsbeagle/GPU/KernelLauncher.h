@@ -55,6 +55,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockCoherent3D;
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
+    GPUFunction fPartialsPartialsByPatternBlockFixedScalingPartition;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
     GPUFunction fStatesPartialsByPatternBlockCoherent3D;

@@ -747,6 +747,75 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #endif
 }
 
+KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScalePartition(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+                                                                int startPattern,
+                                                                int endPattern,
+                                                                int totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+// if (KW_LOCAL_ID_0==0 && KW_LOCAL_ID_1==0 && KW_GROUP_ID_1==0 && KW_GROUP_ID_2==0)
+//     printf("startPat = %d; endPat = %d\n", startPattern, endPattern);
+
+    int patIdx = KW_LOCAL_ID_0;
+    int pattern;
+    pattern = startPattern + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + patIdx;
+    if (pattern < endPattern) {
+        int matrix = KW_GROUP_ID_1;
+        int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+        int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * totalPatterns;
+        int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
+        SUM_PARTIALS_PARTIALS_4_CPU();
+        REAL oneOverScaling = 1.0/scalingFactors[pattern];
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            partials3[deltaPartials + i] = sum1[i] * sum2[i] * oneOverScaling;
+        }
+    }
+#else // GPU implementation
+
+    int tx = KW_LOCAL_ID_0;
+    int state = tx & 0x3;
+    int pat = tx >> 2;
+    int patIdx = KW_LOCAL_ID_1;
+    int matrix = KW_GROUP_ID_1;
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));
+    int x2 = multBy16(matrix);
+    int pattern;
+    int deltaPartialsByState;
+
+    pattern = startPattern + __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;
+    deltaPartialsByState = multBy4(startPattern) + multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);
+    
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+    /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/
+    if (pattern < endPattern) {
+        sPartials1[multBy16(patIdx) | tx] = partials1[u]; /*All coalesced memory*/
+        sPartials2[multBy16(patIdx) | tx] = partials2[u];
+    } else {
+        sPartials1[multBy16(patIdx) | tx] = 0;
+        sPartials2[multBy16(patIdx) | tx] = 0;
+    }
+    LOAD_SCALING_4_GPU();
+    LOAD_MATRIX_4_GPU();
+    if (pattern < endPattern) { // Remove padded threads!
+        SUM_PARTIALS_PARTIALS_4_GPU();
+        partials3[u] = sum1 * sum2 / fixedScalingFactors[patIdx * 4 + pat];
+    }
+#endif // FW_OPENCL_CPU
+
+#ifdef KERNEL_PRINT_ENABLED
+    printf("matrix = %d, pat = %d for tx = %d and state = %d :  u = %d\n",
+           matrix, pattern, tx, state, u);
+#endif
+}
+
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,

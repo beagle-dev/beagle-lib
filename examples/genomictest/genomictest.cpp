@@ -442,7 +442,8 @@ void runBeagle(int resource,
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-	int* operations = new int[(internalCount)*BEAGLE_OP_COUNT*eigenCount*partitionCount];
+    int operationCount = internalCount*eigenCount*partitionCount;
+	int* operations = new int[BEAGLE_OP_COUNT*operationCount];
     int* scalingFactorsIndices = new int[(internalCount)*eigenCount]; // internal nodes
 	for(int i=0; i<internalCount*eigenCount; i++){
         int child1Index;
@@ -507,9 +508,10 @@ void runBeagle(int resource,
 
     for (int i=0; i<nreps; i++){
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
-            for(int j=0; j<internalCount*eigenCount; j++){
-                operations[BEAGLE_OP_COUNT*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
-                operations[BEAGLE_OP_COUNT*j+2] = (((manualScaling && (i % rescaleFrequency))) ? j : BEAGLE_OP_NONE);
+            for(int j=0; j<operationCount; j++){
+                int sIndex = j / partitionCount;
+                operations[BEAGLE_OP_COUNT*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
+                operations[BEAGLE_OP_COUNT*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
             }
         }
         

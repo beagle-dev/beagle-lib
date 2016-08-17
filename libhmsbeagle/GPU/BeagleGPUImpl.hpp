@@ -1653,7 +1653,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
         
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
-// printf("op[%d]: c1 %d (%d), c2 %d (%d), par %d\n", op, child1Index, tipStates1, child2Index, tipStates2, parIndex);        
+
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = (GPUPtr)NULL;
         
@@ -1674,7 +1674,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
             rescale = 0;
             scalingFactors = dScalingFactors[readScalingIndex];
         }
-        
+        // printf("op[%d]: c1 %d (%d), c2 %d (%d), par %d, rescale %d, wsi %d, rsi %d\n", op, child1Index, tipStates1, child2Index, tipStates2, parIndex, rescale, writeScalingIndex, readScalingIndex);
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
         fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
