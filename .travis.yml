@@ -12,11 +12,10 @@ matrix:
           packages:           
             - gdb
             - apport
-
-# test cache      
-cache:
-  directories:
-    - ${OPENCL_ROOT}
+      
+#cache:
+#  directories:
+#    - ${OPENCL_ROOT}
         
 before_install:
   - |
