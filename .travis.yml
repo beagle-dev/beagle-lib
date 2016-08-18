@@ -12,10 +12,8 @@ matrix:
           packages:           
             - gdb
             - apport
-            - autotools
         
 before_install:
-  - autoconf --version
   - |
     if [[ "linux" == "linux" ]]; then    
       mkdir -p ${OPENCL_ROOT}
@@ -44,7 +42,7 @@ before_script:
 # Build steps
 script:
   - ./autogen.sh
-  - ./configure
+  - ./configure  --with-opencl=${AMDAPPSDKROOT}
   - make
   
 # after_failure:
