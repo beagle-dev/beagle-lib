@@ -12,7 +12,8 @@ matrix:
           packages:           
             - gdb
             - apport
-      
+
+# test cache      
 cache:
   directories:
     - ${OPENCL_ROOT}
