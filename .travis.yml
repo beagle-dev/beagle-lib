@@ -12,8 +12,10 @@ matrix:
           packages:           
             - gdb
             - apport
+            - autotools
         
 before_install:
+  - autoconf --version
   - |
     if [[ "linux" == "linux" ]]; then    
       mkdir -p ${OPENCL_ROOT}
