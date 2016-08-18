@@ -12,6 +12,10 @@ matrix:
           packages:           
             - gdb
             - apport
+      
+cache:
+  directories:
+    - ${OPENCL_ROOT}
         
 before_install:
   - |
