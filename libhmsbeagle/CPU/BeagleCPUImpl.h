@@ -88,7 +88,7 @@ protected:
 
     EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* gEigenDecomposition;
 
-    double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
+    double** gCategoryRates; // Kept in double-precision until multiplication by edgelength
     double* gPatternWeights;
 
     int* gPatternPartitions;
@@ -195,6 +195,9 @@ public:
     // categoryRates an array containing categoryCount rate scalers
     int setCategoryRates(const double* inCategoryRates);
 
+    int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                  const double* inCategoryRates);
+
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue);
@@ -229,6 +232,14 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                   const int* categoryRateIndices,
+                                                   const int* probabilityIndices,
+                                                   const int* firstDerivativeIndices,
+                                                   const int* secondDerivativeIndices,
+                                                   const double* edgeLengths,
+                                                   int count);
+
     // calculate or queue for calculation partials using an array of operations
     //
     // operations an array of triplets of indices: the two source partials and the destination
@@ -238,6 +249,10 @@ public:
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    int updatePartialsByPartition(const int* operations,
+                                  int operationCount,
+                                  int cumulativeScalingIndex);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -310,37 +325,37 @@ public:
 	virtual const long getFlags();
 
 protected:
+    virtual int upPartials(bool byPartition,
+                           const int* operations,
+                           int operationCount,
+                           int cumulativeScalingIndex);
+
     virtual void reorderPatternsByPartition();
 
-    virtual int updatePartialsPartitions(const int* operations,
-                                         int operationCount);
-
     virtual void calcStatesStates(REALTYPE* destP,
-                                    const int* states1,
-                                    const REALTYPE* matrices1,
-                                    const int* states2,
-                                    const REALTYPE* matrices2);
+                                  const int* states1,
+                                  const REALTYPE* matrices1,
+                                  const int* states2,
+                                  const REALTYPE* matrices2,
+                                  int startPattern,
+                                  int endPattern);
 
 
     virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
                                     const REALTYPE* partials2,
-                                    const REALTYPE* matrices2);
+                                    const REALTYPE* matrices2,
+                                    int startPattern,
+                                    int endPatternd);
 
     virtual void calcPartialsPartials(REALTYPE* destP,
                                       const REALTYPE* partials1,
                                       const REALTYPE* matrices1,
                                       const REALTYPE* partials2,
-                                      const REALTYPE* matrices2);
-
-    virtual void calcPartialsPartialsPartitioning(REALTYPE* destP,
-                                                  const REALTYPE* partials1,
-                                                  const REALTYPE* matrices1,
-                                                  const REALTYPE* partials2,
-                                                  const REALTYPE* matrices2,
-                                                  int startPattern,
-                                                  int endPattern);
+                                      const REALTYPE* matrices2,
+                                      int startPattern,
+                                      int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
@@ -399,21 +414,27 @@ protected:
                                               const REALTYPE *child0TransMat,
                                               const int *child1States,
                                               const REALTYPE *child1TransMat,
-                                              const REALTYPE *scaleFactors);
+                                              const REALTYPE *scaleFactors,
+                                              int startPattern,
+                                              int endPattern);
 
     virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
                                                 const int *child0States,
                                                 const REALTYPE *child0TransMat,
                                                 const REALTYPE *child1Partials,
                                                 const REALTYPE *child1TransMat,
-                                                const REALTYPE *scaleFactors);
+                                                const REALTYPE *scaleFactors,
+                                                int startPattern,
+                                                int endPattern);
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
                                             const REALTYPE *child0States,
                                             const REALTYPE *child0TransMat,
                                             const REALTYPE *child1Partials,
                                             const REALTYPE *child1TransMat,
-                                            const REALTYPE *scaleFactors);
+                                            const REALTYPE *scaleFactors,
+                                            int startPattern,
+                                            int endPattern);
     
     virtual void calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                   const REALTYPE* partials1,

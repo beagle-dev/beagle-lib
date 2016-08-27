@@ -43,13 +43,16 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
-KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*                     dPartials,
-                                            const KW_GLOBAL_VAR unsigned int* KW_RESTRICT dPartialsOffsets,
-                                            const KW_GLOBAL_VAR int*          KW_RESTRICT dPatternsNewOrder,
-                                            const KW_GLOBAL_VAR REAL*         KW_RESTRICT dPatternWeights,
-                                                  KW_GLOBAL_VAR REAL*         KW_RESTRICT dPatternWeightsSort,
-                                                                int                       patternCount,
-                                                                int                       paddedPatternCount) {
+KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*             dPartials,
+                                                  KW_GLOBAL_VAR int*              dStates,
+                                                  KW_GLOBAL_VAR int*              dStatesSort,
+                                            const KW_GLOBAL_VAR int*  KW_RESTRICT dTipOffsets,
+                                            const KW_GLOBAL_VAR int*  KW_RESTRICT dTipTypes,
+                                            const KW_GLOBAL_VAR int*  KW_RESTRICT dPatternsNewOrder,
+                                            const KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeights,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeightsSort,
+                                                                int               patternCount,
+                                                                int               paddedPatternCount) {
 #ifdef FW_OPENCL_CPU 
     int state      = 0;
     int pattern    = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0;
@@ -62,29 +65,142 @@ KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*           
     int tip        = KW_GROUP_ID_2;
     int tipCount   = KW_NUM_GROUPS_2;
 
-
     if (pattern < patternCount) {
-        int categoryOffset = category * stateCount * paddedPatternCount;
-        int sortedPattern  = dPatternsNewOrder[pattern];
+        int patternSorted  = dPatternsNewOrder[pattern];
 
-        int sortIndex   = categoryOffset + sortedPattern * stateCount;
-        int originIndex = categoryOffset + pattern       * stateCount;
+        if (dTipTypes[tip] == 0) {
+            int categoryOffset = category * stateCount * paddedPatternCount;
 
-        const KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialOriginal = dPartials + dPartialsOffsets[tip];
-              KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialSorted   = dPartials + dPartialsOffsets[tip+tipCount];
+            int sortIndex   = categoryOffset + patternSorted * stateCount;
+            int originIndex = categoryOffset + pattern       * stateCount;
+
+            const KW_GLOBAL_VAR REAL* KW_RESTRICT partialOriginal = dPartials + dTipOffsets[tip];
+                  KW_GLOBAL_VAR REAL* KW_RESTRICT partialSorted   = dPartials + dTipOffsets[tip+tipCount];
 
 #ifdef FW_OPENCL_CPU 
-        for (int i=0; i < stateCount; i++) {
-            dPartialSorted[sortIndex+i] = dPartialOriginal[originIndex+i];
-        }    
+            for (int i=0; i < stateCount; i++) {
+                partialSorted[sortIndex+i] = partialOriginal[originIndex+i];
+            }    
 #else
-        sortIndex += state;
-        originIndex += state;
-        dPartialSorted[sortIndex] = dPartialOriginal[originIndex];
+            sortIndex += state;
+            originIndex += state;
+            partialSorted[sortIndex] = partialOriginal[originIndex];
 #endif
-        if (state == 0 && category == 0 && tip == 0) {
-            dPatternWeightsSort[sortedPattern] = dPatternWeights[pattern];
+        } else if (state == 0) {
+            const KW_GLOBAL_VAR int* KW_RESTRICT stateOriginal = dStates     + dTipOffsets[tip];
+                  KW_GLOBAL_VAR int* KW_RESTRICT stateSorted   = dStatesSort + dTipOffsets[tip+tipCount];
+
+            stateSorted[patternSorted] = stateOriginal[pattern];
         }
+
+        if (state == 0 && category == 0 && tip == 0) {
+            dPatternWeightsSort[patternSorted] = dPatternWeights[pattern];
+        }
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelMatrixMulADBMulti(KW_GLOBAL_VAR REAL* dMatrices,
+                                              KW_GLOBAL_VAR unsigned int* offsets,
+                                              KW_GLOBAL_VAR REAL* Alist,
+                                              KW_GLOBAL_VAR REAL* Dlist,
+                                              KW_GLOBAL_VAR REAL* Blist,
+                                              KW_GLOBAL_VAR REAL* distanceQueue,
+                                              int length,
+                                              int wB,
+                                              int totalMatrix) {
+           
+    int wMatrix = KW_GROUP_ID_0 % totalMatrix;
+    int offIndex = wMatrix * 3;
+
+    // Block index
+    int bx = KW_GROUP_ID_0 / totalMatrix;
+    int by = KW_GROUP_ID_1;
+
+    // Thread index
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int BLOCKS = KW_NUM_GROUPS_1;
+
+    KW_GLOBAL_VAR REAL* C = dMatrices + offsets[offIndex];
+    KW_GLOBAL_VAR REAL* B = Blist + offsets[offIndex + 1]; // dEvec
+    KW_GLOBAL_VAR REAL* A = Alist + offsets[offIndex + 1]; // dIevc
+    KW_GLOBAL_VAR REAL* D = Dlist + offsets[offIndex + 2]; // dEigenValues
+    REAL distance = distanceQueue[wMatrix];
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
+
+    KW_LOCAL_MEM REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Bs[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
+
+    for (int i = 0; i < BLOCKS - 1; i++) {
+
+        if (ty == 0)
+            Ds[tx] = exp(D[d + tx] * distance);
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        KW_LOCAL_FENCE;
+
+        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; ++k)
+            Csub += As[ty][k] * Ds[k] * Bs[k][tx];
+
+        KW_LOCAL_FENCE;
+
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;
+    }
+
+    // Last block is too long
+    if (tx < EDGE && ty < EDGE) {
+        if (ty == 0)
+            Ds[tx] = exp(D[d + tx] * distance);
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        Bs[ty][tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+
+        if (ty == 0)
+            Ds[tx] = 0;
+
+        As[ty][tx] = 0;
+        Bs[ty][tx] = 0;
+    }
+
+    KW_LOCAL_FENCE;
+
+    for (int k = 0; k < EDGE; k++)
+        Csub += As[ty][k] * Ds[k] * Bs[k][tx];
+
+    KW_LOCAL_FENCE;
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+        if (Csub < 0)
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = 0;
+        else
+            C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = Csub;
     }
 }
 

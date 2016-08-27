@@ -89,6 +89,9 @@ public:
                                      const int* inPatternPartitions) = 0;
     
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
+
+    virtual int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                          const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix,
@@ -106,10 +109,10 @@ public:
     //---TODO: Epoch model---//
     ///////////////////////////
 
-	virtual int convolveTransitionMatrices(const int* firstIndices,
-			                               const int* secondIndices,
-	                                       const int* resultIndices,
-	                                       int matrixCount) = 0;
+	  virtual int convolveTransitionMatrices(const int* firstIndices,
+		      	                               const int* secondIndices,
+	                                         const int* resultIndices,
+	                                         int matrixCount) = 0;
 
     virtual int updateTransitionMatrices(int eigenIndex,
                                          const int* probabilityIndices,
@@ -117,10 +120,22 @@ public:
                                          const int* secondDerivativeIndices,
                                          const double* edgeLengths,
                                          int count) = 0;
+
+    virtual int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                           const int* categoryRateIndices,
+                                                           const int* probabilityIndices,
+                                                           const int* firstDerivativeIndices,
+                                                           const int* secondDerivativeIndices,
+                                                           const double* edgeLengths,
+                                                           int count) = 0;
     
     virtual int updatePartials(const int* operations,
                                int operationCount,
                                int cumulativeScalingIndex) = 0;
+
+    virtual int updatePartialsByPartition(const int* operations,
+                                          int operationCount,
+                                          int cumulativeScalingIndex) = 0;
     
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;

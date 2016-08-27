@@ -92,7 +92,7 @@ enum BeagleDeviceImplementationCodes {
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
     #define BEAGLE_STREAM_COUNT 1024 // should cause no perf. loss for up to 1024 taxa; TODO: dynam. set
-    #define BEAGLE_3D_GRID_MAX  2048 // use 3d-grid for fewer than this many sites
+    #define BEAGLE_MULTI_GRID_MAX  2048 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR
@@ -113,7 +113,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_RESTRICT      __restrict__
 #elif defined(FW_OPENCL)
     #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
-    #define BEAGLE_3D_GRID_MAX  8192 // use 3d-grid for fewer than this many sites
+    #define BEAGLE_MULTI_GRID_MAX  8192 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC   
     #define KW_GLOBAL_VAR    __global

@@ -137,8 +137,7 @@ private:
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
-    bool kUsing3DGrid;
-    int kPtrsPerOp;
+    bool kUsingMultiGrid;
     int kNumPatternBlocks;
     int kSitesPerBlock;
     size_t kOpOffsetsSize;
@@ -148,14 +147,18 @@ private:
     GPUPtr  dPartialsPtrs;
     GPUPtr  dPartitionOffsets;
     GPUPtr  dPatternsNewOrder;
-    GPUPtr  dPartialsOffsets;
+    GPUPtr  dTipOffsets;
+    GPUPtr  dTipTypes;
     GPUPtr  dPartialsOrigin;
     GPUPtr  dStatesOrigin;
+    GPUPtr  dStatesSortOrigin;
     GPUPtr  dPatternWeightsSort;
+    GPUPtr* dStatesSort;
     unsigned int* hPartialsPtrs;
     unsigned int* hPartitionOffsets;
     unsigned int* hPartialsOffsets;
     unsigned int* hStatesOffsets;
+    int* hTipOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
     long kDeviceType;
     int kPartitionCount;
@@ -171,7 +174,7 @@ private:
 
     unsigned int* hPtrQueue;
     
-    double* hCategoryRates; // Can keep in double-precision
+    double** hCategoryRates; // Can keep in double-precision
 
     Real* hPatternWeightsCache;
         
@@ -242,6 +245,9 @@ public:
                              const int* inPatternPartitions);
     
     int setCategoryRates(const double* inCategoryRates);
+
+    int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                  const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
@@ -259,7 +265,7 @@ public:
     //---TODO: Epoch model---//
     ///////////////////////////
 
-	int convolveTransitionMatrices(const int* firstIndices,
+  	int convolveTransitionMatrices(const int* firstIndices,
                                    const int* secondIndices,
                                    const int* resultIndices,
                                    int matrixCount);
@@ -270,10 +276,22 @@ public:
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
+
+    int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                   const int* categoryRateIndices,
+                                                   const int* probabilityIndices,
+                                                   const int* firstDerivativeIndices,
+                                                   const int* secondDerivativeIndices,
+                                                   const double* edgeLengths,
+                                                   int count);
     
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    int updatePartialsByPartition(const int* operations,
+                                  int operationCount,
+                                  int cumulativeScalingIndex);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
@@ -320,9 +338,17 @@ public:
                            double* outSecondDerivatives);
 
 private:
+
     char* getInstanceName();
-    void  allocate3DGridBuffers();
+
+    void  allocateMultiGridBuffers();
+
     void  reorderPatternsByPartition();
+
+    int upPartials(bool byPartition,
+                   const int* operations,
+                   int operationCount,
+                   int cumulativeScalingIndex);
 
 };
 

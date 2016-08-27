@@ -46,23 +46,31 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixConvolution;
+    GPUFunction fMatrixMulADBMulti;
     GPUFunction fMatrixMulADB;
     GPUFunction fMatrixMulADBFirstDeriv;
     GPUFunction fMatrixMulADBSecondDeriv;
 
-    GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockCoherentMulti;
     GPUFunction fPartialsPartialsByPatternBlockCoherentPartition;
-    GPUFunction fPartialsPartialsByPatternBlockCoherent3D;
-    GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
-    GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
+    GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockFixedScalingMulti;
     GPUFunction fPartialsPartialsByPatternBlockFixedScalingPartition;
+    GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
+    GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
-    GPUFunction fStatesPartialsByPatternBlockCoherent3D;
+    GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
+    GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
+    GPUFunction fStatesPartialsByPatternBlockFixedScalingMulti;
+    GPUFunction fStatesPartialsByPatternBlockFixedScalingPartition;
     GPUFunction fStatesPartialsByPatternBlockFixedScaling;
-    GPUFunction fStatesStatesByPatternBlockCoherent3D;
+    GPUFunction fStatesStatesByPatternBlockCoherentMulti;
+    GPUFunction fStatesStatesByPatternBlockCoherentPartition;
     GPUFunction fStatesStatesByPatternBlockCoherent;
+    GPUFunction fStatesStatesByPatternBlockFixedScalingMulti;
+    GPUFunction fStatesStatesByPatternBlockFixedScalingPartition;
     GPUFunction fStatesStatesByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsEdgeLikelihoods;
     GPUFunction fPartialsPartialsEdgeLikelihoodsSecondDeriv;
@@ -131,7 +139,10 @@ public:
 // Kernel links
 
     void ReorderPatterns(GPUPtr dPartials,
-                         GPUPtr dPartialsOffsets,
+                         GPUPtr dStates,
+                         GPUPtr dStatesSort,
+                         GPUPtr dTipOffsets,
+                         GPUPtr dTipTypes,
                          GPUPtr dPatternsNewOrder,
                          GPUPtr dPatternWeights,
                          GPUPtr dPatternWeightsSort,
@@ -142,6 +153,14 @@ public:
     void ConvolveTransitionMatrices(GPUPtr dMatrices,
                           GPUPtr dPtrQueue,
                           unsigned int totalMatrixCount);
+
+    void GetTransitionProbabilitiesSquareMulti(GPUPtr dMatrices,
+                                               GPUPtr dPtrQueue,
+                                               GPUPtr dEvec,
+                                               GPUPtr dIevc,
+                                               GPUPtr dEigenValues,
+                                               GPUPtr distanceQueue,
+                                               unsigned int totalMatrix);
 
     void GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
                                           GPUPtr dPtrQueue,
@@ -184,13 +203,15 @@ public:
                                                     GPUPtr dRescalingTrigger,
                                                     int sizeReal);
 
-    void PartialsPartialsPruning3DGrid(GPUPtr partials,
-                                       GPUPtr matrices,
-                                       GPUPtr ptrOffsets,
-                                       GPUPtr patOffsets,
-                                       unsigned int patternCount,
-                                       int gridStartOp,
-                                       int gridSize);
+    void PartialsPartialsPruningMulti(GPUPtr partials,
+                                      GPUPtr matrices,
+                                      GPUPtr scalingFactors,
+                                      GPUPtr ptrOffsets,
+                                      unsigned int patternCount,
+                                      int gridStartOp,
+                                      int gridSize,
+                                      int doRescaling,
+                                      GPUPtr cumulativeScaling);
 
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
@@ -201,20 +222,23 @@ public:
                                                GPUPtr cumulativeScaling,
                                                unsigned int startPattern,
                                                unsigned int endPattern,
+                                               unsigned int realPatternCount,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
                                                int doRescaling,
                                                int streamIndex,
                                                int waitIndex);
     
-    void StatesPartialsPruning3DGrid(GPUPtr states,
-                                     GPUPtr partials,
-                                     GPUPtr matrices,
-                                     GPUPtr ptrOffsets,
-                                     GPUPtr patOffsets,
-                                     unsigned int patternCount,
-                                     int gridStartOp,
-                                     int gridSize);
+    void StatesPartialsPruningMulti(GPUPtr states,
+                                    GPUPtr partials,
+                                    GPUPtr matrices,
+                                    GPUPtr scalingFactors,
+                                    GPUPtr ptrOffsets,
+                                    unsigned int patternCount,
+                                    int gridStartOp,
+                                    int gridSize,
+                                    int doRescaling,
+                                    GPUPtr cumulativeScaling);
 
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,
@@ -225,20 +249,23 @@ public:
                                              GPUPtr cumulativeScaling,
                                              unsigned int startPattern,
                                              unsigned int endPattern,
+                                             unsigned int realPatternCount,
                                              unsigned int patternCount,
                                              unsigned int categoryCount,
                                              int doRescaling,
                                              int streamIndex,
                                              int waitIndex);
     
-    void StatesStatesPruning3DGrid(GPUPtr states,
-                                   GPUPtr partials,
-                                   GPUPtr matrices,
-                                   GPUPtr ptrOffsets,
-                                   GPUPtr patOffsets,
-                                   unsigned int patternCount,
-                                   int gridStartOp,
-                                   int gridSize);
+    void StatesStatesPruningMulti(GPUPtr states,
+                                  GPUPtr partials,
+                                  GPUPtr matrices,
+                                  GPUPtr scalingFactors,
+                                  GPUPtr ptrOffsets,
+                                  unsigned int patternCount,
+                                  int gridStartOp,
+                                  int gridSize,
+                                  int doRescaling,
+                                  GPUPtr cumulativeScaling);
 
     void StatesStatesPruningDynamicScaling(GPUPtr states1,
                                            GPUPtr states2,
@@ -249,6 +276,7 @@ public:
                                            GPUPtr cumulativeScaling,
                                            unsigned int startPattern,
                                            unsigned int endPattern,
+                                           unsigned int realPatternCount,
                                            unsigned int patternCount,
                                            unsigned int categoryCount,
                                            int doRescaling,

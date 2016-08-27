@@ -1041,6 +1041,16 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
 #endif    
 }
 
+void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
+                             int length) {    
+    int* hPtr = (int*) malloc(SIZE_INT * length);
+    
+    MemcpyDeviceToHost(hPtr, dPtr, SIZE_INT * length);
+    
+    printfInt(hPtr, length);
+    
+    free(hPtr);
+}
 
 long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {       
 #ifdef BEAGLE_DEBUG_FLOW

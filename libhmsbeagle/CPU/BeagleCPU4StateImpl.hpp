@@ -152,17 +152,19 @@ BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::~BeagleCPU4StateImpl() {
  */
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
-                                     const int* states1,
-                                     const REALTYPE* matrices1,
-                                     const int* states2,
-                                     const REALTYPE* matrices2) {
+                                                               const int* states1,
+                                                               const REALTYPE* matrices1,
+                                                               const int* states2,
+                                                               const REALTYPE* matrices2,
+                                                               int startPattern,
+                                                               int endPattern) {
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*4*kPaddedPatternCount;
+        int v = l*4*kPaddedPatternCount + 4*startPattern;
         int w = l*4*OFFSET;
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
 
             const int state1 = states1[k];
             const int state2 = states2[k];
@@ -182,18 +184,20 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALTYPE* destP,
-                                     const int* states1,
-                                     const REALTYPE* matrices1,
-                                     const int* states2,
-                                     const REALTYPE* matrices2,
-                                     const REALTYPE* scaleFactors) {
-    
+                                                                           const int* states1,
+                                                                           const REALTYPE* matrices1,
+                                                                           const int* states2,
+                                                                           const REALTYPE* matrices2,
+                                                                           const REALTYPE* scaleFactors,
+                                                                           int startPattern,
+                                                                           int endPattern) {
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*4*kPaddedPatternCount;
+        int v = l*4*kPaddedPatternCount + 4*startPattern;
         int w = l*4*OFFSET;
         
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             
             const int state1 = states1[k];
             const int state2 = states2[k];
@@ -217,19 +221,21 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALT
  */
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
-                                       const int* states1,
-                                       const REALTYPE* matrices1,
-                                       const REALTYPE* partials2,
-                                       const REALTYPE* matrices2) {
+                                                                 const int* states1,
+                                                                 const REALTYPE* matrices1,
+                                                                 const REALTYPE* partials2,
+                                                                 const REALTYPE* matrices2,
+                                                                 int startPattern,
+                                                                 int endPattern) {
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount;
+        int u = l*4*kPaddedPatternCount + 4*startPattern;
         int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             
             const int state1 = states1[k];
             
@@ -249,20 +255,22 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE* destP,
-                                       const int* states1,
-                                       const REALTYPE* matrices1,
-                                       const REALTYPE* partials2,
-                                       const REALTYPE* matrices2,
-                                       const REALTYPE* scaleFactors) {
-    
+                                                                             const int* states1,
+                                                                             const REALTYPE* matrices1,
+                                                                             const REALTYPE* partials2,
+                                                                             const REALTYPE* matrices2,
+                                                                             const REALTYPE* scaleFactors,
+                                                                             int startPattern,
+                                                                             int endPattern) {
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount;
+        int u = l*4*kPaddedPatternCount + 4*startPattern;
         int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
         
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             
             const int state1 = states1[k];
             const REALTYPE scaleFactor = scaleFactors[k];
@@ -283,46 +291,12 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REA
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
-                                         const REALTYPE* partials1,
-                                         const REALTYPE* matrices1,
-                                         const REALTYPE* partials2,
-                                         const REALTYPE* matrices2) {
-    
- 
-#pragma omp parallel for num_threads(kCategoryCount)
-    for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount;
-        int w = l*4*OFFSET;
-                
-        PREFETCH_MATRIX(1,matrices1,w);                
-        PREFETCH_MATRIX(2,matrices2,w);
-        for (int k = 0; k < kPatternCount; k++) {                   
-            PREFETCH_PARTIALS(1,partials1,u);
-            PREFETCH_PARTIALS(2,partials2,u);
-            
-            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
-            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
-            
-            // Final results
-            destP[u    ] = sum10 * sum20;
-            destP[u + 1] = sum11 * sum21;
-            destP[u + 2] = sum12 * sum22;
-            destP[u + 3] = sum13 * sum23;
-
-            u += 4;
-
-        }
-    }
-}
-
-BEAGLE_CPU_TEMPLATE
-void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsPartitioning(REALTYPE* destP,
-                                         const REALTYPE* partials1,
-                                         const REALTYPE* matrices1,
-                                         const REALTYPE* partials2,
-                                         const REALTYPE* matrices2,
-                                         int startPattern,
-                                         int endPattern) {
+                                                                   const REALTYPE* partials1,
+                                                                   const REALTYPE* matrices1,
+                                                                   const REALTYPE* partials2,
+                                                                   const REALTYPE* matrices2,
+                                                                   int startPattern,
+                                                                   int endPattern) {
     
  
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -408,21 +382,23 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(RE
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(REALTYPE* destP,
-                                         const REALTYPE* partials1,
-                                         const REALTYPE* matrices1,
-                                         const REALTYPE* partials2,
-                                         const REALTYPE* matrices2,
-                                         const REALTYPE* scaleFactors) {
-    
+                                                                               const REALTYPE* partials1,
+                                                                               const REALTYPE* matrices1,
+                                                                               const REALTYPE* partials2,
+                                                                               const REALTYPE* matrices2,
+                                                                               const REALTYPE* scaleFactors,
+                                                                               int startPattern,
+                                                                               int endPattern) {
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount;
+        int u = l*4*kPaddedPatternCount + 4*startPattern;
         int w = l*4*OFFSET;
         
         PREFETCH_MATRIX(1,matrices1,w);
         PREFETCH_MATRIX(2,matrices2,w);
         
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
                         
             // Prefetch scale factor
             const REALTYPE scaleFactor = scaleFactors[k];

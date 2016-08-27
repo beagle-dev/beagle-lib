@@ -147,6 +147,8 @@ void runBeagle(int resource,
     int internalCount = ntaxa-1;
     int partialCount = ((ntaxa+internalCount)-compactTipCount)*eigenCount;
     int scaleCount = ((manualScaling || dynamicScaling) ? ntaxa : 0);
+
+    int modelCount = eigenCount * partitionCount;
     
     BeagleInstanceDetails instDetails;
     
@@ -157,8 +159,8 @@ void runBeagle(int resource,
                 compactTipCount,	/**< Number of compact state representation buffers to create (input) */
 				stateCount,		  /**< Number of states in the continuous-time Markov chain (input) */
 				nsites,			  /**< Number of site patterns to be handled by the instance (input) */
-				eigenCount,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                (calcderivs ? (3*edgeCount*eigenCount) : edgeCount*eigenCount),/**< Number of rate matrix buffers (input) */
+				modelCount,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+                (calcderivs ? (3*edgeCount*modelCount) : edgeCount*modelCount),/**< Number of rate matrix buffers (input) */
                 rateCategoryCount,/**< Number of rate categories */
                 scaleCount*eigenCount,          /**< scaling buffers */
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
@@ -212,7 +214,14 @@ void runBeagle(int resource,
         rates[i] = gt_rand() / (double) GT_RAND_MAX;
     }
     
-	beagleSetCategoryRates(instance, &rates[0]);
+    if (partitionCount > 1) {
+        for (int i=0; i < partitionCount; i++) {
+            beagleSetCategoryRatesWithIndex(instance, i, &rates[0]);
+        }
+    } else {
+        beagleSetCategoryRates(instance, &rates[0]);
+    }
+
     
 	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
     
@@ -273,7 +282,7 @@ void runBeagle(int resource,
     double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     
-    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+    for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
         if (!eigencomplex && ((stateCount & (stateCount-1)) == 0)) {
             
             for (int i=0; i<stateCount; i++) {
@@ -427,25 +436,29 @@ void runBeagle(int resource,
 
     
     // a list of indices and edge lengths
-	int* edgeIndices = new int[edgeCount*eigenCount];
-	int* edgeIndicesD1 = new int[edgeCount*eigenCount];
-	int* edgeIndicesD2 = new int[edgeCount*eigenCount];
-	for(int i=0; i<edgeCount*eigenCount; i++) {
+	int* edgeIndices = new int[edgeCount*modelCount];
+	int* edgeIndicesD1 = new int[edgeCount*modelCount];
+	int* edgeIndicesD2 = new int[edgeCount*modelCount];
+	for(int i=0; i<edgeCount*modelCount; i++) {
         edgeIndices[i]=i;
-        edgeIndicesD1[i]=(edgeCount*eigenCount)+i;
-        edgeIndicesD2[i]=2*(edgeCount*eigenCount)+i;
+        edgeIndicesD1[i]=(edgeCount*modelCount)+i;
+        edgeIndicesD2[i]=2*(edgeCount*modelCount)+i;
     }
-	double* edgeLengths = new double[edgeCount];
+	double* edgeLengths = new double[edgeCount*modelCount];
 	for(int i=0; i<edgeCount; i++) {
         edgeLengths[i]=gt_rand() / (double) GT_RAND_MAX;
     }
     
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-    int operationCount = internalCount*eigenCount*partitionCount;
-	int* operations = new int[BEAGLE_OP_COUNT*operationCount];
-    int* scalingFactorsIndices = new int[(internalCount)*eigenCount]; // internal nodes
-	for(int i=0; i<internalCount*eigenCount; i++){
+    int operationCount = internalCount*modelCount;
+    int beagleOpCount = BEAGLE_OP_COUNT;
+    if (partitionCount > 1)
+        beagleOpCount = BEAGLE_PARTITION_OP_COUNT;
+	int* operations = new int[beagleOpCount*operationCount];
+    int unpartOpsCount = internalCount*eigenCount;
+    int* scalingFactorsIndices = new int[unpartOpsCount]; // internal nodes
+	for(int i=0; i<unpartOpsCount; i++){
         int child1Index;
         if (((i % internalCount)*2) < ntaxa)
             child1Index = (i % internalCount)*2;
@@ -459,16 +472,18 @@ void runBeagle(int resource,
 
         for (int j=0; j<partitionCount; j++) {
             int op = partitionCount*i + j;
-            operations[op*BEAGLE_OP_COUNT+0] = ntaxa+i;
-            operations[op*BEAGLE_OP_COUNT+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
-            operations[op*BEAGLE_OP_COUNT+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
-            operations[op*BEAGLE_OP_COUNT+3] = child1Index;
-            operations[op*BEAGLE_OP_COUNT+4] = child1Index;
-            operations[op*BEAGLE_OP_COUNT+5] = child2Index;
-            operations[op*BEAGLE_OP_COUNT+6] = child2Index;
-            // printf("op %d i %d j %d dest %d c1 %d c2 %d c1m %d c2m %d\n",
+            operations[op*beagleOpCount+0] = ntaxa+i;
+            operations[op*beagleOpCount+1] = (dynamicScaling ? i : BEAGLE_OP_NONE);
+            operations[op*beagleOpCount+2] = (dynamicScaling ? i : BEAGLE_OP_NONE);
+            operations[op*beagleOpCount+3] = child1Index;
+            operations[op*beagleOpCount+4] = child1Index + j*edgeCount;
+            operations[op*beagleOpCount+5] = child2Index;
+            operations[op*beagleOpCount+6] = child2Index + j*edgeCount;
+            if (partitionCount > 1)
+                operations[op*beagleOpCount+7] = j;
+            // printf("op %d i %d j %d dest %d c1 %d c2 %d c1m %d c2m %d p %d\n",
             //        op, i, j, ntaxa+i, child1Index, child2Index,
-            //        operations[op*BEAGLE_OP_COUNT+4], operations[op*BEAGLE_OP_COUNT+6]);
+            //        operations[op*beagleOpCount+4], operations[op*beagleOpCount+6], j);
         }
 
         scalingFactorsIndices[i] = i;
@@ -506,12 +521,22 @@ void runBeagle(int resource,
     double previousDeriv1 = 0.0;
     double previousDeriv2 = 0.0;
 
+    int* eigenIndices = new int[edgeCount * modelCount];
+    int* categoryRateIndices = new int[edgeCount * modelCount];
+    for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+        for(int j=0; j<edgeCount; j++) {
+            eigenIndices[eigenIndex*edgeCount + j] = eigenIndex;
+            categoryRateIndices[eigenIndex*edgeCount + j] = eigenIndex;
+            edgeLengths[eigenIndex*edgeCount + j] = edgeLengths[j];
+        }
+    }
+
     for (int i=0; i<nreps; i++){
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
                 int sIndex = j / partitionCount;
-                operations[BEAGLE_OP_COUNT*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
-                operations[BEAGLE_OP_COUNT*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
+                operations[beagleOpCount*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
+                operations[beagleOpCount*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
             }
         }
         
@@ -523,42 +548,64 @@ void runBeagle(int resource,
 
         gettimeofday(&time1,NULL);
 
-        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
-            if (!setmatrix) {
-                // tell BEAGLE to populate the transition matrices for the above edge lengths
-                beagleUpdateTransitionMatrices(instance,     // instance
-                                               eigenIndex,             // eigenIndex
-                                               &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
-                                               (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
-                                               (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
-                                               edgeLengths,   // edgeLengths
-                                               edgeCount);            // count
-            } else {
-                double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
-                for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
-                    for(int z=0;z<rateCategoryCount;z++){
-                        for(int x=0;x<stateCount;x++){
-                            for(int y=0;y<stateCount;y++){
-                                inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
-                            }
-                        } 
-                    }
-                    beagleSetTransitionMatrix(instance, edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
-                    if (calcderivs) {
-                        beagleSetTransitionMatrix(instance, edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                        beagleSetTransitionMatrix(instance, edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+        if (partitionCount > 1) {
+            int totalEdgeCount = edgeCount * modelCount;
+            beagleUpdateTransitionMatricesWithMultipleModels(
+                                           instance,     // instance
+                                           eigenIndices,   // eigenIndex
+                                           categoryRateIndices,   // category rate index
+                                           edgeIndices,   // probabilityIndices
+                                           (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
+                                           (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
+                                           edgeLengths,   // edgeLengths
+                                           totalEdgeCount);            // count
+        } else {
+            for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+                if (!setmatrix) {
+                    // tell BEAGLE to populate the transition matrices for the above edge lengths
+                    beagleUpdateTransitionMatrices(instance,     // instance
+                                                   eigenIndex,             // eigenIndex
+                                                   &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
+                                                   (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
+                                                   (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
+                                                   edgeLengths,   // edgeLengths
+                                                   edgeCount);            // count
+                } else {
+                    double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
+                    for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
+                        for(int z=0;z<rateCategoryCount;z++){
+                            for(int x=0;x<stateCount;x++){
+                                for(int y=0;y<stateCount;y++){
+                                    inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
+                                }
+                            } 
+                        }
+                        beagleSetTransitionMatrix(instance, edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                        if (calcderivs) {
+                            beagleSetTransitionMatrix(instance, edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                            beagleSetTransitionMatrix(instance, edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                        }
                     }
                 }
             }
+
         }
 
+
         gettimeofday(&time2, NULL);
-        
+
         // update the partials
-        beagleUpdatePartials( instance,      // instance
-                        (BeagleOperation*)operations,     // operations
-                        internalCount*eigenCount*partitionCount,              // operationCount
-                        (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+        if (partitionCount > 1) {
+            beagleUpdatePartialsByPartition( instance,      // instance
+                            (BeagleOperationByPartition*)operations,     // operations
+                            internalCount*eigenCount*partitionCount,              // operationCount
+                            (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+        } else {
+            beagleUpdatePartials( instance,      // instance
+                            (BeagleOperation*)operations,     // operations
+                            internalCount*eigenCount,              // operationCount
+                            (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+        }
 
         gettimeofday(&time3, NULL);
 
@@ -579,7 +626,7 @@ void runBeagle(int resource,
         }
         
         gettimeofday(&time4, NULL);
-                
+
         // calculate the site likelihoods at the root node
         if (!unrooted) {
             beagleCalculateRootLogLikelihoods(instance,               // instance

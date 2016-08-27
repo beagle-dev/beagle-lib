@@ -74,27 +74,25 @@ public:
                                     const int* states1,
                                     const REALTYPE* matrices1,
                                     const int* states2,
-                                    const REALTYPE* matrices2);
+                                    const REALTYPE* matrices2,
+                                    int startPattern,
+                                    int endPattern);
     
     virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
                                     const REALTYPE* partials2,
-                                    const REALTYPE* matrices2);
+                                    const REALTYPE* matrices2,
+                                    int startPattern,
+                                    int endPattern);
     
     virtual void calcPartialsPartials(REALTYPE* destP,
-                                    const REALTYPE* partials1,
-                                    const REALTYPE* matrices1,
-                                    const REALTYPE* partials2,
-                                    const REALTYPE* matrices2);
-
-    virtual void calcPartialsPartialsPartitioning(REALTYPE* destP,
-                                                  const REALTYPE* partials1,
-                                                  const REALTYPE* matrices1,
-                                                  const REALTYPE* partials2,
-                                                  const REALTYPE* matrices2,
-                                                  int startPattern,
-                                                  int endPattern);
+                                      const REALTYPE* partials1,
+                                      const REALTYPE* matrices1,
+                                      const REALTYPE* partials2,
+                                      const REALTYPE* matrices2,
+                                      int startPattern,
+                                      int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
@@ -118,25 +116,31 @@ public:
                                         double* outSumLogLikelihood);
     
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
-                                           const int *child0States,
-                                        const REALTYPE *child0TransMat,
-                                           const int *child1States,
-                                        const REALTYPE *child1TransMat,
-                                        const REALTYPE *scaleFactors);
+                                              const int *child0States,
+                                              const REALTYPE *child0TransMat,
+                                              const int *child1States,
+                                              const REALTYPE *child1TransMat,
+                                              const REALTYPE *scaleFactors,
+                                              int startPattern,
+                                              int endPattern);
 
     virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
-                                             const int *child0States,
-                                          const REALTYPE *child0TransMat,
-                                          const REALTYPE *child1Partials,
-                                          const REALTYPE *child1TransMat,
-                                          const REALTYPE *scaleFactors);
+                                                const int *child0States,
+                                                const REALTYPE *child0TransMat,
+                                                const REALTYPE *child1Partials,
+                                                const REALTYPE *child1TransMat,
+                                                const REALTYPE *scaleFactors,
+                                                int startPattern,
+                                                int endPattern);
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
-                                            const REALTYPE *child0Partials,
-                                            const REALTYPE *child0TransMat,
-                                            const REALTYPE *child1Partials,
-                                            const REALTYPE *child1TransMat,
-                                            const REALTYPE *scaleFactors);
+                                                  const REALTYPE *child0Partials,
+                                                  const REALTYPE *child0TransMat,
+                                                  const REALTYPE *child1Partials,
+                                                  const REALTYPE *child1TransMat,
+                                                  const REALTYPE *scaleFactors,
+                                                  int startPattern,
+                                                  int endPattern);
     
     virtual void calcPartialsPartialsAutoScaling(REALTYPE *destP,
                                                   const REALTYPE *child0Partials,

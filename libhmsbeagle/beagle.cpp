@@ -698,6 +698,18 @@ int beagleSetCategoryRates(int instance,
 //    }
 }
 
+int beagleSetCategoryRatesWithIndex(int instance,
+                                    int categoryRatesIndex,
+                                    const double* inCategoryRates) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setCategoryRatesWithIndex(categoryRatesIndex, inCategoryRates);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetTransitionMatrix(int instance,
                         int matrixIndex,
                         const double* inMatrix,
@@ -811,6 +823,26 @@ int beagleUpdateTransitionMatrices(int instance,
 //    }
 }
 
+int beagleUpdateTransitionMatricesWithMultipleModels(int instance,
+                                                     const int* eigenIndices,
+                                                     const int* categoryRateIndices,
+                                                     const int* probabilityIndices,
+                                                     const int* firstDerivativeIndices,
+                                                     const int* secondDerivativeIndices,
+                                                     const double* edgeLengths,
+                                                     int count) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updateTransitionMatricesWithMultipleModels(eigenIndices, categoryRateIndices,
+                                                                                 probabilityIndices, firstDerivativeIndices,
+                                                                                 secondDerivativeIndices, edgeLengths, count);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
+
 int beagleUpdatePartials(const int instance,
                    const BeagleOperation* operations,
                    int operationCount,
@@ -833,6 +865,19 @@ int beagleUpdatePartials(const int instance,
 //    catch (...) {
 //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
 //    }
+}
+
+int beagleUpdatePartialsByPartition(const int instance,
+                                    const BeagleOperationByPartition* operations,
+                                    int operationCount,
+                                    int cumulativeScalingIndex) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updatePartialsByPartition((const int*)operations, operationCount, cumulativeScalingIndex);
+    DEBUG_END_TIME();
+    return returnValue;
 }
 
 int beagleWaitForPartials(const int instance,
