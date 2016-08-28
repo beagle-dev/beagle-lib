@@ -569,10 +569,6 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     
     va_end(parameters);
     
-    if (streamIndex == -1) {
-        grid.z = waitIndex;
-    }
-
     size_t localWorkSize[3];
     localWorkSize[0] = block.x;
     localWorkSize[1] = block.y;

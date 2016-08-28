@@ -388,6 +388,19 @@
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #define LOAD_PARTIALS_PARTIALS_4_GPU()\
+    int y = deltaPartialsByState + deltaPartialsByMatrix;\
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+    /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/\
+    if (pattern < endPattern) {\
+        sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; /*All coalesced memory*/\
+        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];\
+    } else {\
+        sPartials1[multBy16(patIdx) | tx] = 0;\
+        sPartials2[multBy16(patIdx) | tx] = 0;\
+    }
+
+#define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU()\
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
     /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/\
@@ -400,6 +413,15 @@
     }
 
 #define LOAD_PARTIALS_SINGLE_4_GPU()\
+    int y = deltaPartialsByState + deltaPartialsByMatrix;\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+    if (pattern < endPattern) {\
+        sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];\
+    } else {\
+        sPartials2[multBy16(patIdx) | tx] = 0;\
+    }
+
+#define LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU()\
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
     if (pattern < endPattern) {\
         sPartials2[multBy16(patIdx) | tx] = partials2[u];\
@@ -734,7 +756,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleMulti(KW_GLOBAL_VAR REAL* KW_
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
-    LOAD_PARTIALS_PARTIALS_4_GPU();
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU();
     LOAD_MATRIX_4_MULTI_GPU();
     if (pattern < endPattern) { // Remove padded threads!
         SUM_PARTIALS_PARTIALS_4_GPU();
@@ -762,7 +784,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScalePartition(KW_GLOBAL_VAR REAL*
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_PART_GPU();
-    LOAD_PARTIALS_PARTIALS_4_GPU();
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU();
     LOAD_MATRIX_4_GPU();
     if (pattern < endPattern) { // Remove padded threads!
         SUM_PARTIALS_PARTIALS_4_GPU();
@@ -827,7 +849,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleMulti(
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
     const KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors = scaleFactors + ptrOffsets[opIndexPtr + 7];
-    LOAD_PARTIALS_PARTIALS_4_GPU();
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU();
     LOAD_SCALING_4_MULTI_GPU();
     LOAD_MATRIX_4_MULTI_GPU();
     if (pattern < endPattern) { // Remove padded threads!
@@ -860,7 +882,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScalePartition(
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_PART_GPU();
-    LOAD_PARTIALS_PARTIALS_4_GPU();
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU();
     LOAD_SCALING_4_PART_GPU();
     LOAD_MATRIX_4_GPU();
     if (pattern < endPattern) { // Remove padded threads!
@@ -920,7 +942,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScaleMulti(KW_GLOBAL_VAR int* KW_RES
     const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr + 2];
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
-    LOAD_PARTIALS_SINGLE_4_GPU();
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU();
     LOAD_MATRIX_4_MULTI_GPU();
     if (pattern < endPattern) { // Remove padded threads!
         SUM_STATES_PARTIALS_4_GPU();
@@ -949,7 +971,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScalePartition(KW_GLOBAL_VAR int*  K
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_PART_GPU();
-    LOAD_PARTIALS_SINGLE_4_GPU();
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU();
     LOAD_MATRIX_4_GPU();
     if (pattern < endPattern) { // Remove padded threads!
         SUM_STATES_PARTIALS_4_GPU();
@@ -1010,7 +1032,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScaleMulti(
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
     const KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors = scaleFactors + ptrOffsets[opIndexPtr + 7];
-    LOAD_PARTIALS_SINGLE_4_GPU();
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU();
     LOAD_SCALING_4_MULTI_GPU();
     LOAD_MATRIX_4_MULTI_GPU();
     if (pattern < endPattern) { // Remove padded threads!
@@ -1043,7 +1065,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScalePartition(
     }
 #else // GPU implementation
     DETERMINE_INDICES_4_PART_GPU();
-    LOAD_PARTIALS_SINGLE_4_GPU();
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU();
     LOAD_SCALING_4_PART_GPU();
     LOAD_MATRIX_4_GPU();
     if (pattern < endPattern) { // Remove padded threads!
