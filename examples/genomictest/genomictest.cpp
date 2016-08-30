@@ -741,6 +741,10 @@ void runBeagle(int resource,
 		unsigned int partialsOps = internalCount * eigenCount;
 		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
         unsigned int bytesPerPartial = 3 * (requireDoublePrecision ? 8 : 4);
+        if (manualScaling) {
+            flopsPerPartial++;
+            bytesPerPartial += (requireDoublePrecision ? 8 : 4);
+        }
         unsigned int matrixBytes = partialsOps * 2 * stateCount*stateCount*rateCategoryCount * (requireDoublePrecision ? 8 : 4);
 		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
 		unsigned long long partialsTotal = partialsSize * partialsOps;
