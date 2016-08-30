@@ -48,11 +48,20 @@ script:
   - ./autogen.sh
   - ./configure  --with-opencl=${AMDAPPSDKROOT}
   - make
+  - make check
   
 # after_failure:
 #  - ls
 #  - COREFILE=$(find . -maxdepth 1 -name "core*" | head -n 1) # find core file
 #  - if [[ -f "$COREFILE" ]]; then gdb -c "$COREFILE" ./benchmark -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
+  
+notifications:
+  recipients:
+    - msuchard@gmail.com
+    - daniel@kotim.me
+  email:
+    on_success: change
+    on_failure: always  
   
 env:
   global:
