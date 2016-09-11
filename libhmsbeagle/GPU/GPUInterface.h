@@ -102,9 +102,11 @@ public:
                    int categoryCount, 
                    int patternCount,
                    int unpaddedPatternCount,
+                   int tipCount,
                    long flags);
     
-    void Synchronize();
+    void SynchronizeHost();
+    void SynchronizeDevice();
     
     GPUFunction GetFunction(const char* functionName);
     

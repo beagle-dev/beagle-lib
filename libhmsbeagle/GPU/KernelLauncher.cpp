@@ -605,7 +605,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           partials1, partials2, partials3, matrices1, matrices2, dRescalingTrigger,
                           patternCount);            
 
-        gpu->Synchronize();
+        gpu->SynchronizeDevice();
 //        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
@@ -618,7 +618,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
                 gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal *patternCount);
-                gpu->Synchronize();
+                gpu->SynchronizeDevice();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
             
@@ -638,7 +638,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           dScalingFactors[readScalingIndex], dRescalingTrigger,
                           patternCount);        
         
-        gpu->Synchronize();
+        gpu->SynchronizeDevice();
 //        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
@@ -651,7 +651,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
                 gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal * patternCount);
-                gpu->Synchronize();
+                gpu->SynchronizeDevice();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
             
@@ -766,9 +766,9 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 
         // Rescale partials and save scaling factors
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            gpu->Synchronize();
+            // gpu->SynchronizeDevice();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
-                                            patternCount, categoryCount, 0);
+                                            patternCount, categoryCount, 0, streamIndex, -1);
         }
         
     } else {
@@ -904,7 +904,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            gpu->Synchronize();
+            // gpu->SynchronizeDevice();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount,
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
@@ -912,7 +912,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
 #else
                                             0
 #endif
-                                            );
+                                            , streamIndex, -1);
         }
     } else {
         
@@ -1077,7 +1077,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 
         // Rescale partials and save scaling factors     
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            gpu->Synchronize();
+            // gpu->SynchronizeDevice();
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount,
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
@@ -1085,7 +1085,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 #else
                                             0
 #endif
-                                            );
+                                            , streamIndex, -1);
         }
         
     } else {
@@ -1415,7 +1415,9 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr cumulativeScaling, 
                                      unsigned int patternCount,
                                      unsigned int categoryCount,
-                                     unsigned int fillWithOnes) {
+                                     unsigned int fillWithOnes,
+                                     int streamIndex,
+                                     int waitIndex) {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::RescalePartials\n");
@@ -1455,16 +1457,18 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
         
         int parameterCountV = 3;
         int totalParameterCount = 4;
-        gpu->LaunchKernel(fPartialsDynamicScalingAccumulate,
+        gpu->LaunchKernelConcurrent(fPartialsDynamicScalingAccumulate,
                                    bgScaleBlock, bgScaleGrid,
+                                   streamIndex, waitIndex,
                                    parameterCountV, totalParameterCount,
                                    partials3, scalingFactors, cumulativeScaling,
                                    categoryCount);
     } else {
         int parameterCountV = 2;
         int totalParameterCount = 3;
-        gpu->LaunchKernel(fPartialsDynamicScaling,
+        gpu->LaunchKernelConcurrent(fPartialsDynamicScaling,
                                    bgScaleBlock, bgScaleGrid,
+                                   streamIndex, waitIndex,
                                    parameterCountV, totalParameterCount,
                                    partials3, scalingFactors,
                                    categoryCount);
@@ -1593,7 +1597,7 @@ void KernelLauncher::SumSites1(GPUPtr dArray1,
 
     int parameterCountV = 3;
     int totalParameterCount = 4;
-    gpu->Synchronize();  
+    // gpu->SynchronizeDevice();  
     gpu->LaunchKernel(fSumSites1,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,
@@ -1618,7 +1622,7 @@ void KernelLauncher::SumSites2(GPUPtr dArray1,
 
     int parameterCountV = 5;
     int totalParameterCount = 6;
-    gpu->Synchronize();
+    // gpu->SynchronizeDevice();
     gpu->LaunchKernel(fSumSites2,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,
@@ -1645,7 +1649,7 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
     
     int parameterCountV = 7;
     int totalParameterCount = 8;
-    gpu->Synchronize();
+    // gpu->SynchronizeDevice();
     gpu->LaunchKernel(fSumSites3,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,

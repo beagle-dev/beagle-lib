@@ -372,7 +372,9 @@ public:
                          GPUPtr cumulativeScaling,
                          unsigned int patternCount,
                          unsigned int categoryCount,
-                         unsigned int fillWithOnes);
+                         unsigned int fillWithOnes,
+                         int streamIndex,
+                         int waitIndex);
 
     void IntegrateLikelihoods(GPUPtr dResult,
                               GPUPtr dRootPartials,

@@ -297,6 +297,7 @@ void GPUInterface::SetDevice(int deviceNumber,
                              int categoryCount,
                              int paddedPatternCount,
                              int unpaddedPatternCount,
+                             int tipCount,
                              long flags) {
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -442,9 +443,9 @@ void GPUInterface::SetDevice(int deviceNumber,
 }
 
 
-void GPUInterface::Synchronize() {
+void GPUInterface::SynchronizeHost() {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tEntering GPUInterface::Synchronize\n");
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeHost\n");
 #endif                
     
     // for(int i=0; i<BEAGLE_STREAM_COUNT; i++) {
@@ -454,7 +455,21 @@ void GPUInterface::Synchronize() {
     SAFE_CL(clFinish(openClCommandQueues[0]));
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::Synchronize\n");
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeHost\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeDevice() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDevice\n");
+#endif                
+
+    // TODO: synchronize on device only    
+
+    SAFE_CL(clFinish(openClCommandQueues[0]));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");
 #endif                
 }
 

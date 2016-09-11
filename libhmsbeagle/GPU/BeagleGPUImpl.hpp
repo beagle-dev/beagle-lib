@@ -470,7 +470,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kLastTipPartialsBufferIndex = -1;
     
     // TODO: recompiling kernels for every instance, probably not ideal
-    gpu->SetDevice(pluginResourceNumber,kPaddedStateCount,kCategoryCount,kPaddedPatternCount, kPatternCount,kFlags);
+    gpu->SetDevice(pluginResourceNumber, kPaddedStateCount, kCategoryCount, 
+                   kPaddedPatternCount, kPatternCount, kTipCount, kFlags);
 
 #ifdef FW_OPENCL
     kFlags |= gpu->GetDeviceTypeFlag(pluginResourceNumber);
@@ -641,7 +642,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             dPartials[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*partialsSubIndex, ptrIncrement);
             hPartialsOffsets[i] = kIndexOffsetPat*partialsSubIndex;
         }
-        kStreamIndices[i] = -1;
     }
     
     kLastCompactBufferIndex = kCompactBufferCount - 1;
@@ -703,7 +703,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
 #ifdef CUDA
 #ifdef BEAGLE_DEBUG_VALUES
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
     int usedMemory = availableMem - gpu->GetAvailableMemory();
     fprintf(stderr, "actual used memory: %d\n", usedMemory);
     fprintf(stderr, "        difference: %d\n\n", usedMemory-neededMemory);
@@ -1425,7 +1425,7 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::reorderPatternsByPartition() {
     kPatternsReordered = true;
 
 #ifdef BEAGLE_DEBUG_SYNCH
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1714,7 +1714,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
     #endif
 
     #ifdef BEAGLE_DEBUG_SYNCH    
-        gpu->Synchronize();
+        gpu->SynchronizeHost();
     #endif
     }
 
@@ -1773,7 +1773,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithMultipleModel
         }
 
     #ifdef BEAGLE_DEBUG_SYNCH    
-        gpu->Synchronize();
+        gpu->SynchronizeHost();
     #endif
     }
 
@@ -1868,6 +1868,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         }
     }
 
+    int streamIndex = -1;
+    int waitIndex = -1;
+    if (!kUsingMultiGrid) {
+        gpu->SynchronizeDevice();
+        for (int i = 0; i < kBufferCount; i++) {
+            kStreamIndices[i] = -1;
+        }
+    }
+
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * numOps];
         const int writeScalingIndex = operations[op * numOps + 1];
@@ -1881,13 +1890,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             currentPartition = operations[op * numOps + 7];
         }
 
-        if (kStreamIndices[child1Index] != -1)
-            kStreamIndices[parIndex] = kStreamIndices[child1Index];
-        else
-            kStreamIndices[parIndex] = lastStreamIndex++;
-        
-        const int streamIndex = kStreamIndices[parIndex];
-        const int waitIndex = kStreamIndices[child2Index];
+        if (!kUsingMultiGrid) {
+            waitIndex = kStreamIndices[child2Index];
+            if (kStreamIndices[child1Index] != -1) {
+                kStreamIndices[parIndex] = kStreamIndices[child1Index];
+            } else if (kStreamIndices[child2Index] != -1) {
+                kStreamIndices[parIndex] = kStreamIndices[child2Index];
+                waitIndex = kStreamIndices[child1Index];
+            } else {
+                kStreamIndices[parIndex] = lastStreamIndex++;
+            }
+            streamIndex = kStreamIndices[parIndex];
+        }
         
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -2178,7 +2192,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                                                   rescaleMulti, cumulativeScalingBuffer);
             }
             gridStart += gridSize;
-// gpu->Synchronize();
+// gpu->SynchronizeHost();
         }
 // printf("statesStatesCount = %d\n", statesStatesCount);
 // exit(-1);
@@ -2188,8 +2202,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
     }
 
+    if (!kUsingMultiGrid) {
+        gpu->SynchronizeDevice();
+    }
+
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2224,7 +2242,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
         if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
             gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeof(Real)*kScaleBufferSize);
-            gpu->Synchronize();
+            gpu->SynchronizeDevice();
             dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];            
         }
     } 
@@ -2251,7 +2269,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
     }
     
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
 
 #ifdef BEAGLE_DEBUG_VALUES
@@ -2279,7 +2297,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndi
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
         if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
             gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeof(Real)*kScaleBufferSize);
-            gpu->Synchronize();
+            gpu->SynchronizeDevice();
             dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
         }
     } 
@@ -2293,7 +2311,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndi
                                          count, kPaddedPatternCount);
     
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2329,7 +2347,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::resetScaleFactors(int cumulativeScalingIn
     gpu->FreeHostMemory(zeroes);
     
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2352,7 +2370,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
         gpu->MemcpyDeviceToDevice(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], sizeof(Real)*kScaleBufferSize);
     }
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2372,7 +2390,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getScaleFactors(int srcScalingIndex,
     // Do nothing
     
 #ifdef BEAGLE_DEBUG_SYNCH    
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
