@@ -193,7 +193,7 @@ void runBeagle(int resource,
 	gt_srand(randomSeed);	// fix the random seed...
     for(int i=0; i<ntaxa; i++)
     {
-        if (i >= compactTipCount) {
+        if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
             double* tmpPartials = getRandomTipPartials(nsites, stateCount);
             beagleSetTipPartials(instance, i, tmpPartials);
             free(tmpPartials);
