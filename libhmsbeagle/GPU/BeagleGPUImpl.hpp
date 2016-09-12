@@ -2014,6 +2014,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 parentMinIndex = parIndex;
 
             unsigned int c1Off, c2Off;
+            unsigned int c1MOff   = child1TransMatIndex * kIndexOffsetMat;
+            unsigned int c2MOff   = child2TransMatIndex * kIndexOffsetMat;
+            unsigned int paOff    = hPartialsOffsets[parIndex];
+            unsigned int scaleOff = readScalingIndex * kScaleBufferSize;
+
             if (abs(opType) == 1) {
                 c1Off  = hPartialsOffsets[child1Index];
                 c2Off  = hPartialsOffsets[child2Index];
@@ -2024,15 +2029,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 } else {
                     c1Off  = hStatesOffsets[child2Index];
                     c2Off  = hPartialsOffsets[child1Index];
+                    unsigned int tmpOff = c1MOff; c1MOff = c2MOff; c2MOff = tmpOff;
                 }
             } else {
                 c1Off  = hStatesOffsets[child1Index];
                 c2Off  = hStatesOffsets[child2Index];
             }
-            unsigned int paOff    = hPartialsOffsets[parIndex];
-            unsigned int c1MOff   = child1TransMatIndex * kIndexOffsetMat;
-            unsigned int c2MOff   = child2TransMatIndex * kIndexOffsetMat;
-            unsigned int scaleOff = readScalingIndex * kScaleBufferSize;
 
             for (int i=startBlock; i < endBlock; i++) {
                 hPartialsPtrs[gridOpIndex++] = hPartitionOffsets[i*2];
