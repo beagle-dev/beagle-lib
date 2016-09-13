@@ -171,6 +171,7 @@ private:
     int* hPatternPartitionsStartPatterns;
     int* hPatternPartitionsStartBlocks;
     int* hPatternsNewOrder;
+    int* hGridOpIndices;
 
     unsigned int* hPtrQueue;
     

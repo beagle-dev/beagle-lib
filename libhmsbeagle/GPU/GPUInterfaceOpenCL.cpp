@@ -466,7 +466,7 @@ void GPUInterface::SynchronizeDevice() {
 
     // TODO: synchronize on device only    
 
-    SAFE_CL(clFinish(openClCommandQueues[0]));
+    // SAFE_CL(clFinish(openClCommandQueues[0]));
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");

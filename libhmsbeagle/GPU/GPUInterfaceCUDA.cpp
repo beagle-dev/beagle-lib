@@ -138,16 +138,20 @@ GPUInterface::~GPUInterface() {
 #endif    
 
     if (cudaStreams != NULL) {
-        for(int i=0; i<numStreams; i++) {
-            SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
+        if (numStreams > 1) {
+            for(int i=0; i<numStreams; i++) {
+                SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
+            }
         }
 
         free(cudaStreams);
     }
 
     if (cudaEvents != NULL) {
-        for(int i=0; i<numStreams; i++) {
-            SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
+        if (numStreams > 1) {
+            for(int i=0; i<numStreams; i++) {
+                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
+            }
         }
 
         free(cudaEvents);
@@ -276,20 +280,30 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
 
-    numStreams = tipCount/2 + 1;
-    if (numStreams > BEAGLE_STREAM_COUNT) {
-        numStreams = BEAGLE_STREAM_COUNT;
+    if (paddedPatternCount < BEAGLE_MULTI_GRID_MAX) {
+        numStreams = 1;
+        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * numStreams);
+        cudaStreams[0] = NULL;
+        cudaEvents[0] = NULL;
+    } else {
+        numStreams = tipCount/2 + 1;
+        if (numStreams > BEAGLE_STREAM_COUNT) {
+            numStreams = BEAGLE_STREAM_COUNT;
+        }
+        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
+        CUstream stream;
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * numStreams);
+        CUevent event;
+        for(int i=0; i<numStreams; i++) {
+            SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
+            cudaStreams[i] = stream;
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
+        }
     }
-    cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-    CUstream stream;
-    cudaEvents = (CUevent*) malloc(sizeof(CUevent) * numStreams);
-    CUevent event;
-    for(int i=0; i<numStreams; i++) {
-        SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT)); //CU_STREAM_NON_BLOCKING));
-        cudaStreams[i] = stream;
-        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-        cudaEvents[i] = event;
-    }
+
+
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
