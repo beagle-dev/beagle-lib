@@ -2180,7 +2180,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             }
 // printf("rescaleMulti[%d] = %d, opType = %d\n", i, rescaleMulti, gridOpType[i]);
 
-            if (!byPartition && ((gridStartOp[i+1] - gridStartOp[i]) == 1)) {
+            if (((gridStartOp[i+1] - gridStartOp[i]) == 1) && !byPartition && (kDeviceCode != BEAGLE_OPENCL_DEVICE_AMD_GPU)) {
                 int child1Index         = hGridOpIndices[i*6+0];
                 int child2Index         = hGridOpIndices[i*6+1];
                 int parIndex            = hGridOpIndices[i*6+2];
