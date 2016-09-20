@@ -622,7 +622,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     }
     // Internal nodes have 0s so partials are used
     dStates = (GPUPtr*) calloc(sizeof(GPUPtr), kBufferCount);
-    hStatesOffsets = (unsigned int*) calloc(sizeof(unsigned int), kCompactBufferCount); 
+    hStatesOffsets = (unsigned int*) calloc(sizeof(unsigned int), kTipCount); 
     kIndexOffsetStates = gpu->AlignMemOffset(kPaddedPatternCount * sizeof(int)) / sizeof(int);
     
     dCompactBuffers = (GPUPtr*) malloc(sizeof(GPUPtr) * kCompactBufferCount); 

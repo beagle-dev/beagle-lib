@@ -113,7 +113,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_RESTRICT      __restrict__
 #elif defined(FW_OPENCL)
     #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
-    #define BEAGLE_MULTI_GRID_MAX  8192 // use multi-grid for fewer than this many sites
+    #define BEAGLE_MULTI_GRID_MAX  16384 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC   
     #define KW_GLOBAL_VAR    __global
