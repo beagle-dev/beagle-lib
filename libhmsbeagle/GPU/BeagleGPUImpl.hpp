@@ -152,6 +152,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         if (kPartitionsInitialised) {
             free(hPatternPartitions);
             free(hPatternPartitionsStartPatterns);
+            free(hPatternPartitionsStartBlocks);
             if (kPatternsReordered) {
                 free(hPatternsNewOrder);
                 gpu->FreeMemory(dPatternsNewOrder);
@@ -275,7 +276,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
 #endif
-    
+
     kInitialized = 0;
     
     kTipCount = tipCount;
@@ -501,16 +502,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     sizeof(int) * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
     sizeof(GPUPtr) * ptrQueueLength;  // dPtrQueue
     
-#ifdef CUDA
+    #ifdef CUDA
         unsigned int availableMem = gpu->GetAvailableMemory();
-#ifdef BEAGLE_DEBUG_VALUES
+    #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "     needed memory: %d\n", neededMemory);
         fprintf(stderr, "  available memory: %d\n", availableMem);
-#endif     
+    #endif     
         // TODO: fix memory check on CUDA and implement for OpenCL
         // if (availableMem < neededMemory) 
         //     return BEAGLE_ERROR_OUT_OF_MEMORY;
-#endif
+    #endif
 
     kernels = new KernelLauncher(gpu);
     
@@ -1938,7 +1939,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             scalingFactors = dScalingFactors[readScalingIndex];
         }
 // printf("op[%d]: c1 %d (%d), c2 %d (%d), c1m %d, c2m %d, par %d, rescale %d, wsi %d, rsi %d, cp %d\n", op, child1Index, tipStates1, child2Index, tipStates2, child1TransMatIndex, child2TransMatIndex, parIndex, rescale, writeScalingIndex, readScalingIndex, currentPartition);
-// printf("op[%03d]: c1 %03d (%d), c2 %03d (%d), c1m %03d, c2m %03d, par %03d, rescale %d\n", op, child1Index, (tipStates1?1:0), child2Index, (tipStates2?1:0), child1TransMatIndex, child2TransMatIndex, parIndex, rescale);
+// printf("op[%03d]: c1 %03d (%d), c2 %03d (%d), par %03d, c1m %03d, c2m %03d, rescale %d\n", op, child1Index, (tipStates1?1:0), child2Index, (tipStates2?1:0), parIndex, child1TransMatIndex, child2TransMatIndex, parIndex, rescale);
 
 #ifdef BEAGLE_DEBUG_VALUES
         fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
@@ -2170,7 +2171,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         int gridStart = 0;
         for (int i=0; i < gridLaunches; i++) {
             int gridSize = (gridStartOp[i+1] - gridStartOp[i]) * gridOpBlocks[i];
-// printf("gridSize[%d] = %d\n", i, gridSize);
+// printf("%d ", gridSize/gridOpBlocks[i]);
             int rescaleMulti = BEAGLE_OP_NONE;
             GPUPtr scalingFactorsMulti = (GPUPtr)NULL;
             if (gridOpType[i] < 0) {
@@ -2266,6 +2267,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             gridStart += gridSize;
 // gpu->SynchronizeHost();
         }
+// printf("\ngridLaunches total = %d\n", gridLaunches);
+// printf("    gridSize total = %d\n", gridStart/gridOpBlocks[0]);
 // printf("statesStatesCount = %d\n", statesStatesCount);
 // exit(-1);
         #ifdef FW_OPENCL
