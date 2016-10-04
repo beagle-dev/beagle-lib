@@ -152,7 +152,9 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         if (kPartitionsInitialised) {
             free(hPatternPartitions);
             free(hPatternPartitionsStartPatterns);
-            free(hPatternPartitionsStartBlocks);
+            if (kUsingMultiGrid) {
+                free(hPatternPartitionsStartBlocks);
+            }
             if (kPatternsReordered) {
                 free(hPatternsNewOrder);
                 gpu->FreeMemory(dPatternsNewOrder);
