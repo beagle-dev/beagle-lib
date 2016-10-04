@@ -2028,7 +2028,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
                 gridLaunches++;
             } else {
-                gridOpBlocks[gridLaunches] += opBlockCount;
+                gridOpBlocks[gridLaunches-1] += opBlockCount;
             }
 
             if (parIndex < parentMinIndex)
@@ -2182,8 +2182,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         gridStartOp[gridLaunches] = operationCount;
         int gridStart = 0;
         for (int i=0; i < gridLaunches; i++) {
-            int gridSize = (gridStartOp[i+1] - gridStartOp[i]) * gridOpBlocks[i];
-// printf("%d ", gridSize/gridOpBlocks[i]);
+            int gridSize = gridOpBlocks[i];
+// printf("%d ", (gridStartOp[i+1] - gridStartOp[i]));
             int rescaleMulti = BEAGLE_OP_NONE;
             GPUPtr scalingFactorsMulti = (GPUPtr)NULL;
             if (gridOpType[i] < 0) {
