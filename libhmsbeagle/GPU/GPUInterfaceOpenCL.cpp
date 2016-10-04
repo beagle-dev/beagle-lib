@@ -442,6 +442,17 @@ void GPUInterface::SetDevice(int deviceNumber,
 #endif            
 }
 
+void GPUInterface::ResizeStreamCount(int newStreamCount) {    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::ResizeStreamCount\n");
+#endif                
+    
+    // TODO: write function if using more than one opencl queue
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::ResizeStreamCount\n");
+#endif                
+}
 
 void GPUInterface::SynchronizeHost() {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -470,6 +481,20 @@ void GPUInterface::SynchronizeDevice() {
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamWaitIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
+#endif                
+
+    // TODO: synchronize on device only    
+
+    // SAFE_CL(clFinish(openClCommandQueues[0]));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
 #endif                
 }
 

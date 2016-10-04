@@ -138,22 +138,18 @@ GPUInterface::~GPUInterface() {
 #endif    
 
     if (cudaStreams != NULL) {
-        if (numStreams > 1) {
-            for(int i=0; i<numStreams; i++) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaStreams[i] != NULL)
                 SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
-            }
         }
-
         free(cudaStreams);
     }
 
     if (cudaEvents != NULL) {
-        if (numStreams > 1) {
-            for(int i=0; i<numStreams; i++) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaEvents[i] != NULL)
                 SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
-            }
         }
-
         free(cudaEvents);
     }
 
@@ -283,9 +279,13 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     if (paddedPatternCount < BEAGLE_MULTI_GRID_MAX) {
         numStreams = 1;
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * numStreams);
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
         cudaStreams[0] = NULL;
-        cudaEvents[0] = NULL;
+        CUevent event;
+        for(int i=0; i<2; i++) {
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
+        }
     } else {
         numStreams = tipCount/2 + 1;
         if (numStreams > BEAGLE_STREAM_COUNT) {
@@ -293,7 +293,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
         }
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
         CUstream stream;
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * numStreams);
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
         CUevent event;
         for(int i=0; i<numStreams; i++) {
             SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
@@ -301,9 +301,9 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
             SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
             cudaEvents[i] = event;
         }
+        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+        cudaEvents[numStreams] = event;
     }
-
-
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
     
@@ -313,8 +313,67 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     
 }
 
-void GPUInterface::SynchronizeHost() {
-    
+void GPUInterface::ResizeStreamCount(int newStreamCount) {    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::ResizeStreamCount\n");
+#endif                
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+
+    SAFE_CUDA(cuCtxSynchronize());
+
+    if (cudaStreams != NULL) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaStreams[i] != NULL)
+                SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
+        }
+        free(cudaStreams);
+    }
+
+    if (cudaEvents != NULL) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaEvents[i] != NULL)
+                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
+        }
+        free(cudaEvents);
+    }
+
+    if (newStreamCount == 1) {
+        numStreams = 1;
+        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
+        cudaStreams[0] = NULL;
+        CUevent event;
+        for(int i=0; i<2; i++) {
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
+        }
+    } else {
+        numStreams = newStreamCount;
+        if (numStreams > BEAGLE_STREAM_COUNT) {
+            numStreams = BEAGLE_STREAM_COUNT;
+        }
+        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
+        CUstream stream;
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
+        CUevent event;
+        for(int i=0; i<numStreams; i++) {
+            SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
+            cudaStreams[i] = stream;
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
+        }
+        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+        cudaEvents[numStreams] = event;
+    }
+
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::ResizeStreamCount\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeHost() {    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeHost\n");
 #endif                
@@ -324,22 +383,40 @@ void GPUInterface::SynchronizeHost() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeHost\n");
 #endif                
-    
 }
 
 void GPUInterface::SynchronizeDevice() {
-    
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDevice\n");
 #endif                
-    
-    SAFE_CUPP(cuEventRecord(cudaEvents[0], 0));
-    SAFE_CUPP(cuStreamWaitEvent(0, cudaEvents[0], 0));
+
+    SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], 0));
+    SAFE_CUPP(cuStreamWaitEvent(0, cudaEvents[numStreams], 0));
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");
 #endif                
+}
+
+void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamWaitIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
+#endif                
+    // CUstream streamRecord  = NULL;
+    // CUstream streamWait    = NULL;
+    // if (streamRecordIndex >= 0)
+    //     streamRecord = cudaStreams[streamRecordIndex];
+    // if (streamWaitIndex >= 0)
+    //     streamWait   = cudaStreams[streamWaitIndex];
+
+    // SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], streamRecord));
+    // SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvents[numStreams], 0));
+
+    SAFE_CUPP(cuCtxSynchronize()); // faster in practice; TODO find example where it's not
     
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
+#endif                
 }
 
 GPUFunction GPUInterface::GetFunction(const char* functionName) {

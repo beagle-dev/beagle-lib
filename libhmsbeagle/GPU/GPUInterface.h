@@ -105,8 +105,12 @@ public:
                    int tipCount,
                    long flags);
     
+    void ResizeStreamCount(int newStreamCount);
+
     void SynchronizeHost();
     void SynchronizeDevice();
+    void SynchronizeDeviceWithIndex(int streamRecordIndex,
+                                    int streamWaitIndex);
     
     GPUFunction GetFunction(const char* functionName);
     

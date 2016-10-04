@@ -193,7 +193,7 @@ private:
     
     GPUPtr* dScalingFactorsMaster;
     
-    int* kStreamIndices;
+    int* hStreamIndices;
 
 public:    
     BeagleGPUImpl();

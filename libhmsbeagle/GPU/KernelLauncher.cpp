@@ -766,9 +766,10 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 
         // Rescale partials and save scaling factors
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            // gpu->SynchronizeDevice();
+            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount, 0, streamIndex, -1);
+            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
         
     } else {
@@ -904,7 +905,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            // gpu->SynchronizeDevice();
+            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount,
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
@@ -913,6 +914,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                             0
 #endif
                                             , streamIndex, -1);
+            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
     } else {
         
@@ -1077,7 +1079,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 
         // Rescale partials and save scaling factors     
         if (doRescaling > 0 && (endPattern == 0 || endPattern == realPatternCount)) {
-            // gpu->SynchronizeDevice();
+            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                             patternCount, categoryCount,
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
@@ -1086,6 +1088,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                             0
 #endif
                                             , streamIndex, -1);
+            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
         
     } else {
@@ -1424,7 +1427,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
 #endif    
     
     // TODO: remove fillWithOnes and leave it up to client?
-    
+// printf("RESCALE ON STREAM %d\n",streamIndex );
     // Rescale partials and save scaling factors
     if (kPaddedStateCount == 4) {
         if (fillWithOnes != 0) {
