@@ -402,17 +402,15 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
 #endif                
-    // CUstream streamRecord  = NULL;
-    // CUstream streamWait    = NULL;
-    // if (streamRecordIndex >= 0)
-    //     streamRecord = cudaStreams[streamRecordIndex];
-    // if (streamWaitIndex >= 0)
-    //     streamWait   = cudaStreams[streamWaitIndex];
+    CUstream streamRecord  = NULL;
+    CUstream streamWait    = NULL;
+    if (streamRecordIndex >= 0)
+        streamRecord = cudaStreams[streamRecordIndex % numStreams];
+    if (streamWaitIndex >= 0)
+        streamWait   = cudaStreams[streamWaitIndex % numStreams];
 
-    // SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], streamRecord));
-    // SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvents[numStreams], 0));
-
-    SAFE_CUPP(cuCtxSynchronize()); // faster in practice; TODO find example where it's not
+    SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], streamRecord));
+    SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvents[numStreams], 0));
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
