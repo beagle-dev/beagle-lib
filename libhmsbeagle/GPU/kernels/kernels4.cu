@@ -48,19 +48,12 @@
     int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;
     
 #define DETERMINE_INDICES_4_MULTI_1_CPU()\
-    int opIndexPtr = (gridStartOp + KW_GROUP_ID_0) * 7;\
-    int startPat   = ptrOffsets[opIndexPtr    ];\
-    int endPattern = ptrOffsets[opIndexPtr + 1];\
-    int patIdx = KW_LOCAL_ID_0;\
-    int pattern = startPat + patIdx;    
-    
-#define DETERMINE_INDICES_4_MULTI_1_SCALE_CPU()\
     int opIndexPtr = (gridStartOp + KW_GROUP_ID_0) * 8;\
     int startPat   = ptrOffsets[opIndexPtr    ];\
     int endPattern = ptrOffsets[opIndexPtr + 1];\
     int patIdx = KW_LOCAL_ID_0;\
     int pattern = startPat + patIdx;    
-
+    
 #define DETERMINE_INDICES_4_MULTI_2_CPU()\
     int matrix = KW_GROUP_ID_1;\
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
@@ -341,21 +334,6 @@
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #define DETERMINE_INDICES_4_MULTI_1_GPU()\
-    int opIndexPtr = (gridStartOp + KW_GROUP_ID_0) * 7;\
-    int startPat   = ptrOffsets[opIndexPtr    ];\
-    int endPattern = ptrOffsets[opIndexPtr + 1];\
-    int tx = KW_LOCAL_ID_0;\
-    int state = tx & 0x3;\
-    int pat = tx >> 2;\
-    int patIdx = KW_LOCAL_ID_1;\
-    int matrix = KW_GROUP_ID_1;\
-    int pattern = startPat + multBy4(patIdx) + pat;\
-    int deltaPartialsByState = multBy4(startPat) + multBy16(patIdx);\
-    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));\
-    int x2 = multBy16(matrix);\
-    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
-
-#define DETERMINE_INDICES_4_MULTI_1_SCALE_GPU()\
     int opIndexPtr = (gridStartOp + KW_GROUP_ID_0) * 8;\
     int startPat   = ptrOffsets[opIndexPtr    ];\
     int endPattern = ptrOffsets[opIndexPtr + 1];\
@@ -830,7 +808,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleMulti(
                                                                                  int totalPatterns) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_CPU();
+    DETERMINE_INDICES_4_MULTI_1_CPU();
     if (pattern < endPattern) {
         DETERMINE_INDICES_4_MULTI_2_CPU();
         const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
@@ -844,7 +822,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleMulti(
         }
     }
 #else // GPU implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_GPU();
+    DETERMINE_INDICES_4_MULTI_1_GPU();
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
@@ -1013,7 +991,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScaleMulti(
                                                                                    int totalPatterns) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_CPU();
+    DETERMINE_INDICES_4_MULTI_1_CPU();
     if (pattern < endPattern) {
         DETERMINE_INDICES_4_MULTI_2_CPU();
         const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr + 2];
@@ -1027,7 +1005,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScaleMulti(
         }
     }
 #else // GPU implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_GPU();
+    DETERMINE_INDICES_4_MULTI_1_GPU();
     const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr + 2];
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();
@@ -1183,7 +1161,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleMulti(
                                                                                  int totalPatterns) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_CPU();
+    DETERMINE_INDICES_4_MULTI_1_CPU();
     if (pattern < endPattern) {
         DETERMINE_INDICES_4_MULTI_2_CPU();        
         const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr + 2];
@@ -1193,7 +1171,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleMulti(
         SUM_STATES_STATES_4_SCALE_CPU();
     }
 #else // GPU implementation
-    DETERMINE_INDICES_4_MULTI_1_SCALE_GPU();
+    DETERMINE_INDICES_4_MULTI_1_GPU();
     const KW_GLOBAL_VAR int*  KW_RESTRICT states1   =  states   + ptrOffsets[opIndexPtr + 2];
     const KW_GLOBAL_VAR int*  KW_RESTRICT states2   =  states   + ptrOffsets[opIndexPtr + 3];
     DETERMINE_INDICES_4_MULTI_2_GPU();

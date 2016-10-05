@@ -2066,12 +2066,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 hPartialsPtrs[gridOpIndex++] = paOff;
                 hPartialsPtrs[gridOpIndex++] = c1MOff;
                 hPartialsPtrs[gridOpIndex++] = c2MOff;
-                if (anyRescale == 0) {
-                    if (rescale == 0) {
-                        hPartialsPtrs[gridOpIndex++] = scaleOff;
-                    } else {
-                        hPartialsPtrs[gridOpIndex++] = 0;
-                    }
+                if (rescale == 0) {
+                    hPartialsPtrs[gridOpIndex++] = scaleOff;
+                } else {
+                    hPartialsPtrs[gridOpIndex++] = 0;
                 }
 // printf("block %d, scaleOff = %d, hPP = %d %d %d %d %d %d %d %d\n", i, scaleOff,
 //        hPartialsPtrs[gridOpIndex-8],
