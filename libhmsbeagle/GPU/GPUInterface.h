@@ -143,8 +143,7 @@ public:
                     size_t memSize);
 
     void UnmapMemory(GPUPtr dPtr,
-                       void* hPtr,
-                       size_t memSize);
+                       void* hPtr);
 #endif
 
     GPUPtr AllocateMemory(size_t memSize);

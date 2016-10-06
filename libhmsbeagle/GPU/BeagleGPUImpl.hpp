@@ -172,7 +172,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
 
         if (kUsingMultiGrid) {
         #ifdef FW_OPENCL
-            gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs, kOpOffsetsSize);
+            gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
         #else
             gpu->FreeHostMemory(hPartialsPtrs);
         #endif
@@ -1245,7 +1245,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
 
         if (kUsingMultiGrid && kPaddedPartitionBlocks > kMaxPaddedPartitionBlocks) {
             #ifdef FW_OPENCL
-            gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs, kOpOffsetsSize);
+            gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
             #else
             gpu->FreeHostMemory(hPartialsPtrs);
             #endif
@@ -2172,7 +2172,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 // printf("USING MULTIGRID!\n");
         size_t transferSize = sizeof(unsigned int) * gridOpIndex;
         #ifdef FW_OPENCL
-        gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs, transferSize);
+        gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
         #else
         gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
         #endif
@@ -2282,7 +2282,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 // printf("statesStatesCount = %d\n", statesStatesCount);
 // exit(-1);
         #ifdef FW_OPENCL
-        hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, transferSize);
+        hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, kOpOffsetsSize);
         #endif
 
     }

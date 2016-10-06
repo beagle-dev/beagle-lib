@@ -753,7 +753,7 @@ void* GPUInterface::MapMemory(GPUPtr dPtr, size_t memSize) {
     return hostPtr;
 }
 
-void GPUInterface::UnmapMemory(GPUPtr dPtr, void* hPtr, size_t memSize) {
+void GPUInterface::UnmapMemory(GPUPtr dPtr, void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::UnmapMemory\n");
 #endif
