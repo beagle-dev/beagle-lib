@@ -63,7 +63,8 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
-    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshhold;
+  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshhold;
+  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternPartitionsStartPatterns;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -99,6 +100,15 @@ public:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
+
+    virtual int calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -155,10 +165,25 @@ public:
                                            const int scalingFactorsIndex,
                                            double* outSumLogLikelihood);
 
+    inline int integrateOutStatesAndScaleByPartition(const REALTYPE* integrationTmp,
+                                                     const int* stateFrequenciesIndices,
+                                                     const int* cumulativeScaleIndices,
+                                                     const int* partitionIndices,
+                                                     int partitionCount,
+                                                     double* outSumLogLikelihoodByPartition,
+                                                     double* outSumLogLikelihood);
+
     virtual void rescalePartials(REALTYPE *destP,
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
+
+    virtual void rescalePartialsByPartition(REALTYPE *destP,
+                                            REALTYPE *scaleFactors,
+                                            REALTYPE *cumulativeScaleFactors,
+                                            const int fillWithOnes,
+                                            const int partitionIndex);
+
 
 };
 

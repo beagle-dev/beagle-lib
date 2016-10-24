@@ -251,8 +251,7 @@ public:
                        int cumulativeScalingIndex);
 
     int updatePartialsByPartition(const int* operations,
-                                  int operationCount,
-                                  int cumulativeScalingIndex);
+                                  int operationCount);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -275,11 +274,23 @@ public:
 							  int count,
 							  int cumulativeScalingIndex);
 
+    int accumulateScaleFactorsByPartition(const int* scalingIndices,
+                                          int count,
+                                          int cumulativeScalingIndex,
+                                          int partitionIndex);
+
     int removeScaleFactors(const int* scalingIndices,
                            int count,
                            int cumulativeScalingIndex);
 
+    int removeScaleFactorsByPartition(const int* scalingIndices,
+                                      int count,
+                                      int cumulativeScalingIndex,
+                                      int partitionIndex);
+
     int resetScaleFactors(int cumulativeScalingIndex);
+
+    int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
 
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);    
@@ -297,6 +308,16 @@ public:
                                     const int* cumulativeScaleIndices,
                                     int count,
                                     double* outSumLogLikelihood);
+
+    int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood);
 
     // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
     //                 outFirstDerivatives, outSecondDerivatives
@@ -330,7 +351,7 @@ protected:
                            int operationCount,
                            int cumulativeScalingIndex);
 
-    virtual void reorderPatternsByPartition();
+    virtual int reorderPatternsByPartition();
 
     virtual void calcStatesStates(REALTYPE* destP,
                                   const int* states1,
@@ -362,6 +383,15 @@ protected:
                                         const int stateFrequenciesIndex,
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
+
+    virtual int calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -447,6 +477,12 @@ protected:
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
+
+    virtual void rescalePartialsByPartition(REALTYPE *destP,
+                                            REALTYPE *scaleFactors,
+                                            REALTYPE *cumulativeScaleFactors,
+                                            const int fillWithOnes,
+                                            const int partitionIndex);
     
     virtual void autoRescalePartials(REALTYPE *destP,
     		                     signed short *scaleFactors);

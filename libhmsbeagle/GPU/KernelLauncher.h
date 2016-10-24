@@ -78,22 +78,30 @@ private:
     GPUFunction fStatesPartialsEdgeLikelihoodsSecondDeriv;
         
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
+    GPUFunction fIntegrateLikelihoodsDynamicScalingPartition;
     GPUFunction fIntegrateLikelihoodsDynamicScalingSecondDeriv;
     GPUFunction fAccumulateFactorsDynamicScaling;
+    GPUFunction fAccumulateFactorsDynamicScalingByPartition;
     GPUFunction fAccumulateFactorsAutoScaling;
     GPUFunction fRemoveFactorsDynamicScaling;
+    GPUFunction fRemoveFactorsDynamicScalingByPartition;
+    GPUFunction fResetFactorsDynamicScalingByPartition;
     GPUFunction fPartialsDynamicScaling;
+    GPUFunction fPartialsDynamicScalingByPartition;
     GPUFunction fPartialsDynamicScalingAccumulate;
+    GPUFunction fPartialsDynamicScalingAccumulateByPartition;
     GPUFunction fPartialsDynamicScalingAccumulateDifference;
     GPUFunction fPartialsDynamicScalingAccumulateReciprocal;
     GPUFunction fPartialsDynamicScalingSlow;
     GPUFunction fIntegrateLikelihoods;
+    GPUFunction fIntegrateLikelihoodsPartition;
     GPUFunction fIntegrateLikelihoodsSecondDeriv;
 	  GPUFunction fIntegrateLikelihoodsMulti;
 	  GPUFunction fIntegrateLikelihoodsFixedScaleMulti;
     GPUFunction fIntegrateLikelihoodsAutoScaling;
 
     GPUFunction fSumSites1;
+    GPUFunction fSumSites1Partition;
     GPUFunction fSumSites2;
     GPUFunction fSumSites3;
 
@@ -134,7 +142,7 @@ public:
     
     ~KernelLauncher();
     
-    void SetupPartitioningKernelGrid(unsigned int partitionBlockCount);
+    // void SetupPartitioningKernelGrid(unsigned int partitionBlockCount);
 
 // Kernel links
 
@@ -210,8 +218,7 @@ public:
                                       unsigned int patternCount,
                                       int gridStartOp,
                                       int gridSize,
-                                      int doRescaling,
-                                      GPUPtr cumulativeScaling);
+                                      int doRescaling);
 
     void PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                GPUPtr partials2,
@@ -222,7 +229,6 @@ public:
                                                GPUPtr cumulativeScaling,
                                                unsigned int startPattern,
                                                unsigned int endPattern,
-                                               unsigned int realPatternCount,
                                                unsigned int patternCount,
                                                unsigned int categoryCount,
                                                int doRescaling,
@@ -237,8 +243,7 @@ public:
                                     unsigned int patternCount,
                                     int gridStartOp,
                                     int gridSize,
-                                    int doRescaling,
-                                    GPUPtr cumulativeScaling);
+                                    int doRescaling);
 
     void StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                              GPUPtr partials2,
@@ -249,7 +254,6 @@ public:
                                              GPUPtr cumulativeScaling,
                                              unsigned int startPattern,
                                              unsigned int endPattern,
-                                             unsigned int realPatternCount,
                                              unsigned int patternCount,
                                              unsigned int categoryCount,
                                              int doRescaling,
@@ -264,8 +268,7 @@ public:
                                   unsigned int patternCount,
                                   int gridStartOp,
                                   int gridSize,
-                                  int doRescaling,
-                                  GPUPtr cumulativeScaling);
+                                  int doRescaling);
 
     void StatesStatesPruningDynamicScaling(GPUPtr states1,
                                            GPUPtr states2,
@@ -276,7 +279,6 @@ public:
                                            GPUPtr cumulativeScaling,
                                            unsigned int startPattern,
                                            unsigned int endPattern,
-                                           unsigned int realPatternCount,
                                            unsigned int patternCount,
                                            unsigned int categoryCount,
                                            int doRescaling,
@@ -290,6 +292,16 @@ public:
                                             GPUPtr dRootScalingFactors,
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
+
+    void IntegrateLikelihoodsDynamicScalingPartition(GPUPtr dResult,
+                                                     GPUPtr dRootPartials,
+                                                     GPUPtr dWeights,
+                                                     GPUPtr dFrequencies,
+                                                     GPUPtr dRootScalingFactors,
+                                                     GPUPtr dPtrOffsets,
+                                                     unsigned int patternCount,
+                                                     unsigned int categoryCount,
+                                                     int gridSize);
     
     void IntegrateLikelihoodsAutoScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,
@@ -354,6 +366,13 @@ public:
                                          unsigned int nodeCount,
                                          unsigned int patternCount);
 
+    void AccumulateFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
+                                                    GPUPtr dNodePtrQueue,
+                                                    GPUPtr dRootScalingFactors,
+                                                    unsigned int nodeCount,
+                                                    int startPattern,
+                                                    int endPattern);
+
     void AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
                                       GPUPtr dNodePtrQueue,
                                       GPUPtr dRootScalingFactors,
@@ -366,7 +385,18 @@ public:
                                      GPUPtr dRootScalingFactors,
                                      unsigned int nodeCount,
                                      unsigned int patternCount);    
+
+    void RemoveFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
+                                                GPUPtr dNodePtrQueue,
+                                                GPUPtr dRootScalingFactors,
+                                                unsigned int nodeCount,
+                                                int startPattern,
+                                                int endPattern);
     
+    void ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
+                                               int startPattern,
+                                               int endPattern);
+
     void RescalePartials(GPUPtr partials3,
                          GPUPtr scalingFactors,
                          GPUPtr cumulativeScaling,
@@ -376,6 +406,17 @@ public:
                          int streamIndex,
                          int waitIndex);
 
+    void RescalePartialsByPartition(GPUPtr partials3,
+                                    GPUPtr scalingFactors,
+                                    GPUPtr cumulativeScaling,
+                                    unsigned int patternCount,
+                                    unsigned int categoryCount,
+                                    unsigned int fillWithOnes,
+                                    int streamIndex,
+                                    int waitIndex,
+                                    int startPattern,
+                                    int endPattern);
+
     void IntegrateLikelihoods(GPUPtr dResult,
                               GPUPtr dRootPartials,
                               GPUPtr dWeights,
@@ -383,6 +424,15 @@ public:
                               unsigned int patternCount,
                               unsigned int categoryCount);
     
+    void IntegrateLikelihoodsPartition(GPUPtr dResult,
+                                       GPUPtr dRootPartials,
+                                       GPUPtr dWeights,
+                                       GPUPtr dFrequencies,
+                                       GPUPtr dPtrOffsets,
+                                       unsigned int patternCount,
+                                       unsigned int categoryCount,
+                                       int gridSize);
+
     void IntegrateLikelihoodsSecondDeriv(GPUPtr dResult,
                                          GPUPtr dFirstDerivResult,
                                          GPUPtr dSecondDerivResult,
@@ -419,6 +469,13 @@ public:
                   GPUPtr dSum1,
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
+
+    void SumSites1Partition(GPUPtr dArray1,
+                            GPUPtr dSum1,
+                            GPUPtr dPatternWeights,
+                            int startPattern,
+                            int endPattern,
+                            int blockCount);
     
     void SumSites2(GPUPtr dArray1,
                   GPUPtr dSum1,

@@ -134,8 +134,7 @@ public:
                                int cumulativeScalingIndex) = 0;
 
     virtual int updatePartialsByPartition(const int* operations,
-                                          int operationCount,
-                                          int cumulativeScalingIndex) = 0;
+                                          int operationCount) = 0;
     
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
@@ -143,12 +142,25 @@ public:
     virtual int accumulateScaleFactors(const int* scalingIndices,
 									   int count,
 									   int cumulativeScalingIndex) = 0;
+
+    virtual int accumulateScaleFactorsByPartition(const int* scaleIndices,
+                                                  int count,
+                                                  int cumulativeScaleIndex,
+                                                  int partitionIndex) = 0;
     
     virtual int removeScaleFactors(const int* scalingIndices,
                                      int count,
-                                     int cumulativeScalingIndex) = 0;   
+                                     int cumulativeScalingIndex) = 0;
+
+    virtual int removeScaleFactorsByPartition(const int* scaleIndices,
+                                                  int count,
+                                                  int cumulativeScaleIndex,
+                                                  int partitionIndex) = 0;
     
-    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;   
+    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0; 
+
+    virtual int resetScaleFactorsByPartition(int cumulativeScaleIndex,
+                                             int partitionIndex) = 0; 
     
     virtual int copyScaleFactors(int destScalingIndex,
                                  int srcScalingIndex) = 0; 
@@ -162,6 +174,16 @@ public:
                                             const int* scalingFactorsIndices,
                                             int count,
                                             double* outSumLogLikelihood) = 0;
+
+    virtual int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                       const int* categoryWeightsIndices,
+                                                       const int* stateFrequenciesIndices,
+                                                       const int* cumulativeScaleIndices,
+                                                       const int* partitionIndices,
+                                                       int partitionCount,
+                                                       int count,
+                                                       double* outSumLogLikelihoodByPartition,
+                                                       double* outSumLogLikelihood) = 0;
     
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,

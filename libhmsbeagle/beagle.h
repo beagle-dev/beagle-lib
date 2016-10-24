@@ -191,7 +191,7 @@ enum BeagleFlags {
  */
 enum BeagleOpCodes {
     BEAGLE_OP_COUNT              = 7, /**< Total number of integers per beagleUpdatePartials operation */
-    BEAGLE_PARTITION_OP_COUNT    = 8, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
+    BEAGLE_PARTITION_OP_COUNT    = 9, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
     BEAGLE_OP_NONE               = -1 /**< Specify no use for indexed buffer */
 };
 
@@ -707,6 +707,7 @@ typedef struct {
     int child2Partials;         /**< index of second child partials buffer */
     int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
     int partition;              /**< index of partition */
+    int cumulativeScaleIndex;   /**< index number of scaleBuffer to store accumulated factors */
 } BeagleOperationByPartition;
 
 /**
@@ -719,14 +720,12 @@ typedef struct {
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
- * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
-                                                    const BeagleOperationByPartition* operations,
-                                                    int operationCount,
-                                                    int cumulativeScaleIndex);
+                                                     const BeagleOperationByPartition* operations,
+                                                     int operationCount);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.
@@ -765,6 +764,24 @@ BEAGLE_DLLEXPORT int beagleAccumulateScaleFactors(int instance,
                                  int cumulativeScaleIndex);
 
 /**
+ * @brief Accumulate scale factors by partition
+ *
+ * This function adds (log) scale factors from a list of scaleBuffers to a cumulative scale
+ * buffer. It is used to calculate the marginal scaling at a specific node for each site.
+ *
+ * @param instance                  Instance number (input)
+ * @param scaleIndices              List of scaleBuffers to add (input)
+ * @param count                     Number of scaleBuffers in list (input)
+ * @param cumulativeScaleIndex      Index number of scaleBuffer to accumulate factors into (input)
+ * @param partitionIndex            Index of partition to accumulate into (input)
+ */
+BEAGLE_DLLEXPORT int beagleAccumulateScaleFactorsByPartition(int instance,
+                                                             const int* scaleIndices,
+                                                             int count,
+                                                             int cumulativeScaleIndex,
+                                                             int partitionIndex);
+
+/**
  * @brief Remove scale factors
  *
  * This function removes (log) scale factors from a cumulative scale buffer. The
@@ -780,6 +797,27 @@ BEAGLE_DLLEXPORT int beagleRemoveScaleFactors(int instance,
                              int count,
                              int cumulativeScaleIndex);
 
+
+/**
+ * @brief Remove scale factors by partition
+ *
+ * This function removes (log) scale factors from a cumulative scale buffer. The
+ * scale factors to be removed are indicated in a list of scaleBuffers.
+ *
+ * @param instance                  Instance number (input)
+ * @param scaleIndices              List of scaleBuffers to remove (input)
+ * @param count                     Number of scaleBuffers in list (input)
+ * @param cumulativeScaleIndex      Index number of scaleBuffer containing accumulated factors (input)
+ * @param partitionIndex            Index of partition to remove from (input)
+ *
+ */
+BEAGLE_DLLEXPORT int beagleRemoveScaleFactorsByPartition(int instance,
+                                                         const int* scaleIndices,
+                                                         int count,
+                                                         int cumulativeScaleIndex,
+                                                         int partitionIndex);
+
+
 /**
  * @brief Reset scalefactors
  *
@@ -790,6 +828,21 @@ BEAGLE_DLLEXPORT int beagleRemoveScaleFactors(int instance,
  */
 BEAGLE_DLLEXPORT int beagleResetScaleFactors(int instance,
                             int cumulativeScaleIndex);
+
+/**
+ * @brief Reset scalefactors by partition
+ *
+ * This function resets a cumulative scale buffer.
+ *
+ * @param instance                  Instance number (input)
+ * @param cumulativeScaleIndex      Index number of cumulative scaleBuffer (input)
+ * @param partitionIndex            Index of partition to reset (input)
+ *
+ */
+BEAGLE_DLLEXPORT int beagleResetScaleFactorsByPartition(int instance,
+                                                        int cumulativeScaleIndex,
+                                                        int partitionIndex);
+
 
 /**
  * @brief Copy scale factors
@@ -848,7 +901,7 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
                                       double* outSumLogLikelihood);
 
 /**
- * @brief Calculate multiple site log likelihoods at a root node
+ * @brief Calculate site log likelihoods at a root node with per partition buffers
  *
  * This function integrates lists of partials at a node with respect to a set of partials-weights
  * and state frequencies to return the log likelihood sums
@@ -857,26 +910,32 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
  * @param bufferIndices            List of partialsBuffer indices to integrate (input)
  * @param categoryWeightsIndices   List of weights to apply to each partialsBuffer (input). There
  *                                  should be one categoryCount sized set for each of
- *                                  parentBufferIndices
+ *                                  bufferIndices
  * @param stateFrequenciesIndices  List of state frequencies for each partialsBuffer (input). There
- *                                  should be one set for each of parentBufferIndices
+ *                                  should be one set for each of bufferIndices
  * @param cumulativeScaleIndices   List of scaleBuffers containing accumulated factors to apply to
  *                                  each partialsBuffer (input). There should be one index for each
- *                                  of parentBufferIndices
- * @param integrateCount           List of counts of partialsBuffers to integrate (input)
- * @param totalCount               Total number of partialsBuffers (input)
- * @param outLogLikelihoodSums     Pointer to destination for array of resulting log likelihoods (output)
+ *                                  of bufferIndices
+ * @param partitionIndices         List of partition indices indicating which sites in each 
+                                    partialsBuffer should be used (input). There should be one 
+                                    index for each of bufferIndices
+ * @param partitionCount           Number of distinct partitionIndices (input)
+ * @param count                    Number of sets of partitions to integrate across (input)
+ * @param outSumLogLikelihoodByPartition      Pointer to destination for resulting log likelihoods for each partition (output)
+ * @param outSumLogLikelihood      Pointer to destination for resulting log likelihood (output)
  *
  * @return error code
  */
-// BEAGLE_DLLEXPORT int beagleCalculateIndependentRootLogLikelihoods(int instance,
-//                                                                   const int* bufferIndices,
-//                                                                   const int* categoryWeightsIndices,
-//                                                                   const int* stateFrequenciesIndices,
-//                                                                   const int* cumulativeScaleIndices,
-//                                                                   const int* integrateCount,
-//                                                                   int totalCount,
-//                                                                   double* outLogLikelihoodSums);
+BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoodsByPartition(int instance,
+                                                                  const int* bufferIndices,
+                                                                  const int* categoryWeightsIndices,
+                                                                  const int* stateFrequenciesIndices,
+                                                                  const int* cumulativeScaleIndices,
+                                                                  const int* partitionIndices,
+                                                                  int partitionCount,
+                                                                  int count,
+                                                                  double* outSumLogLikelihoodByPartition,
+                                                                  double* outSumLogLikelihood);
 
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge

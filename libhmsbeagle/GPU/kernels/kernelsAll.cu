@@ -989,6 +989,102 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
 #endif
 }
 
+KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
+                                               KW_GLOBAL_VAR REAL* dSum,
+                                               KW_GLOBAL_VAR REAL* dPatternWeights,
+                                               int startPattern,
+                                               int endPattern) {
+#ifdef FW_OPENCL_CPU
+    
+    REAL sum = 0;
+
+    int pattern = startPattern + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+    int maxPattern = (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
+
+    if (maxPattern > endPattern)
+        maxPattern = endPattern;
+
+    while (pattern < maxPattern) {
+        FMA(dArray[pattern],  dPatternWeights[pattern], sum);
+        pattern++;
+    }
+
+    dSum[KW_GROUP_ID_0] = sum;
+
+#else
+    
+    KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
+
+    int tx = KW_LOCAL_ID_0;
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+
+    if (pattern < endPattern)
+        sum[tx] = dArray[pattern] * dPatternWeights[pattern];
+    else
+        sum[tx] = 0.0;
+
+    KW_LOCAL_FENCE;
+
+    for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+        if (tx < s)
+            sum[tx] += sum[tx + s];
+        KW_LOCAL_FENCE;
+    }
+
+    if (tx == 0)
+        dSum[KW_GROUP_ID_0] = sum[0];
+
+#endif
+}
+
+// KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL*         dArray,
+//                                                KW_GLOBAL_VAR REAL*         dSum,
+//                                                KW_GLOBAL_VAR REAL*         dPatternWeights,
+//                                                KW_GLOBAL_VAR unsigned int* dPtrOffsets) {
+    
+//     int opIndexPtr = KW_GROUP_ID_0 * 2;
+//     int startPattern = dPtrOffsets[opIndexPtr    ];
+//     int endPattern   = dPtrOffsets[opIndexPtr + 1];
+
+// #ifdef FW_OPENCL_CPU
+    
+//     REAL sum = 0;
+
+//     int pattern = startPattern + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+
+//     while (pattern < endPattern) {
+//         FMA(dArray[pattern],  dPatternWeights[pattern], sum);
+//         pattern++;
+//     }
+
+//     dSum[KW_GROUP_ID_0] = sum;
+
+// #else
+    
+//     KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
+
+//     int tx = KW_LOCAL_ID_0;
+//     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
+
+//     if (pattern < endPattern)
+//         sum[tx] = dArray[pattern] * dPatternWeights[pattern];
+//     else
+//         sum[tx] = 0.0;
+
+//     KW_LOCAL_FENCE;
+
+//     for (unsigned int s = SUM_SITES_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+//         if (tx < s)
+//             sum[tx] += sum[tx + s];
+//         KW_LOCAL_FENCE;
+//     }
+
+//     if (tx == 0)
+//         dSum[KW_GROUP_ID_0] = sum[0];
+
+// #endif
+// }
+
 KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
                                       KW_GLOBAL_VAR REAL* dSum1,
                                       KW_GLOBAL_VAR REAL* dArray2,
@@ -1156,6 +1252,33 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactors(KW_GLOBAL_VAR REAL* dScalingFactor
 #endif // FW_OPENCL_CPU
 }
 
+KW_GLOBAL_KERNEL void kernelAccumulateFactorsByPartition(KW_GLOBAL_VAR REAL* dScalingFactors,
+                                                         KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                                         KW_GLOBAL_VAR REAL* rootScaling,
+                                                         int nodeCount,
+                                                         int startPattern,
+                                                         int endPattern) {
+
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    KW_GLOBAL_VAR REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+        nodeScales = dScalingFactors + dNodePtrQueue[n];
+
+        REAL factor = nodeScales[pattern];
+        if (factor != 1.0) {
+            total += log(factor);
+        }
+    }
+
+    if (pattern < endPattern) {
+        rootScaling[pattern] += total;
+    }
+}
+
 KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dScalingFactors,
                                                  KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                                  KW_GLOBAL_VAR REAL* rootScaling,
@@ -1187,6 +1310,30 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dSca
 #endif // FW_OPENCL_CPU
 }
 
+KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLogByPartition(
+                                                KW_GLOBAL_VAR REAL* dScalingFactors,
+                                                KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                                KW_GLOBAL_VAR REAL* rootScaling,
+                                                int nodeCount,
+                                                int startPattern,
+                                                int endPattern) {
+
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    KW_GLOBAL_VAR REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+        nodeScales = dScalingFactors + dNodePtrQueue[n];
+
+        total += nodeScales[pattern];
+    }
+
+    if (pattern < endPattern) {
+        rootScaling[pattern] += total;
+    }
+}
 
 KW_GLOBAL_KERNEL void kernelRemoveFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
                                     KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
@@ -1222,6 +1369,32 @@ KW_GLOBAL_KERNEL void kernelRemoveFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
 #endif // FW_OPENCL_CPU
 }
 
+KW_GLOBAL_KERNEL void kernelRemoveFactorsByPartition(KW_GLOBAL_VAR REAL* dScalingFactors,
+                                                     KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                                     KW_GLOBAL_VAR REAL* rootScaling,
+                                                     int nodeCount,
+                                                     int startPattern,
+                                                     int endPattern) {
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    KW_GLOBAL_VAR REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+        nodeScales = dScalingFactors + dNodePtrQueue[n];
+
+        REAL factor = nodeScales[pattern];
+        if (factor != 1.0) {
+            total += log(factor);
+        }
+    }
+
+    if (pattern < endPattern) {
+        rootScaling[pattern] -= total;
+    }
+}
+
 KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLog(KW_GLOBAL_VAR REAL* dScalingFactors,
                                              KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                              KW_GLOBAL_VAR REAL* rootScaling,
@@ -1253,6 +1426,40 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLog(KW_GLOBAL_VAR REAL* dScaling
         rootScaling[pattern] -= total;
 #endif // FW_OPENCL_CPU
 }
+
+KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLogByPartition(KW_GLOBAL_VAR REAL* dScalingFactors,
+                                                               KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
+                                                               KW_GLOBAL_VAR REAL* rootScaling,
+                                                               int nodeCount,
+                                                               int startPattern,
+                                                               int endPattern) {
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    REAL total = 0;
+    KW_GLOBAL_VAR REAL* nodeScales;
+
+    int n;
+    for(n = 0; n < nodeCount; n++) {
+        nodeScales = dScalingFactors + dNodePtrQueue[n];
+
+        total += nodeScales[pattern];
+    }
+
+    if (pattern < endPattern)
+        rootScaling[pattern] -= total;
+
+}
+
+KW_GLOBAL_KERNEL void kernelResetFactorsByPartition(KW_GLOBAL_VAR REAL* dScalingFactors,
+                                                    int startPattern,
+                                                    int endPattern) {
+    int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    if (pattern < endPattern) {
+        dScalingFactors[pattern] = 0.0;
+    }
+}
+
 
 KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlow(KW_GLOBAL_VAR REAL* allPartials,
                                                  KW_GLOBAL_VAR REAL* scalingFactors,

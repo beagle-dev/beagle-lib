@@ -140,12 +140,18 @@ private:
     bool kUsingMultiGrid;
     int kNumPatternBlocks;
     int kSitesPerBlock;
+    int kSitesPerIntegrateBlock;
+    int kSumSitesBlockSize;
     size_t kOpOffsetsSize;
     unsigned int kIndexOffsetPat;
     unsigned int kIndexOffsetStates;
     unsigned int kIndexOffsetMat;
+    unsigned int kEvecOffset;
+    unsigned int kEvalOffset;
+    unsigned int kWeightsOffset;
+    unsigned int kFrequenciesOffset;
     GPUPtr  dPartialsPtrs;
-    GPUPtr  dPartitionOffsets;
+    // GPUPtr  dPartitionOffsets;
     GPUPtr  dPatternsNewOrder;
     GPUPtr  dTipOffsets;
     GPUPtr  dTipTypes;
@@ -156,6 +162,7 @@ private:
     GPUPtr* dStatesSort;
     unsigned int* hPartialsPtrs;
     unsigned int* hPartitionOffsets;
+    unsigned int* hIntegratePartitionOffsets;
     unsigned int* hPartialsOffsets;
     unsigned int* hStatesOffsets;
     int* hTipOffsets;
@@ -165,11 +172,14 @@ private:
     int kMaxPartitionCount;
     int kPaddedPartitionBlocks;
     int kMaxPaddedPartitionBlocks;
+    int kPaddedPartitionIntegrateBlocks;
+    int kMaxPaddedPartitionIntegrateBlocks;
     bool kPartitionsInitialised;
     bool kPatternsReordered;
     int* hPatternPartitions;
     int* hPatternPartitionsStartPatterns;
     int* hPatternPartitionsStartBlocks;
+    int* hIntegratePartitionsStartBlocks;
     int* hPatternsNewOrder;
     int* hGridOpIndices;
 
@@ -291,8 +301,7 @@ public:
                        int cumulativeScalingIndex);
 
     int updatePartialsByPartition(const int* operations,
-                                  int operationCount,
-                                  int cumulativeScalingIndex);
+                                  int operationCount);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
@@ -300,12 +309,24 @@ public:
     int accumulateScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
+
+    int accumulateScaleFactorsByPartition(const int* scalingIndices,
+                                          int count,
+                                          int cumulativeScalingIndex,
+                                          int partitionIndex);
     
     int removeScaleFactors(const int* scalingIndices,
                            int count,
                            int cumulativeScalingIndex);
+
+    int removeScaleFactorsByPartition(const int* scalingIndices,
+                                      int count,
+                                      int cumulativeScalingIndex,
+                                      int partitionIndex);
     
     int resetScaleFactors(int cumulativeScalingIndex);
+
+    int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
     
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);
@@ -319,6 +340,16 @@ public:
                                     const int* cumulativeScaleIndices,
                                     int count,
                                     double* outSumLogLikelihood);
+
+    int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood);
     
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                     const int* childBufferIndices,
@@ -344,7 +375,7 @@ private:
 
     void  allocateMultiGridBuffers();
 
-    void  reorderPatternsByPartition();
+    int  reorderPatternsByPartition();
 
     int upPartials(bool byPartition,
                    const int* operations,
