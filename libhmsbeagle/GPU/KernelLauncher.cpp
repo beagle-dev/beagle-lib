@@ -1675,8 +1675,8 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
                 bgScalePartitionGrid.x  = partitionPatternCount / 4;
                 if (partitionPatternCount % 4 != 0) {
                     bgScalePartitionGrid.x += 1; // 
-                    fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
-                    exit(-1);
+                    // fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
+                    // exit(-1);
                 }                
             } else { 
                 fprintf(stderr,"Partitioning and state count != 4 not implemented\n");
@@ -1697,13 +1697,13 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
     // TODO: Totally incoherent for kPaddedStateCount == 4        
     if (cumulativeScaling != 0) {
         int parameterCountV = 3;
-        int totalParameterCount = 6;
+        int totalParameterCount = 7;
         gpu->LaunchKernelConcurrent(fPartialsDynamicScalingAccumulateByPartition,
                                     bgScaleBlock, bgScalePartitionGrid,
                                     streamIndex, waitIndex,
                                     parameterCountV, totalParameterCount,
                                     partials3, scalingFactors, cumulativeScaling,
-                                    categoryCount, startPattern, endPattern);
+                                    categoryCount, startPattern, endPattern, patternCount);
     } else {
         int parameterCountV = 2;
         int totalParameterCount = 6;
