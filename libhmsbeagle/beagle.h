@@ -917,8 +917,8 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoods(int instance,
  *                                  each partialsBuffer (input). There should be one index for each
  *                                  of bufferIndices
  * @param partitionIndices         List of partition indices indicating which sites in each 
-                                    partialsBuffer should be used (input). There should be one 
-                                    index for each of bufferIndices
+ *                                  partialsBuffer should be used (input). There should be one 
+ *                                  index for each of bufferIndices
  * @param partitionCount           Number of distinct partitionIndices (input)
  * @param count                    Number of sets of partitions to integrate across (input)
  * @param outSumLogLikelihoodByPartition      Pointer to destination for resulting log likelihoods for each partition (output)
@@ -979,7 +979,8 @@ BEAGLE_DLLEXPORT int beagleCalculateEdgeLogLikelihoods(int instance,
                                       double* outSumSecondDerivative);
 
 /**
- * @brief Calculate multiple site log likelihoods and derivatives along an edge
+ * @brief Calculate multiple site log likelihoods and derivatives along an edge with 
+ *         per partition buffers
  *
  * This function integrates lists of partials at a parent and child node with respect
  * to a set of partials-weights and state frequencies to return the log likelihood
@@ -998,28 +999,39 @@ BEAGLE_DLLEXPORT int beagleCalculateEdgeLogLikelihoods(int instance,
  * @param cumulativeScaleIndices    List of scaleBuffers containing accumulated factors to apply to
  *                                   each partialsBuffer (input). There should be one index for each
  *                                   of parentBufferIndices
- * @param integrateCount            List of counts of buffer pairs to integrate (input)
- * @param totalCount                Total number of buffer pairs (input)
+ * @param partitionIndices          List of partition indices indicating which sites in each 
+ *                                   partialsBuffer should be used (input). There should be one 
+ *                                   index for each of parentBufferIndices
+ * @param partitionCount            Number of distinct partitionIndices (input)
+ * @param count                     Number of sets of partitions to integrate across (input)
+ * @param outSumLogLikelihoodByPartition      Pointer to destination for resulting log likelihoods for each partition (output)
  * @param outSumLogLikelihood       Pointer to destination for resulting log likelihood (output)
+ * @param outSumFirstDerivativeByPartition     Pointer to destination for resulting first derivative for each partition (output)
  * @param outSumFirstDerivative     Pointer to destination for resulting first derivative (output)
+ * @param outSumSecondDerivativeByPartition    Pointer to destination for resulting second derivative for each partition (output)
  * @param outSumSecondDerivative    Pointer to destination for resulting second derivative (output)
  *
  * @return error code
  */
-// BEAGLE_DLLEXPORT int beagleCalculateIndependentEdgeLogLikelihoods(int instance,
-//                                                                   const int* parentBufferIndices,
-//                                                                   const int* childBufferIndices,
-//                                                                   const int* probabilityIndices,
-//                                                                   const int* firstDerivativeIndices,
-//                                                                   const int* secondDerivativeIndices,
-//                                                                   const int* categoryWeightsIndices,
-//                                                                   const int* stateFrequenciesIndices,
-//                                                                   const int* cumulativeScaleIndices,
-//                                                                   const int* integrateCount,
-//                                                                   int totalCount,
-//                                                                   double* outSumLogLikelihood,
-//                                                                   double* outSumFirstDerivative,
-//                                                                   double* outSumSecondDerivative);
+BEAGLE_DLLEXPORT int beagleCalculateEdgeLogLikelihoodsByPartition(
+                                                    int instance,
+                                                    const int* parentBufferIndices,
+                                                    const int* childBufferIndices,
+                                                    const int* probabilityIndices,
+                                                    const int* firstDerivativeIndices,
+                                                    const int* secondDerivativeIndices,
+                                                    const int* categoryWeightsIndices,
+                                                    const int* stateFrequenciesIndices,
+                                                    const int* cumulativeScaleIndices,
+                                                    const int* partitionIndices,
+                                                    int partitionCount,
+                                                    int count,
+                                                    double* outSumLogLikelihoodByPartition,
+                                                    double* outSumLogLikelihood,
+                                                    double* outSumFirstDerivativeByPartition,
+                                                    double* outSumFirstDerivative,
+                                                    double* outSumSecondDerivativeByPartition,
+                                                    double* outSumSecondDerivative);
 
 /**
  * @brief Get site log likelihoods for last beagleCalculateRootLogLikelihoods or

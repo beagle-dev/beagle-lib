@@ -235,7 +235,9 @@ void runBeagle(int resource,
 	
 
     int* patternPartitions;
+    double* partitionLogLs;
     if (partitionCount > 1) {
+        partitionLogLs = (double*) malloc(sizeof(double) * partitionCount);
         patternPartitions = (int*) malloc(sizeof(int) * nsites);
         int partitionSize = nsites/partitionCount;
         for (int i = 0; i < nsites; i++) {
@@ -495,7 +497,7 @@ void runBeagle(int resource,
 	}	
 
     int* rootIndices = new int[eigenCount * partitionCount];
-	int* lastTipIndices = new int[eigenCount];
+	int* lastTipIndices = new int[eigenCount * partitionCount];
     int* categoryWeightsIndices = new int[eigenCount * partitionCount];
     int* stateFrequencyIndices = new int[eigenCount * partitionCount];
     int* cumulativeScalingFactorIndices = new int[eigenCount * partitionCount];
@@ -503,12 +505,12 @@ void runBeagle(int resource,
     
     for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
         int pOffset = partitionCount*eigenIndex;
-        lastTipIndices[eigenIndex] = ntaxa-1;
 
         for (int partitionIndex=0; partitionIndex < partitionCount; partitionIndex++) {
             if (eigenIndex == 0)
                 partitionIndices[partitionIndex] = partitionIndex;
             rootIndices[partitionIndex + pOffset] = ntaxa+(internalCount*(eigenIndex+1))-1;//ntaxa*2-2;
+            lastTipIndices[partitionIndex + pOffset] = ntaxa-1;
             categoryWeightsIndices[partitionIndex + pOffset] = eigenIndex;
             stateFrequencyIndices[partitionIndex + pOffset] = 0;
             cumulativeScalingFactorIndices[partitionIndex + pOffset] = ((manualScaling || dynamicScaling) ? (scaleCount*eigenCount-1)-eigenCount+eigenIndex+1 : BEAGLE_OP_NONE);
@@ -641,7 +643,6 @@ void runBeagle(int resource,
         // calculate the site likelihoods at the root node
         if (!unrooted) {
             if (partitionCount > 1) {
-                double* partitionLogLs = new double[partitionCount];
                 beagleCalculateRootLogLikelihoodsByPartition(
                                             instance,               // instance
                                             rootIndices,// bufferIndices
@@ -663,20 +664,41 @@ void runBeagle(int resource,
                                             &logL);         // outLogLikelihoods
             }
         } else {
-            // calculate the site likelihoods at the root node
-            beagleCalculateEdgeLogLikelihoods(instance,               // instance
-                                              rootIndices,// bufferIndices
-                                              lastTipIndices,
-                                              lastTipIndices,
-                                              (calcderivs ? edgeIndicesD1 : NULL),
-                                              (calcderivs ? edgeIndicesD2 : NULL),
-                                              categoryWeightsIndices,                // weights
-                                              stateFrequencyIndices,                 // stateFrequencies
-                                              cumulativeScalingFactorIndices,
-                                              eigenCount,                      // count
-                                              &logL,    // outLogLikelihood
-                                              (calcderivs ? &deriv1 : NULL),
-                                              (calcderivs ? &deriv2 : NULL));
+            if (partitionCount > 1) {
+                beagleCalculateEdgeLogLikelihoodsByPartition(
+                                                  instance,
+                                                  rootIndices,
+                                                  lastTipIndices,
+                                                  lastTipIndices,
+                                                  (NULL),
+                                                  (NULL),
+                                                  categoryWeightsIndices,
+                                                  stateFrequencyIndices,
+                                                  cumulativeScalingFactorIndices,
+                                                  partitionIndices,
+                                                  partitionCount,
+                                                  eigenCount,
+                                                  partitionLogLs,
+                                                  &logL,
+                                                  (NULL),
+                                                  (NULL),
+                                                  (NULL),
+                                                  (NULL));
+            } else {            
+                beagleCalculateEdgeLogLikelihoods(instance,               // instance
+                                                  rootIndices,// bufferIndices
+                                                  lastTipIndices,
+                                                  lastTipIndices,
+                                                  (calcderivs ? edgeIndicesD1 : NULL),
+                                                  (calcderivs ? edgeIndicesD2 : NULL),
+                                                  categoryWeightsIndices,                // weights
+                                                  stateFrequencyIndices,                 // stateFrequencies
+                                                  cumulativeScalingFactorIndices,
+                                                  eigenCount,                      // count
+                                                  &logL,    // outLogLikelihood
+                                                  (calcderivs ? &deriv1 : NULL),
+                                                  (calcderivs ? &deriv2 : NULL));
+            }
         }
         // end timing!
         gettimeofday(&time5,NULL);
@@ -731,6 +753,16 @@ void runBeagle(int resource,
         fprintf(stdout, "logL = %.5f \n", logL);
     else
         fprintf(stdout, "logL = %.5f d1 = %.5f d2 = %.5f\n", logL, deriv1, deriv2);
+
+    if (partitionCount > 1) {
+        fprintf(stdout, " (");
+        for (int p=0; p < partitionCount; p++) {
+            fprintf(stdout, "p%d = %.5f", p, partitionLogLs[p]);
+            if (p < partitionCount - 1)
+                fprintf(stdout, ", ");
+        }
+        fprintf(stdout, ")\n");
+    }
     
     if (sitelikes) {
         double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
@@ -842,7 +874,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";

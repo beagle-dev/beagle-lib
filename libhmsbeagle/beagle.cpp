@@ -1205,6 +1205,61 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
 //    }
 }
 
+int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
+                                                 const int* parentBufferIndices,
+                                                 const int* childBufferIndices,
+                                                 const int* probabilityIndices,
+                                                 const int* firstDerivativeIndices,
+                                                 const int* secondDerivativeIndices,
+                                                 const int* categoryWeightsIndices,
+                                                 const int* stateFrequenciesIndices,
+                                                 const int* cumulativeScaleIndices,
+                                                 const int* partitionIndices,
+                                                 int partitionCount,
+                                                 int count,
+                                                 double* outSumLogLikelihoodByPartition,
+                                                 double* outSumLogLikelihood,
+                                                 double* outSumFirstDerivativeByPartition,
+                                                 double* outSumFirstDerivative,
+                                                 double* outSumSecondDerivativeByPartition,
+                                                 double* outSumSecondDerivative) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->calculateEdgeLogLikelihoodsByPartition(
+                                                        parentBufferIndices,
+                                                        childBufferIndices,
+                                                        probabilityIndices,
+                                                        firstDerivativeIndices,
+                                                        secondDerivativeIndices,
+                                                        categoryWeightsIndices,
+                                                        stateFrequenciesIndices,
+                                                        cumulativeScaleIndices,
+                                                        partitionIndices,
+                                                        partitionCount,
+                                                        count,
+                                                        outSumLogLikelihoodByPartition,
+                                                        outSumLogLikelihood,
+                                                        outSumFirstDerivativeByPartition,
+                                                        outSumFirstDerivative,
+                                                        outSumSecondDerivativeByPartition,
+                                                        outSumSecondDerivative);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+}
+
 int beagleGetSiteLogLikelihoods(int instance,
                                 double* outLogLikelihoods) {
     DEBUG_START_TIME();

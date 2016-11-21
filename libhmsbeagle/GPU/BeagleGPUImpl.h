@@ -364,6 +364,24 @@ public:
                                     double* outSumFirstDerivative,
                                     double* outSumSecondDerivative);
 
+    int calculateEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                               const int* childBufferIndices,
+                                               const int* probabilityIndices,
+                                               const int* firstDerivativeIndices,
+                                               const int* secondDerivativeIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood,
+                                               double* outSumFirstDerivativeByPartition,
+                                               double* outSumFirstDerivative,
+                                               double* outSumSecondDerivativeByPartition,
+                                               double* outSumSecondDerivative);
+
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     
     int getSiteDerivatives(double* outFirstDerivatives,
