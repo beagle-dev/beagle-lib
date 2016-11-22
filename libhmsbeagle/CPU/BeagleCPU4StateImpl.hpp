@@ -731,6 +731,107 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoods(const int pa
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
+                                                          const int* parentBufferIndices,
+                                                          const int* childBufferIndices,
+                                                          const int* probabilityIndices,
+                                                          const int* categoryWeightsIndices,
+                                                          const int* stateFrequenciesIndices,
+                                                          const int* cumulativeScaleIndices,
+                                                          const int* partitionIndices,
+                                                          int partitionCount,
+                                                          double* outSumLogLikelihoodByPartition,
+                                                          double* outSumLogLikelihood) {
+
+    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
+
+    for (int p = 0; p < partitionCount; p++) {
+        int pIndex = partitionIndices[p];
+        
+        int startPattern = gPatternPartitionsStartPatterns[pIndex];
+        int endPattern = gPatternPartitionsStartPatterns[pIndex + 1];
+
+        const int parIndex = parentBufferIndices[p];
+        const int childIndex = childBufferIndices[p];
+        const int probIndex = probabilityIndices[p];
+        const int categoryWeightsIndex = categoryWeightsIndices[p];
+
+        assert(parIndex >= kTipCount);
+        
+        const REALTYPE* partialsParent = gPartials[parIndex];
+        const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
+        const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+        
+        if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+          
+            const int* statesChild = gTipStates[childIndex];    
+            int v = startPattern * 4; // Index for parent partials
+            int w = 0;
+            for(int l = 0; l < kCategoryCount; l++) {
+                int u = startPattern * 4; // Index in resulting product-partials (summed over categories)
+                const REALTYPE weight = wt[l];
+                for(int k = startPattern; k < endPattern; k++) {
+                    
+                    const int stateChild = statesChild[k]; 
+                    
+                    integrationTmp[u    ] += transMatrix[w            + stateChild] * partialsParent[v    ] * weight;                                               
+                    integrationTmp[u + 1] += transMatrix[w + OFFSET*1 + stateChild] * partialsParent[v + 1] * weight;
+                    integrationTmp[u + 2] += transMatrix[w + OFFSET*2 + stateChild] * partialsParent[v + 2] * weight;
+                    integrationTmp[u + 3] += transMatrix[w + OFFSET*3 + stateChild] * partialsParent[v + 3] * weight;
+                    
+                    u += 4;
+                    v += 4;                
+                }
+                w += OFFSET*4;
+                if (kExtraPatterns)
+                  v += 4 * kExtraPatterns;
+                v += ((kPatternCount - endPattern) + startPattern) * 4;
+            }
+        } else { // Integrate against a partial at the child
+            const REALTYPE* partialsChild = gPartials[childIndex];
+        #if 0//
+            int v = 0;
+        #endif
+            int w = 0;
+            for(int l = 0; l < kCategoryCount; l++) {            
+                int u = startPattern * 4;
+          #if 1//
+          int v = l*kPaddedPatternCount*4 + startPattern * 4;
+          #endif
+                const REALTYPE weight = wt[l];
+                
+                PREFETCH_MATRIX(1,transMatrix,w);
+                
+                for(int k = startPattern; k < endPattern; k++) {                
+                                     
+                    const REALTYPE* partials1 = partialsChild;
+                    
+                    PREFETCH_PARTIALS(1,partials1,v);
+                    
+                    DO_INTEGRATION(1);
+                    
+                    integrationTmp[u    ] += sum10 * partialsParent[v    ] * weight;
+                    integrationTmp[u + 1] += sum11 * partialsParent[v + 1] * weight;
+                    integrationTmp[u + 2] += sum12 * partialsParent[v + 2] * weight;
+                    integrationTmp[u + 3] += sum13 * partialsParent[v + 3] * weight;
+                    
+                    u += 4;
+                    v += 4;
+                } 
+                w += OFFSET*4;
+          #if 0//
+                if (kExtraPatterns)
+                  v += 4 * kExtraPatterns;
+                v += ((kPatternCount - endPattern) + startPattern) * 4;
+          #endif//
+            }
+        }
+    }
+
+    return integrateOutStatesAndScaleByPartition(integrationTmp, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition, outSumLogLikelihood);
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIndex,
                                                            const int categoryWeightsIndex,
                                                            const int stateFrequenciesIndex,

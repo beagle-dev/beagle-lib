@@ -1855,7 +1855,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
                                                   double* outSumLogLikelihood) {
 
     int returnCode = BEAGLE_SUCCESS;
+    
     *outSumLogLikelihood = 0.0;
+    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
@@ -1876,8 +1878,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
         const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
         const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
         const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
-
-        // memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
 
         if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
             const int* statesChild = gTipStates[childIndex];

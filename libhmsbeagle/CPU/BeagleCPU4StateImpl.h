@@ -124,6 +124,17 @@ public:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
+
+    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                               const int *child0States,

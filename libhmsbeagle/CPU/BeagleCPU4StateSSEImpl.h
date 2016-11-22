@@ -70,6 +70,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::realtypeMin;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternWeights;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternPartitionsStartPatterns;
     
 public:    
     virtual const char* getName();
@@ -127,6 +128,17 @@ private:
                                        const int stateFrequenciesIndex,
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
+
+    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
 };
     
@@ -151,6 +163,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::realtypeMin;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternWeights;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
     
 public:
     virtual const char* getName();
@@ -218,6 +231,17 @@ private:
                                        const int stateFrequenciesIndex,
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
+
+    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
 };
     
