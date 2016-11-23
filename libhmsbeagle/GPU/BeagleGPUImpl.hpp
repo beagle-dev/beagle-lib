@@ -153,9 +153,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             free(hPatternPartitions);
             free(hPatternPartitionsStartPatterns);
             free(hIntegratePartitionsStartBlocks);
-            if (kUsingMultiGrid) {
-                free(hPatternPartitionsStartBlocks);
-            }
+            free(hPatternPartitionsStartBlocks);
             free(hIntegratePartitionOffsets);
             if (kPatternsReordered) {
                 free(hPatternsNewOrder);
@@ -1277,44 +1275,41 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
             allocateMultiGridBuffers();
             kUsingMultiGrid = true;
         }
-
-        if (!kPartitionsInitialised || kPartitionCount > kMaxPartitionCount) {
-            if (kPartitionsInitialised) {
-                free(hPatternPartitionsStartBlocks);
-            }
-            hPatternPartitionsStartBlocks = (int*) malloc(sizeof(int) * (kPartitionCount+1));
-            checkHostMemory(hPatternPartitionsStartBlocks);
-        }
-
-        int blockIndex = 0;
-        for (int i=0; i < kPartitionCount; i++) {
-            hPatternPartitionsStartBlocks[i] = blockIndex;
-            int partitionStart = hPatternPartitionsStartPatterns[i];
-            int partitionEnd = hPatternPartitionsStartPatterns[i+1];
-            int partitionBlocks = (partitionEnd - partitionStart) / kSitesPerBlock;
-            for (int j=0; j < partitionBlocks; j++) {
-                int blockStart = partitionStart + j*kSitesPerBlock;
-                hPartitionOffsets[blockIndex*2    ] = blockStart;
-                hPartitionOffsets[blockIndex*2 + 1] = blockStart + kSitesPerBlock;
-                blockIndex++;
-            }
-            int partitionRemainder = (partitionEnd - partitionStart) % kSitesPerBlock;
-            if (partitionRemainder != 0) {
-                int blockStart = partitionStart + partitionBlocks*kSitesPerBlock;
-                hPartitionOffsets[blockIndex*2    ] = blockStart;
-                hPartitionOffsets[blockIndex*2 + 1] = blockStart + partitionRemainder;
-                blockIndex++;
-            }
-        }
-        hPatternPartitionsStartBlocks[kPartitionCount] = blockIndex;
-
-        // size_t transferSize = sizeof(unsigned int) * kPaddedPartitionBlocks * 2;
-        // gpu->MemcpyHostToDevice(dPartitionOffsets, hPartitionOffsets, transferSize);
     }
 
     // make sure we always allocate multi-grid buffers because of integration step
     if (!kUsingMultiGrid && !kPartitionsInitialised)
         allocateMultiGridBuffers();
+
+    if (!kPartitionsInitialised || kPartitionCount > kMaxPartitionCount) {
+        if (kPartitionsInitialised) {
+            free(hPatternPartitionsStartBlocks);
+        }
+        hPatternPartitionsStartBlocks = (int*) malloc(sizeof(int) * (kPartitionCount+1));
+        checkHostMemory(hPatternPartitionsStartBlocks);
+    }
+
+    int blockIndex = 0;
+    for (int i=0; i < kPartitionCount; i++) {
+        hPatternPartitionsStartBlocks[i] = blockIndex;
+        int partitionStart = hPatternPartitionsStartPatterns[i];
+        int partitionEnd = hPatternPartitionsStartPatterns[i+1];
+        int partitionBlocks = (partitionEnd - partitionStart) / kSitesPerBlock;
+        for (int j=0; j < partitionBlocks; j++) {
+            int blockStart = partitionStart + j*kSitesPerBlock;
+            hPartitionOffsets[blockIndex*2    ] = blockStart;
+            hPartitionOffsets[blockIndex*2 + 1] = blockStart + kSitesPerBlock;
+            blockIndex++;
+        }
+        int partitionRemainder = (partitionEnd - partitionStart) % kSitesPerBlock;
+        if (partitionRemainder != 0) {
+            int blockStart = partitionStart + partitionBlocks*kSitesPerBlock;
+            hPartitionOffsets[blockIndex*2    ] = blockStart;
+            hPartitionOffsets[blockIndex*2 + 1] = blockStart + partitionRemainder;
+            blockIndex++;
+        }
+    }
+    hPatternPartitionsStartBlocks[kPartitionCount] = blockIndex;
 
     // always using 'multi-grid' approach to root integration
     int totalIntegrateBlocks = 0;
@@ -1338,7 +1333,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
         hIntegratePartitionsStartBlocks = (int*) malloc(sizeof(int) * (kPartitionCount+1));
         checkHostMemory(hIntegratePartitionsStartBlocks);
     }
-    int blockIndex = 0;
+    blockIndex = 0;
     for (int i=0; i < kPartitionCount; i++) {
         hIntegratePartitionsStartBlocks[i] = blockIndex;
         int partitionStart = hPatternPartitionsStartPatterns[i];
