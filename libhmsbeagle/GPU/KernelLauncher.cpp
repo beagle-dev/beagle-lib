@@ -293,12 +293,18 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsEdgeLikelihoods = gpu->GetFunction(
             "kernelPartialsPartialsEdgeLikelihoods");
+
+    fPartialsPartialsEdgeLikelihoodsByPartition = gpu->GetFunction(
+            "kernelPartialsPartialsEdgeLikelihoodsByPartition");
     
     fPartialsPartialsEdgeLikelihoodsSecondDeriv = gpu->GetFunction(
             "kernelPartialsPartialsEdgeLikelihoodsSecondDeriv");
 
     fStatesPartialsEdgeLikelihoods = gpu->GetFunction(
             "kernelStatesPartialsEdgeLikelihoods");
+
+    fStatesPartialsEdgeLikelihoodsByPartition = gpu->GetFunction(
+            "kernelStatesPartialsEdgeLikelihoodsByPartition");
 
     fStatesPartialsEdgeLikelihoodsSecondDeriv = gpu->GetFunction(
             "kernelStatesPartialsEdgeLikelihoodsSecondDeriv");
@@ -1295,6 +1301,33 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
 
 }
 
+void KernelLauncher::PartialsPartialsEdgeLikelihoodsByPartition(GPUPtr dPartialsTmp,
+                                                                GPUPtr dPartialsOrigin,
+                                                                GPUPtr dMatricesOrigin,
+                                                                GPUPtr dPtrOffsets,
+                                                                unsigned int patternCount,
+                                                                int gridSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoodsByPartition\n");
+#endif
+
+    int tmpGridx = bgPeelingGrid.x;
+    bgPeelingGrid.x = gridSize;
+
+    gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoodsByPartition,
+                      bgPeelingBlock, bgPeelingGrid,
+                      4, 5,
+                      dPartialsTmp, dPartialsOrigin, dMatricesOrigin, dPtrOffsets,
+                      patternCount);
+
+    bgPeelingGrid.x = tmpGridx;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoodsByPartition\n");
+#endif
+
+}
+
 void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                                 GPUPtr dFirstDerivTmp,
                                                                 GPUPtr dSecondDerivTmp,
@@ -1364,6 +1397,34 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoods\n");
 #endif
     
+}
+
+void KernelLauncher::StatesPartialsEdgeLikelihoodsByPartition(GPUPtr dPartialsTmp,
+                                                              GPUPtr dPartialsOrigin,
+                                                              GPUPtr dStatesOrigin,
+                                                              GPUPtr dMatricesOrigin,
+                                                              GPUPtr dPtrOffsets,
+                                                              unsigned int patternCount,
+                                                              int gridSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoodsByPartition\n");
+#endif
+
+    int tmpGridx = bgPeelingGrid.x;
+    bgPeelingGrid.x = gridSize;
+
+    gpu->LaunchKernel(fStatesPartialsEdgeLikelihoodsByPartition,
+                      bgPeelingBlock, bgPeelingGrid,
+                      5, 6,
+                      dPartialsTmp, dPartialsOrigin, dStatesOrigin, dMatricesOrigin, dPtrOffsets,
+                      patternCount);
+
+    bgPeelingGrid.x = tmpGridx;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoodsByPartition\n");
+#endif
+
 }
 
 void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,

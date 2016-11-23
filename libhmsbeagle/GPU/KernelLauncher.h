@@ -73,8 +73,10 @@ private:
     GPUFunction fStatesStatesByPatternBlockFixedScalingPartition;
     GPUFunction fStatesStatesByPatternBlockFixedScaling;
     GPUFunction fPartialsPartialsEdgeLikelihoods;
+    GPUFunction fPartialsPartialsEdgeLikelihoodsByPartition;
     GPUFunction fPartialsPartialsEdgeLikelihoodsSecondDeriv;
     GPUFunction fStatesPartialsEdgeLikelihoods;
+    GPUFunction fStatesPartialsEdgeLikelihoodsByPartition;
     GPUFunction fStatesPartialsEdgeLikelihoodsSecondDeriv;
         
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
@@ -329,6 +331,13 @@ public:
                                          GPUPtr dTransMatrix,
                                          unsigned int patternCount,
                                          unsigned int categoryCount);
+
+    void PartialsPartialsEdgeLikelihoodsByPartition(GPUPtr dPartialsTmp,
+                                                    GPUPtr dPartialsOrigin,
+                                                    GPUPtr dMatricesOrigin,
+                                                    GPUPtr dPtrOffsets,
+                                                    unsigned int patternCount,
+                                                    int gridSize);
     
     void PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                     GPUPtr dFirstDerivTmp,
@@ -348,6 +357,14 @@ public:
                                        GPUPtr dTransMatrix,
                                        unsigned int patternCount,
                                        unsigned int categoryCount);
+
+    void StatesPartialsEdgeLikelihoodsByPartition(GPUPtr dPartialsTmp,
+                                                  GPUPtr dPartialsOrigin,
+                                                  GPUPtr dStatesOrigin,
+                                                  GPUPtr dMatricesOrigin,
+                                                  GPUPtr dPtrOffsets,
+                                                  unsigned int patternCount,
+                                                  int gridSize);
     
     void StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                   GPUPtr dFirstDerivTmp,

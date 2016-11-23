@@ -77,6 +77,13 @@
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\
     int deltaPartials = deltaPartialsByMatrix + deltaPartialsByState;    
 
+#define DETERMINE_INDICES_4_EDGEPART_1_CPU()\
+    int opIndexPtr = KW_GROUP_ID_0 * 5;\
+    int startPat   = ptrOffsets[opIndexPtr    ];\
+    int endPattern = ptrOffsets[opIndexPtr + 1];\
+    int patIdx = KW_LOCAL_ID_0;\
+    int pattern = startPat + patIdx;    
+    
 #define SUM_PARTIALS_PARTIALS_4_CPU()\
     REAL sum1[PADDED_STATE_COUNT];\
     REAL sum2[PADDED_STATE_COUNT];\
@@ -405,6 +412,21 @@
     int x2 = multBy16(matrix);\
     int pattern = startPattern + __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;\
     int deltaPartialsByState = multBy4(startPattern) + multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);\
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+#define DETERMINE_INDICES_4_EDGEPART_1_GPU()\
+    int opIndexPtr = KW_GROUP_ID_0 * 5;\
+    int startPat   = ptrOffsets[opIndexPtr    ];\
+    int endPattern = ptrOffsets[opIndexPtr + 1];\
+    int tx = KW_LOCAL_ID_0;\
+    int state = tx & 0x3;\
+    int pat = tx >> 2;\
+    int patIdx = KW_LOCAL_ID_1;\
+    int matrix = KW_GROUP_ID_1;\
+    int pattern = startPat + multBy4(patIdx) + pat;\
+    int deltaPartialsByState = multBy4(startPat) + multBy16(patIdx);\
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));\
+    int x2 = multBy16(matrix);\
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
 #define LOAD_PARTIALS_PARTIALS_4_GPU()\
@@ -1781,6 +1803,40 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* 
 #endif // FW_OPENCL_CPU
 }
 
+KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsByPartition(
+                                    KW_GLOBAL_VAR REAL* KW_RESTRICT         dPartialsTmp,
+                              const KW_GLOBAL_VAR REAL* KW_RESTRICT         partials,
+                                    KW_GLOBAL_VAR REAL* KW_RESTRICT         matrices,
+                              const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                  int                       totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_4_EDGEPART_1_CPU();
+    if (pattern < endPattern) {
+        DETERMINE_INDICES_4_MULTI_2_CPU();
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 4];
+        SUM_PARTIALS_SINGLE_4_CPU();
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            dPartialsTmp[deltaPartials + i] = sum1[i] * sPartials2[i];
+        }
+    }
+
+#else // GPU implementation
+    DETERMINE_INDICES_4_EDGEPART_1_GPU();
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 3];
+          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 4];
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU();
+    LOAD_MATRIX_SINGLE_4_GPU();
+    if (pattern < endPattern) {
+        SUM_PARTIALS_SINGLE_4_GPU();
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx16pat4 | state];
+    }
+#endif // FW_OPENCL_CPU
+}
+
+
 KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT dPartialsTmp,
                                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT dFirstDerivTmp,
                                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT dSecondDerivTmp,
@@ -1825,6 +1881,41 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* KW
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
     LOAD_PARTIALS_SINGLE_4_GPU();
+    LOAD_MATRIX_SINGLE_4_GPU();
+    if (pattern < endPattern) {
+        SUM_STATES_SINGLE_4_GPU();
+        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+        dPartialsTmp[u] = sum1 * sPartials2[patIdx16pat4 | state];
+    }
+#endif // FW_OPENCL_CPU
+}
+
+KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsByPartition(
+                                    KW_GLOBAL_VAR REAL*         KW_RESTRICT dPartialsTmp,
+                              const KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
+                              const KW_GLOBAL_VAR int*          KW_RESTRICT states,
+                                    KW_GLOBAL_VAR REAL*         KW_RESTRICT matrices,
+                              const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                  int                       totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_4_EDGEPART_1_CPU();
+    if (pattern < endPattern) {
+        DETERMINE_INDICES_4_MULTI_2_CPU();
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + ptrOffsets[opIndexPtr + 2];
+        const KW_GLOBAL_VAR int*  KW_RESTRICT dChildStates = states + ptrOffsets[opIndexPtr + 3];
+        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 = matrices + ptrOffsets[opIndexPtr + 4];
+        SUM_STATES_SINGLE_4_CPU();
+        for(int i = 0; i < PADDED_STATE_COUNT; i++) {
+            dPartialsTmp[deltaPartials + i] = sum1[i] * sPartials2[i];
+        }
+    }
+
+#else // GPU implementation
+    DETERMINE_INDICES_4_EDGEPART_1_GPU();
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 =  partials + ptrOffsets[opIndexPtr + 2];
+    const KW_GLOBAL_VAR int*  KW_RESTRICT dChildStates = states + ptrOffsets[opIndexPtr + 3];
+          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1 =  matrices + ptrOffsets[opIndexPtr + 4];
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU();
     LOAD_MATRIX_SINGLE_4_GPU();
     if (pattern < endPattern) {
         SUM_STATES_SINGLE_4_GPU();
