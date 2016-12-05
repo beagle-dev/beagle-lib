@@ -687,7 +687,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPaddedPartitionIntegrateBlocks = (kPaddedPatternCount + kSitesPerIntegrateBlock - 1) / kSitesPerIntegrateBlock;
     kMaxPaddedPartitionIntegrateBlocks = kPaddedPartitionIntegrateBlocks;
     kUsingMultiGrid = false;
-    if (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX) {
+    if (kPaddedStateCount == 4 && (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX)) {
         kUsingMultiGrid = true;
         allocateMultiGridBuffers();
 
@@ -1191,6 +1191,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
     fprintf(stderr, "\tEntering BeagleGPUImpl::setPatternPartitions\n");
 #endif
     
+    if (kPaddedStateCount != 4) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+
     int returnCode = BEAGLE_SUCCESS;
 
     assert(partitionCount > 0);
