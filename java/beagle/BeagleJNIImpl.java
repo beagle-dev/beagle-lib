@@ -216,10 +216,24 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void accumulateScaleFactorsByPartition(final int[] scaleIndices, final int count, final int cumulativeScaleIndex, final int partitionIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactorsByPartition(instance, scaleIndices, count, cumulativeScaleIndex, partitionIndex);
+        if (errCode != 0) {
+            throw new BeagleException("accumulateScaleFactorsByPartition", errCode);
+        }
+    }
+
     public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.removeScaleFactors(instance, scaleIndices, count, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("removeScaleFactors", errCode);
+        }
+    }
+
+    public void removeScaleFactorsByPartition(int[] scaleIndices, int count, int cumulativeScaleIndex, int partitionIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.removeScaleFactorsByPartition(instance, scaleIndices, count, cumulativeScaleIndex, partitionIndex);
+        if (errCode != 0) {
+            throw new BeagleException("removeScaleFactorsByPartition", errCode);
         }
     }
 
@@ -234,6 +248,13 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.resetScaleFactors(instance, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("resetScaleFactors", errCode);
+        }
+    }
+
+    public void resetScaleFactorsByPartition(int cumulativeScaleIndex, int partitionIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.resetScaleFactorsByPartition(instance, cumulativeScaleIndex, partitionIndex);
+        if (errCode != 0) {
+            throw new BeagleException("resetScaleFactorsByPartition", errCode);
         }
     }
 
@@ -256,7 +277,30 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-    public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
+    public void calculateRootLogLikelihoodsByPartition(int[] bufferIndices,
+                                            final int[] categoryWeightsIndices,
+                                            final int[] stateFrequenciesIndices,
+                                            final int[] cumulativeScaleIndices,
+                                            final int[] partitionIndices,
+                                            int partitionCount,
+                                            final double[] outSumLogLikelihoodByPartition,
+                                            final double[] outSumLogLikelihood) {
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoodsByPartition(instance,
+                bufferIndices,
+                categoryWeightsIndices,
+                stateFrequenciesIndices,
+                cumulativeScaleIndices,
+                partitionIndices,
+                partitionCount,
+                outSumLogLikelihoodByPartition,
+                outSumLogLikelihood);
+        // We probably don't want the Floating Point error to throw an exception...
+        if (errCode != 0 && errCode != BeagleErrorCode.FLOATING_POINT_ERROR.getErrCode()) {
+            throw new BeagleException("calculateRootLogLikelihoodsByPartition", errCode);
+        }
+    }
+
+    /*public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices,
                                             final int[] childBufferIndices,
                                             final int[] probabilityIndices,
                                             final int[] firstDerivativeIndices,
@@ -284,7 +328,7 @@ public class BeagleJNIImpl implements Beagle {
         if (errCode != 0) {
             throw new BeagleException("calculateEdgeLogLikelihoods", errCode);
         }
-    }
+    }*/
 
     public void getSiteLogLikelihoods(final double[] outLogLikelihoods) {
         int errCode = BeagleJNIWrapper.INSTANCE.getSiteLogLikelihoods(instance,

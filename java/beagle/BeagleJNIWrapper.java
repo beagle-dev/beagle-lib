@@ -113,13 +113,29 @@ public class BeagleJNIWrapper {
                                              final int count,
                                              final int cumulativeScalingIndex);
 
+    public native int accumulateScaleFactorsByPartition(final int instance,
+                                                        final int[] scaleIndices,
+                                                        int count,
+                                                        int cumulativeScaleIndex,
+                                                        int partitionIndex);
+
     public native int removeScaleFactors(final int instance,
                                          final int[] scaleIndices,
                                          final int count,
                                          final int cumulativeScalingIndex);
 
+    public native int removeScaleFactorsByPartition(final int instance,
+                                         final int[] scaleIndices,
+                                         final int count,
+                                         final int cumulativeScalingIndex,
+                                         final int partitionIndex);
+
     public native int resetScaleFactors(final int instance,
                                         final int cumulativeScalingIndex);
+
+    public native int resetScaleFactorsByPartition(final int instance,
+                                        final int cumulativeScalingIndex,
+                                        final int partitionIndex);
 
     public native int copyScaleFactors(final int instance,
                                        final int destScalingIndex,
@@ -133,7 +149,17 @@ public class BeagleJNIWrapper {
                                                   int count,
                                                   final double[] outSumLogLikelihood);
 
-    public native int calculateEdgeLogLikelihoods(int instance,
+    public native int calculateRootLogLikelihoodsByPartition(int instance,
+                                                  final int[] bufferIndices,
+                                                  final int[] categoryWeightsIndices,
+                                                  final int[] stateFrequenciesIndices,
+                                                  final int[] cumulativeScaleIndices,
+                                                  final int[] partitionIndices,
+                                                  int partitionCount,
+                                                  final double[] outSumLogLikelihoodByPartition,
+                                                  final double[] outSumLogLikelihood);
+
+    /*public native int calculateEdgeLogLikelihoods(int instance,
                                                   final int[] parentBufferIndices,
                                                   final int[] childBufferIndices,
                                                   final int[] probabilityIndices,
@@ -145,7 +171,7 @@ public class BeagleJNIWrapper {
                                                   int count,
                                                   final double[] outSumLogLikelihood,
                                                   final double[] outSumFirstDerivative,
-                                                  final double[] outSumSecondDerivative);
+                                                  final double[] outSumSecondDerivative);*/
 
     public native int getSiteLogLikelihoods(final int instance,
                                             final double[] outLogLikelihoods);

@@ -397,6 +397,24 @@ public interface Beagle extends Serializable {
     );
 
     /**
+     * Accumulate scale factors by partition
+     *
+     * This function adds (log) scale factors from a list of scaleBuffers to a cumulative scale
+     * buffer. It is used to calculate the marginal scaling at a specific node for each site.
+     *
+     * @param scaleIndices            	List of scaleBuffers to add (input)
+     * @param count                     Number of scaleBuffers in list (input)
+     * @param cumulativeScaleIndex      Index number of scaleBuffer to accumulate factors into (input)
+     * @param partitionIndex            Index number of partition (input)
+     */
+    void accumulateScaleFactorsByPartition(
+            final int[] scaleIndices,
+            int count,
+            int cumulativeScaleIndex,
+            int partitionIndex
+    );
+
+    /**
      * Remove scale factors
      *
      * This function removes (log) scale factors from a cumulative scale buffer. The
@@ -410,6 +428,24 @@ public interface Beagle extends Serializable {
             final int[] scaleIndices,
             final int count,
             final int cumulativeScaleIndex
+    );
+
+    /**
+     * Remove scale factors by partition
+     *
+     * This function removes (log) scale factors from a cumulative scale buffer. The
+     * scale factors to be removed are indicated in a list of scaleBuffers.
+     *
+     * @param scaleIndices            	List of scaleBuffers to remove (input)
+     * @param count                     Number of scaleBuffers in list (input)
+     * @param cumulativeScaleIndex    	Index number of scaleBuffer containing accumulated factors (input)
+     * @param partitionIndex            Index number of partition (input)
+     */
+    void removeScaleFactorsByPartition(
+            final int[] scaleIndices,
+            final int count,
+            final int cumulativeScaleIndex,
+            final int partitionIndex
     );
 
     /**
@@ -433,6 +469,16 @@ public interface Beagle extends Serializable {
      * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
      */
     void resetScaleFactors(int cumulativeScaleIndex);
+
+    /**
+     * Reset scalefactors by partition
+     *
+     * This function resets a cumulative scale buffer.
+     *
+     * @param cumulativeScaleIndex    	Index number of cumulative scaleBuffer (input)
+     * @param partitionIndex            Index number of partition (input)
+     */
+    void resetScaleFactorsByPartition(int cumulativeScaleIndex, int partitionIndex);
 
     /**
      * Calculate site log likelihoods at a root node
@@ -460,6 +506,35 @@ public interface Beagle extends Serializable {
                                      double[] outSumLogLikelihood);
 
     /**
+     * Calculate site log likelihoods at a root node by partition
+     *
+     * This function integrates a list of partials at a node with respect to a set of partials-weights and
+     * state frequencies to return the log likelihoods for each site
+     *
+     * @param bufferIndices             List of partialsBuffer indices to integrate (input)
+     * @param categoryWeightsIndices    List of indices of category weights to apply to each partialsBuffer (input)
+     *                                      should be one categoryCount sized set for each of
+     *                                      parentBufferIndices
+     * @param stateFrequenciesIndices   List of indices of state frequencies for each partialsBuffer (input)
+     *                                      should be one set for each of parentBufferIndices
+     * @param cumulativeScaleIndices    List of scalingFactors indices to accumulate over (input). There
+     *                                      should be one set for each of parentBufferIndices
+     * @param partitionIndices          TODO (input)
+     * @param partitionCount            Number of partialsBuffer to integrate (input)
+     * @param outSumLogLikelihoodByPartition     Pointer to destination for resulting sum of per partition log likelihoods (output)
+     * @param outSumLogLikelihood       Pointer to destination for resulting sum of log likelihoods (output)
+     */
+
+    void calculateRootLogLikelihoodsByPartition(int[] bufferIndices,
+                                     int[] categoryWeightsIndices,
+                                     int[] stateFrequenciesIndices,
+                                     int[] cumulativeScaleIndices,
+                                     int[] partitionIndices,
+                                     int partitionCount,
+                                     double[] outSumLogLikelihoodByPartition,
+                                     double[] outSumLogLikelihood);
+
+    /**
      * Calculate site log likelihoods and derivatives along an edge
      *
      * This function integrates at list of partials at a parent and child node with respect
@@ -482,7 +557,7 @@ public interface Beagle extends Serializable {
      * @param outSumSecondDerivative    Pointer to destination for resulting sum of second derivatives (output)
      */
 
-    void calculateEdgeLogLikelihoods(int[] parentBufferIndices,
+    /*void calculateEdgeLogLikelihoods(int[] parentBufferIndices,
                                      int[] childBufferIndices,
                                      int[] probabilityIndices,
                                      int[] firstDerivativeIndices,
@@ -493,7 +568,7 @@ public interface Beagle extends Serializable {
                                      int count,
                                      double[] outSumLogLikelihood,
                                      double[] outSumFirstDerivative,
-                                     double[] outSumSecondDerivative);
+                                     double[] outSumSecondDerivative);*/
 
     /**
      * Return the individual log likelihoods for each site pattern.

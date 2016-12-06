@@ -433,6 +433,18 @@ public class GeneralBeagleImpl implements Beagle {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
 
+    public void accumulateScaleFactorsByPartition(int[] scaleIndices, int count, int outScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
+    }
+
+    public void removeScaleFactorsByPartition(int[] scaleIndices, int count, int cumulativeScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
+    }
+
+    public void resetScaleFactorsByPartition(int cumulativeScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
+    }
+
     /**
      * Calculates partial likelihoods at a node when both children have states.
      * @returns the larges absolute exponent
@@ -726,6 +738,9 @@ public class GeneralBeagleImpl implements Beagle {
 
     }
 
+    public void calculateRootLogLikelihoodsByPartition(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int[] partitionIndices, final int partitionCount, final double[] outSumLogLikelihoodByPartition, final double[] outSumLogLikelihood) {
+        throw new UnsupportedOperationException("calculateRootLogLikelihoodsByPartition not implemented in GeneralBeagleImpl");
+    }
 
     public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices, final int[] childBufferIndices, final int[] probabilityIndices, final int[] firstDerivativeIndices, final int[] secondDerivativeIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood, final double[] outSumFirstDerivative, final double[] outSumSecondDerivative) {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");
