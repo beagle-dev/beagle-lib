@@ -209,6 +209,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void updatePartialsByPartition(final int[] operations, final int operationCount) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePartialsByPartition(instance, operations, operationCount);
+        if (errCode != 0) {
+            throw new BeagleException("updatePartialsByPartition", errCode);
+        }
+    }
+
     public void accumulateScaleFactors(final int[] scaleIndices, final int count, final int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.accumulateScaleFactors(instance, scaleIndices, count, cumulativeScaleIndex);
         if (errCode != 0) {

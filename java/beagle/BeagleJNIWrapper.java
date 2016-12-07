@@ -104,6 +104,10 @@ public class BeagleJNIWrapper {
                                      int operationCount,
                                      int cumulativeScalingIndex);
 
+    public native int updatePartialsByPartition(final int instance,
+                                                final int[] operations,
+                                                int operationCount);
+
     public native int waitForPartials(final int instance,
                                       final int[] destinationPartials,
                                       int destinationPartialsCount);

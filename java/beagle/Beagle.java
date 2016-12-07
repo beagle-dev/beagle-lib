@@ -381,6 +381,33 @@ public interface Beagle extends Serializable {
             int cumulativeScaleIndex);
 
     /**
+     * Calculate or queue for calculating partials by partition using a list of operations
+     *
+     * This function either calculates or queues for calculation a list partials. Implementations
+     * supporting ASYNCH may queue these calculations while other implementations perform these
+     * operations immediately and in order.
+     *
+     * If partitions have been set via beagleSetPatternPartitions, operationCount should be a
+     * multiple of partitionCount.
+     *
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
+     *                               child1Partials,
+     *                               child1TransitionMatrix,
+     *                               child2Partials,
+     *                               child2TransitionMatrix}
+     *
+     * @param operations            List of 7-tuples specifying operations (input)
+     * @param operationCount        Number of operations (input)
+     *
+     */
+    void updatePartialsByPartition(
+            final int[] operations,
+            int operationCount);
+
+    /**
      * Accumulate scale factors
      *
      * This function adds (log) scale factors from a list of scaleBuffers to a cumulative scale

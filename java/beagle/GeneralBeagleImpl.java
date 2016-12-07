@@ -370,6 +370,22 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    /**
+     * //TODO: does this description also hold for the by partition case?
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
+     *                               child1Partials,
+     *                               child1TransitionMatrix,
+     *                               child2Partials,
+     *                               child2TransitionMatrix}
+     *
+     */
+    public void updatePartialsByPartition(final int[] operations, final int operationCount) {
+//        throw new UnsupportedOperationException("updatePartialsByPartition not implemented in GeneralBeagleImpl");
+    }
+
     private void rescalePartials(final int bufferIndex) {
 
         double[] partials = this.partials[bufferIndex];
@@ -418,7 +434,6 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
-
     }
 
     public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
