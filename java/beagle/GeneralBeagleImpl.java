@@ -383,7 +383,7 @@ public class GeneralBeagleImpl implements Beagle {
      *
      */
     public void updatePartialsByPartition(final int[] operations, final int operationCount) {
-//        throw new UnsupportedOperationException("updatePartialsByPartition not implemented in GeneralBeagleImpl");
+        throw new UnsupportedOperationException("updatePartialsByPartition not implemented in GeneralBeagleImpl");
     }
 
     private void rescalePartials(final int bufferIndex) {
@@ -430,6 +430,11 @@ public class GeneralBeagleImpl implements Beagle {
                 }
             }
         }
+    }
+
+    //placeholder for potential implementation
+    private void rescalePartialsByPartition(final int bufferIndex) {
+        throw new UnsupportedOperationException("rescalePartialsByPartition not implemented in GeneralBeagleImpl");
     }
 
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
