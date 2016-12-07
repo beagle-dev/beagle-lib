@@ -476,6 +476,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePartialsByPartition
+ * Signature: (I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartialsByPartition
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount)
+{
+    //TODO: provide implementation
+    return operationCount;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    waitForPartials
  * Signature: ([II[II)I
  */
@@ -508,6 +520,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    accumulateScaleFactorsByPartition
+ * Signature: (I[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactorsByPartition
+  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex, jint partitionIndex)
+{
+    //TODO: provide implementation
+    return partitionIndex;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    removeScaleFactors
  * Signature: (I[III)I
  */
@@ -523,6 +547,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    removeScaleFactorsByPartition
+ * Signature: (I[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactorsByPartition
+  (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex, jint partitionIndex)
+{
+    //TODO: provide implementation
+    return partitionIndex;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    resetScaleFactors
  * Signature: (II)I
  */
@@ -531,6 +567,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 	
 	jint errCode = (jint)beagleResetScaleFactors(instance, cumulativeScalingIndex);
 	return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    resetScaleFactorsByPartition
+ * Signature: (III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactorsByPartition
+  (JNIEnv *env, jobject obj, jint instance, jint cumulativeScalingIndex, jint partitionIndex)
+{
+    //TODO: provide implementation
+    return partitionIndex;
 }
 
 /*
@@ -580,6 +628,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
     env->ReleaseIntArrayElements(inBufferIndices, bufferIndices, JNI_ABORT);
 
     return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateRootLogLikelihoodsByPartition
+ * Signature: (I[I[I[I[I[II[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsByPartition
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCatagoryWeightsIndices, jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jintArray partitioIndices, jint partitionCount, jdoubleArray outSumLogLikelihoodByPartition, jdoubleArray outSumLogLikelihoods)
+{
+    //TODO: provide implementation
+    return partitionCount;
 }
 
 /*
