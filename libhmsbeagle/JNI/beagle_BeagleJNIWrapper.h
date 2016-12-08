@@ -266,10 +266,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateRootLogLikelihoodsByPartition
- * Signature: (I[I[I[I[I[II[D[D)I
+ * Signature: (I[I[I[I[I[III[D[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsByPartition
-  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jintArray, jint, jdoubleArray, jdoubleArray);
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jintArray, jint, jint, jdoubleArray, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

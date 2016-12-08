@@ -160,6 +160,7 @@ public class BeagleJNIWrapper {
                                                   final int[] cumulativeScaleIndices,
                                                   final int[] partitionIndices,
                                                   int partitionCount,
+                                                  int count,
                                                   final double[] outSumLogLikelihoodByPartition,
                                                   final double[] outSumLogLikelihood);
 

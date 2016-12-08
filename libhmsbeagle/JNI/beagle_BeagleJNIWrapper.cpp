@@ -482,8 +482,13 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartialsByPartition
   (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount)
 {
-    //TODO: provide implementation
-    return operationCount;
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+
+    jint errCode = (jint)beagleUpdatePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
 }
 
 /*
@@ -526,8 +531,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactorsByPartition
   (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex, jint partitionIndex)
 {
-    //TODO: provide implementation
-    return partitionIndex;
+    jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+    jint errCode = (jint)beagleAccumulateScaleFactorsByPartition(instance, (int*)scaleIndices, count, cumulativeScalingIndex, partitionIndex);
+    env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
+
+    return errCode;
 }
 
 /*
@@ -539,7 +547,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
 	
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
-	jint errCode = (jint)beagleAccumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
+	jint errCode = (jint)beagleRemoveScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
     
 	return errCode;
@@ -553,8 +561,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactorsByPartition
   (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex, jint partitionIndex)
 {
-    //TODO: provide implementation
-    return partitionIndex;
+    jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
+    jint errCode = (jint)beagleRemoveScaleFactorsByPartition(instance, (int*)scaleIndices, count, cumulativeScalingIndex, partitionIndex);
+    env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
+    
+    return errCode;
 }
 
 /*
@@ -577,8 +588,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactorsByPartition
   (JNIEnv *env, jobject obj, jint instance, jint cumulativeScalingIndex, jint partitionIndex)
 {
-    //TODO: provide implementation
-    return partitionIndex;
+    jint errCode = (jint)beagleResetScaleFactorsByPartition(instance, cumulativeScalingIndex, partitionIndex);
+    return errCode;
 }
 
 /*
@@ -600,11 +611,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_copyScaleFactors
  * Signature: (I[I[D[DI[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
-  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCatagoryWeightsIndices, 
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCategoryWeightsIndices, 
    jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jint count, jdoubleArray outSumLogLikelihoods)
 {
     jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
-    jint *weightsIndices = env->GetIntArrayElements(inCatagoryWeightsIndices, NULL);
+    jint *weightsIndices = env->GetIntArrayElements(inCategoryWeightsIndices, NULL);
     jint *frequenciesIndices = env->GetIntArrayElements(inStateFrequenciesIndices, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
     //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
@@ -624,7 +635,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
     env->ReleaseIntArrayElements(inScalingIndices, scalingIndices, JNI_ABORT);
 
     env->ReleaseIntArrayElements(inStateFrequenciesIndices, frequenciesIndices, JNI_ABORT);
-    env->ReleaseIntArrayElements(inCatagoryWeightsIndices, weightsIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inCategoryWeightsIndices, weightsIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(inBufferIndices, bufferIndices, JNI_ABORT);
 
     return errCode;
@@ -636,10 +647,40 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
  * Signature: (I[I[I[I[I[II[D[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsByPartition
-  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCatagoryWeightsIndices, jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jintArray partitioIndices, jint partitionCount, jdoubleArray outSumLogLikelihoodByPartition, jdoubleArray outSumLogLikelihoods)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCategoryWeightsIndices, jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jintArray inPartitionIndices, jint partitionCount, jint count, jdoubleArray outSumLogLikelihoodByPartition, jdoubleArray outSumLogLikelihoods)
 {
-    //TODO: provide implementation
-    return partitionCount;
+    jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
+    jint *weightsIndices = env->GetIntArrayElements(inCategoryWeightsIndices, NULL);
+    jint *frequenciesIndices = env->GetIntArrayElements(inStateFrequenciesIndices, NULL);
+    jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
+    jint *partitionIndices = env->GetIntArrayElements(inPartitionIndices, NULL);
+
+    jdouble *sumLogLikelihoodsByPartition = env->GetDoubleArrayElements(outSumLogLikelihoodByPartition, NULL);    
+    jdouble *sumLogLikelihoods = env->GetDoubleArrayElements(outSumLogLikelihoods, NULL);
+
+    jint errCode = (jint)beagleCalculateRootLogLikelihoodsByPartition(
+                                                           instance,
+                                                           (int *)bufferIndices, 
+                                                           (int *)weightsIndices,
+                                                           (int *)frequenciesIndices, 
+                                                           (int *)scalingIndices,
+                                                           (int *)partitionIndices,
+                                                           partitionCount,
+                                                           count,
+                                                           (double *)sumLogLikelihoodsByPartition,
+                                                           (double *)sumLogLikelihoods);
+
+    // not using JNI_ABORT flag here because we want the values to be copied back...
+    env->ReleaseDoubleArrayElements(outSumLogLikelihoodByPartition, sumLogLikelihoodsByPartition, 0);
+    env->ReleaseDoubleArrayElements(outSumLogLikelihoods, sumLogLikelihoods, 0);
+
+    env->ReleaseIntArrayElements(inPartitionIndices, partitionIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inScalingIndices, scalingIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inStateFrequenciesIndices, frequenciesIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inCategoryWeightsIndices, weightsIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inBufferIndices, bufferIndices, JNI_ABORT);
+
+    return errCode;
 }
 
 /*
@@ -650,7 +691,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsB
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
   (JNIEnv *env, jobject obj, jint instance, jintArray inParentBufferIndices, jintArray inChildBufferIndices,
         jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDerivativeIndices,
-		jintArray inCatagoryWeightsIndices,  jintArray inStateFrequenciesIndices, jintArray inScalingIndices,
+		jintArray inCategoryWeightsIndices,  jintArray inStateFrequenciesIndices, jintArray inScalingIndices,
         jint count, jdoubleArray outSumLogLikelihoods, jdoubleArray outSumFirstDerivatives, jdoubleArray outSumSecondDerivatives)
 {
     jint *parentBufferIndices = env->GetIntArrayElements(inParentBufferIndices, NULL);
@@ -659,7 +700,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     jint *firstDerivativeIndices = inFirstDerivativeIndices != NULL ? env->GetIntArrayElements(inFirstDerivativeIndices, NULL) : NULL;
     jint *secondDerivativeIndices = inSecondDerivativeIndices != NULL ? env->GetIntArrayElements(inSecondDerivativeIndices, NULL) : NULL;
 
-    jint *weightsIndices = env->GetIntArrayElements(inCatagoryWeightsIndices, NULL);
+    jint *weightsIndices = env->GetIntArrayElements(inCategoryWeightsIndices, NULL);
     jint *frequenciesIndices = env->GetIntArrayElements(inStateFrequenciesIndices, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
     //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
@@ -687,7 +728,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
     env->ReleaseIntArrayElements(inScalingIndices, scalingIndices, JNI_ABORT);
 
     env->ReleaseIntArrayElements(inStateFrequenciesIndices, frequenciesIndices, JNI_ABORT);
-    env->ReleaseIntArrayElements(inCatagoryWeightsIndices, weightsIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inCategoryWeightsIndices, weightsIndices, JNI_ABORT);
 
     if (inSecondDerivativeIndices != NULL) env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
     if (inFirstDerivativeIndices != NULL) env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
