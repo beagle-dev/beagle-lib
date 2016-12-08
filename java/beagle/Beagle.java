@@ -585,6 +585,7 @@ public interface Beagle extends Serializable {
      *                                      should be one set for each of parentBufferIndices
      * @param partitionIndices          TODO (input)
      * @param partitionCount            Number of partialsBuffer to integrate (input)
+     * @param count                     Number of sets of partitions to integrate across (input)
      * @param outSumLogLikelihoodByPartition     Pointer to destination for resulting sum of per partition log likelihoods (output)
      * @param outSumLogLikelihood       Pointer to destination for resulting sum of log likelihoods (output)
      */
