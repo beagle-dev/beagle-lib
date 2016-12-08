@@ -322,6 +322,7 @@ public class BeagleJNIImpl implements Beagle {
                                             final int[] cumulativeScaleIndices,
                                             final int[] partitionIndices,
                                             int partitionCount,
+                                            int count,
                                             final double[] outSumLogLikelihoodByPartition,
                                             final double[] outSumLogLikelihood) {
         int errCode = BeagleJNIWrapper.INSTANCE.calculateRootLogLikelihoodsByPartition(instance,
@@ -331,6 +332,7 @@ public class BeagleJNIImpl implements Beagle {
                 cumulativeScaleIndices,
                 partitionIndices,
                 partitionCount,
+                count,
                 outSumLogLikelihoodByPartition,
                 outSumLogLikelihood);
         // We probably don't want the Floating Point error to throw an exception...

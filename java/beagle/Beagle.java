@@ -595,6 +595,7 @@ public interface Beagle extends Serializable {
                                      int[] cumulativeScaleIndices,
                                      int[] partitionIndices,
                                      int partitionCount,
+                                     int count,
                                      double[] outSumLogLikelihoodByPartition,
                                      double[] outSumLogLikelihood);
 
