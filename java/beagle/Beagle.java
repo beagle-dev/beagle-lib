@@ -125,6 +125,7 @@ import java.io.Serializable;
 public interface Beagle extends Serializable {
 
     public static int OPERATION_TUPLE_SIZE = 7;
+    public static int PARTITION_OPERATION_TUPLE_SIZE = 9;
     public static int NONE = -1;
 
 
@@ -390,16 +391,18 @@ public interface Beagle extends Serializable {
      * If partitions have been set via beagleSetPatternPartitions, operationCount should be a
      * multiple of partitionCount.
      *
-     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
-     * Format of 7-tuple operation: {destinationPartials,
+     * Operations list is a list of 9-tuple integer indices, with one 9-tuple per operation.
+     * Format of 9-tuple operation: {destinationPartials,
      *                               destinationScaleWrite,
      *                               destinationScaleRead,
      *                               child1Partials,
      *                               child1TransitionMatrix,
      *                               child2Partials,
-     *                               child2TransitionMatrix}
+     *                               child2TransitionMatrix,
+     *                               partition,
+     *                               cumulativeScaleIndex}
      *
-     * @param operations            List of 7-tuples specifying operations (input)
+     * @param operations            List of 9-tuples specifying operations (input)
      * @param operationCount        Number of operations (input)
      *
      */
