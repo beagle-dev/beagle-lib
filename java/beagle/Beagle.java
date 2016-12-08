@@ -277,13 +277,24 @@ public interface Beagle extends Serializable {
                             final double[] categoryWeights);
 
     /**
-     * Set category rates
+     * Set default category rates buffer
      *
-     * This function sets the vector of category rates for an instance.
+     * This function sets the default vector of category rates for an instance.
      *
      * @param inCategoryRates       Array containing categoryCount rate scalers (input)
      */
     void setCategoryRates(final double[] inCategoryRates);
+
+    /**
+     * Set a category rates buffer
+     *
+     * This function sets the vector of category rates for a given buffer in an instance.
+     *
+     * @param categoryRatesIndex    the index of the buffer
+     * @param inCategoryRates       Array containing categoryCount rate scalers (input)
+     */
+    void setCategoryRatesWithIndex(int categoryRatesIndex,
+                                   final double[] inCategoryRates);
 
     /**
      * Convolve lists of transition probability matrices
@@ -316,6 +327,29 @@ public interface Beagle extends Serializable {
      */
     void updateTransitionMatrices(
             int eigenIndex,
+            final int[] probabilityIndices,
+            final int[] firstDerivativeIndices,
+            final int[] secondDervativeIndices,
+            final double[] edgeLengths,
+            int count);
+
+    /**
+     * Calculate a list of transition probability matrices with multiple models
+     *
+     * This function calculates a list of transition probabilities matrices and their first and
+     * second derivatives (if requested).
+     *
+     * @param eigenIndices              List of indices of eigen-decomposition buffers (input)
+     * @param categoryRateIndices       List of indices of category-rate buffers (input)
+     * @param probabilityIndices        List of indices of transition probability matrices to update (input)
+     * @param firstDerivativeIndices    List of indices of first derivative matrices to update (input, NULL implies no calculation)
+     * @param secondDervativeIndices    List of indices of second derivative matrices to update (input, NULL implies no calculation)
+     * @param edgeLengths               List of edge lengths with which to perform calculations (input)
+     * @param count                     Length of lists
+     */
+    void updateTransitionMatricesWithMultipleModels(
+            final int[] eigenIndices,
+            final int[] categoryRateIndices,
             final int[] probabilityIndices,
             final int[] firstDerivativeIndices,
             final int[] secondDervativeIndices,

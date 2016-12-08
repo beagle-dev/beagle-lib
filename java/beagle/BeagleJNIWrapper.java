@@ -82,6 +82,10 @@ public class BeagleJNIWrapper {
     public native int setCategoryRates(int instance,
                                        final double[] inCategoryRates);
 
+    public native int setCategoryRatesWithIndex(int instance,
+                                                int categoryRatesIndex,
+                                                final double[] inCategoryRates);
+
     public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix, double paddedValue);
 
     public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
@@ -93,6 +97,16 @@ public class BeagleJNIWrapper {
 			                                     int matrixCount);
     
     public native int updateTransitionMatrices(int instance, int eigenIndex,
+                                               final int[] probabilityIndices,
+                                               final int[] firstDerivativeIndices,
+                                               final int[] secondDervativeIndices,
+                                               final double[] edgeLengths,
+                                               int count);
+
+    public native int updateTransitionMatricesWithMultipleModels(
+                                               int instance,
+                                               final int[] eigenIndices,
+                                               final int[] categoryRateIndices,
                                                final int[] probabilityIndices,
                                                final int[] firstDerivativeIndices,
                                                final int[] secondDervativeIndices,

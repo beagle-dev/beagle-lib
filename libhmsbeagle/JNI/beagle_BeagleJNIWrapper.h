@@ -145,6 +145,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setCategoryRatesWithIndex
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRatesWithIndex
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTransitionMatrix
  * Signature: (II[DD)I
  */
@@ -174,6 +182,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
   (JNIEnv *, jobject, jint, jint, jintArray, jintArray, jintArray, jdoubleArray, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    updateTransitionMatricesWithMultipleModels
+ * Signature: (I[I[I[I[I[I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWithMultipleModels
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jintArray, jdoubleArray, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

@@ -582,7 +582,7 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
  *
  * @param instance                  Instance number (input)
  * @param eigenIndices              List of indices of eigen-decomposition buffers to use for updates (input)
- * @param categoryRatesIndex        List of indices of category-rate buffers to use for updates (input)
+ * @param categoryRateIndices       List of indices of category-rate buffers to use for updates (input)
  * @param probabilityIndices        List of indices of transition probability matrices to update
  *                                   (input)
  * @param firstDerivativeIndices    List of indices of first derivative matrices to update

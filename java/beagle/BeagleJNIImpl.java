@@ -152,6 +152,16 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setCategoryRatesWithIndex( int categoryRatesIndex,
+                                           double[] inCategoryRates) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setCategoryRatesWithIndex(instance, 
+                                                                          categoryRatesIndex,
+                                                                          inCategoryRates);
+        if (errCode != 0) {
+            throw new BeagleException("setCategoryRatesWithIndex", errCode);
+        }
+    }
+
     public void setTransitionMatrix(int matrixIndex, final double[] inMatrix, double paddedValue) {
         int errCode = BeagleJNIWrapper.INSTANCE.setTransitionMatrix(instance, matrixIndex, inMatrix, paddedValue);
         if (errCode != 0) {
@@ -198,6 +208,28 @@ public class BeagleJNIImpl implements Beagle {
                 edgeLengths, count);
         if (errCode != 0) {
             throw new BeagleException("updateTransitionMatrices", errCode);
+        }
+    }
+
+    public void updateTransitionMatricesWithMultipleModels(
+                                         final int[] eigenIndices,
+                                         final int[] categoryRateIndices,
+                                         final int[] probabilityIndices,
+                                         final int[] firstDerivativeIndices,
+                                         final int[] secondDervativeIndices,
+                                         final double[] edgeLengths,
+                                         int count) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updateTransitionMatricesWithMultipleModels(
+                instance,
+                eigenIndices,
+                categoryRateIndices,
+                probabilityIndices,
+                firstDerivativeIndices,
+                secondDervativeIndices,
+                edgeLengths,
+                count);
+        if (errCode != 0) {
+            throw new BeagleException("updateTransitionMatricesWithMultipleModels", errCode);
         }
     }
 

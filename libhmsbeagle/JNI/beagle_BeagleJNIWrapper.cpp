@@ -379,6 +379,25 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRates
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setCategoryRatesWithIndex
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryRatesWithIndex
+  (JNIEnv *env, jobject obj, jint instance, jint categoryRatesIndex, jdoubleArray inCategoryRates)
+{
+    jdouble *categoryRates = env->GetDoubleArrayElements(inCategoryRates, NULL);
+
+    jint errCode = (jint)beagleSetCategoryRatesWithIndex(instance,
+                                                         categoryRatesIndex,
+                                                         (double *)categoryRates);
+
+    env->ReleaseDoubleArrayElements(inCategoryRates, categoryRates, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setTransitionMatrix
  * Signature: (II[DD)I
  */
@@ -456,6 +475,33 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatrices
 
     return errCode;
 }
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    updateTransitionMatricesWithMultipleModels
+ * Signature: (I[I[I[I[I[I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWithMultipleModels
+  (JNIEnv *env, jobject obj, jint instance, jintArray inEigenIndices, jintArray inCategoryRateIndices, jintArray inProbabilityIndices, jintArray inFirstDerivativeIndices, jintArray inSecondDerivativeIndices, jdoubleArray inEdgeLengths, jint count)
+{
+    jint *eigenIndices = env->GetIntArrayElements(inEigenIndices, NULL);
+    jint *categoryRateIndices = env->GetIntArrayElements(inCategoryRateIndices, NULL);
+    jint *probabilityIndices = env->GetIntArrayElements(inProbabilityIndices, NULL);
+    jint *firstDerivativeIndices = inFirstDerivativeIndices != NULL ? env->GetIntArrayElements(inFirstDerivativeIndices, NULL) : NULL;
+    jint *secondDerivativeIndices = inSecondDerivativeIndices != NULL ? env->GetIntArrayElements(inSecondDerivativeIndices, NULL) : NULL;
+    jdouble *edgeLengths = env->GetDoubleArrayElements(inEdgeLengths, NULL);
+    jint errCode = (jint)beagleUpdateTransitionMatricesWithMultipleModels(instance, (int *)eigenIndices, (int *)categoryRateIndices, (int *)probabilityIndices, (int *)firstDerivativeIndices, (int *)secondDerivativeIndices, (double *)edgeLengths, count);
+
+    env->ReleaseDoubleArrayElements(inEdgeLengths, edgeLengths, JNI_ABORT);
+    if (inSecondDerivativeIndices != NULL) env->ReleaseIntArrayElements(inSecondDerivativeIndices, secondDerivativeIndices, JNI_ABORT);
+    if (inFirstDerivativeIndices != NULL) env->ReleaseIntArrayElements(inFirstDerivativeIndices, firstDerivativeIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inCategoryRateIndices, categoryRateIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inEigenIndices, eigenIndices, JNI_ABORT);
+
+    return errCode;
+}
+
 
 /*
  * Class:     beagle_BeagleJNIWrapper
