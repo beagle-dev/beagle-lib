@@ -220,6 +220,10 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(categoryRates, 0, this.categoryRates, 0, this.categoryRates.length);
     }
 
+    public void setCategoryRatesWithIndex(final int categoryRatesIndex, double[] categoryRates) {
+        throw new UnsupportedOperationException("setCategoryRatesWithIndex not implemented in GeneralBeagleImpl");
+    }
+
     public void setTransitionMatrix(final int matrixIndex, final double[] inMatrix, final double paddedValue) {
         System.arraycopy(inMatrix, 0, this.matrices[matrixIndex], 0, this.matrixSize);
     }
@@ -319,6 +323,17 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updateTransitionMatricesWithMultipleModels(
+                                         final int[] eigenIndices,
+                                         final int[] categoryRateIndices,
+                                         final int[] probabilityIndices,
+                                         final int[] firstDerivativeIndices,
+                                         final int[] secondDervativeIndices,
+                                         final double[] edgeLengths,
+                                         final int count) {
+        throw new UnsupportedOperationException("updateTransitionMatricesWithMultipleModels not implemented in GeneralBeagleImpl");
+    }
+
     /**
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
      * Format of 7-tuple operation: {destinationPartials,
@@ -371,15 +386,16 @@ public class GeneralBeagleImpl implements Beagle {
     }
 
     /**
-     * //TODO: does this description also hold for the by partition case?
-     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
-     * Format of 7-tuple operation: {destinationPartials,
+     * Operations list is a list of 9-tuple integer indices, with one 7-tuple per operation.
+     * Format of 9-tuple operation: {destinationPartials,
      *                               destinationScaleWrite,
      *                               destinationScaleRead,
      *                               child1Partials,
      *                               child1TransitionMatrix,
      *                               child2Partials,
-     *                               child2TransitionMatrix}
+     *                               child2TransitionMatrix,
+     *                               partition,
+     *                               cumulativeScaleIndex}
      *
      */
     public void updatePartialsByPartition(final int[] operations, final int operationCount) {
@@ -758,7 +774,7 @@ public class GeneralBeagleImpl implements Beagle {
 
     }
 
-    public void calculateRootLogLikelihoodsByPartition(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int[] partitionIndices, final int partitionCount, final double[] outSumLogLikelihoodByPartition, final double[] outSumLogLikelihood) {
+    public void calculateRootLogLikelihoodsByPartition(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int[] partitionIndices, final int partitionCount, final int count, final double[] outSumLogLikelihoodByPartition, final double[] outSumLogLikelihood) {
         throw new UnsupportedOperationException("calculateRootLogLikelihoodsByPartition not implemented in GeneralBeagleImpl");
     }
 
