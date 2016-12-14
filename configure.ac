@@ -221,6 +221,9 @@ then
    NVCCFLAGS+=" -deviceemu"
 fi
 
+# do not warn about deprecated GPU architectures
+NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
+
 # ------------------------------------------------------------------------------
 # Setup SSE
 # ------------------------------------------------------------------------------
