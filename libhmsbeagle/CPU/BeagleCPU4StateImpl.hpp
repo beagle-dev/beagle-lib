@@ -428,7 +428,7 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
     
     int returnCode = BEAGLE_SUCCESS;
     
-    register REALTYPE freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
+    REALTYPE freq0, freq1, freq2, freq3;
     freq0 = gStateFrequencies[stateFrequenciesIndex][0];   
     freq1 = gStateFrequencies[stateFrequenciesIndex][1];
     freq2 = gStateFrequencies[stateFrequenciesIndex][2];
@@ -487,7 +487,7 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScaleBy
       const int stateFrequenciesIndex = stateFrequenciesIndices[p];
       const int scalingFactorsIndex = cumulativeScaleIndices[p];
 
-      register REALTYPE freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
+      REALTYPE freq0, freq1, freq2, freq3;
       freq0 = gStateFrequencies[stateFrequenciesIndex][0];   
       freq1 = gStateFrequencies[stateFrequenciesIndex][1];
       freq2 = gStateFrequencies[stateFrequenciesIndex][2];
@@ -964,7 +964,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
             v += 4 * kExtraPatterns;
         }
                 
-        register REALTYPE freq0, freq1, freq2, freq3; // Is it a good idea to specify 'register'?
+        REALTYPE freq0, freq1, freq2, freq3; 
         freq0 = frequencies[0];   
         freq1 = frequencies[1];
         freq2 = frequencies[2];

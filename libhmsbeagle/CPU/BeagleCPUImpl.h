@@ -37,6 +37,7 @@
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 #include <vector>
+#include <future>
 
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
@@ -48,6 +49,7 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 512 // do not use CPU threading for problems with fewer patterns
 
 namespace beagle {
 namespace cpu {
@@ -113,6 +115,9 @@ protected:
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     REALTYPE** gTransitionMatrices;
+
+    std::shared_future<void>* gFutures;
+    std::launch kFutureLaunchPolicy;
 
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
@@ -364,6 +369,15 @@ public:
 	virtual const long getFlags();
 
 protected:
+
+    virtual void upPartialsAsync(bool byPartition,
+                                 const int* operations,
+                                 int op,
+                                 int cumulativeScaleIndex,
+                                 REALTYPE* cumulativeScaleBuffer,
+                                 std::shared_future<void>* wait1,
+                                 std::shared_future<void>* wait2);
+
     virtual int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,

@@ -235,8 +235,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
             		++i
 #endif
             ) {
-            	register V_Real sum1_vecA = VEC_SETZERO();
-            	register V_Real sum2_vecA = VEC_SETZERO();
+            	V_Real sum1_vecA = VEC_SETZERO();
+            	V_Real sum2_vecA = VEC_SETZERO();
             	for (int j = 0; j < stateCountMinusOne; j += 2) {
             		sum1_vecA = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
@@ -263,8 +263,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 #endif
 
 #ifdef DOUBLE_UNROLL
-            	register V_Real sum1_vecB = VEC_SETZERO();
-            	register V_Real sum2_vecB = VEC_SETZERO();
+            	V_Real sum1_vecB = VEC_SETZERO();
+            	V_Real sum2_vecB = VEC_SETZERO();
             	for (int j = 0; j < stateCountMinusOne; j += 2) {
             		sum1_vecB = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
@@ -316,8 +316,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(d
             const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
             for (int i = 0; i < kStateCount; i++) {
 
-            	register V_Real sum1_vec;
-            	register V_Real sum2_vec;
+            	V_Real sum1_vec;
+            	V_Real sum2_vec;
 
               	int j = 0;
             	sum1_vec = VEC_SETZERO();

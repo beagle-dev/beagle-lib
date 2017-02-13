@@ -13,6 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <sstream>
+#include <cmath>
 
 #ifdef _WIN32
 	#include <winsock.h>
@@ -378,14 +379,14 @@ void runBeagle(int resource,
             } 
             
             Delete2DArray(qmat);
-            delete relNucRates;
+            delete[] relNucRates;
             
-            delete eigvalsimag;
+            delete[] eigvalsimag;
             Delete2DArray(eigvecs);
             Delete2DArray(teigvecs);
             Delete2DArray(inveigvecs);
-            delete iwork;
-            delete work;
+            delete[] iwork;
+            delete[] work;
         } else if (eigencomplex && stateCount==4 && eigenCount==1) {
             // create base frequency array
             double temp_freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
@@ -724,14 +725,14 @@ void runBeagle(int resource,
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
         
-        if (i > 0 && abs(logL - previousLogL) > MAX_DIFF)
+        if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
             fprintf(stdout, "error: large lnL difference between reps\n");
         
         if (calcderivs) {
             if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
                 fprintf(stdout, "error: invalid deriv\n");
             
-            if (i > 0 && ((abs(deriv1 - previousDeriv1) > MAX_DIFF) || (abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
+            if (i > 0 && ((std::abs(deriv1 - previousDeriv1) > MAX_DIFF) || (std::abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
                 fprintf(stdout, "error: large deriv difference between reps\n");
         }
 
