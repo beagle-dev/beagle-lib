@@ -387,7 +387,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gFutures = new std::shared_future<void>[kBufferCount];
     if (gFutures == NULL)
         throw std::bad_alloc();
-    kFutureLaunchPolicy = std::launch::async | std::launch::deferred;
+    kFutureLaunchPolicy = std::launch::async;
     if (kPatternCount < BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT)
         kFutureLaunchPolicy = std::launch::deferred;
 
@@ -617,7 +617,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         gFutures = new std::shared_future<void>[kBufferCount * partitionCount];
         if (gFutures == NULL)
             throw std::bad_alloc();
-        kFutureLaunchPolicy = std::launch::async | std::launch::deferred;
+        kFutureLaunchPolicy = std::launch::async;
         if (kPatternCount/partitionCount < BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
             kFutureLaunchPolicy = std::launch::deferred;
         }

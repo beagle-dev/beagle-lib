@@ -134,8 +134,7 @@ case $host_os in
 *linux*)
   if test x$GCC = xyes
   then
-    THREADS_CXXFLAGS=" -pthread"
-    AC_SUBST(THREADS_CXXFLAGS)
+    AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
   fi
 esac
 
