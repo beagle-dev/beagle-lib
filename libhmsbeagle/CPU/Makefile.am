@@ -12,7 +12,7 @@ libhmsbeagle_cpu_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     BeagleCPU4StateImpl.hpp BeagleCPU4StateImpl.h \
 		BeagleCPUPlugin.h BeagleCPUPlugin.cpp
 
-libhmsbeagle_cpu_la_CXXFLAGS = $(AM_CXXFLAGS)
+libhmsbeagle_cpu_la_CXXFLAGS = $(AM_CXXFLAGS) $(THREADS_CXXFLAGS)
 libhmsbeagle_cpu_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 
 
@@ -27,7 +27,7 @@ libhmsbeagle_cpu_sse_la_SOURCES = $(BEAGLE_CPU_COMMON) \
                     BeagleCPUSSEImpl.hpp BeagleCPUSSEImpl.h \
 		BeagleCPUSSEPlugin.h BeagleCPUSSEPlugin.cpp
 
-libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS) -msse2
+libhmsbeagle_cpu_sse_la_CXXFLAGS = $(AM_CXXFLAGS) $(THREADS_CXXFLAGS) -msse2
 libhmsbeagle_cpu_sse_la_LDFLAGS= -module -version-number $(MODULE_VERSION)
 endif
 
