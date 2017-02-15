@@ -132,6 +132,20 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     // If you delete partials, make sure not to delete the last element
     // which is TEMP_SCRATCH_PARTIAL twice.
 
+    // Send stop signal to all threads and join them...
+    for (int i = 0; i < kNumThreads; i++) {
+        threadData* td = &gThreads[i];
+        std::unique_lock<std::mutex> l(td->m);
+        td->stop = true;
+        td->cv.notify_one();
+    }
+
+    // Join all the threads
+    for (int i = 0; i < kNumThreads; i++) {
+        threadData* td = &gThreads[i];
+        td->t.join();
+    }
+
     for(unsigned int i=0; i<kEigenDecompCount; i++) {
         if (gCategoryWeights[i] != NULL)
             free(gCategoryWeights[i]);
@@ -186,6 +200,7 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     }
 
     delete[] gFutures;
+    delete[] gThreads;
 
     free(integrationTmp);
     free(firstDerivTmp);
@@ -387,9 +402,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gFutures = new std::shared_future<void>[kBufferCount];
     if (gFutures == NULL)
         throw std::bad_alloc();
-    kFutureLaunchPolicy = std::launch::async;
+    kThreadingEnabled = true;
     if (kPatternCount < BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT)
-        kFutureLaunchPolicy = std::launch::deferred;
+        kThreadingEnabled = false;
+
+    kNumThreads = std::thread::hardware_concurrency() / 2;
+    if (kNumThreads < 1  || !kThreadingEnabled)
+        kNumThreads = 1;
+    gThreads = new threadData[kNumThreads];
+    for (int i = 0; i < kNumThreads; i++) {
+        gThreads[i].t = std::thread(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting, this, &gThreads[i]);
+    }
 
     integrationTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kStateCount);
     firstDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
@@ -617,9 +640,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         gFutures = new std::shared_future<void>[kBufferCount * partitionCount];
         if (gFutures == NULL)
             throw std::bad_alloc();
-        kFutureLaunchPolicy = std::launch::async;
+        kThreadingEnabled = true;
         if (kPatternCount/partitionCount < BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
-            kFutureLaunchPolicy = std::launch::deferred;
+            kThreadingEnabled = false;
         }
 
         kMaxPartitionCount = partitionCount;
@@ -1063,11 +1086,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsAsync(bool byPartition,
                  << " readIndex = " << readScalingIndex << "\n";
     }
 
-    if (wait1->valid())
-        wait1->wait();
+    if (kThreadingEnabled) {
+        if (wait1->valid())
+            wait1->wait();
 
-    if (wait2->valid())
-        wait2->wait();
+        if (wait2->valid())
+            wait2->wait();
+    }
 
     if (tipStates1 != NULL) {
         if (tipStates2 != NULL ) {
@@ -1184,34 +1209,51 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
     if (cumulativeScaleIndex != BEAGLE_OP_NONE)
         cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
 
-    int numOps = BEAGLE_OP_COUNT;
-    if (byPartition)
-        numOps = BEAGLE_PARTITION_OP_COUNT;
+    if (!kThreadingEnabled) {
 
-    for (int op = 0; op < count; op++) {
-
-        const int parent = operations[op * numOps];
-        const int child1 = operations[op * numOps + 3];
-        const int child2 = operations[op * numOps + 5];
-        int currentPartition = 0;
-        if (byPartition) {
-            currentPartition = operations[op * numOps + 7];
+        for (int op = 0; op < count; op++) {     
+            upPartialsAsync(byPartition, operations, op, cumulativeScaleIndex, cumulativeScaleBuffer, NULL, NULL);
         }
 
-        int partitionOffset = currentPartition * kBufferCount;
+    } else {
 
-        std::shared_future<void>* wait1 = &gFutures[child1 + partitionOffset];
-        std::shared_future<void>* wait2 = &gFutures[child2 + partitionOffset];
+        int numOps = BEAGLE_OP_COUNT;
+        if (byPartition)
+            numOps = BEAGLE_PARTITION_OP_COUNT;
 
-        gFutures[parent + partitionOffset] = 
-            std::async(kFutureLaunchPolicy, &BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsAsync, this, byPartition, operations, op, cumulativeScaleIndex, cumulativeScaleBuffer, wait1, wait2);
+        for (int op = 0; op < count; op++) {
+            const int parent = operations[op * numOps];
+            const int child1 = operations[op * numOps + 3];
+            const int child2 = operations[op * numOps + 5];
+            int currentPartition = 0;
+            if (byPartition) {
+                currentPartition = operations[op * numOps + 7];
+            }
 
+            int partitionOffset = currentPartition * kBufferCount;
+
+            std::shared_future<void>* wait1 = &gFutures[child1 + partitionOffset];
+            std::shared_future<void>* wait2 = &gFutures[child2 + partitionOffset];
+
+            std::packaged_task<void()> partialTask(std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsAsync, this, byPartition, operations, op, cumulativeScaleIndex, cumulativeScaleBuffer, wait1, wait2));
+
+            gFutures[parent + partitionOffset] = partialTask.get_future();
+
+            threadData* td = &gThreads[(parent + currentPartition) % kNumThreads];
+            std::unique_lock<std::mutex> l(td->m);
+            td->jobs.push(std::move(partialTask));
+        }
+
+        for (int i=0; i<kNumThreads; i++) {
+            gThreads[i].cv.notify_one();
+        }
+
+        for (int i = ((kBufferCount * kPartitionCount) - 1); i >= 0; i--) {
+            if (gFutures[i].valid())
+                gFutures[i].wait();
+        }
     }
 
-    for (int i = ((kBufferCount * kPartitionCount) - 1); i >= 0; i--) {
-        if (gFutures[i].valid())
-            gFutures[i].get();
-    }
 
     return BEAGLE_SUCCESS;
 }
@@ -1263,6 +1305,7 @@ BEAGLE_CPU_TEMPLATE
                                                                   int count,
                                                                   double* outSumLogLikelihoodByPartition,
                                                                   double* outSumLogLikelihood) {
+    int returnCode = BEAGLE_SUCCESS;
 
     if (count == 1) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
@@ -1270,12 +1313,75 @@ BEAGLE_CPU_TEMPLATE
         else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
             return BEAGLE_ERROR_NO_IMPLEMENTATION;
 
-        return calcRootLogLikelihoodsByPartition(bufferIndices, categoryWeightsIndices, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition, outSumLogLikelihood);
+        if (!kThreadingEnabled) {
+            for (int p = 0; p < partitionCount; p++) {
+                calculateRootLogLikelihoodsByPartitionAsync(
+                                               bufferIndices,
+                                               categoryWeightsIndices, stateFrequenciesIndices,
+                                               cumulativeScaleIndices,
+                                               &partitionIndices[p], 1,
+                                               &outSumLogLikelihoodByPartition[p]);
+            }
+
+
+
+        } else {
+
+            for (int p = 0; p < partitionCount; p++) {
+               std::packaged_task<void()> rootTask(std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateRootLogLikelihoodsByPartitionAsync, this,
+                               bufferIndices,
+                               categoryWeightsIndices, stateFrequenciesIndices,
+                               cumulativeScaleIndices,
+                               &partitionIndices[p], 1,
+                               &outSumLogLikelihoodByPartition[p]));
+
+                gFutures[p] = rootTask.get_future();
+
+                threadData* td = &gThreads[p % kNumThreads];
+                std::unique_lock<std::mutex> l(td->m);
+                td->jobs.push(std::move(rootTask));
+
+            }
+
+            for (int i=0; i<kNumThreads; i++) {
+                gThreads[i].cv.notify_one();
+            }
+
+            for (int i = 0; i < partitionCount; i++) {
+                if (gFutures[i].valid())
+                    gFutures[i].wait();
+            }
+        }
+
+        *outSumLogLikelihood = 0.0;
+
+        for (int i = 0; i < partitionCount; i++) {
+            *outSumLogLikelihood += outSumLogLikelihoodByPartition[i];
+        }
+
+        if (*outSumLogLikelihood != *outSumLogLikelihood)
+            returnCode = BEAGLE_ERROR_FLOATING_POINT;
     }
     else
     {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
+
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+    void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateRootLogLikelihoodsByPartitionAsync(
+                                                                  const int* bufferIndices,
+                                                                  const int* categoryWeightsIndices,
+                                                                  const int* stateFrequenciesIndices,
+                                                                  const int* cumulativeScaleIndices,
+                                                                  const int* partitionIndices,
+                                                                  int partitionCount,
+                                                                  double* outSumLogLikelihoodByPartition) {
+
+
+    calcRootLogLikelihoodsByPartition(bufferIndices, categoryWeightsIndices, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1458,19 +1564,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bufferIn
 }
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
                                                          const int* bufferIndices,
                                                          const int* categoryWeightsIndices,
                                                          const int* stateFrequenciesIndices,
                                                          const int* cumulativeScaleIndices,
                                                          const int* partitionIndices,
                                                          int partitionCount,
-                                                         double* outSumLogLikelihoodByPartition,
-                                                         double* outSumLogLikelihood) {
+                                                         double* outSumLogLikelihoodByPartition) {
 
-    int returnCode = BEAGLE_SUCCESS;
-
-    *outSumLogLikelihood = 0.0;
 
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
@@ -1526,13 +1628,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
         for (int i = startPattern; i < endPattern; i++) {
             outSumLogLikelihoodByPartition[p] += outLogLikelihoodsTmp[i] * gPatternWeights[i];
         }
-        *outSumLogLikelihood += outSumLogLikelihoodByPartition[p];
     }
-
-    if (*outSumLogLikelihood != *outSumLogLikelihood)
-        returnCode = BEAGLE_ERROR_FLOATING_POINT;
     
-    return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -3048,6 +3145,34 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
 
     return ptr;
 }
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting(threadData* tData)
+{
+    std::unique_lock<std::mutex> l(tData->m, std::defer_lock);
+    while (true)
+    {
+        l.lock();
+
+        // Wait until the queue won't be empty or stop is signaled
+        tData->cv.wait(l, [tData] () {
+            return (tData->stop || !tData->jobs.empty()); 
+            });
+
+        // Stop was signaled, let's exit the thread
+        if (tData->stop) { return; }
+
+        // Pop one task from the queue...
+        std::packaged_task<void()> j = std::move(tData->jobs.front());
+        tData->jobs.pop();
+
+        l.unlock();
+
+        // Execute the task!
+        j();
+    }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods
