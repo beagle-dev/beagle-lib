@@ -53,6 +53,7 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 256 // do not use CPU auto-threading for problems with fewer patterns
 
 namespace beagle {
 namespace cpu {
@@ -141,10 +142,12 @@ protected:
 
     int kNumThreads;
     bool kThreadingEnabled;
+    bool kAutoPartitioningEnabled;
 
     threadData* gThreads;
     int** gThreadOperations;
     int* gThreadOpCounts;
+    int* gAutoPartitionOperations;
     std::shared_future<void>* gFutures;
 
 public:
@@ -390,6 +393,11 @@ protected:
                            const int* operations,
                            int operationCount,
                            int cumulativeScalingIndex);
+
+    virtual void autoPartitionPartialsOperations(const int* operations,
+                                                 int* partitionOperations,
+                                                 int count,
+                                                 int cumulativeScaleIndex);
 
     virtual int upPartialsByPartitionAsync(const int* operations,
                                            int operationCount);

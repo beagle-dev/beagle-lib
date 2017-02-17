@@ -222,6 +222,10 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
         free(gThreadOperations);
         free(gThreadOpCounts);
     }
+
+    if (kAutoPartitioningEnabled) {
+        free(gAutoPartitionOperations);
+    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -423,6 +427,27 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     }
 
     kThreadingEnabled = false;
+    kAutoPartitioningEnabled = false;
+    int hardwareThreads = std::thread::hardware_concurrency();
+    if (kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT && hardwareThreads > 1) {
+        int partitionCount = kPatternCount/(BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT/2);
+        if (partitionCount > hardwareThreads/2) {
+            partitionCount = hardwareThreads/2;
+        } 
+
+        int* patternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
+        int partitionSize = kPatternCount/partitionCount;
+        for (int i=0; i<kPatternCount; i++) {
+            int sitePartition = i/partitionSize;
+            if (sitePartition > partitionCount - 1)
+                sitePartition = partitionCount - 1;
+            patternPartitions[i] = sitePartition;
+        }
+        setPatternPartitions(partitionCount, patternPartitions);
+
+        gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
+        kAutoPartitioningEnabled = true;
+    }
 
     return BEAGLE_SUCCESS;
 }
@@ -621,7 +646,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     if (!kPartitionsInitialised) {
         gPatternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
         if (gPatternPartitions == NULL)
-            throw std::bad_alloc();        
+            throw std::bad_alloc();
+        kAutoPartitioningEnabled = false;
     }
     if (!kPartitionsInitialised || partitionCount > kMaxPartitionCount) {
         if (kPartitionsInitialised) {
@@ -659,8 +685,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         }
 
         kNumThreads = std::thread::hardware_concurrency();
-        if (kNumThreads > 1 && partitionCount > 1) {
-            kThreadingEnabled = true;
+        if (kNumThreads > 1 && partitionCount > 1 && kPatternCount > BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
             if (partitionCount < kNumThreads)
                 kNumThreads = partitionCount;
 
@@ -679,6 +704,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
             }
 
             gThreadOpCounts = (int*) malloc(sizeof(int) * kNumThreads);
+
+            kThreadingEnabled = true;
         }
 
         kMaxPartitionCount = partitionCount;
@@ -1015,12 +1042,25 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
                                                       int count,
                                                       int cumulativeScaleIndex) {
 
-    bool byPartition = false;
-    return upPartials(byPartition,
-                      operations,
-                      count,
-                      cumulativeScaleIndex);
+    int returnCode = BEAGLE_ERROR_GENERAL;
 
+    if (kAutoPartitioningEnabled) {
+        autoPartitionPartialsOperations(operations,
+                                        gAutoPartitionOperations,
+                                        count,
+                                        cumulativeScaleIndex);
+        count *= kPartitionCount;
+        returnCode = upPartialsByPartitionAsync((const int*) gAutoPartitionOperations,
+                                                count); 
+    } else {
+        bool byPartition = false;
+        returnCode = upPartials(byPartition,
+                                operations,
+                                count,
+                                cumulativeScaleIndex);
+    }
+
+    return returnCode;
 }
 
 
@@ -1032,7 +1072,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
 
     if (kThreadingEnabled) {
         returnCode = upPartialsByPartitionAsync(operations,
-                                                count);
+                                                count);            
     } else {
         bool byPartition = true;
         returnCode = upPartials(byPartition,
@@ -1042,6 +1082,26 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
     }
 
     return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoPartitionPartialsOperations(const int* operations,
+                                                                        int* partitionOperations,
+                                                                        int count,
+                                                                        int cumulativeScaleIndex) {
+
+    int numOps  = BEAGLE_OP_COUNT;
+    int numOpsP = BEAGLE_PARTITION_OP_COUNT;
+
+    for (int i=0; i<count; i++) {
+        for (int j=0; j<kPartitionCount; j++) {
+            for (int k=0; k<numOps; k++) {
+                partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + k] = operations[i*numOps + k];
+            }    
+                partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps    ] = j;
+                partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps + 1] = cumulativeScaleIndex;
+        }
+    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1182,11 +1242,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     // First compute without any scaling
                     calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2,
                                      startPattern, endPattern);
-                    if (rescale == 1) // Recompute scaleFactors
-                        if (byPartition)
+                    if (rescale == 1) { // Recompute scaleFactors
+                        if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
-                        else
+                        } else {
                             rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+                        }
+                    }
                 }
             } else {
                 if (rescale == 0) {
@@ -1195,11 +1257,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 } else {
                     calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2,
                                        startPattern, endPattern);
-                    if (rescale == 1) // Recompute scaleFactors
-                        if (byPartition)
+                    if (rescale == 1) { // Recompute scaleFactors
+                        if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
-                        else
-                            rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);                }
+                        } else {
+                            rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+                        }
+                    }
+                }
             }
         } else {
             if (tipStates2 != NULL) {
@@ -1209,11 +1274,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 } else {
                     calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1,
                                        startPattern, endPattern);
-                    if (rescale == 1) // Recompute scaleFactors
-                        if (byPartition)
+                    if (rescale == 1) {// Recompute scaleFactors
+                        if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
-                        else
+                        } else {
                             rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+                        }
+                    }
                 }
             } else {
                 if (rescale == 2) {
@@ -1229,11 +1296,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 } else {
                     calcPartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
                                          startPattern, endPattern);
-                    if (rescale == 1) // Recompute scaleFactors
-                        if (byPartition)
+                    if (rescale == 1) {// Recompute scaleFactors
+                        if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
-                        else
+                        } else {
                             rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+                        }
+                    }
                 }
             }
         }
