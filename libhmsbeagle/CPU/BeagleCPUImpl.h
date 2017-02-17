@@ -37,11 +37,11 @@
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 #include <vector>
+#include <thread>
 #include <future>
 #include <queue>
 #include <condition_variable>
 #include <mutex>
-
 
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
@@ -53,7 +53,6 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 208 // do not use CPU threading for problems with fewer patterns
 
 namespace beagle {
 namespace cpu {
@@ -120,9 +119,6 @@ protected:
     //  into a single array
     REALTYPE** gTransitionMatrices;
 
-    std::shared_future<void>* gFutures;
-    bool kThreadingEnabled;
-
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
@@ -143,8 +139,13 @@ protected:
         bool stop = false; // When set, this flag tells the thread that it should exit
     };
 
-    threadData* gThreads;
     int kNumThreads;
+    bool kThreadingEnabled;
+
+    threadData* gThreads;
+    int** gThreadOperations;
+    int* gThreadOpCounts;
+    std::shared_future<void>* gFutures;
 
 public:
     virtual ~BeagleCPUImpl();
@@ -385,30 +386,13 @@ public:
 	virtual const long getFlags();
 
 protected:
-
-    void threadWaiting(threadData* tData);
-
-
-    void calculateRootLogLikelihoodsByPartitionAsync(const int* bufferIndices,
-                                               const int* categoryWeightsIndices,
-                                               const int* stateFrequenciesIndices,
-                                               const int* cumulativeScaleIndices,
-                                               const int* partitionIndices,
-                                               int partitionCount,
-                                               double* outSumLogLikelihoodByPartition);
-
-    void upPartialsAsync(bool byPartition,
-                                 const int* operations,
-                                 int op,
-                                 int cumulativeScaleIndex,
-                                 REALTYPE* cumulativeScaleBuffer,
-                                 std::shared_future<void>* wait1,
-                                 std::shared_future<void>* wait2);
-
     virtual int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,
                            int cumulativeScalingIndex);
+
+    virtual int upPartialsByPartitionAsync(const int* operations,
+                                           int operationCount);
 
     virtual int reorderPatternsByPartition();
 
@@ -443,13 +427,14 @@ protected:
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
 
-    virtual void calcRootLogLikelihoodsByPartition(const int* bufferIndices,
-                                                   const int* categoryWeightsIndices,
-                                                   const int* stateFrequenciesIndices,
-                                                   const int* cumulativeScaleIndices,
-                                                   const int* partitionIndices,
-                                                   int partitionCount,
-                                                   double* outSumLogLikelihoodByPartition);
+    virtual int calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -559,6 +544,8 @@ protected:
     virtual int getPaddedPatternsModulus();
 
     void* mallocAligned(size_t size);
+
+    void threadWaiting(threadData* tData);
 
 };
 

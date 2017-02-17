@@ -101,13 +101,14 @@ public:
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
 
-    virtual void calcRootLogLikelihoodsByPartition(const int* bufferIndices,
-                                                   const int* categoryWeightsIndices,
-                                                   const int* stateFrequenciesIndices,
-                                                   const int* cumulativeScaleIndices,
-                                                   const int* partitionIndices,
-                                                   int partitionCount,
-                                                   double* outSumLogLikelihoodByPartition);
+    virtual int calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumLogLikelihood);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -175,12 +176,13 @@ public:
                                            const int scalingFactorsIndex,
                                            double* outSumLogLikelihood);
 
-    inline void integrateOutStatesAndScaleByPartition(const REALTYPE* integrationTmp,
-                                                      const int* stateFrequenciesIndices,
-                                                      const int* cumulativeScaleIndices,
-                                                      const int* partitionIndices,
-                                                      int partitionCount,
-                                                      double* outSumLogLikelihoodByPartition);
+    inline int integrateOutStatesAndScaleByPartition(const REALTYPE* integrationTmp,
+                                                     const int* stateFrequenciesIndices,
+                                                     const int* cumulativeScaleIndices,
+                                                     const int* partitionIndices,
+                                                     int partitionCount,
+                                                     double* outSumLogLikelihoodByPartition,
+                                                     double* outSumLogLikelihood);
 
     virtual void rescalePartials(REALTYPE *destP,
     		                     REALTYPE *scaleFactors,

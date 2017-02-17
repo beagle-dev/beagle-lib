@@ -466,15 +466,19 @@ int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScale(c
 }
 
 BEAGLE_CPU_TEMPLATE
-void inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScaleByPartition(
+int inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScaleByPartition(
                                                               const REALTYPE* integrationTmp,
                                                               const int* stateFrequenciesIndices,
                                                               const int* cumulativeScaleIndices,
                                                               const int* partitionIndices,
                                                               int partitionCount,
-                                                              double* outSumLogLikelihoodByPartition) {
+                                                              double* outSumLogLikelihoodByPartition,
+                                                              double* outSumLogLikelihood) {
     
+    int returnCode = BEAGLE_SUCCESS;
     
+    *outSumLogLikelihood = 0.0; 
+
     for (int p = 0; p < partitionCount; p++) {
       int pIndex = partitionIndices[p];
       int startPattern = gPatternPartitionsStartPatterns[pIndex];
@@ -513,8 +517,13 @@ void inline BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::integrateOutStatesAndScaleB
       for(int k=startPattern; k < endPattern; k++) {
           outSumLogLikelihoodByPartition[p] += outLogLikelihoodsTmp[k] * gPatternWeights[k];
       }
+      *outSumLogLikelihood += outSumLogLikelihoodByPartition[p];
     }
-
+    
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+    
+    return returnCode;
 }
 
 #define FAST_MAX(x,y)	(x > y ? x : y)
@@ -819,7 +828,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
         }
     }
 
-    integrateOutStatesAndScaleByPartition(integrationTmp, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition);
+    return integrateOutStatesAndScaleByPartition(integrationTmp, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition, outSumLogLikelihood);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -862,14 +871,15 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bu
 }
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
                                                                     const int* bufferIndices,
                                                                     const int* categoryWeightsIndices,
                                                                     const int* stateFrequenciesIndices,
                                                                     const int* cumulativeScaleIndices,
                                                                     const int* partitionIndices,
                                                                     int partitionCount,
-                                                                    double* outSumLogLikelihoodByPartition) {
+                                                                    double* outSumLogLikelihoodByPartition,
+                                                                    double* outSumLogLikelihood) {
 
 
     for (int p = 0; p < partitionCount; p++) {
@@ -907,7 +917,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
         v += 4 * kExtraPatterns;
         }
     }
-    integrateOutStatesAndScaleByPartition(integrationTmp, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition);
+    return integrateOutStatesAndScaleByPartition(integrationTmp, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition, outSumLogLikelihood);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -954,7 +964,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const i
             v += 4 * kExtraPatterns;
         }
                 
-        REALTYPE freq0, freq1, freq2, freq3; 
+        REALTYPE freq0, freq1, freq2, freq3;
         freq0 = frequencies[0];   
         freq1 = frequencies[1];
         freq2 = frequencies[2];
