@@ -685,7 +685,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         }
 
         kNumThreads = std::thread::hardware_concurrency();
-        if (kNumThreads > 1 && partitionCount > 1 && kPatternCount > BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
+        if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
             if (partitionCount < kNumThreads)
                 kNumThreads = partitionCount;
 
