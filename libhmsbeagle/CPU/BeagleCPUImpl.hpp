@@ -1405,8 +1405,11 @@ BEAGLE_CPU_TEMPLATE
                 *outSumLogLikelihood += outSumLogLikelihoodByPartition[i];
             }
 
-            if (*outSumLogLikelihood != *outSumLogLikelihood)
+            if (*outSumLogLikelihood != *outSumLogLikelihood) {
                 returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            } else {
+                returnCode = BEAGLE_SUCCESS;
+            }
         }
     } else {
         returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
