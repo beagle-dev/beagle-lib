@@ -435,14 +435,21 @@ protected:
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
 
-    virtual int calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+    virtual void calcRootLogLikelihoodsByPartitionAsync(const int* bufferIndices,
+                                                       const int* categoryWeightsIndices,
+                                                       const int* stateFrequenciesIndices,
+                                                       const int* cumulativeScaleIndices,
+                                                       const int* partitionIndices,
+                                                       int partitionCount,
+                                                       double* outSumLogLikelihoodByPartition);
+
+    virtual void calcRootLogLikelihoodsByPartition(const int* bufferIndices,
                                                   const int* categoryWeightsIndices,
                                                   const int* stateFrequenciesIndices,
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood);
+                                                  double* outSumLogLikelihoodByPartition);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -459,7 +466,7 @@ protected:
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
 
-    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
                                                   const int* childBufferIndices,
                                                   const int* probabilityIndices,
                                                   const int* categoryWeightsIndices,
@@ -467,8 +474,7 @@ protected:
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood);
+                                                  double* outSumLogLikelihoodByPartition);
 
     virtual int calcEdgeLogLikelihoodsMulti(const int* parentBufferIndices,
                                             const int* childBufferIndices,

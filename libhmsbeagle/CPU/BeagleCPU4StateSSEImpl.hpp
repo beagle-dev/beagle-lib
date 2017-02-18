@@ -707,7 +707,7 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoods(cons
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
                                                   const int* parentBufferIndices,
                                                   const int* childBufferIndices,
                                                   const int* probabilityIndices,
@@ -716,10 +716,9 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPart
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood) {
+                                                  double* outSumLogLikelihoodByPartition) {
 
-    return BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
+    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
                                                   parentBufferIndices,
                                                   childBufferIndices,
                                                   probabilityIndices,
@@ -728,12 +727,11 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPart
                                                   cumulativeScaleIndices,
                                                   partitionIndices,
                                                   partitionCount,
-                                                  outSumLogLikelihoodByPartition,
-                                                  outSumLogLikelihood);
+                                                  outSumLogLikelihoodByPartition);
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPartition(
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPartition(
                                                   const int* parentBufferIndices,
                                                   const int* childBufferIndices,
                                                   const int* probabilityIndices,
@@ -742,13 +740,9 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPar
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood) {
+                                                  double* outSumLogLikelihoodByPartition) {
 
 
-    int returnCode = BEAGLE_SUCCESS;
-
-    *outSumLogLikelihood = 0.0;
 
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
@@ -877,14 +871,8 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPar
         for (int i = startPattern; i < endPattern; i++) {
             outSumLogLikelihoodByPartition[p] += outLogLikelihoodsTmp[i] * gPatternWeights[i];
         }
-        *outSumLogLikelihood += outSumLogLikelihoodByPartition[p];
 
     }
-
-    if (*outSumLogLikelihood != *outSumLogLikelihood)
-        returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        
-    return returnCode;
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE

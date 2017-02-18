@@ -129,7 +129,7 @@ private:
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
 
-    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
                                                   const int* childBufferIndices,
                                                   const int* probabilityIndices,
                                                   const int* categoryWeightsIndices,
@@ -137,8 +137,7 @@ private:
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood);
+                                                  double* outSumLogLikelihoodByPartition);
     
 };
     
@@ -232,7 +231,7 @@ private:
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
 
-    virtual int calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
                                                   const int* childBufferIndices,
                                                   const int* probabilityIndices,
                                                   const int* categoryWeightsIndices,
@@ -240,8 +239,7 @@ private:
                                                   const int* cumulativeScaleIndices,
                                                   const int* partitionIndices,
                                                   int partitionCount,
-                                                  double* outSumLogLikelihoodByPartition,
-                                                  double* outSumLogLikelihood);
+                                                  double* outSumLogLikelihoodByPartition);
     
 };
     
