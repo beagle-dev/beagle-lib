@@ -452,8 +452,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
 
         if (kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT*4) {
-            gAutoPartitionIndices = (int*) malloc(sizeof(int));
-            gAutoPartitionIndices[0] = 0;
+            gAutoPartitionIndices = (int*) malloc(sizeof(int) * partitionCount);
+            for (int i=0; i<partitionCount; i++) {
+                gAutoPartitionIndices[i] = i;
+            }
             gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
             kAutoRootPartitioningEnabled = true;
         }
@@ -1387,7 +1389,12 @@ BEAGLE_CPU_TEMPLATE
         }
 
         if (kAutoRootPartitioningEnabled) {
-            calcRootLogLikelihoodsByAutoPartitionAsync(bufferIndices, categoryWeightsIndices, stateFrequenciesIndices, cumulativeScaleIndices, gAutoPartitionIndices, gAutoPartitionOutSumLogLikelihoods);                
+            calcRootLogLikelihoodsByAutoPartitionAsync(bufferIndices,
+                                                       categoryWeightsIndices,
+                                                       stateFrequenciesIndices,
+                                                       cumulativeScaleIndices,
+                                                       gAutoPartitionIndices,
+                                                       gAutoPartitionOutSumLogLikelihoods);
 
             *outSumLogLikelihood = 0.0;
 
@@ -1514,7 +1521,7 @@ BEAGLE_CPU_TEMPLATE
             std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition, this,
                       bufferIndices, categoryWeightsIndices,
                       stateFrequenciesIndices, cumulativeScaleIndices,
-                      partitionIndices, 1,
+                      &partitionIndices[i], 1,
                       &outSumLogLikelihoodByPartition[i]));
 
         gFutures[i] = threadTask.get_future();
@@ -2168,7 +2175,7 @@ BEAGLE_CPU_TEMPLATE
                       categoryWeightsIndices,
                       stateFrequenciesIndices,
                       cumulativeScaleIndices,
-                      partitionIndices,
+                      &partitionIndices[i],
                       1,
                       &outSumLogLikelihoodByPartition[i]));
 
