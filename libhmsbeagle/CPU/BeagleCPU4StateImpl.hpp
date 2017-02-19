@@ -733,13 +733,13 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
                                                           int partitionCount,
                                                           double* outSumLogLikelihoodByPartition) {
 
-    memset(integrationTmp, 0, (kPatternCount * kStateCount)*sizeof(REALTYPE));
-
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
         
         int startPattern = gPatternPartitionsStartPatterns[pIndex];
         int endPattern = gPatternPartitionsStartPatterns[pIndex + 1];
+
+        memset(&integrationTmp[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(REALTYPE));
 
         const int parIndex = parentBufferIndices[p];
         const int childIndex = childBufferIndices[p];

@@ -745,13 +745,14 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPa
 
 
     double* cl_p = integrationTmp;
-    memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
 
         int startPattern = gPatternPartitionsStartPatterns[pIndex];
         int endPattern = gPatternPartitionsStartPatterns[pIndex + 1];
+
+        memset(&cl_p[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(double));
 
         const int parIndex = parentBufferIndices[p];
         const int childIndex = childBufferIndices[p];

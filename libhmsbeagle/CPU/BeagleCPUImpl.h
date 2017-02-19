@@ -143,11 +143,14 @@ protected:
     int kNumThreads;
     bool kThreadingEnabled;
     bool kAutoPartitioningEnabled;
+    bool kAutoRootPartitioningEnabled;
 
     threadData* gThreads;
     int** gThreadOperations;
     int* gThreadOpCounts;
     int* gAutoPartitionOperations;
+    int* gAutoPartitionIndices;
+    double* gAutoPartitionOutSumLogLikelihoods;
     std::shared_future<void>* gFutures;
 
 public:
@@ -443,6 +446,13 @@ protected:
                                                        int partitionCount,
                                                        double* outSumLogLikelihoodByPartition);
 
+    virtual void calcRootLogLikelihoodsByAutoPartitionAsync(const int* bufferIndices,
+                                                            const int* categoryWeightsIndices,
+                                                            const int* stateFrequenciesIndices,
+                                                            const int* cumulativeScaleIndices,
+                                                            const int* partitionIndices,
+                                                            double* outSumLogLikelihoodByPartition);
+
     virtual void calcRootLogLikelihoodsByPartition(const int* bufferIndices,
                                                   const int* categoryWeightsIndices,
                                                   const int* stateFrequenciesIndices,
@@ -465,6 +475,26 @@ protected:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
+
+    virtual void calcEdgeLogLikelihoodsByPartitionAsync(const int* parentBufferIndices,
+                                                        const int* childBufferIndices,
+                                                        const int* probabilityIndices,
+                                                        const int* categoryWeightsIndices,
+                                                        const int* stateFrequenciesIndices,
+                                                        const int* cumulativeScaleIndices,
+                                                        const int* partitionIndices,
+                                                        int partitionCount,
+                                                        double* outSumLogLikelihoodByPartition);
+
+    virtual void calcEdgeLogLikelihoodsByAutoPartitionAsync(
+                                                        const int* parentBufferIndices,
+                                                        const int* childBufferIndices,
+                                                        const int* probabilityIndices,
+                                                        const int* categoryWeightsIndices,
+                                                        const int* stateFrequenciesIndices,
+                                                        const int* cumulativeScaleIndices,
+                                                        const int* partitionIndices,
+                                                        double* outSumLogLikelihoodByPartition);
 
     virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
                                                   const int* childBufferIndices,
