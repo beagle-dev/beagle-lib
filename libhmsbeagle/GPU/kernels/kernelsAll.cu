@@ -810,7 +810,11 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
 			if (Cs[tx]) {
             	REAL expat = Ds[tx];
             	REAL cosbt = cos(Cs[tx]);
-            	Cs[tx] = -expat * sin(Cs[tx]);
+#ifdef FW_OPENCL_AMDGPU
+                Cs[tx] = -expat * sin(Cs[tx] + 0.0);
+#else
+                Cs[tx] = -expat * sin(Cs[tx]);
+#endif
             	Ds[tx] *= cosbt;
             }
         }
