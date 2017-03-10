@@ -1253,15 +1253,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
         useMultiGrid = false; // use streams for larger partitions on CUDA
     }
 
-    if (useMultiGrid) {
-        int totalBlocks = 0;
-        for (int i=0; i < kPartitionCount; i++) {
-            int partitionStart = hPatternPartitionsStartPatterns[i];
-            int partitionEnd = hPatternPartitionsStartPatterns[i+1];
-            totalBlocks += (partitionEnd - partitionStart + kSitesPerBlock - 1) / kSitesPerBlock;
-        }
-        kPaddedPartitionBlocks = totalBlocks;
+    int totalBlocks = 0;
+    for (int i=0; i < kPartitionCount; i++) {
+        int partitionStart = hPatternPartitionsStartPatterns[i];
+        int partitionEnd = hPatternPartitionsStartPatterns[i+1];
+        totalBlocks += (partitionEnd - partitionStart + kSitesPerBlock - 1) / kSitesPerBlock;
+    }
+    kPaddedPartitionBlocks = totalBlocks;
 
+    if (useMultiGrid) {
         // kernels->SetupPartitioningKernelGrid(kPaddedPartitionBlocks);
 
         if (kUsingMultiGrid && kPaddedPartitionBlocks > kMaxPaddedPartitionBlocks) {
