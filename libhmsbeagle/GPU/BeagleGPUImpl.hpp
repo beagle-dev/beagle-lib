@@ -454,6 +454,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
 
+    if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)
+        kFlags |= BEAGLE_FLAG_PARALLELOPS_STREAMS;
+    else if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_GRID || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_GRID)
+        kFlags |= BEAGLE_FLAG_PARALLELOPS_GRID;
+
     Real r = 0;
     modifyFlagsForPrecision(&kFlags, r);
     
@@ -687,7 +692,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPaddedPartitionIntegrateBlocks = (kPaddedPatternCount + kSitesPerIntegrateBlock - 1) / kSitesPerIntegrateBlock;
     kMaxPaddedPartitionIntegrateBlocks = kPaddedPartitionIntegrateBlocks;
     kUsingMultiGrid = false;
-    if (kPaddedStateCount == 4 && (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX)) {
+
+
+    if (kPaddedStateCount == 4 && (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
         kUsingMultiGrid = true;
         allocateMultiGridBuffers();
 
@@ -1216,7 +1223,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
         hStreamIndices = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount);
         checkHostMemory(hStreamIndices);
 
-        if (kPaddedPatternCount >= BEAGLE_MULTI_GRID_MAX)
+        if ((kPaddedPatternCount >= BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_GRID))
             gpu->ResizeStreamCount((kTipCount/2 + 1) * kPartitionCount);
     }
             
@@ -1249,7 +1256,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
     }
 
     bool useMultiGrid = true;
-    if (!kUsingMultiGrid && kDeviceCode == BEAGLE_CUDA_DEVICE_NVIDIA_GPU && kPaddedPatternCount/kPartitionCount >= BEAGLE_MULTI_GRID_MAX) {
+    if (!kUsingMultiGrid && kDeviceCode == BEAGLE_CUDA_DEVICE_NVIDIA_GPU && (kPaddedPatternCount/kPartitionCount >= BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_GRID)) {
         useMultiGrid = false; // use streams for larger partitions on CUDA
     }
 
@@ -3671,7 +3678,8 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_VECTOR_NONE |
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+          BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS;
 
 #ifdef CUDA
     flags |= BEAGLE_FLAG_FRAMEWORK_CUDA |

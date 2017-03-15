@@ -92,7 +92,7 @@ enum BeagleDeviceImplementationCodes {
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
     #define BEAGLE_STREAM_COUNT 1024 // max stream count
-    #define BEAGLE_MULTI_GRID_MAX  2048 // use multi-grid for fewer than this many sites
+    #define BEAGLE_MULTI_GRID_MAX  3072 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR

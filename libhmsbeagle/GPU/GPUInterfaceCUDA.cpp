@@ -282,7 +282,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
                 
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
 
-    if (paddedPatternCount < BEAGLE_MULTI_GRID_MAX) {
+    if ((paddedPatternCount < BEAGLE_MULTI_GRID_MAX || flags & BEAGLE_FLAG_PARALLELOPS_GRID) && !(flags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
         numStreams = 1;
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
         cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
