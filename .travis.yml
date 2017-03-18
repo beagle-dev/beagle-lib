@@ -12,7 +12,8 @@ matrix:
           packages:           
             - gdb
             - apport
-      
+            - g++-4.9
+      env: COMPILER=g++-4.9      
 #cache:
 #  directories:
 #    - ${OPENCL_ROOT}
