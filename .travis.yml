@@ -12,8 +12,7 @@ matrix:
           packages:           
             - gdb
             - apport
-            - g++-4.9
-      env: CXX=g++-4.9      
+            - g++-4.9  
 #cache:
 #  directories:
 #    - ${OPENCL_ROOT}
@@ -40,6 +39,7 @@ install:
   - export CPLUS_INCLUDE_PATH=${AMDAPPSDKROOT}/include
   - export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
   - export LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LIBRARY_PATH} 
+  - export CXX=g++-4.9
   
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
