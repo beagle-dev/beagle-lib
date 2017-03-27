@@ -50,6 +50,8 @@
 
 double cpuTimeSetPartitions, cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
 
+bool useStdlibRand;
+
 static unsigned int rand_state = 1;
 
 int gt_rand_r(unsigned int *seed)
@@ -60,14 +62,20 @@ int gt_rand_r(unsigned int *seed)
 
 int gt_rand(void)
 {
-    return (gt_rand_r(&rand_state));
-    // return rand();
+    if (!useStdlibRand) {
+        return (gt_rand_r(&rand_state));
+    } else {
+        return rand();
+    }
 }
 
 void gt_srand(unsigned int seed)
 {
-    rand_state = seed;
-    // srand(seed);
+    if (!useStdlibRand) {
+        rand_state = seed;
+    } else {
+        srand(seed);
+    }
 }
 
 void abort(std::string msg) {
@@ -81,6 +89,7 @@ double* getRandomTipPartials( int nsites, int stateCount )
 	for( int i=0; i<nsites*stateCount; i+=stateCount )
 	{
 		int s = gt_rand()%stateCount;
+        // printf("%d ", s);
 		partials[i+s]=1.0;
 	}
 	return partials;
@@ -141,7 +150,8 @@ void runBeagle(int resource,
                bool setmatrix,
                bool opencl,
                int partitionCount,
-               bool sitelikes)
+               bool sitelikes,
+               bool newDataPerRep)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -544,6 +554,22 @@ void runBeagle(int resource,
     }
 
     for (int i=0; i<nreps; i++){
+
+        if (newDataPerRep) {
+            for(int i=0; i<ntaxa; i++)
+            {
+                if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
+                    double* tmpPartials = getRandomTipPartials(nsites, stateCount);
+                    beagleSetTipPartials(instance, i, tmpPartials);
+                    free(tmpPartials);
+                } else {
+                    int* tmpStates = getRandomTipStates(nsites, stateCount);
+                    beagleSetTipStates(instance, i, tmpStates);
+                    free(tmpStates);                
+                }
+            }
+        }
+
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
                 int sIndex = j / partitionCount;
@@ -700,6 +726,7 @@ void runBeagle(int resource,
                                                   (calcderivs ? &deriv1 : NULL),
                                                   (calcderivs ? &deriv2 : NULL));
             }
+
         }
         // end timing!
         gettimeofday(&time5,NULL);
@@ -724,9 +751,11 @@ void runBeagle(int resource,
         
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
-        
-        if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
-            fprintf(stdout, "error: large lnL difference between reps\n");
+
+        if (!newDataPerRep) {        
+            if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
+                fprintf(stdout, "error: large lnL difference between reps\n");
+        }
         
         if (calcderivs) {
             if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
@@ -875,7 +904,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--stdrand]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -908,7 +937,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* setmatrix,
                                     bool* opencl,
                                     int*  partitions,
-                                    bool* sitelikes)	{
+                                    bool* sitelikes,
+                                    bool* newDataPerRep)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -1019,6 +1049,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_partitions = true;
         } else if (option == "--sitelikes") {
             *sitelikes = true;
+        } else if (option == "--newdata") {
+            *newDataPerRep = true;
+        } else if (option == "--stdrand") {
+            useStdlibRand = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -1121,6 +1155,8 @@ int main( int argc, const char* argv[] )
     bool opencl = false;
     bool sitelikes = false;
     int partitions = 1;
+    bool newDataPerRep = false;
+    useStdlibRand = false;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
@@ -1135,7 +1171,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes);
+                                   &partitions, &sitelikes, &newDataPerRep);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -1179,7 +1215,8 @@ int main( int argc, const char* argv[] )
                           setmatrix,
                           opencl,
                           partitions,
-                          sitelikes);
+                          sitelikes,
+                          newDataPerRep);
             }
         }
     } else {
