@@ -164,6 +164,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_VECTOR_AVX          = 1 << 24,   /**< AVX computation */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
     
+    BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
     BEAGLE_FLAG_THREADING_OPENMP    = 1 << 13,   /**< OpenMP threading */
     BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading */
     

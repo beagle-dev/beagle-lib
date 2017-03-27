@@ -26,6 +26,7 @@ public enum BeagleFlag {
     VECTOR_SSE(1 << 11, "SSE vector computation"),
     VECTOR_NONE(1 << 12, "no vector computation"),
 
+    THREADING_CPP(1 << 30, "C++11 threading"),
     THREADING_OPENMP(1 << 13, "OpenMP threading"),
     THREADING_NONE(1 << 14, "no threading"),
 
