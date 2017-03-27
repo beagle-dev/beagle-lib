@@ -556,19 +556,20 @@ void runBeagle(int resource,
     for (int i=0; i<nreps; i++){
 
         if (newDataPerRep) {
-            for(int i=0; i<ntaxa; i++)
+            for(int ii=0; ii<ntaxa; ii++)
             {
-                if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
+                if (compactTipCount == 0 || (ii >= (compactTipCount-1) && ii != (ntaxa-1))) {
                     double* tmpPartials = getRandomTipPartials(nsites, stateCount);
-                    beagleSetTipPartials(instance, i, tmpPartials);
+                    beagleSetTipPartials(instance, ii, tmpPartials);
                     free(tmpPartials);
                 } else {
                     int* tmpStates = getRandomTipStates(nsites, stateCount);
-                    beagleSetTipStates(instance, i, tmpStates);
+                    beagleSetTipStates(instance, ii, tmpStates);
                     free(tmpStates);                
                 }
             }
         }
+
 
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
