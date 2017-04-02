@@ -151,7 +151,8 @@ void runBeagle(int resource,
                bool opencl,
                int partitionCount,
                bool sitelikes,
-               bool newDataPerRep)
+               bool newDataPerRep,
+               bool newTreePerRep)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -570,6 +571,34 @@ void runBeagle(int resource,
             }
         }
 
+        if (newTreePerRep && eigenCount==1 && partitionCount==1 && (ntaxa%2)==0) {
+            int level = ntaxa/2;
+            int levelOffset = 0;
+            int randomOffset = gt_rand();
+            for(int ii=0; ii<unpartOpsCount; ii++){
+                if (ii >= (level+levelOffset)) {
+                    levelOffset += level;
+                    level /= 2;
+                }
+
+                int cIndex = ((ii + randomOffset) % level) + levelOffset;
+
+                int child1Index = (cIndex % internalCount)*2;
+                int child2Index = (cIndex % internalCount)*2+1;
+
+                int op = ii;
+                operations[op*beagleOpCount+0] = ntaxa+ii;
+                operations[op*beagleOpCount+1] = (dynamicScaling ? ii : BEAGLE_OP_NONE);
+                operations[op*beagleOpCount+2] = (dynamicScaling ? ii : BEAGLE_OP_NONE);
+                operations[op*beagleOpCount+3] = child1Index;
+                operations[op*beagleOpCount+4] = child1Index;
+                operations[op*beagleOpCount+5] = child2Index;
+                operations[op*beagleOpCount+6] = child2Index;
+                // printf("op %02d dest %02d c1 %02d c2 %02d\n",
+                //        op, ntaxa+ii, child1Index, child2Index);
+            }   
+        }
+
 
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
@@ -753,7 +782,7 @@ void runBeagle(int resource,
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
 
-        if (!newDataPerRep) {        
+        if (!newDataPerRep && !newTreePerRep) {        
             if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
                 fprintf(stdout, "error: large lnL difference between reps\n");
         }
@@ -905,7 +934,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--stdrand]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--newtree] [--stdrand]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -939,7 +968,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* opencl,
                                     int*  partitions,
                                     bool* sitelikes,
-                                    bool* newDataPerRep)	{
+                                    bool* newDataPerRep,
+                                    bool* newTreePerRep)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -1052,6 +1082,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *sitelikes = true;
         } else if (option == "--newdata") {
             *newDataPerRep = true;
+        } else if (option == "--newtree") {
+            *newTreePerRep = true;
         } else if (option == "--stdrand") {
             useStdlibRand = true;
         } else {
@@ -1129,6 +1161,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (*partitions < 1 || *partitions > *nsites)
         abort("invalid number for partitions supplied on the command line");
+
+    if (*newTreePerRep && (*eigenCount!=1 || *partitions!=1 || (*ntaxa%2)!=0))
+        abort("new tree topology per rep can only be used with eigencount=1, partitions=1, and even number of taxa");
 }
 
 int main( int argc, const char* argv[] )
@@ -1157,6 +1192,7 @@ int main( int argc, const char* argv[] )
     bool sitelikes = false;
     int partitions = 1;
     bool newDataPerRep = false;
+    bool newTreePerRep = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -1172,7 +1208,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep);
+                                   &partitions, &sitelikes, &newDataPerRep, &newTreePerRep);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
@@ -1217,7 +1253,8 @@ int main( int argc, const char* argv[] )
                           opencl,
                           partitions,
                           sitelikes,
-                          newDataPerRep);
+                          newDataPerRep,
+                          newTreePerRep);
             }
         }
     } else {
