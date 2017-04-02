@@ -579,12 +579,19 @@ void runBeagle(int resource,
                 if (ii >= (level+levelOffset)) {
                     levelOffset += level;
                     level /= 2;
+                    randomOffset = gt_rand();
                 }
 
                 int cIndex = ((ii + randomOffset) % level) + levelOffset;
 
                 int child1Index = (cIndex % internalCount)*2;
                 int child2Index = (cIndex % internalCount)*2+1;
+
+                // int cIndex = ((gt_rand()) % level) + levelOffset;
+                // int child1Index = (cIndex % internalCount)*2;
+                // cIndex = ((gt_rand()) % level) + levelOffset;
+                // int child2Index = (cIndex % internalCount)*2+1;
+
 
                 int op = ii;
                 operations[op*beagleOpCount+0] = ntaxa+ii;
