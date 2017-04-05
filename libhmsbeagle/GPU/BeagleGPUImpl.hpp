@@ -2358,7 +2358,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             gridStart += gridSize;
 // gpu->SynchronizeHost();
         }
-// printf("\ngridLaunches total = %d\n", gridLaunches);
+// printf("gridLaunches total = %d\n", gridLaunches);
 // printf("    gridSize total = %d\n", gridStart/gridOpBlocks[0]);
 // printf("statesStatesCount = %d\n", statesStatesCount);
 // exit(-1);

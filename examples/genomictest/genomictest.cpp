@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <sstream>
 #include <cmath>
+#include <stack>
+#include <queue>
 
 #ifdef _WIN32
 	#include <winsock.h>
@@ -124,6 +126,58 @@ double getTimeDiff(struct timeval t1,
                    struct timeval t2) {
     return ((t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec-t1.tv_usec)/1000000.0);
 }
+
+struct node
+{
+    int data;
+    struct node* left;
+    struct node* right;
+    struct node* parent;
+};
+
+/* Given a binary tree, print its nodes in reverse level order */
+void reverseLevelOrder(node* root, std::stack <node*> &S)
+{
+    std::queue <node*> Q;
+    Q.push(root);
+ 
+    // Do something like normal level order traversal order. Following are the
+    // differences with normal level order traversal
+    // 1) Instead of printing a node, we push the node to stack
+    // 2) Right subtree is visited before left subtree
+    while (Q.empty() == false)
+    {
+        /* Dequeue node and make it root */
+        root = Q.front();
+        Q.pop();
+
+        if (root->left!=NULL) {
+            S.push(root);
+        }
+ 
+        /* Enqueue right child */
+        if (root->right)
+            Q.push(root->right); // NOTE: RIGHT CHILD IS ENQUEUED BEFORE LEFT
+ 
+        /* Enqueue left child */
+        if (root->left)
+            Q.push(root->left);
+    }
+ 
+}
+
+node* newNode(int data)
+{
+    node* temp = new node;
+    temp->data = data;
+    temp->left = NULL;
+    temp->right = NULL;
+    temp->parent = NULL;
+ 
+    return (temp);
+}
+
+
 
 void runBeagle(int resource, 
                int stateCount, 
@@ -472,6 +526,9 @@ void runBeagle(int resource,
 	int* operations = new int[beagleOpCount*operationCount];
     int unpartOpsCount = internalCount*eigenCount;
     int* scalingFactorsIndices = new int[unpartOpsCount]; // internal nodes
+
+
+
 	for(int i=0; i<unpartOpsCount; i++){
         int child1Index;
         if (((i % internalCount)*2) < ntaxa)
@@ -571,39 +628,79 @@ void runBeagle(int resource,
             }
         }
 
-        if (newTreePerRep && eigenCount==1 && partitionCount==1 && (ntaxa%2)==0) {
-            int level = ntaxa/2;
-            int levelOffset = 0;
-            int randomOffset = gt_rand();
-            for(int ii=0; ii<unpartOpsCount; ii++){
-                if (ii >= (level+levelOffset)) {
-                    levelOffset += level;
-                    level /= 2;
-                    randomOffset = gt_rand();
+        if (newTreePerRep && eigenCount==1 && partitionCount==1 && !unrooted) {
+
+            std::vector <node*> nodes;
+            nodes.push_back(newNode(0));
+            int tipsAdded = 1;
+            node* newParent;
+            while (tipsAdded < ntaxa) {
+                int sibling = gt_rand() % nodes.size();
+                node* newTip = newNode(tipsAdded);
+                newParent = newNode(ntaxa + tipsAdded - 1);
+                nodes.push_back(newTip);
+                nodes.push_back(newParent);
+                tipsAdded++;            
+                newParent->left  = nodes[sibling];
+                newParent->right = newTip;            
+                if (nodes[sibling]->parent != NULL) {
+                    newParent->parent = nodes[sibling]->parent;
+                    if (nodes[sibling]->parent->left == nodes[sibling]) {
+                        nodes[sibling]->parent->left = newParent;
+                    } else {
+                        nodes[sibling]->parent->right = newParent;
+                    }
                 }
+                nodes[sibling]->parent = newParent;
+                newTip->parent         = newParent;
+            }
+            node* root = nodes[0];
+            while(root->parent != NULL) {
+                root = root->parent;
+            }
+            int rootIndex = newParent->data;
+            newParent->data = root->data;
+            root->data = rootIndex;
 
-                int cIndex = ((ii + randomOffset) % level) + levelOffset;
+            std::stack <node *> S;
+            reverseLevelOrder(root, S);
 
-                int child1Index = (cIndex % internalCount)*2;
-                int child2Index = (cIndex % internalCount)*2+1;
+            // while (S.empty() == false) {
+            //     node* tmpNode = S.top();
+            //     std::cout << tmpNode->data << " ";
+            //     S.pop();
+            // }
+            // std::cout << std::endl;
+            // reverseLevelOrder(root, S);
 
-                // int cIndex = ((gt_rand()) % level) + levelOffset;
-                // int child1Index = (cIndex % internalCount)*2;
-                // cIndex = ((gt_rand()) % level) + levelOffset;
-                // int child2Index = (cIndex % internalCount)*2+1;
+            // struct node *root = newNode(4);
+            // root->left        = newNode(0);
+            // root->right       = newNode(6);
+            // root->right->left  = newNode(5);
+            // root->right->right = newNode(3);
+            // root->right->left->left  = newNode(1);
+            // root->right->left->right = newNode(2);
+            // std::stack <node *> S;
+            // reverseLevelOrder(root, S);
 
+            for(int op=0; op<unpartOpsCount; op++){
+                node* parent = S.top();
+                S.pop();
+                int parentIndex = parent->data;
+                int child1Index = parent->left->data;
+                int child2Index = parent->right->data;
 
-                int op = ii;
-                operations[op*beagleOpCount+0] = ntaxa+ii;
-                operations[op*beagleOpCount+1] = (dynamicScaling ? ii : BEAGLE_OP_NONE);
-                operations[op*beagleOpCount+2] = (dynamicScaling ? ii : BEAGLE_OP_NONE);
+                operations[op*beagleOpCount+0] = parentIndex;
+                operations[op*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+                operations[op*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
                 operations[op*beagleOpCount+3] = child1Index;
                 operations[op*beagleOpCount+4] = child1Index;
                 operations[op*beagleOpCount+5] = child2Index;
                 operations[op*beagleOpCount+6] = child2Index;
                 // printf("op %02d dest %02d c1 %02d c2 %02d\n",
-                //        op, ntaxa+ii, child1Index, child2Index);
+                //        op, parentIndex, child1Index, child2Index);
             }   
+            // printf("\n");
         }
 
 
@@ -1169,8 +1266,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*partitions < 1 || *partitions > *nsites)
         abort("invalid number for partitions supplied on the command line");
 
-    if (*newTreePerRep && (*eigenCount!=1 || *partitions!=1 || (*ntaxa%2)!=0))
-        abort("new tree topology per rep can only be used with eigencount=1, partitions=1, and even number of taxa");
+    if (*newTreePerRep && (*eigenCount!=1 || *partitions!=1 || *unrooted))
+        abort("new tree topology per rep can only be used with eigencount=1, partitions=1, and unrooted trees");
 }
 
 int main( int argc, const char* argv[] )
