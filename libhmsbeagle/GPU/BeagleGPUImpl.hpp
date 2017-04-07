@@ -174,7 +174,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         #ifdef FW_OPENCL
             gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
         #else
-            gpu->FreeHostMemory(hPartialsPtrs);
+            // gpu->FreeHostMemory(hPartialsPtrs);
+            gpu->FreePinnedHostMemory(hPartialsPtrs);
         #endif
             gpu->FreeMemory(dPartialsPtrs);
             // gpu->FreeMemory(dPartitionOffsets);
@@ -752,7 +753,8 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateMultiGridBuffers() {
     hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, kOpOffsetsSize);
     #else
     dPartialsPtrs = gpu->AllocateMemory(kOpOffsetsSize);
-    hPartialsPtrs = (unsigned int*) gpu->MallocHost(kOpOffsetsSize);
+    // hPartialsPtrs = (unsigned int*) gpu->MallocHost(kOpOffsetsSize);
+    hPartialsPtrs = (unsigned int*) gpu->AllocatePinnedHostMemory(kOpOffsetsSize, true, false);
     #endif
     checkHostMemory(hPartialsPtrs);
 

@@ -874,6 +874,13 @@ void runBeagle(int resource,
         // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
         // fprintf(stdout, "logL = %.5f  ", logL);
 
+	//		unsigned int partialsOps = internalCount * eigenCount;
+	//		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+	//		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+	//		unsigned long long partialsTotal = partialsSize * partialsOps;
+	//		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+	//		std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+	
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
             bestTimeSetPartitions = getTimeDiff(time0, time1);
