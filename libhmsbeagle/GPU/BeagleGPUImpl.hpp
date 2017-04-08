@@ -1259,7 +1259,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
 
     bool useMultiGrid = true;
     if (!kUsingMultiGrid && ((kPaddedPatternCount/kPartitionCount >= BEAGLE_MULTI_GRID_MAX && kDeviceCode == BEAGLE_CUDA_DEVICE_NVIDIA_GPU) || kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_GRID)) {
-        printf("using streams\n");
         useMultiGrid = false; // use streams for larger partitions on CUDA
     }
 
