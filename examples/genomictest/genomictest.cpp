@@ -628,7 +628,7 @@ void runBeagle(int resource,
             }
         }
 
-        if (newTreePerRep && eigenCount==1 && partitionCount==1 && !unrooted) {
+        if (newTreePerRep && eigenCount==1 && !unrooted) {
 
             std::vector <node*> nodes;
             nodes.push_back(newNode(0));
@@ -636,6 +636,7 @@ void runBeagle(int resource,
             node* newParent;
             while (tipsAdded < ntaxa) {
                 int sibling = gt_rand() % nodes.size();
+                // int sibling = nodes.size()-1;
                 node* newTip = newNode(tipsAdded);
                 newParent = newNode(ntaxa + tipsAdded - 1);
                 nodes.push_back(newTip);
@@ -690,17 +691,24 @@ void runBeagle(int resource,
                 int child1Index = parent->left->data;
                 int child2Index = parent->right->data;
 
-                operations[op*beagleOpCount+0] = parentIndex;
-                operations[op*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                operations[op*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                operations[op*beagleOpCount+3] = child1Index;
-                operations[op*beagleOpCount+4] = child1Index;
-                operations[op*beagleOpCount+5] = child2Index;
-                operations[op*beagleOpCount+6] = child2Index;
-                // printf("op %02d dest %02d c1 %02d c2 %02d\n",
-                //        op, parentIndex, child1Index, child2Index);
+                for (int j=0; j<partitionCount; j++) {
+                    int opJ = partitionCount*op + j;
+                    operations[opJ*beagleOpCount+0] = parentIndex;
+                    operations[opJ*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+                    operations[opJ*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+                    operations[opJ*beagleOpCount+3] = child1Index;
+                    operations[opJ*beagleOpCount+4] = child1Index + j*edgeCount;;
+                    operations[opJ*beagleOpCount+5] = child2Index;
+                    operations[opJ*beagleOpCount+6] = child2Index + j*edgeCount;
+                    if (partitionCount > 1) {
+                        operations[opJ*beagleOpCount+7] = j;
+                        operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
+                    }
+                // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
+                //        opJ, j, parentIndex, child1Index, child2Index);
+                }
+                // printf("\n");
             }   
-            // printf("\n");
         }
 
 
@@ -874,12 +882,12 @@ void runBeagle(int resource,
         // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
         // fprintf(stdout, "logL = %.5f  ", logL);
 
-	//		unsigned int partialsOps = internalCount * eigenCount;
-	//		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
-	//		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
-	//		unsigned long long partialsTotal = partialsSize * partialsOps;
-	//		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-	//		std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+			// unsigned int partialsOps = internalCount * eigenCount;
+			// unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+			// unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+			// unsigned long long partialsTotal = partialsSize * partialsOps;
+			// unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+			// std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
 	
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
@@ -1273,8 +1281,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*partitions < 1 || *partitions > *nsites)
         abort("invalid number for partitions supplied on the command line");
 
-    if (*newTreePerRep && (*eigenCount!=1 || *partitions!=1 || *unrooted))
-        abort("new tree topology per rep can only be used with eigencount=1, partitions=1, and unrooted trees");
+    if (*newTreePerRep && (*eigenCount!=1 || *unrooted))
+        abort("new tree topology per rep can only be used with eigencount=1 and unrooted trees");
 }
 
 int main( int argc, const char* argv[] )
