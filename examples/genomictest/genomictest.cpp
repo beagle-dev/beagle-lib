@@ -232,6 +232,7 @@ void runBeagle(int resource,
 				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
 				1,			      /**< Length of resourceList list (input) */
                 0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                // BEAGLE_FLAG_PARALLELOPS_STREAMS |
                 (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                 (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                 (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
