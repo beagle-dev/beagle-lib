@@ -1007,7 +1007,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
     REAL sum = 0;
 
     int pattern = startPattern + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
-    int maxPattern = (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
+    int maxPattern = startPattern + (KW_GROUP_ID_0 + 1) * SUM_SITES_BLOCK_SIZE;
 
     if (maxPattern > endPattern)
         maxPattern = endPattern;
