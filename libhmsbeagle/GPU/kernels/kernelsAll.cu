@@ -722,6 +722,226 @@ KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
 
 }//END: kernelMatrixConvolution
 
+KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
+                                   KW_GLOBAL_VAR unsigned int* offsets,
+                                   KW_GLOBAL_VAR REAL* Alist,
+                                   KW_GLOBAL_VAR REAL* Dlist,
+                                   KW_GLOBAL_VAR REAL* Blist,
+                                   KW_GLOBAL_VAR REAL* distanceQueue,
+                                   int length,
+                                   int wB,
+                                   int totalMatrix) {
+#if !(defined(FW_OPENCL_APPLEAMDGPU) && defined(DOUBLE_PRECISION)) // TODO: fix this issue
+    int wMatrix = KW_GROUP_ID_0 % totalMatrix;
+    int offIndex = wMatrix * 3;
+
+    // Block index
+    int bx = KW_GROUP_ID_0 / totalMatrix;
+    int by = KW_GROUP_ID_1;
+    int BLOCKS = KW_NUM_GROUPS_1;
+
+    // Thread index
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+
+    KW_GLOBAL_VAR REAL* C = dMatrices + offsets[offIndex];
+    KW_GLOBAL_VAR REAL* B = Blist + offsets[offIndex + 1]; // dEvec
+    KW_GLOBAL_VAR REAL* A = Alist + offsets[offIndex + 1]; // dIevc
+    KW_GLOBAL_VAR REAL* D = Dlist + offsets[offIndex + 2]; // dEigenValues
+    REAL distance = distanceQueue[wMatrix];
+
+    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of A
+    int aStep = MULTIPLY_BLOCK_SIZE;
+
+    // Step size used to iterate through the sub-matrices of B
+    int bStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    // Csub is used to store the element of the block sub-matrix
+    // that is computed by the thread
+    REAL Csub = 0;
+
+    int a = PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE * by;
+    int b = MULTIPLY_BLOCK_SIZE * bx;
+    int d = 0; //MULTIPLY_BLOCK_SIZE * bx;
+
+    KW_LOCAL_MEM REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Bs[MULTIPLY_BLOCK_SIZE + 2][MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Cs[MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
+
+#ifdef CUDA
+    REAL* B0  = &Bs[1][0];
+    REAL* Bm1 = &Bs[0][0];
+    REAL* Bp1 = &Bs[2][0];
+    REAL* E0  = &Es[1];
+#elif defined(FW_OPENCL)
+    KW_LOCAL_MEM REAL* B0  = &Bs[1][0];
+    KW_LOCAL_MEM REAL* Bm1 = &Bs[0][0];
+    KW_LOCAL_MEM REAL* Bp1 = &Bs[2][0];
+    KW_LOCAL_MEM REAL* E0  = &Es[1];
+#endif
+
+    // Zero first row of Bs and Es
+    if (ty == 0) {
+        Bs[0][tx] = 0;
+        if (tx == 0) {
+            Es[0] = 0;
+        }
+    }
+
+    while (d + MULTIPLY_BLOCK_SIZE < PADDED_STATE_COUNT) {
+
+//      READ_SCHUR_VALUES();
+        if (ty == 0) {
+            Ds[tx] = exp(D[d + tx] * distance);
+            Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance;
+            if (Cs[tx]) {
+                REAL expat = Ds[tx];
+                REAL cosbt = cos(Cs[tx]);
+#ifdef FW_OPENCL_AMDGPU
+                Cs[tx] = -expat * sin(Cs[tx] + 0.0);
+#else
+                Cs[tx] = -expat * sin(Cs[tx]);
+#endif
+                Ds[tx] *= cosbt;
+            }
+        }
+
+        // Block read A and B sub-matrices
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+        // Read extra row of B for Bp1
+        if (ty == 0) {
+            B0[MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE + tx] =
+                    B[b + PADDED_STATE_COUNT * MULTIPLY_BLOCK_SIZE + tx];
+        }
+
+        // All necessary values loaded
+        KW_LOCAL_FENCE;
+
+//      POPULATE_SCHUR_BAND(MULTIPLY_BLOCK_SIZE);
+        if (ty == 0 && tx == 0) {
+            for(int k=0; k<MULTIPLY_BLOCK_SIZE; k++) {
+                if (Cs[k] && !Es[k]) {
+                    E0[k] = Cs[k];
+                } else {
+                    E0[k] = 0;
+                }
+            }
+        }
+
+
+        KW_LOCAL_FENCE;
+
+//      DO_MULTIPLICATION(MULTIPLY_BLOCK_SIZE);
+        for (int k = 0; k < MULTIPLY_BLOCK_SIZE; k++) {
+            Csub += As[ty][k] * (
+                    Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx]
+                  + E0[k] * Bp1[k * MULTIPLY_BLOCK_SIZE + tx]
+                  - Es[k] * Bm1[k * MULTIPLY_BLOCK_SIZE + tx]
+            );
+        }
+
+
+        // Move last entries in B0 and E0 to first entries in Bs and Es
+        if (ty == 0) {
+            Bm1[tx] = Bm1[MULTIPLY_BLOCK_SIZE*MULTIPLY_BLOCK_SIZE + tx];
+            if (tx == 0) {
+                Es[0] = Es[MULTIPLY_BLOCK_SIZE];
+            }
+        }
+
+        KW_LOCAL_FENCE;
+
+        // Increment sub-matrices
+        a += aStep;
+        b += bStep;
+        d += MULTIPLY_BLOCK_SIZE;
+
+    }
+
+    if (tx < EDGE && ty < EDGE) { // Last block is too long
+
+//      READ_SCHUR_VALUES();
+        if (ty == 0) {
+            Ds[tx] = exp(D[d + tx] * distance);
+            Cs[tx] = D[d + PADDED_STATE_COUNT + tx] * distance;
+            if (Cs[tx]) {
+                REAL expat = Ds[tx];
+                REAL cosbt = cos(Cs[tx]);
+#ifdef FW_OPENCL_AMDGPU
+                Cs[tx] = -expat * sin(Cs[tx] + 0.0);
+#else
+                Cs[tx] = -expat * sin(Cs[tx]);
+#endif
+                Ds[tx] *= cosbt;
+            }
+        }
+
+        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
+        B0[ty * MULTIPLY_BLOCK_SIZE + tx] = B[b + PADDED_STATE_COUNT * ty + tx];
+
+    } else {
+        if (ty == 0) {
+            Ds[tx] = 0;
+            Cs[tx] = 0;
+        }
+        As[ty][tx] = 0;
+        B0[ty * MULTIPLY_BLOCK_SIZE + tx] = 0;
+    }
+
+    // Zero last row of Bs and Es (only for unrolled iteration at end)
+    if (ty == 0) {
+        Bs[MULTIPLY_BLOCK_SIZE+1][tx] = 0;
+    }
+
+    // All necessary values loaded
+    KW_LOCAL_FENCE;
+
+//  POPULATE_SCHUR_BAND(EDGE);
+    if (ty == 0 && tx == 0) {
+        for(int k=0; k<EDGE; k++) {
+            if (Cs[k] && !Es[k]) {
+                E0[k] = Cs[k];
+            } else {
+                E0[k] = 0;
+            }
+        }
+    }
+
+    KW_LOCAL_FENCE;
+
+    // Do matrix multiplication
+//  DO_MULTIPLICATION(EDGE);
+    for (int k = 0; k < EDGE; k++) {
+        Csub += As[ty][k] * (
+                Ds[k] * B0 [k * MULTIPLY_BLOCK_SIZE + tx]
+              + E0[k] * Bp1[k * MULTIPLY_BLOCK_SIZE + tx]
+              - Es[k] * Bm1[k * MULTIPLY_BLOCK_SIZE + tx]
+        );
+    }
+
+
+    KW_LOCAL_FENCE;
+
+    // Write the block sub-matrix to device memory;
+    // each thread writes one element
+
+    if (Csub < 0)
+        Csub = 0;
+
+    if ((tx < EDGE || bx < BLOCKS - 1) && (ty < EDGE || by < BLOCKS - 1)) { // It's OK to write
+        C[PADDED_STATE_COUNT* MULTIPLY_BLOCK_SIZE * by + MULTIPLY_BLOCK_SIZE * bx +
+              PADDED_STATE_COUNT * ty + tx] = Csub;
+    }
+#endif
+}
+    
+
 KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,

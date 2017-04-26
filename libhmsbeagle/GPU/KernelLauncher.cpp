@@ -211,7 +211,11 @@ void KernelLauncher::LoadKernels() {
 	//TODO: Epoch Model
 	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
 
-    fMatrixMulADBMulti = gpu->GetFunction("kernelMatrixMulADBMulti");
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+        fMatrixMulADBMulti = gpu->GetFunction("kernelMatrixMulADBComplexMulti");
+    } else {
+        fMatrixMulADBMulti = gpu->GetFunction("kernelMatrixMulADBMulti");
+    }
 
     fMatrixMulADBFirstDeriv = gpu->GetFunction("kernelMatrixMulADBFirstDeriv");
     
