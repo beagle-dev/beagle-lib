@@ -190,7 +190,9 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgSumSitesGrid.x += 1;
 
     // Set up block for reordering partials
-    if (kCPUImplementation) {
+    if (kAppleCPUImplementation) {
+        bgReorderPatternsBlock = Dim3Int(REORDER_BLOCK_SIZE_APPLECPU);
+    } else if (kCPUImplementation) {
         bgReorderPatternsBlock = Dim3Int(REORDER_BLOCK_SIZE_CPU);
     } else {
         bgReorderPatternsBlock = Dim3Int(kPaddedStateCount, REORDER_BLOCK_SIZE);
@@ -922,7 +924,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (AppleCPUImplementation &&
+    if (kAppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;
@@ -934,6 +936,8 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
     if (endPattern != 0) {
         int launchPatternCount = endPattern - startPattern;
         int blockPatternCount = kPatternBlockSize;
+        if (kAppleCPUImplementation)
+            blockPatternCount = 1;
         if (kPaddedStateCount == 4 && !kCPUImplementation) {
             blockPatternCount *= 4;
         }
@@ -1058,6 +1062,7 @@ void KernelLauncher::StatesStatesPruningMulti(GPUPtr states,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::StatesStatesPruningMulti\n");
 #endif
+
     int tmpGridx = bgPeelingGrid.x;
     bgPeelingGrid.x = gridSize;
 
@@ -1106,7 +1111,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (AppleCPUImplementation &&
+    if (kAppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;
@@ -1118,6 +1123,8 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
     if (endPattern != 0) {
         int launchPatternCount = endPattern - startPattern;
         int blockPatternCount = kPatternBlockSize;
+        if (kAppleCPUImplementation)
+            blockPatternCount = 1;
         if (kPaddedStateCount == 4 && !kCPUImplementation) {
             blockPatternCount *= 4;
         }
@@ -1395,7 +1402,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
     size_t blockX = bgPeelingBlock.x;
     size_t gridX  = bgPeelingGrid.x;
     bool AppleCPUImplementation = false;
-    if (AppleCPUImplementation &&
+    if (kAppleCPUImplementation &&
         kPaddedStateCount == 4) {
         bgPeelingBlock.x = 1;
         bgPeelingGrid.x  = gridX * blockX;

@@ -455,7 +455,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
 
-    if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)
+    if (kDeviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU)
+        kFlags |= BEAGLE_FLAG_PARALLELOPS_STREAMS;
+    else if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)
         kFlags |= BEAGLE_FLAG_PARALLELOPS_STREAMS;
     else if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_GRID || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_GRID)
         kFlags |= BEAGLE_FLAG_PARALLELOPS_GRID;
