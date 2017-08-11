@@ -1478,8 +1478,8 @@ BEAGLE_CPU_TEMPLATE
                                                         int partitionCount,
                                                         double* outSumLogLikelihoodByPartition) {
 
-    int partitionsPerThreadFloor = kPartitionCount / kNumThreads;
-    int partitionsRemainder = kPartitionCount % kNumThreads;
+    int partitionsPerThreadFloor = partitionCount / kNumThreads;
+    int partitionsRemainder = partitionCount % kNumThreads;
     int currentPartitionIndex = 0;
     for (int i=0; i<kNumThreads; i++) {
         int partitionCountThread = partitionsPerThreadFloor;
