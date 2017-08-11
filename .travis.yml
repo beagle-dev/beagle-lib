@@ -3,23 +3,24 @@ language: cpp
 
 # Compiler selection
 matrix:
-  include:  
+  include:
     - compiler: gcc
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-          packages:           
+          packages:
             - gdb
             - apport
-      
+            - opencl-headers
+
 #cache:
 #  directories:
 #    - ${OPENCL_ROOT}
-        
+
 before_install:
   - |
-    if [[ "linux" == "linux" ]]; then    
+    if [[ "linux" == "linux" ]]; then
       mkdir -p ${OPENCL_ROOT}
       bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
       tar -xjf AMD-SDK.tar.bz2
@@ -28,45 +29,45 @@ before_install:
       sh AMD-APP-SDK*.sh --tar -xf -C ${AMDAPPSDKROOT}
       echo libamdocl64.so > ${OPENCL_VENDOR_PATH}/amdocl64.icd
       export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
-      export CMAKE_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64;      
+      export CMAKE_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64;
       chmod +x ${AMDAPPSDKROOT}/bin/x86_64/clinfo
       ${AMDAPPSDKROOT}/bin/x86_64/clinfo
       rm AMD-APP-SDK*.sh
       rm AMD-SDK.tar.bz2
-    fi    
-    
+    fi
+
 install:
   - export CPLUS_INCLUDE_PATH=${AMDAPPSDKROOT}/include
   - export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
-  - export LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LIBRARY_PATH} 
-  
+  - export LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LIBRARY_PATH}
+
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
-  
+
 # Build steps
 script:
   - ./autogen.sh
   - ./configure  --with-opencl=${AMDAPPSDKROOT}
   - make
   - make check
-  
+
 # after_failure:
 #  - ls
 #  - COREFILE=$(find . -maxdepth 1 -name "core*" | head -n 1) # find core file
 #  - if [[ -f "$COREFILE" ]]; then gdb -c "$COREFILE" ./benchmark -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
-  
+
 notifications:
   recipients:
     - msuchard@gmail.com
     - daniel@kotim.me
   email:
     on_success: change
-    on_failure: always  
-  
+    on_failure: always
+
 env:
   global:
   - OPENCL_ROOT=$HOME/opencl
   - OPENCL_LIB=amdappsdk
   - OPENCL_VERSION="12"
-  - AMDAPPSDK_VERSION=291 # OpenCL 1.2   
-  - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK    
+  - AMDAPPSDK_VERSION=291 # OpenCL 1.2
+  - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK
