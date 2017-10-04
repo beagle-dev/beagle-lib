@@ -5,7 +5,6 @@
 :: @author Aaron Darling
 :: 
 cd ..\..\..\libhmsbeagle\GPU\kernels
-
 echo #define STATE_COUNT 4 > kernels4.cl
 type ..\GPUImplDefs.h >> kernels4.cl
 type kernelsAll.cu >> kernels4.cl
@@ -45,8 +44,8 @@ echo #define __BeagleOpenCL_kernels__ >> %OUTFILE%
 
 FOR %%G IN (4 16 32 48 64 80 128 192) DO (
 
-..\..\..\project\beagle-vs-2012\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
-..\..\..\project\beagle-vs-2012\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2017\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_SP_%%G kernels%%G.cl >> %OUTFILE%
+..\..\..\project\beagle-vs-2017\cuda-kernels\bin2c.exe -p 0 -st -n KERNELS_STRING_DP_%%G kernels_dp_%%G.cl >> %OUTFILE%
 
 del kernels%%G.cl
 del kernels_dp_%%G.cl
