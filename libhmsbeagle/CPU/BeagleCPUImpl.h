@@ -42,6 +42,7 @@
 #include <queue>
 #include <condition_variable>
 #include <mutex>
+#include <functional>
 
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
