@@ -125,7 +125,7 @@
         "DisplayName" = "8:Release"
         "IsDebugOnly" = "11:FALSE"
         "IsReleaseOnly" = "11:TRUE"
-        "OutputFilename" = "8:Release\\installer.msi"
+        "OutputFilename" = "8:Release\\libhmsbeagle-3.0.msi"
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
@@ -148,6 +148,11 @@
                     {
                     "Name" = "8:Microsoft .NET Framework 4.6.1 (x86 and x64)"
                     "ProductCode" = "8:.NETFramework,Version=v4.6.1"
+                    }
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.Visual.C++.14.0.x64"
+                    {
+                    "Name" = "8:Visual C++ \"14\" Runtime Libraries (x64)"
+                    "ProductCode" = "8:Microsoft.Visual.C++.14.0.x64"
                     }
                 }
             }
@@ -460,7 +465,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:libhmsbeagle-3.0"
         "ProductCode" = "8:{3D3CD6F8-71E5-4BF9-93B9-198D7F156830}"
-        "PackageCode" = "8:{1827C2C9-93CB-4D2A-AF1D-9217B21D9446}"
+        "PackageCode" = "8:{69D7322A-E78A-4728-86B0-C78E48E7E379}"
         "UpgradeCode" = "8:{97EA3744-18C9-4673-9EF2-B1A7A7EA288A}"
         "AspNetVersion" = "8:"
         "RestartWWWService" = "11:FALSE"
