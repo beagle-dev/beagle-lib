@@ -34,6 +34,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle-cuda", "libhms
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda-kernels", "cuda-kernels\cuda-kernels.vcxproj", "{71A686A8-26F0-44A3-A82F-4D35A33E83C1}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "installer", "installer\installer.vdproj", "{EBA44F84-2A34-41BE-B859-D3D21871E732}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -80,6 +82,8 @@ Global
 		{71A686A8-26F0-44A3-A82F-4D35A33E83C1}.Debug|x64.Build.0 = Debug|x64
 		{71A686A8-26F0-44A3-A82F-4D35A33E83C1}.Release|x64.ActiveCfg = Release|x64
 		{71A686A8-26F0-44A3-A82F-4D35A33E83C1}.Release|x64.Build.0 = Release|x64
+		{EBA44F84-2A34-41BE-B859-D3D21871E732}.Debug|x64.ActiveCfg = Debug
+		{EBA44F84-2A34-41BE-B859-D3D21871E732}.Release|x64.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
