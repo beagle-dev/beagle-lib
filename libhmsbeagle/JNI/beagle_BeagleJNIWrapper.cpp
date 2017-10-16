@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include "libhmsbeagle/JNI/winjni.h"
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
