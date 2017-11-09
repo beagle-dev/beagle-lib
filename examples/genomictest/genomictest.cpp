@@ -365,7 +365,8 @@ void runBeagle(int resource,
                int partitionCount,
                bool sitelikes,
                bool newDataPerRep,
-               bool newTreePerRep)
+               bool newTreePerRep,
+               bool rerootTrees)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -823,7 +824,6 @@ void runBeagle(int resource,
             newParent->data = root->data;
             root->data = rootIndex;
 
-            bool rerootTrees = false;
             if (rerootTrees) {
                 int bestRerootNode = -1;
                 int bestLaunchCount = countLaunches(root);
@@ -1283,7 +1283,7 @@ void printResourceList() {
 
 void helpMessage() {
 	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--newtree] [--stdrand]\n\n";
+	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--newtree] [--reroot] [--stdrand]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -1318,7 +1318,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int*  partitions,
                                     bool* sitelikes,
                                     bool* newDataPerRep,
-                                    bool* newTreePerRep)	{
+                                    bool* newTreePerRep,
+                                    bool* rerootTrees)	{
     bool expecting_stateCount = false;
 	bool expecting_ntaxa = false;
 	bool expecting_nsites = false;
@@ -1435,6 +1436,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *newTreePerRep = true;
         } else if (option == "--stdrand") {
             useStdlibRand = true;
+        } else if (option == "--reroot") {
+            *rerootTrees = true;
         } else {
 			std::string msg("Unknown command line parameter \"");
 			msg.append(option);			
@@ -1542,6 +1545,7 @@ int main( int argc, const char* argv[] )
     int partitions = 1;
     bool newDataPerRep = false;
     bool newTreePerRep = false;
+    bool rerootTrees = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -1603,7 +1607,8 @@ int main( int argc, const char* argv[] )
                           partitions,
                           sitelikes,
                           newDataPerRep,
-                          newTreePerRep);
+                          newTreePerRep,
+                          rerootTrees);
             }
         }
     } else {
