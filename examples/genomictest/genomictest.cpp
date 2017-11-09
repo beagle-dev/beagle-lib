@@ -16,6 +16,7 @@
 #include <cmath>
 #include <stack>
 #include <queue>
+#include <unistd.h>
 
 #ifdef _WIN32
 	#include <winsock.h>
@@ -166,7 +167,62 @@ void reverseLevelOrder(node* root, std::stack <node*> &S)
  
 }
 
-node* newNode(int data)
+
+/* Given a binary tree, count number of parallel launches */
+int countLaunches(node* root)
+{
+    std::stack <node *> S;
+    reverseLevelOrder(root, S);
+
+    int opCount = S.size();
+
+    int launchCount = 0;
+    int gridStartOp[opCount];
+    int operationsTmp[opCount];
+    int parentMinIndex = 0;
+
+    for(int op=0; op<opCount; op++){
+        node* parent = S.top();
+        S.pop();
+        int parentIndex = parent->data;
+        int child1Index = parent->left->data;
+        int child2Index = parent->right->data;
+
+        operationsTmp[op] = parentIndex;
+        
+        // printf("op %02d dest %02d c1 %02d c2 %02d\n",
+        //        op, parentIndex, child1Index, child2Index);
+
+        bool newLaunch = false;
+
+        if (op == 0) {
+            newLaunch = true;
+        } else if (child1Index >= parentMinIndex || child2Index >= parentMinIndex) {
+            for (int i=gridStartOp[launchCount-1]; i < op; i++) {
+                int previousParentIndex = operationsTmp[i];
+                if (child1Index == previousParentIndex || child2Index == previousParentIndex) {
+                    newLaunch = true;
+                    break;
+                }
+            }
+        }
+
+       if (newLaunch) {
+            gridStartOp[launchCount] = op;
+            parentMinIndex = parentIndex;
+
+            launchCount++;
+        } 
+
+        if (parentIndex < parentMinIndex)
+            parentMinIndex = parentIndex;
+    }
+
+    return launchCount;
+}
+
+
+node* createNewNode(int data)
 {
     node* temp = new node;
     temp->data = data;
@@ -176,6 +232,109 @@ node* newNode(int data)
  
     return (temp);
 }
+
+void addChildren(node* newNode, node* originalNode, std::vector<node*> newNodes)
+{
+    if (originalNode->left != NULL) {
+        newNode->left = createNewNode(originalNode->left->data);
+        newNode->left->parent = newNode;
+        newNodes.push_back(newNode->left);
+        
+        addChildren(newNode->left, originalNode->left, newNodes);
+
+        newNode->right = createNewNode(originalNode->right->data);
+        newNode->right->parent = newNode;
+        newNodes.push_back(newNode->right);
+
+        addChildren(newNode->right, originalNode->right, newNodes);
+    }
+}
+
+
+void addParentChildren(node* newNode, node* originalNode, std::vector<node*> newNodes)
+{
+
+    if (originalNode->parent != NULL) {
+
+        if (originalNode->left->data == newNode->parent->data) {
+            newNode->left = createNewNode(originalNode->parent->data);
+            newNode->left->parent = newNode;
+            newNodes.push_back(newNode->left);
+
+            addParentChildren(newNode->left, originalNode->parent, newNodes);
+
+            newNode->right = createNewNode(originalNode->right->data);
+            newNode->right->parent = newNode;
+            newNodes.push_back(newNode->right);
+
+            addChildren(newNode->right, originalNode->right, newNodes);
+        } else {
+            newNode->right = createNewNode(originalNode->parent->data);
+            newNode->right->parent = newNode;
+            newNodes.push_back(newNode->right);
+
+            addParentChildren(newNode->right, originalNode->parent, newNodes);
+
+            newNode->left = createNewNode(originalNode->left->data);
+            newNode->left->parent = newNode;
+            newNodes.push_back(newNode->left);
+
+            addChildren(newNode->left, originalNode->left, newNodes);
+        }
+
+    } else { // original is root node
+
+        if (newNode->parent->data == originalNode->left->data) {
+            newNode->data = originalNode->right->data;
+            addChildren(newNode, originalNode->right, newNodes);
+        } else {
+            newNode->data = originalNode->left->data;
+            addChildren(newNode, originalNode->left, newNodes);
+        }
+    }
+}
+
+node* reroot(node* rerootNode, node* root, std::vector<node*> newNodes)
+{
+    struct node* newRoot = createNewNode(rerootNode->data);
+    newNodes.push_back(newRoot);
+
+        if (rerootNode->parent->left == rerootNode) {
+
+            newRoot->left = createNewNode(rerootNode->data);
+            newRoot->left->parent = newRoot;
+            newNodes.push_back(newRoot->left);
+
+            addChildren(newRoot->left, rerootNode, newNodes);
+
+            newRoot->right = createNewNode(rerootNode->parent->data);
+            newRoot->right->parent = newRoot;
+            newNodes.push_back(newRoot->right);
+
+            addParentChildren(newRoot->right, rerootNode->parent, newNodes);
+
+        } else {
+
+            newRoot->right = createNewNode(rerootNode->data);
+            newRoot->right->parent = newRoot;
+            newNodes.push_back(newRoot->right);
+
+            addChildren(newRoot->right, rerootNode, newNodes);
+
+            newRoot->left = createNewNode(rerootNode->parent->data);
+            newRoot->left->parent = newRoot;
+            newNodes.push_back(newRoot->left);
+
+            addParentChildren(newRoot->left, rerootNode->parent, newNodes);
+
+        }
+
+        newRoot->data = root->data;
+
+        return newRoot;
+}
+
+
 
 
 
@@ -632,14 +791,14 @@ void runBeagle(int resource,
         if (newTreePerRep && eigenCount==1 && !unrooted) {
 
             std::vector <node*> nodes;
-            nodes.push_back(newNode(0));
+            nodes.push_back(createNewNode(0));
             int tipsAdded = 1;
             node* newParent;
             while (tipsAdded < ntaxa) {
                 int sibling = gt_rand() % nodes.size();
                 // int sibling = nodes.size()-1;
-                node* newTip = newNode(tipsAdded);
-                newParent = newNode(ntaxa + tipsAdded - 1);
+                node* newTip = createNewNode(tipsAdded);
+                newParent = createNewNode(ntaxa + tipsAdded - 1);
                 nodes.push_back(newTip);
                 nodes.push_back(newParent);
                 tipsAdded++;            
@@ -664,6 +823,51 @@ void runBeagle(int resource,
             newParent->data = root->data;
             root->data = rootIndex;
 
+            bool rerootTrees = false;
+            if (rerootTrees) {
+                int bestRerootNode = -1;
+                int bestLaunchCount = countLaunches(root);
+
+                // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
+
+
+                std::vector<node*> newNodes;
+
+                for(int i = 0; i < nodes.size(); i++) {
+
+                    // printf("reroot node = %02d\t", nodes[i]->data);
+
+                    node* rerootNode = nodes[i];
+
+                    if (rerootNode->parent != NULL && rerootNode->parent != root) {
+                        
+                        node* newRoot = reroot(rerootNode, root, newNodes);
+
+                        int launchCount = countLaunches(newRoot);
+
+                        newNodes.clear();
+
+                        // printf("parallel launches = %d\n", launchCount);
+
+                        if (launchCount < bestLaunchCount) {
+                            bestLaunchCount = launchCount;
+                            bestRerootNode = i;
+                        }
+
+                    }
+                    // else {printf("doesn't change tree\n");}
+
+                }
+
+                if (bestRerootNode != -1) {
+                    // printf("\nbestLaunchCount = %d, node index = %d\n\n", bestLaunchCount, bestRerootNode);
+                    node* rerootNode = nodes[bestRerootNode];
+                    node* oldRoot = root;
+                    root = reroot(rerootNode, oldRoot, newNodes);
+                }
+
+            } 
+
             std::stack <node *> S;
             reverseLevelOrder(root, S);
 
@@ -675,15 +879,17 @@ void runBeagle(int resource,
             // std::cout << std::endl;
             // reverseLevelOrder(root, S);
 
-            // struct node *root = newNode(4);
-            // root->left        = newNode(0);
-            // root->right       = newNode(6);
-            // root->right->left  = newNode(5);
-            // root->right->right = newNode(3);
-            // root->right->left->left  = newNode(1);
-            // root->right->left->right = newNode(2);
+            // struct node *root = createNewNode(4);
+            // root->left        = createNewNode(0);
+            // root->right       = createNewNode(6);
+            // root->right->left  = createNewNode(5);
+            // root->right->right = createNewNode(3);
+            // root->right->left->left  = createNewNode(1);
+            // root->right->left->right = createNewNode(2);
             // std::stack <node *> S;
             // reverseLevelOrder(root, S);
+
+            // printf("launch count = %03d", countLaunches(root));
 
             for(int op=0; op<unpartOpsCount; op++){
                 node* parent = S.top();
@@ -775,22 +981,45 @@ void runBeagle(int resource,
 
         }
 
+        // std::cout.setf(std::ios::showpoint);
+        // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+        // std::cout.precision(4);
+        // unsigned int partialsOps = internalCount * eigenCount;
+        // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+        // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+        // unsigned long long partialsTotal = partialsSize * partialsOps;
+        // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
 
-        gettimeofday(&time2, NULL);
+        // std::cout << " compute throughput:   ";
 
-        // update the partials
-        if (partitionCount > 1) {
-            beagleUpdatePartialsByPartition( instance,                   // instance
-                            (BeagleOperationByPartition*)operations,     // operations
-                            internalCount*eigenCount*partitionCount);    // operationCount
-        } else {
-            beagleUpdatePartials( instance,      // instance
-                            (BeagleOperation*)operations,     // operations
-                            internalCount*eigenCount,              // operationCount
-                            (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
-        }
+        // for (int pRep=0; pRep < 10; pRep++) {
+            gettimeofday(&time2, NULL);
 
-        gettimeofday(&time3, NULL);
+            // update the partials
+            if (partitionCount > 1) {
+                beagleUpdatePartialsByPartition( instance,                   // instance
+                                (BeagleOperationByPartition*)operations,     // operations
+                                internalCount*eigenCount*partitionCount);    // operationCount
+            } else {
+                beagleUpdatePartials( instance,      // instance
+                                (BeagleOperation*)operations,     // operations
+                                internalCount*eigenCount,              // operationCount
+                                (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+            }
+
+            gettimeofday(&time3, NULL);
+
+            // struct timespec ts;
+            // ts.tv_sec = 0;
+            // ts.tv_nsec = 100000000;
+            // nanosleep(&ts, NULL);
+
+            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << ", ";
+        // }
+        // std::cout << " GFLOPS " << std::endl<< std::endl;
+
+        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+
 
         int scalingFactorsCount = internalCount;
                 
