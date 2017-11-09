@@ -992,7 +992,7 @@ void runBeagle(int resource,
 
         // std::cout << " compute throughput:   ";
 
-        // for (int pRep=0; pRep < 10; pRep++) {
+        // for (int pRep=0; pRep < 50; pRep++) {
             gettimeofday(&time2, NULL);
 
             // update the partials
@@ -1561,7 +1561,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &newTreePerRep);
+                                   &partitions, &sitelikes, &newDataPerRep, &newTreePerRep, &rerootTrees);
     
 	std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
