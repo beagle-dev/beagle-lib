@@ -70,6 +70,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::realtypeMin;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternWeights;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternPartitionsStartPatterns;
     
 public:    
     virtual const char* getName();
@@ -127,6 +128,16 @@ private:
                                        const int stateFrequenciesIndex,
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
+
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition);
     
 };
     
@@ -151,6 +162,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::realtypeMin;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternWeights;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
     
 public:
     virtual const char* getName();
@@ -166,33 +178,43 @@ private:
                                   const int* states1,
                                   const double* matrices1,
                                   const int* states2,
-                                  const double* matrices2);
+                                  const double* matrices2,
+                                  int startPattern,
+                                  int endPattern);
     
     virtual void calcStatesPartials(double* destP,
                                     const int* states1,
                                     const double* __restrict matrices1,
                                     const double* __restrict partials2,
-                                    const double* __restrict matrices2);
+                                    const double* __restrict matrices2,
+                                    int startPattern,
+                                    int endPattern);
     
     virtual void calcStatesPartialsFixedScaling(double* destP,
                                                 const int* states1,
                                                 const double* __restrict matrices1,
                                                 const double* __restrict partials2,
                                                 const double* __restrict matrices2,
-                                                const double* __restrict scaleFactors);
+                                                const double* __restrict scaleFactors,
+                                                int startPattern,
+                                                int endPattern);
     
     virtual void calcPartialsPartials(double* __restrict destP,
                                       const double* __restrict partials1,
                                       const double* __restrict matrices1,
                                       const double* __restrict partials2,
-                                      const double* __restrict matrices2);
+                                      const double* __restrict matrices2,
+                                      int startPattern,
+                                      int endPattern);
     
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,
                                                   const double* __restrict child0TransMat,
                                                   const double* __restrict child1Partials,
                                                   const double* __restrict child1TransMat,
-                                                  const double* __restrict scaleFactors);
+                                                  const double* __restrict scaleFactors,
+                                                  int startPattern,
+                                                  int endPattern);
     
     virtual void calcPartialsPartialsAutoScaling(double* __restrict destP,
                                                  const double* __restrict partials1,
@@ -208,6 +230,16 @@ private:
                                        const int stateFrequenciesIndex,
                                        const int scalingFactorsIndex,
                                        double* outSumLogLikelihood);
+
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition);
     
 };
     

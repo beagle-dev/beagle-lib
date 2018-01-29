@@ -71,7 +71,7 @@ GPUInterface::GPUInterface() {
 
     openClDeviceId = NULL;
     openClContext = NULL;
-    openClCommandQueue = NULL;
+    openClCommandQueues = NULL;
     openClProgram = NULL;
 
     supportDoublePrecision = true;
@@ -91,8 +91,12 @@ GPUInterface::~GPUInterface() {
     if (openClProgram != NULL)
         SAFE_CL(clReleaseProgram(openClProgram));
 
-    if (openClCommandQueue != NULL)
-        SAFE_CL(clReleaseCommandQueue(openClCommandQueue));
+    if (openClCommandQueues != NULL) {
+        for (int i=0; i < BEAGLE_STREAM_COUNT; i++) {
+            SAFE_CL(clReleaseCommandQueue(openClCommandQueues[i]));
+        }
+        free(openClCommandQueues);
+    }
     
     if (openClContext != NULL)
         SAFE_CL(clReleaseContext(openClContext));
@@ -124,7 +128,6 @@ int GPUInterface::Initialize() {
         delete[] deviceIds;
     }
     delete[] platforms;
-
 
 #ifdef BEAGLE_DEBUG_VALUES
     printf("OpenCL devices: %lu\n", openClDeviceMap.size());
@@ -183,20 +186,20 @@ int GPUInterface::GetDeviceCount() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetDeviceCount\n");
 #endif        
     
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
-#endif            
-
 #ifdef BEAGLE_DEBUG_OPENCL_CORES
     for (int i=0; i<openClDeviceMap.size(); i++) {
         BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(i);
         if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
             cl_uint param_value_uint;
             SAFE_CL(clGetDeviceInfo(openClDeviceMap[i], CL_DEVICE_PARTITION_MAX_SUB_DEVICES, sizeof(param_value_uint), &param_value_uint, NULL));
-            return openClDeviceMap.size() + param_value_uint;
+            return openClDeviceMap.size() + param_value_uint-1;
         }
     }
 #endif
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
+#endif            
 
     return openClDeviceMap.size();
 }
@@ -222,7 +225,8 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         AppleCPUImpl = true;
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
-               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU) {
+               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU ||
+               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU) {
         AMDImpl = true;
     }
 
@@ -294,6 +298,7 @@ void GPUInterface::SetDevice(int deviceNumber,
                              int categoryCount,
                              int paddedPatternCount,
                              int unpaddedPatternCount,
+                             int tipCount,
                              long flags) {
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -311,10 +316,17 @@ void GPUInterface::SetDevice(int deviceNumber,
     openClContext = clCreateContext(NULL, 1, &openClDeviceId, NULL, NULL, &err);
     SAFE_CL(err);
     
-    cl_command_queue_properties queueProperties = 0; //CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-    openClCommandQueue = clCreateCommandQueue(openClContext, openClDeviceId,
+    openClCommandQueues = (cl_command_queue*) malloc(sizeof(cl_command_queue) * BEAGLE_STREAM_COUNT);
+    openClEvents = (cl_event*) malloc(sizeof(cl_event) * BEAGLE_STREAM_COUNT);
+
+    cl_command_queue_properties queueProperties = 0;//CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    for (int i=0; i < BEAGLE_STREAM_COUNT; i++) {
+        openClCommandQueues[i] = clCreateCommandQueue(openClContext, openClDeviceId,
                                               queueProperties, &err);
-    SAFE_CL(err);
+        SAFE_CL(err);
+        openClEvents[i] = clCreateUserEvent(openClContext, &err);
+        SAFE_CL(err);
+    }
 
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
@@ -400,6 +412,8 @@ void GPUInterface::SetDevice(int deviceNumber,
         strcat(buildDefs, "-D FW_OPENCL_AMDGPU");
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU) {
         strcat(buildDefs, "-D FW_OPENCL_AMDGPU -D FW_OPENCL_APPLEAMDGPU");
+    }  else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU) {
+        strcat(buildDefs, "-D FW_OPENCL_INTELGPU -D FW_OPENCL_APPLEINTELGPU");
     }
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
@@ -431,16 +445,59 @@ void GPUInterface::SetDevice(int deviceNumber,
 #endif            
 }
 
-
-void GPUInterface::Synchronize() {
+void GPUInterface::ResizeStreamCount(int newStreamCount) {    
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tEntering GPUInterface::Synchronize\n");
+    fprintf(stderr,"\t\t\tEntering GPUInterface::ResizeStreamCount\n");
 #endif                
     
-    SAFE_CL(clFinish(openClCommandQueue));
+    // TODO: write function if using more than one opencl queue
     
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr,"\t\t\tLeaving  GPUInterface::Synchronize\n");
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::ResizeStreamCount\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeHost() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeHost\n");
+#endif                
+    
+    // for(int i=0; i<BEAGLE_STREAM_COUNT; i++) {
+    //     SAFE_CL(clFinish(openClCommandQueues[i]));
+    // }
+
+    SAFE_CL(clFinish(openClCommandQueues[0]));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeHost\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeDevice() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDevice\n");
+#endif                
+
+    // TODO: synchronize on device only    
+
+    // SAFE_CL(clFinish(openClCommandQueues[0]));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");
+#endif                
+}
+
+void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamWaitIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
+#endif                
+
+    // TODO: synchronize on device only    
+
+    // SAFE_CL(clFinish(openClCommandQueues[0]));
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
 #endif                
 }
 
@@ -513,16 +570,114 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif
 
     if (globalWorkSize[1] == 1 && globalWorkSize[2] == 1) {
-        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 1, NULL,
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 1, NULL,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     } else if (globalWorkSize[2] == 1) {
-        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 2, NULL,
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 2, NULL,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     } else {
-        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueue, deviceFunction, 3, NULL,
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 3, NULL,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     }
 
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
+#endif                
+}
+
+void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
+                                          Dim3Int block,
+                                          Dim3Int grid,
+                                          int streamIndex,
+                                          int waitIndex,
+                                          int parameterCountV,
+                                          int totalParameterCount,
+                                          ...) { // parameters   
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
+#endif                
+    
+    va_list parameters;
+    va_start(parameters, totalParameterCount);  
+    for(int i = 0; i < parameterCountV; i++) {
+        void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        
+        SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(param), &param));
+    }
+    for(int i = parameterCountV; i < totalParameterCount; i++) {
+        unsigned int param = va_arg(parameters, unsigned int);
+        
+        SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(unsigned int), &param));       
+    }
+    
+    va_end(parameters);
+    
+    size_t localWorkSize[3];
+    localWorkSize[0] = block.x;
+    localWorkSize[1] = block.y;
+    localWorkSize[2] = block.z;
+
+    size_t globalWorkSize[3];
+    globalWorkSize[0] = block.x * grid.x;
+    globalWorkSize[1] = block.y * grid.y;
+    globalWorkSize[2] = block.z * grid.z;
+  
+#ifdef BEAGLE_DEBUG_VALUES
+    for (int i=0; i<3; i++) {
+        printf("localWorkSize[%d]  = %lu\n", i, localWorkSize[i]);
+        printf("globalWorkSize[%d] = %lu\n", i, globalWorkSize[i]);
+    }
+    size_t local;
+    clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE, sizeof(local), &local, NULL);
+    printf("local = %lu\n\n", local);
+#endif
+
+    int dims = 3;
+    if (globalWorkSize[1] == 1 && globalWorkSize[2] == 1) {
+        dims = 1;
+    } else if (globalWorkSize[2] == 1) {
+        dims = 2;
+    }
+     
+    // if (streamIndex != -1) {
+    //     streamIndex /= 2;
+    //     // if (waitIndex != -1) {
+    //     //     SAFE_CL(clFinish(openClCommandQueues[streamIndex % BEAGLE_STREAM_COUNT]));
+    //     //     return;
+    //     // }
+
+    //     int streamIndexMod = streamIndex % BEAGLE_STREAM_COUNT;
+
+    //     cl_command_queue commandQueue;
+    //     commandQueue = openClCommandQueues[streamIndexMod];
+
+    //     // printf("streamIndexMod:  %d; waitIndexMod %d\n",
+    //     //        streamIndexMod, waitIndex % BEAGLE_STREAM_COUNT);
+
+    //     if (waitIndex != -1) {
+    //         waitIndex /= 2;
+    //         int waitIndexMod = waitIndex % BEAGLE_STREAM_COUNT;
+    //         // SAFE_CL(clFinish(openClCommandQueues[waitIndexMod]));
+    //         SAFE_CL(clEnqueueBarrierWithWaitList(commandQueue, 1, &openClEvents[waitIndexMod], NULL));
+    //         // SAFE_CL(clWaitForEvents(1, &openClEvents[waitIndexMod]));
+    //     } else if (streamIndex==0) {
+    //         SAFE_CL(clFinish(commandQueue)); // unclear why this is needed for OpenCL CPU
+    //     }
+
+    //     SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
+    //                                    globalWorkSize, localWorkSize,
+    //                                    0, NULL, &openClEvents[streamIndexMod]));
+
+    //     // SAFE_CL(clEnqueueNDRangeKernel(commandQueue, deviceFunction, dims, NULL,
+    //     //                                globalWorkSize, localWorkSize,
+    //     //                                0, NULL, NULL));
+    //     // SAFE_CL(clEnqueueBarrierWithWaitList(commandQueue, 0, NULL, &openClEvents[streamIndexMod]));
+
+    // } else {
+        SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, dims, NULL,
+                                       globalWorkSize, localWorkSize,
+                                       0, NULL, NULL));
+    // }
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
 #endif                
@@ -571,35 +726,47 @@ void* GPUInterface::CallocHost(size_t size, size_t length) {
 }
 
 void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined, bool mapped) {
-    assert(0); // TODO: write function
-	return NULL;
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
-//#endif
-//    
-//    void* ptr;
-//    
-//    unsigned int flags = 0;
-//    
-//    if (writeCombined)
-//        flags |= CU_MEMHOSTALLOC_WRITECOMBINED;
-//    if (mapped)
-//        flags |= CU_MEMHOSTALLOC_DEVICEMAP;
-//    
-//    SAFE_CUPP(cuMemHostAlloc(&ptr, memSize, flags));
-//    
-//    
-//#ifdef BEAGLE_DEBUG_VALUES
-//    fprintf(stderr, "Allocated pinned host (CPU) memory %ld to %lu .\n", (long)ptr, ((long)ptr + memSize));
-//#endif
-//    
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
-//#endif
-//    
-//    return ptr;
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
+#endif
+
+    cl_mem_flags flags = 0;
+
+    flags |= CL_MEM_ALLOC_HOST_PTR;
+    flags |= CL_MEM_HOST_WRITE_ONLY;
+    flags |= CL_MEM_READ_ONLY;
+
+    int err;
+    void* deviceBuffer = (void*) clCreateBuffer(openClContext, flags, memSize, NULL, &err);
+    SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
+#endif
+    
+   return deviceBuffer;
 }
 
+void* GPUInterface::MapMemory(GPUPtr dPtr, size_t memSize) {
+    int err;
+    void* hostPtr = clEnqueueMapBuffer(openClCommandQueues[0], dPtr, CL_TRUE,
+                                        CL_MAP_WRITE, 0, memSize, 0, NULL, NULL, &err);
+    SAFE_CL(err);
+
+    return hostPtr;
+}
+
+void GPUInterface::UnmapMemory(GPUPtr dPtr, void* hPtr) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::UnmapMemory\n");
+#endif
+
+    SAFE_CL(clEnqueueUnmapMemObject(openClCommandQueues[0], dPtr, hPtr, 0, NULL, NULL));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving GPUInterface::UnmapMemory\n");
+#endif
+}
 
 GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -736,7 +903,7 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
 #endif    
     
-    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueue, dest, CL_TRUE, 0, memSize, src, 0,
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, src, 0,
                                  NULL, NULL));
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -751,7 +918,7 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif        
     
-    SAFE_CL(clEnqueueReadBuffer(openClCommandQueue, src, CL_TRUE, 0, memSize, dest, 0,
+    SAFE_CL(clEnqueueReadBuffer(openClCommandQueues[0], src, CL_TRUE, 0, memSize, dest, 0,
                                 NULL, NULL));
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -768,7 +935,7 @@ void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToDevice\n");
 #endif    
 
-    SAFE_CL(clEnqueueCopyBuffer(openClCommandQueue, src, dest, 0, 0, memSize, 0,
+    SAFE_CL(clEnqueueCopyBuffer(openClCommandQueues[0], src, dest, 0, 0, memSize, 0,
                                  NULL, NULL));
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -795,16 +962,15 @@ void GPUInterface::FreeHostMemory(void* hPtr) {
 }
 
 void GPUInterface::FreePinnedHostMemory(void* hPtr) {
-    assert(0); // TODO: write function
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
-//#endif
-//    
-//    SAFE_CUPP(cuMemFreeHost(hPtr));
-//    
-//#ifdef BEAGLE_DEBUG_FLOW
-//    fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
-//#endif
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
+#endif
+
+    SAFE_CL(clReleaseMemObject((GPUPtr) hPtr));
+   
+#ifdef BEAGLE_DEBUG_FLOW
+   fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
+#endif
 }
 
 void GPUInterface::FreeMemory(GPUPtr dPtr) {
@@ -852,7 +1018,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
 
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_NAME, sizeof(char) * nameLength, deviceName, NULL));
 
-#ifdef BEAGLE_DEBUG_OPENCL_CORES
+#if defined(BEAGLE_DEBUG_OPENCL_CORES)
     cl_uint mpCount = 0;
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(cl_uint), &mpCount, NULL));
@@ -861,7 +1027,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     sprintf(mpCountStr, "%d", mpCount);
     strcat(deviceName, " (");
     strcat(deviceName, mpCountStr);
-    (mpCount==1?strcat(deviceName, " core)"):strcat(deviceName, " cores)"));
+    (mpCount==1?strcat(deviceName, " compute unit)"):strcat(deviceName, " compute units)"));
 #endif
 
     const size_t param_size = 256;
@@ -906,7 +1072,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
                             sizeof(unsigned int), &mpCount, NULL));
 
     sprintf(deviceDescription,
-            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of multiprocessors: %d",
+            "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of compute units: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -914,6 +1080,16 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
 #endif    
 }
 
+void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
+                             int length) {    
+    int* hPtr = (int*) malloc(SIZE_INT * length);
+    
+    MemcpyDeviceToHost(hPtr, dPtr, SIZE_INT * length);
+    
+    printfInt(hPtr, length);
+    
+    free(hPtr);
+}
 
 long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {       
 #ifdef BEAGLE_DEBUG_FLOW
@@ -989,6 +1165,9 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
         else if (!strncmp("AMD", device_string, strlen("AMD")) && 
                  (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
             deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU;
+        else if (!strncmp("Intel", device_string, strlen("Intel")) && 
+                 (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
+            deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU;
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1083,10 +1262,13 @@ void GPUInterface::CreateDevice(int deviceNumber) {
             if (deviceCode == BEAGLE_OPENCL_DEVICE_INTEL_CPU) {
                 cl_device_id subdevice_id;
                 cl_uint num_entries_returned = 0;
-                cl_device_partition_property props[] = { CL_DEVICE_PARTITION_BY_COUNTS,
-                                                         coreCount,
-                                                         CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
-                                                         0 };
+                cl_device_partition_property props[coreCount + 3];
+                props[0] = CL_DEVICE_PARTITION_BY_NAMES_INTEL;
+                for (int j=0; j<coreCount; j++) {
+                    props[1+j] = j;
+                }
+                props[coreCount+1] = CL_PARTITION_BY_NAMES_LIST_END_INTEL;
+                props[coreCount+2] = 0;
                 SAFE_CL(clCreateSubDevices(openClDeviceMap[i],
                                            props,
                                            1,

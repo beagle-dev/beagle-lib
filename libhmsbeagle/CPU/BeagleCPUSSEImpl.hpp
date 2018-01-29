@@ -62,16 +62,20 @@ inline const char* getBeagleCPUSSEName<float>(){ return "CPU-SSE-Single"; };
 
 BEAGLE_CPU_SSE_TEMPLATE
 void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesStates(double* destP,
-                                     const int* states_q,
-                                     const double* matrices_q,
-                                     const int* states_r,
-                                     const double* matrices_r) {
+                                                               const int* states_q,
+                                                               const double* matrices_q,
+                                                               const int* states_r,
+                                                               const double* matrices_r,
+                                                               int startPattern,
+                                                               int endPattern) {
 
 	BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesStates(destP,
-                                     states_q,
-                                     matrices_q,
-                                     states_r,
-                                     matrices_r);
+                                                           states_q,
+                                                           matrices_q,
+                                                           states_r,
+                                                           matrices_r,
+                                                           startPattern,
+                                                           endPattern);
 }
 
 
@@ -113,16 +117,19 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesStates(double* destP,
  */
 BEAGLE_CPU_SSE_TEMPLATE
 void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(double* destP,
-                                       const int* states_q,
-                                       const double* matrices_q,
-                                       const double* partials_r,
-                                       const double* matrices_r) {
-	BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(
-									   destP,
-									   states_q,
-									   matrices_q,
-									   partials_r,
-									   matrices_r);
+                                                                 const int* states_q,
+                                                                 const double* matrices_q,
+                                                                 const double* partials_r,
+                                                                 const double* matrices_r,
+                                                                 int startPattern,
+                                                                 int endPattern) {
+	BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(destP,
+									                         states_q,
+									                         matrices_q,
+									                         partials_r,
+									                         matrices_r,
+                                                             startPattern,
+                                                             endPattern);
 }
 
 //
@@ -208,16 +215,18 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(double* destP,
 
 BEAGLE_CPU_SSE_TEMPLATE
 void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __restrict destP,
-                                              const double* __restrict partials1,
-                                              const double* __restrict matrices1,
-                                              const double* __restrict partials2,
-                                              const double* __restrict matrices2) {
+                                                                   const double* __restrict partials1,
+                                                                   const double* __restrict matrices1,
+                                                                   const double* __restrict partials2,
+                                                                   const double* __restrict matrices2,
+                                                                   int startPattern,
+                                                                   int endPattern) {
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
+    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount + startPattern*kPartialsPaddedStateCount;;
     	int v = l*kPartialsPaddedStateCount*kPatternCount;
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount;
 #ifdef DOUBLE_UNROLL
@@ -226,8 +235,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
             		++i
 #endif
             ) {
-            	register V_Real sum1_vecA = VEC_SETZERO();
-            	register V_Real sum2_vecA = VEC_SETZERO();
+            	V_Real sum1_vecA = VEC_SETZERO();
+            	V_Real sum2_vecA = VEC_SETZERO();
             	for (int j = 0; j < stateCountMinusOne; j += 2) {
             		sum1_vecA = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
@@ -254,8 +263,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 #endif
 
 #ifdef DOUBLE_UNROLL
-            	register V_Real sum1_vecB = VEC_SETZERO();
-            	register V_Real sum2_vecB = VEC_SETZERO();
+            	V_Real sum1_vecB = VEC_SETZERO();
+            	V_Real sum2_vecB = VEC_SETZERO();
             	for (int j = 0; j < stateCountMinusOne; j += 2) {
             		sum1_vecB = VEC_MADD(
 								 VEC_LOAD(matrices1 + w + j),  // TODO This only works if w is even
@@ -288,25 +297,27 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 }
 
 BEAGLE_CPU_SSE_TEMPLATE
-void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(
-													double* __restrict destP,
-                                              const double* __restrict partials1,
-                                              const double* __restrict matrices1,
-                                              const double* __restrict partials2,
-                                              const double* __restrict matrices2,
-                                              const double* __restrict scaleFactors) {
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(double* __restrict destP,
+                                                                               const double* __restrict  partials1, 
+                                                                               const double*  __restrict  matrices1, 
+                                                                               const double*  __restrict  partials2, 
+                                                                               const double* __restrict  matrices2,
+                                                                               const double* __restrict scaleFactors,
+                                                                               int startPattern,
+                                                                               int endPattern) {
+
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount;
+    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
     	int v = l*kPartialsPaddedStateCount*kPatternCount;
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
             for (int i = 0; i < kStateCount; i++) {
 
-            	register V_Real sum1_vec;
-            	register V_Real sum2_vec;
+            	V_Real sum1_vec;
+            	V_Real sum2_vec;
 
               	int j = 0;
             	sum1_vec = VEC_SETZERO();

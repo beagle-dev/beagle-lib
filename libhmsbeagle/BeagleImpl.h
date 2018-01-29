@@ -84,8 +84,14 @@ public:
                                  const double* inCategoryWeights) = 0;
     
     virtual int setPatternWeights(const double* inPatternWeights) = 0;
+
+    virtual int setPatternPartitions(int partitionCount,
+                                     const int* inPatternPartitions) = 0;
     
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
+
+    virtual int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                          const double* inCategoryRates) = 0;
     
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix,
@@ -103,10 +109,10 @@ public:
     //---TODO: Epoch model---//
     ///////////////////////////
 
-	virtual int convolveTransitionMatrices(const int* firstIndices,
-			                               const int* secondIndices,
-	                                       const int* resultIndices,
-	                                       int matrixCount) = 0;
+	  virtual int convolveTransitionMatrices(const int* firstIndices,
+		      	                               const int* secondIndices,
+	                                         const int* resultIndices,
+	                                         int matrixCount) = 0;
 
     virtual int updateTransitionMatrices(int eigenIndex,
                                          const int* probabilityIndices,
@@ -114,10 +120,21 @@ public:
                                          const int* secondDerivativeIndices,
                                          const double* edgeLengths,
                                          int count) = 0;
+
+    virtual int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                           const int* categoryRateIndices,
+                                                           const int* probabilityIndices,
+                                                           const int* firstDerivativeIndices,
+                                                           const int* secondDerivativeIndices,
+                                                           const double* edgeLengths,
+                                                           int count) = 0;
     
     virtual int updatePartials(const int* operations,
                                int operationCount,
                                int cumulativeScalingIndex) = 0;
+
+    virtual int updatePartialsByPartition(const int* operations,
+                                          int operationCount) = 0;
     
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
@@ -125,12 +142,25 @@ public:
     virtual int accumulateScaleFactors(const int* scalingIndices,
 									   int count,
 									   int cumulativeScalingIndex) = 0;
+
+    virtual int accumulateScaleFactorsByPartition(const int* scaleIndices,
+                                                  int count,
+                                                  int cumulativeScaleIndex,
+                                                  int partitionIndex) = 0;
     
     virtual int removeScaleFactors(const int* scalingIndices,
                                      int count,
-                                     int cumulativeScalingIndex) = 0;   
+                                     int cumulativeScalingIndex) = 0;
+
+    virtual int removeScaleFactorsByPartition(const int* scaleIndices,
+                                                  int count,
+                                                  int cumulativeScaleIndex,
+                                                  int partitionIndex) = 0;
     
-    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;   
+    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0; 
+
+    virtual int resetScaleFactorsByPartition(int cumulativeScaleIndex,
+                                             int partitionIndex) = 0; 
     
     virtual int copyScaleFactors(int destScalingIndex,
                                  int srcScalingIndex) = 0; 
@@ -144,6 +174,16 @@ public:
                                             const int* scalingFactorsIndices,
                                             int count,
                                             double* outSumLogLikelihood) = 0;
+
+    virtual int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                       const int* categoryWeightsIndices,
+                                                       const int* stateFrequenciesIndices,
+                                                       const int* cumulativeScaleIndices,
+                                                       const int* partitionIndices,
+                                                       int partitionCount,
+                                                       int count,
+                                                       double* outSumLogLikelihoodByPartition,
+                                                       double* outSumLogLikelihood) = 0;
     
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
@@ -157,6 +197,24 @@ public:
                                             double* outSumLogLikelihood,
                                             double* outSumFirstDerivative,
                                             double* outSumSecondDerivative) = 0;
+
+    virtual int calculateEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                       const int* childBufferIndices,
+                                                       const int* probabilityIndices,
+                                                       const int* firstDerivativeIndices,
+                                                       const int* secondDerivativeIndices,
+                                                       const int* categoryWeightsIndices,
+                                                       const int* stateFrequenciesIndices,
+                                                       const int* cumulativeScaleIndices,
+                                                       const int* partitionIndices,
+                                                       int partitionCount,
+                                                       int count,
+                                                       double* outSumLogLikelihoodByPartition,
+                                                       double* outSumLogLikelihood,
+                                                       double* outSumFirstDerivativeByPartition,
+                                                       double* outSumFirstDerivative,
+                                                       double* outSumSecondDerivativeByPartition,
+                                                       double* outSumSecondDerivative) = 0;
     
     virtual int getSiteLogLikelihoods(double* outLogLikelihoods) = 0;
     

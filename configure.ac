@@ -1,8 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 2.1.2, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.0.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -O3"}
+: ${CXXFLAGS=" -std=c++11 -O3"}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
@@ -11,9 +11,9 @@ dnl -----------------------------------------------
 GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
-GENERIC_MAJOR_VERSION=2
-GENERIC_MINOR_VERSION=1
-GENERIC_MICRO_VERSION=2
+GENERIC_MAJOR_VERSION=3
+GENERIC_MINOR_VERSION=0
+GENERIC_MICRO_VERSION=0
 
 #API version
 GENERIC_API_VERSION=1
@@ -23,7 +23,7 @@ AC_SUBST(GENERIC_API_VERSION)
 GENERIC_REVISION_VERSION=$GENERIC_MINOR_VERSION
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=2:$GENERIC_REVISION_VERSION:1
+GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:2
 #
 #             current:revision:age
 #                |        |     |
@@ -94,7 +94,7 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Setup OPENMP
+# Setup OPENMP 
 # ------------------------------------------------------------------------------
 dnl Check for OpenMP
 if test x$GCC = xyes
@@ -105,12 +105,12 @@ fi
 AC_ARG_ENABLE([openmp],
    [AS_HELP_STRING([--enable-openmp],[enable automatic building of openmp version])])
 
-# if we're on gcc, then make sure the version is at least 4.2.0 because apple ships a
+# if we're on gcc, then make sure the version is at least 4.2.0 because apple ships a 
 # 4.1.x that has broken openmp support
 AS_IF([test "$enable_openmp" = "yes"], [
-	if test x$GCC = xyes
-	then
-		AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.0], [
+	if test x$GCC = xyes 
+	then 
+		AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.0], [ 
 			AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
 			[AM_CONDITIONAL(HAVE_OPENMP,false)])
 		],[])
@@ -125,6 +125,18 @@ AC_SUBST(OPENMP_CFLAGS)
 dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
+
+# ------------------------------------------------------------------------------
+# Setup C++11 threads 
+# ------------------------------------------------------------------------------
+dnl Check for gcc
+case $host_os in
+*linux*)
+  if test x$GCC = xyes
+  then
+    AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
+  fi
+esac
 
 # ------------------------------------------------------------------------------
 # Setup OpenCL
@@ -214,12 +226,15 @@ if test x$DEBUG = xtrue
 then
    NVCCFLAGS="-g"
 else
-   NVCCFLAGS="-O3"
+   NVCCFLAGS="-O3 -arch compute_32"
 fi
 if test x$EMULATION = xtrue
 then
    NVCCFLAGS+=" -deviceemu"
 fi
+
+# do not warn about deprecated GPU architectures
+NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
 
 # ------------------------------------------------------------------------------
 # Setup SSE
@@ -247,10 +262,10 @@ AM_CONDITIONAL(HAVE_AVX,false)
 if test  "$enable_avx" = yes; then
 	AX_EXT
 	AC_CHECK_HEADERS([cpuid.h])
-	if test "$ax_cv_have_avx_ext" = yes; then
-		AM_CONDITIONAL(HAVE_AVX,true)
+	if test "$ax_cv_have_avx_ext" = yes; then		
+		AM_CONDITIONAL(HAVE_AVX,true)		
 	else
-		AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)
+		AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)	
 	fi
 fi
 
@@ -261,7 +276,7 @@ AC_ARG_ENABLE(phi,
 	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL]), , [enable_phi=no])
 
 if test  "$enable_phi" = yes; then
-	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)
+	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)	
 fi
 
 # ------------------------------------------------------------------------------
@@ -272,8 +287,8 @@ AC_ARG_ENABLE(march_native,
     AC_HELP_STRING([--disable-march-native],[disable native architecture optimization]), , [enable_march_native=yes])
 
 if test  "$enable_march_native" = yes; then
-    if test x$GCC = xyes
-    then
+    if test x$GCC = xyes 
+    then 
         AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.3], [AM_CXXFLAGS="$AM_CXXFLAGS -march=native"],[])
     fi
 fi
@@ -286,7 +301,7 @@ fi
 case $host_os in
 *darwin*)
   AM_CXXFLAGS="$AM_CXXFLAGS -DDLS_MACOS"
-
+  
   if( test ! x$NVCC = xno )
   then
      NVCCFLAGS+=" -m64"
@@ -294,7 +309,7 @@ case $host_os in
      NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang"
      CUDA_LIBS+=" -F/Library/Frameworks -framework CUDA"
   fi
-
+  
 
   if test "x$with_opencl" != "xno"
   then
@@ -304,9 +319,9 @@ case $host_os in
 
   if test "$CXX" = "clang"
   then
-	  CXX="clang++"
+	  CXX="clang++" 
   fi
-
+  
   AC_ARG_ENABLE(osx_snowleopard,
       AC_HELP_STRING([--enable-osx-snowleopard],[build with OS X v10.6 Snow Leopard backwards compatibility]), , [enable_osx_snowleopard=no])
   if test  "$enable_osx_snowleopard" = yes; then
@@ -332,10 +347,9 @@ jnilibext=no
 
 if test "x$with_jdk" != "xno"
 then
-	JAVAC=javac
     AC_PROG_JAVAC
     if test "x$JAVAC" != "x"
-    then
+    then  
         AC_JNI_INCLUDE_DIR
         for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS
         do
@@ -343,8 +357,8 @@ then
         done
 
         dnl Older versions of OS X require .jnilib extension for java libs
-        case $host_os in
-        *darwin*)
+        case $host_os in 
+        *darwin*) 
            JNI_EXTRA_LDFLAGS="-shrext .jnilib"
         esac
     else
@@ -369,7 +383,7 @@ AC_SUBST(LDFLAGS)
 AC_SUBST(LIBS)
 
 # ------------------------------------------------------------------------------
-# Doxygen support
+# Doxygen support 
 # ------------------------------------------------------------------------------
 
 DX_HTML_FEATURE(ON)

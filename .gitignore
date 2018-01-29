@@ -1,3 +1,7 @@
+# Cmake related
+/CmakeFiles
+/build
+/cmake-build-debug
 
 # /
 /beagle-lib-1.0.pc
@@ -108,6 +112,7 @@
 /libhmsbeagle/plugin/Makefile
 
 # /m4/
+/m4
 /m4/libtool.m4
 /m4/lt~obsolete.m4
 /m4/ltsugar.m4

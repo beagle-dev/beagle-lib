@@ -133,6 +133,10 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(patternWeights, 0, this.patternWeights, 0, this.patternWeights.length);
     }
 
+    @Override
+    public void setPatternPartitions(int partitionCount, int[] patternPartitions) {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
     /**
      * Sets partials for a tip - these are numbered from 0 and remain
      * constant throughout the run.
@@ -214,6 +218,10 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void setCategoryRates(double[] categoryRates) {
         System.arraycopy(categoryRates, 0, this.categoryRates, 0, this.categoryRates.length);
+    }
+
+    public void setCategoryRatesWithIndex(final int categoryRatesIndex, double[] categoryRates) {
+        throw new UnsupportedOperationException("setCategoryRatesWithIndex not implemented in GeneralBeagleImpl");
     }
 
     public void setTransitionMatrix(final int matrixIndex, final double[] inMatrix, final double paddedValue) {
@@ -315,6 +323,17 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updateTransitionMatricesWithMultipleModels(
+                                         final int[] eigenIndices,
+                                         final int[] categoryRateIndices,
+                                         final int[] probabilityIndices,
+                                         final int[] firstDerivativeIndices,
+                                         final int[] secondDervativeIndices,
+                                         final double[] edgeLengths,
+                                         final int count) {
+        throw new UnsupportedOperationException("updateTransitionMatricesWithMultipleModels not implemented in GeneralBeagleImpl");
+    }
+
     /**
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
      * Format of 7-tuple operation: {destinationPartials,
@@ -366,6 +385,23 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    /**
+     * Operations list is a list of 9-tuple integer indices, with one 7-tuple per operation.
+     * Format of 9-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
+     *                               child1Partials,
+     *                               child1TransitionMatrix,
+     *                               child2Partials,
+     *                               child2TransitionMatrix,
+     *                               partition,
+     *                               cumulativeScaleIndex}
+     *
+     */
+    public void updatePartialsByPartition(final int[] operations, final int operationCount) {
+        throw new UnsupportedOperationException("updatePartialsByPartition not implemented in GeneralBeagleImpl");
+    }
+
     private void rescalePartials(final int bufferIndex) {
 
         double[] partials = this.partials[bufferIndex];
@@ -412,9 +448,13 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    //placeholder for potential implementation
+    private void rescalePartialsByPartition(final int bufferIndex) {
+        throw new UnsupportedOperationException("rescalePartialsByPartition not implemented in GeneralBeagleImpl");
+    }
+
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
-
     }
 
     public void removeScaleFactors(int[] scaleIndices, int count, int cumulativeScaleIndex) {
@@ -427,6 +467,18 @@ public class GeneralBeagleImpl implements Beagle {
 
     public void resetScaleFactors(int cumulativeScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
+    }
+
+    public void accumulateScaleFactorsByPartition(int[] scaleIndices, int count, int outScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
+    }
+
+    public void removeScaleFactorsByPartition(int[] scaleIndices, int count, int cumulativeScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
+    }
+
+    public void resetScaleFactorsByPartition(int cumulativeScaleIndex, int partitionIndex) {
+//        throw new UnsupportedOperationException("accumulateScaleFactorsByPartition not implemented in GeneralBeagleImpl");
     }
 
     /**
@@ -722,6 +774,9 @@ public class GeneralBeagleImpl implements Beagle {
 
     }
 
+    public void calculateRootLogLikelihoodsByPartition(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int[] partitionIndices, final int partitionCount, final int count, final double[] outSumLogLikelihoodByPartition, final double[] outSumLogLikelihood) {
+        throw new UnsupportedOperationException("calculateRootLogLikelihoodsByPartition not implemented in GeneralBeagleImpl");
+    }
 
     public void calculateEdgeLogLikelihoods(final int[] parentBufferIndices, final int[] childBufferIndices, final int[] probabilityIndices, final int[] firstDerivativeIndices, final int[] secondDerivativeIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood, final double[] outSumFirstDerivative, final double[] outSumSecondDerivative) {
         throw new UnsupportedOperationException("calculateEdgeLogLikelihoods not implemented in GeneralBeagleImpl");

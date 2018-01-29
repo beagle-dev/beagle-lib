@@ -70,15 +70,19 @@
 
 class GPUInterface {
 private:
+    int numStreams;
 #ifdef CUDA
     CUdevice cudaDevice;
     CUcontext cudaContext;
     CUmodule cudaModule;
+    CUstream* cudaStreams;
+    CUevent* cudaEvents;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id 
     cl_context openClContext;                // compute context
-    cl_command_queue openClCommandQueue;     // compute command queue
+    cl_command_queue* openClCommandQueues;   // compute command queue
+    cl_event* openClEvents;                  // compute events
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
@@ -98,15 +102,30 @@ public:
                    int categoryCount, 
                    int patternCount,
                    int unpaddedPatternCount,
+                   int tipCount,
                    long flags);
     
-    void Synchronize();
+    void ResizeStreamCount(int newStreamCount);
+
+    void SynchronizeHost();
+    void SynchronizeDevice();
+    void SynchronizeDeviceWithIndex(int streamRecordIndex,
+                                    int streamWaitIndex);
     
     GPUFunction GetFunction(const char* functionName);
     
     void LaunchKernel(GPUFunction deviceFunction,
                                Dim3Int block,
                                Dim3Int grid,
+                               int parameterCountV,
+                               int totalParameterCount,
+                               ...); // parameters
+
+    void LaunchKernelConcurrent(GPUFunction deviceFunction,
+                               Dim3Int block,
+                               Dim3Int grid,
+                               int streamIndex,
+                               int waitIndex,
                                int parameterCountV,
                                int totalParameterCount,
                                ...); // parameters
@@ -119,6 +138,14 @@ public:
                                    bool writeCombined,
                                    bool mapped);
     
+#ifdef FW_OPENCL
+    void* MapMemory(GPUPtr dPtr,
+                    size_t memSize);
+
+    void UnmapMemory(GPUPtr dPtr,
+                       void* hPtr);
+#endif
+
     GPUPtr AllocateMemory(size_t memSize);
     
     GPUPtr AllocateRealMemory(size_t length);
@@ -162,11 +189,9 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
-#ifdef FW_OPENCL
     long GetDeviceTypeFlag(int deviceNumber);
 
     BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
-#endif
 
     bool GetSupportsDoublePrecision(int deviceNumber);
 

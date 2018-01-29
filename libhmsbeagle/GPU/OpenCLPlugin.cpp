@@ -42,6 +42,7 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
                                         BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                         BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                                        BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS |
                                         BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
                 long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
