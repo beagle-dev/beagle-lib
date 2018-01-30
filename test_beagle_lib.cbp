@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="test_beagle_lib"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;CMake Files\libhmsbeagle\;CMake Files\libhmsbeagle\CPU\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="hmctest">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/hmctest" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 hmctest"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="hmctest/fast">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/hmctest" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 hmctest/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="beagle_lib">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/libbeagle_lib.dylib" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 beagle_lib"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="beagle_lib/fast">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/libbeagle_lib.dylib" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 beagle_lib/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="hmsbeagle-cpu.30">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/libhmsbeagle-cpu.30.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 hmsbeagle-cpu.30"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="hmsbeagle-cpu.30/fast">
+				<Option output="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/libhmsbeagle-cpu.30.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/Users/xji3/GitFolders/beagle-lib"/>
+					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include/c++/v1"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/9.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 hmsbeagle-cpu.30/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/examples/hmctest/hmctest.cpp">
+			<Option target="hmctest"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/BeagleImpl.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.hpp">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/BeagleCPUPlugin.cpp">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/BeagleCPUPlugin.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/EigenDecomposition.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.hpp">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.hpp">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/Precision.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/SSEDefinitions.h">
+			<Option target="hmsbeagle-cpu.30"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/beagle.cpp">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/beagle.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/config.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/platform.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/BeaglePlugin.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/LibtoolSharedLibrary.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/Plugin.cpp">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/Plugin.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/SharedLibrary.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/UnixSharedLibrary.cpp">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/plugin/UnixSharedLibrary.h">
+			<Option target="beagle_lib"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\libhmsbeagle\"/>
+		</Unit>
+		<Unit filename="/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\libhmsbeagle\CPU\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>

@@ -434,6 +434,14 @@ protected:
                                       int startPattern,
                                       int endPattern);
 
+    virtual void calcPrePartialsPartials(REALTYPE* destP,
+                                         const REALTYPE* partialsParent,
+                                         const REALTYPE* matricesSelf,
+                                         const REALTYPE* partialsSibling,
+                                         const REALTYPE* matricesSibling,
+                                         int startPattern,
+                                         int endPattern);
+
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,
@@ -592,6 +600,7 @@ protected:
     void* mallocAligned(size_t size);
 
     void threadWaiting(threadData* tData);
+
 
 };
 
