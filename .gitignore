@@ -6,6 +6,7 @@
 /CmakeFiles
 /build
 /cmake-build-debug
+/libhmsbeagle/cmake-build-debug
 
 # /
 /beagle-lib-1.0.pc
