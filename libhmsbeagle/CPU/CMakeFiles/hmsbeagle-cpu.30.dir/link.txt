@@ -1,1 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/c++  -bundle -Wl,-headerpad_max_install_names  -o libhmsbeagle-cpu.30.so CMakeFiles/hmsbeagle-cpu.30.dir/BeagleCPUPlugin.cpp.o  -L/Users/xji3/GitFolders/beagle-lib/libhmsbeagle  -L/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/CPU 

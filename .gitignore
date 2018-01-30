@@ -3,10 +3,13 @@
 *.dylib
 
 # Cmake related
-/CmakeFiles
+CMakeCache.txt
+/CMakeFiles
 /build
 /cmake-build-debug
 /libhmsbeagle/cmake-build-debug
+/libhmsbeagle/CMakeFiles
+/libhmsbeagle/CPU/CMakeFiles
 
 # /
 /beagle-lib-1.0.pc
