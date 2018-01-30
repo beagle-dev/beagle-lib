@@ -1,0 +1,3 @@
+/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/cmake-build-debug/CMakeFiles/libhmsbeagle.dir

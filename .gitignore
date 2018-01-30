@@ -1,3 +1,7 @@
+# ignore built library files
+*.so
+*.dylib
+
 # Cmake related
 /CmakeFiles
 /build

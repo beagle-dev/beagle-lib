@@ -13,7 +13,7 @@
 #endif
 
 #include "libhmsbeagle/plugin/SharedLibrary.h"
-#include <windows.h>
+//#include <windows.h>
 #include <string>
 #include <iostream>
 

@@ -16,7 +16,7 @@ namespace cpu {
 #if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
 const bool DEBUGGING_OUTPUT = true;
 #else
-const bool DEBUGGING_OUTPUT = false;
+const bool DEBUGGING_OUTPUT = false; //XJ: Turn it on?
 #endif
 
 BEAGLE_CPU_EIGEN_TEMPLATE
