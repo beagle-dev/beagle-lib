@@ -60,6 +60,7 @@ typedef std::list<IntPair> PairedList;
 typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> >	RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 
+#define BEAGLE_PREORDER
 //#define BEAGLE_DEBUG_TIME
 #ifdef BEAGLE_DEBUG_TIME
 #include <sys/time.h>
@@ -867,6 +868,19 @@ int beagleUpdatePartials(const int instance,
 //    catch (...) {
 //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
 //    }
+}
+
+int beagleUpdatePrePartials(const int instance,
+                            const BeagleOperation* operations,
+                            int operationCount,
+                            int cumulativeScalingIndex){
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->testupdatePrePartials((const int*)operations, operationCount, cumulativeScalingIndex);
+    DEBUG_END_TIME();
+    return returnValue;
 }
 
 int beagleUpdatePartialsByPartition(const int instance,

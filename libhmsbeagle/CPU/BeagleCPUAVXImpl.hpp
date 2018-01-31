@@ -59,6 +59,20 @@ inline const char* getBeagleCPUAVXName<float>(){ return "CPU-AVX-Single"; };
  * Calculates partial likelihoods at a node when both children have states.
  */
 
+BEAGLE_CPU_AVX_TEMPLATE
+void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcStatesStates(double* destP,
+                                     const int* states_q,
+                                     const double* matrices_q,
+                                     const int* states_r,
+                                     const double* matrices_r) {
+
+	BeagleCPUImpl<BEAGLE_CPU_AVX_DOUBLE>::calcStatesStates(destP,
+                                     states_q,
+                                     matrices_q,
+                                     states_r,
+                                     matrices_r);
+}
+
 
 //template <>
 //void BeagleCPUAVXImpl<double>::calcStatesStates(double* destP,
@@ -96,6 +110,19 @@ inline const char* getBeagleCPUAVXName<float>(){ return "CPU-AVX-Single"; };
  * Calculates partial likelihoods at a node when one child has states and one has partials.
    AVX version
  */
+BEAGLE_CPU_AVX_TEMPLATE
+void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcStatesPartials(double* destP,
+                                       const int* states_q,
+                                       const double* matrices_q,
+                                       const double* partials_r,
+                                       const double* matrices_r) {
+	BeagleCPUImpl<BEAGLE_CPU_AVX_DOUBLE>::calcStatesPartials(
+									   destP,
+									   states_q,
+									   matrices_q,
+									   partials_r,
+									   matrices_r);
+}
 
 //
 //

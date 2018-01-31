@@ -697,6 +697,26 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
                          int cumulativeScaleIndex);
 
 /**
+ * @brief Calculate or queue for calculation pre-order partials using a list of operations
+ *
+ * This function either calculates or queues for calculation a list pre-order partials. Implementations
+ * supporting ASYNCH may queue these calculations while other implementations perform these
+ * operations immediately and in order.
+ *
+ * @param instance                  Instance number (input)
+ * @param operations                BeagleOperation list specifying operations (input)
+ * @param operationCount            Number of operations (input)
+ * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
+                                          const BeagleOperation* operations,
+                                          int operationCount,
+                                          int cumulativeScaleIndex);
+
+
+/**
  * @brief A list of integer indices which specify a partial likelihoods operation for a partitioned analysis.
  */
 typedef struct {

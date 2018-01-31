@@ -8,20 +8,19 @@ add_library(beagle_lib SHARED
         config.h
         platform.h
 
-#        CPU/BeagleCPU4StateImpl.h
-#        CPU/BeagleCPU4StateImpl.hpp
-
-#        CPU/BeagleCPUImpl.h
-#        CPU/BeagleCPUImpl.hpp
-#        CPU/BeagleCPUPlugin.cpp
-#        CPU/BeagleCPUPlugin.h
-#        CPU/EigenDecomposition.h
-#        CPU/EigenDecompositionCube.h
-#        CPU/EigenDecompositionCube.hpp
-#        CPU/EigenDecompositionSquare.h
-#        CPU/EigenDecompositionSquare.hpp
-#        CPU/Precision.h
-#        CPU/SSEDefinitions.h
+        CPU/BeagleCPU4StateImpl.h
+        CPU/BeagleCPU4StateImpl.hpp
+        CPU/BeagleCPUImpl.h
+        CPU/BeagleCPUImpl.hpp
+        CPU/BeagleCPUPlugin.cpp
+        CPU/BeagleCPUPlugin.h
+        CPU/EigenDecomposition.h
+        CPU/EigenDecompositionCube.h
+        CPU/EigenDecompositionCube.hpp
+        CPU/EigenDecompositionSquare.h
+        CPU/EigenDecompositionSquare.hpp
+        CPU/Precision.h
+        CPU/SSEDefinitions.h
 
         JNI/beagle_BeagleJNIWrapper.cpp
         JNI/beagle_BeagleJNIWrapper.h

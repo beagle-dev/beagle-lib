@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <iostream>
+#include <libhmsbeagle/BeagleImpl.h>
 
 //#define JC
 
@@ -23,9 +24,9 @@
 //char *chimp = (char*)"GGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
 //char *gorilla = (char*)"GGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
-char *human = (char*)"A";
+char *human = (char*)"G";
 char *chimp = (char*)"G";
-char *gorilla = (char*)"G";
+char *gorilla = (char*)"A";
 
 
 int* getStates(char *sequence) {
@@ -179,6 +180,7 @@ int main( int argc, const char* argv[] )
 	
     // create base frequency array
 	double freqs[4] = { 0.1, 0.3, 0.2, 0.4 };
+//    double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
     
     beagleSetStateFrequencies(instance, 0, freqs);
     
@@ -231,6 +233,7 @@ int main( int argc, const char* argv[] )
 //			0.0, 0.0, 0.0, 0.0 };
 //#endif
 
+    ///eigen decomposition of the HKY85 model
     double evec[4 * 4] = {
             0.9819805,  0.040022305,  0.04454354,  -0.5,
             -0.1091089, -0.002488732, 0.81606029,  -0.5,
@@ -245,6 +248,7 @@ int main( int argc, const char* argv[] )
             -0.2, -0.6, -0.4, -0.8
     };
 
+    ///array of real parts + array of imaginary parts
     double eval[8] = { -1.42857105618099456, -1.42857095607719153, -1.42857087221423851, 0.0,
                        0.0, 0.0, 0.0, 0.0 };
 
@@ -277,7 +281,25 @@ int main( int argc, const char* argv[] )
                    operations,     // eigenIndex
                    2,              // operationCount
                    BEAGLE_OP_NONE);          // cumulative scaling index
-    
+
+    // create a list of partial likelihood update operations
+    // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+    // destPartials point to the pre-order partials
+    // partials1 = pre-order partials of the parent node
+    // matrices1 = Ptr matrices of the current node (to the parent node)
+    // partials2 = post-order partials of the sibling node
+    // matrices2 = Ptr matrices of the sibling node (to the parent node)
+    BeagleOperation pre_order_operations[2] = {
+            3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
+            4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
+    };
+
+    // update the pre-order partials
+    beagleUpdatePrePartials(instance,
+                            operations,
+                            2,
+                            BEAGLE_OP_NONE);
+
 	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
     int cumulativeScalingIndex = (scaling ? 2 : BEAGLE_OP_NONE);
@@ -294,7 +316,8 @@ int main( int argc, const char* argv[] )
                                      scalingFactorsCount,
                                      cumulativeScalingIndex);
     }
-    
+
+
 	int categoryWeightsIndex = 0;
     int stateFrequencyIndex = 0;
     
@@ -310,7 +333,7 @@ int main( int argc, const char* argv[] )
 	                            &logL);         // outLogLikelihoods
         
 #ifndef JC
-	fprintf(stdout, "logL = %.5f (BEAST = -1665.38544)\n\n", logL);
+	fprintf(stdout, "logL = %.5f (R = -5.026402)\n\n", logL);
 #else
 	fprintf(stdout, "logL = %.5f (PAUP = -1574.63624)\n\n", logL);
 #endif

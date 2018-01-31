@@ -279,6 +279,9 @@ public:
                        int operationCount,
                        int cumulativeScalingIndex);
 
+    int testupdatePrePartials(const int* operations,
+                              int operationCount,
+                              int cumulativeScalingIndex);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
@@ -399,6 +402,11 @@ protected:
                            int operationCount,
                            int cumulativeScalingIndex);
 
+    virtual int upPrePartials(bool byPartition,
+                              const int* operations,
+                              int count,
+                              int cumulativeScaleIndex);
+
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
                                                  int count,
@@ -434,11 +442,11 @@ protected:
                                       int startPattern,
                                       int endPattern);
 
-    virtual void calcPrePartialsPartials(REALTYPE* destP,
-                                         const REALTYPE* partialsParent,
-                                         const REALTYPE* matricesSelf,
-                                         const REALTYPE* partialsSibling,
-                                         const REALTYPE* matricesSibling,
+    virtual void calcPrePartialsPartials(REALTYPE *destP,
+                                         const REALTYPE *partialsParent,
+                                         const REALTYPE *matricesSelf,
+                                         const REALTYPE *partialsSibling,
+                                         const REALTYPE *matricesSibling,
                                          int startPattern,
                                          int endPattern);
 
@@ -600,7 +608,6 @@ protected:
     void* mallocAligned(size_t size);
 
     void threadWaiting(threadData* tData);
-
 
 };
 
