@@ -583,7 +583,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int *bufferIndic
                 for (int i = 0; i < kPatternCount; i++) {
                     beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
                     tmpRealPartialsOffset += kPartialsPaddedStateCount;
-                    inPartialsOffset += kStateCount;
                 }
                 // Pad extra buffer with zeros
                 for (int k = 0; k < kPartialsPaddedStateCount * (kPaddedPatternCount - kPatternCount); k++) {
@@ -1162,7 +1161,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::testupdatePrePartials(const int* operatio
     bool byPartition = false;
     returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex);
 
-    return 0;
+    return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -3554,7 +3553,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
                                                              const REALTYPE* matrices2,
                                                              int startPattern,
                                                              int endPattern) {
-    std::cout<<"visited!\n";
     int matrixIncr = kStateCount;
 
     // increment for the extra column at the end
@@ -3562,7 +3560,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* destP,
 
     int stateCountModFour = (kStateCount / 4) * 4;
 
-    std::cout<<"visited\n";
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
@@ -3654,7 +3651,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
 
                 // sum2A + sum2B = M_j P_j
                 // Now 2nd loop
-                REALTYPE* tmpdestPtr = &destP[v];
+                REALTYPE* tmpdestPtr = destPtr;
                 REALTYPE  MjPj = (sum2A + sum2B) * partials1Ptr[i];
 
                 for (j = 0; j < stateCountModFour; j += 4) {
@@ -3671,7 +3668,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
                     *(tmpdestPtr++) += matrices1Ptr[j] * MjPj;
                 }
             }
-            destPtr += P_PAD;
+            destPtr +=kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
         }
