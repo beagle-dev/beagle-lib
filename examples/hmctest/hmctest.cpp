@@ -279,6 +279,7 @@ int main( int argc, const char* argv[] )
 		3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
 		4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
 	};
+
 	int rootIndex = 4;
     
     // update the partials
@@ -301,8 +302,11 @@ int main( int argc, const char* argv[] )
     // matrices1 = Ptr matrices of the current node (to the parent node)
     // partials2 = post-order partials of the sibling node
     // matrices2 = Ptr matrices of the sibling node (to the parent node)
-    BeagleOperation pre_order_operations[1] = {
-            6, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 3, 2, 2
+    BeagleOperation pre_order_operations[4] = {
+            6, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 3, 2, 2,
+            7, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 2, 3, 3,
+            8, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 6, 1, 0, 0,
+            9, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 6, 0, 1, 1,
     };
 
     int rootPreIndex = 5;
@@ -311,24 +315,27 @@ int main( int argc, const char* argv[] )
                              (const int *)&rootPreIndex,               // bufferIndices
                              &stateFrequencyIndex,                  // stateFrequencies
                              1);                                    // count
+
     // update the pre-order partials
     beagleUpdatePrePartials(instance,
                             pre_order_operations,
-                            1,
+                            4,
                             BEAGLE_OP_NONE);
 
 // How to show the pre-order partials...
-//    double * seePartials = (double*) malloc(sizeof(double) * 4);
-//    beagleGetPartials(instance, 5, 0, seePartials);
-//    for(int i = 0; i < 4; i++){
-//        std::cout<<seePartials[i];
-//    }
-//    std::cout<<"\n";
-//    beagleGetPartials(instance, 6, 0, seePartials);
-//    for(int i = 0; i < 4; i++){
-//        std::cout<<seePartials[i];
-//    }
-//    std::cout<<"\n";
+    double * seePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * stateCount);
+    for(int i = 0; i < 5; i++){
+        beagleGetPartials(instance, 5+i, BEAGLE_OP_NONE, seePartials);
+        std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
+        int l = 0;
+        for(int k = 0; k<nPatterns; k++){
+            for(int j=0; j < stateCount; j++){
+                std::cout<<seePartials[l++]<<", ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<std::endl;
+    }
 
 
     double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
@@ -363,7 +370,7 @@ int main( int argc, const char* argv[] )
 	                            &logL);         // outLogLikelihoods
         
 #ifndef JC
-	fprintf(stdout, "logL = %.5f (R = -5.026402)\n\n", logL);
+	fprintf(stdout, "logL = %.5f (R = -19.2565)\n\n", logL);
 #else
 	fprintf(stdout, "logL = %.5f (PAUP = -1574.63624)\n\n", logL);
 #endif
