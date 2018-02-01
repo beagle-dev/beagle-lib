@@ -11,6 +11,9 @@ blen.BA <- 0.7
 blen.B1 <- 1.3
 
 # Define data vectors at tips
+# data.1 = "AAAT"
+# data.2 = "GAGT"
+# data.3 = "GAGG"
 data.1 <- matrix(c(1., 0., 0., 0., 
                    1., 0., 0., 0.,
                    1., 0., 0., 0.,
@@ -104,8 +107,25 @@ print(sum(log(colSums(stationary.dist * B.post.order))))
 
 # Now calculate the pre-order traversals
 B.pre.order <- stationary.dist %*% matrix(1., 1, dim(data.1)[2])
-A.pre.order <- colSums(expm(Q*blen.BA) * B.pre.order * B.2)
-A.pre.order <- A.pre.order / sum(A.pre.order)
+A.pre.order <- crossprod(Ptr.BA, (B.pre.order * B.2))
+#A.pre.order <- t(t(A.pre.order) / colSums(A.pre.order))
 
-A.posterior <- A.pre.order * A.post.order
-A.posterior / sum(A.posterior)
+# Now update the pre-order partials on tips
+tip.1.pre.order <- crossprod(Ptr.B1, B.pre.order*B.1)
+#tip.1.pre.order <- t(t(tip.1.pre.order) / colSums(tip.1.pre.order))
+
+tip.2.pre.order <- crossprod(Ptr.A2, A.pre.order*A.1)
+#tip.2.pre.order <- t(t(tip.2.pre.order) / colSums(tip.2.pre.order))
+
+tip.3.pre.order <- crossprod(Ptr.A3, A.pre.order*A.2)
+#tip.3.pre.order <- t(t(tip.3.pre.order) / colSums(tip.3.pre.order))
+
+# output pre-order partials to screen in the same order as hmctest.cpp
+t(B.pre.order)
+t(A.pre.order)
+t(tip.1.pre.order)
+t(tip.3.pre.order)
+t(tip.2.pre.order)
+
+# output log-likelihood again
+print(sum(log(colSums(stationary.dist * B.post.order))))
