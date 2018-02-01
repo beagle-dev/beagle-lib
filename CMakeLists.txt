@@ -17,6 +17,7 @@ include_directories(
 # This seems the missing piece of the puzzle
 link_directories(
                 ${PROJECT_SOURCE_DIR}/libhmsbeagle
+#        ${PROJECT_SOURCE_DIR}/cmake-build-debug/libhmsbeagle/CPU
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU
         #        ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU/.libs
 )

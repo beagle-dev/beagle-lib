@@ -100,8 +100,9 @@ double* getPartials(char *sequence) {
 int main( int argc, const char* argv[] )
 { 
     
-    bool scaling = true;
-    
+//    bool scaling = true; disable scaling for now
+    bool scaling = false;
+
     bool doJC = true;
 
     // is nucleotides...
@@ -109,17 +110,21 @@ int main( int argc, const char* argv[] )
 	
     // get the number of site patterns
 	int nPatterns = strlen(human);
-    
-    int rateCategoryCount = 4;
+
+    // change # rate category to 1
+//    int rateCategoryCount = 4;
+    int rateCategoryCount = 1;
     
     int scaleCount = (scaling ? 3 : 0);
     
     BeagleInstanceDetails instDetails;
+
+    /// Doubled the size of partials buffer from 5 to 10
     
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
-                                  5,	            /**< Number of partials buffers to create (input) */
+                                  10,	            /**< Number of partials buffers to create (input) */
                                   0,		        /**< Number of compact state representation buffers to create (input) */
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
@@ -282,6 +287,13 @@ int main( int argc, const char* argv[] )
                    2,              // operationCount
                    BEAGLE_OP_NONE);          // cumulative scaling index
 
+    ///XJ: I decided to store the pre-order partials vector in reverse order as those of post-orders
+    ///This means that the two indices to the partials of root nodes are adjacent.
+    ///For any node, the indices of the two partials sum to 2*(partialsBufferCount + compactBufferCount) - 1
+
+
+    int categoryWeightsIndex = 0;
+    int stateFrequencyIndex = 0;
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
     // destPartials point to the pre-order partials
@@ -289,18 +301,37 @@ int main( int argc, const char* argv[] )
     // matrices1 = Ptr matrices of the current node (to the parent node)
     // partials2 = post-order partials of the sibling node
     // matrices2 = Ptr matrices of the sibling node (to the parent node)
-    BeagleOperation pre_order_operations[2] = {
-            3, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
-            4, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3
+    BeagleOperation pre_order_operations[1] = {
+            6, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 3, 2, 2
     };
 
+    int rootPreIndex = 5;
+
+    BeagleSetRootPrePartials(instance,
+                             (const int *)&rootPreIndex,               // bufferIndices
+                             &stateFrequencyIndex,                  // stateFrequencies
+                             1);                                    // count
     // update the pre-order partials
     beagleUpdatePrePartials(instance,
-                            operations,
-                            2,
+                            pre_order_operations,
+                            1,
                             BEAGLE_OP_NONE);
 
-	double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
+// How to show the pre-order partials...
+//    double * seePartials = (double*) malloc(sizeof(double) * 4);
+//    beagleGetPartials(instance, 5, 0, seePartials);
+//    for(int i = 0; i < 4; i++){
+//        std::cout<<seePartials[i];
+//    }
+//    std::cout<<"\n";
+//    beagleGetPartials(instance, 6, 0, seePartials);
+//    for(int i = 0; i < 4; i++){
+//        std::cout<<seePartials[i];
+//    }
+//    std::cout<<"\n";
+
+
+    double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
     int cumulativeScalingIndex = (scaling ? 2 : BEAGLE_OP_NONE);
     
@@ -318,8 +349,7 @@ int main( int argc, const char* argv[] )
     }
 
 
-	int categoryWeightsIndex = 0;
-    int stateFrequencyIndex = 0;
+
     
 	double logL = 0.0;
     

@@ -189,6 +189,14 @@ public:
     int setTipPartials(int tipIndex,
                        const double* inPartials);
 
+    // set the pre-order partials for root node
+    //
+    // bufferIndices the indices of root nodes (may countain multiple)
+    // stateFrequenciesIndices the indices of state frequencies at root
+    // count number of root nodes
+    int setRootPrePartials(const int* bufferIndices,
+                           const int* stateFrequenciesIndices,
+                           int count);
 
     int setPartials(int bufferIndex,
                     const double* inPartials);
@@ -572,6 +580,15 @@ protected:
                                                 const REALTYPE *scaleFactors,
                                                 int startPattern,
                                                 int endPattern);
+
+    virtual void calcPreStatesPartialsFixedScaling(REALTYPE* destP,
+                                                   const int* states1,
+                                                   const REALTYPE* matrices1,
+                                                   const REALTYPE* partials2,
+                                                   const REALTYPE* matrices2,
+                                                   const REALTYPE* scaleFactors,
+                                                   int startPattern,
+                                                   int endPattern);
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
                                             const REALTYPE *child0States,

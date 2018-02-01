@@ -8,8 +8,8 @@ add_library(beagle_lib SHARED
         config.h
         platform.h
 
-        CPU/BeagleCPU4StateImpl.h
-        CPU/BeagleCPU4StateImpl.hpp
+#        CPU/BeagleCPU4StateImpl.h
+#        CPU/BeagleCPU4StateImpl.hpp
         CPU/BeagleCPUImpl.h
         CPU/BeagleCPUImpl.hpp
         CPU/BeagleCPUPlugin.cpp

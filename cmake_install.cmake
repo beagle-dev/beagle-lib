@@ -1,4 +1,4 @@
-# Install script for directory: /Users/xji3/GitFolders/beagle-lib
+# Install script for directory: /Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -12,7 +12,7 @@ if(NOT DEFINED CMAKE_INSTALL_CONFIG_NAME)
     string(REGEX REPLACE "^[^A-Za-z0-9_]+" ""
            CMAKE_INSTALL_CONFIG_NAME "${BUILD_TYPE}")
   else()
-    set(CMAKE_INSTALL_CONFIG_NAME "")
+    set(CMAKE_INSTALL_CONFIG_NAME "Debug")
   endif()
   message(STATUS "Install configuration: \"${CMAKE_INSTALL_CONFIG_NAME}\"")
 endif()
@@ -29,7 +29,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("/Users/xji3/GitFolders/beagle-lib/libhmsbeagle/cmake_install.cmake")
+  include("/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/cmake_install.cmake")
 
 endif()
 
@@ -41,5 +41,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/xji3/GitFolders/beagle-lib/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

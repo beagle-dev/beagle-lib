@@ -67,7 +67,11 @@ public:
     
     virtual int setPartials(int bufferIndex,
                             const double* inPartials) = 0;
-    
+
+	virtual int setRootPrePartials(const int* bufferIndices,
+                                   const int* stateFrequenciesIndices,
+                                   int count) = 0;
+
     virtual int getPartials(int bufferIndex,
 							int scaleIndex,
                             double* outPartials) = 0;

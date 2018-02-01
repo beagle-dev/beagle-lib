@@ -366,6 +366,25 @@ BEAGLE_DLLEXPORT int beagleSetTipStates(int instance,
 BEAGLE_DLLEXPORT int beagleSetTipPartials(int instance,
                          int tipIndex,
                          const double* inPartials);
+/**
+ * @brief Calculate or queue for calculation pre-order partials using a list of operations
+ *
+ * This function either calculates or queues for calculation a list pre-order partials. Implementations
+ * supporting ASYNCH may queue these calculations while other implementations perform these
+ * operations immediately and in order.
+ *
+ * @param instance                  Instance number (input)
+ * @param bufferIndices            List of partialsBuffer indices to set (input)
+ * @param stateFrequenciesIndices  List of state frequencies for each partialsBuffer (input). There
+ *                                  should be one set for each of parentBufferIndices
+ * @param count                    Number of partialsBuffer to integrate (input)
+ **
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int BeagleSetRootPrePartials(const int instance,
+                                              const int* bufferIndices,
+                                              const int* stateFrequenciesIndices,
+                                              int count);
 
 /**
  * @brief Set an instance partials buffer
@@ -714,7 +733,6 @@ BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
                                           const BeagleOperation* operations,
                                           int operationCount,
                                           int cumulativeScaleIndex);
-
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation for a partitioned analysis.

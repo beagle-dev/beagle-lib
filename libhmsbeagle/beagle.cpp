@@ -585,6 +585,32 @@ int beagleSetPartials(int instance,
     }
 }
 
+int BeagleSetRootPrePartials(const int instance,
+                         const int* bufferIndices,
+                         const int* stateFrequenciesIndices,
+                         int count){
+    DEBUG_START_TIME();
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->setRootPrePartials(bufferIndices,
+                                                             stateFrequenciesIndices,
+                                                             count);
+        DEBUG_END_TIME();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}
+
 int beagleGetPartials(int instance, int bufferIndex, int scaleIndex, double* outPartials) {
     DEBUG_START_TIME();
     try {
@@ -847,9 +873,9 @@ int beagleUpdateTransitionMatricesWithMultipleModels(int instance,
 
 
 int beagleUpdatePartials(const int instance,
-                   const BeagleOperation* operations,
-                   int operationCount,
-                   int cumulativeScalingIndex) {
+                         const BeagleOperation* operations,
+                         int operationCount,
+                         int cumulativeScalingIndex) {
     DEBUG_START_TIME();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
