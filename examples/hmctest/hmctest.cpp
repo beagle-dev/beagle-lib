@@ -257,6 +257,14 @@ int main( int argc, const char* argv[] )
     double eval[8] = { -1.42857105618099456, -1.42857095607719153, -1.42857087221423851, 0.0,
                        0.0, 0.0, 0.0, 0.0 };
 
+    ///Q^T matrix
+    double QT[4 * 4] = {
+            -1.2857138,  0.1428570,  0.1428570,  0.1428570,
+            0.4285712, -0.9999997,  0.4285714,  0.4285713,
+            0.2857142,  0.2857143, -1.1428568,  0.2857142,
+            0.5714284,  0.5714284,  0.5714284, -0.8571426
+    };
+
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
@@ -323,14 +331,43 @@ int main( int argc, const char* argv[] )
                             BEAGLE_OP_NONE);
 
 // How to show the pre-order partials...
-    double * seePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * stateCount);
+    double * seeprePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
+    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
     for(int i = 0; i < 5; i++){
-        beagleGetPartials(instance, 5+i, BEAGLE_OP_NONE, seePartials);
+        beagleGetPartials(instance, 5+i, BEAGLE_OP_NONE, seeprePartials);
+        beagleGetPartials(instance, 4-i, BEAGLE_OP_NONE, seepostPartials);
+
+        double * prePartialsPtr = seeprePartials;
+        double * postPartialsPtr = seepostPartials;
+
+        double denominator = 0;
+        double numerator = 0;
+        double tmp = 0;
+        int k, j, l, m;
+        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": ";
+        for(m=0; m < nPatterns; m++){
+            l = 0;
+            numerator = 0;
+            denominator = 0;
+            for(k = 0; k < stateCount; k++){
+                tmp = 0.0;
+                for(j=0; j < stateCount; j++){
+                    tmp += QT[l++]*prePartialsPtr[j];
+                }
+                numerator += tmp * postPartialsPtr[k];
+                denominator += postPartialsPtr[k] * prePartialsPtr[k];
+            }
+            postPartialsPtr += stateCount;
+            prePartialsPtr  += stateCount;
+            std::cout<<numerator / denominator <<"  ";
+        }
+        std::cout<<std::endl;
+
         std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
-        int l = 0;
-        for(int k = 0; k<nPatterns; k++){
-            for(int j=0; j < stateCount; j++){
-                std::cout<<seePartials[l++]<<", ";
+        l = 0;
+        for(k = 0; k<nPatterns; k++){
+            for(j=0; j < stateCount; j++){
+                std::cout<<seeprePartials[l++]<<", ";
             }
             std::cout<<std::endl;
         }
