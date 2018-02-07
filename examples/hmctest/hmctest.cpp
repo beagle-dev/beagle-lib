@@ -111,7 +111,7 @@ int main( int argc, const char* argv[] )
     // get the number of site patterns
 	int nPatterns = strlen(human);
 
-    // change # rate category to 1
+    // change # rate category to 2
 //    int rateCategoryCount = 4;
     int rateCategoryCount = 1;
     
@@ -330,7 +330,9 @@ int main( int argc, const char* argv[] )
                             4,
                             BEAGLE_OP_NONE);
 
-// How to show the pre-order partials...
+//  print pre-order partials and edge length log-likelihood gradient to screen
+//  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp
+//  need to consider rate variation case
     double * seeprePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
     double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
     for(int i = 0; i < 5; i++){

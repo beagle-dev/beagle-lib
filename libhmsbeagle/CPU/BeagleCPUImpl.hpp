@@ -567,6 +567,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int *bufferIndic
 //            } else {
 //                return BEAGLE_SUCCESS;
 //            }
+            return BEAGLE_ERROR_NO_IMPLEMENTATION;
         } else {
             int stateFrequenciesIndex = stateFrequenciesIndices[0];
             int bufferIndex = bufferIndices[0];
@@ -1571,7 +1572,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
 
                 calcPrePartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
                                         startPattern, endPattern);
-
 
                 if (rescale == 1) {// Recompute scaleFactors
                     if (byPartition) {
