@@ -186,7 +186,7 @@ if (T_PAD != 0) {
 						REALTYPE sum = 0.0;
 						REALTYPE sumD1 = 0.0;
 						for (int k = 0; k < kStateCount; k++) {
-							sum += gCMatrices[eigenIndex][m] * matrixTmp[k];
+							sum += gCMatrices[eigenIndex][m] * matrixTmp[k]; ///gCMatrices[eigenIndex] =  eigenVectors \otimes InveigenVectors
 							sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
 							m++;
 						}
@@ -197,11 +197,11 @@ if (T_PAD != 0) {
 						firstDerivMat[n] = sumD1;
 						n++;
 					}
-if (T_PAD != 0) {
-					transitionMat[n] = 1.0;
-                    firstDerivMat[n] = 0.0;
-					n += T_PAD;
-}
+					if (T_PAD != 0) {
+						transitionMat[n] = 1.0;
+						firstDerivMat[n] = 0.0;
+						n += T_PAD;
+					}
 				}
 			}
 		}

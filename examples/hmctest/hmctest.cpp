@@ -113,7 +113,7 @@ int main( int argc, const char* argv[] )
 
     // change # rate category to 2
 //    int rateCategoryCount = 4;
-    int rateCategoryCount = 1;
+    int rateCategoryCount = 2;
     
     int scaleCount = (scaling ? 3 : 0);
     
@@ -170,7 +170,8 @@ int main( int argc, const char* argv[] )
 	double rates[rateCategoryCount];
 #endif
     for (int i = 0; i < rateCategoryCount; i++) {
-        rates[i] = 1.0;
+//        rates[i] = 1.0;
+        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
     }
     
 	beagleSetCategoryRates(instance, &rates[0]);
@@ -196,7 +197,8 @@ int main( int argc, const char* argv[] )
 	double weights[rateCategoryCount];
 #endif
     for (int i = 0; i < rateCategoryCount; i++) {
-        weights[i] = 1.0/rateCategoryCount;
+//        weights[i] = 1.0/rateCategoryCount;
+        weights[i] = 2.0 * double(i + 1)/ double(rateCategoryCount * (rateCategoryCount + 1));
     }    
     
     beagleSetCategoryWeights(instance, 0, &weights[0]);
@@ -333,49 +335,130 @@ int main( int argc, const char* argv[] )
 //  print pre-order partials and edge length log-likelihood gradient to screen
 //  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp
 //  need to consider rate variation case
-    double * seeprePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
-    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns);
+
+
+    double * seeprePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns *rateCategoryCount);
+    double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+
+    double * tmpNumerator = (double*)   malloc(sizeof(double)  * nPatterns * rateCategoryCount);
+
+    double * grand_denominator = (double*) malloc(sizeof(double)  * nPatterns);
+    double * grand_numerator = (double*) malloc(sizeof(double)  * nPatterns);
+    /// state frequencies stored in freqs
+    /// category weights stored in weights
+
+
+    beagleGetPartials(instance, rootIndex, BEAGLE_OP_NONE, seerootPartials);
     for(int i = 0; i < 5; i++){
-        beagleGetPartials(instance, 5+i, BEAGLE_OP_NONE, seeprePartials);
-        beagleGetPartials(instance, 4-i, BEAGLE_OP_NONE, seepostPartials);
+        for(int m = 0; m < nPatterns; m++){
+            grand_denominator[m] = 0;
+            grand_numerator[m] = 0;
+        }
+        int postBufferIndices = 4-i;
+        int preBufferIndices = 5+i;
+        beagleGetPartials(instance, preBufferIndices, BEAGLE_OP_NONE, seeprePartials);
+        beagleGetPartials(instance, postBufferIndices, BEAGLE_OP_NONE, seepostPartials);
 
         double * prePartialsPtr = seeprePartials;
         double * postPartialsPtr = seepostPartials;
 
         double denominator = 0;
         double numerator = 0;
+
         double tmp = 0;
-        int k, j, l, m;
-        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": ";
-        for(m=0; m < nPatterns; m++){
-            l = 0;
-            numerator = 0;
-            denominator = 0;
-            for(k = 0; k < stateCount; k++){
-                tmp = 0.0;
-                for(j=0; j < stateCount; j++){
-                    tmp += QT[l++]*prePartialsPtr[j];
+        int k, j, l, m, s, t;
+        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": \n";
+
+        ///get likelihood for each rate category first
+        double clikelihood[rateCategoryCount * nPatterns];
+        l = 0; j = 0;
+        for(s = 0; s < rateCategoryCount; s++){
+            for(m = 0; m < nPatterns; m++){
+                double clikelihood_tmp = 0.0;
+                for(k=0; k < stateCount; k++){
+                    clikelihood_tmp += freqs[k] * seerootPartials[l++];
                 }
-                numerator += tmp * postPartialsPtr[k];
-                denominator += postPartialsPtr[k] * prePartialsPtr[k];
+                clikelihood[j++] = clikelihood_tmp;
             }
-            postPartialsPtr += stateCount;
-            prePartialsPtr  += stateCount;
-            std::cout<<numerator / denominator <<"  ";
         }
+
+        ///now calculate weights
+        t = 0;
+        for(s = 0; s < rateCategoryCount; s++){
+            double ws = weights[s];
+            double rs = rates[s];
+            for(m=0; m < nPatterns; m++){
+                l = 0;
+                numerator = 0;
+                denominator = 0;
+                for(k = 0; k < stateCount; k++){
+                    tmp = 0.0;
+                    for(j=0; j < stateCount; j++){
+                        tmp += QT[l++]*prePartialsPtr[j];
+                    }
+                    numerator += tmp * postPartialsPtr[k];
+                    denominator += postPartialsPtr[k] * prePartialsPtr[k];
+                }
+                postPartialsPtr += stateCount;
+                prePartialsPtr  += stateCount;
+                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
+                //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
+                grand_numerator[m] += tmpNumerator[t];
+                grand_denominator[m] += ws * clikelihood[t];
+                t++;
+//                std::cout<<numerator / denominator <<"  ";
+            }
+//            std::cout<<std::endl;
+        }
+
+//        std::cout<<"  Grand numerator:\n    ";
+//        for(m=0; m < nPatterns; m++){
+//            std::cout<<grand_numerator[m]<< "  ";
+//        }
+//        std::cout<<"\n  Grand denominator:\n    ";
+//        for(m=0; m < nPatterns; m++){
+//            std::cout<<grand_denominator[m] << "  ";
+//        }
+//        std::cout<<"\n  Grand derivative:\n    ";
+        for(m=0; m < nPatterns; m++){
+            std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
+        }
+
         std::cout<<std::endl;
+//        for(m=0; m < nPatterns; m++){
+//            l = 0;
+//            numerator = 0;
+//            denominator = 0;
+//            for(k = 0; k < stateCount; k++){
+//                tmp = 0.0;
+//                for(j=0; j < stateCount; j++){
+//                    tmp += QT[l++]*prePartialsPtr[j];
+//                }
+//                numerator += tmp * postPartialsPtr[k];
+//                denominator += postPartialsPtr[k] * prePartialsPtr[k];
+//            }
+//            postPartialsPtr += stateCount;
+//            prePartialsPtr  += stateCount;
+//            std::cout<<numerator / denominator <<"  ";
+//        }
+//        std::cout<<std::endl;
 
         std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
+
         l = 0;
-        for(k = 0; k<nPatterns; k++){
-            for(j=0; j < stateCount; j++){
-                std::cout<<seeprePartials[l++]<<", ";
+        for(s = 0; s < rateCategoryCount; s++){
+            std::cout<<"  rate category"<< s+1<< ": \n";
+            for(k = 0; k<nPatterns; k++){
+                for(j=0; j < stateCount; j++){
+                    std::cout<<seeprePartials[l++]<<", ";
+                }
+                std::cout<<std::endl;
             }
             std::cout<<std::endl;
         }
-        std::cout<<std::endl;
-    }
 
+    }
 
     double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
 
@@ -409,7 +492,7 @@ int main( int argc, const char* argv[] )
 	                            &logL);         // outLogLikelihoods
         
 #ifndef JC
-	fprintf(stdout, "logL = %.5f (R = -19.2565)\n\n", logL);
+	fprintf(stdout, "logL = %.5f (R = -18.91783)\n\n", logL);
 #else
 	fprintf(stdout, "logL = %.5f (PAUP = -1574.63624)\n\n", logL);
 #endif

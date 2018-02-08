@@ -721,6 +721,7 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * This function either calculates or queues for calculation a list pre-order partials. Implementations
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
+ * ///TODO: consider > 3 degree nodes?
  *
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
@@ -975,6 +976,44 @@ BEAGLE_DLLEXPORT int beagleCalculateRootLogLikelihoodsByPartition(int instance,
                                                                   int count,
                                                                   double* outSumLogLikelihoodByPartition,
                                                                   double* outSumLogLikelihood);
+
+/**
+ * @brief Calculate site log likelihoods and derivatives along all edges
+ *
+ * This function integrates a list of partials at a parent and child node with respect
+ * to a set of partials-weights and state frequencies to return the log likelihood
+ * and first and second derivative sums
+ *
+ * @param instance                  Instance number (input)
+ * @param postBufferIndices         List of indices of post-order partialsBuffers (input)
+ * @param preBufferIndices          List of indices of pre-order partialsBuffers (input)
+ * @param rootBufferIndices         List of indices of root post-order partialsBuffers (input)
+ * @param insMatrixIndices          List indices of instantaneous transition matrices (input)
+ * @param firstDerivativeIndices    List indices of first derivative matrices (input)
+ * @param categoryWeightsIndices    List of weights to apply to each partialsBuffer (input)
+ * @param stateFrequenciesIndices   List of state frequencies for each partialsBuffer (input). There
+ *                                   should be one set for each of parentBufferIndices
+ * @param cumulativeScaleIndices    List of scaleBuffers containing accumulated factors to apply to
+ *                                   each partialsBuffer (input). There should be one index for each
+ *                                   of parentBufferIndices
+ * @param count                     Number of partialsBuffers (input)
+ * @param outSumLogLikelihood       Pointer to destination for resulting log likelihood (output)
+ * @param outSumFirstDerivative     Pointer to destination for resulting first derivative (output)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleCalculateEdgeGradient(int instance,
+                                                 const int *postBufferIndices,
+                                                 const int *preBufferIndices,
+                                                 const int *rootBufferIndices,
+                                                 const int *insMatrixIndices,
+                                                 const int *firstDerivativeIndices,
+                                                 const int *categoryWeightsIndices,
+                                                 const int *stateFrequenciesIndices,
+                                                 const int *cumulativeScaleIndices,
+                                                 int count,
+                                                 double* outSumLogLikelihood,
+                                                 double *outSumFirstDerivative);
 
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
