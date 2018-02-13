@@ -58,6 +58,8 @@ public class BeagleJNIWrapper {
 
     public native int setTipPartials(int instance, int tipIndex, final double[] inPartials);
 
+    public native int setRootPrePartials(int instance, final int[] inbufferIndices, final int[] instateFrequenciesIndices, int count);
+
     public native int setPartials(int instance, int bufferIndex, final double[] inPartials);
 
     public native int getPartials(int instance, int bufferIndex, int scaleIndex,
@@ -112,6 +114,11 @@ public class BeagleJNIWrapper {
                                                final int[] secondDervativeIndices,
                                                final double[] edgeLengths,
                                                int count);
+
+    public native int updatePrePartials(final int instance,
+                                     final int[] operations,
+                                     int operationCount,
+                                     int cumulativeScalingIndex);
 
     public native int updatePartials(final int instance,
                                      final int[] operations,
@@ -205,7 +212,8 @@ public class BeagleJNIWrapper {
             if(osArch.equals("x86")||osArch.equals("i386")) return "hmsbeagle32";
             if(osArch.startsWith("amd64")||osArch.startsWith("x86_64")) return "hmsbeagle64";
         }
-        return "hmsbeagle-jni";
+//        return "hmsbeagle-jni";
+        return "libhmsbeagle-jni";
     }
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
@@ -217,7 +225,8 @@ public class BeagleJNIWrapper {
             }
         }
 
-        System.loadLibrary(path + LIBRARY_NAME);
+//        System.loadLibrary(path + LIBRARY_NAME);
+        System.load(path + LIBRARY_NAME + ".jnilib");
         INSTANCE = new BeagleJNIWrapper();
     }
 

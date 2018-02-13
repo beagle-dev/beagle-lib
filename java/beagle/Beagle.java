@@ -200,6 +200,23 @@ public interface Beagle extends Serializable {
             final double[] inPartials);
 
     /**
+     * Set the pre-order partials for the root node
+     *
+     * This function copies an array of stateFrequencies into an instance buffer as the
+     * pre-order partials for the root node.
+     *
+     * @param inbufferIndices                List of partialsBuffer indices to set (input)
+     * @param instateFrequenciesIndices      List of state frequencies for each partialsBuffer (input).
+     *                                       There should be one set for each of parentBufferIndices
+     * @param count                          Number of partialsBuffer to integrate(input)
+     */
+    void setRootPrePartials(
+            final int[] inbufferIndices,
+            final int[] instateFrequenciesIndices,
+            int count
+    );
+
+    /**
      * Set an instance partials buffer
      *
      * This function copies an array of partials into an instance buffer. The inPartials array should
@@ -385,6 +402,34 @@ public interface Beagle extends Serializable {
      */
     void getTransitionMatrix(int matrixIndex,
                              double[] outMatrix);
+
+    /**
+     * Calculate or queue for calculation pre-order partials using a list of operations
+     *
+     * This function either calculates or queues for calculation a list pre-order partials. Implementations
+     * supporting ASYNCH may queue these calculations while other implementations perform these
+     * operations immediately and in order.
+     *
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
+     *                               pre-order partials of the parent node,
+     *                               Ptr matrices of the current node,
+     *                               post-order partials of the sibling node,
+     *                               Ptr matrices of the sibling node}
+     *
+     * ///TODO: consider > 3 degree nodes?
+     *
+     * @param operations                list of 7-tuples specifying operations (input)
+     * @param operationCount            Number of operations (input)
+     * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+     *
+     */
+    void updatePrePartials(
+            final int[] operations,
+            int operationCount,
+            int cumulativeScaleIndex);
 
     /**
      * Calculate or queue for calculation partials using a list of operations

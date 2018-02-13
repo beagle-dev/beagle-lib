@@ -1154,9 +1154,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
 
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::testupdatePrePartials(const int* operations,
-                                                             int count,
-                                                             int cumulativeScaleIndex) {
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
+                                                         int count,
+                                                         int cumulativeScaleIndex) {
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     bool byPartition = false;

@@ -137,9 +137,9 @@ public:
                                int operationCount,
                                int cumulativeScalingIndex) = 0;
 
-	virtual int testupdatePrePartials(const int* operations,
-									  int count,
-									  int cumulativeScaleIndex) = 0;
+	virtual int updatePrePartials(const int *operations,
+                                  int count,
+                                  int cumulativeScaleIndex) = 0;
 
     virtual int updatePartialsByPartition(const int* operations,
                                           int operationCount) = 0;

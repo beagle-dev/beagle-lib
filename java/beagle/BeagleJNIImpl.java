@@ -96,6 +96,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setRootPrePartials(final int[] inbufferIndices, final int[] instateFrequenciesIndices, int count){
+        int errCode = BeagleJNIWrapper.INSTANCE.setRootPrePartials(instance, inbufferIndices, instateFrequenciesIndices, count);
+        if(errCode != 0){
+            throw new BeagleException("setRootPrePartials", errCode);
+        }
+    }
+
     public void setPartials(int bufferIndex, final double[] partials) {
         int errCode = BeagleJNIWrapper.INSTANCE.setPartials(instance, bufferIndex, partials);
         if (errCode != 0) {
@@ -233,6 +240,12 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex);
+        if (errCode != 0) {
+            throw new BeagleException("updatePrePartials", errCode);
+        }
+    }
 
     public void updatePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instance, operations, operationCount, cumulativeScaleIndex);

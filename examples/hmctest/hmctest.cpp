@@ -321,8 +321,8 @@ int main( int argc, const char* argv[] )
 
     int rootPreIndex = 5;
 
-    BeagleSetRootPrePartials(instance,
-                             (const int *)&rootPreIndex,               // bufferIndices
+    beagleSetRootPrePartials(instance,
+                             (const int *) &rootPreIndex,               // bufferIndices
                              &stateFrequencyIndex,                  // stateFrequencies
                              1);                                    // count
 

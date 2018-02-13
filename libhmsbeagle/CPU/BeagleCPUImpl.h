@@ -287,9 +287,9 @@ public:
                        int operationCount,
                        int cumulativeScalingIndex);
 
-    int testupdatePrePartials(const int* operations,
-                              int operationCount,
-                              int cumulativeScalingIndex);
+    int updatePrePartials(const int *operations,
+                          int operationCount,
+                          int cumulativeScalingIndex);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);

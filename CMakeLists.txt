@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_CXX_FLAGS “ -stdlib=libstdc++”)
 
 set (JAVA_HEADER_DIR "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers")
-#set (DYLD_LIBRARY_PATH ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU/.libs)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}
@@ -19,6 +18,8 @@ link_directories(
                 ${PROJECT_SOURCE_DIR}/libhmsbeagle
 #        ${PROJECT_SOURCE_DIR}/cmake-build-debug/libhmsbeagle/CPU
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU
+#        ${PROJECT_SOURCE_DIR}/libhmsbeagle/GPU
+        ${PROJECT_SOURCE_DIR}/libhmsbeagle/JNI
         #        ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU/.libs
 )
 
@@ -27,7 +28,6 @@ link_directories(
 #FIND_LIBRARY(RUNTIME_LIB rt /usr/lib  /usr/local/lib NO_DEFAULT_PATH)
 
 add_subdirectory(libhmsbeagle)
-#add_subdirectory(libhmsbeagle/CPU)
 
 link_libraries(beagle_lib)
 

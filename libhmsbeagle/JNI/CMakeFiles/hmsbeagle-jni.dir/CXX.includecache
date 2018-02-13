@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/jni.h
+stdio.h
+-
+stdarg.h
+-
+jni_md.h
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/jni_md.h
+
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/jni_md.h
+
+/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp
+libhmsbeagle/JNI/winjni.h
+/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/JNI/libhmsbeagle/JNI/winjni.h
+cstdio
+-
+cstdlib
+-
+cstring
+-
+cmath
+-
+jni.h
+-
+libhmsbeagle/beagle.h
+/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/JNI/libhmsbeagle/beagle.h
+libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h
+/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/JNI/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h
+
+libhmsbeagle/JNI/beagle_BeagleJNIWrapper.h
+jni.h
+-
+
+libhmsbeagle/beagle.h
+libhmsbeagle/platform.h
+libhmsbeagle/libhmsbeagle/platform.h
+
+libhmsbeagle/platform.h
+

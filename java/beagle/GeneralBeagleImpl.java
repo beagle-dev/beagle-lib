@@ -3,7 +3,7 @@ package beagle;
 public class GeneralBeagleImpl implements Beagle {
 
     public static final boolean DEBUG = false;
-    public static final boolean SCALING = true;
+    public static final boolean SCALING = true;  //this was true XJ
 
     // These settings are chosen for single precision computation.
     // The single precision exponents go from -126 to 127 (2 ^ x)
@@ -174,6 +174,23 @@ public class GeneralBeagleImpl implements Beagle {
         for (int i = 0; i < categoryCount; i++) {
             System.arraycopy(inPartials, 0, this.partials[tipIndex], k, inPartials.length);
             k += inPartials.length;
+        }
+    }
+
+    public void setRootPrePartials(int[] inbufferIndices, int[] instateFrequenciesIndices, int count){
+        if(count == 1){
+            int stateFrequenciesIndex = instateFrequenciesIndices[0];
+            int bufferIndex = inbufferIndices[0];
+            if (this.partials[bufferIndex] == null){
+                this.partials[bufferIndex] = new double[partialsSize];
+            }
+            int k = 0;
+            for(int i = 0; i < categoryCount; i++){
+                for(int j = 0; j < patternCount; j++){
+                    System.arraycopy(this.stateFrequencies[stateFrequenciesIndex], 0, this.partials[bufferIndex], k, stateCount);
+                    k += stateCount;
+                }
+            }
         }
     }
 
@@ -376,6 +393,41 @@ public class GeneralBeagleImpl implements Beagle {
                     }
                 }
             }
+
+            if (SCALING) {
+                if (exponent > SCALING_EXPONENT_THRESHOLD) {
+                    rescalePartials(bufferIndex3);
+                }
+            }
+        }
+    }
+
+    /**
+     * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
+     * Format of 7-tuple operation: {destinationPartials,
+     *                               destinationScaleWrite,
+     *                               destinationScaleRead,
+     *                               pre-order partials of the parent node,
+     *                               Ptr matrices of the current node,
+     *                               post-order partials of the sibling node,
+     *                               Ptr matrices of the sibling node}
+     *
+     */
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
+
+        int x = 0;
+        for (int op = 0; op < operationCount; op++) {
+            int bufferIndex3 = operations[x];
+            int bufferIndex1 = operations[x + 3];
+            int matrixIndex1 = operations[x + 4];
+            int bufferIndex2 = operations[x + 5];
+            int matrixIndex2 = operations[x + 6];
+
+            x += Beagle.OPERATION_TUPLE_SIZE;
+
+            int exponent = 0;
+
+            exponent = updatePrePartialsPartials(bufferIndex1, matrixIndex1, bufferIndex2, matrixIndex2, bufferIndex3);
 
             if (SCALING) {
                 if (exponent > SCALING_EXPONENT_THRESHOLD) {
@@ -716,6 +768,86 @@ public class GeneralBeagleImpl implements Beagle {
 
         return exponent;
     }
+
+    protected int updatePrePartialsPartials(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
+    {
+        double[] matrices1 = matrices[matrixIndex1];  // Ptr matrices of the current node
+        double[] matrices2 = matrices[matrixIndex2];  // Ptr matrices of the sibling node
+
+        double[] partials1 = partials[bufferIndex1];  // pre-order partials of the parent node
+
+        double[] partials2 = partials[bufferIndex2];  // post-order partials of the sibling node
+
+        double[] partials3 = partials[bufferIndex3];  //destPartials
+
+        double sum2, MjPj;
+
+        int exponent = 0;
+        if (SCALING) {
+            int[] counts1 = scalingFactorCounts[bufferIndex1];
+            int[] counts2 = scalingFactorCounts[bufferIndex2];
+            int[] counts3 = scalingFactorCounts[bufferIndex3];
+            for (int i = 0; i < counts1.length; i++) {
+                // The scale factor counts is the sum of the two nodes below
+                counts3[i] = counts1[i] + counts2[i];
+            }
+        }
+
+        int u = 0;
+        int v = 0;
+        for (int l = 0; l < categoryCount; l++) {
+
+            for (int k = 0; k < patternCount; k++) {
+
+                int w = l * matrixSize;
+
+
+                for (int i = 0; i < stateCount; i++) {
+
+                    sum2 = 0.0;
+
+                    for (int j = 0; j < stateCount; j++) {
+                        sum2 += matrices2[w] * partials2[v + j];
+                        w++;
+                    }
+
+                    // sum2 = M_j P_j
+                    // now 2nd loop
+
+                    MjPj = sum2 * partials1[v + i];
+
+                    w = l * matrixSize;
+                    for (int j = 0; j < stateCount; j++){
+                        partials3[v + j] += matrices1[w] * MjPj;
+                        w++;
+                    }
+
+//                    if (SCALING) {
+//                        // this is to find the largest absolute exponent
+//                        exponent |= Math.abs(Math.getExponent(partials3[u]));
+//                    }
+
+                    u++;
+                }
+                v += stateCount;
+
+            }
+
+            if (DEBUG) {
+//    	    	System.err.println("1:PP node = "+nodeIndex3);
+//    	    	for(int p=0; p<partials3.length; p++) {
+//    	    		System.err.println("1:PP\t"+partials3[p]);
+//    	    	}
+//                System.err.println("node = "+nodeIndex3);
+//                System.err.println(new dr.math.matrixAlgebra.Vector(partials3));
+//                System.err.println(new dr.math.matrixAlgebra.Vector(scalingFactors[currentPartialsIndices[nodeIndex3]][nodeIndex3]));
+                //System.exit(-1);
+            }
+        }
+
+        return exponent;
+    }
+
 
     public void calculateRootLogLikelihoods(final int[] bufferIndices, final int[] categoryWeightsIndices, final int[] stateFrequenciesIndices, final int[] cumulativeScaleIndices, final int count, final double[] outSumLogLikelihood) {
 

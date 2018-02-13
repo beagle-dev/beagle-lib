@@ -256,6 +256,25 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setRootPrePartials
+ * Signature: (I[I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setRootPrePartials
+(JNIEnv *env, jobject obj, jint instance, jintArray inbufferIndices, jintArray instateFrequenciesIndices, jint count)
+{
+    jint * bufferIndices = env->GetIntArrayElements(inbufferIndices, NULL);
+    jint * stateFrequenciesIndices = env->GetIntArrayElements(instateFrequenciesIndices, NULL);
+
+    jint errCode = (jint)beagleSetRootPrePartials(instance, (int *)bufferIndices, (int *)stateFrequenciesIndices, count);
+
+    env->ReleaseIntArrayElements(inbufferIndices, bufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(instateFrequenciesIndices, stateFrequenciesIndices, JNI_ABORT);
+    return errCode;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPartials
  * Signature: (II[D)I
  */
@@ -502,11 +521,27 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
     return errCode;
 }
 
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePrePartials
+ * Signature: (I[III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex)
+{
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+
+    jint errCode = (jint)beagleUpdatePrePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
+}
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePartials
- * Signature: ([II[III)I
+ * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
   (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScalingIndex)

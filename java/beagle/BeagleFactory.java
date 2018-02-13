@@ -13,7 +13,7 @@ import java.util.logging.Logger;
  */
 public class BeagleFactory {
 
-    private static Map<Integer, ResourceDetails> resourceDetailsMap = new HashMap<Integer, ResourceDetails>();
+    private static Map<Integer, beagle.ResourceDetails> resourceDetailsMap = new HashMap<Integer, ResourceDetails>();
 
     public static String getVersionInformation() {
         getBeagleJNIWrapper();
@@ -242,7 +242,7 @@ public class BeagleFactory {
         // create an instance of the BEAGLE library
         Beagle instance = loadBeagleInstance(
                 3,				/**< Number of tip data elements (input) */
-                5,	            /**< Number of partials buffers to create (input) */
+                10,	            /**< Number of partials buffers to create (input) */
                 3,		        /**< Number of compact state representation buffers to create (input) */
                 stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                 nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
@@ -277,6 +277,14 @@ public class BeagleFactory {
         instance.setTipStates(0, getStates(human));
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
+
+        double[] humanPartials   = getPartials(human);
+        double[] chimpPartials   = getPartials(chimp);
+        double[] gorillaPartials = getPartials(gorilla);
+
+        instance.setTipPartials(0, humanPartials);
+        instance.setTipPartials(1, chimpPartials);
+        instance.setTipPartials(2, gorillaPartials);
 
         // set the sequences for each tip using partial likelihood arrays
 //        instance.setPartials(0, getPartials(human));
@@ -337,11 +345,31 @@ public class BeagleFactory {
         };
         int[] rootIndices = { 4 };
 
+        int[] pre_order_operations = {
+                6, 0, 0, 5, 3, 2, 2,
+                7, 0, 0, 5, 2, 3, 3,
+                8, 0, 0, 6, 1, 0, 0,
+                9, 0, 0, 6, 0, 1, 1
+        };
+
+        int[] rootPreIndices = {5};
+        int[] stateFrequencyIndices = {0};
+
         // update the partials
         instance.updatePartials(
                 operations,     // eigenIndex
                 2,              // operationCount
                 2);             // rescale ?
+
+        instance.setRootPrePartials(rootPreIndices, stateFrequencyIndices, 1);
+
+        instance.updatePrePartials(pre_order_operations, 4, 0);
+
+//        double[] seePartials = new double[stateCount * nPatterns];
+//        instance.getPartials(5, 0, seePartials);
+//        System.out.println(Arrays.toString(seePartials));
+//        instance.getPartials(6, 0, seePartials);
+//        System.out.println(Arrays.toString(seePartials));
 
         int[] scalingFactorsIndices = {2}; // internal nodes
 

@@ -17,7 +17,7 @@ old_library=''
 inherited_linker_flags=' '
 
 # Libraries that this one depends upon.
-dependency_libs=' -L../../libhmsbeagle /Users/xji3/Documents/UCLA/beagle-lib/libhmsbeagle/libhmsbeagle.la -lltdl'
+dependency_libs=' -L../../libhmsbeagle /Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/libhmsbeagle.la -lltdl'
 
 # Names of additional weak libraries provided by this library
 weak_library_names=''

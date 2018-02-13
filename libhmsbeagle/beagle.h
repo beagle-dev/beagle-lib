@@ -367,11 +367,10 @@ BEAGLE_DLLEXPORT int beagleSetTipPartials(int instance,
                          int tipIndex,
                          const double* inPartials);
 /**
- * @brief Calculate or queue for calculation pre-order partials using a list of operations
+ * @brief Set an instance pre-order partials buffer for root node
  *
- * This function either calculates or queues for calculation a list pre-order partials. Implementations
- * supporting ASYNCH may queue these calculations while other implementations perform these
- * operations immediately and in order.
+ * This function copies an array of stateFrequencies into an instance buffer as the pre-order partials for the
+ * root node.
  *
  * @param instance                  Instance number (input)
  * @param bufferIndices            List of partialsBuffer indices to set (input)
@@ -381,9 +380,9 @@ BEAGLE_DLLEXPORT int beagleSetTipPartials(int instance,
  **
  * @return error code
  */
-BEAGLE_DLLEXPORT int BeagleSetRootPrePartials(const int instance,
-                                              const int* bufferIndices,
-                                              const int* stateFrequenciesIndices,
+BEAGLE_DLLEXPORT int beagleSetRootPrePartials(const int instance,
+                                              const int *bufferIndices,
+                                              const int *stateFrequenciesIndices,
                                               int count);
 
 /**

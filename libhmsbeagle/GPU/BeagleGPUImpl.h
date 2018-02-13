@@ -231,6 +231,10 @@ public:
 
     int setTipPartials(int tipIndex,
                        const double* inPartials);
+
+    int setRootPrePartials(const int* bufferIndices,
+                           const int* stateFrequenciesIndices,
+                           int count);
     
     int setPartials(int bufferIndex,
                     const double* inPartials);
@@ -299,6 +303,10 @@ public:
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    int updatePrePartials(const int *operations,
+                          int count,
+                          int cumulativeScaleIndex);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);

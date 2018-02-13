@@ -585,10 +585,10 @@ int beagleSetPartials(int instance,
     }
 }
 
-int BeagleSetRootPrePartials(const int instance,
-                         const int* bufferIndices,
-                         const int* stateFrequenciesIndices,
-                         int count){
+int beagleSetRootPrePartials(const int instance,
+                             const int *bufferIndices,
+                             const int *stateFrequenciesIndices,
+                             int count){
     DEBUG_START_TIME();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
@@ -904,7 +904,8 @@ int beagleUpdatePrePartials(const int instance,
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->testupdatePrePartials((const int*)operations, operationCount, cumulativeScalingIndex);
+    int returnValue = beagleInstance->updatePrePartials((const int *) operations, operationCount,
+                                                        cumulativeScalingIndex);
     DEBUG_END_TIME();
     return returnValue;
 }

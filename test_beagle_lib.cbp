@@ -189,47 +189,36 @@
 			<Option target="beagle_lib"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUImpl.hpp">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUPlugin.cpp">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/BeagleCPUPlugin.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/EigenDecomposition.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionCube.hpp">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/EigenDecompositionSquare.hpp">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/Precision.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/CPU/SSEDefinitions.h">
-			<Option target="beagle_lib"/>
 			<Option target="hmsbeagle-cpu.30"/>
 		</Unit>
 		<Unit filename="/Users/xji3/Dropbox/My_Files/UCLA/Projects/beagle-lib/libhmsbeagle/JNI/beagle_BeagleJNIWrapper.cpp">
