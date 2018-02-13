@@ -10,6 +10,8 @@ CMakeCache.txt
 /libhmsbeagle/cmake-build-debug
 /libhmsbeagle/CMakeFiles
 /libhmsbeagle/CPU/CMakeFiles
+**/CMakeFiles
+cmake_install.cmake
 
 # /
 /beagle-lib-1.0.pc
@@ -26,7 +28,8 @@ CMakeCache.txt
 /aclocal.m4
 /hmsbeagle-1.0.pc
 /doc
-/.idea
+**/.idea
+**/.libs
 /Beagle-lib.iml
 /hmsbeagle-1.pc
 
