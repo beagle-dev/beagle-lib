@@ -1,6 +1,7 @@
 # ignore built library files
 *.so
 *.dylib
+*.cbp
 
 # Cmake related
 CMakeCache.txt
@@ -32,6 +33,7 @@ cmake_install.cmake
 **/.libs
 /Beagle-lib.iml
 /hmsbeagle-1.pc
+libhmsbeagle?jni*.l?
 
 # /examples/
 /examples/Makefile.in

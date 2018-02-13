@@ -212,8 +212,8 @@ public class BeagleJNIWrapper {
             if(osArch.equals("x86")||osArch.equals("i386")) return "hmsbeagle32";
             if(osArch.startsWith("amd64")||osArch.startsWith("x86_64")) return "hmsbeagle64";
         }
-//        return "hmsbeagle-jni";
-        return "libhmsbeagle-jni";
+        return "hmsbeagle-jni";
+//        return "libhmsbeagle-jni";
     }
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
@@ -225,8 +225,8 @@ public class BeagleJNIWrapper {
             }
         }
 
-//        System.loadLibrary(path + LIBRARY_NAME);
-        System.load(path + LIBRARY_NAME + ".jnilib");
+        System.loadLibrary(path + LIBRARY_NAME);
+//        System.load(path + LIBRARY_NAME + ".jnilib");
         INSTANCE = new BeagleJNIWrapper();
     }
 
