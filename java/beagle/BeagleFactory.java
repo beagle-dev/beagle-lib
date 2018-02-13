@@ -278,18 +278,10 @@ public class BeagleFactory {
         instance.setTipStates(1, getStates(chimp));
         instance.setTipStates(2, getStates(gorilla));
 
-        double[] humanPartials   = getPartials(human);
-        double[] chimpPartials   = getPartials(chimp);
-        double[] gorillaPartials = getPartials(gorilla);
-
-        instance.setTipPartials(0, humanPartials);
-        instance.setTipPartials(1, chimpPartials);
-        instance.setTipPartials(2, gorillaPartials);
-
         // set the sequences for each tip using partial likelihood arrays
-//        instance.setPartials(0, getPartials(human));
-//        instance.setPartials(1, getPartials(chimp));
-//        instance.setPartials(2, getPartials(gorilla));
+        instance.setPartials(0, getPartials(human));
+        instance.setPartials(1, getPartials(chimp));
+        instance.setPartials(2, getPartials(gorilla));
 
         final double[] rates = { 1.0 };
         instance.setCategoryRates(rates);
@@ -364,12 +356,6 @@ public class BeagleFactory {
         instance.setRootPrePartials(rootPreIndices, stateFrequencyIndices, 1);
 
         instance.updatePrePartials(pre_order_operations, 4, 0);
-
-//        double[] seePartials = new double[stateCount * nPatterns];
-//        instance.getPartials(5, 0, seePartials);
-//        System.out.println(Arrays.toString(seePartials));
-//        instance.getPartials(6, 0, seePartials);
-//        System.out.println(Arrays.toString(seePartials));
 
         int[] scalingFactorsIndices = {2}; // internal nodes
 

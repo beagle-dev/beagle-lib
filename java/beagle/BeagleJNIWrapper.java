@@ -213,7 +213,6 @@ public class BeagleJNIWrapper {
             if(osArch.startsWith("amd64")||osArch.startsWith("x86_64")) return "hmsbeagle64";
         }
         return "hmsbeagle-jni";
-//        return "libhmsbeagle-jni";
     }
 
     public static void loadBeagleLibrary() throws UnsatisfiedLinkError {
@@ -226,7 +225,8 @@ public class BeagleJNIWrapper {
         }
 
         System.loadLibrary(path + LIBRARY_NAME);
-//        System.load(path + LIBRARY_NAME + ".jnilib");
+        /// XJ: you may need to add the java.library.path in your JRE
+        /// e.g. in IntelliJ you can add VM options: -Djava.library.path=/usr/local/lib
         INSTANCE = new BeagleJNIWrapper();
     }
 
