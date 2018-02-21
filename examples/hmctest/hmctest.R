@@ -59,8 +59,13 @@ getLoglikelihood <- function(data, rate.param, blen.param, stationary.dist, rate
   return((log(colSums(likelihood.mat))))
 }
 
+# Two rate categories
 rates = c(3. * 1:2 / 5.)
 weights = c(1:2 / 3.)
+
+# One rate category
+# rates = c(1.0)
+# weights = c(1.0)
 
 library(Matrix)
 # Define branch lengths first
@@ -231,4 +236,4 @@ tip.2.gradient <- colSums(tip.2.gradient.mat * (weights * rates * likelihood.mat
 cat("Gradient for branch (of node) 0: \n   ", tip.2.gradient.numerical, " (numerical)\n   ", tip.2.gradient, " \n")
 print(tip.2.pre.order.list)
 
-cat("logL = ", sum(log(colSums(likelihood.mat * weights))))
+cat("logL = ", formatC(signif(sum(log(colSums(likelihood.mat * weights))),digits=18), digits=16,format="fg", flag="#"))
