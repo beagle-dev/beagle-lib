@@ -461,10 +461,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                     gAutoPartitionIndices[i] = i;
                 }
                 gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
-                kAutoRootPartitioningEnabled = true;
+                kAutoRootPartitioningEnabled = false; //XJ: need to change this back to true
             }
-
-            kAutoPartitioningEnabled = true;
+            // XJ: need to change below back to true
+            kAutoPartitioningEnabled = false;
         }
     }
 
@@ -3629,7 +3629,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
         const REALTYPE* partials1Ptr = &partials1[v];
         const REALTYPE* partials2Ptr = &partials2[v];
         REALTYPE* destPtr = &destP[v];
+        REALTYPE* tmpdestPtr = destPtr;
         for (int k = startPattern; k < endPattern; k++) {
+            //clean up the partial first, set every entry to 0
+            for (int i = 0; i < kStateCount; i++){
+                *(tmpdestPtr++) = 0;
+            }
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
@@ -3651,7 +3656,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
 
                 // sum2A + sum2B = M_j P_j
                 // Now 2nd loop
-                REALTYPE* tmpdestPtr = destPtr;
+                tmpdestPtr = destPtr;
                 REALTYPE  MjPj = (sum2A + sum2B) * partials1Ptr[i];
 
                 for (j = 0; j < stateCountModFour; j += 4) {
