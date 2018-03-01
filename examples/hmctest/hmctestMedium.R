@@ -3,7 +3,8 @@
 # xji3@ncsu.edu
 
 rm(list=ls())  # clean up workspace
-getLoglikelihood <- function(data, rate.param, blen.param, stationary.dist, rates = NULL, weights = NULL){
+getLoglikelihood <- function(data, rate.param, blen.param, stationary.dist, rates = NULL, weights = NULL, 
+                             pattern.weights = NULL){
   library(Matrix)
   
   data.0 <- data$data.0
@@ -33,6 +34,10 @@ getLoglikelihood <- function(data, rate.param, blen.param, stationary.dist, rate
   if(is.null(rates) | is.null(weights)){
     rates = c(1.0)
     weights = c(1.0)
+  }
+  
+  if(is.null(pattern.weights)){
+    pattern.weights <- matrix(1, 1, dim(data.0)[2])
   }
   
   likelihood.mat <- NULL
@@ -75,11 +80,15 @@ getLoglikelihood <- function(data, rate.param, blen.param, stationary.dist, rate
     likelihood.mat <- rbind(likelihood.mat, wi*colSums(stationary.dist * post.8))
   }
   
-  return(sum(log(colSums(likelihood.mat))))
+  return(sum(log(colSums(likelihood.mat)) * pattern.weights))
 }
 
 getData <- function(seq.input){
-  seq.separate <- strsplit(seq.input, "")[[1]]
+  if(is.vector(seq.input) & length(seq.input) > 1){
+    seq.separate <- seq.input
+  }else{
+    seq.separate <- strsplit(seq.input, "")[[1]]
+  }
   mat.data <- NULL
   for(i in 1:length(seq.separate)){
     if(seq.separate[i] == "A"){
@@ -95,6 +104,18 @@ getData <- function(seq.input){
   return(matrix(mat.data, 4, length(seq.separate)))
 }
 
+countPatterns <- function(seq.data.frame){
+  library(plyr)
+  keys <- names(seq.data.frame)
+  patterns <- count(seq.data.frame, var = keys)
+  results <- list()
+  for(key in keys){
+    results[[key]] <- getData(get(key, patterns))
+  }
+  results[["freq"]] <- patterns$freq
+  return(results)
+}
+
 library(Matrix)
 
 D4Brazi82 <- "ATGCGATGCGTAGGAGTAGGAAACAGAGACTTTGTGGAAGGAGTCTCAGGTGGAGCATGGGTCGACCTGGTGCTAGAACATGGAGGATGCGTCACAACCATGGCCCAGGGAAAACCAACCTTGGATTTTGAACTGACCAAGACAACAGCCAAGGAAGTGGCTCTGTTAAGAACCTATTGCATTGAAGCCTCAATATCAAACATAACTACGGCAACAAGATGTCCAACGCAAGGAGAGCCTTATCTGAAAGAGGAACAGGACCAACAGTACATTTGCCGGAGAGATGTGGTAGACAGAGGGTGGGGCAATGGCTGTGGCTTGTTTGGAAAAGGAGGAGTTGTGACATGTGCGAAGTTTTCATGTTCGGGGAAGATAACAGGCAATTTGGTCCAAATTGAGAACCTTGAATACACAGTGGTTGTAACAGTCCACAATGGAGACACCCATGCAGTAGGAAATGACACATCCAATCATGGAGTTACAGCCATGATAACTCCCAGGTCACCATCGGTGGAAGTCAAATTGCCGGACTATGGAGAACTAACACTCGATTGTGAACCCAGGTCTGGAATTGACTTTAATGAGATGATTCTGATGAAAATGAAAAAGAAAACATGGCTCGTGCATAAGCAATGGTTTTTGGATCTGCCTCTTCCATGGACAGCAGGAGCAGACACATCAGAGGTTCACTGGAATTACAAAGAGAGAATGGTGACATTTAAGGTTCCTCATGCCAAGAGACAGGATGTGACAGTGCTGGGATCTCAGGAAGGAGCCATGCATTCTGCCCTCGCTGGAGCCACAGAAGTGGACTCCGGTGATGGAAATCACATGTTTGCAGGACATCTCAAGTGCAAAGTCCGTATGGAGAAATTGAGAATCAAGGGAATGTCATACACGATGTGTTCAGGAAAGTTTTCAATTGACAAAGAGATGGCAGAAACACAGCATGGGACAACAGTGGTGAAAGTCAAGTATGAAGGTGCTGGAGCTCCGTGTAAAGTCCCCATAGAGATAAGAGATGTAAACAAGGAAAAAGTGGTTGGGCGTATCATCTCATCCACCCCTTTGGCTGAGAATACCAACAGTGTAACCAACATAGAATTAGAACCCCCCTTTGGGGACAGCTACATAGTGATAGGTGTTGGAAACAGCGCATTAACACTCCATTGGTTCAGGAAAGGGAGTTCCATTGGCAAGATGTTTGAGTCCACATACAGAGGTGCAAAACGAATGGCCATTCTAGGTGAAACAGCTTGGGATTTTGGTTCCGTTGGTGGATTGTTCACATCATTGGGAAAGGCTGTGCACCAGGTTTTTGGAAGTGTGTATACAACCATGTTTGGAGGAGTCTCATGGATGATTAGAATCCTAATTGGGTTCTTAGTGTTGTGGATTGGCACGAACTCAAGGAACACTTCAATGGCTATGACGTGCATAGCTGTTGGAGGAATCACTCTGTTTCTGGGCTTCACAGTTCAAGCA"
@@ -103,35 +124,37 @@ D4ElSal94 <- "ATGCGATGCGTAGGAGTAGGAAACAGAGACTTTGTGGAAGGAGTCTCAGGTGGAGCATGGGTCGAC
 D4Indon76 <- "ATGCGATGCGTAGGAGTAGGAAACAGAGACTTTGTGGAAGGAGTCTCAGGTGGAGCATGGGTCGATCTGGTGCTAGAACATGGAGGATGCGTCACAACCATGGCCCAGGGAAAACCAACCTTGGATTTTGAACTGACTAAGACAACAGCCAAGGAAGTGGCTCTGTTAAGAACCTATTGCATTGAAGCCTCAATATCAAACATAACCACGGCAACAAGATGTCCAACGCAAGGAGAGCCTTATCTAAAAGAGGAACAAGACCAACAGTACATTTGCCGGAGAGATGTGGTAGACAGAGGGTGGGGCAATGGCTGTGGCTTGTTTGGAAAAGGAGGAGTTGTGACATGTGCGAAGTTTTCATGTTCGGGGAAGATAACAGGCAATTTGGTCCAAATTGAGAACCTTGAATACACAGTGGTTGTAACAGTCCACAATGGAGACACCCATGCAGTAGGAAATGACACATCCAATCATGGAGTTACAGCCACGATAACTCCCAGGTCACCATCGGTGGAAGTCAAATTGCCGGACTATGGAGAACTAACACTCGATTGTGAACCCAGGTCTGGAATTGACTTTAATGAGATGATTCTGATGAAAATGAAAAAGAAAACATGGCTTGTGCATAAGCAATGGTTTTTGGATCTACCTCTACCATGGACAGCAGGAGCAGACACATCAGAGGTTCACTGGAATTACAAAGAGAGAATGGTGACATTTAAGGTTCCTCATGCCAAGAGACAGGATGTGACAGTGCTGGGATCTCAGGAAGGAGCCATGCATTCTGCCCTCGCTGGAGCCACAGAAGTGGACTCCGGTGATGGAAATCACATGTTTGCAGGACATCTCAAGTGCAAAGTCCGTATGGAGAAATTGAGAATCAAGGGAATGTCATACACGATGTGTCCAGGAAAGTTCTCAATTGACAAAGAGATGGCAGAAACACAGCATGGGACAACAGTGGTGAAAGTCAAGTATGAAGGTGCTGGAGCTCCGTGTAAAGTCCCCATAGAGATAAGAGATGTGAACAAGGAAAAAGTGGTTGGGCGTATCATCTCATCCACCCCTTTGGCTGAGAATACCAACAGTGCAACCAACATAGAGTTAGAACCCCCCTTTGGGGACAGCTACATAGTGATAGGTGTTGGAAACAGTGCATTAACACTCCATTGGTTCAGGAAAGGGAGTTCCATTGGCAAGATGTTTGAGTCCACATACAGAGGTGCAAAACGAATGGCCATTCTAGGTGAAACAGCTTGGGATTTTGGTTCCGTTGGTGGACTGCTCACATCATTGGGAAAGGCTGTGCACCAGGTTTTTGGAAGTGTGTATACAACCATGTTTGGAGGAGTCTCATGGATGATTAGAATCCTAATTGGGTTCCTAGTGTTGTGGATTGGCACGAACTCAAGGAACACTTCAATGGCTATGACGTGCATAGCTGTTGGAGGAATCACTCTGTTTCTGGGCTTCACAGTTCAAGCA"
 D4Indon77 <- "ATGCGATGCGTAGGAGTAGGAAACAGAGACTTTGTGGAAGGAGTCTCAGGTGGAGCATGGGTCGATCTGGTGCTAGAACATGGAGGATGCGTCACAACCATGGCCCAGGGAAAACCAACCTTGGATTTTGAACTGACTAAGACAACAGCCAAGGAAGTGGCTCTGTTAAGAACCTATTGCATTGAAGCCTCAATATCAAACATAACCACGGCAACAAGATGTCCAACGCAAGGAGAGCCTTATCTAAAAGAGGAACAAGACCAACAGTACATTTGCCGGAGAGATGTGGTAGACAGAGGGTGGGGCAATGGCTGTGGCTTGTTTGGAAAAGGAGGAGTTGTGACATGTGCGAAGTTTTCATGTTCGGGGAAGATAACAGGCAATTTGGTCCAAATTGAGAACCTTGAATACACAGTAGTTGTAACAGTCCACAATGGAGACACCCATGCAGTAGGAAATGACACATCCAACCATGGAGTTACAGCCACGATAACTCCCAGGTCACCATCGGTGGAAGTCAAATTGCCGGACTATGGAGAACTAACACTCGATTGTGAACCCAGGTCTGGAATTGACTTTAATGAGATGATTCTGATGAAAATGAAAAAGAAAACATGGCTTGTGCATAAGCAATGGTTTTTGGATCTACCTCTACCATGGACAGCAGGAGCAGACACATCAGAGGTTCACTGGAATTACAAAGAGAGAATGGTGACATTTAAGGTTCCTCATGCCAAGAGACAGGATGTGACAGTGCTGGGATCTCAGGAAGGAGCCATGCATTCTGCCCTCGCTGGAGCCACAGAAGTGGACTCCGGTGATGGAAATCACATGTTTGCAGGACATCTCAAGTGCAAAGTCCGTATGGAGAAATTGAGAATCAAGGGAATGTCATACACGATGTGTTCAGGAAAGTTCTCAATTGACAAAGAGATGGCAGAAACACAGCATGGGACAACAGTGGTGAAAGTCAAGTATGAAGGTGCTGGAGCTCCGTGCAAAGTCCCCATAGAGATAAGAGATGTAAACAAGGAAAAAGTGGTTGGGCGTATCATCTCATCCACCCCTTTGGCTGAGAATACCAACAGTGTAACCAACATAGAATTAGAACCCCCCTTTGGGGACAGCTACATAGTGATAGGTGTTGGAAACAGTGCATTAACACTCCATTGGTTCAGGAAAGGGAGTTCCATTGGCAAGATGTTTGAGTCCACATACAGAGGTGCAAAACGAATGGCCATTCTAGGTGAAACAGCTTGGGATTTTGGTTCCGTTGGTGGACTGTTCACATCATTGGGAAAGGCTGTGCACCAGGTTTTTGGAAGTGTGTATACAACCATGTTTGGAGGAGTCTCATGGATGATTAGAATCCTAATTGGCTTCTTAGTGTTGTGGATTGGCACGAACTCAAGGAACACTTCAATGGCTATGACGTGCATAGCTGTTGGAGGAATCACTCTGTTTCTGGGCTTCACAGTTCAAGCA"
 
-data.0 <- getData(D4ElSal94)
-data.1 <- getData(D4Indon76)
-data.2 <- getData(D4Brazi82)
-data.3 <- getData(D4ElSal83)
-data.4 <- getData(D4Indon77)
+seq.data.frame <- list(data.2 = strsplit(D4Brazi82, "")[[1]], 
+                       data.3 = strsplit(D4ElSal83, "")[[1]], 
+                       data.0 = strsplit(D4ElSal94, "")[[1]],
+                       data.1 = strsplit(D4Indon76, "")[[1]], 
+                       data.4 = strsplit(D4Indon77, "")[[1]])
 
-post.0 <- data.0
-post.1 <- data.1
-post.2 <- data.2
-post.3 <- data.3
-post.4 <- data.4
+#https://stats.stackexchange.com/questions/121087/count-the-number-of-each-unique-row-in-a-data-frame
+# data.0 <- getData(D4ElSal94)
+# data.1 <- getData(D4Indon76)
+# data.2 <- getData(D4Brazi82)
+# data.3 <- getData(D4ElSal83)
+# data.4 <- getData(D4Indon77)
 
-# blen.50 <- 25.81403421468474
-# blen.51 <- 7.814034214684739
-# blen.62 <- 36.80326223293307
-# blen.63 <- 37.80326223293307
-# blen.84 <- 282.8618556834007
-# blen.75 <- 244.56614874230695
-# blen.76 <- 221.57692072405862
-# blen.87 <- 29.481672726408988
+blen.50 <- 25.81403421468474
+blen.51 <- 7.814034214684739
+blen.62 <- 36.80326223293307
+blen.63 <- 37.80326223293307
+blen.84 <- 282.8618556834007
+blen.75 <- 244.56614874230695
+blen.76 <- 221.57692072405862
+blen.87 <- 29.481672726408988
 
-blen.50 <- 0.81403421468474
-blen.51 <- 0.814034214684739
-blen.62 <- 0.80326223293307
-blen.63 <- 0.80326223293307
-blen.84 <- 0.8618556834007
-blen.75 <- 0.56614874230695
-blen.76 <- 0.57692072405862
-blen.87 <- 0.481672726408988
+# blen.50 <- 0.81403421468474
+# blen.51 <- 0.814034214684739
+# blen.62 <- 0.80326223293307
+# blen.63 <- 0.80326223293307
+# blen.84 <- 0.8618556834007
+# blen.75 <- 0.56614874230695
+# blen.76 <- 0.57692072405862
+# blen.87 <- 0.481672726408988
+
 # Now define stationary nucleotide frequency
 # <parameter id="hky.frequencies" value="0.1 0.3 0.2 0.4"/>
 # 
@@ -141,10 +164,11 @@ pi.G <- 0.2
 pi.T <- 0.4
 kappa <- 1.0
 
-data <- list(data.0 = data.0, data.1 = data.1, data.2 = data.2, data.3 = data.3, data.4 = data.4)
+data <- countPatterns(seq.data.frame)
 rate.param <- list(pi.A = pi.A, pi.C = pi.C, pi.G = pi.G, pi.T = pi.T, kappa = kappa)
 blen.param <- list(blen.50 = blen.50, blen.51 = blen.51, blen.62 = blen.62, blen.63 = blen.63,
                    blen.84 = blen.84, blen.75 = blen.75, blen.76 = blen.76, blen.87 = blen.87)
+pattern.weights <- data$freq
 
 # Two rate categories
 # rates = c(3. * 1:2 / 5.)
@@ -182,7 +206,17 @@ weights = c(0.5, 0.5)
 # weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
 
 # Define data vectors at tips
+data.0 <- data$data.0
+data.1 <- data$data.1
+data.2 <- data$data.2
+data.3 <- data$data.3
+data.4 <- data$data.4
 
+post.0 <- data.0
+post.1 <- data.1
+post.2 <- data.2
+post.3 <- data.3
+post.4 <- data.4
 # add-in eigen decomposition
 evec <- matrix(c(0.9819805,  0.040022305,  0.04454354,  -0.5,
                  -0.1091089, -0.002488732, 0.81606029,  -0.5,
@@ -296,7 +330,7 @@ for(i in 1:length(rates)){
   node.5.gradient <- NULL
   node.6.gradient <- NULL
   node.7.gradient <- NULL
-  for(j in 1:dim(data.0)[2]){
+  for(j in 1:length(pattern.weights)){
     node.0.gradient <- c(node.0.gradient, post.0[, j] %*% t(Q.normalized) %*% node.0.pre.order[, j] / sum(post.0[, j] * node.0.pre.order[, j]))
     node.1.gradient <- c(node.1.gradient, post.1[, j] %*% t(Q.normalized) %*% node.1.pre.order[, j] / sum(post.1[, j] * node.1.pre.order[, j]))
     node.2.gradient <- c(node.2.gradient, post.2[, j] %*% t(Q.normalized) %*% node.2.pre.order[, j] / sum(post.2[, j] * node.2.pre.order[, j]))
@@ -315,17 +349,18 @@ for(i in 1:length(rates)){
   node.6.gradient.mat <- rbind(node.6.gradient.mat, node.6.gradient)
   node.7.gradient.mat <- rbind(node.7.gradient.mat, node.7.gradient)
 }
-node.0.gradient <- sum(colSums(node.0.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.50
-node.1.gradient <- sum(colSums(node.1.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.51
-node.2.gradient <- sum(colSums(node.2.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.62
-node.3.gradient <- sum(colSums(node.3.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.63
-node.4.gradient <- sum(colSums(node.4.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.84
-node.5.gradient <- sum(colSums(node.5.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.75
-node.6.gradient <- sum(colSums(node.6.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.76
-node.7.gradient <- sum(colSums(node.7.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat)) * blen.param$blen.87
+node.0.rate.gradient <- sum(colSums(node.0.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.50
+node.1.rate.gradient <- sum(colSums(node.1.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.51
+node.2.rate.gradient <- sum(colSums(node.2.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.62
+node.3.rate.gradient <- sum(colSums(node.3.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.63
+node.4.rate.gradient <- sum(colSums(node.4.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.84
+node.5.rate.gradient <- sum(colSums(node.5.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.75
+node.6.rate.gradient <- sum(colSums(node.6.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.76
+node.7.rate.gradient <- sum(colSums(node.7.gradient.mat * (weights * rates * likelihood.mat)) / colSums(weights * likelihood.mat) * pattern.weights) * blen.param$blen.87
 
-ll <- getLoglikelihood(data, rate.param, blen.param, stationary.dist, rates, weights)
-cat("logL = ", formatC(signif(ll,digits=18), digits=16,format="fg", flag="#"))
-cat("logL = ", formatC(signif(sum(log(colSums(likelihood.mat))),digits=18), digits=16,format="fg", flag="#"))
+ll <- getLoglikelihood(data, rate.param, blen.param, stationary.dist, rates, weights, pattern.weights)
+cat("logL = ", formatC(signif(ll,digits=18), digits=16,format="fg", flag="#"), "\n")
+cat("logL = ", formatC(signif(sum(log(colSums(likelihood.mat)) * pattern.weights),digits=18), digits=16,format="fg", flag="#"), "\n")
 
-print(c(node.0.gradient, node.1.gradient, node.2.gradient, node.3.gradient, node.4.gradient, node.5.gradient, node.6.gradient, node.7.gradient))
+print(c(node.0.rate.gradient, node.1.rate.gradient, node.2.rate.gradient, node.3.rate.gradient, node.4.rate.gradient, node.5.rate.gradient,
+        node.6.rate.gradient, node.7.rate.gradient))
