@@ -3621,6 +3621,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
     matrixIncr += T_PAD;
 
     int stateCountModFour = (kStateCount / 4) * 4;
+    REALTYPE* tmpdestPtr = destP;
+    //clean up the partial first, set every entry to 0
+    for (int i = 0; i < kPartialsSize; i++){
+        *(tmpdestPtr++) = 0;
+    }
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
@@ -3629,12 +3634,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
         const REALTYPE* partials1Ptr = &partials1[v];
         const REALTYPE* partials2Ptr = &partials2[v];
         REALTYPE* destPtr = &destP[v];
-        REALTYPE* tmpdestPtr = destPtr;
+        tmpdestPtr = destPtr;
         for (int k = startPattern; k < endPattern; k++) {
-            //clean up the partial first, set every entry to 0
-            for (int i = 0; i < kStateCount; i++){
-                *(tmpdestPtr++) = 0;
-            }
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;

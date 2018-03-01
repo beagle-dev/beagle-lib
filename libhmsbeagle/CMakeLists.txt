@@ -38,6 +38,7 @@ add_subdirectory(CPU)
 #add_subdirectory(GPU)
 #add_subdirectory(JNI)
 
+
 # Now set installation directory
 #install(TARGETS beagle_lib
 #        ARCHIVE DESTINATION .libs

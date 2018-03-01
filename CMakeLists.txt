@@ -20,7 +20,7 @@ link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU
 #        ${PROJECT_SOURCE_DIR}/libhmsbeagle/GPU
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/JNI
-        #        ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU/.libs
+#        ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU/.libs
 )
 
 # This statement let cmake look for libraries in the provided directories first.
@@ -33,6 +33,9 @@ link_libraries(beagle_lib)
 
 add_executable(hmctest
         examples/hmctest/hmctest.cpp)
+
+add_executable(hmctestMedium
+        examples/hmctest/hmctestMedium.cpp)
 
 #add_executable(genomictest
 #        examples/genomictest/genomictest.cpp
