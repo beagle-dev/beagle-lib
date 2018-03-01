@@ -282,8 +282,10 @@ int main( int argc, const char* argv[] )
 
     // a list of indices and edge lengths
     int nodeIndices[8] = { 0, 1, 2, 3, 4, 5, 6, 7};
-    double edgeLengths[8] = { 25.81403421468474, 7.814034214684739, 36.80326223293307, 37.80326223293307,
-                              282.8618556834007, 244.56614874230695, 221.57692072405862, 29.481672726408988};
+//    double edgeLengths[8] = { 25.81403421468474, 7.814034214684739, 36.80326223293307, 37.80326223293307,
+//                              282.8618556834007, 244.56614874230695, 221.57692072405862, 29.481672726408988};
+    double edgeLengths[8] = { 0.81403421468474, 0.814034214684739, 0.80326223293307, 0.80326223293307,
+                              0.8618556834007, 0.56614874230695, 0.57692072405862, 0.481672726408988};
 
     // tell BEAGLE to populate the transition matrices for the above edge lengths
     beagleUpdateTransitionMatrices(instance,     // instance
@@ -365,7 +367,7 @@ int main( int argc, const char* argv[] )
 
 
     beagleGetPartials(instance, rootIndex, BEAGLE_OP_NONE, seerootPartials);
-    for(int i = 7; i >= 0; i--){
+    for(int i = 0; i < 8; i++){
         for(int m = 0; m < nPatterns; m++){
             grand_denominator[m] = 0;
             grand_numerator[m] = 0;
@@ -380,29 +382,35 @@ int main( int argc, const char* argv[] )
         beagleGetTransitionMatrix(instance, 4, seePtrSibling);
 
         //Show Ptr matrix
-        std::cout<<"Show Ptr matrix of node: "<<i<<"\n";
-        for(int i = 0; i < stateCount * stateCount * rateCategoryCount; i++){
-            std::cout<<seePtrSelf[i]<<"  ";
-        }
-        std::cout<<"\nShow Ptr matrix of sibling node: 4\n";
-        for(int i = 0; i < stateCount * stateCount * rateCategoryCount; i++){
-            std::cout<<seePtrSibling[i]<<"  ";
-        }
-        std::cout<<std::endl;
-
-        std::cout<<"\nPre Partial for parent node: ";
-        for(int i = 0; i < nPatterns; i++){
-            std::cout<<seepreParentPartials[i]<<"  ";
-        }
-
-        std::cout<<"\nPre Partial for current node: \n";
-        for(int i = 0; i < nPatterns; i++){
-            std::cout<<seeprePartials[i]<<"  ";
-        }
-        std::cout<<std::endl;
-        for(int i = 0; i < nPatterns; i++){
-            std::cout<<seeprePartials[nPatterns+i]<<"  ";
-        }
+//        std::cout<<"Show Ptr matrix of node: "<<i<<"\n";
+//        for(int j = 0; j < rateCategoryCount; j++){
+//            for(int i = 0; i < stateCount * stateCount ; i++){
+//                std::cout<<seePtrSelf[j * stateCount * stateCount + i]<<"  ";
+//            }
+//            std::cout<<std::endl;
+//        }
+//        std::cout<<"\nShow Ptr matrix of sibling node: 4\n";
+//        for(int j = 0; j < rateCategoryCount; j++){
+//            for(int i = 0; i < stateCount * stateCount ; i++){
+//                std::cout<<seePtrSibling[j * stateCount * stateCount + i]<<"  ";
+//            }
+//            std::cout<<std::endl;
+//        }
+//
+//        std::cout<<"\nPre Partial for parent node: ";
+//        for(int i = 0; i < nPatterns * stateCount; i++){
+//            std::cout<<seepreParentPartials[i]<<"  ";
+//        }
+//
+//        std::cout<<"\nPre Partial for current node: \n";
+//        for(int i = 0; i < nPatterns * stateCount; i++){
+//            std::cout<<seeprePartials[i]<<"  ";
+//        }
+//        std::cout<<std::endl;
+//        for(int i = 0; i < nPatterns * stateCount; i++){
+//            std::cout<<seeprePartials[nPatterns * stateCount + i]<<"  ";
+//        }
+//        std::cout<<std::endl;
 
         double * prePartialsPtr = seeprePartials;
         double * postPartialsPtr = seepostPartials;
@@ -459,10 +467,10 @@ int main( int argc, const char* argv[] )
         double gradient = 0.0;
         for(m=0; m < nPatterns; m++){
             gradient += grand_numerator[m] / grand_denominator[m];
-            //std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
+//            std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
         }
 
-        std::cout<< gradient * edgeLengths[i] <<std::endl;
+        std::cout<< std::endl <<gradient * edgeLengths[i] <<std::endl;
 //        for(m=0; m < nPatterns; m++){
 //            l = 0;
 //            numerator = 0;
