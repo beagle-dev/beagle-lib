@@ -3623,9 +3623,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
     int stateCountModFour = (kStateCount / 4) * 4;
     REALTYPE* tmpdestPtr = destP;
     //clean up the partial first, set every entry to 0
-    for (int i = 0; i < kPartialsSize; i++){
-        *(tmpdestPtr++) = 0;
-    }
+    memset(tmpdestPtr, 0, sizeof(REALTYPE) * kPartialsSize);
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
