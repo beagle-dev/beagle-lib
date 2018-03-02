@@ -125,7 +125,6 @@ libhmsbeagle?jni*.l?
 /libhmsbeagle/plugin/Makefile
 
 # /m4/
-/m4
 /m4/libtool.m4
 /m4/lt~obsolete.m4
 /m4/ltsugar.m4
