@@ -394,7 +394,7 @@ void GPUInterface::SetDevice(int deviceNumber,
         exit(-1);
     }
 
-    char buildDefs[1024] = "-D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
+    char buildDefs[1024] = "-w -D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
 #ifdef DLS_MACOS
     strcat(buildDefs, "-D DLS_MACOS ");
 #elif defined(FW_OPENCL_PROFILING)
