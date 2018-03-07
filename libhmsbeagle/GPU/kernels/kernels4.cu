@@ -321,13 +321,13 @@
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum1 = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sum2 = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
@@ -339,11 +339,11 @@
     int i = pat;\
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
 #define SUM_PARTIALS_SINGLE_4_GPU()\
@@ -351,11 +351,11 @@
     int i = pat;\
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);
 
 #define SUM_STATES_SINGLE_4_GPU()\
@@ -373,15 +373,15 @@
     sum1           = sMatrix1[          multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sumFirstDeriv  = sMatrixFirstDeriv[ multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sumSecondDeriv = sMatrixSecondDeriv[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);
@@ -1194,15 +1194,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCheckScale(KW_GLOBAL_VAR REAL* parti
             sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i = (++i) & 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
             
@@ -1283,15 +1283,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedCheckScale(KW_GLOBAL_VAR REAL* 
         sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2  = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i = (++i) & 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
         
@@ -1358,15 +1358,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i = (++i) & 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
     
