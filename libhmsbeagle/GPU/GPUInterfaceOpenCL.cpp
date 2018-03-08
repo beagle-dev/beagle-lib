@@ -750,7 +750,7 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined,
 void* GPUInterface::MapMemory(GPUPtr dPtr, size_t memSize) {
     int err;
     void* hostPtr = clEnqueueMapBuffer(openClCommandQueues[0], dPtr, CL_TRUE,
-                                        CL_MAP_WRITE, 0, memSize, 0, NULL, NULL, &err);
+                                        CL_MAP_WRITE_INVALIDATE_REGION, 0, memSize, 0, NULL, NULL, &err);
     SAFE_CL(err);
 
     return hostPtr;
