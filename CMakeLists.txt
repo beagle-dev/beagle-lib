@@ -3,8 +3,8 @@ project(test_beagle_lib)
 
 set(CMAKE_CXX_STANDARD 11)
 
-# Cannot use standard library...
-#set(CMAKE_CXX_FLAGS “ -stdlib=libstdc++”)
+## flags for standard library
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 
 set (JAVA_HEADER_DIR "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers")
 
@@ -29,7 +29,7 @@ link_directories(
 
 add_subdirectory(libhmsbeagle)
 
-link_libraries(beagle_lib)
+link_libraries(hmsbeagle)
 
 add_executable(hmctest
         examples/hmctest/hmctest.cpp)
@@ -46,6 +46,6 @@ add_executable(hmctestMedium
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
-target_link_libraries(hmctest beagle_lib)
+target_link_libraries(hmctest hmsbeagle)
 #target_link_libraries(genomictest beagle_lib)
 #target_link_libraries(tinytest beagle_lib)
