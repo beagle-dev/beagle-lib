@@ -835,14 +835,24 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     GPUPtr subPtr = dPtr;// + offset;
 #else
     GPUPtr subPtr;
-    
-    cl_buffer_region dPtrRegion;
-    dPtrRegion.origin = offset;
-    dPtrRegion.size = size;
 
-    int err;
-    subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
-    SAFE_CL(err);
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+
+    if (strcmp(param_value, "NVIDIA Corporation") != 0 || offset != 0) {    
+        cl_buffer_region dPtrRegion;
+        dPtrRegion.origin = offset;
+        dPtrRegion.size = size;
+
+        int err;
+        subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
+        SAFE_CL(err);
+    } else {
+        subPtr = dPtr;
+    }
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
