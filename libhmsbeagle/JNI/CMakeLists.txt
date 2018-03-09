@@ -1,4 +1,5 @@
-## http://pujansrt.blogspot.com/2010/04/creating-jni-library-on-mac-osx-from-c.html
+# clang++ -dynamiclib -undefined dynamic_lookup -o libhmsbeagle-jni.jnilib beagle_BeagleJNIWrapper.o
+# cc -bundle -l hmsbeagle -o libhmsbeagle-jni.jnilib beagle_BeagleJNIWrapper.o
 
 add_library(hmsbeagle-jni SHARED
         beagle_BeagleJNIWrapper.cpp
