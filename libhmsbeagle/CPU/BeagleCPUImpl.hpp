@@ -1444,9 +1444,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
                                                      int count,
                                                      int cumulativeScaleIndex) {
 
-    REALTYPE* cumulativeScaleBuffer = NULL;
-    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
-        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
+    REALTYPE* cumulativeScaleBuffer = NULL;  // don't need to normalize/transform back preOrderPartials, off by constant rescaling factor is fine
+//    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+//        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
 
     for (int op = 0; op < count; op++) {
 
@@ -1480,24 +1480,24 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
         if (byPartition) {
             currentPartition = operations[op * numOps + 7];
             cumulativeScaleIndex = operations[op * numOps + 8];
-            if (cumulativeScaleIndex != BEAGLE_OP_NONE)
-                cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
-            else
-                cumulativeScaleBuffer = NULL;
+//            if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+//                cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
+//            else
+//                cumulativeScaleBuffer = NULL;
         }
 
 
         /// non-root nodes, can be a tip
-        const REALTYPE* partials1 = gPartials[parentIndex];
-        const REALTYPE* partials2 = gPartials[siblingIndex];
+        const REALTYPE *partials1 = gPartials[parentIndex];
+        const REALTYPE *partials2 = gPartials[siblingIndex];
 
-        const int* siblingStates = gTipStates[siblingIndex];
+//        const int *siblingStates = gTipStates[siblingIndex]; preOrderPartials are not updated using tipStates
 
-        const REALTYPE* matrices1 = gTransitionMatrices[parentTransMatIndex];
-        const REALTYPE* matrices2 = gTransitionMatrices[siblingTransMatIndex];
+        const REALTYPE *matrices1 = gTransitionMatrices[parentTransMatIndex];
+        const REALTYPE *matrices2 = gTransitionMatrices[siblingTransMatIndex];
 
 
-        REALTYPE* destPartials = gPartials[parIndex];
+        REALTYPE *destPartials = gPartials[parIndex];
 
         int startPattern = 0;
         int endPattern = kPatternCount;
@@ -1507,21 +1507,22 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
         }
 
         int rescale = BEAGLE_OP_NONE;
-        REALTYPE* scalingFactors = NULL;
+        REALTYPE *scalingFactors = NULL;
 
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             gActiveScalingFactors[parIndex - kTipCount] = 0;
-            if (siblingStates == 0)
+//            if (siblingStates == 0)
                 rescale = 2;
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = gScaleBuffers[parIndex - kTipCount];
-        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) { // TODO: this is a quick and dirty implementation just so it returns correct results
-            if (siblingStates == 0) {
+        } else if (kFlags &
+                   BEAGLE_FLAG_SCALING_DYNAMIC) { // TODO: this is a quick and dirty implementation just so it returns correct results
+//            if (siblingStates == 0) {
                 rescale = 1;
                 removeScaleFactors(&readScalingIndex, 1, cumulativeScaleIndex);
                 scalingFactors = gScaleBuffers[writeScalingIndex];
-            }
+//            }
         } else if (writeScalingIndex >= 0) {
             rescale = 1;
             scalingFactors = gScaleBuffers[writeScalingIndex];
@@ -1541,74 +1542,57 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
         /// partials2 = post-order partials of the sibling node
         /// matrices2 = Ptr matrices of the sibling node (to the parent node)
         /// comment out all conditions that's not implemented
-        if (siblingStates != NULL) {
-            if (rescale == 0) {
 
-                //                calcPreStatesPartialsFixedScaling(destPartials,tipStates2,matrices2,partials1,matrices1,
-                //                                                  scalingFactors, startPattern, endPattern);
-            } else {
-                //                    calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1,
-                //                                       startPattern, endPattern);
-                //                    if (rescale == 1) {// Recompute scaleFactors
-                //                        if (byPartition) {
-                //                            rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
-                //                        } else {
-                //                            rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
-                //                        }
-                //                    }
-            }
+        if (rescale == 2) {
+            //                    int sIndex = parIndex - kTipCount;
+            //                    calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
+            //                                                    &gActiveScalingFactors[sIndex]);
+            //                    if (gActiveScalingFactors[sIndex])
+            //                        autoRescalePartials(destPartials, gAutoScaleBuffers[sIndex]);
+
+        } else if (rescale == 0) {
+            //                    calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,
+            //                                                     matrices2,scalingFactors,startPattern,endPattern);
         } else {
-            if (rescale == 2) {
-                //                    int sIndex = parIndex - kTipCount;
-                //                    calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
-                //                                                    &gActiveScalingFactors[sIndex]);
-                //                    if (gActiveScalingFactors[sIndex])
-                //                        autoRescalePartials(destPartials, gAutoScaleBuffers[sIndex]);
 
-            } else if (rescale == 0) {
-                //                    calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,
-                //                                                     matrices2,scalingFactors,startPattern,endPattern);
-            } else {
+            calcPrePartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
+                                    startPattern, endPattern);
 
-                calcPrePartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
-                                        startPattern, endPattern);
-
-                if (rescale == 1) {// Recompute scaleFactors
-                    if (byPartition) {
-                        rescalePartialsByPartition(destPartials, scalingFactors, cumulativeScaleBuffer, 0,
-                                                   currentPartition);
-                    } else {
-                        rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
-                    }
+            if (rescale == 1) {// Recompute scaleFactors
+                if (byPartition) {
+                    rescalePartialsByPartition(destPartials, scalingFactors, cumulativeScaleBuffer, 0,
+                                               currentPartition);
+                } else {
+                    rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
                 }
             }
         }
 
 
-        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
-            int parScalingIndex = parIndex - kTipCount;
-            int child1ScalingIndex = parentIndex - kTipCount;
-            int child2ScalingIndex = siblingIndex - kTipCount;
-            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
-                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
-                accumulateScaleFactors(scalingIndices, 2, parScalingIndex);
-            } else if (child1ScalingIndex >= 0) {
-                int scalingIndices[1] = {child1ScalingIndex};
-                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
-            } else if (child2ScalingIndex >= 0) {
-                int scalingIndices[1] = {child2ScalingIndex};
-                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
-            }
-        }
+//        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+//            int parScalingIndex = parIndex - kTipCount;
+//            int child1ScalingIndex = parentIndex - kTipCount;
+//            int child2ScalingIndex = siblingIndex - kTipCount;
+//            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+//                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 2, parScalingIndex);
+//            } else if (child1ScalingIndex >= 0) {
+//                int scalingIndices[1] = {child1ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+//            } else if (child2ScalingIndex >= 0) {
+//                int scalingIndices[1] = {child2ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+//            }
+//        }
 
         if (DEBUGGING_OUTPUT) {
             if (scalingFactors != NULL && rescale == 0) {
-                for(int i=0; i<kPatternCount; i++)
-                    fprintf(stderr,"old scaleFactor[%d] = %.5f\n",i,scalingFactors[i]);
+                for (int i = 0; i < kPatternCount; i++)
+                    fprintf(stderr, "old scaleFactor[%d] = %.5f\n", i, scalingFactors[i]);
             }
-            fprintf(stderr,"Result partials:\n");
-            for(int i = 0; i < kPartialsSize; i++)
-                fprintf(stderr,"destP[%d] = %.5f\n",i,destPartials[i]);
+            fprintf(stderr, "Result partials:\n");
+            for (int i = 0; i < kPartialsSize; i++)
+                fprintf(stderr, "destP[%d] = %.5f\n", i, destPartials[i]);
         }
     }
 
