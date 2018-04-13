@@ -80,6 +80,34 @@
     p##num##2 = partials[v + 2]; \
     p##num##3 = partials[v + 3];
 
+#define PREFETCH_MATRIX_TRANSPOSE(num,matrices,w) \
+    REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
+           m##num##10, m##num##11, m##num##12, m##num##13, \
+           m##num##20, m##num##21, m##num##22, m##num##23, \
+           m##num##30, m##num##31, m##num##32, m##num##33; \
+    m##num##00 = matrices[w + OFFSET*0 + 0]; \
+    m##num##01 = matrices[w + OFFSET*1 + 0]; \
+    m##num##02 = matrices[w + OFFSET*2 + 0]; \
+    m##num##03 = matrices[w + OFFSET*3 + 0]; \
+    m##num##10 = matrices[w + OFFSET*0 + 1]; \
+    m##num##11 = matrices[w + OFFSET*1 + 1]; \
+    m##num##12 = matrices[w + OFFSET*2 + 1]; \
+    m##num##13 = matrices[w + OFFSET*3 + 1]; \
+    m##num##20 = matrices[w + OFFSET*0 + 2]; \
+    m##num##21 = matrices[w + OFFSET*1 + 2]; \
+    m##num##22 = matrices[w + OFFSET*2 + 2]; \
+    m##num##23 = matrices[w + OFFSET*3 + 2]; \
+    m##num##30 = matrices[w + OFFSET*0 + 3]; \
+    m##num##31 = matrices[w + OFFSET*1 + 3]; \
+    m##num##32 = matrices[w + OFFSET*2 + 3]; \
+    m##num##33 = matrices[w + OFFSET*3 + 3];
+
+#define DO_SCHUR_PRODUCT(qnum, pnum, snum) \
+    p##qnum##0 = p##pnum##0 * sum##snum##0; \
+    p##qnum##1 = p##pnum##1 * sum##snum##1; \
+    p##qnum##2 = p##pnum##2 * sum##snum##2; \
+    p##qnum##3 = p##pnum##3 * sum##snum##3;
+
 //#define DO_INTEGRATION(num) \
 //    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
 //    sum##num##0  = m##num##00 * p##num##0; \
@@ -324,7 +352,45 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* des
         }
     }
 }
-    
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
+                                                                   const REALTYPE* partials1,
+                                                                   const REALTYPE* matrices1,
+                                                                   const REALTYPE* partials2,
+                                                                   const REALTYPE* matrices2,
+                                                                   int startPattern,
+                                                                   int endPattern) {
+
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int w = l*4*OFFSET;
+
+        PREFETCH_MATRIX_TRANSPOSE(1,matrices1,w); //m100, m101, ..., m133
+        PREFETCH_MATRIX(2,matrices2,w); // m200, m201, ..., m233
+        for (int k = startPattern; k < endPattern; k++) {
+            PREFETCH_PARTIALS(1,partials1,u); // p10, p11, p12, p13
+            PREFETCH_PARTIALS(2,partials2,u); // p20, p21, p22, p23
+
+            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
+            DO_SCHUR_PRODUCT(1, 1, 2); // reWrites p10, p11, p12, p13
+
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+
+            // Final results
+            destP[u    ] = sum10;
+            destP[u + 1] = sum11;
+            destP[u + 2] = sum12;
+            destP[u + 3] = sum13;
+
+            u += 4;
+
+        }
+    }
+}
+
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                                     const REALTYPE* partials1,

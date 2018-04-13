@@ -1,6 +1,6 @@
 add_library(hmsbeagle-cpu.30 MODULE
-#        BeagleCPU4StateImpl.h
-#        BeagleCPU4StateImpl.hpp
+        BeagleCPU4StateImpl.h
+        BeagleCPU4StateImpl.hpp
         BeagleCPUImpl.h
         BeagleCPUImpl.hpp
         BeagleCPUPlugin.cpp
@@ -14,8 +14,8 @@ add_library(hmsbeagle-cpu.30 MODULE
         SSEDefinitions.h
  )
 add_library(hmsbeagle-cpu MODULE
-        #        BeagleCPU4StateImpl.h
-        #        BeagleCPU4StateImpl.hpp
+        BeagleCPU4StateImpl.h
+        BeagleCPU4StateImpl.hpp
         BeagleCPUImpl.h
         BeagleCPUImpl.hpp
         BeagleCPUPlugin.cpp
