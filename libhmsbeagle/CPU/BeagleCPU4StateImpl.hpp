@@ -86,20 +86,20 @@
            m##num##20, m##num##21, m##num##22, m##num##23, \
            m##num##30, m##num##31, m##num##32, m##num##33; \
     m##num##00 = matrices[w + OFFSET*0 + 0]; \
-    m##num##01 = matrices[w + OFFSET*1 + 0]; \
-    m##num##02 = matrices[w + OFFSET*2 + 0]; \
-    m##num##03 = matrices[w + OFFSET*3 + 0]; \
     m##num##10 = matrices[w + OFFSET*0 + 1]; \
-    m##num##11 = matrices[w + OFFSET*1 + 1]; \
-    m##num##12 = matrices[w + OFFSET*2 + 1]; \
-    m##num##13 = matrices[w + OFFSET*3 + 1]; \
     m##num##20 = matrices[w + OFFSET*0 + 2]; \
-    m##num##21 = matrices[w + OFFSET*1 + 2]; \
-    m##num##22 = matrices[w + OFFSET*2 + 2]; \
-    m##num##23 = matrices[w + OFFSET*3 + 2]; \
     m##num##30 = matrices[w + OFFSET*0 + 3]; \
+    m##num##01 = matrices[w + OFFSET*1 + 0]; \
+    m##num##11 = matrices[w + OFFSET*1 + 1]; \
+    m##num##21 = matrices[w + OFFSET*1 + 2]; \
     m##num##31 = matrices[w + OFFSET*1 + 3]; \
+    m##num##02 = matrices[w + OFFSET*2 + 0]; \
+    m##num##12 = matrices[w + OFFSET*2 + 1]; \
+    m##num##22 = matrices[w + OFFSET*2 + 2]; \
     m##num##32 = matrices[w + OFFSET*2 + 3]; \
+    m##num##03 = matrices[w + OFFSET*3 + 0]; \
+    m##num##13 = matrices[w + OFFSET*3 + 1]; \
+    m##num##23 = matrices[w + OFFSET*3 + 2]; \
     m##num##33 = matrices[w + OFFSET*3 + 3];
 
 #define DO_SCHUR_PRODUCT(qnum, pnum, snum) \
