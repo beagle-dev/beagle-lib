@@ -124,6 +124,12 @@ protected:
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
+
+    REALTYPE* cLikelihoodTmp;
+    REALTYPE* grandDenominatorDerivTmp;
+    REALTYPE* grandNumeratorDerivTmp;
+    REALTYPE* grandNumeratorLowerBoundDerivTmp;
+    REALTYPE* grandNumeratorUpperBoundDerivTmp;
     
     REALTYPE* outLogLikelihoodsTmp;
     REALTYPE* outFirstDerivativesTmp;
@@ -415,6 +421,23 @@ protected:
                               int count,
                               int cumulativeScaleIndex);
 
+    virtual int calcEdgeDerivative(bool byPartition,
+                                   const int *postBufferIndices,
+                                   const int *preBufferIndices,
+                                   const int rootBufferIndex,
+                                   const int *eigenIndices,
+                                   const int *firstDerivativeIndices,
+                                   const int *secondDerivativeIndices,
+                                   const int categoryWeightsIndex,
+                                   const int categoryRatesIndex,
+                                   const int stateFrequenciesIndex,
+                                   const int *cumulativeScaleIndices,
+                                   int count,
+                                   double *outFirstDerivative,
+                                   double *outDiagonalSecondDerivative,
+                                   int startPattern,
+                                   int endPattern);
+
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
                                                  int count,
@@ -626,6 +649,19 @@ protected:
 
     void threadWaiting(threadData* tData);
 
+    virtual int calculateEdgeDerivative(const int *postBufferIndices,
+                                        const int *preBufferIndices,
+                                        const int rootBufferIndex,
+                                        const int *eigenIndices,
+                                        const int *firstDerivativeIndices,
+                                        const int *secondDerivativeIndices,
+                                        const int categoryWeightsIndex,
+                                        const int categoryRatesIndex,
+                                        const int stateFrequenciesIndex,
+                                        const int *cumulativeScaleIndices,
+                                        int count,
+                                        double *outFirstDerivative,
+                                        double *outDiagonalSecondDerivative);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE

@@ -1326,3 +1326,29 @@ int beagleGetSiteDerivatives(int instance,
     return returnValue;
 }
 
+int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, const int *preBufferIndices,
+                                  const int *rootBufferIndices, const int eigenIndex,
+                                  const int *firstDerivativeIndices, const int *secondDerivativeIndices,
+                                  const int *categoryWeightsIndices,
+                                  const int *stateFrequenciesIndices, const int *cumulativeScaleIndices, int count,
+                                  double *outFirstDerivative, double *outDiagonalSecondDerivative) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->calculateEdgeDerivative(postBufferIndices,
+                                                              preBufferIndices,
+                                                              rootBufferIndices,
+                                                              eigenIndex,
+                                                              firstDerivativeIndices,
+                                                              secondDerivativeIndices,
+                                                              categoryWeightsIndices,
+                                                              stateFrequenciesIndices,
+                                                              cumulativeScaleIndices,
+                                                              count,
+                                                              outFirstDerivative,
+                                                              outDiagonalSecondDerivative);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
