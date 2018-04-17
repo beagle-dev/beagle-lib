@@ -308,6 +308,36 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateEdgeDerivative
+ * Signature: (I[I[II[I[IIII[II[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
+(JNIEnv *env, jobject obj, jint instance, jintArray postBufferIndices, jintArray preBufferIndices,
+ jint rootBufferIndex, jintArray firstDerivativeIndices, jintArray secondDerivativeIndices,
+ jint categoryWeightsIndex, jint categoryRatesIndex, jint stateFrequenciesIndex,
+ jintArray cumulativeScaleIndices, jint count,
+ jdoubleArray outFirstDerivative, jdoubleArray outDiagonalSecondDerivative)
+{
+    jdouble *outGradient = env->GetDoubleArrayElements(outFirstDerivative, NULL);
+    jdouble *outDiagonalHessian = env->GetDoubleArrayElements(outDiagonalSecondDerivative, NULL);
+    jint *postOrderBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
+    jint *preOrderBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
+    jint *gradientMatrixIndices = env->GetIntArrayElements(firstDerivativeIndices, NULL);
+    jint *hessianMatrixIndices  = env->GetIntArrayElements(secondDerivativeIndices, NULL);
+    jint *cumulativeScalingIndices = env->GetIntArrayElements(cumulativeScaleIndices, NULL);
+
+
+    jint errCode = beagleCalculateEdgeDerivative(instance, postOrderBufferIndices, preOrderBufferIndices,
+                                                 rootBufferIndex, gradientMatrixIndices, hessianMatrixIndices,
+                                                 categoryWeightsIndex, categoryRatesIndex, stateFrequenciesIndex,
+                                                 cumulativeScalingIndices, count, outGradient, outDiagonalHessian);
+    env->ReleaseDoubleArrayElements(outFirstDerivative, outGradient, 0);
+    env->ReleaseDoubleArrayElements(outDiagonalSecondDerivative, outDiagonalHessian, 0);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    getLogScaleFactors
  * Signature: (II[D)I
  */

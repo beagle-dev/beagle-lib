@@ -311,6 +311,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsB
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getSiteLogLikelihoods
   (JNIEnv *, jobject, jint, jdoubleArray);
 
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateEdgeDerivative
+ * Signature: (I[I[II[I[IIII[II[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jint, jintArray, jintArray, jint, jint, jint, jintArray, jint, jdoubleArray, jdoubleArray);
+
 #ifdef __cplusplus
 }
 #endif
