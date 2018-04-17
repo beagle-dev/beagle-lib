@@ -202,6 +202,20 @@ public class BeagleJNIWrapper {
     public native int getSiteLogLikelihoods(final int instance,
                                             final double[] outLogLikelihoods);
 
+    public native int calculateEdgeDerivative(final int instance,
+                                              final int[] postBufferIndices,
+                                              final int[] preBufferIndices,
+                                              final int rootBufferIndex,
+                                              final int[] firstDerivativeIndices,
+                                              final int[] secondDerivativeIndices,
+                                              final int categoryWeightsIndex,
+                                              final int categoryRatesIndex,
+                                              final int stateFrequenciesIndex,
+                                              final int[] cumulativeScaleIndices,
+                                              int count,
+                                              double[] outFirstDerivative,
+                                              double[] outDiagonalSecondDerivative);
+
     /* Library loading routines */
 
     private static String getPlatformSpecificLibraryName()

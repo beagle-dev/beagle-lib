@@ -437,6 +437,11 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    @Override
+    public void calculateEdgeDerivative(int[] postBufferIndices, int[] preBufferIndices, int rootBufferIndex, int[] firstDerivativeIndices, int[] secondDerivativeIndices, int categoryWeightsIndex, int categoryRatesIndex, int stateFrequenciesIndex, int[] cumulativeScaleIndices, int count, double[] outFirstDerivative, double[] outDiagonalSecondDerivative) {
+        // TODO: yet to implement
+    }
+
     /**
      * Operations list is a list of 9-tuple integer indices, with one 7-tuple per operation.
      * Format of 9-tuple operation: {destinationPartials,

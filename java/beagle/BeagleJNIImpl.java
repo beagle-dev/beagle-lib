@@ -247,6 +247,26 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void calculateEdgeDerivative(final int[] postBufferIndices,
+                                        final int[] preBufferIndices,
+                                        final int rootBufferIndex,
+                                        final int[] firstDerivativeIndices,
+                                        final int[] secondDerivativeIndices,
+                                        final int categoryWeightsIndex,
+                                        final int categoryRatesIndex,
+                                        final int stateFrequenciesIndex,
+                                        final int[] cumulativeScaleIndices,
+                                        int count,
+                                        double[] outFirstDerivative,
+                                        double[] outDiagonalSecondDerivative) {
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateEdgeDerivative(instance, postBufferIndices, preBufferIndices,
+                rootBufferIndex, firstDerivativeIndices, secondDerivativeIndices, categoryWeightsIndex, categoryRatesIndex,
+                stateFrequenciesIndex, cumulativeScaleIndices, count, outFirstDerivative, outDiagonalSecondDerivative);
+        if (errCode != 0) {
+            throw new BeagleException("calculateEdgeDerivative", errCode);
+        }
+    }
+
     public void updatePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {

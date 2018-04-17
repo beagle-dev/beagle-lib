@@ -432,6 +432,38 @@ public interface Beagle extends Serializable {
             int cumulativeScaleIndex);
 
     /**
+     * Calculate gradient or / and diagonal hessian of given edges
+     *
+     * This function calculates gradient or diagonal hessian of the log likelihood with respect to edge length.
+     *
+     * @param postBufferIndices                 list of post order buffer indices
+     * @param preBufferIndices                  list of pre  order buffer indices
+     * @param rootBufferIndex                   root post order buffer index
+     * @param firstDerivativeIndices            Q matrix indices
+     * @param secondDerivativeIndices           Q^2 matrix indices
+     * @param categoryWeightsIndex              category weights index
+     * @param categoryRatesIndex                category rates index
+     * @param stateFrequenciesIndex             state frequency index
+     * @param cumulativeScaleIndices            cumulative scaling factor indices, currently not used
+     * @param count                             number of edges
+     * @param outFirstDerivative                gradient output array
+     * @param outDiagonalSecondDerivative       diagonal hessian output array
+     *
+     */
+    void calculateEdgeDerivative(final int[] postBufferIndices,
+                                 final int[] preBufferIndices,
+                                 final int rootBufferIndex,
+                                 final int[] firstDerivativeIndices,
+                                 final int[] secondDerivativeIndices,
+                                 final int categoryWeightsIndex,
+                                 final int categoryRatesIndex,
+                                 final int stateFrequenciesIndex,
+                                 final int[] cumulativeScaleIndices,
+                                 int count,
+                                 double[] outFirstDerivative,
+                                 double[] outDiagonalSecondDerivative);
+
+    /**
      * Calculate or queue for calculation partials using a list of operations
      *
      * This function either calculates or queues for calculation a list partials. Implementations
