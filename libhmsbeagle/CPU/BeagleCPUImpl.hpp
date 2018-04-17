@@ -1736,7 +1736,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
             }
         }
 
-        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+        for (int pattern = startPattern; pattern < endPattern; pattern++) {
             const REALTYPE numerator = grandNumeratorDerivTmp[pattern] +
                                        (grandNumeratorLowerBoundDerivTmp[pattern] +
                                         grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
@@ -1756,8 +1756,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
             const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndices[nodeNum]];
 
             for (int category = 0; category < kCategoryCount; category++) {
-                int u = 0;
-                int v = 0;
 
                 const REALTYPE *secondDerivMatrixPtr = secondDerivMatrix + category * kMatrixSize;
                 const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
@@ -1797,7 +1795,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
                 }
             }
 
-            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+            for (int pattern = startPattern; pattern < endPattern; pattern++) {
                 const REALTYPE numerator = grandNumeratorDerivTmp[pattern] +
                                            (grandNumeratorLowerBoundDerivTmp[pattern] +
                                             grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
