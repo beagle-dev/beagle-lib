@@ -100,7 +100,7 @@ double* getPartials(char *sequence) {
 int main( int argc, const char* argv[] )
 { 
     
-    bool scaling = true;
+    bool scaling = false;
 //    bool scaling = false; // disable scaling for now
 
     bool doJC = true;
@@ -129,7 +129,7 @@ int main( int argc, const char* argv[] )
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                                  4,		        /**< Number of rate matrix buffers (input) */
+                                  6,		        /**< Number of rate matrix buffers (input) */
                                   rateCategoryCount,/**< Number of rate categories (input) */
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
@@ -169,10 +169,12 @@ int main( int argc, const char* argv[] )
 #else
 	double rates[rateCategoryCount];
 #endif
-    for (int i = 0; i < rateCategoryCount; i++) {
+//    for (int i = 0; i < rateCategoryCount; i++) {
 //        rates[i] = 1.0;
-        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
-    }
+////        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
+//    }
+    rates[0] = 0.14251623900062188;
+    rates[1] = 1.857483760999378;
     
 	beagleSetCategoryRates(instance, &rates[0]);
     
@@ -197,9 +199,9 @@ int main( int argc, const char* argv[] )
 	double weights[rateCategoryCount];
 #endif
     for (int i = 0; i < rateCategoryCount; i++) {
-//        weights[i] = 1.0/rateCategoryCount;
-        weights[i] = 2.0 * double(i + 1)/ double(rateCategoryCount * (rateCategoryCount + 1));
-    }    
+        weights[i] = 1.0/rateCategoryCount;
+//        weights[i] = 2.0 * double(i + 1)/ double(rateCategoryCount * (rateCategoryCount + 1));
+    }
     
     beagleSetCategoryWeights(instance, 0, &weights[0]);
     
@@ -266,6 +268,31 @@ int main( int argc, const char* argv[] )
             0.2857142,  0.2857143, -1.1428568,  0.2857142,
             0.5714284,  0.5714284,  0.5714284, -0.8571426
     };
+
+    double Q[4 * 4 * 2] = {
+            -1.285714,  0.4285712,  0.2857142,  0.5714284,
+            0.142857, -0.9999997,  0.2857143,  0.5714284,
+            0.142857,  0.4285714, -1.1428568,  0.5714284,
+            0.142857,  0.4285713,  0.2857142, -0.8571426,
+            -1.285714,  0.4285712,  0.2857142,  0.5714284,
+            0.142857, -0.9999997,  0.2857143,  0.5714284,
+            0.142857,  0.4285714, -1.1428568,  0.5714284,
+            0.142857,  0.4285713,  0.2857142, -0.8571426
+    };
+
+    double Q2[4 * 4 * 2] = {
+            1.8367333, -0.6122443, -0.4081629, -0.8163261,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890,
+            1.8367333, -0.6122443, -0.4081629, -0.8163261,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890
+    };
+
+    beagleSetTransitionMatrix(instance, 4, Q, 0.0);
+    beagleSetTransitionMatrix(instance, 5, Q2, 0.0);
 
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -350,8 +377,6 @@ int main( int argc, const char* argv[] )
                                       &logL);         // outLogLikelihoods
 
 
-    fprintf(stdout, "logL = %.5f (R = -18.91783)\n\n", logL);
-
     beagleSetRootPrePartials(instance,
                              (const int *) &rootPreIndex,               // bufferIndices
                              &stateFrequencyIndex,                  // stateFrequencies
@@ -362,6 +387,39 @@ int main( int argc, const char* argv[] )
                             pre_order_operations,
                             4,
                             BEAGLE_OP_NONE);
+
+    fprintf(stdout, "logL = %.5f (R = -18.04619478977292)\n\n", logL);
+
+    int postBufferIndices[4] = {0, 1, 2, 3};
+    int preBufferIndices[4] = {9, 8, 7, 6};
+    int firstDervIndices[4] = {4, 4, 4, 4};
+    int secondDervIndices[4] = {5, 5, 5, 5};
+    int categoryRatesIndex = categoryWeightsIndex;
+    double* gradient = (double*) malloc(sizeof(double) * nPatterns * 4);
+    double* diagonalHessian = (double*) malloc(sizeof(double) * nPatterns * 4);
+
+    beagleCalculateEdgeDerivative(instance, postBufferIndices, preBufferIndices,
+                                  rootIndex, firstDervIndices, secondDervIndices,
+                                  categoryWeightsIndex, categoryRatesIndex,
+                                  stateFrequencyIndex, &cumulativeScalingIndex,
+                                  4, gradient, diagonalHessian);
+
+    std::cout<<"Gradient: \n";
+    for (int i = 0; i < 4; i++) {
+        for (int m = 0; m < nPatterns; m++) {
+            std::cout<<gradient[i * nPatterns + m]<<"  ";
+        }
+        std::cout<<std::endl;
+    }
+
+    std::cout<<"Diagonal Hessian: \n";
+    for (int i = 0; i < 4; i++) {
+        for (int m = 0; m < nPatterns; m++) {
+            std::cout<<diagonalHessian[i * nPatterns + m]<<"  ";
+        }
+        std::cout<<std::endl;
+    }
+
 
 //  print pre-order partials and edge length log-likelihood gradient to screen
 //  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp
@@ -497,6 +555,14 @@ int main( int argc, const char* argv[] )
 	free(humanPartials);
 	free(chimpPartials);
 	free(gorillaPartials);
+    free(seepostPartials);
+    free(seeprePartials);
+    free(seerootPartials);
+    free(tmpNumerator);
+    free(grand_denominator);
+    free(grand_numerator);
+    free(gradient);
+    free(diagonalHessian);
     
     beagleFinalizeInstance(instance);
 

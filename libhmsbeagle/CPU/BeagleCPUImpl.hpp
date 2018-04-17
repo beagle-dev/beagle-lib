@@ -1737,10 +1737,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
         }
 
         for (int pattern = startPattern; pattern < endPattern; pattern++) {
-            const REALTYPE numerator = grandNumeratorDerivTmp[pattern] +
+            const double clampedNumerator = grandNumeratorDerivTmp[pattern] +
                                        (grandNumeratorLowerBoundDerivTmp[pattern] +
                                         grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
-            outFirstDerivative[nodeNum * kPatternCount + pattern] = numerator / grandDenominatorDerivTmp[pattern];
+            outFirstDerivative[nodeNum * kPatternCount + pattern] = clampedNumerator / grandDenominatorDerivTmp[pattern];
         }
     }
 
@@ -1772,8 +1772,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
                         REALTYPE sumOverEndState = 0.0;
                         for (int j = 0; j < kStateCount; j++) {
                             sumOverEndState += secondDerivMatrixPtr[k * matrixIncr + j]
-                                               * postOrderPartial[patternIndex * kPartialsPaddedStateCount +
-                                                                  j]; // fix padded index
+                                               * postOrderPartial[patternIndex * kPartialsPaddedStateCount + j]; // fix padded index
                         }
                         const int partialPaddedIndex = patternIndex * kPartialsPaddedStateCount + k;
                         numerator += sumOverEndState * preOrderPartial[partialPaddedIndex];
@@ -1796,11 +1795,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
             }
 
             for (int pattern = startPattern; pattern < endPattern; pattern++) {
-                const REALTYPE numerator = grandNumeratorDerivTmp[pattern] +
+                const double clampedNumerator = grandNumeratorDerivTmp[pattern] +
                                            (grandNumeratorLowerBoundDerivTmp[pattern] +
                                             grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
-                outSecondDerivativesTmp[nodeNum * kPatternCount + pattern] =
-                        numerator / grandDenominatorDerivTmp[pattern];
+                outDiagonalSecondDerivative[nodeNum * kPatternCount + pattern] =
+                        clampedNumerator / grandDenominatorDerivTmp[pattern];
             }
         }
     }
