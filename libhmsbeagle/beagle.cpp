@@ -1327,10 +1327,10 @@ int beagleGetSiteDerivatives(int instance,
 }
 
 int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, const int *preBufferIndices,
-                                  const int *rootBufferIndices, const int eigenIndex,
+                                  const int rootBufferIndex,
                                   const int *firstDerivativeIndices, const int *secondDerivativeIndices,
-                                  const int *categoryWeightsIndices,
-                                  const int *stateFrequenciesIndices, const int *cumulativeScaleIndices, int count,
+                                  const int categoryWeightsIndex, const int categoryRatesIndex,
+                                  const int stateFrequenciesIndex, const int *cumulativeScaleIndices, int count,
                                   double *outFirstDerivative, double *outDiagonalSecondDerivative) {
     DEBUG_START_TIME();
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -1338,12 +1338,12 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->calculateEdgeDerivative(postBufferIndices,
                                                               preBufferIndices,
-                                                              rootBufferIndices,
-                                                              eigenIndex,
+                                                              rootBufferIndex,
                                                               firstDerivativeIndices,
                                                               secondDerivativeIndices,
-                                                              categoryWeightsIndices,
-                                                              stateFrequenciesIndices,
+                                                              categoryWeightsIndex,
+                                                              categoryRatesIndex,
+                                                              stateFrequenciesIndex,
                                                               cumulativeScaleIndices,
                                                               count,
                                                               outFirstDerivative,

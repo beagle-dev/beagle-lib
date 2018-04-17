@@ -398,7 +398,20 @@ public:
                                                double* outSumFirstDerivative,
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
-    
+
+    int calculateEdgeDerivative(const int *postBufferIndices,
+                                const int *preBufferIndices,
+                                const int rootBufferIndex,
+                                const int *firstDerivativeIndices,
+                                const int *secondDerivativeIndices,
+                                const int categoryWeightsIndex,
+                                const int categoryRatesIndex,
+                                const int stateFrequenciesIndex,
+                                const int *cumulativeScaleIndices,
+                                int count,
+                                double *outFirstDerivative,
+                                double *outDiagonalSecondDerivative);
+
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     
     int getSiteDerivatives(double* outFirstDerivatives,
@@ -425,7 +438,6 @@ protected:
                                    const int *postBufferIndices,
                                    const int *preBufferIndices,
                                    const int rootBufferIndex,
-                                   const int *eigenIndices,
                                    const int *firstDerivativeIndices,
                                    const int *secondDerivativeIndices,
                                    const int categoryWeightsIndex,
@@ -649,19 +661,6 @@ protected:
 
     void threadWaiting(threadData* tData);
 
-    virtual int calculateEdgeDerivative(const int *postBufferIndices,
-                                        const int *preBufferIndices,
-                                        const int rootBufferIndex,
-                                        const int *eigenIndices,
-                                        const int *firstDerivativeIndices,
-                                        const int *secondDerivativeIndices,
-                                        const int categoryWeightsIndex,
-                                        const int categoryRatesIndex,
-                                        const int stateFrequenciesIndex,
-                                        const int *cumulativeScaleIndices,
-                                        int count,
-                                        double *outFirstDerivative,
-                                        double *outDiagonalSecondDerivative);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
