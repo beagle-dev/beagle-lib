@@ -319,11 +319,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
  jdoubleArray outFirstDerivative, jdoubleArray outDiagonalSecondDerivative)
 {
     jdouble *outGradient = env->GetDoubleArrayElements(outFirstDerivative, NULL);
-    jdouble *outDiagonalHessian = env->GetDoubleArrayElements(outDiagonalSecondDerivative, NULL);
+    jdouble *outDiagonalHessian = outDiagonalSecondDerivative != NULL ? env->GetDoubleArrayElements(outDiagonalSecondDerivative, NULL) : NULL;
     jint *postOrderBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
     jint *preOrderBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
     jint *gradientMatrixIndices = env->GetIntArrayElements(firstDerivativeIndices, NULL);
-    jint *hessianMatrixIndices  = env->GetIntArrayElements(secondDerivativeIndices, NULL);
+    jint *hessianMatrixIndices  = secondDerivativeIndices != NULL ? env->GetIntArrayElements(secondDerivativeIndices, NULL) : NULL;
     jint *cumulativeScalingIndices = env->GetIntArrayElements(cumulativeScaleIndices, NULL);
 
 
@@ -332,7 +332,9 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
                                                  categoryWeightsIndex, categoryRatesIndex, stateFrequenciesIndex,
                                                  cumulativeScalingIndices, count, outGradient, outDiagonalHessian);
     env->ReleaseDoubleArrayElements(outFirstDerivative, outGradient, 0);
-    env->ReleaseDoubleArrayElements(outDiagonalSecondDerivative, outDiagonalHessian, 0);
+    if (outDiagonalSecondDerivative != NULL) {
+        env->ReleaseDoubleArrayElements(outDiagonalSecondDerivative, outDiagonalHessian, 0);
+    }
     return errCode;
 }
 

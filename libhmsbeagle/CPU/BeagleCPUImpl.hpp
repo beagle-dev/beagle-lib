@@ -1697,7 +1697,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
         for (int category = 0; category < kCategoryCount; category++) {
 
 
-            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix;
+//            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix;
             const REALTYPE weightedRate = wt[category] *
                                           rt[category]; //only works for gradient, need to change to rt[category] * rt[category] for hessian
 
@@ -1712,7 +1712,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
                     REALTYPE sumOverEndState = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
-                        sumOverEndState += firstDerivMatrixPtr[k * matrixIncr + j]
+                        sumOverEndState += firstDerivMatrix[k * matrixIncr + j]
                                            * postOrderPartial[patternIndex * kPartialsPaddedStateCount +
                                                               j]; // fix padded index
                     }
@@ -1744,7 +1744,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
         }
     }
 
-    if (secondDerivativeIndices != NULL) {
+    if (outDiagonalSecondDerivative != NULL) {
         for (int nodeNum = 0; nodeNum < count; nodeNum++) {
             std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
             std::fill(grandNumeratorLowerBoundDerivTmp, grandNumeratorLowerBoundDerivTmp + kPatternCount, 0);
@@ -1757,7 +1757,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
             for (int category = 0; category < kCategoryCount; category++) {
 
-                const REALTYPE *secondDerivMatrixPtr = secondDerivMatrix;
+//                const REALTYPE *secondDerivMatrixPtr = secondDerivMatrix;
                 const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
 
                 for (int pattern = startPattern; pattern < endPattern; pattern++) {
@@ -1771,7 +1771,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
                         REALTYPE sumOverEndState = 0.0;
                         for (int j = 0; j < kStateCount; j++) {
-                            sumOverEndState += secondDerivMatrixPtr[k * matrixIncr + j]
+                            sumOverEndState += secondDerivMatrix[k * matrixIncr + j]
                                                * postOrderPartial[patternIndex * kPartialsPaddedStateCount + j]; // fix padded index
                         }
                         const int partialPaddedIndex = patternIndex * kPartialsPaddedStateCount + k;
