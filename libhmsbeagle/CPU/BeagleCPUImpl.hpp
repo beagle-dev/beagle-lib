@@ -1697,7 +1697,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
         for (int category = 0; category < kCategoryCount; category++) {
 
 
-            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix + category * kMatrixSize;
+            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix;
             const REALTYPE weightedRate = wt[category] *
                                           rt[category]; //only works for gradient, need to change to rt[category] * rt[category] for hessian
 
@@ -1757,7 +1757,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
             for (int category = 0; category < kCategoryCount; category++) {
 
-                const REALTYPE *secondDerivMatrixPtr = secondDerivMatrix + category * kMatrixSize;
+                const REALTYPE *secondDerivMatrixPtr = secondDerivMatrix;
                 const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
 
                 for (int pattern = startPattern; pattern < endPattern; pattern++) {
