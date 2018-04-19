@@ -99,7 +99,7 @@ fi
 dnl Check for OpenMP
 if test x$GCC = xyes
 then
-  AX_GCC_VERSION()
+	AX_GCC_VERSION()
 fi
 
 AC_ARG_ENABLE([openmp],
@@ -108,16 +108,16 @@ AC_ARG_ENABLE([openmp],
 # if we're on gcc, then make sure the version is at least 4.2.0 because apple ships a
 # 4.1.x that has broken openmp support
 AS_IF([test "$enable_openmp" = "yes"], [
-  if test x$GCC = xyes
-  then
-    AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.0], [
-      AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
-      [AM_CONDITIONAL(HAVE_OPENMP,false)])
-    ],[])
-  else
-    AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
-    [AM_CONDITIONAL(HAVE_OPENMP,false)])
-  fi
+	if test x$GCC = xyes
+	then
+		AX_COMPARE_VERSION([$GCC_VERSION], [ge], [4.2.0], [
+			AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+			[AM_CONDITIONAL(HAVE_OPENMP,false)])
+		],[])
+	else
+		AX_OPENMP([AM_CONDITIONAL(HAVE_OPENMP,true)],
+		[AM_CONDITIONAL(HAVE_OPENMP,false)])
+	fi
 ],[
 AM_CONDITIONAL(HAVE_OPENMP, test true = false)
 ])
@@ -242,41 +242,41 @@ NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
 
 
 AC_ARG_ENABLE(sse,
-  AC_HELP_STRING([--disable-sse],[disable native sse implementation]), , [enable_sse=yes])
+	AC_HELP_STRING([--disable-sse],[disable native sse implementation]), , [enable_sse=yes])
 
 if test  "$enable_sse" = yes; then
-  AX_EXT
-  AC_CHECK_HEADERS([cpuid.h])
-  AM_CONDITIONAL(HAVE_SSE2,true)
+	AX_EXT
+	AC_CHECK_HEADERS([cpuid.h])
+	AM_CONDITIONAL(HAVE_SSE2,true)
 else
-  AM_CONDITIONAL(HAVE_SSE2,false)
+	AM_CONDITIONAL(HAVE_SSE2,false)
 fi
 
 # ------------------------------------------------------------------------------
 # Setup AVX
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(avx,
-  AC_HELP_STRING([--enable-avx],[build with avx implementation enabled EXPERIMENTAL]), , [enable_avx=no])
+	AC_HELP_STRING([--enable-avx],[build with avx implementation enabled EXPERIMENTAL]), , [enable_avx=no])
 
 AM_CONDITIONAL(HAVE_AVX,false)
 if test  "$enable_avx" = yes; then
-  AX_EXT
-  AC_CHECK_HEADERS([cpuid.h])
-  if test "$ax_cv_have_avx_ext" = yes; then
-    AM_CONDITIONAL(HAVE_AVX,true)
-  else
-    AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)
-  fi
+	AX_EXT
+	AC_CHECK_HEADERS([cpuid.h])
+	if test "$ax_cv_have_avx_ext" = yes; then
+		AM_CONDITIONAL(HAVE_AVX,true)
+	else
+		AC_MSG_ERROR(AVX instructions not supported on this system. AVX support will not be built)
+	fi
 fi
 
 # ------------------------------------------------------------------------------
 # Setup Intel Phi
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(phi,
-  AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL]), , [enable_phi=no])
+	AC_HELP_STRING([--enable-phi],[build with Intel Phi implementation enabled EXPERIMENTAL]), , [enable_phi=no])
 
 if test  "$enable_phi" = yes; then
-  AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)
+	AC_MSG_ERROR(Intel Phi not supported on this system. Phi support will not be built)
 fi
 
 # ------------------------------------------------------------------------------
@@ -319,7 +319,7 @@ case $host_os in
 
   if test "$CXX" = "clang"
   then
-    CXX="clang++"
+	  CXX="clang++"
   fi
 
   AC_ARG_ENABLE(osx_snowleopard,
@@ -427,9 +427,9 @@ fi
 
 
 if( test x$NVCC = xno ) then
-  AC_MSG_WARN([NVIDIA CUDA nvcc compiler not found or CUDA support disabled.  CUDA implementation will not be built. If CUDA support is desired, check the path to CUDA and specify --with-cuda=/path/to/cuda])
+	AC_MSG_WARN([NVIDIA CUDA nvcc compiler not found or CUDA support disabled.  CUDA implementation will not be built. If CUDA support is desired, check the path to CUDA and specify --with-cuda=/path/to/cuda])
 fi
 
 if( test x$with_jdk = xno ) then
-  AC_MSG_WARN([JDK installation not found.  JNI wrapper will not be built.  Check the path to JDK and specify --with-jdk=/path/to/jdk].  If using Mac OS X also try installing Java for OS X Developer Package)
+	AC_MSG_WARN([JDK installation not found.  JNI wrapper will not be built.  Check the path to JDK and specify --with-jdk=/path/to/jdk].  If using Mac OS X also try installing Java for OS X Developer Package)
 fi
