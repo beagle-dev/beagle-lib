@@ -26,7 +26,7 @@ Installation instructions:
 - [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions) 
 
 Documentation:
-- [API documentation](http://beagle-lib.googlecode.com/svn/doc/html/beagle_8h.html)
+- [API documentation](https://beagle-dev.github.io/html/beagle_8h.html)
 - [Release notes](https://github.com/beagle-dev/beagle-lib/wiki/ReleaseNotes)
 
 # Acknowledgements
