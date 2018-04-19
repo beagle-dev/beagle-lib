@@ -60,6 +60,12 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gScaleBuffers;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gStateFrequencies;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryWeights;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryRates;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorLowerBoundDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorUpperBoundDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandDenominatorDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::cLikelihoodTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
@@ -102,6 +108,22 @@ public:
                                          const REALTYPE *matricesSibling,
                                          int startPattern,
                                          int endPattern);
+
+	virtual int calcEdgeDerivative(bool byPartition,
+								   const int *postBufferIndices,
+								   const int *preBufferIndices,
+								   const int rootBufferIndex,
+								   const int *firstDerivativeIndices,
+								   const int *secondDerivativeIndices,
+								   const int categoryWeightsIndex,
+								   const int categoryRatesIndex,
+								   const int stateFrequenciesIndex,
+								   const int *cumulativeScaleIndices,
+								   int count,
+								   double *outFirstDerivative,
+								   double *outDiagonalSecondDerivative,
+								   int startPattern,
+								   int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,

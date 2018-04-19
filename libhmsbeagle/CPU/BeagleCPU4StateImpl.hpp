@@ -927,6 +927,163 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoods(const int bu
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
+                                                                const int *postBufferIndices,
+                                                                const int *preBufferIndices,
+                                                                const int rootBufferIndex,
+                                                                const int *firstDerivativeIndices,
+                                                                const int *secondDerivativeIndices,
+                                                                const int categoryWeightsIndex,
+                                                                const int categoryRatesIndex,
+                                                                const int stateFrequenciesIndex,
+                                                                const int *cumulativeScaleIndices,
+                                                                int count,
+                                                                double *outFirstDerivative,
+                                                                double *outDiagonalSecondDerivative,
+                                                                int startPattern,
+                                                                int endPattern) {
+    const REALTYPE *rootPartials = gPartials[rootBufferIndex];
+    assert(rootPartials);
+    const double *rt = gCategoryRates[categoryRatesIndex];
+    const REALTYPE *wt = gCategoryWeights[categoryWeightsIndex];
+    const REALTYPE *freqs = gStateFrequencies[stateFrequenciesIndex];
+
+    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+
+    int v = 0;
+    int patternIndex = 0;
+    for (int category = 0; category < kCategoryCount; category++) {
+
+        const REALTYPE weight = wt[category];
+
+        for (int pattern = startPattern; pattern < endPattern; pattern++) {
+
+            double sumOverEndState = freqs[0] * rootPartials[v] + freqs[1] * rootPartials[v + 1]
+                                     + freqs[2] * rootPartials[v + 2] + freqs[3] * rootPartials[v + 3];
+            v += 4;
+            cLikelihoodTmp[patternIndex++] = sumOverEndState;
+            grandDenominatorDerivTmp[pattern] += weight * sumOverEndState;
+        }
+        patternIndex += kExtraPatterns;
+    }
+
+    for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+        std::fill(grandNumeratorLowerBoundDerivTmp, grandNumeratorLowerBoundDerivTmp + kPatternCount, 0);
+        std::fill(grandNumeratorUpperBoundDerivTmp, grandNumeratorUpperBoundDerivTmp + kPatternCount, 0);
+
+        REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+        REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+
+        const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndices[nodeNum]];
+        int patternIndex = 0;
+        for (int category = 0; category < kCategoryCount; category++) {
+//            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix;
+            const REALTYPE weightedRate = wt[category] * rt[category];
+
+
+            for (int pattern = startPattern; pattern < endPattern; pattern++) {
+                const int patternOffset = patternIndex * 4;
+                PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
+                PREFETCH_MATRIX(0, firstDerivMatrix, 0);
+                DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+
+                REALTYPE numerator =
+                        sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
+                        + sum02 * preOrderPartial[patternOffset + 2] +
+                        sum03 * preOrderPartial[patternOffset + 3];
+                REALTYPE denominator =
+                        p00 * preOrderPartial[patternOffset] + p01 * preOrderPartial[patternOffset + 1]
+                        + p02 * preOrderPartial[patternOffset + 2] + p03 * preOrderPartial[patternOffset + 3];
+
+                if (numerator != 0.0) {
+                    if (denominator == 0.0) {
+                        if (numerator > 0.0) {
+                            grandNumeratorUpperBoundDerivTmp[pattern] += weightedRate * numerator;
+                        } else {
+                            grandNumeratorLowerBoundDerivTmp[pattern] += weightedRate * numerator;
+                        }
+                    } else {
+                        grandNumeratorDerivTmp[pattern] +=
+                                weightedRate * cLikelihoodTmp[patternIndex] / denominator * numerator;
+                    }
+                }
+
+                patternIndex++;
+            }
+            patternIndex += kExtraPatterns;
+        }
+
+        for (int pattern = startPattern; pattern < endPattern; pattern++) {
+            const double clampedNumerator = grandNumeratorDerivTmp[pattern] +
+                                            (grandNumeratorLowerBoundDerivTmp[pattern] +
+                                             grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
+            outFirstDerivative[nodeNum * kPatternCount + pattern] =
+                    clampedNumerator / grandDenominatorDerivTmp[pattern];
+        }
+    }
+
+    if (outDiagonalSecondDerivative != NULL) {
+        for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+            std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+            std::fill(grandNumeratorLowerBoundDerivTmp, grandNumeratorLowerBoundDerivTmp + kPatternCount, 0);
+            std::fill(grandNumeratorUpperBoundDerivTmp, grandNumeratorUpperBoundDerivTmp + kPatternCount, 0);
+
+            REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+            REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+
+            const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndices[nodeNum]];
+            int patternIndex = 0;
+            for (int category = 0; category < kCategoryCount; category++) {
+
+                const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
+
+                for (int pattern = startPattern; pattern < endPattern; pattern++) {
+                    const int patternOffset = patternIndex * 4;
+                    PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
+                    PREFETCH_MATRIX(0, secondDerivMatrix, 0);
+                    DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+
+                    REALTYPE numerator =
+                            sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
+                            + sum02 * preOrderPartial[patternOffset + 2] +
+                            sum03 * preOrderPartial[patternOffset + 3];
+                    REALTYPE denominator =
+                            p00 * preOrderPartial[patternOffset] + p01 * preOrderPartial[patternOffset + 1]
+                            + p02 * preOrderPartial[patternOffset + 2] +
+                            p03 * preOrderPartial[patternOffset + 3];
+
+                    if (numerator != 0.0) {
+                        if (denominator == 0.0) {
+                            if (numerator > 0.0) {
+                                grandNumeratorUpperBoundDerivTmp[pattern] += weightedRate * numerator;
+                            } else {
+                                grandNumeratorLowerBoundDerivTmp[pattern] += weightedRate * numerator;
+                            }
+                        } else {
+                            grandNumeratorDerivTmp[pattern] +=
+                                    weightedRate * cLikelihoodTmp[patternIndex] / denominator * numerator;
+                        }
+                    }
+
+                    patternIndex++;
+                }
+                patternIndex += kExtraPatterns;
+            }
+
+            for (int pattern = startPattern; pattern < endPattern; pattern++) {
+                const double clampedNumerator = grandNumeratorDerivTmp[pattern] +
+                                                (grandNumeratorLowerBoundDerivTmp[pattern] +
+                                                 grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
+                outDiagonalSecondDerivative[nodeNum * kPatternCount + pattern] =
+                        clampedNumerator / grandDenominatorDerivTmp[pattern];
+            }
+        }
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
                                                                     const int* bufferIndices,
                                                                     const int* categoryWeightsIndices,
