@@ -1,5 +1,5 @@
 /*
- *  genomictest.cpp
+ *  synthetictest.cpp
  *  Created by Aaron Darling on 14/06/2009.
  *  @author Aaron Darling
  *  @author Daniel Ayres
@@ -19,36 +19,36 @@
 #include <unistd.h>
 
 #ifdef _WIN32
-	#include <winsock.h>
-	#include <string>
+    #include <winsock.h>
+    #include <string>
 #else
-	#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 
 #include "libhmsbeagle/beagle.h"
 #include "linalg.h"
 
 #define MAX_DIFF    0.01        //max discrepancy in scoring between reps
-#define	GT_RAND_MAX 0x7fffffff
+#define GT_RAND_MAX 0x7fffffff
 
 #ifdef _WIN32
-	//From January 1, 1601 (UTC). to January 1,1970
-	#define FACTOR 0x19db1ded53e8000 
+    //From January 1, 1601 (UTC). to January 1,1970
+    #define FACTOR 0x19db1ded53e8000 
 
-	int gettimeofday(struct timeval *tp,void * tz) {
-		FILETIME f;
-		ULARGE_INTEGER ifreq;
-		LONGLONG res; 
-		GetSystemTimeAsFileTime(&f);
-		ifreq.HighPart = f.dwHighDateTime;
-		ifreq.LowPart = f.dwLowDateTime;
+    int gettimeofday(struct timeval *tp,void * tz) {
+        FILETIME f;
+        ULARGE_INTEGER ifreq;
+        LONGLONG res; 
+        GetSystemTimeAsFileTime(&f);
+        ifreq.HighPart = f.dwHighDateTime;
+        ifreq.LowPart = f.dwLowDateTime;
 
-		res = ifreq.QuadPart - FACTOR;
-		tp->tv_sec = (long)((LONGLONG)res/10000000);
-		tp->tv_usec =(long)(((LONGLONG)res%10000000)/10); // Micro Seconds
+        res = ifreq.QuadPart - FACTOR;
+        tp->tv_sec = (long)((LONGLONG)res/10000000);
+        tp->tv_usec =(long)(((LONGLONG)res%10000000)/10); // Micro Seconds
 
-		return 0;
-	}
+        return 0;
+    }
 #endif
 
 double cpuTimeSetPartitions, cpuTimeUpdateTransitionMatrices, cpuTimeUpdatePartials, cpuTimeAccumulateScaleFactors, cpuTimeCalculateRootLogLikelihoods, cpuTimeTotal;
@@ -82,31 +82,31 @@ void gt_srand(unsigned int seed)
 }
 
 void abort(std::string msg) {
-	std::cerr << msg << "\nAborting..." << std::endl;
-	std::exit(1);
+    std::cerr << msg << "\nAborting..." << std::endl;
+    std::exit(1);
 }
 
 double* getRandomTipPartials( int nsites, int stateCount )
 {
-	double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
-	for( int i=0; i<nsites*stateCount; i+=stateCount )
-	{
-		int s = gt_rand()%stateCount;
+    double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
+    for( int i=0; i<nsites*stateCount; i+=stateCount )
+    {
+        int s = gt_rand()%stateCount;
         // printf("%d ", s);
-		partials[i+s]=1.0;
-	}
-	return partials;
+        partials[i+s]=1.0;
+    }
+    return partials;
 }
 
 int* getRandomTipStates( int nsites, int stateCount )
 {
-	int *states = (int*) calloc(sizeof(int), nsites); 
-	for( int i=0; i<nsites; i++ )
-	{
-		int s = gt_rand()%stateCount;
-		states[i]=s;
-	}
-	return states;
+    int *states = (int*) calloc(sizeof(int), nsites); 
+    for( int i=0; i<nsites; i++ )
+    {
+        int s = gt_rand()%stateCount;
+        states[i]=s;
+    }
+    return states;
 }
 
 void printTiming(double timingValue,
@@ -117,7 +117,7 @@ void printTiming(double timingValue,
                  bool printPercent,
                  double totalTime,
                  int percentPrecision) {
-	std::cout << std::setprecision(timePrecision) << timingValue << "s";
+    std::cout << std::setprecision(timePrecision) << timingValue << "s";
     if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)";
     if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
     std::cout << "\n";
@@ -365,8 +365,9 @@ void runBeagle(int resource,
                int partitionCount,
                bool sitelikes,
                bool newDataPerRep,
-               bool newTreePerRep,
-               bool rerootTrees)
+               bool randomTree,
+               bool rerootTrees,
+               bool pectinate)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -379,18 +380,18 @@ void runBeagle(int resource,
     BeagleInstanceDetails instDetails;
     
     // create an instance of the BEAGLE library
-	int instance = beagleCreateInstance(
-			    ntaxa,			  /**< Number of tip data elements (input) */
-				partialCount, /**< Number of partials buffers to create (input) */
-                compactTipCount,	/**< Number of compact state representation buffers to create (input) */
-				stateCount,		  /**< Number of states in the continuous-time Markov chain (input) */
-				nsites,			  /**< Number of site patterns to be handled by the instance (input) */
-				modelCount,		          /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+    int instance = beagleCreateInstance(
+                ntaxa,            /**< Number of tip data elements (input) */
+                partialCount, /**< Number of partials buffers to create (input) */
+                compactTipCount,    /**< Number of compact state representation buffers to create (input) */
+                stateCount,       /**< Number of states in the continuous-time Markov chain (input) */
+                nsites,           /**< Number of site patterns to be handled by the instance (input) */
+                modelCount,               /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
                 (calcderivs ? (3*edgeCount*modelCount) : edgeCount*modelCount),/**< Number of rate matrix buffers (input) */
                 rateCategoryCount,/**< Number of rate categories */
                 scaleCount*eigenCount,          /**< scaling buffers */
-				&resource,		  /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-				1,			      /**< Length of resourceList list (input) */
+                &resource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                1,                /**< Length of resourceList list (input) */
                 0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                 // BEAGLE_FLAG_PARALLELOPS_STREAMS |
                 (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
@@ -401,11 +402,11 @@ void runBeagle(int resource,
                 (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
                 (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
                 (requireSSE ? BEAGLE_FLAG_VECTOR_SSE :
-                		  (requireAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),	  /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-				&instDetails);
+                          (requireAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),   /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                &instDetails);
     if (instance < 0) {
-	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
-	    return;
+        fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
+        return;
     }
         
     int rNumber = instDetails.resourceNumber;
@@ -417,7 +418,7 @@ void runBeagle(int resource,
         autoScaling = false;
     
     // set the sequences for each tip using partial likelihood arrays
-	gt_srand(randomSeed);	// fix the random seed...
+    gt_srand(randomSeed);   // fix the random seed...
     for(int i=0; i<ntaxa; i++)
     {
         if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
@@ -432,11 +433,11 @@ void runBeagle(int resource,
     }
 
 #ifdef _WIN32
-	std::vector<double> rates(rateCategoryCount);
+    std::vector<double> rates(rateCategoryCount);
 #else
     double rates[rateCategoryCount];
 #endif
-	
+    
     for (int i = 0; i < rateCategoryCount; i++) {
         rates[i] = gt_rand() / (double) GT_RAND_MAX;
     }
@@ -450,7 +451,7 @@ void runBeagle(int resource,
     }
 
     
-	double* patternWeights = (double*) malloc(sizeof(double) * nsites);
+    double* patternWeights = (double*) malloc(sizeof(double) * nsites);
     
     for (int i = 0; i < nsites; i++) {
         patternWeights[i] = gt_rand() / (double) GT_RAND_MAX;
@@ -459,7 +460,7 @@ void runBeagle(int resource,
     beagleSetPatternWeights(instance, patternWeights);
     
     // free(patternWeights);
-	
+    
 
     int* patternPartitions;
     double* partitionLogLs;
@@ -483,14 +484,14 @@ void runBeagle(int resource,
     // create base frequency array
 
 #ifdef _WIN32
-	std::vector<double> freqs(stateCount);
+    std::vector<double> freqs(stateCount);
 #else
     double freqs[stateCount];
 #endif
     
     // create an array containing site category weights
 #ifdef _WIN32
-	std::vector<double> weights(rateCategoryCount);
+    std::vector<double> weights(rateCategoryCount);
 #else
     double weights[rateCategoryCount];
 #endif
@@ -665,16 +666,16 @@ void runBeagle(int resource,
 
     
     // a list of indices and edge lengths
-	int* edgeIndices = new int[edgeCount*modelCount];
-	int* edgeIndicesD1 = new int[edgeCount*modelCount];
-	int* edgeIndicesD2 = new int[edgeCount*modelCount];
-	for(int i=0; i<edgeCount*modelCount; i++) {
+    int* edgeIndices = new int[edgeCount*modelCount];
+    int* edgeIndicesD1 = new int[edgeCount*modelCount];
+    int* edgeIndicesD2 = new int[edgeCount*modelCount];
+    for(int i=0; i<edgeCount*modelCount; i++) {
         edgeIndices[i]=i;
         edgeIndicesD1[i]=(edgeCount*modelCount)+i;
         edgeIndicesD2[i]=2*(edgeCount*modelCount)+i;
     }
-	double* edgeLengths = new double[edgeCount*modelCount];
-	for(int i=0; i<edgeCount; i++) {
+    double* edgeLengths = new double[edgeCount*modelCount];
+    for(int i=0; i<edgeCount; i++) {
         edgeLengths[i]=gt_rand() / (double) GT_RAND_MAX;
     }
     
@@ -684,13 +685,13 @@ void runBeagle(int resource,
     int beagleOpCount = BEAGLE_OP_COUNT;
     if (partitionCount > 1)
         beagleOpCount = BEAGLE_PARTITION_OP_COUNT;
-	int* operations = new int[beagleOpCount*operationCount];
+    int* operations = new int[beagleOpCount*operationCount];
     int unpartOpsCount = internalCount*eigenCount;
     int* scalingFactorsIndices = new int[unpartOpsCount]; // internal nodes
 
 
 
-	for(int i=0; i<unpartOpsCount; i++){
+    for(int i=0; i<unpartOpsCount; i++){
         int child1Index;
         if (((i % internalCount)*2) < ntaxa)
             child1Index = (i % internalCount)*2;
@@ -724,10 +725,10 @@ void runBeagle(int resource,
 
         if (autoScaling)
             scalingFactorsIndices[i] += ntaxa;
-	}	
+    }   
 
     int* rootIndices = new int[eigenCount * partitionCount];
-	int* lastTipIndices = new int[eigenCount * partitionCount];
+    int* lastTipIndices = new int[eigenCount * partitionCount];
     int* categoryWeightsIndices = new int[eigenCount * partitionCount];
     int* stateFrequencyIndices = new int[eigenCount * partitionCount];
     int* cumulativeScalingFactorIndices = new int[eigenCount * partitionCount];
@@ -751,7 +752,7 @@ void runBeagle(int resource,
     }
 
     // start timing!
-	struct timeval time0, time1, time2, time3, time4, time5;
+    struct timeval time0, time1, time2, time3, time4, time5;
     double bestTimeSetPartitions, bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
     
     double logL = 0.0;
@@ -772,6 +773,139 @@ void runBeagle(int resource,
         }
     }
 
+    if (randomTree && eigenCount==1 && !unrooted) {
+
+        std::vector <node*> nodes;
+        nodes.push_back(createNewNode(0));
+        int tipsAdded = 1;
+        node* newParent;
+        while (tipsAdded < ntaxa) {
+            int sibling;
+            if (pectinate)
+                sibling = nodes.size()-1;
+            else
+                sibling = gt_rand() % nodes.size();
+            node* newTip = createNewNode(tipsAdded);
+            newParent = createNewNode(ntaxa + tipsAdded - 1);
+            nodes.push_back(newTip);
+            nodes.push_back(newParent);
+            tipsAdded++;            
+            newParent->left  = nodes[sibling];
+            newParent->right = newTip;            
+            if (nodes[sibling]->parent != NULL) {
+                newParent->parent = nodes[sibling]->parent;
+                if (nodes[sibling]->parent->left == nodes[sibling]) {
+                    nodes[sibling]->parent->left = newParent;
+                } else {
+                    nodes[sibling]->parent->right = newParent;
+                }
+            }
+            nodes[sibling]->parent = newParent;
+            newTip->parent         = newParent;
+        }
+        node* root = nodes[0];
+        while(root->parent != NULL) {
+            root = root->parent;
+        }
+        int rootIndex = newParent->data;
+        newParent->data = root->data;
+        root->data = rootIndex;
+
+        if (rerootTrees) {
+            int bestRerootNode = -1;
+            int bestLaunchCount = countLaunches(root);
+
+            // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
+
+
+            std::vector<node*> newNodes;
+
+            for(int i = 0; i < nodes.size(); i++) {
+
+                // printf("reroot node = %02d\t", nodes[i]->data);
+
+                node* rerootNode = nodes[i];
+
+                if (rerootNode->parent != NULL && rerootNode->parent != root) {
+                    
+                    node* newRoot = reroot(rerootNode, root, newNodes);
+
+                    int launchCount = countLaunches(newRoot);
+
+                    newNodes.clear();
+
+                    // printf("parallel launches = %d\n", launchCount);
+
+                    if (launchCount < bestLaunchCount) {
+                        bestLaunchCount = launchCount;
+                        bestRerootNode = i;
+                    }
+
+                }
+                // else {printf("doesn't change tree\n");}
+
+            }
+
+            if (bestRerootNode != -1) {
+                // printf("\nbestLaunchCount = %d, node index = %d\n\n", bestLaunchCount, bestRerootNode);
+                node* rerootNode = nodes[bestRerootNode];
+                node* oldRoot = root;
+                root = reroot(rerootNode, oldRoot, newNodes);
+            }
+
+        } 
+
+        std::stack <node *> S;
+        reverseLevelOrder(root, S);
+
+        // while (S.empty() == false) {
+        //     node* tmpNode = S.top();
+        //     std::cout << tmpNode->data << " ";
+        //     S.pop();
+        // }
+        // std::cout << std::endl;
+        // reverseLevelOrder(root, S);
+
+        // struct node *root = createNewNode(4);
+        // root->left        = createNewNode(0);
+        // root->right       = createNewNode(6);
+        // root->right->left  = createNewNode(5);
+        // root->right->right = createNewNode(3);
+        // root->right->left->left  = createNewNode(1);
+        // root->right->left->right = createNewNode(2);
+        // std::stack <node *> S;
+        // reverseLevelOrder(root, S);
+
+        // printf("launch count = %03d", countLaunches(root));
+
+        for(int op=0; op<unpartOpsCount; op++){
+            node* parent = S.top();
+            S.pop();
+            int parentIndex = parent->data;
+            int child1Index = parent->left->data;
+            int child2Index = parent->right->data;
+
+            for (int j=0; j<partitionCount; j++) {
+                int opJ = partitionCount*op + j;
+                operations[opJ*beagleOpCount+0] = parentIndex;
+                operations[opJ*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+                operations[opJ*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+                operations[opJ*beagleOpCount+3] = child1Index;
+                operations[opJ*beagleOpCount+4] = child1Index + j*edgeCount;;
+                operations[opJ*beagleOpCount+5] = child2Index;
+                operations[opJ*beagleOpCount+6] = child2Index + j*edgeCount;
+                if (partitionCount > 1) {
+                    operations[opJ*beagleOpCount+7] = j;
+                    operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
+                }
+            // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
+            //        opJ, j, parentIndex, child1Index, child2Index);
+            }
+            // printf("\n");
+        }   
+    }
+
+
     for (int i=0; i<nreps; i++){
 
         if (newDataPerRep) {
@@ -788,136 +922,6 @@ void runBeagle(int resource,
                 }
             }
         }
-
-        if (newTreePerRep && eigenCount==1 && !unrooted) {
-
-            std::vector <node*> nodes;
-            nodes.push_back(createNewNode(0));
-            int tipsAdded = 1;
-            node* newParent;
-            while (tipsAdded < ntaxa) {
-                int sibling = gt_rand() % nodes.size();
-                // int sibling = nodes.size()-1;
-                node* newTip = createNewNode(tipsAdded);
-                newParent = createNewNode(ntaxa + tipsAdded - 1);
-                nodes.push_back(newTip);
-                nodes.push_back(newParent);
-                tipsAdded++;            
-                newParent->left  = nodes[sibling];
-                newParent->right = newTip;            
-                if (nodes[sibling]->parent != NULL) {
-                    newParent->parent = nodes[sibling]->parent;
-                    if (nodes[sibling]->parent->left == nodes[sibling]) {
-                        nodes[sibling]->parent->left = newParent;
-                    } else {
-                        nodes[sibling]->parent->right = newParent;
-                    }
-                }
-                nodes[sibling]->parent = newParent;
-                newTip->parent         = newParent;
-            }
-            node* root = nodes[0];
-            while(root->parent != NULL) {
-                root = root->parent;
-            }
-            int rootIndex = newParent->data;
-            newParent->data = root->data;
-            root->data = rootIndex;
-
-            if (rerootTrees) {
-                int bestRerootNode = -1;
-                int bestLaunchCount = countLaunches(root);
-
-                // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
-
-
-                std::vector<node*> newNodes;
-
-                for(int i = 0; i < nodes.size(); i++) {
-
-                    // printf("reroot node = %02d\t", nodes[i]->data);
-
-                    node* rerootNode = nodes[i];
-
-                    if (rerootNode->parent != NULL && rerootNode->parent != root) {
-                        
-                        node* newRoot = reroot(rerootNode, root, newNodes);
-
-                        int launchCount = countLaunches(newRoot);
-
-                        newNodes.clear();
-
-                        // printf("parallel launches = %d\n", launchCount);
-
-                        if (launchCount < bestLaunchCount) {
-                            bestLaunchCount = launchCount;
-                            bestRerootNode = i;
-                        }
-
-                    }
-                    // else {printf("doesn't change tree\n");}
-
-                }
-
-                if (bestRerootNode != -1) {
-                    // printf("\nbestLaunchCount = %d, node index = %d\n\n", bestLaunchCount, bestRerootNode);
-                    node* rerootNode = nodes[bestRerootNode];
-                    node* oldRoot = root;
-                    root = reroot(rerootNode, oldRoot, newNodes);
-                }
-
-            } 
-
-            std::stack <node *> S;
-            reverseLevelOrder(root, S);
-
-            // while (S.empty() == false) {
-            //     node* tmpNode = S.top();
-            //     std::cout << tmpNode->data << " ";
-            //     S.pop();
-            // }
-            // std::cout << std::endl;
-            // reverseLevelOrder(root, S);
-
-            // struct node *root = createNewNode(4);
-            // root->left        = createNewNode(0);
-            // root->right       = createNewNode(6);
-            // root->right->left  = createNewNode(5);
-            // root->right->right = createNewNode(3);
-            // root->right->left->left  = createNewNode(1);
-            // root->right->left->right = createNewNode(2);
-            // std::stack <node *> S;
-            // reverseLevelOrder(root, S);
-
-            // printf("launch count = %03d", countLaunches(root));
-
-            for(int op=0; op<unpartOpsCount; op++){
-                node* parent = S.top();
-                S.pop();
-                int parentIndex = parent->data;
-                int child1Index = parent->left->data;
-                int child2Index = parent->right->data;
-
-                for (int j=0; j<partitionCount; j++) {
-                    int opJ = partitionCount*op + j;
-                    operations[opJ*beagleOpCount+0] = parentIndex;
-                    operations[opJ*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                    operations[opJ*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                    operations[opJ*beagleOpCount+3] = child1Index;
-                    operations[opJ*beagleOpCount+4] = child1Index + j*edgeCount;;
-                    operations[opJ*beagleOpCount+5] = child2Index;
-                    operations[opJ*beagleOpCount+6] = child2Index + j*edgeCount;
-                    if (partitionCount > 1) {
-                        operations[opJ*beagleOpCount+7] = j;
-                        operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
-                    }
-                // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
-                //        opJ, j, parentIndex, child1Index, child2Index);
-                }
-                // printf("\n");
-            }   
-        }
-
 
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
@@ -1112,13 +1116,13 @@ void runBeagle(int resource,
         // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
         // fprintf(stdout, "logL = %.5f  ", logL);
 
-			// unsigned int partialsOps = internalCount * eigenCount;
-			// unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
-			// unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
-			// unsigned long long partialsTotal = partialsSize * partialsOps;
-			// unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-			// std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
-	
+            // unsigned int partialsOps = internalCount * eigenCount;
+            // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+            // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+            // unsigned long long partialsTotal = partialsSize * partialsOps;
+            // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+            // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+    
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
             bestTimeSetPartitions = getTimeDiff(time0, time1);
@@ -1131,7 +1135,7 @@ void runBeagle(int resource,
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
 
-        if (!newDataPerRep && !newTreePerRep) {        
+        if (!newDataPerRep) {        
             if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
                 fprintf(stdout, "error: large lnL difference between reps\n");
         }
@@ -1196,7 +1200,7 @@ void runBeagle(int resource,
     int timePrecision = 6;
     int speedupPrecision = 2;
     int percentPrecision = 2;
-	std::cout << "best run: ";
+    std::cout << "best run: ";
     printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
     if (fullTiming) {
         std::cout << " setPartitions:  ";
@@ -1205,20 +1209,20 @@ void runBeagle(int resource,
         printTiming(bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision, 1, bestTimeTotal, percentPrecision);
         std::cout << " partials:   ";
         printTiming(bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, bestTimeTotal, percentPrecision);
-		unsigned int partialsOps = internalCount * eigenCount;
-		unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+        unsigned int partialsOps = internalCount * eigenCount;
+        unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
         unsigned int bytesPerPartial = 3 * (requireDoublePrecision ? 8 : 4);
         if (manualScaling) {
             flopsPerPartial++;
             bytesPerPartial += (requireDoublePrecision ? 8 : 4);
         }
         unsigned int matrixBytes = partialsOps * 2 * stateCount*stateCount*rateCategoryCount * (requireDoublePrecision ? 8 : 4);
-		unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
-		unsigned long long partialsTotal = partialsSize * partialsOps;
-		unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-		std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
-		std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
-		std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
+        unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+        unsigned long long partialsTotal = partialsSize * partialsOps;
+        unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+        std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
+        std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
+        std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);
@@ -1231,7 +1235,7 @@ void runBeagle(int resource,
     }
     std::cout << "\n";
     
-	beagleFinalizeInstance(instance);
+    beagleFinalizeInstance(instance);
 }
 
 void printFlags(long inFlags) {
@@ -1282,12 +1286,12 @@ void printResourceList() {
 }
 
 void helpMessage() {
-	std::cerr << "Usage:\n\n";
-	std::cerr << "genomictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--newtree] [--reroot] [--stdrand]\n\n";
+    std::cerr << "Usage:\n\n";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
-	std::exit(0);
+    std::exit(0);
 }
 
 void interpretCommandLineParameters(int argc, const char* argv[],
@@ -1318,22 +1322,23 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int*  partitions,
                                     bool* sitelikes,
                                     bool* newDataPerRep,
-                                    bool* newTreePerRep,
-                                    bool* rerootTrees)	{
+                                    bool* randomTree,
+                                    bool* rerootTrees,
+                                    bool* pectinate)    {
     bool expecting_stateCount = false;
-	bool expecting_ntaxa = false;
-	bool expecting_nsites = false;
-	bool expecting_rateCategoryCount = false;
-	bool expecting_nreps = false;
-	bool expecting_rsrc = false;
-	bool expecting_compactTipCount = false;
-	bool expecting_seed = false;
+    bool expecting_ntaxa = false;
+    bool expecting_nsites = false;
+    bool expecting_rateCategoryCount = false;
+    bool expecting_nreps = false;
+    bool expecting_rsrc = false;
+    bool expecting_compactTipCount = false;
+    bool expecting_seed = false;
     bool expecting_rescaleFrequency = false;
     bool expecting_eigenCount = false;
     bool expecting_partitions = false;
-	
+    
     for (unsigned i = 1; i < argc; ++i) {
-		std::string option = argv[i];
+        std::string option = argv[i];
         
         if (expecting_stateCount) {
             *stateCount = (unsigned)atoi(option.c_str());
@@ -1375,17 +1380,17 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *partitions = (unsigned)atoi(option.c_str());
             expecting_partitions = false;
         } else if (option == "--help") {
-			helpMessage();
+            helpMessage();
         } else if (option == "--resourcelist") {
             printResourceList();
         } else if (option == "--manualscale") {
             *manualScaling = true;
         } else if (option == "--autoscale") {
-        	*autoScaling = true;
+            *autoScaling = true;
         } else if (option == "--dynamicscale") {
-        	*dynamicScaling = true;
+            *dynamicScaling = true;
         } else if (option == "--doubleprecision") {
-        	*requireDoublePrecision = true;
+            *requireDoublePrecision = true;
         } else if (option == "--states") {
             expecting_stateCount = true;
         } else if (option == "--taxa") {
@@ -1407,85 +1412,87 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (option == "--full-timing") {
             *fullTiming = true;
         } else if (option == "--SSE") {
-        	*requireSSE = true;
+            *requireSSE = true;
         } else if (option == "--AVX") {
-        	*requireAVX = true;
+            *requireAVX = true;
         } else if (option == "--unrooted") {
-        	*unrooted = true;
+            *unrooted = true;
         } else if (option == "--calcderivs") {
-        	*calcderivs = true;
+            *calcderivs = true;
         } else if (option == "--logscalers") {
-        	*logscalers = true;
+            *logscalers = true;
         } else if (option == "--eigencount") {
-        	expecting_eigenCount = true;
+            expecting_eigenCount = true;
         } else if (option == "--eigencomplex") {
-        	*eigencomplex = true;
+            *eigencomplex = true;
         } else if (option == "--ievectrans") {
-        	*ievectrans = true;
+            *ievectrans = true;
         } else if (option == "--setmatrix") {
-        	*setmatrix = true;
+            *setmatrix = true;
         } else if (option == "--opencl") {
-        	*opencl = true;
+            *opencl = true;
         } else if (option == "--partitions") {
             expecting_partitions = true;
         } else if (option == "--sitelikes") {
             *sitelikes = true;
         } else if (option == "--newdata") {
             *newDataPerRep = true;
-        } else if (option == "--newtree") {
-            *newTreePerRep = true;
+        } else if (option == "--randomtree") {
+            *randomTree = true;
         } else if (option == "--stdrand") {
             useStdlibRand = true;
         } else if (option == "--reroot") {
             *rerootTrees = true;
+        } else if (option == "--pectinate") {
+            *pectinate = true;
         } else {
-			std::string msg("Unknown command line parameter \"");
-			msg.append(option);			
-			abort(msg.c_str());
+            std::string msg("Unknown command line parameter \"");
+            msg.append(option);         
+            abort(msg.c_str());
         }
     }
     
-	if (expecting_stateCount)
-		abort("read last command line option without finding value associated with --states");
+    if (expecting_stateCount)
+        abort("read last command line option without finding value associated with --states");
     
-	if (expecting_ntaxa)
-		abort("read last command line option without finding value associated with --taxa");
+    if (expecting_ntaxa)
+        abort("read last command line option without finding value associated with --taxa");
     
-	if (expecting_nsites)
-		abort("read last command line option without finding value associated with --sites");
-	
-	if (expecting_rateCategoryCount)
-		abort("read last command line option without finding value associated with --rates");
+    if (expecting_nsites)
+        abort("read last command line option without finding value associated with --sites");
+    
+    if (expecting_rateCategoryCount)
+        abort("read last command line option without finding value associated with --rates");
 
-	if (expecting_rsrc)
-		abort("read last command line option without finding value associated with --rsrc");
+    if (expecting_rsrc)
+        abort("read last command line option without finding value associated with --rsrc");
     
-	if (expecting_nreps)
-		abort("read last command line option without finding value associated with --reps");
+    if (expecting_nreps)
+        abort("read last command line option without finding value associated with --reps");
     
-	if (expecting_seed)
-		abort("read last command line option without finding value associated with --seed");
+    if (expecting_seed)
+        abort("read last command line option without finding value associated with --seed");
     
-	if (expecting_rescaleFrequency)
-		abort("read last command line option without finding value associated with --rescale-frequency");
+    if (expecting_rescaleFrequency)
+        abort("read last command line option without finding value associated with --rescale-frequency");
 
-	if (expecting_compactTipCount)
-		abort("read last command line option without finding value associated with --compact-tips");
+    if (expecting_compactTipCount)
+        abort("read last command line option without finding value associated with --compact-tips");
 
     if (expecting_eigenCount)
-		abort("read last command line option without finding value associated with --eigencount");
+        abort("read last command line option without finding value associated with --eigencount");
 
     if (expecting_partitions)
         abort("read last command line option without finding value associated with --partitions");
 
-	if (*stateCount < 2)
-		abort("invalid number of states supplied on the command line");
+    if (*stateCount < 2)
+        abort("invalid number of states supplied on the command line");
         
-	if (*ntaxa < 2)
-		abort("invalid number of taxa supplied on the command line");
+    if (*ntaxa < 2)
+        abort("invalid number of taxa supplied on the command line");
       
-	if (*nsites < 1)
-		abort("invalid number of sites supplied on the command line");
+    if (*nsites < 1)
+        abort("invalid number of sites supplied on the command line");
     
     if (*rateCategoryCount < 1)
         abort("invalid number of rates supplied on the command line");
@@ -1514,8 +1521,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*partitions < 1 || *partitions > *nsites)
         abort("invalid number for partitions supplied on the command line");
 
-    if (*newTreePerRep && (*eigenCount!=1 || *unrooted))
-        abort("new tree topology per rep can only be used with eigencount=1 and unrooted trees");
+    if (*randomTree && (*eigenCount!=1 || *unrooted))
+        abort("random tree topology can only be used with eigencount=1 and unrooted trees");
 }
 
 int main( int argc, const char* argv[] )
@@ -1544,8 +1551,9 @@ int main( int argc, const char* argv[] )
     bool sitelikes = false;
     int partitions = 1;
     bool newDataPerRep = false;
-    bool newTreePerRep = false;
+    bool randomTree = false;
     bool rerootTrees = false;
+    bool pectinate = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -1561,9 +1569,9 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &newTreePerRep, &rerootTrees);
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate);
     
-	std::cout << "\nSimulating genomic ";
+    std::cout << "\nSimulating genomic ";
     if (stateCount == 4)
         std::cout << "DNA";
     else
@@ -1607,8 +1615,9 @@ int main( int argc, const char* argv[] )
                           partitions,
                           sitelikes,
                           newDataPerRep,
-                          newTreePerRep,
-                          rerootTrees);
+                          randomTree,
+                          rerootTrees,
+                          pectinate);
             }
         }
     } else {

@@ -67,7 +67,7 @@
 		643E19711214B5DB00B7E5A1 /* libhmsbeagle.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */; };
 		643E19721214B5E600B7E5A1 /* oddstatetest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD412149EC700C76EFB /* oddstatetest.cpp */; };
 		643E19851214B64C00B7E5A1 /* libhmsbeagle.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6407BA0F1211EFF800BA8C93 /* libhmsbeagle.dylib */; };
-		643E19861214B65F00B7E5A1 /* genomictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD212149EB500C76EFB /* genomictest.cpp */; };
+		643E19861214B65F00B7E5A1 /* synthetictest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020BD212149EB500C76EFB /* synthetictest.cpp */; };
 		64859C7013A96EA100BFDE68 /* GPUImplHelper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7012149DC300C76EFB /* GPUImplHelper.cpp */; };
 		64859C7C13A96F7600BFDE68 /* GPUInterfaceOpenCL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7E12149E2E00C76EFB /* GPUInterfaceOpenCL.cpp */; };
 		64859C7D13A96F8500BFDE68 /* OpenCLPlugin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 64020B7F12149E2E00C76EFB /* OpenCLPlugin.cpp */; };
@@ -248,7 +248,7 @@
 		64020B8C12149E6400C76EFB /* beagle_BeagleJNIWrapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = beagle_BeagleJNIWrapper.h; sourceTree = "<group>"; };
 		64020BD012149EA500C76EFB /* complextest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = complextest.cpp; path = complextest/complextest.cpp; sourceTree = "<group>"; };
 		64020BD112149EAD00C76EFB /* fourtaxon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fourtaxon.cpp; path = fourtaxon/fourtaxon.cpp; sourceTree = "<group>"; };
-		64020BD212149EB500C76EFB /* genomictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = genomictest.cpp; path = genomictest/genomictest.cpp; sourceTree = "<group>"; };
+		64020BD212149EB500C76EFB /* synthetictest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = synthetictest.cpp; path = synthetictest/synthetictest.cpp; sourceTree = "<group>"; };
 		64020BD312149EBE00C76EFB /* matrixtest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = matrixtest.cpp; path = matrixtest/matrixtest.cpp; sourceTree = "<group>"; };
 		64020BD412149EC700C76EFB /* oddstatetest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = oddstatetest.cpp; path = oddstatetest/oddstatetest.cpp; sourceTree = "<group>"; };
 		64020BD512149ED900C76EFB /* tinytest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinytest.cpp; path = tinytest/tinytest.cpp; sourceTree = "<group>"; };
@@ -293,7 +293,7 @@
 		643E19411214B4AA00B7E5A1 /* fourtaxon */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = fourtaxon; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E19571214B54600B7E5A1 /* matrixtest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = matrixtest; sourceTree = BUILT_PRODUCTS_DIR; };
 		643E196B1214B5D300B7E5A1 /* oddstatetest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = oddstatetest; sourceTree = BUILT_PRODUCTS_DIR; };
-		643E197F1214B63D00B7E5A1 /* genomictest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = genomictest; sourceTree = BUILT_PRODUCTS_DIR; };
+		643E197F1214B63D00B7E5A1 /* synthetictest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = synthetictest; sourceTree = BUILT_PRODUCTS_DIR; };
 		646A84BB1210956C00F88378 /* aminclude.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = aminclude.am; sourceTree = "<group>"; };
 		646A84BC1210956C00F88378 /* autogen.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = autogen.sh; sourceTree = "<group>"; };
 		646A84BE1210956C00F88378 /* configure.ac */ = {isa = PBXFileReference; lastKnownFileType = text; path = configure.ac; sourceTree = "<group>"; };
@@ -307,8 +307,8 @@
 		646A84CC1210963800F88378 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile.am; sourceTree = "<group>"; };
 		64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "libhmsbeagle-opencl.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		64859C8413A9717E00BFDE68 /* OpenCL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenCL.framework; path = /System/Library/Frameworks/OpenCL.framework; sourceTree = "<absolute>"; };
-		64B8F97413456B9E00516F2B /* linalg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = linalg.h; path = genomictest/linalg.h; sourceTree = "<group>"; };
-		64B8F97513456B9E00516F2B /* linalg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = linalg.cpp; path = genomictest/linalg.cpp; sourceTree = "<group>"; };
+		64B8F97413456B9E00516F2B /* linalg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = linalg.h; path = synthetictest/linalg.h; sourceTree = "<group>"; };
+		64B8F97513456B9E00516F2B /* linalg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = linalg.cpp; path = synthetictest/linalg.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -464,7 +464,7 @@
 				643E19411214B4AA00B7E5A1 /* fourtaxon */,
 				643E19571214B54600B7E5A1 /* matrixtest */,
 				643E196B1214B5D300B7E5A1 /* oddstatetest */,
-				643E197F1214B63D00B7E5A1 /* genomictest */,
+				643E197F1214B63D00B7E5A1 /* synthetictest */,
 				64859C7913A96EA100BFDE68 /* libhmsbeagle-opencl.dylib */,
 			);
 			name = Products;
@@ -601,7 +601,7 @@
 		6425C84112108DAD00E7ED58 /* examples */ = {
 			isa = PBXGroup;
 			children = (
-				64B8F97313456B7B00516F2B /* genomictest */,
+				64B8F97313456B7B00516F2B /* synthetictest */,
 				64020BD012149EA500C76EFB /* complextest.cpp */,
 				6435614113256BDE008D7357 /* fourtaxon.h */,
 				64020BD112149EAD00C76EFB /* fourtaxon.cpp */,
@@ -746,14 +746,14 @@
 			);
 			sourceTree = "<group>";
 		};
-		64B8F97313456B7B00516F2B /* genomictest */ = {
+		64B8F97313456B7B00516F2B /* synthetictest */ = {
 			isa = PBXGroup;
 			children = (
 				64B8F97413456B9E00516F2B /* linalg.h */,
 				64B8F97513456B9E00516F2B /* linalg.cpp */,
-				64020BD212149EB500C76EFB /* genomictest.cpp */,
+				64020BD212149EB500C76EFB /* synthetictest.cpp */,
 			);
-			name = genomictest;
+			name = synthetictest;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -998,9 +998,9 @@
 			productReference = 643E196B1214B5D300B7E5A1 /* oddstatetest */;
 			productType = "com.apple.product-type.tool";
 		};
-		643E197E1214B63D00B7E5A1 /* genomictest */ = {
+		643E197E1214B63D00B7E5A1 /* synthetictest */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 643E198B1214B6A900B7E5A1 /* Build configuration list for PBXNativeTarget "genomictest" */;
+			buildConfigurationList = 643E198B1214B6A900B7E5A1 /* Build configuration list for PBXNativeTarget "synthetictest" */;
 			buildPhases = (
 				643E197C1214B63D00B7E5A1 /* Sources */,
 				643E197D1214B63D00B7E5A1 /* Frameworks */,
@@ -1010,9 +1010,9 @@
 			dependencies = (
 				643E19841214B64600B7E5A1 /* PBXTargetDependency */,
 			);
-			name = genomictest;
-			productName = genomictest;
-			productReference = 643E197F1214B63D00B7E5A1 /* genomictest */;
+			name = synthetictest;
+			productName = synthetictest;
+			productReference = 643E197F1214B63D00B7E5A1 /* synthetictest */;
 			productType = "com.apple.product-type.tool";
 		};
 		64859C6B13A96EA100BFDE68 /* hmsbeagle-opencl */ = {
@@ -1063,7 +1063,7 @@
 				6407BA0E1211EFF800BA8C93 /* hmsbeagle */,
 				643E19281214B3D800B7E5A1 /* complextest */,
 				643E19401214B4AA00B7E5A1 /* fourtaxon */,
-				643E197E1214B63D00B7E5A1 /* genomictest */,
+				643E197E1214B63D00B7E5A1 /* synthetictest */,
 				643E19561214B54600B7E5A1 /* matrixtest */,
 				643E196A1214B5D300B7E5A1 /* oddstatetest */,
 				6407BA721211F38B00BA8C93 /* tinytest */,
@@ -1212,7 +1212,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				643E19861214B65F00B7E5A1 /* genomictest.cpp in Sources */,
+				643E19861214B65F00B7E5A1 /* synthetictest.cpp in Sources */,
 				64B8F97613456B9E00516F2B /* linalg.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1516,14 +1516,14 @@
 		643E19811214B63E00B7E5A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				PRODUCT_NAME = genomictest;
+				PRODUCT_NAME = synthetictest;
 			};
 			name = Debug;
 		};
 		643E19821214B63E00B7E5A1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				PRODUCT_NAME = genomictest;
+				PRODUCT_NAME = synthetictest;
 			};
 			name = Release;
 		};
@@ -1747,7 +1747,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		643E198B1214B6A900B7E5A1 /* Build configuration list for PBXNativeTarget "genomictest" */ = {
+		643E198B1214B6A900B7E5A1 /* Build configuration list for PBXNativeTarget "synthetictest" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				643E19811214B63E00B7E5A1 /* Debug */,

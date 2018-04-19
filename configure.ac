@@ -414,7 +414,7 @@ AC_CONFIG_FILES([examples/tinytest/Makefile])
 AC_CONFIG_FILES([examples/complextest/Makefile])
 AC_CONFIG_FILES([examples/oddstatetest/Makefile])
 AC_CONFIG_FILES([examples/fourtaxon/Makefile])
-AC_CONFIG_FILES([examples/genomictest/Makefile])
+AC_CONFIG_FILES([examples/synthetictest/Makefile])
 AC_CONFIG_FILES([examples/matrixtest/Makefile])
 AC_OUTPUT
 

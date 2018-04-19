@@ -7,7 +7,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhmsbeagle", "libhmsbeagl
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tinytest", "tinytest\tinytest.vcxproj", "{936EE92A-211E-41BD-82CF-97CBEDA684A8}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "genomictest", "genomictest\genomictest.vcxproj", "{1FF39E42-1866-4694-99E7-17928F5E7DA3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "synthetictest", "synthetictest\synthetictest.vcxproj", "{1FF39E42-1866-4694-99E7-17928F5E7DA3}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "complextest", "complextest\complextest.vcxproj", "{29C8C8A0-D00D-4239-BAD3-06B68574A9D6}"
 EndProject

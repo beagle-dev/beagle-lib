@@ -19,9 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>genomictest</ProjectName>
+    <ProjectName>synthetictest</ProjectName>
     <ProjectGuid>{1FF39E42-1866-4694-99E7-17928F5E7DA3}</ProjectGuid>
-    <RootNamespace>genomictest</RootNamespace>
+    <RootNamespace>synthetictest</RootNamespace>
     <Keyword>Win32Proj</Keyword>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -175,8 +175,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\examples\genomictest\genomictest.cpp" />
-    <ClCompile Include="..\..\..\examples\genomictest\linalg.cpp" />
+    <ClCompile Include="..\..\..\examples\synthetictest\synthetictest.cpp" />
+    <ClCompile Include="..\..\..\examples\synthetictest\linalg.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\libhmsbeagle\libhmsbeagle.vcxproj">

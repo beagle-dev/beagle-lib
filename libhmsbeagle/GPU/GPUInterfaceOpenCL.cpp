@@ -123,7 +123,12 @@ int GPUInterface::Initialize() {
         cl_device_id* deviceIds = new cl_device_id[numDevices];
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
         for (int j=0; j<numDevices; j++) {
-            openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
+            openClDeviceId = deviceIds[j];
+            BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
+            if (deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU &&
+                deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU)
+                openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
+            openClDeviceId = NULL;
         }
         delete[] deviceIds;
     }
@@ -1179,6 +1184,11 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
                  (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
             deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU;
     }
+
+// printf("platform_string %s\n", platform_string);
+// printf("device_string %s\n", device_string);
+// printf("deviceTypeFlag = %d\n", deviceTypeFlag);
+// printf("deviceCode = %d\n", deviceCode);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceImplementationCode\n");
