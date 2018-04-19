@@ -37,6 +37,12 @@
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
 
 #include <vector>
+#include <thread>
+#include <future>
+#include <queue>
+#include <condition_variable>
+#include <mutex>
+#include <functional>
 
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
@@ -48,6 +54,7 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 256 // do not use CPU auto-threading for problems with fewer patterns
 
 namespace beagle {
 namespace cpu {
@@ -76,6 +83,11 @@ protected:
     
     int kInternalPartialsBufferCount; 
 
+    int kPartitionCount;
+    int kMaxPartitionCount;
+    bool kPartitionsInitialised;
+    bool kPatternsReordered;
+
     long kFlags;
     
     REALTYPE realtypeMin;
@@ -83,8 +95,12 @@ protected:
 
     EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* gEigenDecomposition;
 
-    double* gCategoryRates; // Kept in double-precision until multiplication by edgelength
+    double** gCategoryRates; // Kept in double-precision until multiplication by edgelength
     double* gPatternWeights;
+
+    int* gPatternPartitions;
+    int* gPatternPartitionsStartPatterns;
+    int* gPatternsNewOrder;
     
     REALTYPE** gCategoryWeights;
     REALTYPE** gStateFrequencies;
@@ -115,6 +131,28 @@ protected:
 
     REALTYPE* ones;
     REALTYPE* zeros;
+
+    struct threadData
+    {
+        std::thread t; // The thread object
+        std::queue<std::packaged_task<void()>> jobs; // The job queue
+        std::condition_variable cv; // The condition variable to wait for threads
+        std::mutex m; // Mutex used for avoiding data races
+        bool stop = false; // When set, this flag tells the thread that it should exit
+    };
+
+    int kNumThreads;
+    bool kThreadingEnabled;
+    bool kAutoPartitioningEnabled;
+    bool kAutoRootPartitioningEnabled;
+
+    threadData* gThreads;
+    int** gThreadOperations;
+    int* gThreadOpCounts;
+    int* gAutoPartitionOperations;
+    int* gAutoPartitionIndices;
+    double* gAutoPartitionOutSumLogLikelihoods;
+    std::shared_future<void>* gFutures;
 
 public:
     virtual ~BeagleCPUImpl();
@@ -176,12 +214,18 @@ public:
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
     
-    int setPatternWeights(const double* inPatternWeights);    
+    int setPatternWeights(const double* inPatternWeights); 
+
+    int setPatternPartitions(int partitionCount,
+                             const int* inPatternPartitions);
     
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers
     int setCategoryRates(const double* inCategoryRates);
+
+    int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                  const double* inCategoryRates);
 
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
@@ -217,6 +261,14 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                   const int* categoryRateIndices,
+                                                   const int* probabilityIndices,
+                                                   const int* firstDerivativeIndices,
+                                                   const int* secondDerivativeIndices,
+                                                   const double* edgeLengths,
+                                                   int count);
+
     // calculate or queue for calculation partials using an array of operations
     //
     // operations an array of triplets of indices: the two source partials and the destination
@@ -226,6 +278,9 @@ public:
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    int updatePartialsByPartition(const int* operations,
+                                  int operationCount);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -248,11 +303,23 @@ public:
 							  int count,
 							  int cumulativeScalingIndex);
 
+    int accumulateScaleFactorsByPartition(const int* scalingIndices,
+                                          int count,
+                                          int cumulativeScalingIndex,
+                                          int partitionIndex);
+
     int removeScaleFactors(const int* scalingIndices,
                            int count,
                            int cumulativeScalingIndex);
 
+    int removeScaleFactorsByPartition(const int* scalingIndices,
+                                      int count,
+                                      int cumulativeScalingIndex,
+                                      int partitionIndex);
+
     int resetScaleFactors(int cumulativeScalingIndex);
+
+    int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
 
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);    
@@ -271,6 +338,16 @@ public:
                                     int count,
                                     double* outSumLogLikelihood);
 
+    int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood);
+
     // possible nulls: firstDerivativeIndices, secondDerivativeIndices,
     //                 outFirstDerivatives, outSecondDerivatives
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
@@ -285,6 +362,24 @@ public:
                                     double* outSumLogLikelihood,
                                     double* outSumFirstDerivative,
                                     double* outSumSecondDerivative);
+
+    int calculateEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                               const int* childBufferIndices,
+                                               const int* probabilityIndices,
+                                               const int* firstDerivativeIndices,
+                                               const int* secondDerivativeIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood,
+                                               double* outSumFirstDerivativeByPartition,
+                                               double* outSumFirstDerivative,
+                                               double* outSumSecondDerivativeByPartition,
+                                               double* outSumSecondDerivative);
     
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     
@@ -298,30 +393,74 @@ public:
 	virtual const long getFlags();
 
 protected:
+    virtual int upPartials(bool byPartition,
+                           const int* operations,
+                           int operationCount,
+                           int cumulativeScalingIndex);
+
+    virtual void autoPartitionPartialsOperations(const int* operations,
+                                                 int* partitionOperations,
+                                                 int count,
+                                                 int cumulativeScaleIndex);
+
+    virtual int upPartialsByPartitionAsync(const int* operations,
+                                           int operationCount);
+
+    virtual int reorderPatternsByPartition();
+
     virtual void calcStatesStates(REALTYPE* destP,
-                                    const int* states1,
-                                    const REALTYPE* matrices1,
-                                    const int* states2,
-                                    const REALTYPE* matrices2);
+                                  const int* states1,
+                                  const REALTYPE* matrices1,
+                                  const int* states2,
+                                  const REALTYPE* matrices2,
+                                  int startPattern,
+                                  int endPattern);
 
 
     virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
                                     const REALTYPE* partials2,
-                                    const REALTYPE* matrices2);
+                                    const REALTYPE* matrices2,
+                                    int startPattern,
+                                    int endPatternd);
 
     virtual void calcPartialsPartials(REALTYPE* destP,
                                       const REALTYPE* partials1,
                                       const REALTYPE* matrices1,
                                       const REALTYPE* partials2,
-                                      const REALTYPE* matrices2);
+                                      const REALTYPE* matrices2,
+                                      int startPattern,
+                                      int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
+
+    virtual void calcRootLogLikelihoodsByPartitionAsync(const int* bufferIndices,
+                                                       const int* categoryWeightsIndices,
+                                                       const int* stateFrequenciesIndices,
+                                                       const int* cumulativeScaleIndices,
+                                                       const int* partitionIndices,
+                                                       int partitionCount,
+                                                       double* outSumLogLikelihoodByPartition);
+
+    virtual void calcRootLogLikelihoodsByAutoPartitionAsync(const int* bufferIndices,
+                                                            const int* categoryWeightsIndices,
+                                                            const int* stateFrequenciesIndices,
+                                                            const int* cumulativeScaleIndices,
+                                                            const int* partitionIndices,
+                                                            double* outSumLogLikelihoodByPartition);
+
+    virtual void calcRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition);
     
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
@@ -337,6 +476,36 @@ protected:
                                         const int stateFrequenciesIndex,
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
+
+    virtual void calcEdgeLogLikelihoodsByPartitionAsync(const int* parentBufferIndices,
+                                                        const int* childBufferIndices,
+                                                        const int* probabilityIndices,
+                                                        const int* categoryWeightsIndices,
+                                                        const int* stateFrequenciesIndices,
+                                                        const int* cumulativeScaleIndices,
+                                                        const int* partitionIndices,
+                                                        int partitionCount,
+                                                        double* outSumLogLikelihoodByPartition);
+
+    virtual void calcEdgeLogLikelihoodsByAutoPartitionAsync(
+                                                        const int* parentBufferIndices,
+                                                        const int* childBufferIndices,
+                                                        const int* probabilityIndices,
+                                                        const int* categoryWeightsIndices,
+                                                        const int* stateFrequenciesIndices,
+                                                        const int* cumulativeScaleIndices,
+                                                        const int* partitionIndices,
+                                                        double* outSumLogLikelihoodByPartition);
+
+    virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition);
 
     virtual int calcEdgeLogLikelihoodsMulti(const int* parentBufferIndices,
                                             const int* childBufferIndices,
@@ -374,21 +543,27 @@ protected:
                                               const REALTYPE *child0TransMat,
                                               const int *child1States,
                                               const REALTYPE *child1TransMat,
-                                              const REALTYPE *scaleFactors);
+                                              const REALTYPE *scaleFactors,
+                                              int startPattern,
+                                              int endPattern);
 
     virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
                                                 const int *child0States,
                                                 const REALTYPE *child0TransMat,
                                                 const REALTYPE *child1Partials,
                                                 const REALTYPE *child1TransMat,
-                                                const REALTYPE *scaleFactors);
+                                                const REALTYPE *scaleFactors,
+                                                int startPattern,
+                                                int endPattern);
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
                                             const REALTYPE *child0States,
                                             const REALTYPE *child0TransMat,
                                             const REALTYPE *child1Partials,
                                             const REALTYPE *child1TransMat,
-                                            const REALTYPE *scaleFactors);
+                                            const REALTYPE *scaleFactors,
+                                            int startPattern,
+                                            int endPattern);
     
     virtual void calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                   const REALTYPE* partials1,
@@ -401,6 +576,12 @@ protected:
     		                     REALTYPE *scaleFactors,
                                  REALTYPE *cumulativeScaleFactors,
                                  const int  fillWithOnes);
+
+    virtual void rescalePartialsByPartition(REALTYPE *destP,
+                                            REALTYPE *scaleFactors,
+                                            REALTYPE *cumulativeScaleFactors,
+                                            const int fillWithOnes,
+                                            const int partitionIndex);
     
     virtual void autoRescalePartials(REALTYPE *destP,
     		                     signed short *scaleFactors);
@@ -408,6 +589,8 @@ protected:
     virtual int getPaddedPatternsModulus();
 
     void* mallocAligned(size_t size);
+
+    void threadWaiting(threadData* tData);
 
 };
 

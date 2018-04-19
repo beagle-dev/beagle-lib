@@ -26,6 +26,7 @@ public enum BeagleFlag {
     VECTOR_SSE(1 << 11, "SSE vector computation"),
     VECTOR_NONE(1 << 12, "no vector computation"),
 
+    THREADING_CPP(1 << 30, "C++11 threading"),
     THREADING_OPENMP(1 << 13, "OpenMP threading"),
     THREADING_NONE(1 << 14, "no threading"),
 
@@ -36,7 +37,10 @@ public enum BeagleFlag {
 
     FRAMEWORK_CUDA(1 << 22, "use CUDA implementation with GPU resources"),
     FRAMEWORK_OPENCL(1 << 23, "use OpenCL implementation with CPU or GPU resources"),
-    FRAMEWORK_CPU(1 << 27, "use CPU implementation");
+    FRAMEWORK_CPU(1 << 27, "use CPU implementation"),
+
+    PARALLELOPS_STREAMS(1 << 28, "Operations in updatePartials may be assigned to separate device streams"),
+    PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;

@@ -104,26 +104,30 @@ inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Si
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesStates(float* destP,
-                                     const int* states_q,
-                                     const float* matrices_q,
-                                     const int* states_r,
-                                     const float* matrices_r) {
+                                                                      const int* states_q,
+                                                                      const float* matrices_q,
+                                                                      const int* states_r,
+                                                                      const float* matrices_r) {
 
-									 BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesStates(destP,
-                                     states_q,
-                                     matrices_q,
-                                     states_r,
-                                     matrices_r);
+  BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesStates(destP,
+                                                                states_q,
+                                                                matrices_q,
+                                                                states_r,
+                                                                matrices_r);
 
-									 }
+}
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* destP,
-                                     const int* states_q,
-                                     const double* matrices_q,
-                                     const int* states_r,
-                                     const double* matrices_r) {
+                                                                       const int* states_q,
+                                                                       const double* matrices_q,
+                                                                       const int* states_r,
+                                                                       const double* matrices_r,
+                                                                       int startPattern,
+                                                                       int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
 
 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
 
@@ -131,10 +135,10 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* d
 	V_Real *destPvec = (V_Real *)destP;
 
     for (int l = 0; l < kCategoryCount; l++) {
-
+      destPvec += startPattern*2;
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
 
             const int state_q = states_q[k];
             const int state_r = states_r[k];
@@ -145,8 +149,10 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* d
         }
 
         w += OFFSET*4;
-        if (kExtraPatterns)
+        if (kExtraPatterns) {
         	destPvec += kExtraPatterns * 2;
+        }
+        destPvec += patternDefficit * 2;
     }
 }
 
@@ -156,26 +162,31 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* d
  */
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartials(float* destP,
-                                       const int* states_q,
-                                       const float* matrices_q,
-                                       const float* partials_r,
-                                       const float* matrices_r) {
-	BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartials(
-									   destP,
-									   states_q,
-									   matrices_q,
-									   partials_r,
-									   matrices_r);
+                                                                        const int* states_q,
+                                                                        const float* matrices_q,
+                                                                        const float* partials_r,
+                                                                        const float* matrices_r) {
+
+    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartials(destP,
+    								                                                states_q,
+    								                                                matrices_q,
+    								                                                partials_r,
+    								                                                matrices_r);
+
 }
 
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartials(double* destP,
-                                       const int* states_q,
-                                       const double* matrices_q,
-                                       const double* partials_r,
-                                       const double* matrices_r) {
+                                                                         const int* states_q,
+                                                                         const double* matrices_q,
+                                                                         const double* partials_r,
+                                                                         const double* matrices_r,
+                                                                         int startPattern,
+                                                                         int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
 
     int v = 0;
     int w = 0;
@@ -185,10 +196,11 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartials(double*
 	V_Real destr_01, destr_23;
 
     for (int l = 0; l < kCategoryCount; l++) {
-
+      destPvec += startPattern*2;
+      v += startPattern*4;
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
 
             const int state_q = states_q[k];
             V_Real vp0, vp1, vp2, vp3;
@@ -213,46 +225,53 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartials(double*
         	destPvec += kExtraPatterns * 2;
         	v += kExtraPatterns * 4;
         }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
     }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartialsFixedScaling(float* destP,
-                                const int* states1,
-                                const float* __restrict matrices1,
-                                const float* __restrict partials2,
-                                const float* __restrict matrices2,
-                                const float* __restrict scaleFactors) {
-	BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartialsFixedScaling(
-									   destP,
-									   states1,
-									   matrices1,
-									   partials2,
-									   matrices2,
-									   scaleFactors);
+                                                                                    const int* states1,
+                                                                                    const float* __restrict matrices1,
+                                                                                    const float* __restrict partials2,
+                                                                                    const float* __restrict matrices2,
+                                                                                    const float* __restrict scaleFactors) {
+
+    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartialsFixedScaling(destP,
+                                                                                states1,
+                                                                                matrices1,
+                                                                                partials2,
+                                                                                matrices2,
+                                                                                scaleFactors);
+
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartialsFixedScaling(double* destP,
-                                const int* states_q,
-                                const double* __restrict matrices_q,
-                                const double* __restrict partials_r,
-                                const double* __restrict matrices_r,
-                                const double* __restrict scaleFactors) {
+                                                                                     const int* states_q,
+                                                                                     const double* __restrict matrices_q,
+                                                                                     const double* __restrict partials_r,
+                                                                                     const double* __restrict matrices_r,
+                                                                                     const double* __restrict scaleFactors,
+                                                                                     int startPattern,
+                                                                                     int endPattern) {
 
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
 
     int v = 0;
     int w = 0;
 
- 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
-	V_Real *destPvec = (V_Real *)destP;
-	V_Real destr_01, destr_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+    V_Real destr_01, destr_23;
 
     for (int l = 0; l < kCategoryCount; l++) {
-
+      destPvec += startPattern*2;
+      v += startPattern*4;
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
 
         	const V_Real scaleFactor = VEC_SPLAT(1.0/scaleFactors[k]);
 
@@ -279,6 +298,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartialsFixedSca
         	destPvec += kExtraPatterns * 2;
         	v += kExtraPatterns * 4;
         }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
     }
 }
 
@@ -298,24 +319,29 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartials(float*
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartials(double* destP,
-                                                  const double*  partials_q,
-                                                  const double*  matrices_q,
-                                                  const double*  partials_r,
-                                                  const double*  matrices_r) {
+                                                                           const double*  partials_q,
+                                                                           const double*  matrices_q,
+                                                                           const double*  partials_r,
+                                                                           const double*  matrices_r,
+                                                                           int startPattern,
+                                                                           int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
 
     int v = 0;
     int w = 0;
 
     V_Real	destq_01, destq_23, destr_01, destr_23;
- 	VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
-	V_Real *destPvec = (V_Real *)destP;
+ 	  VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+	  V_Real *destPvec = (V_Real *)destP;
 
     for (int l = 0; l < kCategoryCount; l++) {
-
+      destPvec += startPattern*2;
+      v += startPattern*4;
 		/* Load transition-probability matrices into vectors */
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
             
 #           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
@@ -400,6 +426,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartials(doubl
         	destPvec += kExtraPatterns * 2;
         	v += kExtraPatterns * 4;
         }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
     }
 }
 
@@ -422,11 +450,15 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartialsFixedSc
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(double* destP,
-		                                                        const double* partials_q,
-		                                                        const double* matrices_q,
-		                                                        const double* partials_r,
-		                                                        const double* matrices_r,
-		                                                        const double* scaleFactors) {
+		                                                                                   const double* partials_q,
+		                                                                                   const double* matrices_q,
+		                                                                                   const double* partials_r,
+		                                                                                   const double* matrices_r,
+		                                                                                   const double* scaleFactors,
+                                                                                       int startPattern,
+                                                                                       int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
 
     int v = 0;
     int w = 0;
@@ -436,11 +468,12 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
 	V_Real *destPvec = (V_Real *)destP;
 
 	for (int l = 0; l < kCategoryCount; l++) {
-
+      destPvec += startPattern*2;
+      v += startPattern*4;
 		/* Load transition-probability matrices into vectors */
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
-        for (int k = 0; k < kPatternCount; k++) {
+        for (int k = startPattern; k < endPattern; k++) {
 
 #           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
@@ -490,6 +523,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
         	destPvec += kExtraPatterns * 2;
         	v += kExtraPatterns * 4;
         }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
     }
 }
 
@@ -671,6 +706,175 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoods(cons
     return returnCode;
 }
 
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
+                                                  const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition) {
+
+    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoodsByPartition(
+                                                  parentBufferIndices,
+                                                  childBufferIndices,
+                                                  probabilityIndices,
+                                                  categoryWeightsIndices,
+                                                  stateFrequenciesIndices,
+                                                  cumulativeScaleIndices,
+                                                  partitionIndices,
+                                                  partitionCount,
+                                                  outSumLogLikelihoodByPartition);
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoodsByPartition(
+                                                  const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition) {
+
+
+
+    double* cl_p = integrationTmp;
+
+    for (int p = 0; p < partitionCount; p++) {
+        int pIndex = partitionIndices[p];
+
+        int startPattern = gPatternPartitionsStartPatterns[pIndex];
+        int endPattern = gPatternPartitionsStartPatterns[pIndex + 1];
+
+        memset(&cl_p[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(double));
+
+        const int parIndex = parentBufferIndices[p];
+        const int childIndex = childBufferIndices[p];
+        const int probIndex = probabilityIndices[p];
+        const int categoryWeightsIndex = categoryWeightsIndices[p];
+        const int stateFrequenciesIndex = stateFrequenciesIndices[p];
+        const int scalingFactorsIndex = cumulativeScaleIndices[p];
+
+        assert(parIndex >= kTipCount);
+
+        const double* cl_r = gPartials[parIndex];
+        const double* transMatrix = gTransitionMatrices[probIndex];
+        const double* wt = gCategoryWeights[categoryWeightsIndex];
+        const double* freqs = gStateFrequencies[stateFrequenciesIndex];
+
+
+        if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+
+            const int* statesChild = gTipStates[childIndex];
+
+            int w = 0;
+            V_Real *vcl_r = (V_Real *) (cl_r + startPattern * 4);
+            for(int l = 0; l < kCategoryCount; l++) {
+
+                VecUnion vu_m[OFFSET][2];
+                SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
+
+               V_Real *vcl_p = (V_Real *) (cl_p + startPattern * 4);
+
+               for(int k = startPattern; k < endPattern; k++) {
+
+                    const int stateChild = statesChild[k];
+                    V_Real vwt = VEC_SPLAT(wt[l]);
+
+                    V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
+                    *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+                    vcl_p++;
+
+                    wtdPartials = VEC_MULT(*vcl_r++, vwt);
+                    *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
+                    vcl_p++;
+                }
+               w += OFFSET*4;
+               vcl_r += 2 * kExtraPatterns;
+               vcl_r += ((kPatternCount - endPattern) + startPattern) * 2;
+            }
+        } else { // Integrate against a partial at the child
+
+            const double* cl_q = gPartials[childIndex];
+            V_Real * vcl_r = (V_Real *)  (cl_r + startPattern * 4);
+            int v = startPattern * 4;
+            int w = 0;
+
+            for(int l = 0; l < kCategoryCount; l++) {
+
+                V_Real * vcl_p = (V_Real *) (cl_p + startPattern * 4);
+
+                VecUnion vu_m[OFFSET][2];
+                SSE_PREFETCH_MATRIX(transMatrix + w, vu_m)
+
+                for(int k = startPattern; k < endPattern; k++) {
+                    V_Real vclp_01, vclp_23;
+                    V_Real vwt = VEC_SPLAT(wt[l]);
+
+                    V_Real vcl_q0, vcl_q1, vcl_q2, vcl_q3;
+                    SSE_PREFETCH_PARTIALS(vcl_q,cl_q,v);
+
+                    vclp_01 = VEC_MULT(vcl_q0, vu_m[0][0].vx);
+                    vclp_01 = VEC_MADD(vcl_q1, vu_m[1][0].vx, vclp_01);
+                    vclp_01 = VEC_MADD(vcl_q2, vu_m[2][0].vx, vclp_01);
+                    vclp_01 = VEC_MADD(vcl_q3, vu_m[3][0].vx, vclp_01);
+                    vclp_23 = VEC_MULT(vcl_q0, vu_m[0][1].vx);
+                    vclp_23 = VEC_MADD(vcl_q1, vu_m[1][1].vx, vclp_23);
+                    vclp_23 = VEC_MADD(vcl_q2, vu_m[2][1].vx, vclp_23);
+                    vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
+                    vclp_01 = VEC_MULT(vclp_01, vwt);
+                    vclp_23 = VEC_MULT(vclp_23, vwt);
+
+                    *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+                    vcl_p++;
+                    *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+                    vcl_p++;
+
+                    v += 4;
+                }
+                w += 4*OFFSET;
+                if (kExtraPatterns) {
+                    vcl_r += 2 * kExtraPatterns;
+                    v += 4 * kExtraPatterns;
+                }
+
+               vcl_r += ((kPatternCount - endPattern) + startPattern) * 2;
+               v     += ((kPatternCount - endPattern) + startPattern) * 4;
+
+            }
+        }
+
+        int u = startPattern * 4;
+        for(int k = startPattern; k < endPattern; k++) {
+            double sumOverI = 0.0;
+            for(int i = 0; i < kStateCount; i++) {
+                sumOverI += freqs[i] * cl_p[u];
+                u++;
+            }
+
+            outLogLikelihoodsTmp[k] = log(sumOverI);
+        }
+
+
+        if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+            const double* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+            for(int k=startPattern; k < endPattern; k++)
+                outLogLikelihoodsTmp[k] += scalingFactors[k];
+        }
+
+        outSumLogLikelihoodByPartition[p] = 0.0;
+        for (int i = startPattern; i < endPattern; i++) {
+            outSumLogLikelihoodByPartition[p] += outLogLikelihoodsTmp[i] * gPatternWeights[i];
+        }
+
+    }
+}
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getPaddedPatternsModulus() {

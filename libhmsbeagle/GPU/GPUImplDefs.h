@@ -40,10 +40,10 @@
 //#define FW_OPENCL_TESTING
 //#define FW_OPENCL_PROFILING
 
-//#define BEAGLE_DEBUG_FLOW
-//#define BEAGLE_DEBUG_VALUES
-//#define BEAGLE_DEBUG_SYNCH
-//#define BEAGLE_DEBUG_OPENCL_CORES
+// #define BEAGLE_DEBUG_FLOW
+// #define BEAGLE_DEBUG_VALUES
+// #define BEAGLE_DEBUG_SYNCH
+// #define BEAGLE_DEBUG_OPENCL_CORES
 
 //#define BEAGLE_MEMORY_PINNED
 //#define BEAGLE_FILL_4_STATE_SCALAR_SS
@@ -51,14 +51,16 @@
 
 // define platform/device specific implementations
 enum BeagleDeviceImplementationCodes {
-    BEAGLE_OPENCL_DEVICE_GENERIC       = 0,
-    BEAGLE_OPENCL_DEVICE_INTEL_CPU     = 1,
-    BEAGLE_OPENCL_DEVICE_INTEL_GPU     = 2,
-    BEAGLE_OPENCL_DEVICE_INTEL_MIC     = 3,
-    BEAGLE_OPENCL_DEVICE_AMD_CPU       = 4,
-    BEAGLE_OPENCL_DEVICE_AMD_GPU       = 5,
-    BEAGLE_OPENCL_DEVICE_APPLE_CPU     = 6,
-    BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU = 7
+    BEAGLE_OPENCL_DEVICE_GENERIC         = 0,
+    BEAGLE_OPENCL_DEVICE_INTEL_CPU       = 1,
+    BEAGLE_OPENCL_DEVICE_INTEL_GPU       = 2,
+    BEAGLE_OPENCL_DEVICE_INTEL_MIC       = 3,
+    BEAGLE_OPENCL_DEVICE_AMD_CPU         = 4,
+    BEAGLE_OPENCL_DEVICE_AMD_GPU         = 5,
+    BEAGLE_OPENCL_DEVICE_APPLE_CPU       = 6,
+    BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU   = 7,
+    BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU = 8,
+    BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 9,
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
@@ -90,6 +92,8 @@ enum BeagleDeviceImplementationCodes {
 
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
+    #define BEAGLE_STREAM_COUNT 1024 // max stream count
+    #define BEAGLE_MULTI_GRID_MAX  3126 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR
@@ -98,15 +102,19 @@ enum BeagleDeviceImplementationCodes {
     #define KW_LOCAL_ID_0    threadIdx.x
     #define KW_LOCAL_ID_1    threadIdx.y
     #define KW_LOCAL_ID_2    threadIdx.z
-    #define KW_LOCAL_SIZE_0  threadDim.x
+    #define KW_LOCAL_SIZE_0  blockDim.x
+    #define KW_LOCAL_SIZE_1  blockDim.y
+    #define KW_LOCAL_SIZE_2  blockDim.z
     #define KW_GROUP_ID_0    blockIdx.x
     #define KW_GROUP_ID_1    blockIdx.y
     #define KW_GROUP_ID_2    blockIdx.z
     #define KW_NUM_GROUPS_0  gridDim.x
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
-    #define KW_RESTRICT      
+    #define KW_RESTRICT      __restrict__
 #elif defined(FW_OPENCL)
+    #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
+    #define BEAGLE_MULTI_GRID_MAX  16384 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC   
     #define KW_GLOBAL_VAR    __global
@@ -116,6 +124,8 @@ enum BeagleDeviceImplementationCodes {
     #define KW_LOCAL_ID_1    get_local_id(1)
     #define KW_LOCAL_ID_2    get_local_id(2)
     #define KW_LOCAL_SIZE_0  get_local_size(0)
+    #define KW_LOCAL_SIZE_1  get_local_size(1)
+    #define KW_LOCAL_SIZE_2  get_local_size(2)
     #define KW_GROUP_ID_0    get_group_id(0)
     #define KW_GROUP_ID_1    get_group_id(1)
     #define KW_GROUP_ID_2    get_group_id(2)
@@ -350,13 +360,13 @@ enum BeagleDeviceImplementationCodes {
     #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, APPLECPU)
 #elif defined(FW_OPENCL_CPU) && (STATE_COUNT == 4)
     #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, CPU)
-#elif defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
+#elif (defined(FW_OPENCL_AMDGPU) || defined(FW_OPENCL_INTELGPU)) && (STATE_COUNT > 32)
     #define PATTERN_BLOCK_SIZE     GET4_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
 #else
     #define PATTERN_BLOCK_SIZE     GET3_VALUE(PATTERN_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
 #endif
 
-#if defined(FW_OPENCL_AMDGPU) && (STATE_COUNT > 32)
+#if (defined(FW_OPENCL_AMDGPU) || defined(FW_OPENCL_INTELGPU)) && (STATE_COUNT > 32)
     #define MATRIX_BLOCK_SIZE       GET4_VALUE(MATRIX_BLOCK_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
     #define BLOCK_PEELING_SIZE      GET4_VALUE(BLOCK_PEELING_SIZE, PREC, PADDED_STATE_COUNT, AMDGPU)
 #else
@@ -381,6 +391,9 @@ enum BeagleDeviceImplementationCodes {
 #define MULTIPLY_BLOCK_SIZE_SP           16
 #define MULTIPLY_BLOCK_SIZE_DP_APPLECPU  1
 #define MULTIPLY_BLOCK_SIZE_SP_APPLECPU  1
+#define REORDER_BLOCK_SIZE           32
+#define REORDER_BLOCK_SIZE_CPU      256
+#define REORDER_BLOCK_SIZE_APPLECPU 128
 
 #define SUM_SITES_BLOCK_SIZE    GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
 #if defined(FW_OPENCL_APPLECPU)

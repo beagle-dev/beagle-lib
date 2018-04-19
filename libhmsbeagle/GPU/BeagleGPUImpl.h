@@ -137,9 +137,55 @@ private:
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
     
+    bool kUsingMultiGrid;
+    int kNumPatternBlocks;
+    int kSitesPerBlock;
+    int kSitesPerIntegrateBlock;
+    int kSumSitesBlockSize;
+    size_t kOpOffsetsSize;
+    unsigned int kIndexOffsetPat;
+    unsigned int kIndexOffsetStates;
+    unsigned int kIndexOffsetMat;
+    unsigned int kEvecOffset;
+    unsigned int kEvalOffset;
+    unsigned int kWeightsOffset;
+    unsigned int kFrequenciesOffset;
+    GPUPtr  dPartialsPtrs;
+    // GPUPtr  dPartitionOffsets;
+    GPUPtr  dPatternsNewOrder;
+    GPUPtr  dTipOffsets;
+    GPUPtr  dTipTypes;
+    GPUPtr  dPartialsOrigin;
+    GPUPtr  dStatesOrigin;
+    GPUPtr  dStatesSortOrigin;
+    GPUPtr  dPatternWeightsSort;
+    GPUPtr* dStatesSort;
+    unsigned int* hPartialsPtrs;
+    unsigned int* hPartitionOffsets;
+    unsigned int* hIntegratePartitionOffsets;
+    unsigned int* hPartialsOffsets;
+    unsigned int* hStatesOffsets;
+    int* hTipOffsets;
+    BeagleDeviceImplementationCodes kDeviceCode;
+    long kDeviceType;
+    int kPartitionCount;
+    int kMaxPartitionCount;
+    int kPaddedPartitionBlocks;
+    int kMaxPaddedPartitionBlocks;
+    int kPaddedPartitionIntegrateBlocks;
+    int kMaxPaddedPartitionIntegrateBlocks;
+    bool kPartitionsInitialised;
+    bool kPatternsReordered;
+    int* hPatternPartitions;
+    int* hPatternPartitionsStartPatterns;
+    int* hPatternPartitionsStartBlocks;
+    int* hIntegratePartitionsStartBlocks;
+    int* hPatternsNewOrder;
+    int* hGridOpIndices;
+
     unsigned int* hPtrQueue;
     
-    double* hCategoryRates; // Can keep in double-precision
+    double** hCategoryRates; // Can keep in double-precision
 
     Real* hPatternWeightsCache;
         
@@ -157,6 +203,8 @@ private:
     
     GPUPtr* dScalingFactorsMaster;
     
+    int* hStreamIndices;
+
 public:    
     BeagleGPUImpl();
     
@@ -203,9 +251,14 @@ public:
                            const double* inCategoryWeights);
     
     int setPatternWeights(const double* inPatternWeights);
-    
+
+    int setPatternPartitions(int partitionCount,
+                             const int* inPatternPartitions);
     
     int setCategoryRates(const double* inCategoryRates);
+
+    int setCategoryRatesWithIndex(int categoryRatesIndex,
+                                  const double* inCategoryRates);
     
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
@@ -223,7 +276,7 @@ public:
     //---TODO: Epoch model---//
     ///////////////////////////
 
-	int convolveTransitionMatrices(const int* firstIndices,
+  	int convolveTransitionMatrices(const int* firstIndices,
                                    const int* secondIndices,
                                    const int* resultIndices,
                                    int matrixCount);
@@ -234,10 +287,21 @@ public:
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
+
+    int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                   const int* categoryRateIndices,
+                                                   const int* probabilityIndices,
+                                                   const int* firstDerivativeIndices,
+                                                   const int* secondDerivativeIndices,
+                                                   const double* edgeLengths,
+                                                   int count);
     
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    int updatePartialsByPartition(const int* operations,
+                                  int operationCount);
     
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
@@ -245,12 +309,24 @@ public:
     int accumulateScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
+
+    int accumulateScaleFactorsByPartition(const int* scalingIndices,
+                                          int count,
+                                          int cumulativeScalingIndex,
+                                          int partitionIndex);
     
     int removeScaleFactors(const int* scalingIndices,
                            int count,
                            int cumulativeScalingIndex);
+
+    int removeScaleFactorsByPartition(const int* scalingIndices,
+                                      int count,
+                                      int cumulativeScalingIndex,
+                                      int partitionIndex);
     
     int resetScaleFactors(int cumulativeScalingIndex);
+
+    int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
     
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);
@@ -264,6 +340,16 @@ public:
                                     const int* cumulativeScaleIndices,
                                     int count,
                                     double* outSumLogLikelihood);
+
+    int calculateRootLogLikelihoodsByPartition(const int* bufferIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood);
     
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                     const int* childBufferIndices,
@@ -278,13 +364,41 @@ public:
                                     double* outSumFirstDerivative,
                                     double* outSumSecondDerivative);
 
+    int calculateEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                               const int* childBufferIndices,
+                                               const int* probabilityIndices,
+                                               const int* firstDerivativeIndices,
+                                               const int* secondDerivativeIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood,
+                                               double* outSumFirstDerivativeByPartition,
+                                               double* outSumFirstDerivative,
+                                               double* outSumSecondDerivativeByPartition,
+                                               double* outSumSecondDerivative);
+
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 
 private:
+
     char* getInstanceName();
+
+    void  allocateMultiGridBuffers();
+
+    int  reorderPatternsByPartition();
+
+    int upPartials(bool byPartition,
+                   const int* operations,
+                   int operationCount,
+                   int cumulativeScalingIndex);
 
 };
 

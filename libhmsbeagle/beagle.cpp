@@ -51,7 +51,7 @@
 
 #define BEAGLE_VERSION  PACKAGE_VERSION
 #define BEAGLE_CITATION "Using BEAGLE library v" PACKAGE_VERSION " for accelerated, parallel likelihood evaluation\n\
-2009-2013, BEAGLE Working Group - http://beagle-lib.googlecode.com/\n\
+2009-2016, BEAGLE Working Group - https://beagle-dev.github.io/\n\
 Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
 
 typedef std::pair<int, int> IntPair;
@@ -664,6 +664,18 @@ int beagleSetPatternWeights(int instance,
     return returnValue;
 }
 
+int beagleSetPatternPartitions(int instance,
+                               int partitionCount,
+                               const int* inPatternPartitions) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setPatternPartitions(partitionCount, inPatternPartitions);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates) {
     DEBUG_START_TIME();
@@ -684,6 +696,18 @@ int beagleSetCategoryRates(int instance,
 //    catch (...) {
 //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
 //    }
+}
+
+int beagleSetCategoryRatesWithIndex(int instance,
+                                    int categoryRatesIndex,
+                                    const double* inCategoryRates) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setCategoryRatesWithIndex(categoryRatesIndex, inCategoryRates);
+    DEBUG_END_TIME();
+    return returnValue;
 }
 
 int beagleSetTransitionMatrix(int instance,
@@ -799,6 +823,26 @@ int beagleUpdateTransitionMatrices(int instance,
 //    }
 }
 
+int beagleUpdateTransitionMatricesWithMultipleModels(int instance,
+                                                     const int* eigenIndices,
+                                                     const int* categoryRateIndices,
+                                                     const int* probabilityIndices,
+                                                     const int* firstDerivativeIndices,
+                                                     const int* secondDerivativeIndices,
+                                                     const double* edgeLengths,
+                                                     int count) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updateTransitionMatricesWithMultipleModels(eigenIndices, categoryRateIndices,
+                                                                                 probabilityIndices, firstDerivativeIndices,
+                                                                                 secondDerivativeIndices, edgeLengths, count);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
+
 int beagleUpdatePartials(const int instance,
                    const BeagleOperation* operations,
                    int operationCount,
@@ -821,6 +865,18 @@ int beagleUpdatePartials(const int instance,
 //    catch (...) {
 //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
 //    }
+}
+
+int beagleUpdatePartialsByPartition(const int instance,
+                                    const BeagleOperationByPartition* operations,
+                                    int operationCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updatePartialsByPartition((const int*)operations, operationCount);
+    DEBUG_END_TIME();
+    return returnValue;
 }
 
 int beagleWaitForPartials(const int instance,
@@ -871,6 +927,31 @@ int beagleAccumulateScaleFactors(int instance,
 //    }
 }
 
+int beagleAccumulateScaleFactorsByPartition(int instance,
+                                            const int* scalingIndices,
+                                            int count,
+                                            int cumulativeScalingIndex,
+                                            int partitionIndex) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->accumulateScaleFactorsByPartition(scalingIndices, count, cumulativeScalingIndex, partitionIndex);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+}
+
 int beagleRemoveScaleFactors(int instance,
 						   const int* scalingIndices,
 						   int count,
@@ -895,6 +976,31 @@ int beagleRemoveScaleFactors(int instance,
 //    }
 }
 
+int beagleRemoveScaleFactorsByPartition(int instance,
+                                        const int* scalingIndices,
+                                        int count,
+                                        int cumulativeScalingIndex,
+                                        int partitionIndex) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->removeScaleFactorsByPartition(scalingIndices, count, cumulativeScalingIndex, partitionIndex);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+}
+
 int beagleResetScaleFactors(int instance,
                       int cumulativeScalingIndex) {
     DEBUG_START_TIME();
@@ -903,6 +1009,29 @@ int beagleResetScaleFactors(int instance,
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->resetScaleFactors(cumulativeScalingIndex);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+}
+
+int beagleResetScaleFactorsByPartition(int instance,
+                                       int cumulativeScalingIndex,
+                                       int partitionIndex) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->resetScaleFactorsByPartition(cumulativeScalingIndex, partitionIndex);
         DEBUG_END_TIME();
         return returnValue;
 //    }
@@ -996,6 +1125,46 @@ int beagleCalculateRootLogLikelihoods(int instance,
 
 }
 
+int beagleCalculateRootLogLikelihoodsByPartition(int instance,
+                                                 const int* bufferIndices,
+                                                 const int* categoryWeightsIndices,
+                                                 const int* stateFrequenciesIndices,
+                                                 const int* cumulativeScaleIndices,
+                                                 const int* partitionIndices,
+                                                 int partitionCount,
+                                                 int count,
+                                                 double* outSumLogLikelihoodByPartition,
+                                                 double* outSumLogLikelihood) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->calculateRootLogLikelihoodsByPartition(bufferIndices,
+                                                                                 categoryWeightsIndices,
+                                                                                 stateFrequenciesIndices,
+                                                                                 cumulativeScaleIndices,
+                                                                                 partitionIndices,
+                                                                                 partitionCount,
+                                                                                 count,
+                                                                                 outSumLogLikelihoodByPartition,
+                                                                                 outSumLogLikelihood);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+
+
+}
+
 int beagleCalculateEdgeLogLikelihoods(int instance,
                                       const int* parentBufferIndices,
                                       const int* childBufferIndices,
@@ -1022,6 +1191,61 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                                            count,
                                                            outSumLogLikelihood, outSumFirstDerivative,
                                                            outSumSecondDerivative);
+        DEBUG_END_TIME();
+        return returnValue;
+//    }
+//    catch (std::bad_alloc &) {
+//        return BEAGLE_ERROR_OUT_OF_MEMORY;
+//    }
+//    catch (std::out_of_range &) {
+//        return BEAGLE_ERROR_OUT_OF_RANGE;
+//    }
+//    catch (...) {
+//        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+//    }
+}
+
+int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
+                                                 const int* parentBufferIndices,
+                                                 const int* childBufferIndices,
+                                                 const int* probabilityIndices,
+                                                 const int* firstDerivativeIndices,
+                                                 const int* secondDerivativeIndices,
+                                                 const int* categoryWeightsIndices,
+                                                 const int* stateFrequenciesIndices,
+                                                 const int* cumulativeScaleIndices,
+                                                 const int* partitionIndices,
+                                                 int partitionCount,
+                                                 int count,
+                                                 double* outSumLogLikelihoodByPartition,
+                                                 double* outSumLogLikelihood,
+                                                 double* outSumFirstDerivativeByPartition,
+                                                 double* outSumFirstDerivative,
+                                                 double* outSumSecondDerivativeByPartition,
+                                                 double* outSumSecondDerivative) {
+    DEBUG_START_TIME();
+//    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->calculateEdgeLogLikelihoodsByPartition(
+                                                        parentBufferIndices,
+                                                        childBufferIndices,
+                                                        probabilityIndices,
+                                                        firstDerivativeIndices,
+                                                        secondDerivativeIndices,
+                                                        categoryWeightsIndices,
+                                                        stateFrequenciesIndices,
+                                                        cumulativeScaleIndices,
+                                                        partitionIndices,
+                                                        partitionCount,
+                                                        count,
+                                                        outSumLogLikelihoodByPartition,
+                                                        outSumLogLikelihood,
+                                                        outSumFirstDerivativeByPartition,
+                                                        outSumFirstDerivative,
+                                                        outSumSecondDerivativeByPartition,
+                                                        outSumSecondDerivative);
         DEBUG_END_TIME();
         return returnValue;
 //    }

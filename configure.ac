@@ -1,8 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 2.1.2, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.0.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -O3"}
+: ${CXXFLAGS=" -std=c++11 -O3"}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
@@ -11,9 +11,9 @@ dnl -----------------------------------------------
 GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
-GENERIC_MAJOR_VERSION=2
-GENERIC_MINOR_VERSION=1
-GENERIC_MICRO_VERSION=2
+GENERIC_MAJOR_VERSION=3
+GENERIC_MINOR_VERSION=0
+GENERIC_MICRO_VERSION=0
 
 #API version
 GENERIC_API_VERSION=1
@@ -23,7 +23,7 @@ AC_SUBST(GENERIC_API_VERSION)
 GENERIC_REVISION_VERSION=$GENERIC_MINOR_VERSION
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=2:$GENERIC_REVISION_VERSION:1
+GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:2
 #
 #             current:revision:age
 #                |        |     |
@@ -127,6 +127,18 @@ OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
 
 # ------------------------------------------------------------------------------
+# Setup C++11 threads 
+# ------------------------------------------------------------------------------
+dnl Check for gcc
+case $host_os in
+*linux*)
+  if test x$GCC = xyes
+  then
+    AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
+  fi
+esac
+
+# ------------------------------------------------------------------------------
 # Setup OpenCL
 # ------------------------------------------------------------------------------
 #AX_OPENCL([C++])
@@ -214,12 +226,15 @@ if test x$DEBUG = xtrue
 then
    NVCCFLAGS="-g"
 else
-   NVCCFLAGS="-O3"
+   NVCCFLAGS="-O3 -arch compute_32"
 fi
 if test x$EMULATION = xtrue
 then
    NVCCFLAGS+=" -deviceemu"
 fi
+
+# do not warn about deprecated GPU architectures
+NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
 
 # ------------------------------------------------------------------------------
 # Setup SSE
