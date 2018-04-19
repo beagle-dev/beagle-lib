@@ -187,6 +187,12 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     free(firstDerivTmp);
     free(secondDerivTmp);
 
+    free(cLikelihoodTmp);
+    free(grandDenominatorDerivTmp);
+    free(grandNumeratorUpperBoundDerivTmp);
+    free(grandNumeratorLowerBoundDerivTmp);
+    free(grandNumeratorDerivTmp);
+
     free(outLogLikelihoodsTmp);
     free(outFirstDerivativesTmp);
     free(outSecondDerivativesTmp);
