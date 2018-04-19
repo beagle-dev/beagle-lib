@@ -987,14 +987,10 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
                 PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                 PREFETCH_MATRIX(0, firstDerivMatrix, 0);
                 DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+                PREFETCH_PARTIALS(1, preOrderPartial, patternOffset);
 
-                REALTYPE numerator =
-                        sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
-                        + sum02 * preOrderPartial[patternOffset + 2] +
-                        sum03 * preOrderPartial[patternOffset + 3];
-                REALTYPE denominator =
-                        p00 * preOrderPartial[patternOffset] + p01 * preOrderPartial[patternOffset + 1]
-                        + p02 * preOrderPartial[patternOffset + 2] + p03 * preOrderPartial[patternOffset + 3];
+                REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
+                REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
 
                 if (numerator != 0.0) {
                     if (denominator == 0.0) {
@@ -1043,15 +1039,11 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
                     PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                     PREFETCH_MATRIX(0, secondDerivMatrix, 0);
                     DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+                    PREFETCH_PARTIALS(1, preOrderPartial,
+                                      patternOffset); //save preOrder partial into p10, p11, p12, p13
 
-                    REALTYPE numerator =
-                            sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
-                            + sum02 * preOrderPartial[patternOffset + 2] +
-                            sum03 * preOrderPartial[patternOffset + 3];
-                    REALTYPE denominator =
-                            p00 * preOrderPartial[patternOffset] + p01 * preOrderPartial[patternOffset + 1]
-                            + p02 * preOrderPartial[patternOffset + 2] +
-                            p03 * preOrderPartial[patternOffset + 3];
+                    REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
+                    REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
 
                     if (numerator != 0.0) {
                         if (denominator == 0.0) {
