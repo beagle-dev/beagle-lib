@@ -347,6 +347,7 @@ jnilibext=no
 
 if test "x$with_jdk" != "xno"
 then
+    JAVAC=javac
     AC_PROG_JAVAC
     if test "x$JAVAC" != "x"
     then  
