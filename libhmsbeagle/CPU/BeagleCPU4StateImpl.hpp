@@ -983,8 +983,10 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
 
 
             for (int pattern = startPattern; pattern < endPattern; pattern++) {
-                const int patternOffset = patternIndex * 4;
+
                 const int patternIndex = category * kPatternCount + pattern;
+                const int patternOffset = patternIndex * 4;
+
                 PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                 PREFETCH_MATRIX(0, firstDerivMatrix, 0);
                 DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
