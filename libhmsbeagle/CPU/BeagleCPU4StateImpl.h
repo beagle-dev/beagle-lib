@@ -109,6 +109,14 @@ public:
                                          int startPattern,
                                          int endPattern);
 
+    virtual void calcPrePartialsStates(REALTYPE* destP,
+                                       const REALTYPE* partials1,
+                                       const REALTYPE* matrices1,
+                                       const int* states2,
+                                       const REALTYPE* matrices2,
+                                       int startPattern,
+                                       int endPattern);
+
 	virtual int calcEdgeDerivative(bool byPartition,
 								   const int *postBufferIndices,
 								   const int *preBufferIndices,

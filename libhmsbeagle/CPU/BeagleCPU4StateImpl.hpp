@@ -80,6 +80,13 @@
     p##num##2 = partials[v + 2]; \
     p##num##3 = partials[v + 3];
 
+#define PREFETCH_MATRIX_COLUMN(num,matrices,v) \
+    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
+    sum##num##0 = matrices[v    ]; \
+    sum##num##1 = matrices[v + OFFSET*1]; \
+    sum##num##2 = matrices[v + OFFSET*2]; \
+    sum##num##3 = matrices[v + OFFSET*3];
+
 #define PREFETCH_MATRIX_TRANSPOSE(num,matrices,w) \
     REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
            m##num##10, m##num##11, m##num##12, m##num##13, \
@@ -381,6 +388,44 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* 
 
             // Final results
             destP[u    ] = sum10;
+            destP[u + 1] = sum11;
+            destP[u + 2] = sum12;
+            destP[u + 3] = sum13;
+
+            u += 4;
+
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* destP,
+                                                                    const REALTYPE* partials1,
+                                                                    const REALTYPE* matrices1,
+                                                                    const int* states2,
+                                                                    const REALTYPE* matrices2,
+                                                                    int startPattern,
+                                                                    int endPattern) {
+
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l * 4 * kPaddedPatternCount + 4 * startPattern;
+        int w = l * 4 * OFFSET;
+
+        PREFETCH_MATRIX_TRANSPOSE(1, matrices1, w); //m100, m101, ..., m133
+        for (int k = startPattern; k < endPattern; k++) {
+            PREFETCH_PARTIALS(1, partials1, u); // p10, p11, p12, p13
+
+            const int state2 = states2[k];
+            PREFETCH_MATRIX_COLUMN(2, matrices2, state2); // sum20, sum21, sum22, sum23
+
+            DO_SCHUR_PRODUCT(1, 1, 2); // reWrites p10, p11, p12, p13
+
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+
+            // Final results
+            destP[u] = sum10;
             destP[u + 1] = sum11;
             destP[u + 2] = sum12;
             destP[u + 3] = sum13;
@@ -1035,8 +1080,8 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
                 const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
 
                 for (int pattern = startPattern; pattern < endPattern; pattern++) {
-                    const int patternOffset = patternIndex * 4;
                     const int patternIndex = category * kPatternCount + pattern;
+                    const int patternOffset = patternIndex * 4;
                     PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                     PREFETCH_MATRIX(0, secondDerivMatrix, 0);
                     DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
