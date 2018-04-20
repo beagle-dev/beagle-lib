@@ -390,8 +390,8 @@ int main( int argc, const char* argv[] )
 
     fprintf(stdout, "logL = %.5f (R = -18.04619478977292)\n\n", logL);
 
-    int postBufferIndices[4] = {0, 1, 2, 3};
-    int preBufferIndices[4] = {9, 8, 7, 6};
+    int postBufferIndices[4] = {1, 0, 2, 3};
+    int preBufferIndices[4] = {8, 9, 7, 6};
     int firstDervIndices[4] = {4, 4, 4, 4};
     int secondDervIndices[4] = {5, 5, 5, 5};
     int categoryRatesIndex = categoryWeightsIndex;
@@ -402,7 +402,7 @@ int main( int argc, const char* argv[] )
                                   rootIndex, firstDervIndices, secondDervIndices,
                                   categoryWeightsIndex, categoryRatesIndex,
                                   stateFrequencyIndex, &cumulativeScalingIndex,
-                                  4, gradient, diagonalHessian);
+                                  4, gradient, NULL);
 
     std::cout<<"Gradient: \n";
     for (int i = 0; i < 4; i++) {
@@ -412,13 +412,13 @@ int main( int argc, const char* argv[] )
         std::cout<<std::endl;
     }
 
-    std::cout<<"Diagonal Hessian: \n";
-    for (int i = 0; i < 4; i++) {
-        for (int m = 0; m < nPatterns; m++) {
-            std::cout<<diagonalHessian[i * nPatterns + m]<<"  ";
-        }
-        std::cout<<std::endl;
-    }
+//    std::cout<<"Diagonal Hessian: \n";
+//    for (int i = 0; i < 4; i++) {
+//        for (int m = 0; m < nPatterns; m++) {
+//            std::cout<<diagonalHessian[i * nPatterns + m]<<"  ";
+//        }
+//        std::cout<<std::endl;
+//    }
 
 
 //  print pre-order partials and edge length log-likelihood gradient to screen
