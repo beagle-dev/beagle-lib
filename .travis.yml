@@ -44,6 +44,14 @@ install:
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
 
+after_failure:
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/synthetictest/test-suite.log
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/tinytest/test-suite.log
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/oddstatetest/test-suite.log
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/complextest/test-suite.log
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/fourtaxon/test-suite.log
+ - cat /home/travis/build/beagle-dev/beagle-lib/examples/matrixtest/test-suite.log 
+
 # Build steps
 script:
   - ./autogen.sh
