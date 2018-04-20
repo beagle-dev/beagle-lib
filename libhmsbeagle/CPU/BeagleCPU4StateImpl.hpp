@@ -976,7 +976,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
         REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
 
         const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndices[nodeNum]];
-        int patternIndex = 0;
+
         for (int category = 0; category < kCategoryCount; category++) {
 //            const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix;
             const REALTYPE weightedRate = wt[category] * rt[category];
@@ -984,6 +984,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
 
             for (int pattern = startPattern; pattern < endPattern; pattern++) {
                 const int patternOffset = patternIndex * 4;
+                const int patternIndex = category * kPatternCount + pattern;
                 PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                 PREFETCH_MATRIX(0, firstDerivMatrix, 0);
                 DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
@@ -1004,10 +1005,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
                                 weightedRate * cLikelihoodTmp[patternIndex] / denominator * numerator;
                     }
                 }
-
-                patternIndex++;
             }
-            patternIndex += kExtraPatterns;
         }
 
         for (int pattern = startPattern; pattern < endPattern; pattern++) {
@@ -1029,13 +1027,14 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
             REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
 
             const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndices[nodeNum]];
-            int patternIndex = 0;
+
             for (int category = 0; category < kCategoryCount; category++) {
 
                 const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
 
                 for (int pattern = startPattern; pattern < endPattern; pattern++) {
                     const int patternOffset = patternIndex * 4;
+                    const int patternIndex = category * kPatternCount + pattern;
                     PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
                     PREFETCH_MATRIX(0, secondDerivMatrix, 0);
                     DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
@@ -1057,10 +1056,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
                                     weightedRate * cLikelihoodTmp[patternIndex] / denominator * numerator;
                         }
                     }
-
-                    patternIndex++;
                 }
-                patternIndex += kExtraPatterns;
             }
 
             for (int pattern = startPattern; pattern < endPattern; pattern++) {
