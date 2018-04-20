@@ -450,6 +450,19 @@ protected:
                                    int startPattern,
                                    int endPattern);
 
+    virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
+                                            const REALTYPE *preOrderPartial,
+                                            const int firstDerivativeIndex,
+                                            const int secondDerivativeIndex,
+                                            const REALTYPE *wt,
+                                            const double *rt,
+                                            const int matrixIncr,
+                                            double *outFirstDerivative,
+                                            double *outDiagonalSecondDerivative,
+                                            const int patternOffset,
+                                            const int startPattern,
+                                            const int endPattern);
+
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
                                                  int count,
