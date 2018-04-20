@@ -1,16 +1,26 @@
 # @author Marc A. Suchard
 # @author Andrew Rambaut
-
-This is a stem README file.   This file will contain:
+# @author Daniel L. Ayres
 
 1. General overview of BEAGLE
 
+BEAGLE is a high-performance library that can perform the core calculations at the heart of most Bayesian
+and Maximum Likelihood phylogenetics packages. It can make use of highly-parallel processors such as those
+in graphics cards (GPUs) found in many PCs.
+
+The project involves an open API and fast implementations of a library for evaluating phylogenetic
+likelihoods (continuous time Markov processes) of biomolecular sequence evolution.
+
+The aim is to provide high performance evaluation ‘services’ to a wide range of phylogenetic software,
+both Bayesian samplers and Maximum Likelihood optimizers. This allows these packages to make use of
+implementations that make use of optimized hardware such as graphics processing units.
+
 2. Compilation instructions
 
-Quick and dirty instructions on how to compile and install the BEAGLE library from the SVN repository 'trunk':
+Quick and dirty instructions on how to compile and install the BEAGLE library from the git repository 'master':
 
-      $ svn checkout http://beagle-lib.googlecode.com/svn/trunk BEAGLE
-      $ cd BEAGLE
+      $ git clone --depth=1 https://github.com/beagle-dev/beagle-lib.git
+      $ cd beagle-lib
       $ ./autogen.sh
       $ ./configure
       $ make
@@ -19,17 +29,15 @@ Quick and dirty instructions on how to compile and install the BEAGLE library fr
 Remarks:
 
 When compiling in the MacOS Unix environment ("Terminal"), you need to install the autotools first. They are no
-longer shipped with Xcode. For instance, you can install them using MacPorts (http://www.macports.org). First
-install MacPorts, then do:
+longer shipped with Xcode. you need to obtain the following software packages: autoconf, automake, and libtool.
+The easiest way to install these is with the Homebrew package manager (http://brew.sh/). Open 'Terminal.app'
+and paste the installation command from the Homebrew website (you will find it at the top of the page, under
+Install Homebrew). Next enter the following to install the required packages:
 
-      $ sudo port install autoconf
-      $ sudo port install automake
-      $ sudo port install libtool
-      $ sudo port install pkgconfig
-
-The last tool is not needed by BEAGLE but by many other software packages. Other options to install autotools
-include Homebrew (http://mxcl.github.io/homebrew/) and directly from GNU source (http://www.gnu.org).
+      $ brew install libtool autoconf automake
 
 3. Contact information
+
+- Daniel L. Ayres: ayres@umd.edu
 
 
