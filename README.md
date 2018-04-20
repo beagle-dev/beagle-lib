@@ -9,9 +9,9 @@ The aim is to provide high performance evaluation 'services' to a wide range of 
 Currently the following software packages can make use of the BEAGLE library:
 
 * BEAST [http://beast.bio.ed.ac.uk/](http://beast.bio.ed.ac.uk/)
-* Garli [https://garli.googlecode.com/](https://garli.googlecode.com/)
+* Garli [https://garli.googlecode.com/](https://molevol.mbl.edu/index.php/Garli_wiki)
 * MrBayes [http://mrbayes.sourceforge.net/](http://mrbayes.sourceforge.net/)
-* PhyML [https://phyml.googlecode.com/](https://phyml.googlecode.com/)
+* PhyML [https://phyml.googlecode.com/](http://www.atgc-montpellier.fr/phyml/)
 
 ### References
 
@@ -37,4 +37,4 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Acknowledgements
 
-* This project is supported in part through the National Science Foundation grants IIS 1251151 and DMS 1264153.
+* This project is supported in part through the National Science Foundation grants IIS-1251151, DMS-1264153, DBI-1356562, DBI-1661443, & DEB-1354146; National Institutes of Health grants R01-HG006139, R01-AI107034, & U19-AI135995; Wellcome Trust grant 206298/Z/17/Z; and European Research Council grant 725422-ReservoirDOCS.
