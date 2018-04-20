@@ -485,11 +485,19 @@ protected:
                                       int startPattern,
                                       int endPattern);
 
-    virtual void calcPrePartialsPartials(REALTYPE *destP,
-                                         const REALTYPE *partialsParent,
-                                         const REALTYPE *matricesSelf,
-                                         const REALTYPE *partialsSibling,
-                                         const REALTYPE *matricesSibling,
+    virtual void calcPrePartialsPartials(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsStates(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const int* states2,
+                                         const REALTYPE* matrices2,
                                          int startPattern,
                                          int endPattern);
 

@@ -1529,7 +1529,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
         const REALTYPE *partials1 = gPartials[parentIndex];
         const REALTYPE *partials2 = gPartials[siblingIndex];
 
-//        const int *siblingStates = gTipStates[siblingIndex]; preOrderPartials are not updated using tipStates
+        const int *tipStates2 = gTipStates[siblingIndex];
 
         const REALTYPE *matrices1 = gTransitionMatrices[parentTransMatIndex];
         const REALTYPE *matrices2 = gTransitionMatrices[siblingTransMatIndex];
@@ -1581,20 +1581,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
         /// matrices2 = Ptr matrices of the sibling node (to the parent node)
         /// comment out all conditions that's not implemented
 
-        if (rescale == 2) {
-            //                    int sIndex = parIndex - kTipCount;
-            //                    calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
-            //                                                    &gActiveScalingFactors[sIndex]);
-            //                    if (gActiveScalingFactors[sIndex])
-            //                        autoRescalePartials(destPartials, gAutoScaleBuffers[sIndex]);
-
-        } else if (rescale == 0) {
-            //                    calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,
-            //                                                     matrices2,scalingFactors,startPattern,endPattern);
-        } else {
-
-            calcPrePartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
-                                    startPattern, endPattern);
+        if (tipStates2 != NULL) {
+            calcPrePartialsStates(destPartials, partials1, matrices1, tipStates2, matrices2,
+                                  startPattern, endPattern);
 
             if (rescale == 1) {// Recompute scaleFactors
                 if (byPartition) {
@@ -1604,6 +1593,32 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
                     rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
                 }
             }
+
+        } else {
+//            if (rescale == 2) {
+//                //                    int sIndex = parIndex - kTipCount;
+//                //                    calcPartialsPartialsAutoScaling(destPartials,partials1,matrices1,partials2,matrices2,
+//                //                                                    &gActiveScalingFactors[sIndex]);
+//                //                    if (gActiveScalingFactors[sIndex])
+//                //                        autoRescalePartials(destPartials, gAutoScaleBuffers[sIndex]);
+//
+//            } else if (rescale == 0) {
+//                //                    calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,
+//                //                                                     matrices2,scalingFactors,startPattern,endPattern);
+//            } else {
+
+                calcPrePartialsPartials(destPartials, partials1, matrices1, partials2, matrices2,
+                                        startPattern, endPattern);
+
+                if (rescale == 1) {// Recompute scaleFactors
+                    if (byPartition) {
+                        rescalePartialsByPartition(destPartials, scalingFactors, cumulativeScaleBuffer, 0,
+                                                   currentPartition);
+                    } else {
+                        rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
+                    }
+                }
+//            }
         }
 
 
@@ -3872,6 +3887,66 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
             destPtr +=kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
+        }
+    }
+
+}
+
+/*
+* Calculates Pre-order partial likelihoods at a node when sibling node being a tip.
+*/
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* destP,
+                                                              const REALTYPE* partials1,
+                                                              const REALTYPE* matrices1,
+                                                              const int* states2,
+                                                              const REALTYPE* matrices2,
+                                                              int startPattern,
+                                                              int endPattern) {
+    int matrixIncr = kStateCount;
+
+    // increment for the extra column at the end
+    matrixIncr += T_PAD;
+
+    int stateCountModFour = (kStateCount / 4) * 4;
+    REALTYPE* tmpdestPtr = destP;
+    //clean up the partial first, set every entry to 0
+    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+        int matrixOffset = l*kMatrixSize;
+        const REALTYPE* partials1Ptr = &partials1[v];
+
+        REALTYPE* destPtr = &destP[v];
+        tmpdestPtr = destPtr;
+        for (int k = startPattern; k < endPattern; k++) {
+            int w = l * kMatrixSize;
+            int state2 = states2[k];
+            for (int i = 0; i < kStateCount; i++) {
+                const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
+
+                tmpdestPtr = destPtr;
+                const REALTYPE  MjPj = matrices2[w + state2] * partials1Ptr[i];
+
+                int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    *(tmpdestPtr++) += matrices1Ptr[j + 0] * MjPj;
+
+                    *(tmpdestPtr++) += matrices1Ptr[j + 1] * MjPj;
+
+                    *(tmpdestPtr++) += matrices1Ptr[j + 2] * MjPj;
+
+                    *(tmpdestPtr++) += matrices1Ptr[j + 3] * MjPj;
+                }
+
+                for (; j < kStateCount; j++) {
+                    *(tmpdestPtr++) += matrices1Ptr[j] * MjPj;
+                }
+            }
+            destPtr +=kPartialsPaddedStateCount;
+            partials1Ptr += kPartialsPaddedStateCount;
         }
     }
 
