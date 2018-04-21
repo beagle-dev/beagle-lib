@@ -1214,7 +1214,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int
 
         for (int category = 0; category < kCategoryCount; category++) {
 
-            const REALTYPE weightedRate = wt[category] * rt[category];
+            const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
 
 
             for (int pattern = startPattern; pattern < endPattern; pattern++) {
