@@ -463,6 +463,19 @@ protected:
                                             const int startPattern,
                                             const int endPattern);
 
+    virtual void calcEdgeDerivativeStates(const int *tipStates,
+                                          const REALTYPE *preOrderPartial,
+                                          const int firstDerivativeIndex,
+                                          const int secondDerivativeIndex,
+                                          const REALTYPE *wt,
+                                          const double *rt,
+                                          const int matrixIncr,
+                                          double *outFirstDerivative,
+                                          double *outDiagonalSecondDerivative,
+                                          const int patternOffset,
+                                          const int startPattern,
+                                          const int endPattern);
+
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
                                                  int count,
