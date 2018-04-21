@@ -418,7 +418,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* de
             PREFETCH_PARTIALS(1, partials1, u); // p10, p11, p12, p13
 
             const int state2 = states2[k];
-            PREFETCH_MATRIX_COLUMN(2, matrices2, state2); // sum20, sum21, sum22, sum23
+            PREFETCH_MATRIX_COLUMN(2, matrices2, w + state2); // sum20, sum21, sum22, sum23
 
             DO_SCHUR_PRODUCT(1, 1, 2); // reWrites p10, p11, p12, p13
 
