@@ -1908,7 +1908,23 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int count,
-                                                         int cumulativeScaleIndex){
+                                                         int cumulativeScaleIndex) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBufferIndices,
+                                                               const int *preBufferIndices,
+                                                               const int rootBufferIndex,
+                                                               const int *firstDerivativeIndices,
+                                                               const int *secondDerivativeIndices,
+                                                               const int categoryWeightsIndex,
+                                                               const int categoryRatesIndex,
+                                                               const int stateFrequenciesIndex,
+                                                               const int *cumulativeScaleIndices,
+                                                               int count,
+                                                               double *outFirstDerivative,
+                                                               double *outDiagonalSecondDerivative) {
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 

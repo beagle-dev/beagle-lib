@@ -308,6 +308,19 @@ public:
                           int count,
                           int cumulativeScaleIndex);
 
+	int calculateEdgeDerivative(const int *postBufferIndices,
+								const int *preBufferIndices,
+								const int rootBufferIndex,
+								const int *firstDerivativeIndices,
+								const int *secondDerivativeIndices,
+								const int categoryWeightsIndex,
+								const int categoryRatesIndex,
+								const int stateFrequenciesIndex,
+								const int *cumulativeScaleIndices,
+								int count,
+								double *outFirstDerivative,
+								double *outDiagonalSecondDerivative);
+
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
     
