@@ -16,7 +16,6 @@
 #include <cmath>
 #include <stack>
 #include <queue>
-#include <unistd.h>
 
 #ifdef _WIN32
     #include <winsock.h>
@@ -177,9 +176,9 @@ int countLaunches(node* root)
     int opCount = S.size();
 
     int launchCount = 0;
-    int gridStartOp[opCount];
-    int operationsTmp[opCount];
-    int parentMinIndex = 0;
+	std::vector<int> gridStartOp(opCount);
+	std::vector<int> operationsTmp(opCount);
+	int parentMinIndex = 0;
 
     for(int op=0; op<opCount; op++){
         node* parent = S.top();
