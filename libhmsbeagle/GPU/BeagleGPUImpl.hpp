@@ -35,6 +35,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
+#include <vector>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -1941,9 +1942,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     }
 
     int gridLaunches = 0;
-    int gridStartOp[operationCount];
-    int gridOpType[operationCount];
-    int gridOpBlocks[operationCount];
+	std::vector<int> gridStartOp(operationCount);
+	std::vector<int> gridOpType(operationCount);
+	std::vector<int> gridOpBlocks(operationCount);
     int parentMinIndex = 0;
     int lastStreamIndex = 0;
     int gridOpIndex = 0;
