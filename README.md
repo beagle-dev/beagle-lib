@@ -26,7 +26,7 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Installation instructions
 
-* [Instructions for installing BEAGLE on Mac OS X](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
+* [Instructions for installing BEAGLE on macOS](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
 * [Instructions for installing BEAGLE on Windows](https://github.com/beagle-dev/beagle-lib/wiki/WindowsInstallInstructions)
 * [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions) 
 
