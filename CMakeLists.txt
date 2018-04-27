@@ -7,15 +7,15 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
-if(APPLE)
-    set (JAVA_HEADER_DIR "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers")
-elseif(UNIX)
-    set (JAVA_HEADER_DIR "/usr/lib/jvm/java-8-oracle/include" "/usr/lib/jvm/java-8-oracle/include/linux")
-endif(APPLE)
+find_package(JNI)
+if(JNI_FOUND)
+    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+    message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
+endif(JNI_FOUND)
 
 include_directories(
         ${PROJECT_SOURCE_DIR}
-        ${JAVA_HEADER_DIR}
+        ${JNI_INCLUDE_DIRS}
 )
 
 # This seems the missing piece of the puzzle
