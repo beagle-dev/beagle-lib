@@ -24,8 +24,9 @@ cache:
     - ${POCL_ROOT}
 
 before_install:
+  # Install clang for pocl
   - |
-    if [[  ${TRAVIS_OS_NAME} == "linux" && ${OPENCL_LIB} == "pocl" ]]; then
+    if [[ ${TRAVIS_OS_NAME} == "linux" && ${OPENCL_LIB} == "pocl" ]]; then
       mkdir -p ${DEPS_DIR}
       if [ -z "$(ls -A ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION})" ]; then
         POCL_LLVM_URL=http://llvm.org/releases/${POCL_LLVM_VERSION}/clang+llvm-${POCL_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-14.04.tar.xz
@@ -36,10 +37,9 @@ before_install:
         echo 'Using cached LLVM.'
       fi
     fi
-
-
+  # Install AMD APP SDK
   - |
-    if [[  ${TRAVIS_OS_NAME} == "linux" && ${OPENCLU_LIB} == "amdappsdk" ]]; then
+    if [[ ${TRAVIS_OS_NAME} == "linux" && ${OPENCLU_LIB} == "amdappsdk" ]]; then
       mkdir -p ${OPENCL_ROOT}
       bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
       tar -xjf AMD-SDK.tar.bz2
@@ -54,13 +54,43 @@ before_install:
       rm AMD-APP-SDK*.sh
       rm AMD-SDK.tar.bz2
     fi
-  # Download and install recent cmake
+  # Install recent cmake
   - |
     if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then
       CMAKE_URL=${CMAKE_URL}
       mkdir -p ${DEPS_DIR}/cmake
       travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C ${DEPS_DIR}/cmake
       export PATH=${DEPS_DIR}/cmake/bin:${PATH}
+    fi
+
+  ############################################################################
+  # Download OpenCL headers (and cl.hpp)
+  ############################################################################
+  - |
+    if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then
+      mkdir -p ${OPENCL_ROOT}/include/CL
+      pushd ${OPENCL_ROOT}/include/CL
+      travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git
+      mv ./OpenCL-Headers/opencl${OPENCL_HEADERS_VER}/CL/* .
+      travis_retry wget -w 1 -np -nd -nv -A h,hpp --no-check-certificate ${OPENCL_REGISTRY}/api/2.1/cl.hpp;
+      popd
+    fi
+  ############################################################################
+  # Build and install POCL https://github.com/pocl/pocl
+  ############################################################################
+  - |
+    if [[ ${TRAVIS_OS_NAME} == "linux" && ${OPENCL_LIB} == "pocl" ]]; then
+      if [ -z "$(ls -A ${POCL_ROOT}/)" ]; then
+        travis_retry git clone --depth 1 https://github.com/pocl/pocl.git -b ${POCL_BRANCH}
+        cd pocl
+        mkdir build
+        cd build
+        cmake -DDIRECT_LINKAGE=ON -DENABLE_ICD=OFF -DCMAKE_C_COMPILER=${POCL_C_COMPILER} -DCMAKE_CXX_COMPILER=${POCL_CXX_COMPILER} -DWITH_LLVM_CONFIG=${POCL_LLVM_CONFIG} -DCMAKE_INSTALL_PREFIX=${POCL_ROOT}/ ..
+        make install
+        cd ../..
+      else
+        echo 'Using cached POCL lib.'
+      fi
     fi
 
 install:
