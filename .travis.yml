@@ -18,9 +18,15 @@ matrix:
 #  directories:
 #    - ${OPENCL_ROOT}
 
+cache:
+  directories:
+    - ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}
+    - ${POCL_ROOT}
+
 before_install:
   - |
     if [[  ${TRAVIS_OS_NAME} == "linux" && ${OPENCL_LIB} == "pocl" ]]; then
+      mkdir -p ${DEPS_DIR}
       if [ -z "$(ls -A ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION})" ]; then
         POCL_LLVM_URL=http://llvm.org/releases/${POCL_LLVM_VERSION}/clang+llvm-${POCL_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-14.04.tar.xz
         mkdir -p ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}
