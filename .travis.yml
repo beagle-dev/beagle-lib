@@ -19,6 +19,15 @@ matrix:
 #    - ${OPENCL_ROOT}
 
 before_install:
+
+  - |
+    if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then
+      CMAKE_URL=${CMAKE_URL}
+      mkdir -p ${DEPS_DIR}/cmake
+      travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C ${DEPS_DIR}/cmake
+      export PATH=${DEPS_DIR}/cmake/bin:${PATH}
+    fi
+
   - |
     if [[ "linux" == "linux" ]]; then
 #      mkdir -p ${OPENCL_ROOT}
@@ -34,22 +43,22 @@ before_install:
 #      ${AMDAPPSDKROOT}/bin/x86_64/clinfo
 #      rm AMD-APP-SDK*.sh
 #      rm AMD-SDK.tar.bz2
-        mkdir -p ${OPENCL_ROOT}
-        pushd ${OPENCL_ROOT}
-        travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
-        mv ./OpenCL-ICD-Loader/* .
-        mkdir -p inc/CL
-        pushd inc/CL
-        travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git
-        mv ./OpenCL-Headers/opencl${OPENCL_HEADERS_VER}/CL/* .
-        popd
-        mkdir -p lib
-        pushd lib
-        cmake -G "Unix Makefiles" ..
-        make
-        cp ./bin/libOpenCL.so .
-        popd
-        popd
+      mkdir -p ${OPENCL_ROOT}
+      pushd ${OPENCL_ROOT}
+      travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
+      mv ./OpenCL-ICD-Loader/* .
+      mkdir -p inc/CL
+      pushd inc/CL
+      travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git
+      mv ./OpenCL-Headers/opencl${OPENCL_HEADERS_VER}/CL/* .
+      popd
+      mkdir -p lib
+      pushd lib
+      cmake -G "Unix Makefiles" ..
+      make
+      cp ./bin/libOpenCL.so .
+      popd
+      popd
     fi
 
 install:
@@ -87,3 +96,5 @@ env:
   - OPENCL_VERSION="12"
   - AMDAPPSDK_VERSION=291 # OpenCL 1.2
   - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK
+  - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+  - CMAKE_URL=https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz
