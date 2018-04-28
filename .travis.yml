@@ -35,6 +35,14 @@ before_install:
       rm AMD-APP-SDK*.sh
       rm AMD-SDK.tar.bz2
     fi
+  # Download and install recent cmake
+  - |
+    if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then
+      CMAKE_URL=${CMAKE_URL}
+      mkdir -p ${DEPS_DIR}/cmake
+      travis_retry wget --no-check-certificate --quiet -O - ${CMAKE_URL} | tar --strip-components=1 -xz -C ${DEPS_DIR}/cmake
+      export PATH=${DEPS_DIR}/cmake/bin:${PATH}
+    fi
 
 install:
   - export CPLUS_INCLUDE_PATH=${AMDAPPSDKROOT}/include
