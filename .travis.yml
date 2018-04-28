@@ -13,6 +13,11 @@ matrix:
             - gdb
             - apport
             - nvidia-opencl-dev
+            # pocl
+            - libltdl-dev
+            - libhwloc-dev
+            - pkg-config
+            - libedit-dev
 
 #cache:
 #  directories:
