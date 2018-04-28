@@ -23,10 +23,11 @@ fi
 
 # Get nonce from form
 NONCE1=`echo $FORM | awk -F ${NONCE1_STRING} '{print $2}'`
+echo $NONCE1
+
 NONCE1=`echo $NONCE1 | awk -F'"' '{print $2}'`
 echo $NONCE1
-echo $NONCE1_STRING
-echo $FORM
+
 echo "TEST ME"
 
 # get the postid
