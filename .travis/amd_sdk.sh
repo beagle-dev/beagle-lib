@@ -25,6 +25,7 @@ fi
 NONCE1=`echo $FORM | awk -F ${NONCE1_STRING} '{print $2}'`
 NONCE1=`echo $NONCE1 | awk -F'"' '{print $2}'`
 echo $NONCE1
+echo "TEST ME"
 
 # get the postid
 POSTID=`echo $FORM | awk -F ${POSTID_STRING} '{print $2}'`
