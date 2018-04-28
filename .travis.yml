@@ -71,3 +71,6 @@ env:
   - OPENCL_VERSION="12"
   - AMDAPPSDK_VERSION=291 # OpenCL 1.2
   - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK
+  - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+  - CMAKE_URL=https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz
+  - OPENCL_HEADERS_VER="22"
