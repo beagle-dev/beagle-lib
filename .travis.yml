@@ -20,6 +20,20 @@ matrix:
 
 before_install:
   - |
+    # POCL dependencies for Trusty
+    if [[ ${LINUX_DIST} == "trusty" && ${OPENCL_LIB} == "pocl" ]]; then
+      if [ -z "$(ls -A ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION})" ]; then
+        POCL_LLVM_URL=http://llvm.org/releases/${POCL_LLVM_VERSION}/clang+llvm-${POCL_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-14.04.tar.xz
+        mkdir -p ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}
+        travis_retry wget --no-check-certificate --quiet -O llvm-${POCL_LLVM_VERSION}.tar.xz ${POCL_LLVM_URL}
+        tar xf llvm-${POCL_LLVM_VERSION}.tar.xz -C ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION} --strip-components 1
+      else
+        echo 'Using cached LLVM.'
+      fi
+    fi
+
+
+  - |
     if [[ "linux" == "linux" ]]; then
       mkdir -p ${OPENCL_ROOT}
       bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
@@ -82,3 +96,11 @@ env:
   - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
   - CMAKE_URL=https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz
   - OPENCL_HEADERS_VER="22"
+  # POCL
+  - POCL_BRANCH=release_1_0 # branch/tag
+  - POCL_LLVM_VERSION=5.0.1
+  - POCL_ROOT=${OPENCL_ROOT}/pocl-${POCL_BRANCH}/
+  - POCL_LLVM_CONFIG=${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}/bin/llvm-config
+  - POCL_CXX_COMPILER=${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}/bin/clang++
+  - POCL_C_COMPILER=${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}/bin/clang
+  - POCL_OPENCL_LIB=${POCL_ROOT}/lib/libOpenCL.so
