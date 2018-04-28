@@ -20,8 +20,7 @@ matrix:
 
 before_install:
   - |
-    # POCL dependencies for Trusty
-    if [[ ${LINUX_DIST} == "trusty" && ${OPENCL_LIB} == "pocl" ]]; then
+    if [[  ${TRAVIS_OS_NAME} == "linux" && ${OPENCL_LIB} == "pocl" ]]; then
       if [ -z "$(ls -A ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION})" ]; then
         POCL_LLVM_URL=http://llvm.org/releases/${POCL_LLVM_VERSION}/clang+llvm-${POCL_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-14.04.tar.xz
         mkdir -p ${DEPS_DIR}/llvm-${POCL_LLVM_VERSION}
@@ -34,7 +33,7 @@ before_install:
 
 
   - |
-    if [[ "linux" == "linux" ]]; then
+    if [[  ${TRAVIS_OS_NAME} == "linux" && ${OPENCLU_LIB} == "amdappsdk" ]]; then
       mkdir -p ${OPENCL_ROOT}
       bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
       tar -xjf AMD-SDK.tar.bz2
@@ -89,7 +88,7 @@ notifications:
 env:
   global:
   - OPENCL_ROOT=$HOME/opencl
-  - OPENCL_LIB=amdappsdk
+  - OPENCL_LIB=pocl
   - OPENCL_VERSION="12"
   - AMDAPPSDK_VERSION=291 # OpenCL 1.2
   - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK
