@@ -21,19 +21,35 @@ matrix:
 before_install:
   - |
     if [[ "linux" == "linux" ]]; then
-      mkdir -p ${OPENCL_ROOT}
-      bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
-      tar -xjf AMD-SDK.tar.bz2
-      export OPENCL_VENDOR_PATH=${AMDAPPSDKROOT}/etc/OpenCL/vendors
-      mkdir -p ${OPENCL_VENDOR_PATH}
-      sh AMD-APP-SDK*.sh --tar -xf -C ${AMDAPPSDKROOT}
-      echo libamdocl64.so > ${OPENCL_VENDOR_PATH}/amdocl64.icd
-      export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
-      export CMAKE_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64;
-      chmod +x ${AMDAPPSDKROOT}/bin/x86_64/clinfo
-      ${AMDAPPSDKROOT}/bin/x86_64/clinfo
-      rm AMD-APP-SDK*.sh
-      rm AMD-SDK.tar.bz2
+#      mkdir -p ${OPENCL_ROOT}
+#      bash .travis/amd_sdk.sh ${AMDAPPSDK_VERSION}
+#      tar -xjf AMD-SDK.tar.bz2
+#      export OPENCL_VENDOR_PATH=${AMDAPPSDKROOT}/etc/OpenCL/vendors
+#      mkdir -p ${OPENCL_VENDOR_PATH}
+#      sh AMD-APP-SDK*.sh --tar -xf -C ${AMDAPPSDKROOT}
+#      echo libamdocl64.so > ${OPENCL_VENDOR_PATH}/amdocl64.icd
+#      export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
+#      export CMAKE_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64;
+#      chmod +x ${AMDAPPSDKROOT}/bin/x86_64/clinfo
+#      ${AMDAPPSDKROOT}/bin/x86_64/clinfo
+#      rm AMD-APP-SDK*.sh
+#      rm AMD-SDK.tar.bz2
+        mkdir -p ${OPENCL_ROOT}
+        pushd ${OPENCL_ROOT}
+        travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
+        mv ./OpenCL-ICD-Loader/* .
+        mkdir -p inc/CL
+        pushd inc/CL
+        travis_retry git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git
+        mv ./OpenCL-Headers/opencl${OPENCL_HEADERS_VER}/CL/* .
+        popd
+        mkdir -p lib
+        pushd lib
+        cmake -G "Unix Makefiles" ..
+        make
+        cp ./bin/libOpenCL.so .
+        popd
+        popd
     fi
 
 install:
