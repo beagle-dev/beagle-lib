@@ -109,7 +109,8 @@ before_script:
 # Build steps
 script:
   - ./autogen.sh
-  - ./configure  --without-opencl #--with-opencl=${AMDAPPSDKROOT}
+  #- ./configure  --without-opencl #--with-opencl=${AMDAPPSDKROOT}
+  - ./configure --with-opencl=${OPENCL_ROOT}
   - make
   - make check
 
