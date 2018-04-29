@@ -111,9 +111,9 @@ before_script:
 script:
   - ./autogen.sh
   #- ./configure  --without-opencl #--with-opencl=${AMDAPPSDKROOT}
-  - ./configure --with-opencl=${OPENCL_ROOT}
+  - ./configure --with-opencl=${OPENCL_ROOT} --prefix=${INSTALL_DIR}
   - make
-  - make install --prefix=${INSTALL_DIR}
+  - make install
   - ls ${INSTALL_DIR}
   - make check
   - examples/tinytest/tinytest # print device names
