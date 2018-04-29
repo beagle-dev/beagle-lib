@@ -99,9 +99,9 @@ before_install:
     fi
 
 install:
-  - export CPLUS_INCLUDE_PATH=${AMDAPPSDKROOT}/include
-  - export LD_LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LD_LIBRARY_PATH}
-  - export LIBRARY_PATH=${AMDAPPSDKROOT}/lib/x86_64:${LIBRARY_PATH}
+  - export CPLUS_INCLUDE_PATH=${OPENCL_ROOT}/include
+  - export LD_LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${LD_LIBRARY_PATH}
+  - export LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${LIBRARY_PATH}
 
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
@@ -113,6 +113,7 @@ script:
   - ./configure --with-opencl=${OPENCL_ROOT}
   - make
   - make check
+  - examples/tinytest/tinytest # print device names
 
 # after_failure:
 #  - ls
