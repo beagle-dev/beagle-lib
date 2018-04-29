@@ -128,14 +128,19 @@ notifications:
 
 env:
   global:
-  - OPENCL_ROOT=$HOME/opencl
+  - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+  # - OPENCL_ROOT=$HOME/opencl
+  - OPENCL_ROOT=${DEPS_DIR}/opencl
+  - OPENCL_HEADERS_VER="22"
   - OPENCL_LIB=pocl
   - OPENCL_VERSION="12"
+  # Khronos OpenCL ICD
+  - OPENCL_REGISTRY=https://www.khronos.org/registry/cl
+  # AMD APP
   - AMDAPPSDK_VERSION=291 # OpenCL 1.2
   - AMDAPPSDKROOT=${OPENCL_ROOT}/AMDAPPSDK
-  - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+  # CMake
   - CMAKE_URL=https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz
-  - OPENCL_HEADERS_VER="22"
   # POCL
   - POCL_BRANCH=release_1_0 # branch/tag
   - POCL_LLVM_VERSION=5.0.1
