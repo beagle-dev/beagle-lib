@@ -99,9 +99,10 @@ before_install:
     fi
 
 install:
+  - mkdir -p ${INSTALL_DIR}
   - export CPLUS_INCLUDE_PATH=${OPENCL_ROOT}/include
-  - export LD_LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${LD_LIBRARY_PATH}
-  - export LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${LIBRARY_PATH}
+  - export LD_LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${INSTALL_DIR}:${LD_LIBRARY_PATH}
+  - export LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${INSTALL_DIR}:${LIBRARY_PATH}
 
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
@@ -112,6 +113,8 @@ script:
   #- ./configure  --without-opencl #--with-opencl=${AMDAPPSDKROOT}
   - ./configure --with-opencl=${OPENCL_ROOT}
   - make
+  - make install --prefix=${INSTALL_DIR}
+  - ls ${INSTALL_DIR}
   - make check
   - examples/tinytest/tinytest # print device names
 
@@ -131,6 +134,7 @@ notifications:
 env:
   global:
   - DEPS_DIR=${TRAVIS_BUILD_DIR}/deps
+  - INSTALL_DIR=${TRAVIS_BUILD_DIR}/install
   # - OPENCL_ROOT=$HOME/opencl
   - OPENCL_ROOT=${DEPS_DIR}/opencl
   - OPENCL_HEADERS_VER="22"
