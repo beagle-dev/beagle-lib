@@ -101,8 +101,8 @@ before_install:
 install:
   - mkdir -p ${INSTALL_DIR}
   - export CPLUS_INCLUDE_PATH=${OPENCL_ROOT}/include
-  - export LD_LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${INSTALL_DIR}/lib:${LD_LIBRARY_PATH}
-  - export LIBRARY_PATH=${OPENCL_ROOT}/lib/x86_64:${INSTALL_DIR}/lib:${LIBRARY_PATH}
+  - export LD_LIBRARY_PATH=${INSTALL_DIR}/lib:${POCL_OPENCL_LIB}/lib:${LD_LIBRARY_PATH}
+  - export LIBRARY_PATH=${INSTALL_DIR}/lib:{POCL_OPENCL_LIB}/lib:${LIBRARY_PATH}
 
 before_script:
  - ulimit -c unlimited -S # Enable core dumps
@@ -110,13 +110,13 @@ before_script:
 # Build steps
 script:
   - ./autogen.sh
-  - ./configure  --without-opencl
+  - ./configure  --without-opencl --prefix=${INSTALL_DIR}
   #- ./configure --with-opencl=${OPENCL_ROOT} --prefix=${INSTALL_DIR}
   - make
-  #- make install
+  - make install
   #- ls ${INSTALL_DIR}
   - make check
-  - examples/tinytest/tinytest # print device names
+  #- examples/tinytest/tinytest # print device names
 
 # after_failure:
 #  - ls
