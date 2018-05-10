@@ -182,9 +182,6 @@ private:
     int* hIntegratePartitionsStartBlocks;
     int* hPatternsNewOrder;
     int* hGridOpIndices;
-    int* hGridStartOp;
-    int* hGridOpType;
-    int* hGridOpBlocks;
 
     unsigned int* hPtrQueue;
     
