@@ -21,12 +21,15 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Binary installers
 
-* [BEAGLE v3.0.0 pre-release for Mac OS X 10.6 and later](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.0-pre20180420/BEAGLE.v3.0.0pre.pkg)
-* [BEAGLE v2.1 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi) (v3.0.0 for Windows coming soon)
+* [BEAGLE v3.0.0 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.0/BEAGLE.v3.0.0.pkg)
+* [BEAGLE v3.0.0 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.0/BEAGLE.v3.0.0.msi)
+
+- [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
+- [BEAGLE v2.1.0 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
 
 ### Installation instructions
 
-* [Instructions for installing BEAGLE on Mac OS X](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
+* [Instructions for installing BEAGLE on macOS](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
 * [Instructions for installing BEAGLE on Windows](https://github.com/beagle-dev/beagle-lib/wiki/WindowsInstallInstructions)
 * [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions) 
 

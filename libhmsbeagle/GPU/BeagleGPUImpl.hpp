@@ -1942,12 +1942,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     }
 
     int gridLaunches = 0;
-	std::vector<int> gridStartOp(operationCount);
-	std::vector<int> gridOpType(operationCount);
-	std::vector<int> gridOpBlocks(operationCount);
+    int* gridStartOp;
+    int* gridOpType;
+    int* gridOpBlocks;
     int parentMinIndex = 0;
     int lastStreamIndex = 0;
     int gridOpIndex = 0;
+
+    if (kUsingMultiGrid) {
+        gridStartOp  = (int*) malloc(sizeof(int) * (operationCount + 1));
+        gridOpType   = (int*) malloc(sizeof(int) * (operationCount + 1));
+        gridOpBlocks = (int*) malloc(sizeof(int) * (operationCount + 1));
+    }
 
     int anyRescale = BEAGLE_OP_NONE;
     if (kUsingMultiGrid && (kFlags & BEAGLE_FLAG_SCALING_MANUAL)) {
@@ -2378,6 +2384,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
     if (!kUsingMultiGrid || anyRescale == 1) {
         gpu->SynchronizeDevice();
+    }
+
+    if (kUsingMultiGrid) {
+        free(gridStartOp);
+        free(gridOpType);
+        free(gridOpBlocks);
     }
 
 #ifdef BEAGLE_DEBUG_SYNCH    
