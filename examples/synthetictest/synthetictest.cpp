@@ -495,8 +495,12 @@ void runBeagle(int resource,
 
     int* patternPartitions;
     double* partitionLogLs;
+    double* partitionD1;
+    double* partitionD2;
     if (partitionCount > 1) {
         partitionLogLs = (double*) malloc(sizeof(double) * partitionCount);
+        partitionD1 = (double*) malloc(sizeof(double) * partitionCount);
+        partitionD2 = (double*) malloc(sizeof(double) * partitionCount);
         patternPartitions = (int*) malloc(sizeof(int) * nsites);
         int partitionSize = nsites/partitionCount;
         for (int i = 0; i < nsites; i++) {
@@ -760,6 +764,8 @@ void runBeagle(int resource,
 
     int* rootIndices = new int[eigenCount * partitionCount];
     int* lastTipIndices = new int[eigenCount * partitionCount];
+    int* lastTipIndicesD1 = new int[eigenCount * partitionCount];
+    int* lastTipIndicesD2 = new int[eigenCount * partitionCount];
     int* categoryWeightsIndices = new int[eigenCount * partitionCount];
     int* stateFrequencyIndices = new int[eigenCount * partitionCount];
     int* cumulativeScalingFactorIndices = new int[eigenCount * partitionCount];
@@ -773,6 +779,8 @@ void runBeagle(int resource,
                 partitionIndices[partitionIndex] = partitionIndex;
             rootIndices[partitionIndex + pOffset] = ntaxa+(internalCount*(eigenIndex+1))-1;//ntaxa*2-2;
             lastTipIndices[partitionIndex + pOffset] = ntaxa-1;
+            lastTipIndicesD1[partitionIndex + pOffset] = (ntaxa-1) + (edgeCount*modelCount);
+            lastTipIndicesD2[partitionIndex + pOffset] = (ntaxa-1) + 2*(edgeCount*modelCount);
             categoryWeightsIndices[partitionIndex + pOffset] = eigenIndex;
             stateFrequencyIndices[partitionIndex + pOffset] = 0;
             cumulativeScalingFactorIndices[partitionIndex + pOffset] = ((manualScaling || dynamicScaling) ? (scaleCount*eigenCount-1)-eigenCount+eigenIndex+1 : BEAGLE_OP_NONE);
@@ -1104,8 +1112,8 @@ void runBeagle(int resource,
                                                   rootIndices,
                                                   lastTipIndices,
                                                   lastTipIndices,
-                                                  (NULL),
-                                                  (NULL),
+                                                  (calcderivs ? lastTipIndicesD1 : NULL),
+                                                  (calcderivs ? lastTipIndicesD2 : NULL),
                                                   categoryWeightsIndices,
                                                   stateFrequencyIndices,
                                                   cumulativeScalingFactorIndices,
@@ -1114,17 +1122,17 @@ void runBeagle(int resource,
                                                   eigenCount,
                                                   partitionLogLs,
                                                   &logL,
-                                                  (NULL),
-                                                  (NULL),
-                                                  (NULL),
-                                                  (NULL));
+                                                  (calcderivs ? partitionD1 : NULL),
+                                                  (calcderivs ? &deriv1 : NULL),
+                                                  (calcderivs ? partitionD2 : NULL),
+                                                  (calcderivs ? &deriv2 : NULL));
             } else {            
                 beagleCalculateEdgeLogLikelihoods(instance,               // instance
                                                   rootIndices,// bufferIndices
                                                   lastTipIndices,
                                                   lastTipIndices,
-                                                  (calcderivs ? edgeIndicesD1 : NULL),
-                                                  (calcderivs ? edgeIndicesD2 : NULL),
+                                                  (calcderivs ? lastTipIndicesD1 : NULL),
+                                                  (calcderivs ? lastTipIndicesD2 : NULL),
                                                   categoryWeightsIndices,                // weights
                                                   stateFrequencyIndices,                 // stateFrequencies
                                                   cumulativeScalingFactorIndices,
@@ -1208,6 +1216,27 @@ void runBeagle(int resource,
         fprintf(stdout, ")\n");
     }
     
+    if (partitionCount > 1) {
+        fprintf(stdout, " (");
+        for (int p=0; p < partitionCount; p++) {
+            fprintf(stdout, "p%dD1 = %.5f", p, partitionD1[p]);
+            if (p < partitionCount - 1)
+                fprintf(stdout, ", ");
+        }
+        fprintf(stdout, ")\n");
+    }
+    
+    if (partitionCount > 1) {
+        fprintf(stdout, " (");
+        for (int p=0; p < partitionCount; p++) {
+            fprintf(stdout, "p%dD2 = %.5f", p, partitionD2[p]);
+            if (p < partitionCount - 1)
+                fprintf(stdout, ", ");
+        }
+        fprintf(stdout, ")\n");
+    }
+
+
     if (sitelikes) {
         double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
         beagleGetSiteLogLikelihoods(instance, siteLogLs);

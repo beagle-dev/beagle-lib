@@ -507,6 +507,20 @@ protected:
                                                   int partitionCount,
                                                   double* outSumLogLikelihoodByPartition);
 
+    virtual void calcEdgeLogLikelihoodsSecondDerivByPartition(const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* firstDerivativeIndices,
+                                                  const int* secondDerivativeIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumFirstDerivativeByPartition,
+                                                  double* outSumSecondDerivativeByPartition);
+
     virtual int calcEdgeLogLikelihoodsMulti(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,

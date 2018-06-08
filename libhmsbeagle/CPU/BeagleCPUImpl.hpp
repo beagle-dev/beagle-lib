@@ -2070,26 +2070,63 @@ BEAGLE_CPU_TEMPLATE
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
         } else {
-           if (kThreadingEnabled) {
-                calcEdgeLogLikelihoodsByPartitionAsync(parentBufferIndices,
-                                                       childBufferIndices,
-                                                       probabilityIndices,
-                                                       categoryWeightsIndices,
-                                                       stateFrequenciesIndices,
-                                                       cumulativeScaleIndices,
-                                                       partitionIndices,
-                                                       partitionCount,
-                                                       outSumLogLikelihoodByPartition);                
+
+            if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
+
+                if (kThreadingEnabled) {
+                    calcEdgeLogLikelihoodsByPartitionAsync(parentBufferIndices,
+                                                           childBufferIndices,
+                                                           probabilityIndices,
+                                                           categoryWeightsIndices,
+                                                           stateFrequenciesIndices,
+                                                           cumulativeScaleIndices,
+                                                           partitionIndices,
+                                                           partitionCount,
+                                                           outSumLogLikelihoodByPartition);                
+                } else {
+                    calcEdgeLogLikelihoodsByPartition(parentBufferIndices,
+                                                      childBufferIndices,
+                                                      probabilityIndices,
+                                                      categoryWeightsIndices,
+                                                      stateFrequenciesIndices,
+                                                      cumulativeScaleIndices,
+                                                      partitionIndices,
+                                                      partitionCount,
+                                                      outSumLogLikelihoodByPartition);
+                }
+
+
+            } else if (secondDerivativeIndices == NULL) {
+                return BEAGLE_ERROR_NO_IMPLEMENTATION;
             } else {
-                calcEdgeLogLikelihoodsByPartition(parentBufferIndices,
-                                                  childBufferIndices,
-                                                  probabilityIndices,
-                                                  categoryWeightsIndices,
-                                                  stateFrequenciesIndices,
-                                                  cumulativeScaleIndices,
-                                                  partitionIndices,
-                                                  partitionCount,
-                                                  outSumLogLikelihoodByPartition);
+
+                calcEdgeLogLikelihoodsSecondDerivByPartition(
+                                                parentBufferIndices,
+                                                childBufferIndices,
+                                                probabilityIndices,
+                                                firstDerivativeIndices,
+                                                secondDerivativeIndices,
+                                                categoryWeightsIndices,
+                                                stateFrequenciesIndices,
+                                                cumulativeScaleIndices,
+                                                partitionIndices,
+                                                partitionCount,
+                                                outSumLogLikelihoodByPartition,
+                                                outSumFirstDerivativeByPartition,
+                                                outSumSecondDerivativeByPartition);
+
+                *outSumFirstDerivative  = 0.0;
+                *outSumSecondDerivative = 0.0;
+
+                for (int i = 0; i < partitionCount; i++) {
+                    *outSumFirstDerivative  += outSumFirstDerivativeByPartition[i];
+                    *outSumSecondDerivative += outSumSecondDerivativeByPartition[i];
+                }
+
+                if (*outSumFirstDerivative  != *outSumFirstDerivative ||
+                    *outSumSecondDerivative != *outSumSecondDerivative) {
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                }
             }
 
             *outSumLogLikelihood = 0.0;
@@ -2101,6 +2138,7 @@ BEAGLE_CPU_TEMPLATE
             if (*outSumLogLikelihood != *outSumLogLikelihood) {
                 returnCode = BEAGLE_ERROR_FLOATING_POINT;
             }
+
         }
     } else {
         returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
@@ -2446,6 +2484,149 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
 
     }
 }
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDerivByPartition(
+                                                  const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* firstDerivativeIndices,
+                                                  const int* secondDerivativeIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  int partitionCount,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumFirstDerivativeByPartition,
+                                                  double* outSumSecondDerivativeByPartition) {
+    
+
+    for (int p = 0; p < partitionCount; p++) {
+        int pIndex = partitionIndices[p];
+
+        int startPattern = gPatternPartitionsStartPatterns[pIndex];
+        int endPattern = gPatternPartitionsStartPatterns[pIndex + 1];
+
+        memset(&integrationTmp[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(REALTYPE));
+        memset(&firstDerivTmp[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(REALTYPE));
+        memset(&secondDerivTmp[startPattern*kStateCount], 0, ((endPattern - startPattern) * kStateCount)*sizeof(REALTYPE));
+
+        const int parIndex = parentBufferIndices[p];
+        const int childIndex = childBufferIndices[p];
+        const int probIndex = probabilityIndices[p];
+        const int firstDerivativeIndex = firstDerivativeIndices[p];
+        const int secondDerivativeIndex = secondDerivativeIndices[p];
+        const int categoryWeightsIndex = categoryWeightsIndices[p];
+        const int stateFrequenciesIndex = stateFrequenciesIndices[p];
+        const int scalingFactorsIndex = cumulativeScaleIndices[p];
+
+        assert(parIndex >= kTipCount);
+
+        const REALTYPE* partialsParent = gPartials[parIndex];
+        const REALTYPE* transMatrix = gTransitionMatrices[probIndex];
+        const REALTYPE* firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
+        const REALTYPE* secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
+        const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
+        const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
+
+        if (childIndex < kTipCount && gTipStates[childIndex]) { // Integrate against a state at the child
+
+            const int* statesChild = gTipStates[childIndex];
+            int v = startPattern * kPartialsPaddedStateCount; // Index for parent partials
+
+            for(int l = 0; l < kCategoryCount; l++) {
+                int u = startPattern * kStateCount; // Index in resulting product-partials (summed over categories)
+                const REALTYPE weight = wt[l];
+                for(int k = startPattern; k < endPattern; k++) {
+
+                    const int stateChild = statesChild[k];  // DISCUSSION PT: Does it make sense to change the order of the partials,
+                    // so we can interchange the patterCount and categoryCount loop order?
+                    int w =  l * kMatrixSize;
+                    for(int i = 0; i < kStateCount; i++) {
+                        integrationTmp[u] += transMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                        firstDerivTmp[u] += firstDerivMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                        secondDerivTmp[u] += secondDerivMatrix[w + stateChild] * partialsParent[v + i] * weight;
+                        u++;
+
+                        w += kTransPaddedStateCount;
+                    }
+                    v += ((kPatternCount - endPattern) + startPattern) * kPartialsPaddedStateCount;
+                }
+            }
+
+        } else { // Integrate against a partial at the child
+
+            const REALTYPE* partialsChild = gPartials[childIndex];
+            int v = startPattern * kPartialsPaddedStateCount;
+
+            for(int l = 0; l < kCategoryCount; l++) {
+                int u = startPattern * kStateCount;
+                const REALTYPE weight = wt[l];
+                for(int k = startPattern; k < endPattern; k++) {
+                    int w = l * kMatrixSize;
+                    for(int i = 0; i < kStateCount; i++) {
+                        double sumOverJ = 0.0;
+                        double sumOverJD1 = 0.0;
+                        double sumOverJD2 = 0.0;
+                        for(int j = 0; j < kStateCount; j++) {
+                            sumOverJ += transMatrix[w] * partialsChild[v + j];
+                            sumOverJD1 += firstDerivMatrix[w] * partialsChild[v + j];
+                            sumOverJD2 += secondDerivMatrix[w] * partialsChild[v + j];
+                            w++;
+                        }
+
+                        // increment for the extra column at the end
+                        w += T_PAD;
+
+                        integrationTmp[u] += sumOverJ * partialsParent[v + i] * weight;
+                        firstDerivTmp[u] += sumOverJD1 * partialsParent[v + i] * weight;
+                        secondDerivTmp[u] += sumOverJD2 * partialsParent[v + i] * weight;
+                        u++;
+                    }
+                    v += kPartialsPaddedStateCount;
+                }
+                v += ((kPatternCount - endPattern) + startPattern) * kPartialsPaddedStateCount;
+            }
+        }
+
+        int u = startPattern * kStateCount;
+        for(int k = startPattern; k < endPattern; k++) {
+            REALTYPE sumOverI = 0.0;
+            REALTYPE sumOverID1 = 0.0;
+            REALTYPE sumOverID2 = 0.0;
+            for(int i = 0; i < kStateCount; i++) {
+                sumOverI += freqs[i] * integrationTmp[u];
+                sumOverID1 += freqs[i] * firstDerivTmp[u];
+                sumOverID2 += freqs[i] * secondDerivTmp[u];
+                u++;
+            }
+
+            outLogLikelihoodsTmp[k] = log(sumOverI);
+            outFirstDerivativesTmp[k] = sumOverID1 / sumOverI;
+            outSecondDerivativesTmp[k] = sumOverID2 / sumOverI - outFirstDerivativesTmp[k] * outFirstDerivativesTmp[k];
+        }
+
+
+        if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+            const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+            for(int k=startPattern; k < endPattern; k++)
+                outLogLikelihoodsTmp[k] += scalingFactors[k];
+        }
+
+
+        outSumLogLikelihoodByPartition[p] = 0.0;
+        outSumFirstDerivativeByPartition[p] = 0.0;
+        outSumSecondDerivativeByPartition[p] = 0.0;
+        for (int i = startPattern; i < endPattern; i++) {
+            outSumLogLikelihoodByPartition[p]    += outLogLikelihoodsTmp[i]    * gPatternWeights[i];
+            outSumFirstDerivativeByPartition[p]  += outFirstDerivativesTmp[i]  * gPatternWeights[i];
+            outSumSecondDerivativeByPartition[p] += outSecondDerivativesTmp[i] * gPatternWeights[i];
+        }
+
+    }
+}
+
 
 
 BEAGLE_CPU_TEMPLATE
