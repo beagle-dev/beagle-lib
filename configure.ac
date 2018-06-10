@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
 AC_INIT(libhmsbeagle, 3.0.1, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -std=c++11 -O3"}
+: ${CXXFLAGS=""}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
@@ -126,12 +126,21 @@ dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
 
+
+# ------------------------------------------------------------------------------
+# Setup optimization level
+# ------------------------------------------------------------------------------
+
+AM_CXXFLAGS="$AM_CXXFLAGS -O3"
+
 # ------------------------------------------------------------------------------
 # Setup C++11 threads 
 # ------------------------------------------------------------------------------
-dnl Check for gcc
+AM_CXXFLAGS="$AM_CXXFLAGS -std=c++11"
+
 case $host_os in
 *linux*)
+  dnl Check for gcc
   if test x$GCC = xyes
   then
     AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
