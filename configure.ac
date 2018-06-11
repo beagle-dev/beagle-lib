@@ -197,11 +197,11 @@ then
    then
       CUDAPATH="$with_cuda"
       CUDA_CFLAGS+=" -I$with_cuda/include"
-      CUDA_LIBS+=" -L$with_cuda/lib"
+      CUDA_LIBS+=" -L$with_cuda/lib64 -L$with_cuda/lib"
    else
       AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
       AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS+=" -I/usr/local/cuda/include"],[CUDA_CFLAGS=""])
-      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS+=" -L/usr/local/cuda/lib"],[])
+      AC_CHECK_FILE(/usr/local/cuda/lib$SUFFIX,[CUDA_LIBS+=" -L/usr/local/cuda/lib64  -L/usr/local/cuda/lib"],[])
    fi
 
 
