@@ -161,7 +161,7 @@ GPUInterface::~GPUInterface() {
 
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-        SAFE_CUDA(cuCtxDetach(cudaContext));
+        SAFE_CUDA(cuCtxDestroy(cudaContext));
     }
     
     if (kernelResource != NULL) {
@@ -201,7 +201,8 @@ int GPUInterface::Initialize() {
     int currentDevice = 0;
     for (int i=0; i < numDevices; i++) {        
         SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, i));
-        SAFE_CUDA(cuDeviceComputeCapability(&capabilityMajor, &capabilityMinor, tmpCudaDevice)); 
+        SAFE_CUDA(cuDeviceGetAttribute(&capabilityMajor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+        SAFE_CUDA(cuDeviceGetAttribute(&capabilityMinor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
         if ((capabilityMajor > 1 && capabilityMinor != 9999) || (capabilityMajor == 1 && capabilityMinor > 0)) {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
@@ -876,7 +877,8 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
 
 	int major = 0;
 	int minor = 0;
-	SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
 	return (major >= 2 || (major >= 1 && minor >= 3));
 }
 
@@ -900,7 +902,8 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     int major = 0;
     int minor = 0;
 
-    SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
     SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, tmpCudaDevice));
