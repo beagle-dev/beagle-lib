@@ -263,11 +263,21 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 
     SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
     
+    unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
+
     if (flags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO | CU_CTX_MAP_HOST, cudaDevice));
-    } else {
-        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
+        ctxFlags |= CU_CTX_MAP_HOST;
     }
+
+    CUresult error = cuCtxCreate(&cudaContext, ctxFlags, cudaDevice);
+    if(error != CUDA_SUCCESS) { 
+        fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n", 
+                GetCUDAErrorDescription(error), __FILE__, __LINE__); 
+        if (error == CUDA_ERROR_INVALID_DEVICE) {
+            fprintf(stderr, "(The requested CUDA device is likely set to compute exclusive mode. This mode prevents multiple processes from running on the device.)");
+        }
+        exit(-1); 
+    } 
     
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
