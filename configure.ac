@@ -169,7 +169,11 @@ then
       case $host_os in
       *darwin*)
         with_opencl="no"
+        ;;
+      *)
+        AC_CHECK_FILE(/usr/include/CL,[OPENCL_CFLAGS+=" -I/usr/include"],[with_opencl="no"])
       esac
+
    fi
 fi
 
