@@ -131,7 +131,24 @@ AC_SUBST(OPENMP_CXXFLAGS)
 # Setup optimization level
 # ------------------------------------------------------------------------------
 
-AM_CXXFLAGS="$AM_CXXFLAGS -O3"
+AC_ARG_ENABLE(optimization,
+  AC_HELP_STRING([--disable-optimization],[build without compiler optimization]), , [enable_optimization=yes])
+
+if test  "$enable_optimization" = yes; then
+  AM_CXXFLAGS="$AM_CXXFLAGS -O3"
+fi
+
+# ------------------------------------------------------------------------------
+# Setup debugging
+# ------------------------------------------------------------------------------
+
+AC_ARG_ENABLE(debugging,
+  AC_HELP_STRING([--enable-debugging],[build with debugging symbols]), , [enable_debugging=no])
+
+if test  "$enable_debugging" = yes; then
+  AM_CXXFLAGS="$AM_CXXFLAGS -g"
+fi
+
 
 # ------------------------------------------------------------------------------
 # Setup C++11 threads 
