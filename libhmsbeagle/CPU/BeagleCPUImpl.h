@@ -152,6 +152,8 @@ protected:
     int* gAutoPartitionOperations;
     int* gAutoPartitionIndices;
     double* gAutoPartitionOutSumLogLikelihoods;
+    double* gAutoPartitionOutSumFirstDerivs;
+    double* gAutoPartitionOutSumSecondDerivs;
     std::shared_future<void>* gFutures;
 
 public:
@@ -496,6 +498,20 @@ protected:
                                                         const int* cumulativeScaleIndices,
                                                         const int* partitionIndices,
                                                         double* outSumLogLikelihoodByPartition);
+
+    virtual void calcEdgeLogLikelihoodsSecondDerivByAutoPartitionAsync(
+                                                        const int* parentBufferIndices,
+                                                        const int* childBufferIndices,
+                                                        const int* probabilityIndices,
+                                                        const int* firstDerivativeIndices,
+                                                        const int* secondDerivativeIndices,
+                                                        const int* categoryWeightsIndices,
+                                                        const int* stateFrequenciesIndices,
+                                                        const int* cumulativeScaleIndices,
+                                                        const int* partitionIndices,
+                                                        double* outSumLogLikelihoodByPartition,
+                                                        double* outSumFirstDerivativeByPartition,
+                                                        double* outSumSecondDerivativeByPartition);
 
     virtual void calcEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
                                                   const int* childBufferIndices,

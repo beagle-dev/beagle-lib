@@ -226,6 +226,8 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
         if (kAutoRootPartitioningEnabled) {
             free(gAutoPartitionIndices);
             free(gAutoPartitionOutSumLogLikelihoods);
+            free(gAutoPartitionOutSumFirstDerivs);
+            free(gAutoPartitionOutSumSecondDerivs);
         }
     }
 }
@@ -461,6 +463,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                     gAutoPartitionIndices[i] = i;
                 }
                 gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
+                gAutoPartitionOutSumFirstDerivs = (double*) malloc(sizeof(double) * partitionCount);
+                gAutoPartitionOutSumSecondDerivs = (double*) malloc(sizeof(double) * partitionCount);
+                
                 kAutoRootPartitioningEnabled = true;
             }
 
@@ -672,6 +677,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
             if (kAutoRootPartitioningEnabled) {
                 free(gAutoPartitionIndices);
                 free(gAutoPartitionOutSumLogLikelihoods);
+                free(gAutoPartitionOutSumFirstDerivs);
+                free(gAutoPartitionOutSumSecondDerivs);
                 kAutoRootPartitioningEnabled = false;
             }
             kAutoPartitioningEnabled = false;
@@ -2017,15 +2024,48 @@ BEAGLE_CPU_TEMPLATE
                                        categoryWeightsIndices[0], stateFrequenciesIndices[0], cumulativeScalingFactorIndex,
                                        outSumLogLikelihood);
             }
-        else if (secondDerivativeIndices == NULL)
+        else if (secondDerivativeIndices == NULL) {
             return calcEdgeLogLikelihoodsFirstDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
                                              firstDerivativeIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
                                              cumulativeScalingFactorIndex, outSumLogLikelihood, outSumFirstDerivative);
-        else
-            return calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
-                                              firstDerivativeIndices[0], secondDerivativeIndices[0], categoryWeightsIndices[0],
-                                              stateFrequenciesIndices[0], cumulativeScalingFactorIndex, outSumLogLikelihood,
-                                              outSumFirstDerivative, outSumSecondDerivative);
+        } else {
+            if (kAutoRootPartitioningEnabled) {
+                calcEdgeLogLikelihoodsSecondDerivByAutoPartitionAsync(parentBufferIndices,
+                                                           childBufferIndices,
+                                                           probabilityIndices,
+                                                           firstDerivativeIndices,
+                                                           secondDerivativeIndices,
+                                                           categoryWeightsIndices,
+                                                           stateFrequenciesIndices,
+                                                           cumulativeScaleIndices,
+                                                           gAutoPartitionIndices,
+                                                           gAutoPartitionOutSumLogLikelihoods,
+                                                           gAutoPartitionOutSumFirstDerivs,
+                                                           gAutoPartitionOutSumSecondDerivs);                
+                *outSumLogLikelihood = 0.0;
+                *outSumFirstDerivative  = 0.0;
+                *outSumSecondDerivative = 0.0;
+
+                for (int i = 0; i < kPartitionCount; i++) {
+                    *outSumLogLikelihood    += gAutoPartitionOutSumLogLikelihoods[i];
+                    *outSumFirstDerivative  += gAutoPartitionOutSumFirstDerivs[i];
+                    *outSumSecondDerivative += gAutoPartitionOutSumSecondDerivs[i];
+                }
+
+                if (*outSumLogLikelihood != *outSumLogLikelihood ||
+                    *outSumFirstDerivative  != *outSumFirstDerivative ||
+                    *outSumSecondDerivative != *outSumSecondDerivative) {
+                    return BEAGLE_ERROR_FLOATING_POINT;
+                } else {
+                    return BEAGLE_SUCCESS;
+                }
+            } else {
+                return calcEdgeLogLikelihoodsSecondDeriv(parentBufferIndices[0], childBufferIndices[0], probabilityIndices[0],
+                                                  firstDerivativeIndices[0], secondDerivativeIndices[0], categoryWeightsIndices[0],
+                                                  stateFrequenciesIndices[0], cumulativeScalingFactorIndex, outSumLogLikelihood,
+                                                  outSumFirstDerivative, outSumSecondDerivative);
+            }
+        }
     } else {
         if ((kFlags & BEAGLE_FLAG_SCALING_AUTO) || (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)) {
             fprintf(stderr,"BeagleCPUImpl::calculateEdgeLogLikelihoods not yet implemented for count > 1 and auto/always scaling\n");
@@ -2483,6 +2523,56 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsByPartition(
         }
 
     }
+}
+
+
+BEAGLE_CPU_TEMPLATE
+    void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDerivByAutoPartitionAsync(
+                                                  const int* parentBufferIndices,
+                                                  const int* childBufferIndices,
+                                                  const int* probabilityIndices,
+                                                  const int* firstDerivativeIndices,
+                                                  const int* secondDerivativeIndices,
+                                                  const int* categoryWeightsIndices,
+                                                  const int* stateFrequenciesIndices,
+                                                  const int* cumulativeScaleIndices,
+                                                  const int* partitionIndices,
+                                                  double* outSumLogLikelihoodByPartition,
+                                                  double* outSumFirstDerivativeByPartition,
+                                                  double* outSumSecondDerivativeByPartition) {
+
+    for (int i=0; i<kNumThreads; i++) {
+
+        std::packaged_task<void()> threadTask(
+            std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDerivByPartition, this,
+                      parentBufferIndices,
+                      childBufferIndices,
+                      probabilityIndices,
+                      firstDerivativeIndices,
+                      secondDerivativeIndices,
+                      categoryWeightsIndices,
+                      stateFrequenciesIndices,
+                      cumulativeScaleIndices,
+                      &partitionIndices[i],
+                      1,
+                      &outSumLogLikelihoodByPartition[i],
+                      &outSumFirstDerivativeByPartition[i],
+                      &outSumSecondDerivativeByPartition[i]));
+
+        gFutures[i] = threadTask.get_future();
+        threadData* td = &gThreads[i];
+
+        std::unique_lock<std::mutex> l(td->m);
+        td->jobs.push(std::move(threadTask));
+        l.unlock();
+
+        gThreads[i].cv.notify_one();
+    }
+
+    for (int i=0; i<kNumThreads; i++) {
+        gFutures[i].wait();
+    }
+
 }
 
 BEAGLE_CPU_TEMPLATE
