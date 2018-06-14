@@ -161,6 +161,56 @@
 							</dict>
 							<dict>
 								<key>CHILDREN</key>
+								<array>
+									<dict>
+										<key>CHILDREN</key>
+										<array>
+											<dict>
+												<key>CHILDREN</key>
+												<array/>
+												<key>GID</key>
+												<integer>80</integer>
+												<key>PATH</key>
+												<string>/usr/local/lib/libhmsbeagle-jni.jnilib</string>
+												<key>PATH_TYPE</key>
+												<integer>0</integer>
+												<key>PERMISSIONS</key>
+												<integer>493</integer>
+												<key>TYPE</key>
+												<integer>3</integer>
+												<key>UID</key>
+												<integer>501</integer>
+											</dict>
+										</array>
+										<key>GID</key>
+										<integer>0</integer>
+										<key>PATH</key>
+										<string>Extensions</string>
+										<key>PATH_TYPE</key>
+										<integer>2</integer>
+										<key>PERMISSIONS</key>
+										<integer>509</integer>
+										<key>TYPE</key>
+										<integer>2</integer>
+										<key>UID</key>
+										<integer>0</integer>
+									</dict>
+								</array>
+								<key>GID</key>
+								<integer>0</integer>
+								<key>PATH</key>
+								<string>Java</string>
+								<key>PATH_TYPE</key>
+								<integer>2</integer>
+								<key>PERMISSIONS</key>
+								<integer>509</integer>
+								<key>TYPE</key>
+								<integer>2</integer>
+								<key>UID</key>
+								<integer>0</integer>
+							</dict>
+							<dict>
+								<key>CHILDREN</key>
 								<array/>
 								<key>GID</key>
 								<integer>0</integer>
@@ -429,38 +479,6 @@
 												<key>GID</key>
 												<integer>80</integer>
 												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu-sse.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>0</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu-sse.so</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>0</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
 												<string>/usr/local/lib/libhmsbeagle-cpu.30.so</string>
 												<key>PATH_TYPE</key>
 												<integer>0</integer>
@@ -477,71 +495,7 @@
 												<key>GID</key>
 												<integer>80</integer>
 												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>0</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu.so</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>0</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
 												<string>/usr/local/lib/libhmsbeagle-cuda.30.so</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cuda.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cuda.so</string>
 												<key>PATH_TYPE</key>
 												<integer>0</integer>
 												<key>PERMISSIONS</key>
@@ -566,70 +520,6 @@
 												<integer>3</integer>
 												<key>UID</key>
 												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-jni.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-opencl.30.so</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-opencl.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>0</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-opencl.so</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>0</integer>
 											</dict>
 											<dict>
 												<key>CHILDREN</key>
@@ -662,22 +552,6 @@
 												<integer>3</integer>
 												<key>UID</key>
 												<integer>0</integer>
-											</dict>
-											<dict>
-												<key>CHILDREN</key>
-												<array/>
-												<key>GID</key>
-												<integer>80</integer>
-												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle.la</string>
-												<key>PATH_TYPE</key>
-												<integer>0</integer>
-												<key>PERMISSIONS</key>
-												<integer>493</integer>
-												<key>TYPE</key>
-												<integer>3</integer>
-												<key>UID</key>
-												<integer>501</integer>
 											</dict>
 										</array>
 										<key>GID</key>
