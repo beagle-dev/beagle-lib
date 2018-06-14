@@ -2641,8 +2641,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDerivByParti
 
                         w += kTransPaddedStateCount;
                     }
-                    v += ((kPatternCount - endPattern) + startPattern) * kPartialsPaddedStateCount;
+                    v += kPartialsPaddedStateCount;
                 }
+                v += ((kPatternCount - endPattern) + startPattern) * kPartialsPaddedStateCount;
             }
 
         } else { // Integrate against a partial at the child
