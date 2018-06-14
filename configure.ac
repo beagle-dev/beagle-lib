@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 3.0.1, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.0.2, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=""}
 
@@ -13,7 +13,7 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 #release versioning
 GENERIC_MAJOR_VERSION=3
 GENERIC_MINOR_VERSION=0
-GENERIC_MICRO_VERSION=1
+GENERIC_MICRO_VERSION=2
 
 #API version
 GENERIC_API_VERSION=1
