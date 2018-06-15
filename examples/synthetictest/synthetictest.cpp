@@ -1247,6 +1247,26 @@ void runBeagle(int resource,
             sumLogL += siteLogLs[i] * patternWeights[i];
         }
         fprintf(stdout, "\nsumLogL = %.5f\n", sumLogL);
+        if (calcderivs) {
+            double* siteSecondDerivs = (double*) malloc(sizeof(double) * nsites);
+            beagleGetSiteDerivatives(instance, siteLogLs, siteSecondDerivs);
+            sumLogL = 0.0;
+            fprintf(stdout, "site first derivs = ");
+            for (int i=0; i<nsites; i++) {
+                fprintf(stdout, "%.5f \t", siteLogLs[i]);
+                sumLogL += siteLogLs[i] * patternWeights[i];
+            }
+            fprintf(stdout, "\nsumFirstDerivs = %.5f\n", sumLogL);
+
+            sumLogL = 0.0;
+            fprintf(stdout, "site second derivs = ");
+            for (int i=0; i<nsites; i++) {
+                fprintf(stdout, "%.5f \t", siteSecondDerivs[i]);
+                sumLogL += siteSecondDerivs[i] * patternWeights[i];
+            }
+            fprintf(stdout, "\nsumSecondDerivs = %.5f\n", sumLogL);
+            free(siteSecondDerivs);
+        }
         free(siteLogLs);
     }
 
