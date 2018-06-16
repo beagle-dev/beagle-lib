@@ -203,7 +203,7 @@ int GPUInterface::Initialize() {
         SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, i));
         SAFE_CUDA(cuDeviceGetAttribute(&capabilityMajor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
         SAFE_CUDA(cuDeviceGetAttribute(&capabilityMinor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
-        if ((capabilityMajor > 1 && capabilityMinor != 9999) || (capabilityMajor == 1 && capabilityMinor > 0)) {
+        if (capabilityMajor >= 3 && capabilityMinor != 9999) {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
     }
