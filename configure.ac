@@ -264,6 +264,31 @@ fi
 NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
 
 # ------------------------------------------------------------------------------
+# Setup nvcc ccbin
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([nvcc-ccbin],
+   [AS_HELP_STRING([--with-nvcc-ccbin=PATH],[path or executable name of host compiler for nvcc @<:@default=auto@:>@])],
+   [],
+   [with_nvcc_ccbin=auto])
+
+
+if test "x$with_nvcc_ccbin" != "xno"
+then
+   if test "x$with_nvcc_ccbin" != "xauto"
+   then
+      NVCCFLAGS+=" -ccbin $with_nvcc_ccbin"
+   else
+      case $host_os in
+      *darwin*)
+        NVCCFLAGS+=" -ccbin /usr/bin/clang"
+        ;;
+      esac
+   fi
+fi
+
+
+# ------------------------------------------------------------------------------
 # Setup SSE
 # ------------------------------------------------------------------------------
 
@@ -333,7 +358,7 @@ case $host_os in
   then
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE"
      CUDA_LIBS+=" -F/Library/Frameworks -framework CUDA"
   fi
 
