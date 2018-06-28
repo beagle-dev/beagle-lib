@@ -224,8 +224,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount + startPattern*kPartialsPaddedStateCount;;
-    	int v = l*kPartialsPaddedStateCount*kPatternCount;
+    	int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+    	double* destPu = destP + v;
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount;
