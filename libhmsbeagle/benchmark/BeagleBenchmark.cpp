@@ -26,6 +26,9 @@
 
 #include "libhmsbeagle/benchmark/BeagleBenchmark.h"
 
+namespace beagle {
+namespace benchmark {
+
 #ifdef _WIN32
     int gettimeofday(struct timeval *tp,void * tz) {
         FILETIME f;
@@ -45,7 +48,7 @@
 
 double getTimeDiff(struct timeval t1,
                    struct timeval t2) {
-    return ((t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec-t1.tv_usec)/1000.0);
+    return ((double)(t2.tv_sec - t1.tv_sec)*1000.0 + (double)(t2.tv_usec-t1.tv_usec)/1000.0);
 }
 
 int gt_rand_r(unsigned int *seed)
@@ -627,8 +630,7 @@ int benchmarkResource(int resource,
 
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
-        }
-                
+        }                
     }
     
     beagleFinalizeInstance(instance);
@@ -638,3 +640,8 @@ int benchmarkResource(int resource,
     return BEAGLE_SUCCESS;
 
 }
+
+
+}   // namespace benchmark
+}   // namespace beagle
+

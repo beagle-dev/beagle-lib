@@ -500,7 +500,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
 
     bool instOnly = false;
     
-    errorCode = benchmarkResource(0,
+    errorCode = beagle::benchmark::benchmarkResource(0,
                                   stateCount,
                                   tipCount,
                                   patternCount,
@@ -536,7 +536,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
 
         double itBenchmarkResult;
 
-        (*it).returnCode = benchmarkResource((*it).number,
+        (*it).returnCode = beagle::benchmark::benchmarkResource((*it).number,
                                                      stateCount,
                                                      tipCount,
                                                      patternCount,

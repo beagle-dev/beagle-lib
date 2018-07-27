@@ -51,6 +51,9 @@
     #include <sys/time.h>
 #endif
 
+namespace beagle {
+namespace benchmark {
+
 int benchmarkResource(int resource, 
                          int stateCount, 
                          int ntaxa, 
@@ -73,3 +76,7 @@ int benchmarkResource(int resource,
                          bool instOnly);
 
 #endif // __beagle_benchmark__
+
+
+}   // namespace benchmark
+}   // namespace beagle

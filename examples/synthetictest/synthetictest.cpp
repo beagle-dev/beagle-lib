@@ -1698,19 +1698,28 @@ int main( int argc, const char* argv[] )
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist);
     
 
-    if (!benchmarklist) {
-        std::cout << "\nSimulating genomic ";
-        if (stateCount == 4)
-            std::cout << "DNA";
-        else
-            std::cout << stateCount << "-state data";
-        if (partitions > 1) {
-            std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-        } else {
-            std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-        }
-        std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ", random seed " << randomSeed << ")\n\n";
+    std::cout << "\nSimulating genomic ";
+    if (stateCount == 4)
+        std::cout << "DNA";
+    else
+        std::cout << stateCount << "-state data";
+    if (partitions > 1) {
+        std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions";
     } else {
+        std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns";
+    }
+
+    if (!benchmarklist)
+        std::cout << " (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+
+    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":"")));
+
+    if (!benchmarklist)
+        std::cout << ", random seed " << randomSeed << ")";
+
+    std::cout << "\n\n";
+
+    if (benchmarklist) {
         rsrcCount =  rsrc.size() - 1;
         if (rsrcCount == 0) {
             rsrcList = NULL;
