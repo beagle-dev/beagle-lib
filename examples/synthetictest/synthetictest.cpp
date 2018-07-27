@@ -394,7 +394,10 @@ void runBeagle(int resource,
                bool newDataPerRep,
                bool randomTree,
                bool rerootTrees,
-               bool pectinate)
+               bool pectinate,
+               bool benchmarklist,
+               int* resourceList,
+               int  resourceCount)
 {
     
     int edgeCount = ntaxa*2-2;
@@ -406,6 +409,68 @@ void runBeagle(int resource,
     
     BeagleInstanceDetails instDetails;
     
+
+    if (benchmarklist) {
+        // print version and citation info
+        fprintf(stdout, "BEAGLE version %s\n", beagleGetVersion());
+        fprintf(stdout, "%s\n", beagleGetCitation());
+
+        long benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_NONE;
+
+        if (manualScaling) {
+            if (rescaleFrequency > 1)
+                benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_DYNAMIC;
+            else
+                benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_ALWAYS;
+        }
+
+        long preferenceFlags = (requireSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
+        long requirementFlags =
+        (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE);
+
+        // print resource list
+        BeagleBenchmarkedResourceList* rBList;
+        rBList = beagleGetBenchmarkedResourceList(
+                    ntaxa,
+                    0, // partialsBufferCount to be implemented
+                    compactTipCount,
+                    stateCount,
+                    nsites,
+                    0, // eigenBufferCount to be implemented
+                    0, // matrixBufferCount to be implemented
+                    rateCategoryCount,
+                    0, // scaleBufferCount to be implemented
+                    resourceList,
+                    resourceCount,
+                    preferenceFlags,
+                    requirementFlags,
+                    eigenCount,
+                    partitionCount,
+                    calcderivs,
+                    benchmarkFlags);
+
+        fprintf(stdout, "Resource benchmarks:\n");
+        for (int i = 0; i < rBList->length; i++) {
+            fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rBList->list[i].name);
+            fprintf(stdout, "\t\tDesc : %s\n", rBList->list[i].description);
+            fprintf(stdout, "\t\tSupport Flags:");
+            printFlags(rBList->list[i].supportFlags);
+            fprintf(stdout, "\n");
+            fprintf(stdout, "\t\tRequired Flags:");
+            printFlags(rBList->list[i].requiredFlags);
+            fprintf(stdout, "\n");
+            fprintf(stdout, "\t\tBenchmark Results:\n");
+            fprintf(stdout, "\t\t\tNmbr : %d\n", rBList->list[i].number);
+            fprintf(stdout, "\t\t\tImpl : %s\n", rBList->list[i].implName);
+            fprintf(stdout, "\t\t\tFlags:");
+            printFlags(rBList->list[i].benchedFlags);
+            fprintf(stdout, "\n");
+            fprintf(stdout, "\t\t\tPerf : %.4f ms (%.2fx CPU)\n", rBList->list[i].benchmarkResult, rBList->list[i].performanceRatio);
+        }
+        fprintf(stdout, "\n");
+        std::exit(0);
+    }
+
     // create an instance of the BEAGLE library
     int instance = beagleCreateInstance(
                 ntaxa,            /**< Number of tip data elements (input) */
@@ -1338,9 +1403,10 @@ void printResourceList() {
     std::exit(0);
 }
 
+
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]\n\n";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -1377,7 +1443,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* newDataPerRep,
                                     bool* randomTree,
                                     bool* rerootTrees,
-                                    bool* pectinate)    {
+                                    bool* pectinate,
+                                    bool* benchmarklist)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -1436,6 +1503,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             helpMessage();
         } else if (option == "--resourcelist") {
             printResourceList();
+        } else if (option == "--benchmarklist") {
+            *benchmarklist = true;
         } else if (option == "--manualscale") {
             *manualScaling = true;
         } else if (option == "--autoscale") {
@@ -1607,10 +1676,14 @@ int main( int argc, const char* argv[] )
     bool randomTree = false;
     bool rerootTrees = false;
     bool pectinate = false;
+    bool benchmarklist = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
+
+    int* rsrcList  = NULL;
+    int  rsrcCount = 0;
 
     int nreps = 5;
     bool fullTiming = false;
@@ -1622,22 +1695,32 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate);
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist);
     
-    std::cout << "\nSimulating genomic ";
-    if (stateCount == 4)
-        std::cout << "DNA";
-    else
-        std::cout << stateCount << "-state data";
-    if (partitions > 1) {
-        std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-    } else {
-        std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
-    }
-    std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ", random seed " << randomSeed << ")\n\n";
 
+    if (!benchmarklist) {
+        std::cout << "\nSimulating genomic ";
+        if (stateCount == 4)
+            std::cout << "DNA";
+        else
+            std::cout << stateCount << "-state data";
+        if (partitions > 1) {
+            std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+        } else {
+            std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns (" << nreps << " rep" << (nreps > 1 ? "s" : "");
+        }
+        std::cout << (manualScaling ? ", manual scaling":(autoScaling ? ", auto scaling":(dynamicScaling ? ", dynamic scaling":""))) << ", random seed " << randomSeed << ")\n\n";
+    } else {
+        rsrcCount =  rsrc.size() - 1;
+        if (rsrcCount == 0) {
+            rsrcList = NULL;
+        } else {
+            rsrcList  = &rsrc[1];
+        }
+    }
 
     BeagleResourceList* rl = beagleGetResourceList();
+
     if(rl != NULL){
         for(int i=0; i<rl->length; i++){
             if (rsrc.size() == 1 || std::find(rsrc.begin(), rsrc.end(), i)!=rsrc.end()) {
@@ -1670,12 +1753,16 @@ int main( int argc, const char* argv[] )
                           newDataPerRep,
                           randomTree,
                           rerootTrees,
-                          pectinate);
+                          pectinate,
+                          benchmarklist,
+                          rsrcList,
+                          rsrcCount);
             }
         }
     } else {
         abort("no BEAGLE resources found");
     }
+
 
 //#ifdef _WIN32
 //    std::cout << "\nPress ENTER to exit...\n";
