@@ -319,10 +319,7 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param compactBufferCount    Number of compact state representation tips (input)
  * @param stateCount            Number of states in the continuous-time Markov chain (input)
  * @param patternCount          Number of site patterns (input)
- * @param eigenBufferCount      Number of rate matrix eigen-decomposition, category weight,
- * @param matrixBufferCount     Number of transition probability matrix buffers (input)
  * @param categoryCount         Number of rate categories (input)
- * @param scaleBufferCount      Number of scale buffers to create (input)
  * @param resourceList          List of resources to be benchmarked, NULL implies no restriction
  *                               (input)
  * @param resourceCount         Length of resourceList list (input)
@@ -340,14 +337,10 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * 
  */
 BEAGLE_DLLEXPORT BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
-                                                    int partialsBufferCount,
                                                     int compactBufferCount,
                                                     int stateCount,
                                                     int patternCount,
-                                                    int eigenBufferCount,
-                                                    int matrixBufferCount,
                                                     int categoryCount,
-                                                    int scaleBufferCount,
                                                     int* resourceList,
                                                     int resourceCount,
                                                     long preferenceFlags,

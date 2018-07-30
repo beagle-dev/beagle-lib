@@ -432,14 +432,10 @@ void runBeagle(int resource,
         BeagleBenchmarkedResourceList* rBList;
         rBList = beagleGetBenchmarkedResourceList(
                     ntaxa,
-                    0, // partialsBufferCount to be implemented
                     compactTipCount,
                     stateCount,
                     nsites,
-                    0, // eigenBufferCount to be implemented
-                    0, // matrixBufferCount to be implemented
                     rateCategoryCount,
-                    0, // scaleBufferCount to be implemented
                     resourceList,
                     resourceCount,
                     preferenceFlags,
