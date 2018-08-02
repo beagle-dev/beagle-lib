@@ -347,7 +347,7 @@ BEAGLE_DLLEXPORT BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList
                                                     long requirementFlags,
                                                     int eigenModelCount,
                                                     int partitionCount,
-                                                    bool calculateDerivatives,
+                                                    int calculateDerivatives,
                                                     long benchmarkFlags);
 
 /**

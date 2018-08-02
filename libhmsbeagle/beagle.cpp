@@ -128,6 +128,11 @@ void beagleLoadPlugins(void) {
     beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
     try{
+        beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
+        plugins->push_back(sseplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
+
+    try{
         beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
         plugins->push_back(cpuplug);
     }catch(beagle::plugin::SharedLibraryException sle){
@@ -149,11 +154,6 @@ void beagleLoadPlugins(void) {
     try{
         beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
         plugins->push_back(openclalteraplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
-
-    try{
-        beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
-        plugins->push_back(sseplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
     
     try{
@@ -444,7 +444,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 long requirementFlags,
                                                                 int eigenModelCount,
                                                                 int partitionCount,
-                                                                bool calculateDerivatives,
+                                                                int calculateDerivatives,
                                                                 long benchmarkFlags) {
     if (rsrcList == NULL)
         beagleGetResourceList();

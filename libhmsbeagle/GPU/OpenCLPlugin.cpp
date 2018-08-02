@@ -70,11 +70,11 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
         //	if(beagleResources.size() > 0) {
         if (anyGPUSupportsOpenCL) {
         	using namespace opencl;
-            beagleFactories.push_back(new BeagleGPUImplFactory<float>());
             if (anyGPUSupportsDP) {
                 // TODO Uncomment when working
                 beagleFactories.push_back(new BeagleGPUImplFactory<double>());
             }
+            beagleFactories.push_back(new BeagleGPUImplFactory<float>());
         }
     }
 OpenCLPlugin::~OpenCLPlugin()

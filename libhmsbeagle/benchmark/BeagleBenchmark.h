@@ -41,7 +41,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/benchmark/linalg.h"
 
-#define BENCHMARK_REPLICATES 10
+#define BENCHMARK_REPLICATES 15
 #define GT_RAND_MAX 0x7fffffff
 
 #ifdef _WIN32
