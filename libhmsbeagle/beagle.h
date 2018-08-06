@@ -193,7 +193,7 @@ enum BeagleFlags {
  * Each mode is a bit in a 'long'
  */
 enum BeagleBenchmarkFlags {
-    BEAGLE_BENCHFLAG_SCALING_NONE        = 1 << 0,    /**< Manual scaling */
+    BEAGLE_BENCHFLAG_SCALING_NONE        = 1 << 0,    /**< No scaling */
     BEAGLE_BENCHFLAG_SCALING_ALWAYS      = 1 << 1,    /**< Scale at every iteration */
     BEAGLE_BENCHFLAG_SCALING_DYNAMIC     = 1 << 2,    /**< Scale every fixed number of iterations or when a numerical error occurs, and re-use scale factors for subsequent iterations */
 };
@@ -262,10 +262,10 @@ typedef struct {
 } BeagleBenchmarkedResource;
 
 /**
- * @brief List of benchmarked hardware resources
+ * @brief Ordered list of benchmarked hardware resources, from fastest to slowest
  */
 typedef struct {
-    BeagleBenchmarkedResource* list; /**< Pointer list of benchmarked resources */
+    BeagleBenchmarkedResource* list; /**< Pointer to ordered list of benchmarked resources */
     int length;     /**< Length of list */
 } BeagleBenchmarkedResourceList;
 
@@ -313,7 +313,8 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * This function returns a pointer to a BeagleBenchmarkedResourceList struct, which includes
  * a BeagleBenchmarkedResource array describing the available hardware resources with
  * benchmark times and CPU performance ratios for each resource. Resources are benchmarked
- * with the given analysis parameters. If there is an error the function returns NULL.
+ * with the given analysis parameters and the array is ordered from fastest to slowest.
+ * If there is an error the function returns NULL.
  * 
  * @param tipCount              Number of tip data elements (input)
  * @param compactBufferCount    Number of compact state representation tips (input)
@@ -332,7 +333,7 @@ BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
  * @param calculateDerivatives  Indicates if calculation of derivatives are required (input)
  * @param benchmarkFlags        Bit-flags indicating benchmarking preferences (input)
  *
- * @return A list of hardware resources available to the library as a 
+ * @return An ordered (fastest to slowest) list of hardware resources available to the library as a 
  * BeagleBenchmarkedResourceList for the specified analysis parameters
  * 
  */

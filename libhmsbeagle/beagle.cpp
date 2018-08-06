@@ -108,6 +108,11 @@ bool compareOnFirst(const IntPair &left, const IntPair &right) {
     return left.first < right.first;
 }
 
+// A specialized comparator that only reorders based on benchmark result
+bool compareBenchmarkResult(const BeagleBenchmarkedResource &left, const BeagleBenchmarkedResource &right) {
+    return left.benchmarkResult < right.benchmarkResult;
+}
+
 std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
 BeagleResourceList* rsrcList = NULL;
@@ -565,6 +570,8 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
             (*it).performanceRatio = benchmarkResultCPU / (*it).benchmarkResult;
         }
     }
+
+    filteredRsrcBenchList->sort(compareBenchmarkResult); // order from fastest to slowest
 
    if (rsrcBenchList != NULL) {
         free(rsrcBenchList->list);
