@@ -1,9 +1,9 @@
-SUBDIRS=GPU CPU plugin
+SUBDIRS=GPU CPU plugin benchmark
 
 lib_LTLIBRARIES=libhmsbeagle.la
 
 libhmsbeagle_la_SOURCES=beagle.cpp BeagleImpl.h
-libhmsbeagle_la_LIBADD = plugin/libplugin.la
+libhmsbeagle_la_LIBADD = plugin/libplugin.la benchmark/libbenchmark.la
 libhmsbeagle_la_CXXFLAGS = $(AM_CXXFLAGS)
 libhmsbeagle_la_LDFLAGS= -version-info $(GENERIC_LIBRARY_VERSION)
 

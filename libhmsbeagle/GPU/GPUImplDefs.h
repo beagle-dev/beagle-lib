@@ -60,7 +60,8 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_APPLE_CPU       = 6,
     BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU   = 7,
     BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU = 8,
-    BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 9,
+    BEAGLE_OPENCL_DEVICE_NVIDA_GPU       = 10,
+    BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 11,
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation

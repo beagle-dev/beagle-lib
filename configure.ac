@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 3.0.2, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.1.0, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=""}
 
@@ -12,8 +12,8 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
 GENERIC_MAJOR_VERSION=3
-GENERIC_MINOR_VERSION=0
-GENERIC_MICRO_VERSION=2
+GENERIC_MINOR_VERSION=1
+GENERIC_MICRO_VERSION=0
 
 #API version
 GENERIC_API_VERSION=1
@@ -23,7 +23,7 @@ AC_SUBST(GENERIC_API_VERSION)
 GENERIC_REVISION_VERSION=$GENERIC_MINOR_VERSION
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:2
+GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:3
 #
 #             current:revision:age
 #                |        |     |
@@ -460,6 +460,7 @@ AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/plugin/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/benchmark/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile])
 AC_CONFIG_FILES([examples/tinytest/Makefile])

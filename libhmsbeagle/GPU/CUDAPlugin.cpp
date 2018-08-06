@@ -59,11 +59,11 @@ Plugin("GPU-CUDA", "GPU-CUDA")
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
     	using namespace cuda;
-        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
-		if (anyGPUSupportsDP) {
-			// TODO Uncomment when working
+        if (anyGPUSupportsDP) {
+            // TODO Uncomment when working
             beagleFactories.push_back(new BeagleGPUImplFactory<double>());
-		}
+        }
+        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
 	}
 }
 
