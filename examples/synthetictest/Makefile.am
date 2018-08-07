@@ -12,5 +12,5 @@ clean-local:
 	rm -f synthetictest.sh
 
 TESTS = synthetictest.sh
-AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
-
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir) $(SYNTHETICTEST_CPPFLAGS)
+AM_LDFLAGS = $(SYNTHETICTEST_LDFLAGS)

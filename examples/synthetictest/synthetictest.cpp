@@ -1,9 +1,8 @@
 /*
  *  synthetictest.cpp
- *  Created by Aaron Darling on 14/06/2009.
- *  @author Aaron Darling
  *  @author Daniel Ayres
- *  Based on tinyTest.cpp by Andrew Rambaut.
+ *  Based on tinyTest.cpp by Andrew Rambaut, genomictest.cpp by Aaron Darling.
+ *  PLL comparison based on test files by Diego Darriba and Tomas Flouri
  */
 #include <cstring>
 #include <cstdio>
@@ -26,6 +25,11 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "linalg.h"
+
+#ifdef HAVE_PLL
+    #include "libpll/pll.h"
+#endif // HAVE_PLL
+
 
 #define MAX_DIFF    0.01        //max discrepancy in scoring between reps
 #define GT_RAND_MAX 0x7fffffff
@@ -108,6 +112,51 @@ int* getRandomTipStates( int nsites, int stateCount )
     return states;
 }
 
+#ifdef HAVE_PLL
+
+char* pll_getNucleotideCharStates( int* states, int nsites )
+{
+    char *charStates = (char*) malloc(sizeof(char) * nsites); 
+    for( int i=0; i<nsites; i++ )
+    {
+        switch(states[i]) {
+            case 0:
+                charStates[i] = 'A';
+                break;
+            case 1:
+                charStates[i] = 'C';
+                break;
+            case 2:
+                charStates[i] = 'G';
+                break;
+            case 3:
+                charStates[i] = 'T';
+                break;
+            default:
+                charStates[i] = '-';
+        }
+    }
+    return charStates;
+}
+
+
+void pll_printTiming(double timingValue,
+                double beagleTimingValue,
+                 int timePrecision,
+                 bool printSpeedup,
+                 double cpuTimingValue,
+                 int speedupPrecision,
+                 bool printPercent,
+                 double totalTime,
+                 int percentPrecision) {
+    std::cout << std::setprecision(timePrecision) << timingValue << "s";
+    if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << beagleTimingValue/timingValue << "x BEAGLE)";
+    if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
+    std::cout << "\n";
+}
+
+#endif // HAVE_PLL
+
 void printTiming(double timingValue,
                  int timePrecision,
                  bool printSpeedup,
@@ -121,6 +170,7 @@ void printTiming(double timingValue,
     if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
     std::cout << "\n";
 }
+
 
 double getTimeDiff(struct timeval t1,
                    struct timeval t2) {
@@ -396,6 +446,7 @@ void runBeagle(int resource,
                bool rerootTrees,
                bool pectinate,
                bool benchmarklist,
+               bool pllTest,
                int* resourceList,
                int  resourceCount)
 {
@@ -467,6 +518,30 @@ void runBeagle(int resource,
         std::exit(0);
     }
 
+#ifdef HAVE_PLL
+    pll_partition_t * pll_partition;
+    pll_operation_t * pll_operations;
+    unsigned int * pll_params_indices;
+
+    if (pllTest) {
+        int pll_num_params = 4;
+        pll_params_indices = (unsigned int *) malloc(pll_num_params * sizeof(unsigned int));
+        for (int i = 0; i < pll_num_params; i++) {
+            pll_params_indices[i] = 0;
+        }
+        pll_partition = pll_partition_create(ntaxa,
+                                       partialCount,           /* clv buffers */
+                                       stateCount, /* number of states */
+                                       nsites,     /* sequence length */
+                                       modelCount,           /* different rate parameters */
+                                       edgeCount*modelCount,  /* probability matrices */
+                                       rateCategoryCount, /* gamma categories */
+                                       scaleCount*eigenCount,           /* scale buffers */
+                                       PLL_ATTRIB_ARCH_AVX //| PLL_ATTRIB_PATTERN_TIP
+                                       );          /* attributes */
+    }
+#endif // HAVE_PLL
+
     // create an instance of the BEAGLE library
     int instance = beagleCreateInstance(
                 ntaxa,            /**< Number of tip data elements (input) */
@@ -482,6 +557,7 @@ void runBeagle(int resource,
                 1,                /**< Length of resourceList list (input) */
                 0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                 // BEAGLE_FLAG_PARALLELOPS_STREAMS |
+                BEAGLE_FLAG_THREADING_NONE |
                 (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                 (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                 (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
@@ -516,10 +592,22 @@ void runBeagle(int resource,
         if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
             double* tmpPartials = getRandomTipPartials(nsites, stateCount);
             beagleSetTipPartials(instance, i, tmpPartials);
+#ifdef HAVE_PLL
+            if (pllTest) {
+                pll_set_tip_clv(pll_partition, i, tmpPartials, 0);
+            }
+#endif // HAVE_PLL
             free(tmpPartials);
         } else {
             int* tmpStates = getRandomTipStates(nsites, stateCount);
             beagleSetTipStates(instance, i, tmpStates);
+#ifdef HAVE_PLL
+            if (pllTest) {
+                char* pll_tmp_states = pll_getNucleotideCharStates(tmpStates, nsites);
+                pll_set_tip_states(pll_partition, i, pll_map_nt, pll_tmp_states);
+                free(pll_tmp_states);
+            }
+#endif // HAVE_PLL
             free(tmpStates);                
         }
     }
@@ -540,13 +628,19 @@ void runBeagle(int resource,
         }
     } else {
         beagleSetCategoryRates(instance, &rates[0]);
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_set_category_rates(pll_partition, rates);
+        }
+#endif // HAVE_PLL
     }
 
     
     double* patternWeights = (double*) malloc(sizeof(double) * nsites);
     
     for (int i = 0; i < nsites; i++) {
-        patternWeights[i] = gt_rand() / (double) GT_RAND_MAX;
+        // patternWeights[i] = gt_rand() / (double) GT_RAND_MAX;
+        patternWeights[i] = 1.0;
     }    
 
     beagleSetPatternWeights(instance, patternWeights);
@@ -594,7 +688,9 @@ void runBeagle(int resource,
 
     for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
         for (int i = 0; i < rateCategoryCount; i++) {
-            weights[i] = gt_rand() / (double) GT_RAND_MAX;
+            // weights[i] = gt_rand() / (double) GT_RAND_MAX;
+
+            weights[i] = 1.0;
         } 
     
         beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
@@ -748,10 +844,21 @@ void runBeagle(int resource,
         }
             
         beagleSetStateFrequencies(instance, eigenIndex, &freqs[0]);
-        
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_set_frequencies(pll_partition, 0, &freqs[0]);
+        }
+#endif // HAVE_PLL
         if (!setmatrix) {
             // set the Eigen decomposition
             beagleSetEigenDecomposition(instance, eigenIndex, &evec[0], &ivec[0], &eval[0]);
+#ifdef HAVE_PLL
+            if (pllTest) {
+                double pll_subst_params[6] = {1,1,1,1,1,1};
+                pll_subst_params[1] = pll_subst_params[4] = 0.175;
+                pll_set_subst_params(pll_partition, 0, pll_subst_params);
+            }
+#endif // HAVE_PLL
         }
     }
     
@@ -785,7 +892,11 @@ void runBeagle(int resource,
     int unpartOpsCount = internalCount*eigenCount;
     int* scalingFactorsIndices = new int[unpartOpsCount]; // internal nodes
 
-
+#ifdef HAVE_PLL
+    if (pllTest) {
+        pll_operations = (pll_operation_t *)malloc(unpartOpsCount* sizeof(pll_operation_t));
+    }
+#endif // HAVE_PLL
 
     for(int i=0; i<unpartOpsCount; i++){
         int child1Index;
@@ -812,6 +923,19 @@ void runBeagle(int resource,
                 operations[op*beagleOpCount+7] = j;
                 operations[op*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
             }
+
+#ifdef HAVE_PLL
+            if (pllTest) {
+                pll_operations[op].parent_clv_index    = ntaxa+i;
+                pll_operations[op].child1_clv_index    = child1Index;
+                pll_operations[op].child2_clv_index    = child2Index;
+                pll_operations[op].child1_matrix_index = child1Index + j*edgeCount;
+                pll_operations[op].child2_matrix_index = child2Index + j*edgeCount;
+                pll_operations[op].parent_scaler_index = PLL_SCALE_BUFFER_NONE;
+                pll_operations[op].child1_scaler_index = PLL_SCALE_BUFFER_NONE;
+                pll_operations[op].child2_scaler_index = PLL_SCALE_BUFFER_NONE;
+            }
+#endif // HAVE_PLL
             // printf("op %d i %d j %d dest %d c1 %d c2 %d c1m %d c2m %d p %d\n",
             //        op, i, j, ntaxa+i, child1Index, child2Index,
             //        operations[op*beagleOpCount+4], operations[op*beagleOpCount+6], j);
@@ -998,6 +1122,20 @@ void runBeagle(int resource,
                     operations[opJ*beagleOpCount+7] = j;
                     operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
                 }
+
+#ifdef HAVE_PLL
+                if (pllTest) {
+                    pll_operations[op].parent_clv_index    = parentIndex;
+                    pll_operations[op].child1_clv_index    = child1Index;
+                    pll_operations[op].child2_clv_index    = child2Index;
+                    pll_operations[op].child1_matrix_index = child1Index + j*edgeCount;
+                    pll_operations[op].child2_matrix_index = child2Index + j*edgeCount;
+                    pll_operations[op].parent_scaler_index = PLL_SCALE_BUFFER_NONE;
+                    pll_operations[op].child1_scaler_index = PLL_SCALE_BUFFER_NONE;
+                    pll_operations[op].child2_scaler_index = PLL_SCALE_BUFFER_NONE;
+                }
+#endif // HAVE_PLL
+
             // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
             //        opJ, j, parentIndex, child1Index, child2Index);
             }
@@ -1005,6 +1143,7 @@ void runBeagle(int resource,
         }   
     }
 
+    gt_srand(randomSeed);   // reset the random seed...
 
     for (int i=0; i<nreps; i++){
 
@@ -1331,7 +1470,6 @@ void runBeagle(int resource,
         free(siteLogLs);
     }
 
-    free(patternWeights);
     if (partitionCount > 1) {
         free(patternPartitions);
     }
@@ -1377,6 +1515,408 @@ void runBeagle(int resource,
     std::cout << "\n";
     
     beagleFinalizeInstance(instance);
+
+//////////////////////////////////////////////////////////////////////////
+// pll test
+#ifdef HAVE_PLL
+    if (pllTest) {
+
+        double pll_bestTimeSetPartitions, pll_bestTimeUpdateTransitionMatrices, pll_bestTimeUpdatePartials, pll_bestTimeAccumulateScaleFactors, pll_bestTimeCalculateRootLogLikelihoods, pll_bestTimeTotal;
+
+        logL = previousLogL = 0.0;
+
+        gt_srand(randomSeed);   // reset the random seed...
+
+        for (int i=0; i<nreps; i++){
+
+            if (newDataPerRep) {
+                for(int ii=0; ii<ntaxa; ii++)
+                {
+                    if (compactTipCount == 0 || (ii >= (compactTipCount-1) && ii != (ntaxa-1))) {
+                        double* tmpPartials = getRandomTipPartials(nsites, stateCount);
+
+                        pll_set_tip_clv(pll_partition, i, tmpPartials, 0);
+
+                        free(tmpPartials);
+                    } else {
+                        int* tmpStates = getRandomTipStates(nsites, stateCount);
+
+                        char* pll_tmp_states = pll_getNucleotideCharStates(tmpStates, nsites);
+                        pll_set_tip_states(pll_partition, i, pll_map_nt, pll_tmp_states);
+                        free(pll_tmp_states);
+
+                        free(tmpStates);                
+                    }
+                }
+            }
+
+    // TODO: pll scaling
+            // if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
+            //     for(int j=0; j<operationCount; j++){
+            //         int sIndex = j / partitionCount;
+            //         operations[beagleOpCount*j+1] = (((manualScaling && !(i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
+            //         operations[beagleOpCount*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
+            //     }
+            // }
+            
+            gettimeofday(&time0,NULL);
+
+    // TODO: pll partitions
+
+            // if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
+            //     if (beagleSetPatternPartitions(instance, partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
+            //         printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
+            //         exit(-1);
+            //     }
+            // }
+
+            gettimeofday(&time1,NULL);
+
+            // if (partitionCount > 1) {
+            //     int totalEdgeCount = edgeCount * modelCount;
+            //     beagleUpdateTransitionMatricesWithMultipleModels(
+            //                                    instance,     // instance
+            //                                    eigenIndices,   // eigenIndex
+            //                                    categoryRateIndices,   // category rate index
+            //                                    edgeIndices,   // probabilityIndices
+            //                                    (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
+            //                                    (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
+            //                                    edgeLengths,   // edgeLengths
+            //                                    totalEdgeCount);            // count
+            // } else {
+
+                for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+                    // if (!setmatrix) {
+                        // tell pll to populate the transition matrices for the above edge lengths
+                        unsigned int* pll_edgeIndices = new unsigned int[edgeCount];
+                        for (int edge=0; edge<edgeCount; edge++){
+                            pll_edgeIndices[edge] = edgeIndices[eigenIndex*edgeCount + edge];
+                        }
+
+                        pll_update_prob_matrices(pll_partition,
+                                                 pll_params_indices,
+                                                 pll_edgeIndices,
+                                                 edgeLengths,
+                                                 edgeCount);
+
+                        delete[] pll_edgeIndices;
+
+                    // } 
+                }
+    // TODO: pll set matrix
+                    // else {
+                    //     double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
+                    //     for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
+                    //         for(int z=0;z<rateCategoryCount;z++){
+                    //             for(int x=0;x<stateCount;x++){
+                    //                 for(int y=0;y<stateCount;y++){
+                    //                     inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
+                    //                 }
+                    //             } 
+                    //         }
+                    //         beagleSetTransitionMatrix(instance, edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                    //         if (calcderivs) {
+                    //             beagleSetTransitionMatrix(instance, edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                    //             beagleSetTransitionMatrix(instance, edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                    //         }
+                    //     }
+                    // }
+                // }
+            // }
+
+            // std::cout.setf(std::ios::showpoint);
+            // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+            // std::cout.precision(4);
+            // unsigned int partialsOps = internalCount * eigenCount;
+            // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+            // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+            // unsigned long long partialsTotal = partialsSize * partialsOps;
+            // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+
+            // std::cout << " compute throughput:   ";
+
+            // for (int pRep=0; pRep < 50; pRep++) {
+                gettimeofday(&time2, NULL);
+
+                // update the partials
+                // if (partitionCount > 1) {
+                //     beagleUpdatePartialsByPartition( instance,                   // instance
+                //                     (BeagleOperationByPartition*)operations,     // operations
+                //                     internalCount*eigenCount*partitionCount);    // operationCount
+                // } else {
+
+                    pll_update_partials(pll_partition, pll_operations, internalCount*eigenCount);
+                // }
+
+                gettimeofday(&time3, NULL);
+
+                // struct timespec ts;
+                // ts.tv_sec = 0;
+                // ts.tv_nsec = 100000000;
+                // nanosleep(&ts, NULL);
+
+                // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << ", ";
+            // }
+            // std::cout << " GFLOPS " << std::endl<< std::endl;
+
+            // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+
+
+            // int scalingFactorsCount = internalCount;
+                    
+            // for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+            //     if (manualScaling && !(i % rescaleFrequency)) {
+            //         beagleResetScaleFactors(instance,
+            //                                 cumulativeScalingFactorIndices[eigenIndex]);
+                    
+            //         beagleAccumulateScaleFactors(instance,
+            //                                &scalingFactorsIndices[eigenIndex*internalCount],
+            //                                scalingFactorsCount,
+            //                                cumulativeScalingFactorIndices[eigenIndex]);
+            //     } else if (autoScaling) {
+            //         beagleAccumulateScaleFactors(instance, &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
+            //     }
+            // }
+            
+            gettimeofday(&time4, NULL);
+
+            unsigned int pll_rootIndex = rootIndices[0];
+            unsigned int pll_lastTipIndex = lastTipIndices[0];
+
+            // calculate the site likelihoods at the root node
+            if (!unrooted) {
+            //     if (partitionCount > 1) {
+            //         beagleCalculateRootLogLikelihoodsByPartition(
+            //                                     instance,               // instance
+            //                                     rootIndices,// bufferIndices
+            //                                     categoryWeightsIndices,                // weights
+            //                                     stateFrequencyIndices,                 // stateFrequencies
+            //                                     cumulativeScalingFactorIndices,
+            //                                     partitionIndices,
+            //                                     partitionCount,
+            //                                     eigenCount,                      // count
+            //                                     partitionLogLs,
+            //                                     &logL);         // outLogLikelihoods
+            //     } else {
+
+
+                    logL = pll_compute_root_loglikelihood(pll_partition,
+                                                          pll_rootIndex,
+                                                          PLL_SCALE_BUFFER_NONE,
+                                                          pll_params_indices,
+                                                          NULL);
+                // }
+            } else {
+                // if (partitionCount > 1) {
+                //     beagleCalculateEdgeLogLikelihoodsByPartition(
+                //                                       instance,
+                //                                       rootIndices,
+                //                                       lastTipIndices,
+                //                                       lastTipIndices,
+                //                                       (calcderivs ? lastTipIndicesD1 : NULL),
+                //                                       (calcderivs ? lastTipIndicesD2 : NULL),
+                //                                       categoryWeightsIndices,
+                //                                       stateFrequencyIndices,
+                //                                       cumulativeScalingFactorIndices,
+                //                                       partitionIndices,
+                //                                       partitionCount,
+                //                                       eigenCount,
+                //                                       partitionLogLs,
+                //                                       &logL,
+                //                                       (calcderivs ? partitionD1 : NULL),
+                //                                       (calcderivs ? &deriv1 : NULL),
+                //                                       (calcderivs ? partitionD2 : NULL),
+                //                                       (calcderivs ? &deriv2 : NULL));
+                // } else {            
+
+                    logL = pll_compute_edge_loglikelihood(pll_partition,
+                                                                  pll_rootIndex,
+                                                                  PLL_SCALE_BUFFER_NONE,
+                                                                  pll_lastTipIndex,
+                                                                  PLL_SCALE_BUFFER_NONE,
+                                                                  pll_lastTipIndex,
+                                                                  pll_params_indices,
+                                                                  NULL);
+                // }
+            }
+            // end timing!
+            gettimeofday(&time5,NULL);
+            
+            // std::cout.setf(std::ios::showpoint);
+            // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+            // int timePrecision = 6;
+            // int speedupPrecision = 2;
+            // int percentPrecision = 2;
+            // std::cout << "run " << i << ": ";
+            // printTiming(getTimeDiff(time1, time5), timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
+            // fprintf(stdout, "logL = %.5f  ", logL);
+
+                // unsigned int partialsOps = internalCount * eigenCount;
+                // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+                // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+                // unsigned long long partialsTotal = partialsSize * partialsOps;
+                // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+                // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+        
+            if (i == 0 || getTimeDiff(time0, time5) < pll_bestTimeTotal) {
+                pll_bestTimeTotal = getTimeDiff(time0, time5);
+                pll_bestTimeSetPartitions = getTimeDiff(time0, time1);
+                pll_bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
+                pll_bestTimeUpdatePartials = getTimeDiff(time2, time3);
+                pll_bestTimeAccumulateScaleFactors = getTimeDiff(time3, time4);
+                pll_bestTimeCalculateRootLogLikelihoods = getTimeDiff(time4, time5);
+            }
+            
+            if (!(logL - logL == 0.0))
+                fprintf(stdout, "pll error: invalid lnL\n");
+
+            if (!newDataPerRep) {        
+                if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
+                    fprintf(stdout, "pll error: large lnL difference between reps\n");
+            }
+            
+            // if (calcderivs) {
+            //     if (!(deriv1 - deriv1 == 0.0) || !(deriv2 - deriv2 == 0.0))
+            //         fprintf(stdout, "error: invalid deriv\n");
+                
+            //     if (i > 0 && ((std::abs(deriv1 - previousDeriv1) > MAX_DIFF) || (std::abs(deriv2 - previousDeriv2) > MAX_DIFF)) )
+            //         fprintf(stdout, "error: large deriv difference between reps\n");
+            // }
+
+            previousLogL = logL;
+            // previousDeriv1 = deriv1;
+            // previousDeriv2 = deriv2;        
+        }
+
+        if (resource == 0) {
+            cpuTimeSetPartitions = pll_bestTimeSetPartitions;
+            cpuTimeUpdateTransitionMatrices = pll_bestTimeUpdateTransitionMatrices;
+            cpuTimeUpdatePartials = pll_bestTimeUpdatePartials;
+            cpuTimeAccumulateScaleFactors = pll_bestTimeAccumulateScaleFactors;
+            cpuTimeCalculateRootLogLikelihoods = pll_bestTimeCalculateRootLogLikelihoods;
+            cpuTimeTotal = pll_bestTimeTotal;
+        }
+
+    // TODO: pll calculate derivatives    
+        // if (!calcderivs)
+            fprintf(stdout, "pll logL = %.5f \n", logL);
+        // else
+        //     fprintf(stdout, "pll logL = %.5f d1 = %.5f d2 = %.5f\n", logL, deriv1, deriv2);
+
+        // if (partitionCount > 1) {
+        //     fprintf(stdout, " (");
+        //     for (int p=0; p < partitionCount; p++) {
+        //         fprintf(stdout, "p%d = %.5f", p, partitionLogLs[p]);
+        //         if (p < partitionCount - 1)
+        //             fprintf(stdout, ", ");
+        //     }
+        //     fprintf(stdout, ")\n");
+        // }
+        
+        // if (partitionCount > 1) {
+        //     fprintf(stdout, " (");
+        //     for (int p=0; p < partitionCount; p++) {
+        //         fprintf(stdout, "p%dD1 = %.5f", p, partitionD1[p]);
+        //         if (p < partitionCount - 1)
+        //             fprintf(stdout, ", ");
+        //     }
+        //     fprintf(stdout, ")\n");
+        // }
+        
+        // if (partitionCount > 1) {
+        //     fprintf(stdout, " (");
+        //     for (int p=0; p < partitionCount; p++) {
+        //         fprintf(stdout, "p%dD2 = %.5f", p, partitionD2[p]);
+        //         if (p < partitionCount - 1)
+        //             fprintf(stdout, ", ");
+        //     }
+        //     fprintf(stdout, ")\n");
+        // }
+
+
+    //TODO: pll site likelihoods
+        // if (sitelikes) {
+        //     double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
+        //     beagleGetSiteLogLikelihoods(instance, siteLogLs);
+        //     double sumLogL = 0.0;
+        //     fprintf(stdout, "pll site likelihoods = ");
+        //     for (int i=0; i<nsites; i++) {
+        //         fprintf(stdout, "%.5f \t", siteLogLs[i]);
+        //         sumLogL += siteLogLs[i] * patternWeights[i];
+        //     }
+        //     fprintf(stdout, "\npll sumLogL = %.5f\n", sumLogL);
+        //     if (calcderivs) {
+        //         double* siteSecondDerivs = (double*) malloc(sizeof(double) * nsites);
+        //         beagleGetSiteDerivatives(instance, siteLogLs, siteSecondDerivs);
+        //         sumLogL = 0.0;
+        //         fprintf(stdout, "pll site first derivs = ");
+        //         for (int i=0; i<nsites; i++) {
+        //             fprintf(stdout, "%.5f \t", siteLogLs[i]);
+        //             sumLogL += siteLogLs[i] * patternWeights[i];
+        //         }
+        //         fprintf(stdout, "\npll sumFirstDerivs = %.5f\n", sumLogL);
+
+        //         sumLogL = 0.0;
+        //         fprintf(stdout, "pll site second derivs = ");
+        //         for (int i=0; i<nsites; i++) {
+        //             fprintf(stdout, "%.5f \t", siteSecondDerivs[i]);
+        //             sumLogL += siteSecondDerivs[i] * patternWeights[i];
+        //         }
+        //         fprintf(stdout, "\npll sumSecondDerivs = %.5f\n", sumLogL);
+        //         free(siteSecondDerivs);
+        //     }
+        //     free(siteLogLs);
+        // }
+
+        free(patternWeights);
+        // if (partitionCount > 1) {
+        //     free(patternPartitions);
+        // }
+
+        std::cout.setf(std::ios::showpoint);
+        std::cout.setf(std::ios::floatfield, std::ios::fixed);
+        std::cout << "pll best run: ";
+        pll_printTiming(pll_bestTimeTotal, bestTimeTotal, timePrecision, 1, cpuTimeTotal, speedupPrecision, 0, 0, 0);
+        if (fullTiming) {
+            std::cout << " setPartitions:  ";
+            printTiming(pll_bestTimeSetPartitions, timePrecision, resource, cpuTimeSetPartitions, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
+            std::cout << " transMats:  ";
+            printTiming(pll_bestTimeUpdateTransitionMatrices, timePrecision, resource, cpuTimeUpdateTransitionMatrices, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
+            std::cout << " partials:   ";
+            printTiming(pll_bestTimeUpdatePartials, timePrecision, resource, cpuTimeUpdatePartials, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
+            unsigned int partialsOps = internalCount * eigenCount;
+            unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+            unsigned int bytesPerPartial = 3 * (requireDoublePrecision ? 8 : 4);
+            if (manualScaling) {
+                flopsPerPartial++;
+                bytesPerPartial += (requireDoublePrecision ? 8 : 4);
+            }
+            unsigned int matrixBytes = partialsOps * 2 * stateCount*stateCount*rateCategoryCount * (requireDoublePrecision ? 8 : 4);
+            unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+            unsigned long long partialsTotal = partialsSize * partialsOps;
+            unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+            std::cout << " partials throughput:   " << (partialsTotal/pll_bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
+            std::cout << " compute throughput:   " << (flopsTotal/pll_bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
+            std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/pll_bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
+            if (manualScaling || autoScaling) {
+                std::cout << " accScalers: ";
+                printTiming(pll_bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
+            }
+            std::cout << " rootLnL:    ";
+            printTiming(pll_bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
+
+            std::cout << " tree throughput total:   " << (partialsTotal/pll_bestTimeTotal)/1000000.0 << " M partials/second " << std::endl;
+
+        }
+        std::cout << "\n";
+        
+
+        free(pll_operations);
+        free(pll_params_indices);
+        pll_partition_destroy(pll_partition);
+    }
+#endif // HAVE_PLL
+
 }
 
 void printResourceList() {
@@ -1402,7 +1942,11 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]\n\n";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]";
+#ifdef HAVE_PLL
+    std::cerr << " [--plltest]";
+#endif // HAVE_PLL
+    std::cerr << "\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
     std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
@@ -1440,7 +1984,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* randomTree,
                                     bool* rerootTrees,
                                     bool* pectinate,
-                                    bool* benchmarklist)    {
+                                    bool* benchmarklist,
+                                    bool* pllTest)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -1563,6 +2108,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *rerootTrees = true;
         } else if (option == "--pectinate") {
             *pectinate = true;
+#ifdef HAVE_PLL
+        } else if (option == "--plltest") {
+            *pllTest = true;
+#endif // HAVE_PLL
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -1673,6 +2222,7 @@ int main( int argc, const char* argv[] )
     bool rerootTrees = false;
     bool pectinate = false;
     bool benchmarklist = false;
+    bool pllTest = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -1691,7 +2241,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist);
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest);
     
 
     std::cout << "\nSimulating genomic ";
@@ -1760,6 +2310,7 @@ int main( int argc, const char* argv[] )
                           rerootTrees,
                           pectinate,
                           benchmarklist,
+                          pllTest,
                           rsrcList,
                           rsrcCount);
             }
@@ -1767,7 +2318,6 @@ int main( int argc, const char* argv[] )
     } else {
         abort("no BEAGLE resources found");
     }
-
 
 //#ifdef _WIN32
 //    std::cout << "\nPress ENTER to exit...\n";

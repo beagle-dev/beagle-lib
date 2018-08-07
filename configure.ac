@@ -287,6 +287,23 @@ then
    fi
 fi
 
+# ------------------------------------------------------------------------------
+# Setup pll comparison test
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([pll],
+   [AS_HELP_STRING([--with-pll=PATH],[path for libpll (used with synthetictest for comparison testing) @<:@default=no@:>@])],
+   [],
+   [with_pll=no])
+
+SYNTHETICTEST_CPPFLAGS=
+SYNTHETICTEST_LDFLAGS=
+
+if test "x$with_pll" != "xno"
+then
+  SYNTHETICTEST_CPPFLAGS+=" -I$with_pll/include -D HAVE_PLL"
+  SYNTHETICTEST_LDFLAGS+=" -lpll -L$with_pll/lib"
+fi
 
 # ------------------------------------------------------------------------------
 # Setup SSE
@@ -425,6 +442,8 @@ AM_CONDITIONAL(BUILDJNI, test ! x$with_jdk = xno)
 # Distribute common variables
 # ------------------------------------------------------------------------------
 
+AC_SUBST(SYNTHETICTEST_CPPFLAGS)
+AC_SUBST(SYNTHETICTEST_LDFLAGS)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_CFLAGS)
 AC_SUBST(CUDA_LIBS)
