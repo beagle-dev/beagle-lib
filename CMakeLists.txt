@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
-find_package(JNI)
+find_package(JNI REQUIRED)
 if(JNI_FOUND)
     message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
     message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
@@ -18,7 +18,6 @@ include_directories(
         ${JNI_INCLUDE_DIRS}
 )
 
-# This seems the missing piece of the puzzle
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU
