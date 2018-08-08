@@ -536,6 +536,8 @@ void runBeagle(int resource,
         long pll_attribs = PLL_ATTRIB_ARCH_AVX2;
         if (pllSiteRepeats) {
             pll_attribs |= PLL_ATTRIB_SITE_REPEATS;
+        } else if (compactTipCount == ntaxa) {
+            pll_attribs |= PLL_ATTRIB_PATTERN_TIP;
         }
 
         pll_partition = pll_partition_create(ntaxa,
