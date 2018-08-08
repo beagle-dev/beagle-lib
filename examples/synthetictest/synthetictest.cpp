@@ -426,8 +426,8 @@ void runBeagle(int resource,
                int nreps,
                bool fullTiming,
                bool requireDoublePrecision,
-               bool preferSSE,
-               bool preferAVX,
+               bool disableVector,
+               bool disableThreads,
                int compactTipCount,
                int randomSeed,
                int rescaleFrequency,
@@ -476,9 +476,11 @@ void runBeagle(int resource,
                 benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_ALWAYS;
         }
 
-        long preferenceFlags = (preferSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
+        long preferenceFlags = 0;
         long requirementFlags =
-        (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE);
+        (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
+        (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
+        (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0);
 
         // print resource list
         BeagleBenchmarkedResourceList* rBList;
@@ -562,10 +564,10 @@ void runBeagle(int resource,
                 scaleCount*eigenCount,          /**< scaling buffers */
                 &resource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                 1,                /**< Length of resourceList list (input) */
-                (preferSSE ? BEAGLE_FLAG_VECTOR_SSE :
-                (preferAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                 // BEAGLE_FLAG_PARALLELOPS_STREAMS |
-                // BEAGLE_FLAG_THREADING_NONE |
+                (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
+                (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0) |
                 (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                 (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                 (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
@@ -1750,7 +1752,7 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--SSE] [--AVX] [--compact-tips <integer>] [--seed <integer>] [--rescale-frequency <integer>] [--full-timing] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllrepeats]";
@@ -1758,7 +1760,7 @@ void helpMessage() {
     std::cerr << "\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
-    std::cerr << "If --full-timing is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
+    std::cerr << "If --fulltiming is specified, you will see more detailed timing results (requires BEAGLE_DEBUG_SYNCH defined to report accurate values)\n\n";
     std::exit(0);
 }
 
@@ -1774,8 +1776,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* nreps,
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
-                                    bool* preferSSE,
-                                    bool* preferAVX,
+                                    bool* disableVector,
+                                    bool* disableThreads,
                                     int* compactTipCount,
                                     int* randomSeed,
                                     int* rescaleFrequency,
@@ -1876,18 +1878,18 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             expecting_rsrc = true;
         } else if (option == "--reps") {
             expecting_nreps = true;
-        } else if (option == "--compact-tips") {
+        } else if (option == "--compacttips") {
             expecting_compactTipCount = true;
-        } else if (option == "--rescale-frequency") {
+        } else if (option == "--rescalefrequency") {
             expecting_rescaleFrequency = true;
         } else if (option == "--seed") {
             expecting_seed = true;
-        } else if (option == "--full-timing") {
+        } else if (option == "--fulltiming") {
             *fullTiming = true;
-        } else if (option == "--SSE") {
-            *preferSSE = true;
-        } else if (option == "--AVX") {
-            *preferAVX = true;
+        } else if (option == "--disablevector") {
+            *disableVector = true;
+        } else if (option == "--disablethreads") {
+            *disableThreads = true;
         } else if (option == "--unrooted") {
             *unrooted = true;
         } else if (option == "--calcderivs") {
@@ -1953,10 +1955,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         abort("read last command line option without finding value associated with --seed");
     
     if (expecting_rescaleFrequency)
-        abort("read last command line option without finding value associated with --rescale-frequency");
+        abort("read last command line option without finding value associated with --rescalefrequency");
 
     if (expecting_compactTipCount)
-        abort("read last command line option without finding value associated with --compact-tips");
+        abort("read last command line option without finding value associated with --compacttips");
 
     if (expecting_eigenCount)
         abort("read last command line option without finding value associated with --eigencount");
@@ -1983,10 +1985,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         abort("invalid number for seed supplied on the command line");   
         
     if (*manualScaling && *rescaleFrequency < 1)
-        abort("invalid number for rescale-frequency supplied on the command line");   
+        abort("invalid number for rescalefrequency supplied on the command line");   
     
     if (*compactTipCount < 0 || *compactTipCount > *ntaxa)
-        abort("invalid number for compact-tips supplied on the command line");
+        abort("invalid number for compacttips supplied on the command line");
     
     if (*calcderivs && !(*unrooted))
         abort("calcderivs option requires unrooted tree option");
@@ -2014,8 +2016,8 @@ int main( int argc, const char* argv[] )
     bool autoScaling = false;
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
-    bool preferSSE = false;
-    bool preferAVX = false;
+    bool disableVector = false;
+    bool disableThreads = false;
     bool unrooted = false;
     bool calcderivs = false;
     int compactTipCount = 0;
@@ -2051,7 +2053,7 @@ int main( int argc, const char* argv[] )
     
     interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
-                                   &requireDoublePrecision, &preferSSE, &preferAVX, &compactTipCount, &randomSeed,
+                                   &requireDoublePrecision, &disableVector, &disableThreads, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats);
@@ -2103,8 +2105,8 @@ int main( int argc, const char* argv[] )
                           nreps,
                           fullTiming,
                           requireDoublePrecision,
-                          preferSSE,
-                          preferAVX,
+                          disableVector,
+                          disableThreads,
                           compactTipCount,
                           randomSeed,
                           rescaleFrequency,
