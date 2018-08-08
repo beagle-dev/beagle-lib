@@ -365,7 +365,6 @@ int filterResources(int* resourceList,
     }
     
     if (possibleResources->size() == 0) {
-        delete possibleResources;
         return BEAGLE_ERROR_NO_RESOURCE;
     }
 
