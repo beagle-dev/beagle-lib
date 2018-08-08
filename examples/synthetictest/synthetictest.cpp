@@ -426,8 +426,8 @@ void runBeagle(int resource,
                int nreps,
                bool fullTiming,
                bool requireDoublePrecision,
-               bool requireSSE,
-               bool requireAVX,
+               bool preferSSE,
+               bool preferAVX,
                int compactTipCount,
                int randomSeed,
                int rescaleFrequency,
@@ -476,7 +476,7 @@ void runBeagle(int resource,
                 benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_ALWAYS;
         }
 
-        long preferenceFlags = (requireSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
+        long preferenceFlags = (preferSSE ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
         long requirementFlags =
         (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE);
 
@@ -562,7 +562,8 @@ void runBeagle(int resource,
                 scaleCount*eigenCount,          /**< scaling buffers */
                 &resource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                 1,                /**< Length of resourceList list (input) */
-                0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                (preferSSE ? BEAGLE_FLAG_VECTOR_SSE :
+                (preferAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                 // BEAGLE_FLAG_PARALLELOPS_STREAMS |
                 // BEAGLE_FLAG_THREADING_NONE |
                 (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
@@ -571,9 +572,7 @@ void runBeagle(int resource,
                 (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
                 (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) |
                 (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
-                (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
-                (requireSSE ? BEAGLE_FLAG_VECTOR_SSE :
-                          (requireAVX ? BEAGLE_FLAG_VECTOR_AVX : BEAGLE_FLAG_VECTOR_NONE)),   /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) ,   /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                 &instDetails);
     if (instance < 0) {
         fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
@@ -651,6 +650,7 @@ void runBeagle(int resource,
 
     beagleSetPatternWeights(instance, patternWeights);
 
+#ifdef HAVE_PLL
     if (pllTest) {
         unsigned int* pll_patternWeights = (unsigned int*) malloc(sizeof(unsigned int) * nsites);
         for (int i = 0; i < nsites; i++) {
@@ -659,6 +659,7 @@ void runBeagle(int resource,
         pll_set_pattern_weights(pll_partition, pll_patternWeights);
         free(pll_patternWeights);
     }
+#endif // HAVE_PLL
 
     int* patternPartitions;
     double* partitionLogLs;
@@ -705,9 +706,12 @@ void runBeagle(int resource,
     
         beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
 
+#ifdef HAVE_PLL
         if (pllTest) {
             pll_set_category_weights(pll_partition, &weights[0]);
         }
+#endif // HAVE_PLL
+
     }
     
     double* eval;
@@ -885,11 +889,27 @@ void runBeagle(int resource,
     int* edgeIndices = new int[edgeCount*modelCount];
     int* edgeIndicesD1 = new int[edgeCount*modelCount];
     int* edgeIndicesD2 = new int[edgeCount*modelCount];
+
+#ifdef HAVE_PLL
+    unsigned int* pll_edgeIndices;
+    if (pllTest) {
+        pll_edgeIndices = new unsigned int[edgeCount];
+    }
+#endif // HAVE_PLL
+
     for(int i=0; i<edgeCount*modelCount; i++) {
         edgeIndices[i]=i;
+
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_edgeIndices[i] = i;
+        }
+#endif // HAVE_PLL
+
         edgeIndicesD1[i]=(edgeCount*modelCount)+i;
         edgeIndicesD2[i]=2*(edgeCount*modelCount)+i;
     }
+    
     double* edgeLengths = new double[edgeCount*modelCount];
     for(int i=0; i<edgeCount; i++) {
         edgeLengths[i]=gt_rand() / (double) GT_RAND_MAX;
@@ -1577,19 +1597,11 @@ void runBeagle(int resource,
             for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
                 // if (!setmatrix) {
                     // tell pll to populate the transition matrices for the above edge lengths
-                    unsigned int* pll_edgeIndices = new unsigned int[edgeCount];
-                    for (int edge=0; edge<edgeCount; edge++){
-                        pll_edgeIndices[edge] = edgeIndices[eigenIndex*edgeCount + edge];
-                    }
-
                     pll_update_prob_matrices(pll_partition,
                                              pll_params_indices,
-                                             pll_edgeIndices,
+                                             &pll_edgeIndices[eigenIndex*edgeCount],
                                              edgeLengths,
                                              edgeCount);
-
-                    delete[] pll_edgeIndices;
-
                 // } 
             }
             
@@ -1706,7 +1718,7 @@ void runBeagle(int resource,
         }
         std::cout << "\n";
         
-
+        delete[] pll_edgeIndices;
         free(pll_operations);
         free(pll_params_indices);
         pll_partition_destroy(pll_partition);
@@ -1762,8 +1774,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* nreps,
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
-                                    bool* requireSSE,
-                                    bool* requireAVX,
+                                    bool* preferSSE,
+                                    bool* preferAVX,
                                     int* compactTipCount,
                                     int* randomSeed,
                                     int* rescaleFrequency,
@@ -1873,9 +1885,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (option == "--full-timing") {
             *fullTiming = true;
         } else if (option == "--SSE") {
-            *requireSSE = true;
+            *preferSSE = true;
         } else if (option == "--AVX") {
-            *requireAVX = true;
+            *preferAVX = true;
         } else if (option == "--unrooted") {
             *unrooted = true;
         } else if (option == "--calcderivs") {
@@ -2002,8 +2014,8 @@ int main( int argc, const char* argv[] )
     bool autoScaling = false;
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
-    bool requireSSE = false;
-    bool requireAVX = false;
+    bool preferSSE = false;
+    bool preferAVX = false;
     bool unrooted = false;
     bool calcderivs = false;
     int compactTipCount = 0;
@@ -2039,7 +2051,7 @@ int main( int argc, const char* argv[] )
     
     interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
-                                   &requireDoublePrecision, &requireSSE, &requireAVX, &compactTipCount, &randomSeed,
+                                   &requireDoublePrecision, &preferSSE, &preferAVX, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats);
@@ -2091,8 +2103,8 @@ int main( int argc, const char* argv[] )
                           nreps,
                           fullTiming,
                           requireDoublePrecision,
-                          requireSSE,
-                          requireAVX,
+                          preferSSE,
+                          preferAVX,
                           compactTipCount,
                           randomSeed,
                           rescaleFrequency,
