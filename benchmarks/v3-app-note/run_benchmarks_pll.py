@@ -25,30 +25,35 @@ def main():
     precision_list = ['double']
 
     states_list = [4]
-    sites_list = gen_log_site_list(100, 100000, 100)
-    # sites_list = gen_log_site_list(100, 10000, 4)
+    site_samples = 100
+    # site_samples = 2
+    sites_min = 100
     rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu']
-    reps = 10
+    reps = 100
+    # reps = 10
 
     seed_list = range(1,101)
     # seed_list = range(1,2)
 
-    extra_args = ['--randomtree', '--stdrand']
+    extra_args = ['--randomtree', '--stdrand', '--fulltiming']
 
-    timing_re     = re.compile(    'best run: (.*) ms')
-    timing_pll_re = re.compile('pll best run: (.*) ms')
+    throughput_re = re.compile('tree throughput total:   (.*) M partials/second')
 
     debug_file = open('debug.txt', 'w')
 
-    header = 'iteration, precision, states, sites, taxa, seed, resource, time' 
+    header = 'iteration, precision, states, sites, taxa, seed, resource, throughput' 
     print header
 
     iteration = 0
 
-    for rsrc in rsrc_list:
-        for precision in precision_list:
-            for states in states_list:
-                for taxa in taxa_list:
+    for taxa in taxa_list:
+        sites_max = 1000000
+        if (taxa == 400):
+            sites_max = 100000
+        sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
+        for rsrc in rsrc_list:
+            for precision in precision_list:
+                for states in states_list:
                     for sites in sites_list:
                         for seed in seed_list:
                             out_string = str(iteration)
@@ -61,17 +66,17 @@ def main():
                             synthetictest_cmd.extend(['--states', str(states), '--sites', str(sites)])
                             synthetictest_cmd.extend(['--taxa', str(taxa), '--compacttips', str(taxa)])
                             synthetictest_cmd.extend(['--reps', str(reps), '--rates', str(rates)])
-                            iter_timing_re = timing_re
+                            throughput_re_index = 0
                             if   rsrc == 'cpu':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads'])
                             elif rsrc == 'cpu-threaded':
                                 synthetictest_cmd.extend(['--rsrc', '0'])
                             elif rsrc == 'pll':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--plltest'])
-                                iter_timing_re = timing_pll_re
+                                throughput_re_index = 1
                             elif rsrc == 'pll-repeats':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--pllrepeats'])
-                                iter_timing_re = timing_pll_re
+                                throughput_re_index = 1
                             elif rsrc == 'gpu':
                                 synthetictest_cmd.extend(['--rsrc', '1'])
                             synthetictest_cmd.extend(extra_args)
@@ -80,9 +85,9 @@ def main():
                             try:
                                 synthetictest_out = subprocess.check_output(synthetictest_cmd)
                                 out_string += ', ' + rsrc
-                                timing = iter_timing_re.search(synthetictest_out)
-                                if timing:
-                                    out_string +=  ', ' + timing.group(1)
+                                throughput = throughput_re.findall(synthetictest_out)
+                                if throughput:
+                                    out_string +=  ', ' + throughput[throughput_re_index]
                                 else:
                                     out_string += ', ' + 'NA'
                             except subprocess.CalledProcessError:
