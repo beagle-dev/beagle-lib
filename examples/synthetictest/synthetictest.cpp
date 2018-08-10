@@ -149,7 +149,7 @@ void pll_printTiming(double timingValue,
                  bool printPercent,
                  double totalTime,
                  int percentPrecision) {
-    std::cout << std::setprecision(timePrecision) << timingValue << "s";
+    std::cout << std::setprecision(timePrecision) << timingValue << " ms";
     if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << beagleTimingValue/timingValue << "x BEAGLE)";
     if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
     std::cout << "\n";
@@ -165,16 +165,15 @@ void printTiming(double timingValue,
                  bool printPercent,
                  double totalTime,
                  int percentPrecision) {
-    std::cout << std::setprecision(timePrecision) << timingValue << "s";
+    std::cout << std::setprecision(timePrecision) << timingValue << " ms";
     if (printSpeedup) std::cout << " (" << std::setprecision(speedupPrecision) << cpuTimingValue/timingValue << "x CPU)";
     if (printPercent) std::cout << " (" << std::setw(3+percentPrecision) << std::setfill('0') << std::setprecision(percentPrecision) << (double)(timingValue/totalTime)*100 << "%)";
     std::cout << "\n";
 }
 
-
 double getTimeDiff(struct timeval t1,
                    struct timeval t2) {
-    return ((t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec-t1.tv_usec)/1000000.0);
+    return ((double)(t2.tv_sec - t1.tv_sec)*1000.0 + (double)(t2.tv_usec-t1.tv_usec)/1000.0);
 }
 
 struct node
@@ -1296,11 +1295,11 @@ void runBeagle(int resource,
             // ts.tv_nsec = 100000000;
             // nanosleep(&ts, NULL);
 
-            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << ", ";
+            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << ", ";
         // }
         // std::cout << " GFLOPS " << std::endl<< std::endl;
 
-        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
 
 
         int scalingFactorsCount = internalCount;
@@ -1399,7 +1398,7 @@ void runBeagle(int resource,
             // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
             // unsigned long long partialsTotal = partialsSize * partialsOps;
             // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-            // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000000.0 << " GFLOPS " << std::endl;
+            // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
     
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
@@ -1515,7 +1514,7 @@ void runBeagle(int resource,
 
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
-    int timePrecision = 6;
+    int timePrecision = 4;
     int speedupPrecision = 2;
     int percentPrecision = 2;
     std::cout << "best run: ";
@@ -1538,9 +1537,9 @@ void runBeagle(int resource,
         unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
         unsigned long long partialsTotal = partialsSize * partialsOps;
         unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-        std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
-        std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
-        std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
+        std::cout << " partials throughput:   " << (partialsTotal/bestTimeUpdatePartials)/1000.0 << " M partials/second " << std::endl;
+        std::cout << " compute throughput:   " << (flopsTotal/bestTimeUpdatePartials)/1000000.0 << " GFLOPS " << std::endl;
+        std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/bestTimeUpdatePartials))/1000000.0 << " GB/s " << std::endl;
         if (manualScaling || autoScaling) {
             std::cout << " accScalers: ";
             printTiming(bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, bestTimeTotal, percentPrecision);
@@ -1548,7 +1547,7 @@ void runBeagle(int resource,
         std::cout << " rootLnL:    ";
         printTiming(bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision, 1, bestTimeTotal, percentPrecision);
 
-        std::cout << " tree throughput total:   " << (partialsTotal/bestTimeTotal)/1000000.0 << " M partials/second " << std::endl;
+        std::cout << " tree throughput total:   " << (partialsTotal/bestTimeTotal)/1000.0 << " M partials/second " << std::endl;
 
     }
     std::cout << "\n";
@@ -1707,9 +1706,9 @@ void runBeagle(int resource,
             unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
             unsigned long long partialsTotal = partialsSize * partialsOps;
             unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-            std::cout << " partials throughput:   " << (partialsTotal/pll_bestTimeUpdatePartials)/1000000.0 << " M partials/second " << std::endl;
-            std::cout << " compute throughput:   " << (flopsTotal/pll_bestTimeUpdatePartials)/1000000000.0 << " GFLOPS " << std::endl;
-            std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/pll_bestTimeUpdatePartials))/1000000000.0 << " GB/s " << std::endl;
+            std::cout << " partials throughput:   " << (partialsTotal/pll_bestTimeUpdatePartials)/1000.0 << " M partials/second " << std::endl;
+            std::cout << " compute throughput:   " << (flopsTotal/pll_bestTimeUpdatePartials)/1000000.0 << " GFLOPS " << std::endl;
+            std::cout << " memory bandwidth:   " << (((partialsTotal * bytesPerPartial + matrixBytes)/pll_bestTimeUpdatePartials))/1000000.0 << " GB/s " << std::endl;
             if (manualScaling || autoScaling) {
                 std::cout << " accScalers: ";
                 printTiming(pll_bestTimeAccumulateScaleFactors, timePrecision, resource, cpuTimeAccumulateScaleFactors, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
@@ -1717,7 +1716,7 @@ void runBeagle(int resource,
             std::cout << " rootLnL:    ";
             printTiming(pll_bestTimeCalculateRootLogLikelihoods, timePrecision, resource, cpuTimeCalculateRootLogLikelihoods, speedupPrecision, 1, pll_bestTimeTotal, percentPrecision);
 
-            std::cout << " tree throughput total:   " << (partialsTotal/pll_bestTimeTotal)/1000000.0 << " M partials/second " << std::endl;
+            std::cout << " tree throughput total:   " << (partialsTotal/pll_bestTimeTotal)/1000.0 << " M partials/second " << std::endl;
 
         }
         std::cout << "\n";
