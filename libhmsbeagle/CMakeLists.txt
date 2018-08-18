@@ -8,8 +8,14 @@ add_library(hmsbeagle SHARED
         config.h
         platform.h
 
+        benchmark/BeagleBenchmark.h
+        benchmark/BeagleBenchmark.cpp
+        benchmark/linalg.h
+        benchmark/linalg.cpp
+
 #        JNI/beagle_BeagleJNIWrapper.cpp
 #        JNI/beagle_BeagleJNIWrapper.h
+
         plugin/BeaglePlugin.h
         plugin/LibtoolSharedLibrary.h
         plugin/Plugin.cpp

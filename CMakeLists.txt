@@ -10,11 +10,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
 find_package(JNI REQUIRED)
 if(JNI_FOUND)
+    message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
     message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
     message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
 endif(JNI_FOUND)
 
 include_directories(
+        $ENV{JAVA_HOME}/include
         ${PROJECT_SOURCE_DIR}
         ${JNI_INCLUDE_DIRS}
 )
