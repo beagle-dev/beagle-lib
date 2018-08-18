@@ -123,7 +123,14 @@ int GPUInterface::Initialize() {
         cl_device_id* deviceIds = new cl_device_id[numDevices];
         SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
         for (int j=0; j<numDevices; j++) {
-            openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
+            openClDeviceId = deviceIds[j];
+            BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
+            if (deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
+                deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU &&
+                deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU &&
+                deviceCode != BEAGLE_OPENCL_DEVICE_NVIDA_GPU)
+                openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
+            openClDeviceId = NULL;
         }
         delete[] deviceIds;
     }
@@ -394,7 +401,7 @@ void GPUInterface::SetDevice(int deviceNumber,
         exit(-1);
     }
 
-    char buildDefs[1024] = "-D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
+    char buildDefs[1024] = "-w -D FW_OPENCL -D OPENCL_KERNEL_BUILD ";
 #ifdef DLS_MACOS
     strcat(buildDefs, "-D DLS_MACOS ");
 #elif defined(FW_OPENCL_PROFILING)
@@ -750,7 +757,7 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined,
 void* GPUInterface::MapMemory(GPUPtr dPtr, size_t memSize) {
     int err;
     void* hostPtr = clEnqueueMapBuffer(openClCommandQueues[0], dPtr, CL_TRUE,
-                                        CL_MAP_WRITE, 0, memSize, 0, NULL, NULL, &err);
+                                        CL_MAP_WRITE_INVALIDATE_REGION, 0, memSize, 0, NULL, NULL, &err);
     SAFE_CL(err);
 
     return hostPtr;
@@ -835,14 +842,24 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     GPUPtr subPtr = dPtr;// + offset;
 #else
     GPUPtr subPtr;
-    
-    cl_buffer_region dPtrRegion;
-    dPtrRegion.origin = offset;
-    dPtrRegion.size = size;
 
-    int err;
-    subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
-    SAFE_CL(err);
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+
+    if (strcmp(param_value, "NVIDIA Corporation") != 0 || offset != 0) {    
+        cl_buffer_region dPtrRegion;
+        dPtrRegion.origin = offset;
+        dPtrRegion.size = size;
+
+        int err;
+        subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
+        SAFE_CL(err);
+    } else {
+        subPtr = dPtr;
+    }
 #endif
     
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1168,7 +1185,14 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
         else if (!strncmp("Intel", device_string, strlen("Intel")) && 
                  (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
             deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU;
+    } else if (!strncmp("NVIDIA", platform_string, strlen("NVIDIA"))) {
+        deviceCode = BEAGLE_OPENCL_DEVICE_NVIDA_GPU;
     }
+
+// printf("platform_string %s\n", platform_string);
+// printf("device_string %s\n", device_string);
+// printf("deviceTypeFlag = %d\n", deviceTypeFlag);
+// printf("deviceCode = %d\n", deviceCode);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceImplementationCode\n");

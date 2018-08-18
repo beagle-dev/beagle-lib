@@ -161,7 +161,7 @@ GPUInterface::~GPUInterface() {
 
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-        SAFE_CUDA(cuCtxDetach(cudaContext));
+        SAFE_CUDA(cuCtxDestroy(cudaContext));
     }
     
     if (kernelResource != NULL) {
@@ -201,8 +201,9 @@ int GPUInterface::Initialize() {
     int currentDevice = 0;
     for (int i=0; i < numDevices; i++) {        
         SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, i));
-        SAFE_CUDA(cuDeviceComputeCapability(&capabilityMajor, &capabilityMinor, tmpCudaDevice)); 
-        if ((capabilityMajor > 1 && capabilityMinor != 9999) || (capabilityMajor == 1 && capabilityMinor > 0)) {
+        SAFE_CUDA(cuDeviceGetAttribute(&capabilityMajor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+        SAFE_CUDA(cuDeviceGetAttribute(&capabilityMinor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
+        if (capabilityMajor >= 3 && capabilityMinor != 9999) {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
     }
@@ -263,11 +264,21 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 
     SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
     
+    unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
+
     if (flags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO | CU_CTX_MAP_HOST, cudaDevice));
-    } else {
-        SAFE_CUDA(cuCtxCreate(&cudaContext, CU_CTX_SCHED_AUTO, cudaDevice));
+        ctxFlags |= CU_CTX_MAP_HOST;
     }
+
+    CUresult error = cuCtxCreate(&cudaContext, ctxFlags, cudaDevice);
+    if(error != CUDA_SUCCESS) { 
+        fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n", 
+                GetCUDAErrorDescription(error), __FILE__, __LINE__); 
+        if (error == CUDA_ERROR_INVALID_DEVICE) {
+            fprintf(stderr, "(The requested CUDA device is likely set to compute exclusive mode. This mode prevents multiple processes from running on the device.)");
+        }
+        exit(-1); 
+    } 
     
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
@@ -407,7 +418,7 @@ void GPUInterface::SynchronizeDevice() {
 void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamWaitIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
-#endif                
+#endif
     CUstream streamRecord  = NULL;
     CUstream streamWait    = NULL;
     if (streamRecordIndex >= 0)
@@ -866,7 +877,8 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
 
 	int major = 0;
 	int minor = 0;
-	SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
 	return (major >= 2 || (major >= 1 && minor >= 3));
 }
 
@@ -890,7 +902,8 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     int major = 0;
     int minor = 0;
 
-    SAFE_CUDA(cuDeviceComputeCapability(&major, &minor, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
+    SAFE_CUDA(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
     SAFE_CUDA(cuDeviceTotalMem(&totalGlobalMemory, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&clockSpeed, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&mpCount, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, tmpCudaDevice));

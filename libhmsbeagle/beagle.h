@@ -183,6 +183,21 @@ enum BeagleFlags {
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29    /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
 };
 
+
+/**
+ * @anchor BEAGLE_BENCHFLAGS
+ *
+ * @brief Benchmarking mode flags for resource performance evaluation with beagleGetOrderedResourceList.
+ *
+ * This enumerates all possible benchmarking mode flags.
+ * Each mode is a bit in a 'long'
+ */
+enum BeagleBenchmarkFlags {
+    BEAGLE_BENCHFLAG_SCALING_NONE        = 1 << 0,    /**< No scaling */
+    BEAGLE_BENCHFLAG_SCALING_ALWAYS      = 1 << 1,    /**< Scale at every iteration */
+    BEAGLE_BENCHFLAG_SCALING_DYNAMIC     = 1 << 2,    /**< Scale every fixed number of iterations or when a numerical error occurs, and re-use scale factors for subsequent iterations */
+};
+
 /**
  * @anchor BEAGLE_OP_CODES
  *
@@ -228,6 +243,33 @@ typedef struct {
     int length;     /**< Length of list */
 } BeagleResourceList;
 
+/**
+ * @brief Description of a benchmarked hardware resource
+ */
+typedef struct {
+    int number;         /**< Resource number  */
+    char* name;         /**< Name of resource as a NULL-terminated character string */
+    char* description;  /**< Description of resource as a NULL-terminated character string */
+    long  supportFlags; /**< Bit-flags of supported capabilities on resource */
+    long  requiredFlags;/**< Bit-flags that identify resource type */
+    int   returnCode;   /**< Return code of for benchmark attempt (see BeagleReturnCodes) */
+    char* implName;     /**< Name of implementation used to benchmark resource */
+    long  benchedFlags; /**< Bit-flags that characterize the activate
+                         *   capabilities of the resource and implementation for this benchmark */
+    double benchmarkResult; /**< Benchmark result in milliseconds */
+    double performanceRatio; /**< Performance ratio relative to default CPU resource */
+
+} BeagleBenchmarkedResource;
+
+/**
+ * @brief Ordered list of benchmarked hardware resources, from fastest to slowest
+ */
+typedef struct {
+    BeagleBenchmarkedResource* list; /**< Pointer to ordered list of benchmarked resources */
+    int length;     /**< Length of list */
+} BeagleBenchmarkedResourceList;
+
+
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (brace is closed at the end of this file)
  */
@@ -263,6 +305,51 @@ BEAGLE_DLLEXPORT const char* beagleGetCitation(void);
  * @return A list of hardware resources available to the library as a BeagleResourceList
  */
 BEAGLE_DLLEXPORT BeagleResourceList* beagleGetResourceList(void);
+
+/**
+ * @brief Get a benchmarked list of hardware resources for the given
+ * analysis parameters
+ *
+ * This function returns a pointer to a BeagleBenchmarkedResourceList struct, which includes
+ * a BeagleBenchmarkedResource array describing the available hardware resources with
+ * benchmark times and CPU performance ratios for each resource. Resources are benchmarked
+ * with the given analysis parameters and the array is ordered from fastest to slowest.
+ * If there is an error the function returns NULL.
+ * 
+ * @param tipCount              Number of tip data elements (input)
+ * @param compactBufferCount    Number of compact state representation tips (input)
+ * @param stateCount            Number of states in the continuous-time Markov chain (input)
+ * @param patternCount          Number of site patterns (input)
+ * @param categoryCount         Number of rate categories (input)
+ * @param resourceList          List of resources to be benchmarked, NULL implies no restriction
+ *                               (input)
+ * @param resourceCount         Length of resourceList list (input)
+ * @param preferenceFlags       Bit-flags indicating preferred implementation characteristics,
+ *                               see BeagleFlags (input)
+ * @param requirementFlags      Bit-flags indicating required implementation characteristics,
+ *                               see BeagleFlags (input)
+ * @param eigenModelCount       Number of full-alignment rate matrix eigen-decomposition models (input) 
+ * @param partitionCount        Number of partitions (input)
+ * @param calculateDerivatives  Indicates if calculation of derivatives are required (input)
+ * @param benchmarkFlags        Bit-flags indicating benchmarking preferences (input)
+ *
+ * @return An ordered (fastest to slowest) list of hardware resources available to the library as a 
+ * BeagleBenchmarkedResourceList for the specified analysis parameters
+ * 
+ */
+BEAGLE_DLLEXPORT BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
+                                                    int compactBufferCount,
+                                                    int stateCount,
+                                                    int patternCount,
+                                                    int categoryCount,
+                                                    int* resourceList,
+                                                    int resourceCount,
+                                                    long preferenceFlags,
+                                                    long requirementFlags,
+                                                    int eigenModelCount,
+                                                    int partitionCount,
+                                                    int calculateDerivatives,
+                                                    long benchmarkFlags);
 
 /**
  * @brief Create a single instance

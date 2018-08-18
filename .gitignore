@@ -55,12 +55,12 @@ libhmsbeagle?jni*.l?
 /examples/fourtaxon/Makefile
 /examples/fourtaxon/fourtaxonrun.sh
 
-# /examples/genomictest/
-/examples/genomictest/Makefile.in
-/examples/genomictest/.deps
-/examples/genomictest/Makefile
-/examples/genomictest/genomictest
-/examples/genomictest/genomictest.sh
+# /examples/synthetictest/
+/examples/synthetictest/Makefile.in
+/examples/synthetictest/.deps
+/examples/synthetictest/Makefile
+/examples/synthetictest/synthetictest
+/examples/synthetictest/synthetictest.sh
 
 # /examples/matrixtest/
 /examples/matrixtest/Makefile.in
@@ -170,9 +170,9 @@ project/beagle-xcode/BEAGLEv1.0.pkg
 examples/complextest/.libs/
 examples/complextest/complextest.o
 examples/fourtaxon/.libs/
-examples/genomictest/.libs/
-examples/genomictest/genomictest.o
-examples/genomictest/linalg.o
+examples/synthetictest/.libs/
+examples/synthetictest/synthetictest.o
+examples/synthetictest/linalg.o
 examples/matrixtest/.libs/
 examples/matrixtest/matrixtest.o
 examples/oddstatetest/.libs/

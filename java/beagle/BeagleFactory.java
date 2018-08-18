@@ -62,6 +62,38 @@ public class BeagleFactory {
         return resourceDetailsMap.get(resourceNumber);
     }
 
+    public static List<BenchmarkedResourceDetails> getBenchmarkedResourceDetails(
+                                                    int tipCount,
+                                                    int compactBufferCount,
+                                                    int stateCount,
+                                                    int patternCount,
+                                                    int categoryCount,
+                                                    int[] resourceList,
+                                                    long preferenceFlags,
+                                                    long requirementFlags,
+                                                    int eigenModelCount,
+                                                    int partitionCount,
+                                                    int calculateDerivatives,
+                                                    long benchmarkFlags) {
+        getBeagleJNIWrapper();
+
+        return new ArrayList<BenchmarkedResourceDetails>(
+            Arrays.asList(BeagleJNIWrapper.INSTANCE.getBenchmarkedResourceList(
+                                tipCount,
+                                compactBufferCount,
+                                stateCount,
+                                patternCount,
+                                categoryCount,
+                                resourceList,
+                                (resourceList != null? resourceList.length: 0),
+                                preferenceFlags,
+                                requirementFlags,
+                                eigenModelCount,
+                                partitionCount,
+                                calculateDerivatives,
+                                benchmarkFlags)));
+    }
+
     public static Beagle loadBeagleInstance(
             int tipCount,
             int partialsBufferCount,

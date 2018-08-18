@@ -224,8 +224,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount + startPattern*kPartialsPaddedStateCount;;
-    	int v = l*kPartialsPaddedStateCount*kPatternCount;
+    	int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+    	double* destPu = destP + v;
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             for (int i = 0; i < kStateCount;
@@ -542,7 +542,6 @@ const char* BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::getName() {
 BEAGLE_CPU_SSE_TEMPLATE
 const long BeagleCPUSSEImpl<BEAGLE_CPU_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
-            BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_SINGLE |
             BEAGLE_FLAG_VECTOR_SSE |
@@ -552,7 +551,6 @@ const long BeagleCPUSSEImpl<BEAGLE_CPU_SSE_FLOAT>::getFlags() {
 BEAGLE_CPU_SSE_TEMPLATE
 const long BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::getFlags() {
     return  BEAGLE_FLAG_COMPUTATION_SYNCH |
-            BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_DOUBLE |
             BEAGLE_FLAG_VECTOR_SSE |
@@ -638,7 +636,7 @@ template <>
 const long BeagleCPUSSEImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
            BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -652,7 +650,7 @@ template <>
 const long BeagleCPUSSEImplFactory<float>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
            BEAGLE_FLAG_PRECISION_SINGLE |

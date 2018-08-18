@@ -30,6 +30,21 @@ public class BeagleJNIWrapper {
 
     public native ResourceDetails[] getResourceList();
 
+    public native BenchmarkedResourceDetails[] getBenchmarkedResourceList(
+                                                    int tipCount,
+                                                    int compactBufferCount,
+                                                    int stateCount,
+                                                    int patternCount,
+                                                    int categoryCount,
+                                                    final int[] resourceList,
+                                                    int resourceCount,
+                                                    long preferenceFlags,
+                                                    long requirementFlags,
+                                                    int eigenModelCount,
+                                                    int partitionCount,
+                                                    int calculateDerivatives,
+                                                    long benchmarkFlags);
+
     public native int createInstance(
             int tipCount,
             int partialsBufferCount,

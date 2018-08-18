@@ -98,6 +98,144 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getBenchmarkedResourceList
+ * Signature: (IIIII[IIJJIIIJ)[Lbeagle/BenchmarkedResourceDetails;
+ */
+JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getBenchmarkedResourceList
+  (JNIEnv *env, jobject obj, jint tipCount, jint compactBufferCount, jint stateCount, jint patternCount, jint categoryCount, jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags, jint eigenModelCount, jint partitionCount, jint calculateDerivatives, jlong benchmarkFlags)
+{
+
+    jint *resourceList = NULL;
+    if (inResourceList != NULL)
+        resourceList = env->GetIntArrayElements(inResourceList, NULL);
+
+    BeagleBenchmarkedResourceList* brl =  beagleGetBenchmarkedResourceList(tipCount,
+                                                               compactBufferCount,
+                                                               stateCount,
+                                                               patternCount,
+                                                               categoryCount,
+                                                               (int *)resourceList,
+                                                               resourceCount,
+                                                               preferenceFlags,
+                                                               requirementFlags,
+                                                               eigenModelCount,
+                                                               partitionCount,
+                                                               calculateDerivatives,
+                                                               benchmarkFlags);
+
+    if (brl == NULL) {
+        return NULL;
+    }
+    
+    jclass objClass = env->FindClass("beagle/BenchmarkedResourceDetails");
+    if (objClass == NULL) {
+        printf("NULL returned in FindClass: can't find class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID constructorMethodID = env->GetMethodID(objClass, "<init>","(I)V");
+    if (constructorMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find constructor for class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setResourceNumberMethodID = env->GetMethodID(objClass, "setResourceNumber", "(I)V");
+    if (setResourceNumberMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setResourceNumber' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setNameMethodID = env->GetMethodID(objClass, "setName", "(Ljava/lang/String;)V");
+    if (setNameMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setName' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setDescriptionMethodID = env->GetMethodID(objClass, "setDescription", "(Ljava/lang/String;)V");
+    if (setDescriptionMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setDescription' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setSupportFlagsMethodID = env->GetMethodID(objClass, "setSupportFlags", "(J)V");
+    if (setSupportFlagsMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setSupportFlags' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setRequiredFlagsMethodID = env->GetMethodID(objClass, "setRequiredFlags", "(J)V");
+    if (setRequiredFlagsMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setRequiredFlags' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setReturnCodeMethodID = env->GetMethodID(objClass, "setReturnCode", "(I)V");
+    if (setReturnCodeMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setReturnCode' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setImplNameMethodID = env->GetMethodID(objClass, "setImplName", "(Ljava/lang/String;)V");
+    if (setImplNameMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setImplName' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setBenchedFlagsMethodID = env->GetMethodID(objClass, "setBenchedFlags", "(J)V");
+    if (setBenchedFlagsMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setBenchedFlags' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setBenchmarkResultMethodID = env->GetMethodID(objClass, "setBenchmarkResult", "(D)V");
+    if (setBenchmarkResultMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setBenchmarkResult' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jmethodID setPerformanceRatioMethodID = env->GetMethodID(objClass, "setPerformanceRatio", "(D)V");
+    if (setPerformanceRatioMethodID == NULL) {
+        printf("NULL returned in FindClass: can't find 'setPerformanceRatio' method in class: beagle/BenchmarkedResourceDetails\n");
+        return NULL;
+    }
+
+    jobjectArray benchmarkedResourceArray = env->NewObjectArray(brl->length, objClass, NULL);
+
+    for (int i = 0; i < brl->length; i++) {
+        jobject benchmarkedResourceObj = env->NewObject(objClass, constructorMethodID, i);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setResourceNumberMethodID, brl->list[i].number);
+
+        jstring jString = env->NewStringUTF(brl->list[i].name);
+        env->CallVoidMethod(benchmarkedResourceObj, setNameMethodID, jString);
+
+        jString = env->NewStringUTF(brl->list[i].description);
+        env->CallVoidMethod(benchmarkedResourceObj, setDescriptionMethodID, jString);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setSupportFlagsMethodID, brl->list[i].supportFlags);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setRequiredFlagsMethodID, brl->list[i].requiredFlags);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setReturnCodeMethodID, brl->list[i].returnCode);
+
+        jString = env->NewStringUTF(brl->list[i].implName);
+        env->CallVoidMethod(benchmarkedResourceObj, setImplNameMethodID, jString);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setBenchedFlagsMethodID, brl->list[i].benchedFlags);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setBenchmarkResultMethodID, brl->list[i].benchmarkResult);
+
+        env->CallVoidMethod(benchmarkedResourceObj, setPerformanceRatioMethodID, brl->list[i].performanceRatio);
+
+        env->SetObjectArrayElement(benchmarkedResourceArray, i, benchmarkedResourceObj);
+    }
+    
+    return benchmarkedResourceArray;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    createInstance
  * Signature: (IIIIIIIII[IIJJLbeagle/InstanceDetails;)I
  */

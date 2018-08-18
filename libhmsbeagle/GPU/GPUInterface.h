@@ -51,6 +51,9 @@
     namespace cuda_device {
 #else
 #ifdef FW_OPENCL
+    #define CL_USE_DEPRECATED_OPENCL_1_1_APIS // to disable deprecation warnings
+    #define CL_USE_DEPRECATED_OPENCL_1_2_APIS // to disable deprecation warnings
+    #define CL_USE_DEPRECATED_OPENCL_2_0_APIS // to disable deprecation warnings
 #   ifdef DLS_MACOS
         #include <OpenCL/opencl.h>
 #   else

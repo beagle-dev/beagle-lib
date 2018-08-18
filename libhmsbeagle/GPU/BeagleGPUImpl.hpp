@@ -35,6 +35,7 @@
 #include <cassert>
 #include <iostream>
 #include <cstring>
+#include <vector>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -548,18 +549,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
     kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    dMatrices[0] = gpu->AllocateMemory(kMatrixCount * ptrIncrement);    
-    for (int i = 1; i < kMatrixCount; i++) {
-        dMatrices[i] = gpu->CreateSubPointer(dMatrices[0], ptrIncrement*i, ptrIncrement);
+    GPUPtr dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+    for (int i = 0; i < kMatrixCount; i++) {
+        dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
     }
     
     if (kScaleBufferCount > 0) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {        
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(signed char)); // TODO: char won't work for double-precision
-            dScalingFactors[0] =  gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
-            for (int i=1; i < kScaleBufferCount; i++)
-                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
+            GPUPtr dScalingFactorsOrigin =  gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
+            for (int i=0; i < kScaleBufferCount; i++)
+                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
 #ifdef CUDA
             dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
@@ -573,41 +574,41 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
             ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(Real));
             kScaleBufferSize = ptrIncrement / sizeof(Real);
-            dScalingFactors[0] = gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
-            for (int i=1; i < kScaleBufferCount; i++) {
-                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactors[0], ptrIncrement*i, ptrIncrement);
+            GPUPtr dScalingFactorsOrigin = gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
+            for (int i=0; i < kScaleBufferCount; i++) {
+                dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
             }
         }
     }
 
     ptrIncrement = gpu->AlignMemOffset(kMatrixSize * sizeof(Real));
     kEvecOffset  = ptrIncrement/sizeof(Real);
-    dEvec[0] = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    dIevc[0] = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    for(int i=1; i<kEigenDecompCount; i++) {
-        dEvec[i] = gpu->CreateSubPointer(dEvec[0], ptrIncrement*i, ptrIncrement);
-        dIevc[i] = gpu->CreateSubPointer(dIevc[0], ptrIncrement*i, ptrIncrement);
+    GPUPtr dEvecOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    GPUPtr dIevcOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    for(int i=0; i<kEigenDecompCount; i++) {
+        dEvec[i] = gpu->CreateSubPointer(dEvecOrigin, ptrIncrement*i, ptrIncrement);
+        dIevc[i] = gpu->CreateSubPointer(dIevcOrigin, ptrIncrement*i, ptrIncrement);
     }
 
     ptrIncrement = gpu->AlignMemOffset(kEigenValuesSize * sizeof(Real));
     kEvalOffset  = ptrIncrement/sizeof(Real);
-    dEigenValues[0] = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    for(int i=1; i<kEigenDecompCount; i++) {
-        dEigenValues[i] = gpu->CreateSubPointer(dEigenValues[0], ptrIncrement*i, ptrIncrement);
+    GPUPtr dEigenValuesOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    for(int i=0; i<kEigenDecompCount; i++) {
+        dEigenValues[i] = gpu->CreateSubPointer(dEigenValuesOrigin, ptrIncrement*i, ptrIncrement);
     }
 
     ptrIncrement = gpu->AlignMemOffset(kCategoryCount * sizeof(Real));
     kWeightsOffset = ptrIncrement/sizeof(Real);
-    dWeights[0] = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    for(int i=1; i<kEigenDecompCount; i++) {
-        dWeights[i] = gpu->CreateSubPointer(dWeights[0], ptrIncrement*i, ptrIncrement);
+    GPUPtr dWeightsOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    for(int i=0; i<kEigenDecompCount; i++) {
+        dWeights[i] = gpu->CreateSubPointer(dWeightsOrigin, ptrIncrement*i, ptrIncrement);
     }
     
     ptrIncrement = gpu->AlignMemOffset(kPaddedStateCount * sizeof(Real));
     kFrequenciesOffset = ptrIncrement/sizeof(Real);
-    dFrequencies[0] = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    for(int i=1; i<kEigenDecompCount; i++) {
-        dFrequencies[i] = gpu->CreateSubPointer(dFrequencies[0], ptrIncrement*i, ptrIncrement);
+    GPUPtr dFrequenciesOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    for(int i=0; i<kEigenDecompCount; i++) {
+        dFrequencies[i] = gpu->CreateSubPointer(dFrequenciesOrigin, ptrIncrement*i, ptrIncrement);
     }
 
     
@@ -633,13 +634,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), bufferCountTotal);
 
     ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
-    dPartialsOrigin = gpu->AllocateMemory(bufferCountTotal * ptrIncrement); 
+    GPUPtr dPartialsTmpOrigin = gpu->AllocateMemory(bufferCountTotal * ptrIncrement); 
+    dPartialsOrigin = gpu->CreateSubPointer(dPartialsTmpOrigin, 0, ptrIncrement);
     hPartialsOffsets = (unsigned int*) calloc(sizeof(unsigned int), bufferCountTotal);
     kIndexOffsetPat = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);
 
     size_t ptrIncrementStates = gpu->AlignMemOffset(kPaddedPatternCount * sizeof(int));
+    GPUPtr dStatesTmpOrigin;
     if (kCompactBufferCount > 0) {
-        dStatesOrigin = gpu->AllocateMemory(kCompactBufferCount * ptrIncrementStates);
+        dStatesTmpOrigin = gpu->AllocateMemory(kCompactBufferCount * ptrIncrementStates);
+        dStatesOrigin = gpu->CreateSubPointer(dStatesTmpOrigin, 0, ptrIncrementStates);
     } else {
         dStatesOrigin = (GPUPtr) NULL;
     }
@@ -656,14 +660,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     for (int i = 0; i < bufferCountTotal; i++) {
         if (i < kTipCount) { // For the tips
             if (i < kCompactBufferCount) {
-                dCompactBuffers[i] = gpu->CreateSubPointer(dStatesOrigin, ptrIncrementStates*i, ptrIncrementStates);
+                dCompactBuffers[i] = gpu->CreateSubPointer(dStatesTmpOrigin, ptrIncrementStates*i, ptrIncrementStates);
             }
             if (i < kTipPartialsBufferCount) {
-                dTipPartialsBuffers[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*i, ptrIncrement);
+                dTipPartialsBuffers[i] = gpu->CreateSubPointer(dPartialsTmpOrigin, ptrIncrement*i, ptrIncrement);
             }
         } else {
             int partialsSubIndex = i - (kTipCount - kTipPartialsBufferCount);
-            dPartials[i] = gpu->CreateSubPointer(dPartialsOrigin, ptrIncrement*partialsSubIndex, ptrIncrement);
+            dPartials[i] = gpu->CreateSubPointer(dPartialsTmpOrigin, ptrIncrement*partialsSubIndex, ptrIncrement);
             hPartialsOffsets[i] = kIndexOffsetPat*partialsSubIndex;
         }
     }
@@ -1968,12 +1972,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     }
 
     int gridLaunches = 0;
-    int gridStartOp[operationCount];
-    int gridOpType[operationCount];
-    int gridOpBlocks[operationCount];
+    int* gridStartOp;
+    int* gridOpType;
+    int* gridOpBlocks;
     int parentMinIndex = 0;
     int lastStreamIndex = 0;
     int gridOpIndex = 0;
+
+    if (kUsingMultiGrid) {
+        gridStartOp  = (int*) malloc(sizeof(int) * (operationCount + 1));
+        gridOpType   = (int*) malloc(sizeof(int) * (operationCount + 1));
+        gridOpBlocks = (int*) malloc(sizeof(int) * (operationCount + 1));
+    }
+
 
     int anyRescale = BEAGLE_OP_NONE;
     if (kUsingMultiGrid && (kFlags & BEAGLE_FLAG_SCALING_MANUAL)) {
@@ -2404,6 +2415,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
     if (!kUsingMultiGrid || anyRescale == 1) {
         gpu->SynchronizeDevice();
+    }
+
+    if (kUsingMultiGrid) {
+        free(gridStartOp);
+        free(gridOpType);
+        free(gridOpBlocks);
     }
 
 #ifdef BEAGLE_DEBUG_SYNCH    

@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{6141683F-8A12-4E36-9623-2EB02B2C2303}") = "beagle-installer", "beagle-installer\beagle-installer.isproj", "{800B91A7-5163-46F1-A1F3-1517DDE47C4A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		CD_ROM|Default = CD_ROM|Default
+		DVD-5|Default = DVD-5|Default
+		SingleImage|Default = SingleImage|Default
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.CD_ROM|Default.ActiveCfg = CD_ROM
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.CD_ROM|Default.Build.0 = CD_ROM
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.DVD-5|Default.ActiveCfg = DVD-5
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.DVD-5|Default.Build.0 = DVD-5
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.SingleImage|Default.ActiveCfg = SingleImage
+		{800B91A7-5163-46F1-A1F3-1517DDE47C4A}.SingleImage|Default.Build.0 = SingleImage
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

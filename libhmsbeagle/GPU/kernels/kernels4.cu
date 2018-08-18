@@ -543,13 +543,13 @@
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum1 = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sum2 = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(   sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
     FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
@@ -561,11 +561,11 @@
     int i = pat;\
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
 #define SUM_STATES_STATES_4_GPU()\
@@ -600,11 +600,11 @@
     int i = pat;\
     int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);\
     sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(    sMatrix1[multBy4(i) | state],  sPartials1[patIdx16pat4 | i], sum1);
 
 #define SUM_STATES_SINGLE_4_GPU()\
@@ -622,15 +622,15 @@
     sum1           = sMatrix1[          multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sumFirstDeriv  = sMatrixFirstDeriv[ multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
     sumSecondDeriv = sMatrixSecondDeriv[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);\
-    i = (++i) & 0x3;\
+    i = (i + 1) & 0x3;\
     FMA(sMatrix1[          multBy4(i) | state], sPartials1[patIdx16pat4 | i], sum1);\
     FMA(sMatrixFirstDeriv[ multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumFirstDeriv);\
     FMA(sMatrixSecondDeriv[multBy4(i) | state], sPartials1[patIdx16pat4 | i], sumSecondDeriv);
@@ -669,10 +669,12 @@
     int matrix = KW_LOCAL_ID_1;\
     int partialsOffset = ((startPattern + matrix * totalPatterns) << 2) + (patIdx << 4); /* 16;*/
 
-#define FIND_MAX_PARTIALS_STATE_4_GPU()\
+#define FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU()\
     KW_LOCAL_MEM REAL partials[MATRIX_BLOCK_SIZE][16]; /* 4 patterns at a time*/\
     KW_LOCAL_MEM REAL storedPartials[MATRIX_BLOCK_SIZE][16];\
-    KW_LOCAL_MEM REAL matrixMax[4];\
+    KW_LOCAL_MEM REAL matrixMax[4];
+
+#define FIND_MAX_PARTIALS_STATE_4_GPU()\
     if (matrix < matrixCount)\
         partials[matrix][tx] = allPartials[partialsOffset + tx];          \
     storedPartials[matrix][tx] = partials[matrix][tx];\
@@ -1334,6 +1336,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScaling(KW_GLOBAL_VAR REAL* KW_RESTRI
     SCALE_PARTIALS_4_CPU();
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     FIND_MAX_PARTIALS_STATE_4_GPU();
     // Could also parallel-reduce here.
     if (state == 0 && matrix == 0) {
@@ -1364,6 +1367,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingByPartition(
     }
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_PARTITION_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     if (pattern < endPattern) {
         FIND_MAX_PARTIALS_STATE_4_GPU();
         if (state == 0 && matrix == 0) {
@@ -1396,6 +1400,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingScalersLog(KW_GLOBAL_VAR REAL*
     SCALE_PARTIALS_4_CPU();
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     FIND_MAX_PARTIALS_STATE_4_GPU();
     if (state == 0 && matrix == 0) {
         FIND_MAX_PARTIALS_MATRIX_4_GPU();
@@ -1431,6 +1436,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingScalersLogByPartition(
     }
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_PARTITION_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     if (pattern < endPattern) {
         FIND_MAX_PARTIALS_STATE_4_GPU();
         if (state == 0 && matrix == 0) {
@@ -1462,6 +1468,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL*
     SCALE_PARTIALS_4_CPU();
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     FIND_MAX_PARTIALS_STATE_4_GPU();
     if (state == 0 && matrix == 0) {
         FIND_MAX_PARTIALS_MATRIX_4_GPU();
@@ -1494,6 +1501,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateByPartition(
     }
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_PARTITION_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     if (pattern < endPattern) {
         FIND_MAX_PARTIALS_STATE_4_GPU();
         if (state == 0 && matrix == 0) {
@@ -1527,6 +1535,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL
     SCALE_PARTIALS_4_CPU();
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     FIND_MAX_PARTIALS_STATE_4_GPU();
     if (state == 0 && matrix == 0) {
         FIND_MAX_PARTIALS_MATRIX_4_GPU();
@@ -1567,6 +1576,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLogByPartitio
     }
 #else // GPU implementation
     DETERMINE_SCALING_INDICES_4_PARTITION_GPU();
+    FIND_MAX_PARTIALS_STATE_4_DECLARE_GPU();
     if (pattern < endPattern) {
         FIND_MAX_PARTIALS_STATE_4_GPU();
         if (state == 0 && matrix == 0) {
@@ -2071,18 +2081,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCheckScale(KW_GLOBAL_VAR REAL* parti
             sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i++;
-            i &= 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i++;
-            i &= 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-            i++;
-            i &= 0x3;
+            i = (i + 1) & 0x3;
             sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
             sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
             
@@ -2163,18 +2170,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedCheckScale(KW_GLOBAL_VAR REAL* 
         sum1  = sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2  = sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i++;
-        i &= 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i++;
-        i &= 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
 
-        i++;
-        i &= 0x3;
+        i = (i + 1) & 0x3;
         sum1 += sMatrix1[i * 4 + state] * sPartials1[patIdx * 16 + pat * 4 + i];
         sum2 += sMatrix2[i * 4 + state] * sPartials2[patIdx * 16 + pat * 4 + i];
         
@@ -2241,18 +2245,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     sum1  = sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2  = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i++;
-    i &= 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i++;
-    i &= 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
 
-    i++;
-    i &= 0x3;
+    i = (i + 1) & 0x3;
     sum1 += sMatrix1[multBy4(i) | state] * sPartials1[patIdx16pat4 | i];
     sum2 += sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
     

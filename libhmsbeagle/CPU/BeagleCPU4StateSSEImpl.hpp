@@ -103,22 +103,6 @@ inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Si
  */
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesStates(float* destP,
-                                                                      const int* states_q,
-                                                                      const float* matrices_q,
-                                                                      const int* states_r,
-                                                                      const float* matrices_r) {
-
-  BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesStates(destP,
-                                                                states_q,
-                                                                matrices_q,
-                                                                states_r,
-                                                                matrices_r);
-
-}
-
-
-BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* destP,
                                                                        const int* states_q,
                                                                        const double* matrices_q,
@@ -160,22 +144,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesStates(double* d
  * Calculates partial likelihoods at a node when one child has states and one has partials.
    SSE version
  */
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartials(float* destP,
-                                                                        const int* states_q,
-                                                                        const float* matrices_q,
-                                                                        const float* partials_r,
-                                                                        const float* matrices_r) {
-
-    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartials(destP,
-    								                                                states_q,
-    								                                                matrices_q,
-    								                                                partials_r,
-    								                                                matrices_r);
-
-}
-
-
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartials(double* destP,
@@ -228,23 +196,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartials(double*
         destPvec += patternDefficit * 2;
         v += patternDefficit * 4;
     }
-}
-
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartialsFixedScaling(float* destP,
-                                                                                    const int* states1,
-                                                                                    const float* __restrict matrices1,
-                                                                                    const float* __restrict partials2,
-                                                                                    const float* __restrict matrices2,
-                                                                                    const float* __restrict scaleFactors) {
-
-    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcStatesPartialsFixedScaling(destP,
-                                                                                states1,
-                                                                                matrices1,
-                                                                                partials2,
-                                                                                matrices2,
-                                                                                scaleFactors);
-
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -301,20 +252,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcStatesPartialsFixedSca
         destPvec += patternDefficit * 2;
         v += patternDefficit * 4;
     }
-}
-
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartials(float* destP,
-                                                  const float*  partials_q,
-                                                  const float*  matrices_q,
-                                                  const float*  partials_r,
-                                                  const float*  matrices_r) {
-
-	BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartials(destP,
-                                                  partials_q,
-                                                  matrices_q,
-                                                  partials_r,
-                                                  matrices_r);
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -429,23 +366,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartials(doubl
         destPvec += patternDefficit * 2;
         v += patternDefficit * 4;
     }
-}
-
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartialsFixedScaling(float* destP,
-                                        const float*  child0Partials,
-                                        const float*  child0TransMat,
-                                        const float*  child1Partials,
-                                        const float*  child1TransMat,
-                                        const float*  scaleFactors) {
-
-	BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartialsFixedScaling(
-			destP,
-			child0Partials,
-			child0TransMat,
-			child1Partials,
-			child1TransMat,
-			scaleFactors);
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -903,7 +823,6 @@ const char* BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getName() {
 BEAGLE_CPU_4_SSE_TEMPLATE
 const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
-            BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_SINGLE |
             BEAGLE_FLAG_VECTOR_SSE |
@@ -913,7 +832,6 @@ const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 BEAGLE_CPU_4_SSE_TEMPLATE
 const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getFlags() {
     return  BEAGLE_FLAG_COMPUTATION_SYNCH |
-            BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_DOUBLE |
             BEAGLE_FLAG_VECTOR_SSE |
@@ -982,7 +900,7 @@ template <>
 const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
            BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -996,7 +914,7 @@ template <>
 const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-           BEAGLE_FLAG_THREADING_NONE |
+           BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
            BEAGLE_FLAG_PRECISION_SINGLE |

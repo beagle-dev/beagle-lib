@@ -13,7 +13,7 @@ java/beagle/GeneralBeagleImpl.java \
 project/beagle-xcode/beagle-xcode.xcodeproj/project.pbxproj \
 project/beagle-vs/complextest/complextest_vc90.vcproj \
 project/beagle-vs/fourtaxon/fourtaxon_vc90.vcproj \
-project/beagle-vs/genomictest/genomictest_vc90.vcproj \
+project/beagle-vs/synthetictest/synthetictest_vc90.vcproj \
 project/beagle-vs/tinytest/tinytest_vc90.vcproj \
 project/beagle-vs/oddstatetest/oddstatetest_vc90.vcproj \
 project/beagle-vs/matrixtest/matrixtest_vc90.vcproj \
@@ -51,7 +51,7 @@ OPTIMIZATIONS= -O3 -mfpmath=sse -ftree-vectorizer-verbose=5 -msse -msse2 -ffast-
 profile:
 	make clean
 	make CXXFLAGS="$(CXXFLAGS) -fprofile-generate $(OPTIMIZATIONS)"
-	make -C examples/genomictest/ check CXXFLAGS="$(CXXFLAGS) -static -fprofile-generate $(OPTIMIZATIONS)"
+	make -C examples/synthetictest/ check CXXFLAGS="$(CXXFLAGS) -static -fprofile-generate $(OPTIMIZATIONS)"
 	make mostlyclean
 	make CXXFLAGS="$(CXXFLAGS) -fprofile-use $(OPTIMIZATIONS)"
 

@@ -46,6 +46,7 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
+#include "libhmsbeagle/benchmark/BeagleBenchmark.h"
 
 #include "libhmsbeagle/plugin/Plugin.h"
 #include "config.h"
@@ -57,8 +58,9 @@ Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio
 
 typedef std::pair<int, int> IntPair;
 typedef std::list<IntPair> PairedList;
-typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> >	RsrcImpl;
+typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> > RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
+typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
 
 #define BEAGLE_PREORDER
 //#define BEAGLE_DEBUG_TIME
@@ -95,22 +97,28 @@ BeagleImpl* getBeagleInstance(int instanceIndex) {
     return (*instances)[instanceIndex];
 }
 
-}	// end namespace beagle
+}   // end namespace beagle
 
 
 // A specialized comparator that only reorders based on score
 bool compareRsrcImpl(const RsrcImpl &left, const RsrcImpl &right) {
-	return left.first < right.first;
+    return left.first < right.first;
 }
 
 // A specialized comparator that only reorders based on first entry
 bool compareOnFirst(const IntPair &left, const IntPair &right) {
-	return left.first < right.first;
+    return left.first < right.first;
+}
+
+// A specialized comparator that only reorders based on benchmark result
+bool compareBenchmarkResult(const BeagleBenchmarkedResource &left, const BeagleBenchmarkedResource &right) {
+    return left.benchmarkResult < right.benchmarkResult;
 }
 
 std::list<beagle::BeagleImplFactory*>* implFactory = NULL;
 
 BeagleResourceList* rsrcList = NULL;
+BeagleBenchmarkedResourceList* rsrcBenchList = NULL;
 std::map<int, int> ResourceMap;
 
 int loaded = 0; // Indicates is the initial library constructors have been run
@@ -120,111 +128,117 @@ int loaded = 0; // Indicates is the initial library constructors have been run
 std::list<beagle::plugin::Plugin*>* plugins;
 
 void beagleLoadPlugins(void) {
-	if(plugins==NULL){
-		plugins = new std::list<beagle::plugin::Plugin*>();
-	}
+    if(plugins==NULL){
+        plugins = new std::list<beagle::plugin::Plugin*>();
+    }
 
-	beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
+    beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
-	try{
-		beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
-		plugins->push_back(cpuplug);
-	}catch(beagle::plugin::SharedLibraryException sle){
-		// this one should always work
-		std::cerr << "Unable to load CPU plugin!\n";
-		std::cerr << "Please check for proper libhmsbeagle installation.\n";
-	}
+    try{
+        beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
+        plugins->push_back(sseplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
 
-	try{
-		beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
-		plugins->push_back(cudaplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
+    try{
+        beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
+        plugins->push_back(cpuplug);
+    }catch(beagle::plugin::SharedLibraryException sle){
+        // this one should always work
+        std::cerr << "Unable to load CPU plugin!\n";
+        std::cerr << "Please check for proper libhmsbeagle installation.\n";
+    }
 
-	try{
-		beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
-		plugins->push_back(openclplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
+    try{
+        beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
+        plugins->push_back(cudaplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
 
-	try{
-		beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
-		plugins->push_back(openclalteraplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
+    try{
+        beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
+        plugins->push_back(openclplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
 
-	try{
-		beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
-		plugins->push_back(sseplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
-	
-	try{
-		beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
-		plugins->push_back(avxplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}	
+    try{
+        beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
+        plugins->push_back(openclalteraplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
+    
+    try{
+        beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
+        plugins->push_back(avxplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}    
 
-	try{
-		beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-		plugins->push_back(openmpplug);
-	}catch(beagle::plugin::SharedLibraryException sle){}
+    try{
+        beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
+        plugins->push_back(openmpplug);
+    }catch(beagle::plugin::SharedLibraryException sle){}
 }
 
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
-	if (implFactory == NULL) {
-		implFactory = new std::list<beagle::BeagleImplFactory*>;
-		// Set-up a list of implementation factories in trial-order
-		std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
-		for(; plugin_iter != plugins->end(); plugin_iter++ ){
-			std::list<beagle::BeagleImplFactory*> factories = (*plugin_iter)->getBeagleFactories();
-			implFactory->insert(implFactory->end(), factories.begin(), factories.end());
-		}				
-	}
-	return implFactory;
+    if (implFactory == NULL) {
+        implFactory = new std::list<beagle::BeagleImplFactory*>;
+        // Set-up a list of implementation factories in trial-order
+        std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins->begin();
+        for(; plugin_iter != plugins->end(); plugin_iter++ ){
+            std::list<beagle::BeagleImplFactory*> factories = (*plugin_iter)->getBeagleFactories();
+            implFactory->insert(implFactory->end(), factories.begin(), factories.end());
+        }               
+    }
+    return implFactory;
 }
 
 void beagle_library_initialize(void) {
-//	beagleGetResourceList(); // Generate resource list at library initialization, causes Bus error on Mac
-//	beagleGetFactoryList(); // Generate factory list at library initialization, causes Bus error on Mac
+//  beagleGetResourceList(); // Generate resource list at library initialization, causes Bus error on Mac
+//  beagleGetFactoryList(); // Generate factory list at library initialization, causes Bus error on Mac
 }
 
 void beagle_library_finalize(void) {
   DEBUG_FINALIZE_TIME();
-	// FIXME: need to destroy each plugin
-	// the following code segfaults
-/*	std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
-	for(; plugin_iter != plugins.end(); plugin_iter++ ){
-		delete *plugin_iter;
-	}
-	plugins.clear();	
+    // FIXME: need to destroy each plugin
+    // the following code segfaults
+/*  std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();
+    for(; plugin_iter != plugins.end(); plugin_iter++ ){
+        delete *plugin_iter;
+    }
+    plugins.clear();    
 */
 
-	if(plugins!=NULL && loaded){
-		delete plugins;
-	}
-	// Destroy implFactory.
-	// The contained factory pointers will be deleted by the plugins themselves
-	if (implFactory && loaded) {
-		try {
-		delete implFactory;
-		} catch (...) {
+    if(plugins!=NULL && loaded){
+        delete plugins;
+    }
+    // Destroy implFactory.
+    // The contained factory pointers will be deleted by the plugins themselves
+    if (implFactory && loaded) {
+        try {
+        delete implFactory;
+        } catch (...) {
 
-		}
-	}
+        }
+    }
 
-	// Destroy rsrcList
-	// The resources will be deleted by the plugins themselves
-	if (rsrcList && loaded) {
-		free(rsrcList->list);
-		free(rsrcList);
-	}
+    // Destroy rsrcList
+    // The resources will be deleted by the plugins themselves
+    if (rsrcList && loaded) {
+        free(rsrcList->list);
+        free(rsrcList);
+    }
 
-	// Destroy instances
-	if (instances && loaded) {
-		delete instances;
-	}
-	loaded = 0;
+    if (rsrcBenchList && loaded) {
+        free(rsrcBenchList->list);
+        free(rsrcBenchList);
+    }
+
+
+    // Destroy instances
+    if (instances && loaded) {
+        delete instances;
+    }
+    loaded = 0;
 }
 
 #ifdef __GNUC__
 void __attribute__ ((constructor)) beagle_gnu_init(void) {
-	beagle_library_initialize();
+    beagle_library_initialize();
 }
 void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
     beagle_library_finalize();
@@ -235,10 +249,10 @@ void __attribute__ ((destructor)) beagle_gnu_finalize(void) {
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD fdwReason, LPVOID lpvReserved) {
     switch (fdwReason) {
     case DLL_PROCESS_ATTACH:
-		beagle_library_initialize();
+        beagle_library_initialize();
         break;
     case DLL_PROCESS_DETACH:
-		beagle_library_finalize();
+        beagle_library_finalize();
         break;
     }
     return TRUE;
@@ -260,9 +274,9 @@ const char* beagleGetCitation() {
 }
 
 BeagleResourceList* beagleGetResourceList() {
-	// plugins must be loaded before resources
-	if (plugins==NULL)
-	    beagleLoadPlugins();
+    // plugins must be loaded before resources
+    if (plugins==NULL)
+        beagleLoadPlugins();
 
     if (rsrcList == NULL) {
         // count the total resources across plugins
@@ -316,6 +330,280 @@ int scoreFlags(long flags1, long flags2) {
     return -score;
 }
 
+int filterResources(int* resourceList,
+                    int resourceCount,
+                    long preferenceFlags,
+                    long requirementFlags,
+                    PairedList* possibleResources) {
+
+    // First determine a list of possible resources
+    if (resourceList == NULL || resourceCount == 0) { // No list given
+        for(int i=0; i<rsrcList->length; i++)
+            possibleResources->push_back(std::make_pair(
+                scoreFlags(preferenceFlags,rsrcList->list[i].supportFlags), // Score
+                i)); // ID
+    } else {
+        for(int i=0; i<resourceCount; i++)
+            possibleResources->push_back(std::make_pair(
+                scoreFlags(preferenceFlags,rsrcList->list[resourceList[i]].supportFlags), // Score
+                resourceList[i])); // ID
+    }
+
+    if (requirementFlags != 0) { // If requirements given do restriction
+        for(PairedList::iterator it = possibleResources->begin();
+            it != possibleResources->end(); ++it) {
+            int resource = (*it).second;
+            long resourceFlag = rsrcList->list[resource].supportFlags;
+            if ( (resourceFlag & requirementFlags) < requirementFlags) {
+                if(it==possibleResources->begin()){
+                    possibleResources->remove(*(it));
+                    it=possibleResources->begin();
+                }else
+                    possibleResources->remove(*(it--));
+            }
+            if(it==possibleResources->end())
+                break;
+        }
+    }
+    
+    if (possibleResources->size() == 0) {
+        return BEAGLE_ERROR_NO_RESOURCE;
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+int rankResourceImplementationPairs(long preferenceFlags,
+                                    long requirementFlags,
+                                    PairedList* possibleResources,
+                                    RsrcImplList* possibleResourceImplementations) {
+    
+    possibleResources->sort(compareOnFirst); // Attempt in rank order, lowest score wins
+    
+    // Score each resource-implementation pair given preferences
+
+    for(PairedList::iterator it = possibleResources->begin();
+        it != possibleResources->end(); ++it) {
+        int resource = (*it).second;
+        long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
+        long resourceSupportedFlags = rsrcList->list[resource].supportFlags;            
+        int resourceScore = (*it).first;
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
+#endif
+        
+        for (std::list<beagle::BeagleImplFactory*>::iterator factory =
+             implFactory->begin(); factory != implFactory->end(); factory++) {
+            long factoryFlags = (*factory)->getFlags();
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
+#endif
+            if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Factory meets requirementFlags
+                && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
+                && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
+                ) {
+                int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
+                int totalScore = resourceScore + implementationScore;
+#ifdef BEAGLE_DEBUG_FLOW
+                fprintf(stderr,"\tPossible implementation: %s (%d)\n",
+                        (*factory)->getName(),totalScore);
+#endif
+                
+                possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));
+                
+            }
+        }
+    }
+        
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\nOriginal list of possible implementations:\n");
+    for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
+            it != possibleResourceImplementations->end(); ++it) {
+        beagle::BeagleImplFactory* factory = (*it).second.second;
+        fprintf(stderr,"\t %s (%d)\n", factory->getName(), (*it).first);
+    }
+#endif        
+    
+    possibleResourceImplementations->sort(compareRsrcImpl);
+    
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\nSorted list of possible implementations:\n");
+    for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
+            it != possibleResourceImplementations->end(); ++it) {
+        beagle::BeagleImplFactory* factory = (*it).second.second;
+        fprintf(stderr,"\t %s (%d)  (%d)\n", factory->getName(), (*it).first, (*it).second.first);
+    }
+#endif
+
+
+    return BEAGLE_SUCCESS;
+}
+
+BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
+                                                                int compactBufferCount,
+                                                                int stateCount,
+                                                                int patternCount,
+                                                                int categoryCount,
+                                                                int* resourceList,
+                                                                int resourceCount,
+                                                                long preferenceFlags,
+                                                                long requirementFlags,
+                                                                int eigenModelCount,
+                                                                int partitionCount,
+                                                                int calculateDerivatives,
+                                                                long benchmarkFlags) {
+    if (rsrcList == NULL)
+        beagleGetResourceList();
+
+    if (implFactory == NULL)
+        beagleGetFactoryList();
+
+    int errorCode = BEAGLE_SUCCESS;
+
+    PairedList* possibleResources = new PairedList;
+
+    errorCode = filterResources(resourceList,
+                                resourceCount,
+                                preferenceFlags,
+                                requirementFlags,
+                                possibleResources);
+
+    if (errorCode != BEAGLE_SUCCESS) {
+        delete possibleResources;
+        return NULL;
+    }
+
+    RsrcBenchPairList *filteredRsrcBenchList = new RsrcBenchPairList;
+
+    for(PairedList::iterator it = possibleResources->begin(); it != possibleResources->end(); ++it) {
+        int resource = (*it).second;
+
+        BeagleBenchmarkedResource itResource;
+        itResource.number        = resource;
+        itResource.name          = rsrcList->list[resource].name;
+        itResource.description   = rsrcList->list[resource].description;
+        itResource.supportFlags  = rsrcList->list[resource].supportFlags;
+        itResource.requiredFlags = rsrcList->list[resource].requiredFlags;
+
+        filteredRsrcBenchList->push_back(itResource);
+    }
+
+    delete possibleResources;
+
+    bool manualScaling = (benchmarkFlags & BEAGLE_BENCHFLAG_SCALING_NONE ? false : true);
+    int benchmarkReplicates = BENCHMARK_REPLICATES;
+    int rescaleFrequency =
+        (benchmarkFlags & BEAGLE_BENCHFLAG_SCALING_ALWAYS ? 1 : BENCHMARK_REPLICATES*2);
+
+    int resourceNumber;
+    char* implName;
+    long benchedFlags;
+    double benchmarkResultCPU;
+
+    bool instOnly = false;
+    
+    errorCode = beagle::benchmark::benchmarkResource(0,
+                                  stateCount,
+                                  tipCount,
+                                  patternCount,
+                                  manualScaling,
+                                  categoryCount,
+                                  benchmarkReplicates,
+                                  compactBufferCount,
+                                  rescaleFrequency,
+                                  (calculateDerivatives ? true : false),
+                                  calculateDerivatives,
+                                  eigenModelCount,
+                                  partitionCount,
+                                  preferenceFlags | requirementFlags,
+                                  0,
+                                  &resourceNumber,
+                                  &implName,
+                                  &benchedFlags,
+                                  &benchmarkResultCPU,
+                                  instOnly);
+
+    if (errorCode != BEAGLE_SUCCESS) {
+        return NULL;
+    }
+
+    for(RsrcBenchPairList::iterator it = filteredRsrcBenchList->begin();
+        it != filteredRsrcBenchList->end(); ++it) {
+
+        if ((*it).number == 0) {
+            instOnly = true;
+        } else {
+            instOnly = false;
+        }
+
+        double itBenchmarkResult;
+
+        (*it).returnCode = beagle::benchmark::benchmarkResource((*it).number,
+                                                     stateCount,
+                                                     tipCount,
+                                                     patternCount,
+                                                     manualScaling,
+                                                     categoryCount,
+                                                     benchmarkReplicates,
+                                                     compactBufferCount,
+                                                     rescaleFrequency,
+                                                     (calculateDerivatives ? true : false),
+                                                     calculateDerivatives,
+                                                     eigenModelCount,
+                                                     partitionCount,
+                                                     preferenceFlags,
+                                                     requirementFlags,
+                                                     &resourceNumber,
+                                                     &implName,
+                                                     &benchedFlags,
+                                                     &itBenchmarkResult,
+                                                     instOnly);
+
+        (*it).number         = resourceNumber;
+        (*it).benchedFlags   = benchedFlags;
+        (*it).implName       = implName;
+
+        if ((*it).number == 0) {
+            (*it).benchmarkResult = benchmarkResultCPU;
+            (*it).performanceRatio = 1.0;
+        } else {
+            (*it).benchmarkResult = itBenchmarkResult;
+            (*it).performanceRatio = benchmarkResultCPU / (*it).benchmarkResult;
+        }
+    }
+
+    filteredRsrcBenchList->sort(compareBenchmarkResult); // order from fastest to slowest
+
+   if (rsrcBenchList != NULL) {
+        free(rsrcBenchList->list);
+        free(rsrcBenchList);
+    }
+
+    rsrcBenchList = (BeagleBenchmarkedResourceList*) malloc(sizeof(BeagleBenchmarkedResourceList));
+    rsrcBenchList->length = filteredRsrcBenchList->size();
+    rsrcBenchList->list = (BeagleBenchmarkedResource*) malloc(sizeof(BeagleBenchmarkedResource) * rsrcBenchList->length);
+
+    int i = 0;
+    for(RsrcBenchPairList::iterator it = filteredRsrcBenchList->begin();
+        it != filteredRsrcBenchList->end(); ++it) {
+        rsrcBenchList->list[i].number           = (*it).number;
+        rsrcBenchList->list[i].name             = (*it).name;
+        rsrcBenchList->list[i].description      = (*it).description;
+        rsrcBenchList->list[i].supportFlags     = (*it).supportFlags;
+        rsrcBenchList->list[i].requiredFlags    = (*it).requiredFlags;
+        rsrcBenchList->list[i].returnCode       = (*it).returnCode;
+        rsrcBenchList->list[i].implName         = (*it).implName;
+        rsrcBenchList->list[i].benchedFlags     = (*it).benchedFlags;
+        rsrcBenchList->list[i].benchmarkResult  = (*it).benchmarkResult;
+        rsrcBenchList->list[i].performanceRatio = (*it).performanceRatio;
+        i++;
+    }
+
+    delete filteredRsrcBenchList;
+
+    return rsrcBenchList;
+}
+
 int beagleCreateInstance(int tipCount,
                          int partialsBufferCount,
                          int compactBufferCount,
@@ -343,105 +631,38 @@ int beagleCreateInstance(int tipCount,
         
         loaded = 1;
         
-        // First determine a list of possible resources
+        int errorCode = BEAGLE_SUCCESS;
+
         PairedList* possibleResources = new PairedList;
-        if (resourceList == NULL || resourceCount == 0) { // No list given
-            for(int i=0; i<rsrcList->length; i++)
-                possibleResources->push_back(std::make_pair(
-                    scoreFlags(preferenceFlags,rsrcList->list[i].supportFlags), // Score
-                    i)); // ID
-        } else {
-            for(int i=0; i<resourceCount; i++)
-                possibleResources->push_back(std::make_pair(
-                    scoreFlags(preferenceFlags,rsrcList->list[resourceList[i]].supportFlags), // Score
-                    resourceList[i])); // ID
-        }
-        if (requirementFlags != 0) { // If requirements given do restriction
-            for(PairedList::iterator it = possibleResources->begin();
-                it != possibleResources->end(); ++it) {
-                int resource = (*it).second;
-                long resourceFlag = rsrcList->list[resource].supportFlags;
-                if ( (resourceFlag & requirementFlags) < requirementFlags) {
-					if(it==possibleResources->begin()){
-	                    possibleResources->remove(*(it));
-						it=possibleResources->begin();
-					}else
-	                    possibleResources->remove(*(it--));
-                }
-				if(it==possibleResources->end())
-					break;
-            }
-        }
-        
-        if (possibleResources->size() == 0) {
+
+        errorCode = filterResources(resourceList,
+                                    resourceCount,
+                                    preferenceFlags,
+                                    requirementFlags,
+                                    possibleResources);
+
+        if (errorCode != BEAGLE_SUCCESS) {
             delete possibleResources;
-            return BEAGLE_ERROR_NO_RESOURCE;
+            return errorCode;
         }
-        
-        beagle::BeagleImpl* bestBeagle = NULL;
 
-        possibleResources->sort(compareOnFirst); // Attempt in rank order, lowest score wins
-
-        int errorCode = BEAGLE_ERROR_NO_RESOURCE;
-        
-        // Score each resource-implementation pair given preferences
         RsrcImplList* possibleResourceImplementations = new RsrcImplList;
 
-        for(PairedList::iterator it = possibleResources->begin();
-            it != possibleResources->end(); ++it) {
-            int resource = (*it).second;
-            long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
-            long resourceSupportedFlags = rsrcList->list[resource].supportFlags;            
-            int resourceScore = (*it).first;
-#ifdef BEAGLE_DEBUG_FLOW
-            fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
-#endif
-            
-            for (std::list<beagle::BeagleImplFactory*>::iterator factory =
-                 implFactory->begin(); factory != implFactory->end(); factory++) {
-                long factoryFlags = (*factory)->getFlags();
-#ifdef BEAGLE_DEBUG_FLOW
-                fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
-#endif
-                if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Factory meets requirementFlags
-                    && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
-                    && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
-                    ) {
-                    int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
-                    int totalScore = resourceScore + implementationScore;
-#ifdef BEAGLE_DEBUG_FLOW
-                    fprintf(stderr,"\tPossible implementation: %s (%d)\n",
-                            (*factory)->getName(),totalScore);
-#endif
-                    
-                    possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));
-                    
-                }
-            }
-        }
-        
+        errorCode = rankResourceImplementationPairs(preferenceFlags,
+                                                    requirementFlags,
+                                                    possibleResources,
+                                                    possibleResourceImplementations);
+
         delete possibleResources;
-        
-#ifdef BEAGLE_DEBUG_FLOW
-        fprintf(stderr,"\nOriginal list of possible implementations:\n");
-        for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
-				it != possibleResourceImplementations->end(); ++it) {
-        	beagle::BeagleImplFactory* factory = (*it).second.second;
-        	fprintf(stderr,"\t %s (%d)\n", factory->getName(), (*it).first);
+
+        if (errorCode != BEAGLE_SUCCESS) {
+            delete possibleResourceImplementations;
+            return errorCode;
         }
-#endif        
-        
-        possibleResourceImplementations->sort(compareRsrcImpl);
-        
-#ifdef BEAGLE_DEBUG_FLOW
-        fprintf(stderr,"\nSorted list of possible implementations:\n");
-        for (RsrcImplList::iterator it = possibleResourceImplementations->begin(); 
-				it != possibleResourceImplementations->end(); ++it) {
-        	beagle::BeagleImplFactory* factory = (*it).second.second;
-        	fprintf(stderr,"\t %s (%d)  (%d)\n", factory->getName(), (*it).first, (*it).second.first);
-        }
-#endif
-        
+
+        beagle::BeagleImpl* bestBeagle = NULL;
+        errorCode = BEAGLE_ERROR_NO_RESOURCE;
+
         for(RsrcImplList::iterator it = possibleResourceImplementations->begin(); it != possibleResourceImplementations->end(); ++it) {
             int resource = (*it).second.first;
             beagle::BeagleImplFactory* factory = (*it).second.second;
@@ -789,12 +1010,12 @@ int beagleSetTransitionMatrices(int instance,
 }
 
 int beagleGetTransitionMatrix(int instance,
-							  int matrixIndex,
-							  double* outMatrix) {
+                              int matrixIndex,
+                              double* outMatrix) {
     DEBUG_START_TIME();
-	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL)
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getTransitionMatrix(matrixIndex,outMatrix);
     DEBUG_END_TIME();
     return returnValue;
@@ -805,21 +1026,21 @@ int beagleGetTransitionMatrix(int instance,
 ///////////////////////////
 
 int beagleConvolveTransitionMatrices(int instance,
-		                             const int* firstIndices,
-		                             const int* secondIndices,
-		                             const int* resultIndices,
-		                             const int matrixCount) {
+                                     const int* firstIndices,
+                                     const int* secondIndices,
+                                     const int* resultIndices,
+                                     const int matrixCount) {
     DEBUG_START_TIME();
-	beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
 
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	} else {
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    } else {
         int returnValue = beagleInstance->convolveTransitionMatrices(firstIndices,
                                            secondIndices, resultIndices, matrixCount);
         DEBUG_END_TIME();
         return returnValue;
-	}
+    }
 
 }//END: beagleConvolveTransitionMatrices
 
@@ -996,9 +1217,9 @@ int beagleAccumulateScaleFactorsByPartition(int instance,
 }
 
 int beagleRemoveScaleFactors(int instance,
-						   const int* scalingIndices,
-						   int count,
-						   int cumulativeScalingIndex) {
+                           const int* scalingIndices,
+                           int count,
+                           int cumulativeScalingIndex) {
     DEBUG_START_TIME();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);

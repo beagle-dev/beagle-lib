@@ -1,16 +1,16 @@
 #!/bin/bash
 
-function run_genomictest {
-    (time ../examples/genomictest/genomictest $1) &> screen_output
+function run_synthetictest {
+    (time ../examples/synthetictest/synthetictest $1) &> screen_output
     echo >> screen_log
-    echo "./genomictest $1" >> screen_log
+    echo "./synthetictest $1" >> screen_log
 }
 
 function run_fourtaxon {
     (cd ../examples/fourtaxon && time ./fourtaxon $1) &> screen_output
 }
 
-function grep_print_genomictest {
+function grep_print_synthetictest {
     RSRC_NAME=`grep "Rsrc" screen_output | cut -f 2 -d ":"`
     RSRC_NAME=`echo $RSRC_NAME`
     IMPL_NAME=`grep "Impl" screen_output | cut -f 2 -d ":"`
@@ -108,7 +108,7 @@ function print_system {
 }
 
 function run_print_test {
-    if [ "$1" == "genomictest" ]
+    if [ "$1" == "synthetictest" ]
     then
         CMD_FLAGS="--states $2 --taxa $3 --sites $4 --rates $5 --reps $6 --rsrc $7 --compact-tips ${11} --seed ${12} --rescale-frequency ${13} --eigencount ${20}"
         if [ "$8" == "manual" ]
@@ -148,7 +148,7 @@ function run_print_test {
             CMD_FLAGS="$CMD_FLAGS --setmatrix"
         fi
 
-        run_genomictest "$CMD_FLAGS"
+        run_synthetictest "$CMD_FLAGS"
     else
         CMD_FLAGS="--niters $6 --rsrc $7"
         if [ "$8" == "none" ]
@@ -179,9 +179,9 @@ function run_print_test {
         echo "*** ERROR: `grep "error" screen_output`" 1>&2;
     else
         set -v; echo -n $1","$2","$3","$4","$5","$6","$7","$8","$9","${10}","${11}","${12}","${13}","${14}","${15}","${19}","${20}","${21}","${22}","${23}; set +v
-        if [ "$1" == "genomictest" ]
+        if [ "$1" == "synthetictest" ]
         then
-            grep_print_genomictest ${15} ${16} ${17} ${18}
+            grep_print_synthetictest ${15} ${16} ${17} ${18}
         else
             grep_print_fourtaxon
         fi

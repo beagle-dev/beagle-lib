@@ -1,8 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 3.0.0, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.1.0, beagle-dev@googlegroups.com)
 
-: ${CXXFLAGS=" -std=c++11 -O3"}
+: ${CXXFLAGS=""}
 
 dnl -----------------------------------------------
 dnl Package name and version number (user defined)
@@ -12,7 +12,7 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
 GENERIC_MAJOR_VERSION=3
-GENERIC_MINOR_VERSION=0
+GENERIC_MINOR_VERSION=1
 GENERIC_MICRO_VERSION=0
 
 #API version
@@ -23,7 +23,7 @@ AC_SUBST(GENERIC_API_VERSION)
 GENERIC_REVISION_VERSION=$GENERIC_MINOR_VERSION
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:2
+GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:3
 #
 #             current:revision:age
 #                |        |     |
@@ -126,6 +126,44 @@ dnl OpenMP checker only defines for C when compiling both C and C++
 OPENMP_CXXFLAGS=$OPENMP_CFLAGS
 AC_SUBST(OPENMP_CXXFLAGS)
 
+
+# ------------------------------------------------------------------------------
+# Setup optimization level
+# ------------------------------------------------------------------------------
+
+AC_ARG_ENABLE(optimization,
+  AC_HELP_STRING([--disable-optimization],[build without compiler optimization]), , [enable_optimization=yes])
+
+if test  "$enable_optimization" = yes; then
+  AM_CXXFLAGS="$AM_CXXFLAGS -O3"
+fi
+
+# ------------------------------------------------------------------------------
+# Setup debugging
+# ------------------------------------------------------------------------------
+
+AC_ARG_ENABLE(debugging,
+  AC_HELP_STRING([--enable-debugging],[build with debugging symbols]), , [enable_debugging=no])
+
+if test  "$enable_debugging" = yes; then
+  AM_CXXFLAGS="$AM_CXXFLAGS -g"
+fi
+
+
+# ------------------------------------------------------------------------------
+# Setup C++11 threads 
+# ------------------------------------------------------------------------------
+AM_CXXFLAGS="$AM_CXXFLAGS -std=c++11"
+
+case $host_os in
+*linux*)
+  dnl Check for gcc
+  if test x$GCC = xyes
+  then
+    AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
+  fi
+esac
+
 # ------------------------------------------------------------------------------
 # Setup C++11 threads 
 # ------------------------------------------------------------------------------
@@ -159,11 +197,12 @@ then
    else
       case $host_os in
       *darwin*)
-        AC_CHECK_FILE(/System/Library/Frameworks/OpenCL.framework,,[with_opencl="no"])
+        with_opencl="no"
         ;;
       *)
         AC_CHECK_FILE(/usr/include/CL,[OPENCL_CFLAGS+=" -I/usr/include"],[with_opencl="no"])
       esac
+
    fi
 fi
 
@@ -191,11 +230,11 @@ then
    then
       CUDAPATH="$with_cuda"
       CUDA_CFLAGS+=" -I$with_cuda/include"
-      CUDA_LIBS+=" -L$with_cuda/lib"
+      CUDA_LIBS+=" -L$with_cuda/lib64 -L$with_cuda/lib"
    else
       AC_CHECK_FILE(/usr/local/cuda/,[CUDAPATH="/usr/local/cuda"],[])
       AC_CHECK_FILE(/usr/local/cuda/include,[CUDA_CFLAGS+=" -I/usr/local/cuda/include"],[CUDA_CFLAGS=""])
-      AC_CHECK_FILE(/usr/local/cuda/lib,[CUDA_LIBS+=" -L/usr/local/cuda/lib"],[])
+      AC_CHECK_FILE(/usr/local/cuda/lib$SUFFIX,[CUDA_LIBS+=" -L/usr/local/cuda/lib64  -L/usr/local/cuda/lib"],[])
    fi
 
 
@@ -226,7 +265,7 @@ if test x$DEBUG = xtrue
 then
    NVCCFLAGS="-g"
 else
-   NVCCFLAGS="-O3 -arch compute_32"
+   NVCCFLAGS="-O3 -arch compute_30"
 fi
 if test x$EMULATION = xtrue
 then
@@ -235,6 +274,48 @@ fi
 
 # do not warn about deprecated GPU architectures
 NVCCFLAGS+=" -Wno-deprecated-gpu-targets"
+
+# ------------------------------------------------------------------------------
+# Setup nvcc ccbin
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([nvcc-ccbin],
+   [AS_HELP_STRING([--with-nvcc-ccbin=PATH],[path or executable name of host compiler for nvcc @<:@default=auto@:>@])],
+   [],
+   [with_nvcc_ccbin=auto])
+
+
+if test "x$with_nvcc_ccbin" != "xno"
+then
+   if test "x$with_nvcc_ccbin" != "xauto"
+   then
+      NVCCFLAGS+=" -ccbin $with_nvcc_ccbin"
+   else
+      case $host_os in
+      *darwin*)
+        NVCCFLAGS+=" -ccbin /usr/bin/clang"
+        ;;
+      esac
+   fi
+fi
+
+# ------------------------------------------------------------------------------
+# Setup pll comparison test
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([pll],
+   [AS_HELP_STRING([--with-pll=PATH],[path for libpll (used with synthetictest for comparison testing) @<:@default=no@:>@])],
+   [],
+   [with_pll=no])
+
+SYNTHETICTEST_CPPFLAGS=
+SYNTHETICTEST_LDFLAGS=
+
+if test "x$with_pll" != "xno"
+then
+  SYNTHETICTEST_CPPFLAGS+=" -I$with_pll/include -D HAVE_PLL"
+  SYNTHETICTEST_LDFLAGS+=" -lpll -L$with_pll/lib"
+fi
 
 # ------------------------------------------------------------------------------
 # Setup SSE
@@ -306,7 +387,7 @@ case $host_os in
   then
      NVCCFLAGS+=" -m64"
      AM_CXXFLAGS="$AM_CXXFLAGS -m64"
-     NVCCFLAGS+=" -D_POSIX_C_SOURCE -ccbin /usr/bin/clang"
+     NVCCFLAGS+=" -D_POSIX_C_SOURCE"
      CUDA_LIBS+=" -F/Library/Frameworks -framework CUDA"
   fi
   
@@ -347,6 +428,7 @@ jnilibext=no
 
 if test "x$with_jdk" != "xno"
 then
+    JAVAC=javac
     AC_PROG_JAVAC
     if test "x$JAVAC" != "x"
     then  
@@ -372,6 +454,8 @@ AM_CONDITIONAL(BUILDJNI, test ! x$with_jdk = xno)
 # Distribute common variables
 # ------------------------------------------------------------------------------
 
+AC_SUBST(SYNTHETICTEST_CPPFLAGS)
+AC_SUBST(SYNTHETICTEST_LDFLAGS)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_CFLAGS)
 AC_SUBST(CUDA_LIBS)
@@ -407,13 +491,14 @@ AC_CONFIG_FILES([libhmsbeagle/GPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/GPU/kernels/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/CPU/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/plugin/Makefile])
+AC_CONFIG_FILES([libhmsbeagle/benchmark/Makefile])
 AC_CONFIG_FILES([libhmsbeagle/JNI/Makefile])
 AC_CONFIG_FILES([examples/Makefile])
 AC_CONFIG_FILES([examples/tinytest/Makefile])
 AC_CONFIG_FILES([examples/complextest/Makefile])
 AC_CONFIG_FILES([examples/oddstatetest/Makefile])
 AC_CONFIG_FILES([examples/fourtaxon/Makefile])
-AC_CONFIG_FILES([examples/genomictest/Makefile])
+AC_CONFIG_FILES([examples/synthetictest/Makefile])
 AC_CONFIG_FILES([examples/matrixtest/Makefile])
 AC_OUTPUT
 
