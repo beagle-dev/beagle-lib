@@ -2461,6 +2461,24 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateScaleFactorsByPartition(const i
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactors(const int* scalingIndices,
+                                                          int  count,
+                                                          int  cumulativeScalingIndex) {
+    REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+    for(int i=0; i<count; i++) {
+        const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
+        for(int j=0; j<kPatternCount; j++) {
+            if (kFlags & BEAGLE_FLAG_SCALERS_LOG)
+                cumulativeScaleBuffer[j] -= scaleBuffer[j];
+            else
+                cumulativeScaleBuffer[j] -= log(scaleBuffer[j]);
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactorsByPartition(const int* scalingIndices,
                                                                      int count,
                                                                      int cumulativeScalingIndex,
