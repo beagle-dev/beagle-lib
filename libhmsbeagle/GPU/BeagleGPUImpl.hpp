@@ -463,6 +463,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     else if (requirementFlags & BEAGLE_FLAG_PARALLELOPS_GRID || preferenceFlags & BEAGLE_FLAG_PARALLELOPS_GRID)
         kFlags |= BEAGLE_FLAG_PARALLELOPS_GRID;
 
+    if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH || requirementFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) {
+        kFlags |= BEAGLE_FLAG_COMPUTATION_ASYNCH;
+    } else {
+        kFlags |= BEAGLE_FLAG_COMPUTATION_SYNCH;
+    }
+    
     Real r = 0;
     modifyFlagsForPrecision(&kFlags, r);
     
@@ -798,8 +804,7 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
         returnInfo->resourceNumber = resourceNumber;
-        returnInfo->flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                            BEAGLE_FLAG_THREADING_NONE |
+        returnInfo->flags = BEAGLE_FLAG_THREADING_NONE |
                             BEAGLE_FLAG_VECTOR_NONE;
         Real r = 0;
         modifyFlagsForPrecision(&(returnInfo->flags), r);
@@ -2796,16 +2801,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
         kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
                                     kPatternCount);
 
-        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
+        if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
+            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
 
-        *outSumLogLikelihood = 0.0;
-        for (int i = 0; i < kSumSitesBlockCount; i++) {
-            if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            *outSumLogLikelihood = 0.0;
+            for (int i = 0; i < kSumSitesBlockCount; i++) {
+                if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                
+                *outSumLogLikelihood += hLogLikelihoodsCache[i];
+            }
+        }
             
-            *outSumLogLikelihood += hLogLikelihoodsCache[i];
-        }    
-        
     } else {
         // TODO: evaluate performance, maybe break up kernels below for each subsetIndex case
         
@@ -2852,16 +2859,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
 
             kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
                                         kPatternCount);
-                        
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumLogLikelihood = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+
+            if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
                 
-                *outSumLogLikelihood += hLogLikelihoodsCache[i];
-            }    
+                *outSumLogLikelihood = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                    
+                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                }    
+            }
         }
     }
     
@@ -3126,18 +3135,20 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                                               kPaddedPatternCount, kCategoryCount);
             }
             
-            kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
-                                        kPatternCount);
-            
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumLogLikelihood = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
+                kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
+                                            kPatternCount);
                 
-                *outSumLogLikelihood += hLogLikelihoodsCache[i];
-            }    
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
+                
+                *outSumLogLikelihood = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                    
+                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                }    
+            }
         } else if (secondDerivativeIndices == NULL) {
             // TODO: remove this "hack" for a proper version that only calculates firstDeriv
             
@@ -3177,24 +3188,24 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
 
             kernels->SumSites2(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv, dPatternWeights,
                                         kPatternCount);
-            
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumLogLikelihood = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {            
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
                 
-                *outSumLogLikelihood += hLogLikelihoodsCache[i];
-            }    
-            
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumFirstDerivative = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                *outSumFirstDerivative += hLogLikelihoodsCache[i];
-            }                
-            
+                *outSumLogLikelihood = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                    
+                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                }    
+                
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
+                
+                *outSumFirstDerivative = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    *outSumFirstDerivative += hLogLikelihoodsCache[i];
+                }                
+            }            
         } else {
             // TODO: improve performance of GPU implementation of derivatives for calculateEdgeLnL
 
@@ -3235,29 +3246,31 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
             kernels->SumSites3(dIntegrationTmp, dSumLogLikelihood, dOutFirstDeriv, dSumFirstDeriv, dOutSecondDeriv, dSumSecondDeriv, dPatternWeights,
                               kPatternCount);
             
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumLogLikelihood = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                    returnCode = BEAGLE_ERROR_FLOATING_POINT;
+            if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
                 
-                *outSumLogLikelihood += hLogLikelihoodsCache[i];
-            }    
-            
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumFirstDerivative = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                *outSumFirstDerivative += hLogLikelihoodsCache[i];
-            }   
+                *outSumLogLikelihood = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                    
+                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                }    
+                
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
+                
+                *outSumFirstDerivative = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    *outSumFirstDerivative += hLogLikelihoodsCache[i];
+                }   
 
-            gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumSecondDeriv, sizeof(Real) * kSumSitesBlockCount);
-            
-            *outSumSecondDerivative = 0.0;
-            for (int i = 0; i < kSumSitesBlockCount; i++) {
-                *outSumSecondDerivative += hLogLikelihoodsCache[i];
-            }   
+                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumSecondDeriv, sizeof(Real) * kSumSitesBlockCount);
+                
+                *outSumSecondDerivative = 0.0;
+                for (int i = 0; i < kSumSitesBlockCount; i++) {
+                    *outSumSecondDerivative += hLogLikelihoodsCache[i];
+                } 
+            }
         }
         
         
@@ -3321,15 +3334,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
                 kernels->SumSites1(dIntegrationTmp, dSumLogLikelihood, dPatternWeights,
                                    kPatternCount);
                 
-                gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
-                
-                *outSumLogLikelihood = 0.0;
-                for (int i = 0; i < kSumSitesBlockCount; i++) {
-                    if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
+                    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
                     
-                    *outSumLogLikelihood += hLogLikelihoodsCache[i];
-                }    
+                    *outSumLogLikelihood = 0.0;
+                    for (int i = 0; i < kSumSitesBlockCount; i++) {
+                        if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+                            returnCode = BEAGLE_ERROR_FLOATING_POINT;
+                        
+                        *outSumLogLikelihood += hLogLikelihoodsCache[i];
+                    }    
+                }
             }
 
         } else {
@@ -3563,6 +3578,61 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
     return returnCode;
 }
 
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogLikelihood(double* outSumLogLikelihood) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getLogLikelihood\n");
+#endif
+
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
+
+    *outSumLogLikelihood = 0.0;
+    for (int i = 0; i < kSumSitesBlockCount; i++) {
+        if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
+            returnCode = BEAGLE_ERROR_FLOATING_POINT;
+        
+        *outSumLogLikelihood += hLogLikelihoodsCache[i];
+    }    
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getLogLikelihood\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getDerivatives(double* outSumFirstDerivative,
+                                                      double* outSumSecondDerivative) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getDerivatives\n");
+#endif
+
+
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
+
+    *outSumFirstDerivative = 0.0;
+    for (int i = 0; i < kSumSitesBlockCount; i++) {
+        *outSumFirstDerivative += hLogLikelihoodsCache[i];
+    }   
+
+    if (outSumSecondDerivative != NULL) {
+        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumSecondDeriv, sizeof(Real) * kSumSitesBlockCount);
+
+        *outSumSecondDerivative = 0.0;
+        for (int i = 0; i < kSumSitesBlockCount; i++) {
+            *outSumSecondDerivative += hLogLikelihoodsCache[i];
+        }   
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getDerivatives\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikelihoods) {
@@ -3692,7 +3762,7 @@ void modifyFlagsForPrecision(long *flags, float r) {
 
 BEAGLE_GPU_TEMPLATE
 const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |

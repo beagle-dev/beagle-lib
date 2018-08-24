@@ -1481,6 +1481,30 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
 //    }
 }
 
+int beagleGetLogLikelihood(int instance,
+                            double* outSumLogLikelihood) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->getLogLikelihood(outSumLogLikelihood);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
+int beagleGetDerivatives(int instance,
+                            double* outSumFirstDerivative,
+                            double* outSumSecondDerivative) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->getDerivatives(outSumFirstDerivative,
+                                                     outSumSecondDerivative);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleGetSiteLogLikelihoods(int instance,
                                 double* outLogLikelihoods) {
     DEBUG_START_TIME();

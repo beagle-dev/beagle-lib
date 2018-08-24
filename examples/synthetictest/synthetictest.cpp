@@ -453,9 +453,30 @@ void runBeagle(int resource,
                bool benchmarklist,
                bool pllTest,
                bool pllSiteRepeats,
+               bool multiRsrc,
                int* resourceList,
                int  resourceCount)
 {
+    int instanceCount = 1;
+
+    std::vector<int> instanceSitesCount;
+
+    if (multiRsrc == true) {
+        instanceCount = resourceCount;
+    }
+
+    for(int inst=0; inst<instanceCount; inst++) {
+        instanceSitesCount.push_back(nsites/instanceCount);
+    }
+
+    if (instanceCount > 1) {
+        int remainder = nsites % instanceCount;
+        int currentInstance = 0;
+        while (remainder != 0) {
+            instanceSitesCount[currentInstance++]++;
+            remainder--;
+        }
+    }
     
     int edgeCount = ntaxa*2-2;
     int internalCount = ntaxa-1;
@@ -558,34 +579,48 @@ void runBeagle(int resource,
     }
 #endif // HAVE_PLL
 
-    // create an instance of the BEAGLE library
-    int instance = beagleCreateInstance(
-                ntaxa,            /**< Number of tip data elements (input) */
-                partialCount, /**< Number of partials buffers to create (input) */
-                compactTipCount,    /**< Number of compact state representation buffers to create (input) */
-                stateCount,       /**< Number of states in the continuous-time Markov chain (input) */
-                nsites,           /**< Number of site patterns to be handled by the instance (input) */
-                modelCount,               /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-                (calcderivs ? (3*edgeCount*modelCount) : edgeCount*modelCount),/**< Number of rate matrix buffers (input) */
-                rateCategoryCount,/**< Number of rate categories */
-                scaleCount*eigenCount,          /**< scaling buffers */
-                &resource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-                1,                /**< Length of resourceList list (input) */
-                0,         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                // BEAGLE_FLAG_PARALLELOPS_STREAMS |
-                (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
-                (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0) |
-                (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
-                (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
-                (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
-                (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
-                (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) |
-                (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
-                (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) ,   /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
-                &instDetails);
-    if (instance < 0) {
-        fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
-        return;
+    std::vector<int> instances;
+
+    for(int inst=0; inst<instanceCount; inst++) {
+
+        int instanceResource = resource;
+        
+        if (multiRsrc) {
+            instanceResource = resourceList[inst];
+        }
+
+        // create an instance of the BEAGLE library
+        int instance = beagleCreateInstance(
+                    ntaxa,            /**< Number of tip data elements (input) */
+                    partialCount, /**< Number of partials buffers to create (input) */
+                    compactTipCount,    /**< Number of compact state representation buffers to create (input) */
+                    stateCount,       /**< Number of states in the continuous-time Markov chain (input) */
+                    instanceSitesCount[inst],           /**< Number of site patterns to be handled by the instance (input) */
+                    modelCount,               /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
+                    (calcderivs ? (3*edgeCount*modelCount) : edgeCount*modelCount),/**< Number of rate matrix buffers (input) */
+                    rateCategoryCount,/**< Number of rate categories */
+                    scaleCount*eigenCount,          /**< scaling buffers */
+                    &instanceResource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                    1,                /**< Length of resourceList list (input) */
+                    (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                    // BEAGLE_FLAG_PARALLELOPS_STREAMS |
+                    (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
+                    (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0) |
+                    (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
+                    (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
+                    (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
+                    (eigencomplex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
+                    (dynamicScaling ? BEAGLE_FLAG_SCALING_DYNAMIC : 0) |
+                    (autoScaling ? BEAGLE_FLAG_SCALING_AUTO : 0) |
+                    (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) ,   /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                    &instDetails);
+
+        if (instance < 0) {
+            fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
+            return;
+        } else {
+            instances.push_back(instance);
+        }
     }
         
     int rNumber = instDetails.resourceNumber;
@@ -606,7 +641,11 @@ void runBeagle(int resource,
     {
         if (compactTipCount == 0 || (i >= (compactTipCount-1) && i != (ntaxa-1))) {
             double* tmpPartials = getRandomTipPartials(nsites, stateCount);
-            beagleSetTipPartials(instance, i, tmpPartials);
+            size_t instanceOffset = 0;
+            for(int inst=0; inst<instanceCount; inst++) {
+                beagleSetTipPartials(instances[inst], i, tmpPartials + instanceOffset);
+                instanceOffset += instanceSitesCount[inst]*stateCount;
+            }
 #ifdef HAVE_PLL
             if (pllTest) {
                 pll_set_tip_clv(pll_partition, i, tmpPartials, 0);
@@ -615,7 +654,11 @@ void runBeagle(int resource,
             free(tmpPartials);
         } else {
             int* tmpStates = getRandomTipStates(nsites, stateCount);
-            beagleSetTipStates(instance, i, tmpStates);
+            size_t instanceOffset = 0;
+            for(int inst=0; inst<instanceCount; inst++) {
+                beagleSetTipStates(instances[inst], i, tmpStates + instanceOffset);
+                instanceOffset += instanceSitesCount[inst]*stateCount;
+            }
 #ifdef HAVE_PLL
             if (pllTest) {
                 char* pll_tmp_states = pll_getNucleotideCharStates(tmpStates, nsites);
@@ -639,10 +682,12 @@ void runBeagle(int resource,
     
     if (partitionCount > 1) {
         for (int i=0; i < partitionCount; i++) {
-            beagleSetCategoryRatesWithIndex(instance, i, &rates[0]);
+            beagleSetCategoryRatesWithIndex(instances[0], i, &rates[0]);
         }
     } else {
-        beagleSetCategoryRates(instance, &rates[0]);
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetCategoryRates(instances[inst], &rates[0]);
+        }
 #ifdef HAVE_PLL
         if (pllTest) {
             pll_set_category_rates(pll_partition, rates);
@@ -657,7 +702,11 @@ void runBeagle(int resource,
         patternWeights[i] =  gt_rand()%10;
     }    
 
-    beagleSetPatternWeights(instance, patternWeights);
+    size_t instanceOffset = 0;
+    for(int inst=0; inst<instanceCount; inst++) {
+        beagleSetPatternWeights(instances[inst], patternWeights + instanceOffset);
+        instanceOffset += instanceSitesCount[inst];
+    }
 
 #ifdef HAVE_PLL
     if (pllTest) {
@@ -689,7 +738,7 @@ void runBeagle(int resource,
             patternPartitions[i] = sitePartition;
             // printf("patternPartitions[%d] = %d\n", i, patternPartitions[i]);
         }    
-        // beagleSetPatternPartitions(instance, partitionCount, patternPartitions);
+        // beagleSetPatternPartitions(instances[0], partitionCount, patternPartitions);
     }
 
 
@@ -712,8 +761,12 @@ void runBeagle(int resource,
         for (int i = 0; i < rateCategoryCount; i++) {
             weights[i] = gt_rand() / (double) GT_RAND_MAX;
         } 
+
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetCategoryWeights(instances[inst], eigenIndex, &weights[0]);
+        }
     
-        beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
+        beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
 
 #ifdef HAVE_PLL
         if (pllTest) {
@@ -869,8 +922,11 @@ void runBeagle(int resource,
         } else {
             abort("should not be here");
         }
-            
-        beagleSetStateFrequencies(instance, eigenIndex, &freqs[0]);
+
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetStateFrequencies(instances[inst], eigenIndex, &freqs[0]);
+        }
+
 #ifdef HAVE_PLL
         if (pllTest) {
             pll_set_frequencies(pll_partition, 0, &freqs[0]);
@@ -878,7 +934,9 @@ void runBeagle(int resource,
 #endif // HAVE_PLL
         if (!setmatrix) {
             // set the Eigen decomposition
-            beagleSetEigenDecomposition(instance, eigenIndex, &evec[0], &ivec[0], &eval[0]);
+            for(int inst=0; inst<instanceCount; inst++) {
+                beagleSetEigenDecomposition(instances[inst], eigenIndex, &evec[0], &ivec[0], &eval[0]);
+            }
 #ifdef HAVE_PLL
             if (pllTest) {
                 double pll_subst_params[6] = {1,1,1,1,1,1};
@@ -1015,7 +1073,7 @@ void runBeagle(int resource,
         }
 
         if (dynamicScaling)
-            beagleResetScaleFactors(instance, cumulativeScalingFactorIndices[eigenIndex]);
+            beagleResetScaleFactors(instances[0], cumulativeScalingFactorIndices[eigenIndex]);
     }
 
     struct timeval time0, time1, time2, time3, time4, time5;
@@ -1195,11 +1253,11 @@ void runBeagle(int resource,
             {
                 if (compactTipCount == 0 || (ii >= (compactTipCount-1) && ii != (ntaxa-1))) {
                     double* tmpPartials = getRandomTipPartials(nsites, stateCount);
-                    beagleSetTipPartials(instance, ii, tmpPartials);
+                    beagleSetTipPartials(instances[0], ii, tmpPartials);
                     free(tmpPartials);
                 } else {
                     int* tmpStates = getRandomTipStates(nsites, stateCount);
-                    beagleSetTipStates(instance, ii, tmpStates);
+                    beagleSetTipStates(instances[0], ii, tmpStates);
                     free(tmpStates);                
                 }
             }
@@ -1217,7 +1275,7 @@ void runBeagle(int resource,
         gettimeofday(&time0,NULL);
 
         if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
-            if (beagleSetPatternPartitions(instance, partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
+            if (beagleSetPatternPartitions(instances[0], partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
                 printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
                 exit(-1);
             }
@@ -1228,7 +1286,7 @@ void runBeagle(int resource,
         if (partitionCount > 1) {
             int totalEdgeCount = edgeCount * modelCount;
             beagleUpdateTransitionMatricesWithMultipleModels(
-                                           instance,     // instance
+                                           instances[0],     // instance
                                            eigenIndices,   // eigenIndex
                                            categoryRateIndices,   // category rate index
                                            edgeIndices,   // probabilityIndices
@@ -1239,14 +1297,17 @@ void runBeagle(int resource,
         } else {
             for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
                 if (!setmatrix) {
-                    // tell BEAGLE to populate the transition matrices for the above edge lengths
-                    beagleUpdateTransitionMatrices(instance,     // instance
-                                                   eigenIndex,             // eigenIndex
-                                                   &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
-                                                   (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
-                                                   (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
-                                                   edgeLengths,   // edgeLengths
-                                                   edgeCount);            // count
+                    for(int inst=0; inst<instanceCount; inst++) {
+                        // tell BEAGLE to populate the transition matrices for the above edge lengths
+                        beagleUpdateTransitionMatrices(instances[inst],     // instance
+                                                       eigenIndex,             // eigenIndex
+                                                       &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
+                                                       (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
+                                                       (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
+                                                       edgeLengths,   // edgeLengths
+                                                       edgeCount);            // count
+                    }
+
                 } else {
                     double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
                     for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
@@ -1257,10 +1318,10 @@ void runBeagle(int resource,
                                 }
                             } 
                         }
-                        beagleSetTransitionMatrix(instance, edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                        beagleSetTransitionMatrix(instances[0], edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
                         if (calcderivs) {
-                            beagleSetTransitionMatrix(instance, edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                            beagleSetTransitionMatrix(instance, edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                            beagleSetTransitionMatrix(instances[0], edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                            beagleSetTransitionMatrix(instances[0], edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
                         }
                     }
                 }
@@ -1284,14 +1345,16 @@ void runBeagle(int resource,
 
             // update the partials
             if (partitionCount > 1) {
-                beagleUpdatePartialsByPartition( instance,                   // instance
+                beagleUpdatePartialsByPartition( instances[0],                   // instance
                                 (BeagleOperationByPartition*)operations,     // operations
                                 internalCount*eigenCount*partitionCount);    // operationCount
             } else {
-                beagleUpdatePartials( instance,      // instance
-                                (BeagleOperation*)operations,     // operations
-                                internalCount*eigenCount,              // operationCount
-                                (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+                for(int inst=0; inst<instanceCount; inst++) {
+                    beagleUpdatePartials( instances[inst],      // instance
+                                    (BeagleOperation*)operations,     // operations
+                                    internalCount*eigenCount,              // operationCount
+                                    (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+                }
             }
 
             gettimeofday(&time3, NULL);
@@ -1312,15 +1375,15 @@ void runBeagle(int resource,
                 
         for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
             if (manualScaling && !(i % rescaleFrequency)) {
-                beagleResetScaleFactors(instance,
+                beagleResetScaleFactors(instances[0],
                                         cumulativeScalingFactorIndices[eigenIndex]);
                 
-                beagleAccumulateScaleFactors(instance,
+                beagleAccumulateScaleFactors(instances[0],
                                        &scalingFactorsIndices[eigenIndex*internalCount],
                                        scalingFactorsCount,
                                        cumulativeScalingFactorIndices[eigenIndex]);
             } else if (autoScaling) {
-                beagleAccumulateScaleFactors(instance, &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
+                beagleAccumulateScaleFactors(instances[0], &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
             }
         }
         
@@ -1330,7 +1393,7 @@ void runBeagle(int resource,
         if (!unrooted) {
             if (partitionCount > 1) {
                 beagleCalculateRootLogLikelihoodsByPartition(
-                                            instance,               // instance
+                                            instances[0],               // instance
                                             rootIndices,// bufferIndices
                                             categoryWeightsIndices,                // weights
                                             stateFrequencyIndices,                 // stateFrequencies
@@ -1341,18 +1404,29 @@ void runBeagle(int resource,
                                             partitionLogLs,
                                             &logL);         // outLogLikelihoods
             } else {
-                beagleCalculateRootLogLikelihoods(instance,               // instance
-                                            rootIndices,// bufferIndices
-                                            categoryWeightsIndices,                // weights
-                                            stateFrequencyIndices,                 // stateFrequencies
-                                            cumulativeScalingFactorIndices,
-                                            eigenCount,                      // count
-                                            &logL);         // outLogLikelihoods
+                for(int inst=0; inst<instanceCount; inst++) {
+                    beagleCalculateRootLogLikelihoods(instances[inst],               // instance
+                                                rootIndices,// bufferIndices
+                                                categoryWeightsIndices,                // weights
+                                                stateFrequencyIndices,                 // stateFrequencies
+                                                cumulativeScalingFactorIndices,
+                                                eigenCount,                      // count
+                                                &logL);         // outLogLikelihoods
+                }
+                if (multiRsrc) {
+                    logL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<instanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        logL += instLogL;
+                    }
+                }
             }
         } else {
             if (partitionCount > 1) {
                 beagleCalculateEdgeLogLikelihoodsByPartition(
-                                                  instance,
+                                                  instances[0],
                                                   rootIndices,
                                                   lastTipIndices,
                                                   lastTipIndices,
@@ -1370,20 +1444,42 @@ void runBeagle(int resource,
                                                   (calcderivs ? &deriv1 : NULL),
                                                   (calcderivs ? partitionD2 : NULL),
                                                   (calcderivs ? &deriv2 : NULL));
-            } else {            
-                beagleCalculateEdgeLogLikelihoods(instance,               // instance
-                                                  rootIndices,// bufferIndices
-                                                  lastTipIndices,
-                                                  lastTipIndices,
-                                                  (calcderivs ? lastTipIndicesD1 : NULL),
-                                                  (calcderivs ? lastTipIndicesD2 : NULL),
-                                                  categoryWeightsIndices,                // weights
-                                                  stateFrequencyIndices,                 // stateFrequencies
-                                                  cumulativeScalingFactorIndices,
-                                                  eigenCount,                      // count
-                                                  &logL,    // outLogLikelihood
-                                                  (calcderivs ? &deriv1 : NULL),
-                                                  (calcderivs ? &deriv2 : NULL));
+            } else {
+                for(int inst=0; inst<instanceCount; inst++) {
+                    beagleCalculateEdgeLogLikelihoods(instances[inst],               // instance
+                                                      rootIndices,// bufferIndices
+                                                      lastTipIndices,
+                                                      lastTipIndices,
+                                                      (calcderivs ? lastTipIndicesD1 : NULL),
+                                                      (calcderivs ? lastTipIndicesD2 : NULL),
+                                                      categoryWeightsIndices,                // weights
+                                                      stateFrequencyIndices,                 // stateFrequencies
+                                                      cumulativeScalingFactorIndices,
+                                                      eigenCount,                      // count
+                                                      &logL,    // outLogLikelihood
+                                                      (calcderivs ? &deriv1 : NULL),
+                                                      (calcderivs ? &deriv2 : NULL));
+                }
+                if (multiRsrc) {
+                    logL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<instanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        logL += instLogL;
+                    }
+                    if (calcderivs) {
+                        deriv1 = deriv2 = 0.0;
+                        double instDeriv1, instDeriv2;
+                        for(int inst=0; inst<instanceCount; inst++) {
+                            beagleGetDerivatives(inst,
+                                                 &instDeriv1,
+                                                 &instDeriv2);
+                            deriv1 += instDeriv1;
+                            deriv2 += instDeriv2;
+                        }
+                    }
+                }
             }
 
         }
@@ -1483,7 +1579,7 @@ void runBeagle(int resource,
 
     if (sitelikes) {
         double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
-        beagleGetSiteLogLikelihoods(instance, siteLogLs);
+        beagleGetSiteLogLikelihoods(instances[0], siteLogLs);
         double sumLogL = 0.0;
         fprintf(stdout, "site likelihoods = ");
         for (int i=0; i<nsites; i++) {
@@ -1493,7 +1589,7 @@ void runBeagle(int resource,
         fprintf(stdout, "\nsumLogL = %.5f\n", sumLogL);
         if (calcderivs) {
             double* siteSecondDerivs = (double*) malloc(sizeof(double) * nsites);
-            beagleGetSiteDerivatives(instance, siteLogLs, siteSecondDerivs);
+            beagleGetSiteDerivatives(instances[0], siteLogLs, siteSecondDerivs);
             sumLogL = 0.0;
             fprintf(stdout, "site first derivs = ");
             for (int i=0; i<nsites; i++) {
@@ -1558,7 +1654,9 @@ void runBeagle(int resource,
     }
     std::cout << "\n";
     
-    beagleFinalizeInstance(instance);
+    for(int inst=0; inst<instanceCount; inst++) {
+        beagleFinalizeInstance(instances[inst]);
+    }
 
 //////////////////////////////////////////////////////////////////////////
 // pll test
@@ -1734,6 +1832,10 @@ void runBeagle(int resource,
     }
 #endif // HAVE_PLL
 
+    if (multiRsrc) {
+        std::exit(0);
+    }
+
 }
 
 void printResourceList() {
@@ -1804,7 +1906,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* pectinate,
                                     bool* benchmarklist,
                                     bool* pllTest,
-                                    bool* pllSiteRepeats)    {
+                                    bool* pllSiteRepeats,
+                                    bool* multiRsrc)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -1933,6 +2036,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (option == "--pllrepeats") {
             *pllSiteRepeats = true;
 #endif // HAVE_PLL
+        } else if (option == "--multirsrc") {
+            *multiRsrc = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -2011,6 +2116,22 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (*randomTree && (*eigenCount!=1 || *unrooted))
         abort("random tree topology can only be used with eigencount=1 and unrooted trees");
+
+    if (*partitions > 1 && *multiRsrc)
+        abort("multiple resources cannot be used with partitioning");
+
+    if (*manualScaling && *multiRsrc)
+        abort("multiple resources cannot be used with scaling");
+
+    if (*newDataPerRep && *multiRsrc)
+        abort("multiple resources cannot be used with new data per replicate");
+
+    if (*setmatrix && *multiRsrc)
+        abort("multiple resources cannot be used with arbitrary transition matrix setting");
+
+    if (*sitelikes && *multiRsrc)
+        abort("multiple resources cannot be used with site likelihoods output");
+
 }
 
 int main( int argc, const char* argv[] )
@@ -2045,6 +2166,7 @@ int main( int argc, const char* argv[] )
     bool benchmarklist = false;
     bool pllTest = false;
     bool pllSiteRepeats = false;
+    bool multiRsrc = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -2063,7 +2185,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &disableVector, &disableThreads, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats);
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &multiRsrc);
     
 
     std::cout << "\nSimulating genomic ";
@@ -2087,7 +2209,7 @@ int main( int argc, const char* argv[] )
 
     std::cout << "\n\n";
 
-    if (benchmarklist) {
+    if (benchmarklist || multiRsrc) {
         rsrcCount =  rsrc.size() - 1;
         if (rsrcCount == 0) {
             rsrcList = NULL;
@@ -2134,6 +2256,7 @@ int main( int argc, const char* argv[] )
                           benchmarklist,
                           pllTest,
                           pllSiteRepeats,
+                          multiRsrc,
                           rsrcList,
                           rsrcCount);
             }

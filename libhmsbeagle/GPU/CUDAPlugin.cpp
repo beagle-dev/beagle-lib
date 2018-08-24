@@ -30,7 +30,7 @@ Plugin("GPU-CUDA", "GPU-CUDA")
                 BeagleResource resource;
                 resource.name = dName;
                 resource.description = dDesc;
-                resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH
                                         BEAGLE_FLAG_PRECISION_SINGLE |
                                         BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | 
                                         BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |

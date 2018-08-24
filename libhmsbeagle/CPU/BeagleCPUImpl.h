@@ -381,6 +381,11 @@ public:
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
     
+    int getLogLikelihood(double* outSumLogLikelihood);
+
+    int getDerivatives(double* outSumFirstDerivative,
+                       double* outSumSecondDerivative);
+
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     
     int getSiteDerivatives(double* outFirstDerivatives,

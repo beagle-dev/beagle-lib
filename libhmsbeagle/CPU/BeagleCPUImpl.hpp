@@ -826,6 +826,41 @@ if (T_PAD != 0) {
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getLogLikelihood(double* outSumLogLikelihood) {
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    *outSumLogLikelihood = 0.0;    
+    for(int k=0; k < kPatternCount; k++) {
+        *outSumLogLikelihood += outLogLikelihoodsTmp[k] * gPatternWeights[k];
+    }    
+    
+    if (*outSumLogLikelihood != *outSumLogLikelihood)
+        returnCode = BEAGLE_ERROR_FLOATING_POINT;
+
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getDerivatives(double* outSumFirstDerivative,
+                                                      double* outSumSecondDerivative) {
+
+    *outSumFirstDerivative = 0.0;
+    for (int i = 0; i < kPatternCount; i++) {
+        *outSumFirstDerivative += outFirstDerivativesTmp[i] * gPatternWeights[i];
+    }
+
+    if (outSumSecondDerivative != NULL) {
+        *outSumSecondDerivative = 0.0;
+        for (int i = 0; i < kPatternCount; i++) {
+            *outSumSecondDerivative += outSecondDerivativesTmp[i] * gPatternWeights[i];
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikelihoods) {
     if (kPatternsReordered) {
         REALTYPE* outLogLikelihoodsOriginalOrder = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount);
