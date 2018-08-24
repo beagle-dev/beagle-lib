@@ -3585,6 +3585,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogLikelihood(double* outSumLogLikelih
     fprintf(stderr, "\tEntering BeagleGPUImpl::getLogLikelihood\n");
 #endif
 
+    int returnCode = BEAGLE_SUCCESS;
+
     gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
 
     *outSumLogLikelihood = 0.0;
@@ -3599,7 +3601,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogLikelihood(double* outSumLogLikelih
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getLogLikelihood\n");
 #endif
 
-    return BEAGLE_SUCCESS;
+    return returnCode;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -3762,7 +3764,7 @@ void modifyFlagsForPrecision(long *flags, float r) {
 
 BEAGLE_GPU_TEMPLATE
 const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH
+    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
