@@ -682,7 +682,7 @@ void runBeagle(int resource,
             size_t instanceOffset = 0;
             for(int inst=0; inst<instanceCount; inst++) {
                 beagleSetTipStates(instances[inst], i, tmpStates + instanceOffset);
-                instanceOffset += instanceSitesCount[inst]*stateCount;
+                instanceOffset += instanceSitesCount[inst];
             }
 #ifdef HAVE_PLL
             if (pllTest) {
