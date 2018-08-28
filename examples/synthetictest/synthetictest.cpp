@@ -184,8 +184,28 @@ struct node
     struct node* parent;
 };
 
+/* Given a binary tree, print its nodes according to the
+"bottom-up" postorder traversal. */
+void traversePostorder(node* currentNode, std::deque <node*> &S)
+{
+    if (currentNode == NULL)
+        return;
+ 
+    // first recur on left subtree
+    traversePostorder(currentNode->left, S);
+ 
+    // then recur on right subtree
+    traversePostorder(currentNode->right, S);
+ 
+    // now deal with the currentNode
+    if (currentNode->left != NULL) {
+        S.push_front(currentNode);
+    }
+}
+ 
+
 /* Given a binary tree, print its nodes in reverse level order */
-void reverseLevelOrder(node* root, std::stack <node*> &S)
+void reverseLevelOrder(node* root, std::deque <node*> &S)
 {
     std::queue <node*> Q;
     Q.push(root);
@@ -201,7 +221,7 @@ void reverseLevelOrder(node* root, std::stack <node*> &S)
         Q.pop();
 
         if (root->left!=NULL) {
-            S.push(root);
+            S.push_back(root);
         }
  
         /* Enqueue right child */
@@ -217,10 +237,14 @@ void reverseLevelOrder(node* root, std::stack <node*> &S)
 
 
 /* Given a binary tree, count number of parallel launches */
-int countLaunches(node* root)
+int countLaunches(node* root, bool postorderTraversal)
 {
-    std::stack <node *> S;
-    reverseLevelOrder(root, S);
+    std::deque <node *> S;
+    if (postorderTraversal == true) {
+        traversePostorder(root, S);
+    } else {
+        reverseLevelOrder(root, S);
+    }
 
     int opCount = S.size();
 
@@ -230,8 +254,8 @@ int countLaunches(node* root)
 	int parentMinIndex = 0;
 
     for(int op=0; op<opCount; op++){
-        node* parent = S.top();
-        S.pop();
+        node* parent = S.back();
+        S.pop_back();
         int parentIndex = parent->data;
         int child1Index = parent->left->data;
         int child2Index = parent->right->data;
@@ -454,6 +478,7 @@ void runBeagle(int resource,
                bool pllTest,
                bool pllSiteRepeats,
                bool multiRsrc,
+               bool postorderTraversal,
                int* resourceList,
                int  resourceCount)
 {
@@ -1137,7 +1162,7 @@ void runBeagle(int resource,
 
         if (rerootTrees) {
             int bestRerootNode = -1;
-            int bestLaunchCount = countLaunches(root);
+            int bestLaunchCount = countLaunches(root, postorderTraversal);
 
             // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
 
@@ -1154,7 +1179,7 @@ void runBeagle(int resource,
                     
                     node* newRoot = reroot(rerootNode, root, newNodes);
 
-                    int launchCount = countLaunches(newRoot);
+                    int launchCount = countLaunches(newRoot, postorderTraversal);
 
                     newNodes.clear();
 
@@ -1179,13 +1204,17 @@ void runBeagle(int resource,
 
         } 
 
-        std::stack <node *> S;
-        reverseLevelOrder(root, S);
+        std::deque <node *> S;
+        if (postorderTraversal == true) {
+            traversePostorder(root, S);
+        } else {
+            reverseLevelOrder(root, S);
+        }
 
         // while (S.empty() == false) {
-        //     node* tmpNode = S.top();
+        //     node* tmpNode = S.back();
         //     std::cout << tmpNode->data << " ";
-        //     S.pop();
+        //     S.pop_back();
         // }
         // std::cout << std::endl;
         // reverseLevelOrder(root, S);
@@ -1197,14 +1226,14 @@ void runBeagle(int resource,
         // root->right->right = createNewNode(3);
         // root->right->left->left  = createNewNode(1);
         // root->right->left->right = createNewNode(2);
-        // std::stack <node *> S;
+        // std::deque <node *> S;
         // reverseLevelOrder(root, S);
 
         // printf("launch count = %03d", countLaunches(root));
 
         for(int op=0; op<unpartOpsCount; op++){
-            node* parent = S.top();
-            S.pop();
+            node* parent = S.back();
+            S.pop_back();
             int parentIndex = parent->data;
             int child1Index = parent->left->data;
             int child2Index = parent->right->data;
@@ -1861,7 +1890,7 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllrepeats]";
@@ -1907,7 +1936,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* benchmarklist,
                                     bool* pllTest,
                                     bool* pllSiteRepeats,
-                                    bool* multiRsrc)    {
+                                    bool* multiRsrc,
+                                    bool* postorderTraversal)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -2038,6 +2068,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 #endif // HAVE_PLL
         } else if (option == "--multirsrc") {
             *multiRsrc = true;
+        } else if (option == "--postorder") {
+            *postorderTraversal = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -2132,6 +2164,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*sitelikes && *multiRsrc)
         abort("multiple resources cannot be used with site likelihoods output");
 
+    if (*postorderTraversal && *randomTree==false)
+        abort("postorder traversal can only be used with randomtree option");
+
 }
 
 int main( int argc, const char* argv[] )
@@ -2167,6 +2202,7 @@ int main( int argc, const char* argv[] )
     bool pllTest = false;
     bool pllSiteRepeats = false;
     bool multiRsrc = false;
+    bool postorderTraversal = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -2185,7 +2221,8 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &disableVector, &disableThreads, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &multiRsrc);
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &multiRsrc,
+                                   &postorderTraversal);
     
 
     std::cout << "\nSimulating genomic ";
@@ -2257,6 +2294,7 @@ int main( int argc, const char* argv[] )
                           pllTest,
                           pllSiteRepeats,
                           multiRsrc,
+                          postorderTraversal,
                           rsrcList,
                           rsrcCount);
             }

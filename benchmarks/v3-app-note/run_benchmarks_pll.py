@@ -20,20 +20,19 @@ def main():
     parser.add_argument('synthetictest_path', help='path to synthetictest')
     args = parser.parse_args()
 
-    taxa_list = [16, 400]
+    taxa_list = [8, 128]
     rates = 4
     precision_list = ['double']
 
     states_list = [4]
     site_samples = 100
-    # site_samples = 2
     sites_min = 100
-    rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu']
+    sites_max = 1000000
+    sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
+    rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu','dual-gpu']
     reps = 100
-    # reps = 10
 
     seed_list = range(1,101)
-    # seed_list = range(1,2)
 
     extra_args = ['--randomtree', '--stdrand', '--fulltiming']
 
@@ -47,10 +46,6 @@ def main():
     iteration = 0
 
     for taxa in taxa_list:
-        sites_max = 1000000
-        if (taxa == 400):
-            sites_max = 100000
-        sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
         for rsrc in rsrc_list:
             for precision in precision_list:
                 for states in states_list:
@@ -68,17 +63,19 @@ def main():
                             synthetictest_cmd.extend(['--reps', str(reps), '--rates', str(rates)])
                             throughput_re_index = 0
                             if   rsrc == 'cpu':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads', '--postorder'])
                             elif rsrc == 'cpu-threaded':
-                                synthetictest_cmd.extend(['--rsrc', '0'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--postorder'])
                             elif rsrc == 'pll':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--postorder'])
                                 throughput_re_index = 1
                             elif rsrc == 'pll-repeats':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--pllrepeats'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--pllrepeats', '--postorder'])
                                 throughput_re_index = 1
                             elif rsrc == 'gpu':
                                 synthetictest_cmd.extend(['--rsrc', '1'])
+                            elif rsrc == 'dual-gpu':
+                                synthetictest_cmd.extend(['--rsrc', '1,2','--multirsrc'])
                             synthetictest_cmd.extend(extra_args)
                             if precision == 'double':
                                 synthetictest_cmd.extend(['--doubleprecision'])
@@ -90,9 +87,9 @@ def main():
                                     out_string +=  ', ' + throughput[throughput_re_index]
                                 else:
                                     out_string += ', ' + 'NA'
+                                print out_string
                             except subprocess.CalledProcessError:
-                                out_string += 'ERROR'
-                            print out_string
+                                debug_file.write('ERROR')
                             debug_file.write('===============================================================\n')
                             debug_file.write(out_string + '\n')
                             debug_file.write(' '.join(synthetictest_cmd) + '\n')
