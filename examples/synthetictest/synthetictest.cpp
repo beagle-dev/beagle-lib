@@ -645,18 +645,22 @@ void runBeagle(int resource,
             return;
         } else {
             instances.push_back(instance);
+
+            int rNumber = instDetails.resourceNumber;
+            fprintf(stdout, "Using resource %i:\n", rNumber);
+            fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
+            fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);    
+            fprintf(stdout, "\tFlags:");
+            printFlags(instDetails.flags);
+            fprintf(stdout, "\n\n");
+
+            if (inst+1 < instanceCount) {
+                fprintf(stdout, "and\n\n");
+            }
+
         }
     }
         
-    int rNumber = instDetails.resourceNumber;
-    fprintf(stdout, "Using resource %i:\n", rNumber);
-    fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
-    fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);    
-    fprintf(stdout, "\tFlags:");
-    printFlags(instDetails.flags);
-    fprintf(stdout, "\n\n");
-    
-
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
     
