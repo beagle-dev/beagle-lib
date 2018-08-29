@@ -249,9 +249,9 @@ int countLaunches(node* root, bool postorderTraversal)
     int opCount = S.size();
 
     int launchCount = 0;
-	std::vector<int> gridStartOp(opCount);
-	std::vector<int> operationsTmp(opCount);
-	int parentMinIndex = 0;
+    std::vector<int> gridStartOp(opCount);
+    std::vector<int> operationsTmp(opCount);
+    int parentMinIndex = 0;
 
     for(int op=0; op<opCount; op++){
         node* parent = S.back();
@@ -406,7 +406,452 @@ node* reroot(node* rerootNode, node* root, std::vector<node*> newNodes)
         return newRoot;
 }
 
+void generateNewTree(int ntaxa,
+                    bool rerootTrees,
+                    bool pectinate,
+                    bool postorderTraversal,
+                    bool dynamicScaling,
+                    int edgeCount,
+                    int internalCount,
+                    int unpartOpsCount,
+                    int partitionCount,
+                    int beagleOpCount,
+#ifdef HAVE_PLL
+                    bool pllTest,
+                    pll_operation_t* pll_operations,
+#endif
+                    int* operations)
+{
+    std::vector <node*> nodes;
+    nodes.push_back(createNewNode(0));
+    int tipsAdded = 1;
+    node* newParent;
+    while (tipsAdded < ntaxa) {
+        int sibling;
+        if (pectinate)
+            sibling = nodes.size()-1;
+        else
+            sibling = gt_rand() % nodes.size();
+        node* newTip = createNewNode(tipsAdded);
+        newParent = createNewNode(ntaxa + tipsAdded - 1);
+        nodes.push_back(newTip);
+        nodes.push_back(newParent);
+        tipsAdded++;            
+        newParent->left  = nodes[sibling];
+        newParent->right = newTip;            
+        if (nodes[sibling]->parent != NULL) {
+            newParent->parent = nodes[sibling]->parent;
+            if (nodes[sibling]->parent->left == nodes[sibling]) {
+                nodes[sibling]->parent->left = newParent;
+            } else {
+                nodes[sibling]->parent->right = newParent;
+            }
+        }
+        nodes[sibling]->parent = newParent;
+        newTip->parent         = newParent;
+    }
+    node* root = nodes[0];
+    while(root->parent != NULL) {
+        root = root->parent;
+    }
+    int rootIndex = newParent->data;
+    newParent->data = root->data;
+    root->data = rootIndex;
 
+    if (rerootTrees) {
+        int bestRerootNode = -1;
+        int bestLaunchCount = countLaunches(root, postorderTraversal);
+
+        // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
+
+
+        std::vector<node*> newNodes;
+
+        for(int i = 0; i < nodes.size(); i++) {
+
+            // printf("reroot node = %02d\t", nodes[i]->data);
+
+            node* rerootNode = nodes[i];
+
+            if (rerootNode->parent != NULL && rerootNode->parent != root) {
+                
+                node* newRoot = reroot(rerootNode, root, newNodes);
+
+                int launchCount = countLaunches(newRoot, postorderTraversal);
+
+                newNodes.clear();
+
+                // printf("parallel launches = %d\n", launchCount);
+
+                if (launchCount < bestLaunchCount) {
+                    bestLaunchCount = launchCount;
+                    bestRerootNode = i;
+                }
+
+            }
+            // else {printf("doesn't change tree\n");}
+
+        }
+
+        if (bestRerootNode != -1) {
+            // printf("\nbestLaunchCount = %d, node index = %d\n\n", bestLaunchCount, bestRerootNode);
+            node* rerootNode = nodes[bestRerootNode];
+            node* oldRoot = root;
+            root = reroot(rerootNode, oldRoot, newNodes);
+        }
+
+    } 
+
+    std::deque <node *> S;
+    if (postorderTraversal == true) {
+        traversePostorder(root, S);
+    } else {
+        reverseLevelOrder(root, S);
+    }
+
+    // while (S.empty() == false) {
+    //     node* tmpNode = S.back();
+    //     std::cout << tmpNode->data << " ";
+    //     S.pop_back();
+    // }
+    // std::cout << std::endl;
+    // reverseLevelOrder(root, S);
+
+    // struct node *root = createNewNode(4);
+    // root->left        = createNewNode(0);
+    // root->right       = createNewNode(6);
+    // root->right->left  = createNewNode(5);
+    // root->right->right = createNewNode(3);
+    // root->right->left->left  = createNewNode(1);
+    // root->right->left->right = createNewNode(2);
+    // std::deque <node *> S;
+    // reverseLevelOrder(root, S);
+
+    // printf("launch count = %03d", countLaunches(root));
+
+    for(int op=0; op<unpartOpsCount; op++){
+        node* parent = S.back();
+        S.pop_back();
+        int parentIndex = parent->data;
+        int child1Index = parent->left->data;
+        int child2Index = parent->right->data;
+
+        for (int j=0; j<partitionCount; j++) {
+            int opJ = partitionCount*op + j;
+            operations[opJ*beagleOpCount+0] = parentIndex;
+            operations[opJ*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+            operations[opJ*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
+            operations[opJ*beagleOpCount+3] = child1Index;
+            operations[opJ*beagleOpCount+4] = child1Index + j*edgeCount;;
+            operations[opJ*beagleOpCount+5] = child2Index;
+            operations[opJ*beagleOpCount+6] = child2Index + j*edgeCount;
+            if (partitionCount > 1) {
+                operations[opJ*beagleOpCount+7] = j;
+                operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
+            }
+
+    #ifdef HAVE_PLL
+            if (pllTest) {
+                pll_operations[op].parent_clv_index    = parentIndex;
+                pll_operations[op].child1_clv_index    = child1Index;
+                pll_operations[op].child2_clv_index    = child2Index;
+                pll_operations[op].child1_matrix_index = child1Index + j*edgeCount;
+                pll_operations[op].child2_matrix_index = child2Index + j*edgeCount;
+                pll_operations[op].parent_scaler_index = PLL_SCALE_BUFFER_NONE;
+                pll_operations[op].child1_scaler_index = PLL_SCALE_BUFFER_NONE;
+                pll_operations[op].child2_scaler_index = PLL_SCALE_BUFFER_NONE;
+            }
+    #endif // HAVE_PLL
+
+        // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
+        //        opJ, j, parentIndex, child1Index, child2Index);
+        }
+        // printf("\n");
+    }   
+
+}
+
+void setNewCategoryRates(int partitionCount,
+                         int rateCategoryCount,
+                         int instanceCount,
+                         std::vector<int> instances,
+#ifdef HAVE_PLL
+                         bool pllTest,
+                         pll_partition_t* pll_partition,
+#endif
+                         double* rates)
+{
+    for (int i = 0; i < rateCategoryCount; i++) {
+        rates[i] = gt_rand() / (double) GT_RAND_MAX;
+    }
+    
+    if (partitionCount > 1) {
+        for (int i=0; i < partitionCount; i++) {
+            beagleSetCategoryRatesWithIndex(instances[0], i, &rates[0]);
+        }
+    } else {
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetCategoryRates(instances[inst], &rates[0]);
+        }
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_set_category_rates(pll_partition, rates);
+        }
+#endif // HAVE_PLL
+    }
+}
+
+void setNewPatternWeights(int nsites,
+                          int instanceCount,
+                          std::vector<int> instances,
+                          std::vector<int> instanceSitesCount,
+#ifdef HAVE_PLL
+                          bool pllTest,
+                          pll_partition_t* pll_partition,
+#endif
+                          double* patternWeights)
+{
+    for (int i = 0; i < nsites; i++) {
+        patternWeights[i] =  gt_rand()%10;
+    }    
+
+    size_t instanceOffset = 0;
+    for(int inst=0; inst<instanceCount; inst++) {
+        beagleSetPatternWeights(instances[inst], patternWeights + instanceOffset);
+        instanceOffset += instanceSitesCount[inst];
+    }
+
+#ifdef HAVE_PLL
+    if (pllTest) {
+        unsigned int* pll_patternWeights = (unsigned int*) malloc(sizeof(unsigned int) * nsites);
+        for (int i = 0; i < nsites; i++) {
+            pll_patternWeights[i] = (unsigned int) patternWeights[i];
+        }    
+        pll_set_pattern_weights(pll_partition, pll_patternWeights);
+        free(pll_patternWeights);
+    }
+#endif // HAVE_PLL
+}
+
+void setNewCategoryWeights(int eigenCount,
+                           int rateCategoryCount,
+                           int instanceCount,
+                           std::vector<int> instances,
+#ifdef HAVE_PLL
+                           bool pllTest,
+                           pll_partition_t* pll_partition,
+#endif
+                           double* weights)
+
+{
+    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+        for (int i = 0; i < rateCategoryCount; i++) {
+            weights[i] = gt_rand() / (double) GT_RAND_MAX;
+        } 
+
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetCategoryWeights(instances[inst], eigenIndex, &weights[0]);
+        }
+    
+        beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
+
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_set_category_weights(pll_partition, &weights[0]);
+        }
+#endif // HAVE_PLL
+
+    }
+}
+
+void setNewEigenModels(int modelCount,
+                       int stateCount,
+                       double* freqs,
+                       bool eigencomplex,
+                       bool ievectrans,
+                       bool setmatrix,
+                       int eigenCount,
+                       int instanceCount,
+#ifdef HAVE_PLL
+                       bool pllTest,
+                       pll_partition_t* pll_partition,
+#endif
+                       std::vector<int> instances)
+{
+    double* eval;
+    if (!eigencomplex)
+        eval = (double*)malloc(sizeof(double)*stateCount);
+    else
+        eval = (double*)malloc(sizeof(double)*stateCount*2);
+    double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
+    double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
+    
+    for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+        if (!eigencomplex && ((stateCount & (stateCount-1)) == 0)) {
+            
+            for (int i=0; i<stateCount; i++) {
+                freqs[i] = 1.0 / stateCount;
+            }
+
+            // an eigen decomposition for the general state-space JC69 model
+            // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
+            // the eigendecomposition of the infinitesimal rate matrix
+             
+            double* Hn = evec;
+            Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
+            Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
+         
+            for (int k=2; k < stateCount; k <<= 1) {
+                // H_n = H_1 (Kronecker product) H_{n-1}
+                for (int i=0; i<k; i++) {
+                    for (int j=i; j<k; j++) {
+                        double Hijold = Hn[i*stateCount + j];
+                        Hn[i    *stateCount + j + k] =  Hijold;
+                        Hn[(i+k)*stateCount + j    ] =  Hijold;
+                        Hn[(i+k)*stateCount + j + k] = -Hijold;
+                        
+                        Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
+                        Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
+                        Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
+                    }
+                }        
+            }
+            
+            // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+            for (int i=0; i<stateCount; i++) {
+                for (int j=i; j<stateCount; j++) {
+                    ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
+                    ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
+                }
+            }
+           
+            eval[0] = 0.0;
+            for (int i=1; i<stateCount; i++) {
+                eval[i] = -stateCount / (stateCount - 1.0);
+            }
+       
+        } else if (!eigencomplex) {
+            for (int i=0; i<stateCount; i++) {
+                freqs[i] = gt_rand() / (double) GT_RAND_MAX;
+            }
+        
+            double** qmat=New2DArray<double>(stateCount, stateCount);    
+            double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
+            
+            int rnum=0;
+            for(int i=0;i<stateCount;i++){
+                for(int j=i+1;j<stateCount;j++){
+                    relNucRates[rnum] = gt_rand() / (double) GT_RAND_MAX;
+                    qmat[i][j]=relNucRates[rnum] * freqs[j];
+                    qmat[j][i]=relNucRates[rnum] * freqs[i];
+                    rnum++;
+                }
+            }
+
+            //set diags to sum rows to 0
+            double sum;
+            for(int x=0;x<stateCount;x++){
+                sum=0.0;
+                for(int y=0;y<stateCount;y++){
+                    if(x!=y) sum+=qmat[x][y];
+                        }
+                qmat[x][x]=-sum;
+            } 
+            
+            double* eigvalsimag=new double[stateCount];
+            double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
+            double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
+            double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
+            int* iwork=new int[stateCount];
+            double* work=new double[stateCount];
+            
+            EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
+            memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
+            InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
+            
+            for(int x=0;x<stateCount;x++){
+                for(int y=0;y<stateCount;y++){
+                    evec[x * stateCount + y] = eigvecs[x][y];
+                    if (ievectrans)
+                        ivec[x * stateCount + y] = inveigvecs[y][x];
+                    else
+                        ivec[x * stateCount + y] = inveigvecs[x][y];
+                }
+            } 
+            
+            Delete2DArray(qmat);
+            delete[] relNucRates;
+            
+            delete[] eigvalsimag;
+            Delete2DArray(eigvecs);
+            Delete2DArray(teigvecs);
+            Delete2DArray(inveigvecs);
+            delete[] iwork;
+            delete[] work;
+        } else if (eigencomplex && stateCount==4 && eigenCount==1) {
+            // create base frequency array
+            double temp_freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
+            
+            // an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
+            double temp_evec[4 * 4] = {
+                -0.5,  0.6906786606674509,   0.15153543380548623, 0.5,
+                0.5, -0.15153543380548576,  0.6906786606674498,  0.5,
+                -0.5, -0.6906786606674498,  -0.15153543380548617, 0.5,
+                0.5,  0.15153543380548554, -0.6906786606674503,  0.5
+            };
+            
+            double temp_ivec[4 * 4] = {
+                -0.5,  0.5, -0.5,  0.5,
+                0.6906786606674505, -0.15153543380548617, -0.6906786606674507,   0.15153543380548645,
+                0.15153543380548568, 0.6906786606674509,  -0.15153543380548584, -0.6906786606674509,
+                0.5,  0.5,  0.5,  0.5
+            };
+            
+            double temp_eval[8] = { -2.0, -1.0, -1.0, 0, 0, 1, -1, 0 };
+            
+            for(int x=0;x<stateCount;x++){
+                freqs[x] = temp_freqs[x];
+                eval[x] = temp_eval[x];
+                eval[x+stateCount] = temp_eval[x+stateCount];
+                for(int y=0;y<stateCount;y++){
+                    evec[x * stateCount + y] = temp_evec[x * stateCount + y];
+                    if (ievectrans)
+                        ivec[x * stateCount + y] = temp_ivec[x + y * stateCount];
+                    else
+                        ivec[x * stateCount + y] = temp_ivec[x * stateCount + y];
+                }
+            } 
+        } else {
+            abort("should not be here");
+        }
+
+        for(int inst=0; inst<instanceCount; inst++) {
+            beagleSetStateFrequencies(instances[inst], eigenIndex, &freqs[0]);
+        }
+
+#ifdef HAVE_PLL
+        if (pllTest) {
+            pll_set_frequencies(pll_partition, 0, &freqs[0]);
+        }
+#endif // HAVE_PLL
+        if (!setmatrix) {
+            // set the Eigen decomposition
+            for(int inst=0; inst<instanceCount; inst++) {
+                beagleSetEigenDecomposition(instances[inst], eigenIndex, &evec[0], &ivec[0], &eval[0]);
+            }
+#ifdef HAVE_PLL
+            if (pllTest) {
+                double pll_subst_params[6] = {1,1,1,1,1,1};
+                pll_set_subst_params(pll_partition, 0, pll_subst_params);
+            }
+#endif // HAVE_PLL
+        }
+    }
+    
+    free(eval);
+    free(evec);
+    free(ivec);
+}
 
 void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_PRECISION_SINGLE   ) fprintf(stdout, " PRECISION_SINGLE"   );
@@ -479,6 +924,8 @@ void runBeagle(int resource,
                bool pllSiteRepeats,
                bool multiRsrc,
                bool postorderTraversal,
+               bool newTreePerRep,
+               bool newParametersPerRep,
                int* resourceList,
                int  resourceCount)
 {
@@ -705,48 +1152,19 @@ void runBeagle(int resource,
     double rates[rateCategoryCount];
 #endif
     
-    for (int i = 0; i < rateCategoryCount; i++) {
-        rates[i] = gt_rand() / (double) GT_RAND_MAX;
-    }
-    
-    if (partitionCount > 1) {
-        for (int i=0; i < partitionCount; i++) {
-            beagleSetCategoryRatesWithIndex(instances[0], i, &rates[0]);
-        }
-    } else {
-        for(int inst=0; inst<instanceCount; inst++) {
-            beagleSetCategoryRates(instances[inst], &rates[0]);
-        }
+    setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-        if (pllTest) {
-            pll_set_category_rates(pll_partition, rates);
-        }
-#endif // HAVE_PLL
-    }
-
+                        pllTest, pll_partition,
+#endif
+                        (double*) rates);
     
     double* patternWeights = (double*) malloc(sizeof(double) * nsites);
-    
-    for (int i = 0; i < nsites; i++) {
-        patternWeights[i] =  gt_rand()%10;
-    }    
 
-    size_t instanceOffset = 0;
-    for(int inst=0; inst<instanceCount; inst++) {
-        beagleSetPatternWeights(instances[inst], patternWeights + instanceOffset);
-        instanceOffset += instanceSitesCount[inst];
-    }
-
+    setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
 #ifdef HAVE_PLL
-    if (pllTest) {
-        unsigned int* pll_patternWeights = (unsigned int*) malloc(sizeof(unsigned int) * nsites);
-        for (int i = 0; i < nsites; i++) {
-            pll_patternWeights[i] = (unsigned int) patternWeights[i];
-        }    
-        pll_set_pattern_weights(pll_partition, pll_patternWeights);
-        free(pll_patternWeights);
-    }
-#endif // HAVE_PLL
+                         pllTest, pll_partition,
+#endif
+                         (double*) patternWeights);
 
     int* patternPartitions;
     double* partitionLogLs;
@@ -786,200 +1204,19 @@ void runBeagle(int resource,
     double weights[rateCategoryCount];
 #endif
 
-    for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
-        for (int i = 0; i < rateCategoryCount; i++) {
-            weights[i] = gt_rand() / (double) GT_RAND_MAX;
-        } 
-
-        for(int inst=0; inst<instanceCount; inst++) {
-            beagleSetCategoryWeights(instances[inst], eigenIndex, &weights[0]);
-        }
-    
-        beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
-
+    setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-        if (pllTest) {
-            pll_set_category_weights(pll_partition, &weights[0]);
-        }
-#endif // HAVE_PLL
-
-    }
+                          pllTest, pll_partition,
+#endif
+                          (double*) weights);
     
-    double* eval;
-    if (!eigencomplex)
-        eval = (double*)malloc(sizeof(double)*stateCount);
-    else
-        eval = (double*)malloc(sizeof(double)*stateCount*2);
-    double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
-    double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
-    
-    for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
-        if (!eigencomplex && ((stateCount & (stateCount-1)) == 0)) {
-            
-            for (int i=0; i<stateCount; i++) {
-                freqs[i] = 1.0 / stateCount;
-            }
-
-            // an eigen decomposition for the general state-space JC69 model
-            // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
-            // the eigendecomposition of the infinitesimal rate matrix
-             
-            double* Hn = evec;
-            Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
-            Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
-         
-            for (int k=2; k < stateCount; k <<= 1) {
-                // H_n = H_1 (Kronecker product) H_{n-1}
-                for (int i=0; i<k; i++) {
-                    for (int j=i; j<k; j++) {
-                        double Hijold = Hn[i*stateCount + j];
-                        Hn[i    *stateCount + j + k] =  Hijold;
-                        Hn[(i+k)*stateCount + j    ] =  Hijold;
-                        Hn[(i+k)*stateCount + j + k] = -Hijold;
-                        
-                        Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
-                        Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
-                        Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
-                    }
-                }        
-            }
-            
-            // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
-            for (int i=0; i<stateCount; i++) {
-                for (int j=i; j<stateCount; j++) {
-                    ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
-                    ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
-                }
-            }
-           
-            eval[0] = 0.0;
-            for (int i=1; i<stateCount; i++) {
-                eval[i] = -stateCount / (stateCount - 1.0);
-            }
-       
-        } else if (!eigencomplex) {
-            for (int i=0; i<stateCount; i++) {
-                freqs[i] = gt_rand() / (double) GT_RAND_MAX;
-            }
-        
-            double** qmat=New2DArray<double>(stateCount, stateCount);    
-            double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
-            
-            int rnum=0;
-            for(int i=0;i<stateCount;i++){
-                for(int j=i+1;j<stateCount;j++){
-                    relNucRates[rnum] = gt_rand() / (double) GT_RAND_MAX;
-                    qmat[i][j]=relNucRates[rnum] * freqs[j];
-                    qmat[j][i]=relNucRates[rnum] * freqs[i];
-                    rnum++;
-                }
-            }
-
-            //set diags to sum rows to 0
-            double sum;
-            for(int x=0;x<stateCount;x++){
-                sum=0.0;
-                for(int y=0;y<stateCount;y++){
-                    if(x!=y) sum+=qmat[x][y];
-                        }
-                qmat[x][x]=-sum;
-            } 
-            
-            double* eigvalsimag=new double[stateCount];
-            double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
-            double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
-            double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
-            int* iwork=new int[stateCount];
-            double* work=new double[stateCount];
-            
-            EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
-            memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
-            InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
-            
-            for(int x=0;x<stateCount;x++){
-                for(int y=0;y<stateCount;y++){
-                    evec[x * stateCount + y] = eigvecs[x][y];
-                    if (ievectrans)
-                        ivec[x * stateCount + y] = inveigvecs[y][x];
-                    else
-                        ivec[x * stateCount + y] = inveigvecs[x][y];
-                }
-            } 
-            
-            Delete2DArray(qmat);
-            delete[] relNucRates;
-            
-            delete[] eigvalsimag;
-            Delete2DArray(eigvecs);
-            Delete2DArray(teigvecs);
-            Delete2DArray(inveigvecs);
-            delete[] iwork;
-            delete[] work;
-        } else if (eigencomplex && stateCount==4 && eigenCount==1) {
-            // create base frequency array
-            double temp_freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-            
-            // an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
-            double temp_evec[4 * 4] = {
-                -0.5,  0.6906786606674509,   0.15153543380548623, 0.5,
-                0.5, -0.15153543380548576,  0.6906786606674498,  0.5,
-                -0.5, -0.6906786606674498,  -0.15153543380548617, 0.5,
-                0.5,  0.15153543380548554, -0.6906786606674503,  0.5
-            };
-            
-            double temp_ivec[4 * 4] = {
-                -0.5,  0.5, -0.5,  0.5,
-                0.6906786606674505, -0.15153543380548617, -0.6906786606674507,   0.15153543380548645,
-                0.15153543380548568, 0.6906786606674509,  -0.15153543380548584, -0.6906786606674509,
-                0.5,  0.5,  0.5,  0.5
-            };
-            
-            double temp_eval[8] = { -2.0, -1.0, -1.0, 0, 0, 1, -1, 0 };
-            
-            for(int x=0;x<stateCount;x++){
-                freqs[x] = temp_freqs[x];
-                eval[x] = temp_eval[x];
-                eval[x+stateCount] = temp_eval[x+stateCount];
-                for(int y=0;y<stateCount;y++){
-                    evec[x * stateCount + y] = temp_evec[x * stateCount + y];
-                    if (ievectrans)
-                        ivec[x * stateCount + y] = temp_ivec[x + y * stateCount];
-                    else
-                        ivec[x * stateCount + y] = temp_ivec[x * stateCount + y];
-                }
-            } 
-        } else {
-            abort("should not be here");
-        }
-
-        for(int inst=0; inst<instanceCount; inst++) {
-            beagleSetStateFrequencies(instances[inst], eigenIndex, &freqs[0]);
-        }
-
+    setNewEigenModels(modelCount, stateCount, (double*) freqs,
+                      eigencomplex, ievectrans, setmatrix, eigenCount,
+                      instanceCount,
 #ifdef HAVE_PLL
-        if (pllTest) {
-            pll_set_frequencies(pll_partition, 0, &freqs[0]);
-        }
-#endif // HAVE_PLL
-        if (!setmatrix) {
-            // set the Eigen decomposition
-            for(int inst=0; inst<instanceCount; inst++) {
-                beagleSetEigenDecomposition(instances[inst], eigenIndex, &evec[0], &ivec[0], &eval[0]);
-            }
-#ifdef HAVE_PLL
-            if (pllTest) {
-                double pll_subst_params[6] = {1,1,1,1,1,1};
-                pll_set_subst_params(pll_partition, 0, pll_subst_params);
-            }
-#endif // HAVE_PLL
-        }
-    }
-    
-    free(eval);
-    free(evec);
-    free(ivec);
-
-
+                      pllTest, pll_partition,
+#endif
+                      instances);
     
     // a list of indices and edge lengths
     int* edgeIndices = new int[edgeCount*modelCount];
@@ -1127,153 +1364,12 @@ void runBeagle(int resource,
     }
 
     if (randomTree && eigenCount==1 && !unrooted) {
-
-        std::vector <node*> nodes;
-        nodes.push_back(createNewNode(0));
-        int tipsAdded = 1;
-        node* newParent;
-        while (tipsAdded < ntaxa) {
-            int sibling;
-            if (pectinate)
-                sibling = nodes.size()-1;
-            else
-                sibling = gt_rand() % nodes.size();
-            node* newTip = createNewNode(tipsAdded);
-            newParent = createNewNode(ntaxa + tipsAdded - 1);
-            nodes.push_back(newTip);
-            nodes.push_back(newParent);
-            tipsAdded++;            
-            newParent->left  = nodes[sibling];
-            newParent->right = newTip;            
-            if (nodes[sibling]->parent != NULL) {
-                newParent->parent = nodes[sibling]->parent;
-                if (nodes[sibling]->parent->left == nodes[sibling]) {
-                    nodes[sibling]->parent->left = newParent;
-                } else {
-                    nodes[sibling]->parent->right = newParent;
-                }
-            }
-            nodes[sibling]->parent = newParent;
-            newTip->parent         = newParent;
-        }
-        node* root = nodes[0];
-        while(root->parent != NULL) {
-            root = root->parent;
-        }
-        int rootIndex = newParent->data;
-        newParent->data = root->data;
-        root->data = rootIndex;
-
-        if (rerootTrees) {
-            int bestRerootNode = -1;
-            int bestLaunchCount = countLaunches(root, postorderTraversal);
-
-            // printf("\nroot node   = %d\tparallel launches = %d\n", root->data, bestLaunchCount);
-
-
-            std::vector<node*> newNodes;
-
-            for(int i = 0; i < nodes.size(); i++) {
-
-                // printf("reroot node = %02d\t", nodes[i]->data);
-
-                node* rerootNode = nodes[i];
-
-                if (rerootNode->parent != NULL && rerootNode->parent != root) {
-                    
-                    node* newRoot = reroot(rerootNode, root, newNodes);
-
-                    int launchCount = countLaunches(newRoot, postorderTraversal);
-
-                    newNodes.clear();
-
-                    // printf("parallel launches = %d\n", launchCount);
-
-                    if (launchCount < bestLaunchCount) {
-                        bestLaunchCount = launchCount;
-                        bestRerootNode = i;
-                    }
-
-                }
-                // else {printf("doesn't change tree\n");}
-
-            }
-
-            if (bestRerootNode != -1) {
-                // printf("\nbestLaunchCount = %d, node index = %d\n\n", bestLaunchCount, bestRerootNode);
-                node* rerootNode = nodes[bestRerootNode];
-                node* oldRoot = root;
-                root = reroot(rerootNode, oldRoot, newNodes);
-            }
-
-        } 
-
-        std::deque <node *> S;
-        if (postorderTraversal == true) {
-            traversePostorder(root, S);
-        } else {
-            reverseLevelOrder(root, S);
-        }
-
-        // while (S.empty() == false) {
-        //     node* tmpNode = S.back();
-        //     std::cout << tmpNode->data << " ";
-        //     S.pop_back();
-        // }
-        // std::cout << std::endl;
-        // reverseLevelOrder(root, S);
-
-        // struct node *root = createNewNode(4);
-        // root->left        = createNewNode(0);
-        // root->right       = createNewNode(6);
-        // root->right->left  = createNewNode(5);
-        // root->right->right = createNewNode(3);
-        // root->right->left->left  = createNewNode(1);
-        // root->right->left->right = createNewNode(2);
-        // std::deque <node *> S;
-        // reverseLevelOrder(root, S);
-
-        // printf("launch count = %03d", countLaunches(root));
-
-        for(int op=0; op<unpartOpsCount; op++){
-            node* parent = S.back();
-            S.pop_back();
-            int parentIndex = parent->data;
-            int child1Index = parent->left->data;
-            int child2Index = parent->right->data;
-
-            for (int j=0; j<partitionCount; j++) {
-                int opJ = partitionCount*op + j;
-                operations[opJ*beagleOpCount+0] = parentIndex;
-                operations[opJ*beagleOpCount+1] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                operations[opJ*beagleOpCount+2] = (dynamicScaling ? parentIndex : BEAGLE_OP_NONE);
-                operations[opJ*beagleOpCount+3] = child1Index;
-                operations[opJ*beagleOpCount+4] = child1Index + j*edgeCount;;
-                operations[opJ*beagleOpCount+5] = child2Index;
-                operations[opJ*beagleOpCount+6] = child2Index + j*edgeCount;
-                if (partitionCount > 1) {
-                    operations[opJ*beagleOpCount+7] = j;
-                    operations[opJ*beagleOpCount+8] = (dynamicScaling ? internalCount : BEAGLE_OP_NONE);
-                }
-
+        generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+            edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
 #ifdef HAVE_PLL
-                if (pllTest) {
-                    pll_operations[op].parent_clv_index    = parentIndex;
-                    pll_operations[op].child1_clv_index    = child1Index;
-                    pll_operations[op].child2_clv_index    = child2Index;
-                    pll_operations[op].child1_matrix_index = child1Index + j*edgeCount;
-                    pll_operations[op].child2_matrix_index = child2Index + j*edgeCount;
-                    pll_operations[op].parent_scaler_index = PLL_SCALE_BUFFER_NONE;
-                    pll_operations[op].child1_scaler_index = PLL_SCALE_BUFFER_NONE;
-                    pll_operations[op].child2_scaler_index = PLL_SCALE_BUFFER_NONE;
-                }
-#endif // HAVE_PLL
-
-            // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
-            //        opJ, j, parentIndex, child1Index, child2Index);
-            }
-            // printf("\n");
-        }   
+            pllTest, pll_operations,
+#endif
+            operations);
     }
 
     gt_srand(randomSeed);   // reset the random seed...
@@ -1295,6 +1391,48 @@ void runBeagle(int resource,
                 }
             }
         }
+
+        if (newTreePerRep) {
+            generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+#ifdef HAVE_PLL
+                false, pll_operations,
+#endif
+                operations);
+
+            for(int j=0; j<edgeCount; j++) {
+                edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+            }
+        }
+
+        if (newParametersPerRep) {
+            setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
+#ifdef HAVE_PLL
+                                false, pll_partition,
+#endif
+                                (double*) rates);
+
+            setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
+#ifdef HAVE_PLL
+                                 false, pll_partition,
+#endif
+                                 (double*) patternWeights);
+
+            setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
+#ifdef HAVE_PLL
+                                  false, pll_partition,
+#endif
+                                  (double*) weights);
+            
+            setNewEigenModels(modelCount, stateCount, (double*) freqs,
+                              eigencomplex, ievectrans, setmatrix, eigenCount,
+                              instanceCount,
+#ifdef HAVE_PLL
+                              false, pll_partition,
+#endif
+                              instances);
+        }
+
 
         if (manualScaling && (!(i % rescaleFrequency) || !((i-1) % rescaleFrequency))) {
             for(int j=0; j<operationCount; j++){
@@ -1547,7 +1685,7 @@ void runBeagle(int resource,
         if (!(logL - logL == 0.0))
             fprintf(stdout, "error: invalid lnL\n");
 
-        if (!newDataPerRep) {        
+        if (!newDataPerRep && !newTreePerRep && !newParametersPerRep) {        
             if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
                 fprintf(stdout, "error: large lnL difference between reps\n");
         }
@@ -1725,6 +1863,39 @@ void runBeagle(int resource,
                 }
             }
 
+
+            if (newTreePerRep && randomTree && eigenCount==1 && !unrooted) {
+                generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal,
+                    dynamicScaling,
+                    edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+                    pllTest, pll_operations,
+                    operations);
+
+                for(int j=0; j<edgeCount; j++) {
+                    edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+                }
+            }
+
+            if (newParametersPerRep) {
+                setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
+                                    pllTest, pll_partition,
+                                    (double*) rates);
+
+                setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
+                                     pllTest, pll_partition,
+                                     (double*) patternWeights);
+
+                setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
+                                      pllTest, pll_partition,
+                                      (double*) weights);
+                
+                setNewEigenModels(modelCount, stateCount, (double*) freqs,
+                                  eigencomplex, ievectrans, setmatrix, eigenCount,
+                                  instanceCount,
+                                  pllTest, pll_partition,
+                                  instances);
+            }
+
             // TODO: pll scaling
             
             gettimeofday(&time0,NULL);
@@ -1795,7 +1966,7 @@ void runBeagle(int resource,
             if (!(logL - logL == 0.0))
                 fprintf(stdout, "pll error: invalid lnL\n");
 
-            if (!newDataPerRep) {        
+            if (!newDataPerRep && !newTreePerRep && !newParametersPerRep) {        
                 if (i > 0 && std::abs(logL - previousLogL) > MAX_DIFF)
                     fprintf(stdout, "pll error: large lnL difference between reps\n");
             }
@@ -1894,7 +2065,7 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllrepeats]";
@@ -1941,7 +2112,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* pllTest,
                                     bool* pllSiteRepeats,
                                     bool* multiRsrc,
-                                    bool* postorderTraversal)    {
+                                    bool* postorderTraversal,
+                                    bool* newTreePerRep,
+                                    bool* newParametersPerRep)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -2074,6 +2247,10 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *multiRsrc = true;
         } else if (option == "--postorder") {
             *postorderTraversal = true;
+        } else if (option == "--newtree") {
+            *newTreePerRep = true;
+        } else if (option == "--newparameters") {
+            *newParametersPerRep = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -2171,6 +2348,14 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*postorderTraversal && *randomTree==false)
         abort("postorder traversal can only be used with randomtree option");
 
+    if (*newTreePerRep && *randomTree==false)
+        abort("new tree per replicate can only be used with randomtree option");
+
+    if (*newTreePerRep && *eigenCount!=1)
+        abort("new tree per replicate can only be used with eigencount=1");
+
+    if (*newTreePerRep && *unrooted)
+        abort("new tree per replicate can only be used with rooted trees");
 }
 
 int main( int argc, const char* argv[] )
@@ -2207,6 +2392,8 @@ int main( int argc, const char* argv[] )
     bool pllSiteRepeats = false;
     bool multiRsrc = false;
     bool postorderTraversal = false;
+    bool newTreePerRep = false;
+    bool newParametersPerRep = false;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -2226,7 +2413,7 @@ int main( int argc, const char* argv[] )
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &multiRsrc,
-                                   &postorderTraversal);
+                                   &postorderTraversal, &newTreePerRep, &newParametersPerRep);
     
 
     std::cout << "\nSimulating genomic ";
@@ -2299,6 +2486,8 @@ int main( int argc, const char* argv[] )
                           pllSiteRepeats,
                           multiRsrc,
                           postorderTraversal,
+                          newTreePerRep,
+                          newParametersPerRep,
                           rsrcList,
                           rsrcCount);
             }
