@@ -21,8 +21,7 @@ PluginManager& PluginManager::instance()
     ms_instance = new PluginManager();
     return *ms_instance;
 }
-Plugin* PluginManager::findPlugin(const char* name)
-    throw (SharedLibraryException)
+Plugin* PluginManager::findPlugin(const char* name) noexcept(false)
 {
     if (m_plugin_map.count(name) > 0)
     return m_plugin_map[name]->m_plugin;
