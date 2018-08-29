@@ -625,16 +625,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dPatternWeights = gpu->AllocateMemory(kPatternCount * sizeof(Real));
     
     dSumLogLikelihood = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
-    dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
-    dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+    // dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+    // dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
     
     dPartialsTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
-    dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
-    dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+    // dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+    // dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
     
     int bufferCountTotal = kBufferCount;
-    if (bufferCountTotal < 2*kTipPartialsBufferCount)
-        bufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
+    // if (bufferCountTotal < 2*kTipPartialsBufferCount)
+    //     bufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
 
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), bufferCountTotal);

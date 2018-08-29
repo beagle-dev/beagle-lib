@@ -61,6 +61,7 @@ def main():
                             synthetictest_cmd.extend(['--states', str(states), '--sites', str(sites)])
                             synthetictest_cmd.extend(['--taxa', str(taxa), '--compacttips', str(taxa)])
                             synthetictest_cmd.extend(['--reps', str(reps), '--rates', str(rates)])
+                            synthetictest_cmd.extend(['--seed', str(seed)])
                             throughput_re_index = 0
                             if   rsrc == 'cpu':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads', '--postorder'])
