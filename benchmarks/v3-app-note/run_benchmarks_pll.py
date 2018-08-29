@@ -34,7 +34,7 @@ def main():
 
     seed_list = range(1,101)
 
-    extra_args = ['--randomtree', '--stdrand', '--fulltiming']
+    extra_args = ['--randomtree', '--stdrand', '--fulltiming', '--newtree', '--newparameters']
 
     throughput_re = re.compile('tree throughput total:   (.*) M partials/second')
 
