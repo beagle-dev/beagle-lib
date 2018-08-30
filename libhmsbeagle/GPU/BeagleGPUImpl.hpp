@@ -190,15 +190,17 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             gpu->FreeMemory(dStatesOrigin);
         
         gpu->FreeMemory(dIntegrationTmp);
-        gpu->FreeMemory(dOutFirstDeriv);
-        gpu->FreeMemory(dOutSecondDeriv);
-        gpu->FreeMemory(dPartialsTmp);
-        gpu->FreeMemory(dFirstDerivTmp);
-        gpu->FreeMemory(dSecondDerivTmp);
-        
+        gpu->FreeMemory(dPartialsTmp);        
         gpu->FreeMemory(dSumLogLikelihood);
-        gpu->FreeMemory(dSumFirstDeriv);
-        gpu->FreeMemory(dSumSecondDeriv);
+
+        if (dSumFirstDeriv != NULL) {
+            gpu->FreeMemory(dSumFirstDeriv);
+            gpu->FreeMemory(dFirstDerivTmp);
+            gpu->FreeMemory(dOutFirstDeriv);            
+            gpu->FreeMemory(dSumSecondDeriv);
+            gpu->FreeMemory(dSecondDerivTmp);
+            gpu->FreeMemory(dOutSecondDeriv);
+        }
         
         gpu->FreeMemory(dPatternWeights);
 
@@ -619,19 +621,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     
     dIntegrationTmp = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
-    dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
-    dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
 
     dPatternWeights = gpu->AllocateMemory(kPatternCount * sizeof(Real));
     
     dSumLogLikelihood = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
-    dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
-    dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
     
     dPartialsTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
-    dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
-    dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
-    
+
     int bufferCountTotal = kBufferCount;
     if (bufferCountTotal < 2*kTipPartialsBufferCount)
         bufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
@@ -3068,6 +3064,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
 #endif
     
     int returnCode = BEAGLE_SUCCESS;
+
+    if (firstDerivativeIndices != NULL && dSumFirstDeriv == NULL) {
+        dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+        dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+
+        dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+        dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+
+        dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+        dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+    }
     
     if (count == 1) { 
                  
@@ -3384,6 +3391,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeLogLikelihoodsByPartition\n");
 #endif
+    
+    if (firstDerivativeIndices != NULL && dSumFirstDeriv == NULL) {
+        dSumFirstDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+        dSumSecondDeriv = gpu->AllocateMemory(kSumSitesBlockCount * sizeof(Real));
+
+        dFirstDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+        dSecondDerivTmp = gpu->AllocateMemory(kPartialsSize * sizeof(Real));
+
+        dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+        dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + resultPaddedPatterns) * sizeof(Real));
+    }
     
     if (count != 1 ||  firstDerivativeIndices != NULL ||  secondDerivativeIndices != NULL || 
         kFlags & BEAGLE_FLAG_SCALING_AUTO || kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
