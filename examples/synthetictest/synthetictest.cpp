@@ -1415,6 +1415,10 @@ void runBeagle(int resource,
 
     struct timeval time0, time1, time2, time3, time4, time5;
     double bestTimeSetPartitions, bestTimeUpdateTransitionMatrices, bestTimeUpdatePartials, bestTimeAccumulateScaleFactors, bestTimeCalculateRootLogLikelihoods, bestTimeTotal;
+
+    int timePrecision = 4;
+    int speedupPrecision = 2;
+    int percentPrecision = 2;
     
     double logL = 0.0;
     double deriv1 = 0.0;
@@ -1861,9 +1865,6 @@ void runBeagle(int resource,
 
     std::cout.setf(std::ios::showpoint);
     std::cout.setf(std::ios::floatfield, std::ios::fixed);
-    int timePrecision = 4;
-    int speedupPrecision = 2;
-    int percentPrecision = 2;
     std::cout << "best run: ";
     printTiming(bestTimeTotal, timePrecision, resource, cpuTimeTotal, speedupPrecision, 0, 0, 0);
     if (fullTiming) {

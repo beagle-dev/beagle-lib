@@ -68,10 +68,10 @@ def main():
                             elif rsrc == 'cpu-threaded':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--postorder'])
                             elif rsrc == 'pll':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--postorder'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--pllonly', '--postorder'])
                                 throughput_re_index = 1
                             elif rsrc == 'pll-repeats':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--pllrepeats', '--postorder'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--pllonly', '--pllrepeats', '--postorder'])
                                 throughput_re_index = 1
                             elif rsrc == 'gpu':
                                 synthetictest_cmd.extend(['--rsrc', '1'])
