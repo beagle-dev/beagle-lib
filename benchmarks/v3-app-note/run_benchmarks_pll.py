@@ -25,14 +25,14 @@ def main():
     precision_list = ['double']
 
     states_list = [4]
-    site_samples = 100
+    site_samples = 40
     sites_min = 100
     sites_max = 1000000
     sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
     rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu','dual-gpu']
-    reps = 100
+    reps = 10
 
-    seed_list = range(1,101)
+    seed_list = range(1,11)
 
     extra_args = ['--randomtree', '--stdrand', '--fulltiming', '--newtree', '--newparameters']
 
