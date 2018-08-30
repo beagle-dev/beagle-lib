@@ -95,6 +95,8 @@ private:
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
+
+    int kResultPaddedPatterns;
     
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -138,6 +140,7 @@ private:
     GPUPtr* dTipPartialsBuffers;
     
     bool kUsingMultiGrid;
+    bool kDerivBuffersInitialised;
     int kNumPatternBlocks;
     int kSitesPerBlock;
     int kSitesPerIntegrateBlock;
