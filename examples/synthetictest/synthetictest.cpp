@@ -577,6 +577,7 @@ void setNewCategoryRates(int partitionCount,
                          std::vector<int> instances,
 #ifdef HAVE_PLL
                          bool pllTest,
+                         bool pllOnly,
                          pll_partition_t* pll_partition,
 #endif
                          double* rates)
@@ -587,11 +588,23 @@ void setNewCategoryRates(int partitionCount,
     
     if (partitionCount > 1) {
         for (int i=0; i < partitionCount; i++) {
+#ifdef HAVE_PLL
+            if (!pllOnly) {
+#endif
             beagleSetCategoryRatesWithIndex(instances[0], i, &rates[0]);
+#ifdef HAVE_PLL
+            } //if (!pllOnly) {
+#endif
         }
     } else {
         for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+            if (!pllOnly) {
+#endif
             beagleSetCategoryRates(instances[inst], &rates[0]);
+#ifdef HAVE_PLL
+            } //if (!pllOnly) {
+#endif
         }
 #ifdef HAVE_PLL
         if (pllTest) {
@@ -607,6 +620,7 @@ void setNewPatternWeights(int nsites,
                           std::vector<int> instanceSitesCount,
 #ifdef HAVE_PLL
                           bool pllTest,
+                          bool pllOnly,
                           pll_partition_t* pll_partition,
 #endif
                           double* patternWeights)
@@ -617,8 +631,14 @@ void setNewPatternWeights(int nsites,
 
     size_t instanceOffset = 0;
     for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+        if (!pllOnly) {
+#endif
         beagleSetPatternWeights(instances[inst], patternWeights + instanceOffset);
         instanceOffset += instanceSitesCount[inst];
+#ifdef HAVE_PLL
+        } //if (!pllOnly) {
+#endif
     }
 
 #ifdef HAVE_PLL
@@ -639,6 +659,7 @@ void setNewCategoryWeights(int eigenCount,
                            std::vector<int> instances,
 #ifdef HAVE_PLL
                            bool pllTest,
+                           bool pllOnly,
                            pll_partition_t* pll_partition,
 #endif
                            double* weights)
@@ -650,10 +671,22 @@ void setNewCategoryWeights(int eigenCount,
         } 
 
         for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+            if (!pllOnly) {
+#endif
             beagleSetCategoryWeights(instances[inst], eigenIndex, &weights[0]);
+#ifdef HAVE_PLL
+            } //if (!pllOnly) {
+#endif
         }
     
+#ifdef HAVE_PLL
+        if (!pllOnly) {
+#endif
         beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
+#ifdef HAVE_PLL
+        } //if (!pllOnly) {
+#endif
 
 #ifdef HAVE_PLL
         if (pllTest) {
@@ -674,6 +707,7 @@ void setNewEigenModels(int modelCount,
                        int instanceCount,
 #ifdef HAVE_PLL
                        bool pllTest,
+                       bool pllOnly,
                        pll_partition_t* pll_partition,
 #endif
                        std::vector<int> instances)
@@ -826,7 +860,13 @@ void setNewEigenModels(int modelCount,
         }
 
         for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+           if (!pllOnly) {
+#endif
             beagleSetStateFrequencies(instances[inst], eigenIndex, &freqs[0]);
+#ifdef HAVE_PLL
+            } //if (!pllOnly) {
+#endif
         }
 
 #ifdef HAVE_PLL
@@ -837,7 +877,13 @@ void setNewEigenModels(int modelCount,
         if (!setmatrix) {
             // set the Eigen decomposition
             for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+               if (!pllOnly) {
+#endif
                 beagleSetEigenDecomposition(instances[inst], eigenIndex, &evec[0], &ivec[0], &eval[0]);
+#ifdef HAVE_PLL
+                } //if (!pllOnly) {
+#endif
             }
 #ifdef HAVE_PLL
             if (pllTest) {
@@ -922,6 +968,7 @@ void runBeagle(int resource,
                bool benchmarklist,
                bool pllTest,
                bool pllSiteRepeats,
+               bool pllOnly,
                bool multiRsrc,
                bool postorderTraversal,
                bool newTreePerRep,
@@ -1052,7 +1099,9 @@ void runBeagle(int resource,
 #endif // HAVE_PLL
 
     std::vector<int> instances;
-
+#ifdef HAVE_PLL
+    if (!pllOnly) {
+#endif
     for(int inst=0; inst<instanceCount; inst++) {
 
         int instanceResource = resource;
@@ -1107,6 +1156,9 @@ void runBeagle(int resource,
 
         }
     }
+#ifdef HAVE_PLL
+    } //if (!pllOnly)
+#endif
         
     if (!(instDetails.flags & BEAGLE_FLAG_SCALING_AUTO))
         autoScaling = false;
@@ -1119,7 +1171,13 @@ void runBeagle(int resource,
             double* tmpPartials = getRandomTipPartials(nsites, stateCount);
             size_t instanceOffset = 0;
             for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+                if (!pllOnly) {
+#endif
                 beagleSetTipPartials(instances[inst], i, tmpPartials + instanceOffset);
+#ifdef HAVE_PLL
+                } //if (!pllOnly)
+#endif
                 instanceOffset += instanceSitesCount[inst]*stateCount;
             }
 #ifdef HAVE_PLL
@@ -1132,7 +1190,13 @@ void runBeagle(int resource,
             int* tmpStates = getRandomTipStates(nsites, stateCount);
             size_t instanceOffset = 0;
             for(int inst=0; inst<instanceCount; inst++) {
+#ifdef HAVE_PLL
+                if (!pllOnly) {
+#endif
                 beagleSetTipStates(instances[inst], i, tmpStates + instanceOffset);
+#ifdef HAVE_PLL
+                } //if (!pllOnly)
+#endif
                 instanceOffset += instanceSitesCount[inst];
             }
 #ifdef HAVE_PLL
@@ -1154,7 +1218,7 @@ void runBeagle(int resource,
     
     setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-                        pllTest, pll_partition,
+                        pllTest, pllOnly, pll_partition,
 #endif
                         (double*) rates);
     
@@ -1162,7 +1226,7 @@ void runBeagle(int resource,
 
     setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
 #ifdef HAVE_PLL
-                         pllTest, pll_partition,
+                         pllTest, pllOnly, pll_partition,
 #endif
                          (double*) patternWeights);
 
@@ -1206,7 +1270,7 @@ void runBeagle(int resource,
 
     setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-                          pllTest, pll_partition,
+                          pllTest, pllOnly, pll_partition,
 #endif
                           (double*) weights);
     
@@ -1214,7 +1278,7 @@ void runBeagle(int resource,
                       eigencomplex, ievectrans, setmatrix, eigenCount,
                       instanceCount,
 #ifdef HAVE_PLL
-                      pllTest, pll_partition,
+                      pllTest, pllOnly, pll_partition,
 #endif
                       instances);
     
@@ -1338,8 +1402,15 @@ void runBeagle(int resource,
             cumulativeScalingFactorIndices[partitionIndex + pOffset] = ((manualScaling || dynamicScaling) ? (scaleCount*eigenCount-1)-eigenCount+eigenIndex+1 : BEAGLE_OP_NONE);
         }
 
-        if (dynamicScaling)
+        if (dynamicScaling) {
+#ifdef HAVE_PLL
+            if (!pllOnly) {
+#endif
             beagleResetScaleFactors(instances[0], cumulativeScalingFactorIndices[eigenIndex]);
+#ifdef HAVE_PLL
+            } //if (!pllOnly)
+#endif
+        }
     }
 
     struct timeval time0, time1, time2, time3, time4, time5;
@@ -1374,6 +1445,9 @@ void runBeagle(int resource,
 
     gt_srand(randomSeed);   // reset the random seed...
 
+#ifdef HAVE_PLL
+    if (!pllOnly) {
+#endif
 //  replicate loop
     for (int i=0; i<nreps; i++){
 
@@ -1408,19 +1482,19 @@ void runBeagle(int resource,
         if (newParametersPerRep) {
             setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-                                false, pll_partition,
+                                false, false, pll_partition,
 #endif
                                 (double*) rates);
 
             setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
 #ifdef HAVE_PLL
-                                 false, pll_partition,
+                                 false, false, pll_partition,
 #endif
                                  (double*) patternWeights);
 
             setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
-                                  false, pll_partition,
+                                  false, false, pll_partition,
 #endif
                                   (double*) weights);
             
@@ -1428,7 +1502,7 @@ void runBeagle(int resource,
                               eigencomplex, ievectrans, setmatrix, eigenCount,
                               instanceCount,
 #ifdef HAVE_PLL
-                              false, pll_partition,
+                              false, false, pll_partition,
 #endif
                               instances);
         }
@@ -1828,6 +1902,9 @@ void runBeagle(int resource,
     for(int inst=0; inst<instanceCount; inst++) {
         beagleFinalizeInstance(instances[inst]);
     }
+#ifdef HAVE_PLL
+    } //if (!pllOnly)
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 // pll test
@@ -1878,21 +1955,21 @@ void runBeagle(int resource,
 
             if (newParametersPerRep) {
                 setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
-                                    pllTest, pll_partition,
+                                    pllTest, pllOnly, pll_partition,
                                     (double*) rates);
 
                 setNewPatternWeights(nsites, instanceCount, instances, instanceSitesCount,
-                                     pllTest, pll_partition,
+                                     pllTest, pllOnly, pll_partition,
                                      (double*) patternWeights);
 
                 setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
-                                      pllTest, pll_partition,
+                                      pllTest, pllOnly, pll_partition,
                                       (double*) weights);
                 
                 setNewEigenModels(modelCount, stateCount, (double*) freqs,
                                   eigencomplex, ievectrans, setmatrix, eigenCount,
                                   instanceCount,
-                                  pllTest, pll_partition,
+                                  pllTest, pllOnly, pll_partition,
                                   instances);
             }
 
@@ -2068,6 +2145,7 @@ void helpMessage() {
     std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
+    std::cerr << " [--pllonly]";
     std::cerr << " [--pllrepeats]";
 #endif // HAVE_PLL
     std::cerr << "\n\n";
@@ -2111,6 +2189,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* benchmarklist,
                                     bool* pllTest,
                                     bool* pllSiteRepeats,
+                                    bool* pllOnly,
                                     bool* multiRsrc,
                                     bool* postorderTraversal,
                                     bool* newTreePerRep,
@@ -2242,6 +2321,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *pllTest = true;
         } else if (option == "--pllrepeats") {
             *pllSiteRepeats = true;
+        } else if (option == "--pllonly") {
+            *pllOnly = true;
+            *pllTest = true;
 #endif // HAVE_PLL
         } else if (option == "--multirsrc") {
             *multiRsrc = true;
@@ -2390,6 +2472,7 @@ int main( int argc, const char* argv[] )
     bool benchmarklist = false;
     bool pllTest = false;
     bool pllSiteRepeats = false;
+    bool pllOnly = false;
     bool multiRsrc = false;
     bool postorderTraversal = false;
     bool newTreePerRep = false;
@@ -2412,7 +2495,7 @@ int main( int argc, const char* argv[] )
                                    &requireDoublePrecision, &disableVector, &disableThreads, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
-                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &multiRsrc,
+                                   &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &pllOnly, &multiRsrc,
                                    &postorderTraversal, &newTreePerRep, &newParametersPerRep);
     
 
@@ -2484,6 +2567,7 @@ int main( int argc, const char* argv[] )
                           benchmarklist,
                           pllTest,
                           pllSiteRepeats,
+                          pllOnly,
                           multiRsrc,
                           postorderTraversal,
                           newTreePerRep,
