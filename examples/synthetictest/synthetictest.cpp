@@ -1074,8 +1074,8 @@ void runBeagle(int resource,
                     scaleCount*eigenCount,          /**< scaling buffers */
                     &instanceResource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                     1,                /**< Length of resourceList list (input) */
-                    (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                    // BEAGLE_FLAG_PARALLELOPS_STREAMS |
+                    (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
+		    (multiRsrc ? BEAGLE_FLAG_PARALLELOPS_STREAMS : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                     (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
                     (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0) |
                     (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
