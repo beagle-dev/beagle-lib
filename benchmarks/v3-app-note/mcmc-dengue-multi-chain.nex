@@ -45,6 +45,6 @@ set seed=1 swapseed=1;
 
 [mcmc ngen=50000 nruns=1 nchains=1;]
 [mcmc ngen=1 nruns=1 nchains=1;]
-mcmc ngen=1000000 nruns=2 nchains=4 printfreq=1000;
+mcmc ngen=100000 nruns=2 nchains=4 printfreq=1000;
 
 end;
