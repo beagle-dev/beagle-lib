@@ -183,7 +183,7 @@ public:
 
     GPUPtr GetDeviceHostPointer(void* hPtr);
     
-    unsigned int GetAvailableMemory();
+    size_t GetAvailableMemory();
     
     void GetDeviceName(int deviceNumber,
                        char* deviceName,

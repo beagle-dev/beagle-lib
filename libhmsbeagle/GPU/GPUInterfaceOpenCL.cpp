@@ -1020,7 +1020,7 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 //    return dPtr;
 }
 
-unsigned int GPUInterface::GetAvailableMemory() {
+size_t GPUInterface::GetAvailableMemory() {
     assert(0); // TODO: write function
 	return 0;
 //    return availableMem;
