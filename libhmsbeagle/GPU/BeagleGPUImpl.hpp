@@ -524,8 +524,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     #ifdef CUDA
         size_t availableMem = gpu->GetAvailableMemory();
     #ifdef BEAGLE_DEBUG_VALUES
-        fprintf(stderr, "     needed memory: %zu GB\n", neededMemory/(1024.0^3));
-        fprintf(stderr, "  available memory: %zu GB\n", availableMem/(1024.0^3));
+        fprintf(stderr, "     needed memory: %f MB\n", neededMemory/1000.0/1000);
+        fprintf(stderr, "  available memory: %f MB\n", availableMem/1000.0/1000);
     #endif     
         // TODO: fix memory check on CUDA and implement for OpenCL
         // if (availableMem < neededMemory) 
@@ -745,8 +745,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #ifdef BEAGLE_DEBUG_VALUES
     gpu->SynchronizeHost();
     size_t usedMemory = availableMem - gpu->GetAvailableMemory();
-    fprintf(stderr, "actual used memory: %zu GB\n", usedMemory/(1024.0^3));
-    fprintf(stderr, "        difference: %zu GB\n\n", usedMemory-neededMemory/(1024.0^3));
+    fprintf(stderr, "actual used memory: %f MB\n", usedMemory/1000.0/1000);
+    fprintf(stderr, "        difference: %f MB\n\n", (usedMemory-neededMemory)/1000.0/1000);
 #endif
 #endif
 
