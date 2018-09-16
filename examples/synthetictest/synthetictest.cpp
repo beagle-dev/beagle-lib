@@ -1241,8 +1241,8 @@ void runBeagle(int resource,
         patternPartitions = (int*) malloc(sizeof(int) * nsites);
         int partitionSize = nsites/partitionCount;
         for (int i = 0; i < nsites; i++) {
-            // int sitePartition =  gt_rand()%partitionCount;
-            int sitePartition =  i%partitionCount;
+            int sitePartition =  gt_rand()%partitionCount;
+            // int sitePartition =  i%partitionCount;
             // int sitePartition = i/partitionSize;
             if (sitePartition > partitionCount - 1)
                 sitePartition = partitionCount - 1;

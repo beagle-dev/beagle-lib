@@ -249,10 +249,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     if (DOUBLE_PRECISION) {
         realtypeMin = DBL_MIN;
-        scalingExponentThreshhold = 200;
+        scalingExponentThreshold = 200;
     } else {
         realtypeMin = FLT_MIN;
-        scalingExponentThreshhold = 20;
+        scalingExponentThreshold = 20;
     }
 
     kBufferCount = partialsBufferCount + compactBufferCount;
@@ -437,8 +437,12 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
-        if (kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT && hardwareThreads > 1) {
-            int partitionCount = kPatternCount/(BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT/2);
+        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+            kMinPatternCount *= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+        }
+        if (kPatternCount >= kMinPatternCount && hardwareThreads > 1) {
+            int partitionCount = kPatternCount/(kMinPatternCount/2);
             if (partitionCount > hardwareThreads/2) {
                 partitionCount = hardwareThreads/2;
             } 
@@ -455,7 +459,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
             gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
 
-            if (kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT*4) {
+            if (kPatternCount >= kMinPatternCount*4) {
                 gAutoPartitionIndices = (int*) malloc(sizeof(int) * partitionCount);
                 for (int i=0; i<partitionCount; i++) {
                     gAutoPartitionIndices[i] = i;
@@ -714,7 +718,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
 
         if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
             kNumThreads = std::thread::hardware_concurrency();
-            if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT) {
+            if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= kMinPatternCount) {
                 if (partitionCount < kNumThreads)
                     kNumThreads = partitionCount;
 
@@ -3612,7 +3616,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(REALTYPE
                 if (*activateScaling == 0) {
                     int expTmp;
                     frexp(destP[u], &expTmp);
-                    if (abs(expTmp) > scalingExponentThreshhold) 
+                    if (abs(expTmp) > scalingExponentThreshold) 
                         *activateScaling = 1;
                 }
                 

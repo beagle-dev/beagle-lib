@@ -63,7 +63,7 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
-  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshhold;
+  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshold;
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternPartitionsStartPatterns;
 
 public:

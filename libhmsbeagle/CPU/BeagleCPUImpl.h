@@ -54,7 +54,11 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 256 // do not use CPU auto-threading for problems with fewer patterns
+//  TODO: assess following cut-offs dynamically
+#define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD 8 // CPU category threshold
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW 256 // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH 1280 // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
+
 
 namespace beagle {
 namespace cpu {
@@ -87,11 +91,12 @@ protected:
     int kMaxPartitionCount;
     bool kPartitionsInitialised;
     bool kPatternsReordered;
+    int kMinPatternCount;
 
     long kFlags;
     
     REALTYPE realtypeMin;
-    int scalingExponentThreshhold;
+    int scalingExponentThreshold;
 
     EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* gEigenDecomposition;
 

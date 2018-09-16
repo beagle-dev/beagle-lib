@@ -631,14 +631,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kDerivBuffersInitialised = false;
 
     int bufferCountTotal = kBufferCount;
-    if (bufferCountTotal < 2*kTipPartialsBufferCount)
-        bufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
+    int partialsBufferCountTotal = kPartialsBufferCount;
+    if (partialsBufferCountTotal < 2*kTipPartialsBufferCount)
+        partialsBufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
 
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), bufferCountTotal);
 
     ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
-    GPUPtr dPartialsTmpOrigin = gpu->AllocateMemory(bufferCountTotal * ptrIncrement); 
+    GPUPtr dPartialsTmpOrigin = gpu->AllocateMemory(partialsBufferCountTotal * ptrIncrement); 
     dPartialsOrigin = gpu->CreateSubPointer(dPartialsTmpOrigin, 0, ptrIncrement);
     hPartialsOffsets = (unsigned int*) calloc(sizeof(unsigned int), bufferCountTotal);
     kIndexOffsetPat = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);

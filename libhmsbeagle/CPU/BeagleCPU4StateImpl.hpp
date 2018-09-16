@@ -368,7 +368,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(RE
                 if (abs(expTmp) > abs(expMax))
                     expMax = expTmp;
 
-                if(abs(expMax) > scalingExponentThreshhold) {
+                if(abs(expMax) > scalingExponentThreshold) {
                     *activateScaling = 1;
                 }
             }
