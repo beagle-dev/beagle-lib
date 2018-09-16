@@ -439,7 +439,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         int hardwareThreads = std::thread::hardware_concurrency();
         kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
         if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
-            kMinPatternCount *= BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 1) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);

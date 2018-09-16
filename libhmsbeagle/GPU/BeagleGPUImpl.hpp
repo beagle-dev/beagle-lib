@@ -632,8 +632,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     int bufferCountTotal = kBufferCount;
     int partialsBufferCountTotal = kPartialsBufferCount;
-    if (partialsBufferCountTotal < 2*kTipPartialsBufferCount)
-        partialsBufferCountTotal = 2*kTipPartialsBufferCount; // for potential partitioning reorder, TODO: allocate only when needed
+
+    // for potential partitioning reorder, TODO: allocate only when needed
+    if (partialsBufferCountTotal < 2*kTipPartialsBufferCount) {
+        partialsBufferCountTotal = 2*kTipPartialsBufferCount; 
+        if (bufferCountTotal < 2*kTipPartialsBufferCount) {
+            bufferCountTotal = 2*kTipPartialsBufferCount; 
+        }
+    }
+
 
     // Fill with 0s so 'free' does not choke if unallocated
     dPartials = (GPUPtr*) calloc(sizeof(GPUPtr), bufferCountTotal);

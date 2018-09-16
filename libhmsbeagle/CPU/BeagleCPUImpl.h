@@ -55,7 +55,7 @@
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
 //  TODO: assess following cut-offs dynamically
-#define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD 8 // CPU category threshold
+#define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD 16 // CPU category threshold
 #define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW 256 // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
 #define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH 1280 // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
 
