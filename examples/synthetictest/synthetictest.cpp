@@ -1252,6 +1252,7 @@ void runBeagle(int resource,
         // beagleSetPatternPartitions(instances[0], partitionCount, patternPartitions);
     }
 
+    gt_srand(randomSeed);   // reset the random seed...
 
     // create base frequency array
 
