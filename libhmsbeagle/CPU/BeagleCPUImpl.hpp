@@ -689,61 +689,62 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         if (gPatternPartitionsStartPatterns == NULL)
             throw std::bad_alloc();
 
-        if (kThreadingEnabled) {
-            // Send stop signal to all threads and join them...
-            for (int i = 0; i < kNumThreads; i++) {
-                threadData* td = &gThreads[i];
-                std::unique_lock<std::mutex> l(td->m);
-                td->stop = true;
-                td->cv.notify_one();
-            }
-
-            // Join all the threads
-            for (int i = 0; i < kNumThreads; i++) {
-                threadData* td = &gThreads[i];
-                td->t.join();
-            }
-
-            delete[] gThreads;
-            delete[] gFutures;
-
-            for (int i=0; i<kNumThreads; i++) {
-                free(gThreadOperations[i]);
-            }
-            free(gThreadOperations);
-            free(gThreadOpCounts);
-
-            kThreadingEnabled = false;
-        }
-
-        if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
-            kNumThreads = std::thread::hardware_concurrency();
-            if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= kMinPatternCount) {
-                if (partitionCount < kNumThreads)
-                    kNumThreads = partitionCount;
-
-                gThreads = new threadData[kNumThreads];
-                for (int i = 0; i < kNumThreads; i++) {
-                    gThreads[i].t = std::thread(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting, this, &gThreads[i]);
-                }
-
-                gFutures = new std::shared_future<void>[kNumThreads];
-                if (gFutures == NULL)
-                    throw std::bad_alloc();
-
-                gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
-                for (int i=0; i<kNumThreads; i++) {
-                    gThreadOperations[i] = (int*) malloc(sizeof(int) * BEAGLE_PARTITION_OP_COUNT * kBufferCount * partitionCount);
-                }
-
-                gThreadOpCounts = (int*) malloc(sizeof(int) * kNumThreads);
-
-                kThreadingEnabled = true;
-            }
-        }
-
         kMaxPartitionCount = partitionCount;
     }
+
+    if (kThreadingEnabled) {
+        // Send stop signal to all threads and join them...
+        for (int i = 0; i < kNumThreads; i++) {
+            threadData* td = &gThreads[i];
+            std::unique_lock<std::mutex> l(td->m);
+            td->stop = true;
+            td->cv.notify_one();
+        }
+
+        // Join all the threads
+        for (int i = 0; i < kNumThreads; i++) {
+            threadData* td = &gThreads[i];
+            td->t.join();
+        }
+
+        delete[] gThreads;
+        delete[] gFutures;
+
+        for (int i=0; i<kNumThreads; i++) {
+            free(gThreadOperations[i]);
+        }
+        free(gThreadOperations);
+        free(gThreadOpCounts);
+
+        kThreadingEnabled = false;
+    }
+
+    if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
+        kNumThreads = std::thread::hardware_concurrency();
+        if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= kMinPatternCount) {
+            if (partitionCount < kNumThreads)
+                kNumThreads = partitionCount;
+
+            gThreads = new threadData[kNumThreads];
+            for (int i = 0; i < kNumThreads; i++) {
+                gThreads[i].t = std::thread(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting, this, &gThreads[i]);
+            }
+
+            gFutures = new std::shared_future<void>[kNumThreads];
+            if (gFutures == NULL)
+                throw std::bad_alloc();
+
+            gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
+            for (int i=0; i<kNumThreads; i++) {
+                gThreadOperations[i] = (int*) malloc(sizeof(int) * BEAGLE_PARTITION_OP_COUNT * kBufferCount * partitionCount);
+            }
+
+            gThreadOpCounts = (int*) malloc(sizeof(int) * kNumThreads);
+
+            kThreadingEnabled = true;
+        }
+    }
+
 
     memcpy(gPatternPartitions, inPatternPartitions, sizeof(int) * kPatternCount);
 

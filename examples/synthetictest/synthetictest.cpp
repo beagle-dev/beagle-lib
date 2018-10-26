@@ -1806,26 +1806,27 @@ void runBeagle(int resource,
         fprintf(stdout, ")\n");
     }
     
-    if (partitionCount > 1) {
-        fprintf(stdout, " (");
-        for (int p=0; p < partitionCount; p++) {
-            fprintf(stdout, "p%dD1 = %.5f", p, partitionD1[p]);
-            if (p < partitionCount - 1)
-                fprintf(stdout, ", ");
+    if (calcderivs) {
+        if (partitionCount > 1) {
+            fprintf(stdout, " (");
+            for (int p=0; p < partitionCount; p++) {
+                fprintf(stdout, "p%dD1 = %.5f", p, partitionD1[p]);
+                if (p < partitionCount - 1)
+                    fprintf(stdout, ", ");
+            }
+            fprintf(stdout, ")\n");
         }
-        fprintf(stdout, ")\n");
-    }
-    
-    if (partitionCount > 1) {
-        fprintf(stdout, " (");
-        for (int p=0; p < partitionCount; p++) {
-            fprintf(stdout, "p%dD2 = %.5f", p, partitionD2[p]);
-            if (p < partitionCount - 1)
-                fprintf(stdout, ", ");
+        
+        if (partitionCount > 1) {
+            fprintf(stdout, " (");
+            for (int p=0; p < partitionCount; p++) {
+                fprintf(stdout, "p%dD2 = %.5f", p, partitionD2[p]);
+                if (p < partitionCount - 1)
+                    fprintf(stdout, ", ");
+            }
+            fprintf(stdout, ")\n");
         }
-        fprintf(stdout, ")\n");
     }
-
 
     if (sitelikes) {
         double* siteLogLs = (double*) malloc(sizeof(double) * nsites);
