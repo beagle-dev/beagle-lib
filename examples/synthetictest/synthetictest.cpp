@@ -947,7 +947,7 @@ void runBeagle(int resource,
                bool fullTiming,
                bool requireDoublePrecision,
                bool disableVector,
-               bool disableThreads,
+               bool enableThreads,
                int compactTipCount,
                int randomSeed,
                int rescaleFrequency,
@@ -973,6 +973,7 @@ void runBeagle(int resource,
                bool postorderTraversal,
                bool newTreePerRep,
                bool newParametersPerRep,
+               int  threadCount,
                int* resourceList,
                int  resourceCount)
 {
@@ -1025,7 +1026,7 @@ void runBeagle(int resource,
         long requirementFlags =
         (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
         (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
-        (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0);
+        (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0);
 
         // print resource list
         BeagleBenchmarkedResourceList* rBList;
@@ -1126,7 +1127,7 @@ void runBeagle(int resource,
                     (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
 		    (multiRsrc ? BEAGLE_FLAG_PARALLELOPS_STREAMS : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                     (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
-                    (disableThreads ? BEAGLE_FLAG_THREADING_NONE : 0) |
+                    (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0) |
                     (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                     (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                     (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
@@ -1152,6 +1153,10 @@ void runBeagle(int resource,
 
             if (inst+1 < instanceCount) {
                 fprintf(stdout, "and\n\n");
+            }
+
+            if (threadCount > 1) {
+                beagleSetCPUThreadCount(instance, threadCount);
             }
 
         }
@@ -2145,7 +2150,7 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--disablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--enablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters] [--threads]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllonly]";
@@ -2171,7 +2176,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* fullTiming,
                                     bool* requireDoublePrecision,
                                     bool* disableVector,
-                                    bool* disableThreads,
+                                    bool* enableThreads,
                                     int* compactTipCount,
                                     int* randomSeed,
                                     int* rescaleFrequency,
@@ -2196,7 +2201,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* multiRsrc,
                                     bool* postorderTraversal,
                                     bool* newTreePerRep,
-                                    bool* newParametersPerRep)    {
+                                    bool* newParametersPerRep,
+                                    int* threadCount)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -2208,6 +2214,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     bool expecting_rescaleFrequency = false;
     bool expecting_eigenCount = false;
     bool expecting_partitions = false;
+    bool expecting_threads = false;
     
     for (unsigned i = 1; i < argc; ++i) {
         std::string option = argv[i];
@@ -2251,6 +2258,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_partitions) {
             *partitions = (unsigned)atoi(option.c_str());
             expecting_partitions = false;
+        } else if (expecting_threads) {
+            *threadCount = (unsigned)atoi(option.c_str());
+            expecting_threads = false;
         } else if (option == "--help") {
             helpMessage();
         } else if (option == "--resourcelist") {
@@ -2287,8 +2297,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *fullTiming = true;
         } else if (option == "--disablevector") {
             *disableVector = true;
-        } else if (option == "--disablethreads") {
-            *disableThreads = true;
+        } else if (option == "--enablethreads") {
+            *enableThreads = true;
         } else if (option == "--unrooted") {
             *unrooted = true;
         } else if (option == "--calcderivs") {
@@ -2336,6 +2346,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *newTreePerRep = true;
         } else if (option == "--newparameters") {
             *newParametersPerRep = true;
+        } else if (option == "--threads") {
+            expecting_threads = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -2454,7 +2466,7 @@ int main( int argc, const char* argv[] )
     bool dynamicScaling = false;
     bool requireDoublePrecision = false;
     bool disableVector = false;
-    bool disableThreads = false;
+    bool enableThreads = false;
     bool unrooted = false;
     bool calcderivs = false;
     int compactTipCount = 0;
@@ -2480,6 +2492,7 @@ int main( int argc, const char* argv[] )
     bool postorderTraversal = false;
     bool newTreePerRep = false;
     bool newParametersPerRep = false;
+    int threadCount = 1;
     useStdlibRand = false;
 
     std::vector<int> rsrc;
@@ -2495,11 +2508,12 @@ int main( int argc, const char* argv[] )
     
     interpretCommandLineParameters(argc, argv, &stateCount, &ntaxa, &nsites, &manualScaling, &autoScaling,
                                    &dynamicScaling, &rateCategoryCount, &rsrc, &nreps, &fullTiming,
-                                   &requireDoublePrecision, &disableVector, &disableThreads, &compactTipCount, &randomSeed,
+                                   &requireDoublePrecision, &disableVector, &enableThreads, &compactTipCount, &randomSeed,
                                    &rescaleFrequency, &unrooted, &calcderivs, &logscalers,
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &pllOnly, &multiRsrc,
-                                   &postorderTraversal, &newTreePerRep, &newParametersPerRep);
+                                   &postorderTraversal, &newTreePerRep, &newParametersPerRep,
+                                   &threadCount);
     
 
     std::cout << "\nSimulating genomic ";
@@ -2549,7 +2563,7 @@ int main( int argc, const char* argv[] )
                           fullTiming,
                           requireDoublePrecision,
                           disableVector,
-                          disableThreads,
+                          enableThreads,
                           compactTipCount,
                           randomSeed,
                           rescaleFrequency,
@@ -2575,6 +2589,7 @@ int main( int argc, const char* argv[] )
                           postorderTraversal,
                           newTreePerRep,
                           newParametersPerRep,
+                          threadCount,
                           rsrcList,
                           rsrcCount);
             }

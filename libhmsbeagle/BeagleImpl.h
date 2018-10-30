@@ -59,6 +59,8 @@ public:
     
     virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
     
+    virtual int setCPUThreadCount(int threadCount) = 0;
+
     virtual int setTipStates(int tipIndex,
                              const int* inStates) = 0;
 

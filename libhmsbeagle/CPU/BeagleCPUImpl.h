@@ -180,6 +180,8 @@ public:
     // initialization of instance,  returnInfo can be null
     int getInstanceDetails(BeagleInstanceDetails* returnInfo);
 
+    int setCPUThreadCount(int threadCount);
+
     // set the states for a given tip
     //
     // tipIndex the index of the tip

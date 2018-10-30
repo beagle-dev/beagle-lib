@@ -229,6 +229,8 @@ public:
     
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
+    int setCPUThreadCount(int threadCount);
+
     int setTipStates(int tipIndex,
                      const int* inStates);
 

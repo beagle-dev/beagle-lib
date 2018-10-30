@@ -320,10 +320,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_INVEVEC_STANDARD;
 
-    if (requirementFlags & BEAGLE_FLAG_THREADING_NONE || preferenceFlags & BEAGLE_FLAG_THREADING_NONE)
-        kFlags |= BEAGLE_FLAG_THREADING_NONE;
-    else
+    if (requirementFlags & BEAGLE_FLAG_THREADING_CPP || preferenceFlags & BEAGLE_FLAG_THREADING_CPP)
         kFlags |= BEAGLE_FLAG_THREADING_CPP;
+    else
+        kFlags |= BEAGLE_FLAG_THREADING_NONE;
     
     if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
         gEigenDecomposition = new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
@@ -440,6 +440,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
         if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
             kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+        } else {
+            hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 1) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
@@ -493,6 +495,40 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
         returnInfo->flags |= kFlags;
 
         returnInfo->implName = (char*) getName();
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
+
+    if (threadCount < 1)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
+        int partitionCount = threadCount;
+
+        int* patternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
+        int partitionSize = kPatternCount/partitionCount;
+        for (int i=0; i<kPatternCount; i++) {
+            int sitePartition = i/partitionSize;
+            if (sitePartition > partitionCount - 1)
+                sitePartition = partitionCount - 1;
+            patternPartitions[i] = sitePartition;
+        }
+        setPatternPartitions(partitionCount, patternPartitions);
+
+        gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
+
+        gAutoPartitionIndices = (int*) malloc(sizeof(int) * partitionCount);
+        for (int i=0; i<partitionCount; i++) {
+            gAutoPartitionIndices[i] = i;
+        }
+        gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
+        kAutoRootPartitioningEnabled = true;
+
+        kAutoPartitioningEnabled = true;
     }
 
     return BEAGLE_SUCCESS;
@@ -720,29 +756,25 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     }
 
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
-        kNumThreads = std::thread::hardware_concurrency();
-        if (kNumThreads > 1 && partitionCount > 1 && kPatternCount >= kMinPatternCount) {
-            if (partitionCount < kNumThreads)
-                kNumThreads = partitionCount;
+        kNumThreads = partitionCount;
 
-            gThreads = new threadData[kNumThreads];
-            for (int i = 0; i < kNumThreads; i++) {
-                gThreads[i].t = std::thread(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting, this, &gThreads[i]);
-            }
-
-            gFutures = new std::shared_future<void>[kNumThreads];
-            if (gFutures == NULL)
-                throw std::bad_alloc();
-
-            gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
-            for (int i=0; i<kNumThreads; i++) {
-                gThreadOperations[i] = (int*) malloc(sizeof(int) * BEAGLE_PARTITION_OP_COUNT * kBufferCount * partitionCount);
-            }
-
-            gThreadOpCounts = (int*) malloc(sizeof(int) * kNumThreads);
-
-            kThreadingEnabled = true;
+        gThreads = new threadData[kNumThreads];
+        for (int i = 0; i < kNumThreads; i++) {
+            gThreads[i].t = std::thread(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting, this, &gThreads[i]);
         }
+
+        gFutures = new std::shared_future<void>[kNumThreads];
+        if (gFutures == NULL)
+            throw std::bad_alloc();
+
+        gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
+        for (int i=0; i<kNumThreads; i++) {
+            gThreadOperations[i] = (int*) malloc(sizeof(int) * BEAGLE_PARTITION_OP_COUNT * kBufferCount * partitionCount);
+        }
+
+        gThreadOpCounts = (int*) malloc(sizeof(int) * kNumThreads);
+
+        kThreadingEnabled = true;
     }
 
 

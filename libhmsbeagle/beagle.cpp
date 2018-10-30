@@ -734,6 +734,17 @@ int beagleFinalizeInstance(int instance) {
     }
 }
 
+int beagleSetCPUThreadCount(int instance,
+                            int threadCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setCPUThreadCount(threadCount);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetTipStates(int instance,
                  int tipIndex,
                  const int* inStates) {

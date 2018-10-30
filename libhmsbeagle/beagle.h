@@ -417,7 +417,22 @@ BEAGLE_DLLEXPORT int beagleFinalizeInstance(int instance);
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleFinalize(void);
-        
+
+/**
+ * @brief Set number of threads for native CPU implementation
+ *
+ * This function sets the number of threads to be used with a native CPU implementation.
+ * It should only be called after beagleCreateInstance. It has no effect on GPU-based
+ * implementations.
+ *
+ * @param instance             Instance number (input)
+ * @param threadCount          Number of threads (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
+                                             int threadCount);
+
 /**
  * @brief Set the compact state representation for tip node
  *
