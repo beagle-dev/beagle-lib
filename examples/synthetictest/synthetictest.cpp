@@ -1022,11 +1022,10 @@ void runBeagle(int resource,
                 benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_ALWAYS;
         }
 
-        long preferenceFlags = 0;
+        long preferenceFlags = (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0);
         long requirementFlags =
         (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
-        (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
-        (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0);
+	  (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0);
 
         // print resource list
         BeagleBenchmarkedResourceList* rBList;
@@ -1124,10 +1123,10 @@ void runBeagle(int resource,
                     scaleCount*eigenCount,          /**< scaling buffers */
                     &instanceResource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                     1,                /**< Length of resourceList list (input) */
+                    (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0) |
                     (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
 		    (multiRsrc ? BEAGLE_FLAG_PARALLELOPS_STREAMS : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                     (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
-                    (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0) |
                     (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
                     (ievectrans ? BEAGLE_FLAG_INVEVEC_TRANSPOSED : BEAGLE_FLAG_INVEVEC_STANDARD) |
                     (logscalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW) |
