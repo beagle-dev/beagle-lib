@@ -166,7 +166,7 @@ enum BeagleFlags {
     
     BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
     BEAGLE_FLAG_THREADING_OPENMP    = 1 << 13,   /**< OpenMP threading */
-    BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading */
+    BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading (default) */
     
     BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
@@ -421,9 +421,12 @@ BEAGLE_DLLEXPORT int beagleFinalize(void);
 /**
  * @brief Set number of threads for native CPU implementation
  *
- * This function sets the number of threads to be used with a native CPU implementation.
- * It should only be called after beagleCreateInstance. It has no effect on GPU-based
- * implementations.
+ * This function sets the number of worker threads to be used with a native CPU implementation.
+ * It should only be called after beagleCreateInstance and requires the
+ * BEAGLE_FLAG_THREADING_CPP flag to be set. It has no effect on GPU-based
+ * implementations. It has no effect with the default BEAGLE_FLAG_THREADING_NONE setting.
+ * If BEAGLE_FLAG_THREADING_CPP is set and this function is not called BEAGLE will use 
+ * a heuristic to set an appropriate number of threads.
  *
  * @param instance             Instance number (input)
  * @param threadCount          Number of threads (input)
