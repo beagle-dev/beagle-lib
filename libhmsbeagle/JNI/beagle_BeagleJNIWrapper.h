@@ -57,6 +57,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_finalize
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setCPUThreadCount
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCPUThreadCount
+  (JNIEnv *, jobject, jint, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPatternWeights
  * Signature: (I[D)I
  */

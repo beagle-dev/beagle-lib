@@ -453,6 +453,10 @@ public class GeneralBeagleImpl implements Beagle {
         throw new UnsupportedOperationException("rescalePartialsByPartition not implemented in GeneralBeagleImpl");
     }
 
+    public void setCPUThreadCount(int threadCount) {
+       throw new UnsupportedOperationException("setCPUThreadCount not implemented in GeneralBeagleImpl");
+    }
+
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
