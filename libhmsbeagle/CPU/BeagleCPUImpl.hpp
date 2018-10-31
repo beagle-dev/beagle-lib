@@ -443,12 +443,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         } else {
             hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
         }
-        if (kPatternCount >= kMinPatternCount && hardwareThreads > 1) {
+        if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
             if (partitionCount > hardwareThreads/2) {
                 partitionCount = hardwareThreads/2;
             } 
-
             int* patternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
             int partitionSize = kPatternCount/partitionCount;
             for (int i=0; i<kPatternCount; i++) {
@@ -506,29 +505,43 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
     if (threadCount < 1)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
+    kThreadingEnabled = false;
+    kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
-        int partitionCount = threadCount;
+        int hardwareThreads = std::thread::hardware_concurrency();
+        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+        } 
+        if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
+            int partitionCount = kPatternCount/(kMinPatternCount/2);
+            if (partitionCount > threadCount) {
+                partitionCount = threadCount;
+            } 
 
-        int* patternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
-        int partitionSize = kPatternCount/partitionCount;
-        for (int i=0; i<kPatternCount; i++) {
-            int sitePartition = i/partitionSize;
-            if (sitePartition > partitionCount - 1)
-                sitePartition = partitionCount - 1;
-            patternPartitions[i] = sitePartition;
+            int* patternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
+            int partitionSize = kPatternCount/partitionCount;
+            for (int i=0; i<kPatternCount; i++) {
+                int sitePartition = i/partitionSize;
+                if (sitePartition > partitionCount - 1)
+                    sitePartition = partitionCount - 1;
+                patternPartitions[i] = sitePartition;
+            }
+            setPatternPartitions(partitionCount, patternPartitions);
+
+            gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
+
+            if (kPatternCount >= kMinPatternCount*4) {
+                gAutoPartitionIndices = (int*) malloc(sizeof(int) * partitionCount);
+                for (int i=0; i<partitionCount; i++) {
+                    gAutoPartitionIndices[i] = i;
+                }
+                gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
+                kAutoRootPartitioningEnabled = true;
+            }
+
+            kAutoPartitioningEnabled = true;
         }
-        setPatternPartitions(partitionCount, patternPartitions);
-
-        gAutoPartitionOperations = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount * BEAGLE_PARTITION_OP_COUNT);
-
-        gAutoPartitionIndices = (int*) malloc(sizeof(int) * partitionCount);
-        for (int i=0; i<partitionCount; i++) {
-            gAutoPartitionIndices[i] = i;
-        }
-        gAutoPartitionOutSumLogLikelihoods = (double*) malloc(sizeof(double) * partitionCount);
-        kAutoRootPartitioningEnabled = true;
-
-        kAutoPartitioningEnabled = true;
     }
 
     return BEAGLE_SUCCESS;

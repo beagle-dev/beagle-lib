@@ -421,8 +421,8 @@ BEAGLE_DLLEXPORT int beagleFinalize(void);
 /**
  * @brief Set number of threads for native CPU implementation
  *
- * This function sets the number of worker threads to be used with a native CPU implementation.
- * It should only be called after beagleCreateInstance and requires the
+ * This function sets the max number of worker threads to be used with a native CPU
+ * implementation. It should only be called after beagleCreateInstance and requires the
  * BEAGLE_FLAG_THREADING_CPP flag to be set. It has no effect on GPU-based
  * implementations. It has no effect with the default BEAGLE_FLAG_THREADING_NONE setting.
  * If BEAGLE_FLAG_THREADING_CPP is set and this function is not called BEAGLE will use 
