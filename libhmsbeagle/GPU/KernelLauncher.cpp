@@ -821,7 +821,6 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
-            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             if (endPattern == 0 ) {
                 KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                                 patternCount, categoryCount, 0, streamIndex, -1);
@@ -830,7 +829,6 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                 patternCount, categoryCount, 0, streamIndex, -1,
                                                 startPattern, endPattern);
             }
-            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
         
     } else {
@@ -966,7 +964,6 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
-            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             if (endPattern == 0 ) {
                 KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                                 patternCount, categoryCount,
@@ -986,7 +983,6 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
 #endif
                                                 , streamIndex, -1, startPattern, endPattern);
             }
-            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
 
     } else {        
@@ -1153,7 +1149,6 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 
         // Rescale partials and save scaling factors     
         if (doRescaling > 0) {
-            gpu->SynchronizeDeviceWithIndex(-1, streamIndex);
             if (endPattern == 0 ) {
                 KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
                                                 patternCount, categoryCount,
@@ -1173,7 +1168,6 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 #endif
                                                 , streamIndex, -1, startPattern, endPattern);
             }
-            gpu->SynchronizeDeviceWithIndex(streamIndex, -1);
         }
         
     } else {
