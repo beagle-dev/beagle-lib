@@ -50,8 +50,8 @@
 
 #include "libhmsbeagle/plugin/Plugin.h"
 
-#define BEAGLE_VERSION  PACKAGE_VERSION
-#define BEAGLE_CITATION "Using BEAGLE library v" PACKAGE_VERSION " for accelerated, parallel likelihood evaluation\n\
+#define BEAGLE_VERSION  PACKAGE_VERSION " (PRE-RELEASE)"
+#define BEAGLE_CITATION "Using BEAGLE library v" BEAGLE_VERSION " for accelerated, parallel likelihood evaluation\n\
 2009-, BEAGLE Working Group - https://beagle-dev.github.io/\n\
 Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
 
