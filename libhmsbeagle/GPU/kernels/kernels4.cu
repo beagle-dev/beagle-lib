@@ -1475,7 +1475,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL*
         if (matrixMax[pat] == 0)
             matrixMax[pat] = 1.0;
         scalingFactors[pattern] = matrixMax[pat]; 
-        cumulativeScaling[pattern] += log(matrixMax[pat]);
+        #ifdef CUDA
+            atomicAdd(&cumulativeScaling[pattern], log(matrixMax[pat]));
+        #else
+            cumulativeScaling[pattern] += log(matrixMax[pat]);
+        #endif
     }
     SCALE_PARTIALS_4_GPU();
 #endif // FW_OPENCL_CPU
@@ -1509,7 +1513,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateByPartition(
             if (matrixMax[pat] == 0)
                 matrixMax[pat] = 1.0;
             scalingFactors[pattern] = matrixMax[pat];
-            cumulativeScaling[pattern] += log(matrixMax[pat]);
+            #ifdef CUDA
+                atomicAdd(&cumulativeScaling[pattern], log(matrixMax[pat]));
+            #else
+                cumulativeScaling[pattern] += log(matrixMax[pat]);
+            #endif
         }
         SCALE_PARTIALS_4_GPU();
     }
@@ -1545,7 +1553,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL
         } else {
             REAL logMax = log(matrixMax[pat]);
             scalingFactors[pattern] = logMax;
-            cumulativeScaling[pattern] += logMax; // TODO: Fix, this is both a read and write
+            #ifdef CUDA
+                atomicAdd(&cumulativeScaling[pattern], logMax);
+            #else
+                cumulativeScaling[pattern] += logMax;
+            #endif
         }
     }
     SCALE_PARTIALS_4_GPU();
@@ -1587,7 +1599,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLogByPartitio
             } else {
                 REAL logMax = log(matrixMax[pat]);
                 scalingFactors[pattern] = logMax;
-                cumulativeScaling[pattern] += logMax;
+                #ifdef CUDA
+                    atomicAdd(&cumulativeScaling[pattern], logMax);
+                #else
+                    cumulativeScaling[pattern] += logMax;
+                #endif
             }
         }
         SCALE_PARTIALS_4_GPU();

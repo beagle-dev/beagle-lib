@@ -614,7 +614,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulate(KW_GLOBAL_VAR REAL*
         if (max == 0)
             max = 1.0;
         scalingFactors[pattern] = max;
-        cumulativeScaling[pattern] += log(max);
+        #ifdef CUDA
+            atomicAdd(&cumulativeScaling[pattern], log(max));
+        #else
+            cumulativeScaling[pattern] += log(max);
+        #endif
     }
     SCALE_PARTIALS_X_GPU();
 #endif // FW_OPENCL_CPU
@@ -650,7 +654,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingAccumulateScalersLog(KW_GLOBAL
         } else {
             REAL logMax = log(max);
             scalingFactors[pattern] = logMax;
-            cumulativeScaling[pattern] += logMax;
+            #ifdef CUDA
+                atomicAdd(&cumulativeScaling[pattern], logMax);
+            #else
+                cumulativeScaling[pattern] += logMax;
+            #endif
         }
     }
     SCALE_PARTIALS_X_GPU();
