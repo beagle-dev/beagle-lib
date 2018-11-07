@@ -161,7 +161,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*4*kPaddedPatternCount + 4*startPattern;
+        int v = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          v += 4*startPattern;
+        }
+
         int w = l*4*OFFSET;
 
         for (int k = startPattern; k < endPattern; k++) {
@@ -194,7 +198,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALT
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*4*kPaddedPatternCount + 4*startPattern;
+        int v = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          v += 4*startPattern;
+        }
+
         int w = l*4*OFFSET;
         
         for (int k = startPattern; k < endPattern; k++) {
@@ -230,7 +238,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          u += 4*startPattern;
+        }
+
         int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
@@ -265,7 +277,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REA
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          u += 4*startPattern;
+        }
+
         int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(2,matrices2,w);
@@ -301,7 +317,10 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(REALTYPE* des
  
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          u += 4*startPattern;
+        }
         int w = l*4*OFFSET;
                 
         PREFETCH_MATRIX(1,matrices1,w);                
@@ -392,7 +411,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsFixedScaling(R
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+          u += 4*startPattern;
+        }
+
         int w = l*4*OFFSET;
         
         PREFETCH_MATRIX(1,matrices1,w);
