@@ -8,7 +8,8 @@ The aim is to provide high performance evaluation 'services' to a wide range of 
 
 Currently the following software packages can make use of the BEAGLE library:
 
-* BEAST [http://beast.bio.ed.ac.uk/](http://beast.bio.ed.ac.uk/)
+* BEAST [http://beast.community/](http://beast.community/)
+* BEAST2 [http://beast2.org/](http://beast2.org/)
 * Garli [https://molevol.mbl.edu/index.php/Garli_wiki](https://molevol.mbl.edu/index.php/Garli_wiki)
 * MrBayes [http://mrbayes.sourceforge.net/](http://mrbayes.sourceforge.net/)
 * PhyML [http://www.atgc-montpellier.fr/phyml/](http://www.atgc-montpellier.fr/phyml/)
