@@ -47,6 +47,8 @@
 #ifdef _WIN32
     //From January 1, 1601 (UTC). to January 1,1970
     #define FACTOR 0x19db1ded53e8000 
+	#include <winsock.h>
+	#include <string>
 #else
     #include <sys/time.h>
 #endif

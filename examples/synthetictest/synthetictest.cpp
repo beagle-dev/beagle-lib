@@ -1214,11 +1214,9 @@ void runBeagle(int resource,
         }
     }
 
-#ifdef _WIN32
-    std::vector<double> rates(rateCategoryCount);
-#else
-    double rates[rateCategoryCount];
-#endif
+
+    double* rates = (double*) malloc(rateCategoryCount * sizeof(double));
+
     
     setNewCategoryRates(partitionCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
@@ -1260,18 +1258,10 @@ void runBeagle(int resource,
 
     // create base frequency array
 
-#ifdef _WIN32
-    std::vector<double> freqs(stateCount);
-#else
-    double freqs[stateCount];
-#endif
+	double* freqs = (double*) malloc(stateCount * sizeof(double));
     
     // create an array containing site category weights
-#ifdef _WIN32
-    std::vector<double> weights(rateCategoryCount);
-#else
-    double weights[rateCategoryCount];
-#endif
+	double* weights = (double*) malloc(rateCategoryCount * sizeof(double));
 
     setNewCategoryWeights(eigenCount, rateCategoryCount, instanceCount, instances,
 #ifdef HAVE_PLL
@@ -2119,6 +2109,10 @@ void runBeagle(int resource,
         pll_partition_destroy(pll_partition);
     }
 #endif // HAVE_PLL
+
+	free(freqs);
+	free(weights);
+	free(rates);
 
     if (multiRsrc) {
         std::exit(0);
