@@ -21,8 +21,8 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Binary installers
 
-* [BEAGLE v3.0.2 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.2/BEAGLE.v3.0.2.pkg)
-* [BEAGLE v3.0.1 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.1/BEAGLE.v3.0.1.msi)
+* [BEAGLE v3.1.0 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.pkg)
+* [BEAGLE v3.1.0 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.msi)
 
 - [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
 - [BEAGLE v2.1.0 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
