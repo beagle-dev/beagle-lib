@@ -435,7 +435,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     kThreadingEnabled = false;
     kAutoPartitioningEnabled = false;
-    if (0 && kFlags & BEAGLE_FLAG_THREADING_CPP) {
+    if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
         kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
         if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
