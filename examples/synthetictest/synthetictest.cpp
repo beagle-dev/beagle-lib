@@ -2418,7 +2418,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         abort("invalid number for partitions supplied on the command line");
 
     if (*randomTree && (*eigenCount!=1 || *unrooted))
-        abort("random tree topology can only be used with eigencount=1 and unrooted trees");
+        abort("random tree topology can only be used with eigencount=1 and rooted trees");
 
     if (*partitions > 1 && *multiRsrc)
         abort("multiple resources cannot be used with partitioning");
