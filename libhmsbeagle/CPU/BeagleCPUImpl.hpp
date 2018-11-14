@@ -435,7 +435,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     kThreadingEnabled = false;
     kAutoPartitioningEnabled = false;
-    if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
+    if (0 && kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
         kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
         if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
@@ -1563,10 +1563,12 @@ BEAGLE_CPU_TEMPLATE
                                                         int partitionCount,
                                                         double* outSumLogLikelihoodByPartition) {
 
+
     int partitionsPerThreadFloor = partitionCount / kNumThreads;
     int partitionsRemainder = partitionCount % kNumThreads;
     int currentPartitionIndex = 0;
-    for (int i=0; i<kNumThreads; i++) {
+    int threadsUsed = (partitionCount < kNumThreads ? partitionCount : kNumThreads);
+    for (int i=0; i<threadsUsed; i++) {
         int partitionCountThread = partitionsPerThreadFloor;
         if (partitionsRemainder) {
             partitionCountThread++;
@@ -2244,10 +2246,11 @@ BEAGLE_CPU_TEMPLATE
                                                         int partitionCount,
                                                         double* outSumLogLikelihoodByPartition) {
 
-    int partitionsPerThreadFloor = kPartitionCount / kNumThreads;
-    int partitionsRemainder = kPartitionCount % kNumThreads;
+    int partitionsPerThreadFloor = partitionCount / kNumThreads;
+    int partitionsRemainder = partitionCount % kNumThreads;
     int currentPartitionIndex = 0;
-    for (int i=0; i<kNumThreads; i++) {
+    int threadsUsed = (partitionCount < kNumThreads ? partitionCount : kNumThreads);
+    for (int i=0; i<threadsUsed; i++) {
         int partitionCountThread = partitionsPerThreadFloor;
         if (partitionsRemainder) {
             partitionCountThread++;
