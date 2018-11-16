@@ -128,7 +128,7 @@ enum BeagleReturnCodes {
                                                 *   array */
     BEAGLE_ERROR_NO_RESOURCE            = -6,  /**< No resource matches requirements */
     BEAGLE_ERROR_NO_IMPLEMENTATION      = -7,  /**< No implementation matches requirements */
-    BEAGLE_ERROR_FLOATING_POINT         = -8   /**< Floating-point range exceeded */
+    BEAGLE_ERROR_FLOATING_POINT         = -8   /**< Floating-point error (e.g., NaN) */
 };
 
 /**
