@@ -124,6 +124,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\libhmsbeagle\beagle.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\benchmark\BeagleBenchmark.cpp" />
+    <ClCompile Include="..\..\..\libhmsbeagle\benchmark\linalg.cpp" />
     <ClCompile Include="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.cpp" />
     <ClCompile Include="..\..\..\libhmsbeagle\plugin\Plugin.cpp" />
     <ClCompile Include="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.cpp" />
@@ -131,6 +133,8 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\libhmsbeagle\beagle.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\BeagleImpl.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\benchmark\BeagleBenchmark.h" />
+    <ClInclude Include="..\..\..\libhmsbeagle\benchmark\linalg.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\platform.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\JNI\beagle_BeagleJNIWrapper.h" />
     <ClInclude Include="..\..\..\libhmsbeagle\plugin\Plugin.h" />

@@ -138,6 +138,20 @@ public interface Beagle extends Serializable {
 
 
     /**
+     * Set number of threads for native CPU implementation
+     *
+     * This function sets the number of worker threads to be used with a native
+     * CPU implementation. It should only be called after beagleCreateInstance and
+     * requires the THREADING_CPP flag to be set. It has no effect on GPU-based
+     * implementations. It has no effect with the default THREADING_NONE setting.
+     * If THREADING_CPP is set and this function is not called BEAGLE will use 
+     * a heuristic to set an appropriate number of threads.
+     *
+     * @param threadCount          Number of threads (input)
+     */
+    void setCPUThreadCount(int threadCount);
+
+    /**
      * Set the weights for each pattern
      * @param patternWeights    Array containing patternCount weights
      */
@@ -470,7 +484,7 @@ public interface Beagle extends Serializable {
      * supporting ASYNCH may queue these calculations while other implementations perform these
      * operations immediately and in order.
      *
-     * If partitions have been set via beagleSetPatternPartitions, operationCount should be a
+     * If partitions have been set via setPatternPartitions, operationCount should be a
      * multiple of partitionCount.
      *
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
@@ -499,7 +513,7 @@ public interface Beagle extends Serializable {
      * supporting ASYNCH may queue these calculations while other implementations perform these
      * operations immediately and in order.
      *
-     * If partitions have been set via beagleSetPatternPartitions, operationCount should be a
+     * If partitions have been set via setPatternPartitions, operationCount should be a
      * multiple of partitionCount.
      *
      * Operations list is a list of 9-tuple integer indices, with one 9-tuple per operation.

@@ -10,6 +10,9 @@
     <Filter Include="libhmsbeagle\plugin">
       <UniqueIdentifier>{33a18028-f838-4228-8cd1-21300f1c45e2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libhmsbeagle\benchmark">
+      <UniqueIdentifier>{a61c49e8-9c33-4036-9fba-7fcaeccafc57}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\libhmsbeagle\beagle.cpp">
@@ -23,6 +26,12 @@
     </ClCompile>
     <ClCompile Include="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.cpp">
       <Filter>libhmsbeagle\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\benchmark\BeagleBenchmark.cpp">
+      <Filter>libhmsbeagle\benchmark</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\libhmsbeagle\benchmark\linalg.cpp">
+      <Filter>libhmsbeagle\benchmark</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -46,6 +55,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\libhmsbeagle\plugin\WinSharedLibrary.h">
       <Filter>libhmsbeagle\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\benchmark\BeagleBenchmark.h">
+      <Filter>libhmsbeagle\benchmark</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\libhmsbeagle\benchmark\linalg.h">
+      <Filter>libhmsbeagle\benchmark</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

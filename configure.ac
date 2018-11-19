@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 3.1.0, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.1.1, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=""}
 
@@ -13,17 +13,14 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 #release versioning
 GENERIC_MAJOR_VERSION=3
 GENERIC_MINOR_VERSION=1
-GENERIC_MICRO_VERSION=0
+GENERIC_MICRO_VERSION=1
 
 #API version
 GENERIC_API_VERSION=1
 AC_SUBST(GENERIC_API_VERSION)
 
-#revision version
-GENERIC_REVISION_VERSION=$GENERIC_MINOR_VERSION
-
 #shared library versioning
-GENERIC_LIBRARY_VERSION=3:$GENERIC_REVISION_VERSION:3
+GENERIC_LIBRARY_VERSION=4:1:3
 #
 #             current:revision:age
 #                |        |     |
@@ -155,12 +152,16 @@ fi
 # ------------------------------------------------------------------------------
 AM_CXXFLAGS="$AM_CXXFLAGS -std=c++11"
 
+CPU_CFLAGS=
+CPU_LIBS=
+
 case $host_os in
 *linux*)
   dnl Check for gcc
   if test x$GCC = xyes
   then
-    AM_CXXFLAGS="$AM_CXXFLAGS -pthread"
+    CPU_CFLAGS="$CPU_CFLAGS -pthread"
+    CPU_LIBS="$CPU_LIBS -lpthread"
   fi
 esac
 
@@ -465,6 +466,8 @@ AC_SUBST(JNI_EXTRA_LDFLAGS)
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(LIBS)
+AC_SUBST(CPU_CFLAGS)
+AC_SUBST(CPU_LIBS)
 
 # ------------------------------------------------------------------------------
 # Doxygen support 

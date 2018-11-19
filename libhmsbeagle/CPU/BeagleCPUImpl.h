@@ -54,7 +54,11 @@
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT 256 // do not use CPU auto-threading for problems with fewer patterns
+//  TODO: assess following cut-offs dynamically
+#define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD 16 // CPU category threshold
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW 256 // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH 768 // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
+
 
 namespace beagle {
 namespace cpu {
@@ -80,18 +84,19 @@ protected:
 
     int kPartialsSize;  /// stored for convenience. kPartialsSize = kStateCount*kPatternCount
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
-    
-    int kInternalPartialsBufferCount; 
+
+    int kInternalPartialsBufferCount;
 
     int kPartitionCount;
     int kMaxPartitionCount;
     bool kPartitionsInitialised;
     bool kPatternsReordered;
+    int kMinPatternCount;
 
     long kFlags;
-    
+
     REALTYPE realtypeMin;
-    int scalingExponentThreshhold;
+    int scalingExponentThreshold;
 
     EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* gEigenDecomposition;
 
@@ -101,19 +106,19 @@ protected:
     int* gPatternPartitions;
     int* gPatternPartitionsStartPatterns;
     int* gPatternsNewOrder;
-    
+
     REALTYPE** gCategoryWeights;
     REALTYPE** gStateFrequencies;
-    
+
     //@ the size of these pointers are known at alloc-time, so the partials and
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     REALTYPE** gPartials;
     int** gTipStates;
     REALTYPE** gScaleBuffers;
-    
+
     signed short** gAutoScaleBuffers;
-    
+
     int* gActiveScalingFactors;
 
     // There will be kMatrixCount transitionMatrices.
@@ -130,7 +135,7 @@ protected:
     REALTYPE* grandNumeratorDerivTmp;
     REALTYPE* grandNumeratorLowerBoundDerivTmp;
     REALTYPE* grandNumeratorUpperBoundDerivTmp;
-    
+
     REALTYPE* outLogLikelihoodsTmp;
     REALTYPE* outFirstDerivativesTmp;
     REALTYPE* outSecondDerivativesTmp;
@@ -181,6 +186,8 @@ public:
     // initialization of instance,  returnInfo can be null
     int getInstanceDetails(BeagleInstanceDetails* returnInfo);
 
+    int setCPUThreadCount(int threadCount);
+
     // set the states for a given tip
     //
     // tipIndex the index of the tip
@@ -223,16 +230,16 @@ public:
                               const double* inEigenValues);
 
     int setStateFrequencies(int stateFrequenciesIndex,
-                            const double* inStateFrequencies);    
-    
+                            const double* inStateFrequencies);
+
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
-    
-    int setPatternWeights(const double* inPatternWeights); 
+
+    int setPatternWeights(const double* inPatternWeights);
 
     int setPatternPartitions(int partitionCount,
                              const int* inPatternPartitions);
-    
+
     // set the vector of category rates
     //
     // categoryRates an array containing categoryCount rate scalers
@@ -244,7 +251,7 @@ public:
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue);
-    
+
     int setTransitionMatrices(const int* matrixIndices,
                               const double* inMatrices,
                               const double* paddedValues,
@@ -340,11 +347,11 @@ public:
     int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
 
     int copyScaleFactors(int destScalingIndex,
-                         int srcScalingIndex);    
-                         
+                         int srcScalingIndex);
+
 	int getScaleFactors(int srcScalingIndex,
-                        double* scaleFactors);                          
-    
+                        double* scaleFactors);
+
     // calculate the site log likelihoods at a particular node
     //
     // rootNodeIndex the index of the root
@@ -412,8 +419,13 @@ public:
                                 double *outFirstDerivative,
                                 double *outDiagonalSecondDerivative);
 
+    int getLogLikelihood(double* outSumLogLikelihood);
+
+    int getDerivatives(double* outSumFirstDerivative,
+                       double* outSumSecondDerivative);
+
     int getSiteLogLikelihoods(double* outLogLikelihoods);
-    
+
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 
@@ -555,14 +567,14 @@ protected:
                                                   const int* partitionIndices,
                                                   int partitionCount,
                                                   double* outSumLogLikelihoodByPartition);
-    
+
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
                                              const int* stateFrequenciesIndices,
                                              const int* scaleBufferIndices,
                                              int count,
                                              double* outSumLogLikelihood);
-    
+
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
@@ -623,7 +635,7 @@ protected:
                                             const int* scalingFactorsIndices,
                                             int count,
                                             double* outSumLogLikelihood);
-    
+
     virtual int calcEdgeLogLikelihoodsFirstDeriv(const int parentBufferIndex,
                                                   const int childBufferIndex,
                                                   const int probabilityIndex,
@@ -633,7 +645,7 @@ protected:
                                                   const int scalingFactorsIndex,
                                                   double* outSumLogLikelihood,
                                                   double* outSumFirstDerivative);
-	
+
     virtual int calcEdgeLogLikelihoodsSecondDeriv(const int parentBufferIndex,
                                                    const int childBufferIndex,
                                                    const int probabilityIndex,
@@ -681,7 +693,7 @@ protected:
                                             const REALTYPE *scaleFactors,
                                             int startPattern,
                                             int endPattern);
-    
+
     virtual void calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                   const REALTYPE* partials1,
                                                   const REALTYPE* matrices1,
@@ -699,7 +711,7 @@ protected:
                                             REALTYPE *cumulativeScaleFactors,
                                             const int fillWithOnes,
                                             const int partitionIndex);
-    
+
     virtual void autoRescalePartials(REALTYPE *destP,
     		                     signed short *scaleFactors);
 

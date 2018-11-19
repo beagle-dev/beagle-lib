@@ -61,6 +61,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setCPUThreadCount(int threadCount) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setCPUThreadCount(instance, threadCount);
+        if (errCode != 0) {
+            throw new BeagleException("setCPUThreadCount", errCode);
+        }
+    }
+
     public void setPatternWeights(final double[] patternWeights) {
         int errCode = BeagleJNIWrapper.INSTANCE.setPatternWeights(instance, patternWeights);
         if (errCode != 0) {

@@ -59,6 +59,8 @@ public:
     
     virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
     
+    virtual int setCPUThreadCount(int threadCount) = 0;
+
     virtual int setTipStates(int tipIndex,
                              const int* inStates) = 0;
 
@@ -236,6 +238,11 @@ public:
                                                        double* outSumSecondDerivativeByPartition,
                                                        double* outSumSecondDerivative) = 0;
     
+    virtual int getLogLikelihood(double* outSumLogLikelihood) = 0;
+
+    virtual int getDerivatives(double* outSumFirstDerivative,
+                              double* outSumSecondDerivative) = 0;
+
     virtual int getSiteLogLikelihoods(double* outLogLikelihoods) = 0;
     
     virtual int getSiteDerivatives(double* outFirstDerivatives,

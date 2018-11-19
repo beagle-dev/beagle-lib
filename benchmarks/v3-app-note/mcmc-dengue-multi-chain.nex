@@ -1,0 +1,50 @@
+#NEXUS
+
+begin mrbayes;
+
+set autoclose=yes nowarn=yes seed=1 swapseed=1;
+
+exe Dengue997.nex;
+
+
+
+charset capsid = 1-342;
+charset glycoprotein = 343-834;
+charset envelope = 835-2325;
+charset NS1 = 2325-3381;
+charset NS2A = 3382-4038;
+charset NS2B = 4039-4428;
+charset NS3 = 4429-6285;
+charset NS4A = 6286-6735;
+charset NS4B = 6736-7482;
+charset NS5 = 7483-.;
+
+[partition by_codon = 3:1st_pos,2nd_pos,3rd_pos;]
+partition by_gene = 10:capsid,glycoprotein,envelope,NS1,NS2A,NS2B,NS3,NS4A,NS4B,NS5;
+
+set partition=by_gene;
+
+lset nst=6 rates=invgamma;
+
+[lset rates=propinv;]
+
+[prset brlenspr=clock:uni;]
+[prset applyto=(all) brlenspr=clock:uni;]
+
+prset applyto=(all) ratepr=variable;
+
+unlink  shape=(all);
+unlink  pinvar=(all);
+unlink  statefreq=(all);
+unlink  revmat=(all);
+unlink  ratemultiplier=(all);
+[unlink  brlens=(all);]
+[unlink  clockrate=(all);]
+
+set seed=1 swapseed=1;
+
+[mcmc ngen=50000 nruns=1 nchains=1;]
+[mcmc ngen=1 nruns=1 nchains=1;]
+mcmc ngen=100000 nruns=2 nchains=4 printfreq=1000;
+
+end;

@@ -63,6 +63,8 @@ public class BeagleJNIWrapper {
 
     public native int finalize(int instance);
 
+    public native int setCPUThreadCount(int instance, int threadCount);
+
     public native int setPatternWeights(int instance, final double[] patternWeights);
 
     public native int setPatternPartitions(int instance, int partitionCount, final int[] patternPartitions);

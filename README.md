@@ -8,10 +8,16 @@ The aim is to provide high performance evaluation 'services' to a wide range of 
 
 Currently the following software packages can make use of the BEAGLE library:
 
-* BEAST [http://beast.bio.ed.ac.uk/](http://beast.bio.ed.ac.uk/)
-* Garli [https://molevol.mbl.edu/index.php/Garli_wiki](https://molevol.mbl.edu/index.php/Garli_wiki)
-* MrBayes [http://mrbayes.sourceforge.net/](http://mrbayes.sourceforge.net/)
-* PhyML [http://www.atgc-montpellier.fr/phyml/](http://www.atgc-montpellier.fr/phyml/)
+* [BEAST](http://beast.community/)
+* [BEAST2](http://beast2.org/)
+* [MrBayes](https://github.com/NBISweden/MrBayes)
+
+Support for BEAGLE is experimental or in development for the following packages:
+
+* [Garli](https://molevol.mbl.edu/index.php/Garli_wiki)
+* [PhyML](http://www.atgc-montpellier.fr/phyml/)
+* [RevBayes](https://revbayes.github.io)
+* [PAUP*](https://paup.phylosolutions.com)
 
 ### References
 
@@ -21,8 +27,8 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Binary installers
 
-* [BEAGLE v3.0.2 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.2/BEAGLE.v3.0.2.pkg)
-* [BEAGLE v3.0.1 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.0.1/BEAGLE.v3.0.1.msi)
+* [BEAGLE v3.1.0 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.pkg)
+* [BEAGLE v3.1.0 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.msi)
 
 - [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
 - [BEAGLE v2.1.0 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)

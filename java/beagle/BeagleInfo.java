@@ -21,7 +21,7 @@ public class BeagleInfo {
 
     public static int[] getVersionNumbers() {
         String version = BeagleFactory.getVersion();
-        Pattern p = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
+        Pattern p = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+).*");
         Matcher m = p.matcher(version);
         if (m.matches()) {
             return new int[] {Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))};

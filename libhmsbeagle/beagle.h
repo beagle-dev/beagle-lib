@@ -128,7 +128,7 @@ enum BeagleReturnCodes {
                                                 *   array */
     BEAGLE_ERROR_NO_RESOURCE            = -6,  /**< No resource matches requirements */
     BEAGLE_ERROR_NO_IMPLEMENTATION      = -7,  /**< No implementation matches requirements */
-    BEAGLE_ERROR_FLOATING_POINT         = -8   /**< Floating-point range exceeded */
+    BEAGLE_ERROR_FLOATING_POINT         = -8   /**< Floating-point error (e.g., NaN) */
 };
 
 /**
@@ -166,7 +166,7 @@ enum BeagleFlags {
     
     BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
     BEAGLE_FLAG_THREADING_OPENMP    = 1 << 13,   /**< OpenMP threading */
-    BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading */
+    BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading (default) */
     
     BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
     BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
@@ -417,7 +417,25 @@ BEAGLE_DLLEXPORT int beagleFinalizeInstance(int instance);
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleFinalize(void);
-        
+
+/**
+ * @brief Set number of threads for native CPU implementation
+ *
+ * This function sets the max number of worker threads to be used with a native CPU
+ * implementation. It should only be called after beagleCreateInstance and requires the
+ * BEAGLE_FLAG_THREADING_CPP flag to be set. It has no effect on GPU-based
+ * implementations. It has no effect with the default BEAGLE_FLAG_THREADING_NONE setting.
+ * If BEAGLE_FLAG_THREADING_CPP is set and this function is not called BEAGLE will use 
+ * a heuristic to set an appropriate number of threads.
+ *
+ * @param instance             Instance number (input)
+ * @param threadCount          Number of threads (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
+                                             int threadCount);
+
 /**
  * @brief Set the compact state representation for tip node
  *
@@ -858,7 +876,7 @@ BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
  *
  * This function is optional and only has to be called by clients that "recycle" partials.
  *
- * If used, this function must be called after an beagleUpdatePartials call and must refer to
+ * If used, this function must be called after a beagleUpdatePartials call and must refer to
  * indices of "destinationPartials" that were used in a previous beagleUpdatePartials
  * call.  The library will block until those partials have been calculated.
  *
@@ -1199,6 +1217,44 @@ BEAGLE_DLLEXPORT int beagleCalculateEdgeLogLikelihoodsByPartition(
                                                     double* outSumSecondDerivativeByPartition,
                                                     double* outSumSecondDerivative);
 
+
+/**
+ * @brief Returns log likelihood sum and subsequent to an asynchronous integration call.
+ *
+ * This function is optional and only has to be called by clients that use the non-blocking
+ * asynchronous computation mode (BEAGLE_FLAG_COMPUTATION_ASYNCH).
+ *
+ * If used, this function must be called after a beagleCalculateRootLogLikelihoods or
+ * beagleCalculateEdgeLogLikelihoods call. The library will block until the likelihood
+ * has been calculated.
+ *
+ * @param instance                  Instance number (input)
+ * @param outSumLogLikelihood       Pointer to destination for resulting log likelihood (output)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleGetLogLikelihood(int instance,
+                                             double* outSumLogLikelihood);
+
+/**
+ * @brief Returns derivative sums subsequent to an asynchronous integration call.
+ *
+ * This function is optional and only has to be called by clients that use the non-blocking
+ * asynchronous computation mode (BEAGLE_FLAG_COMPUTATION_ASYNCH).
+ *
+ * If used, this function must be called after a beagleCalculateEdgeLogLikelihoods call.
+ * The library will block until the derivatiives have been calculated.
+ *
+ * @param instance                  Instance number (input)
+ * @param outSumFirstDerivative     Pointer to destination for resulting first derivative (output)
+ * @param outSumSecondDerivative    Pointer to destination for resulting second derivative (output)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleGetDerivatives(int instance,
+                                          double* outSumFirstDerivative,
+                                          double* outSumSecondDerivative);
+                                          
 /**
  * @brief Get site log likelihoods for last beagleCalculateRootLogLikelihoods or
  *         beagleCalculateEdgeLogLikelihoods call

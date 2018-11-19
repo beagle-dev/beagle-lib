@@ -463,7 +463,7 @@
 												<key>GID</key>
 												<integer>80</integer>
 												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu-sse.30.so</string>
+												<string>/usr/local/lib/libhmsbeagle-cpu-sse.31.so</string>
 												<key>PATH_TYPE</key>
 												<integer>0</integer>
 												<key>PERMISSIONS</key>
@@ -479,7 +479,7 @@
 												<key>GID</key>
 												<integer>80</integer>
 												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cpu.30.so</string>
+												<string>/usr/local/lib/libhmsbeagle-cpu.31.so</string>
 												<key>PATH_TYPE</key>
 												<integer>0</integer>
 												<key>PERMISSIONS</key>
@@ -495,7 +495,7 @@
 												<key>GID</key>
 												<integer>80</integer>
 												<key>PATH</key>
-												<string>/usr/local/lib/libhmsbeagle-cuda.30.so</string>
+												<string>/usr/local/lib/libhmsbeagle-cuda.31.so</string>
 												<key>PATH_TYPE</key>
 												<integer>0</integer>
 												<key>PERMISSIONS</key>
@@ -660,7 +660,7 @@
 			<key>USE_HFS+_COMPRESSION</key>
 			<false/>
 			<key>VERSION</key>
-			<string>3.0.1</string>
+			<string>3.1.0</string>
 		</dict>
 		<key>PROJECT_COMMENTS</key>
 		<dict>

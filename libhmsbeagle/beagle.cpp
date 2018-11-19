@@ -51,9 +51,9 @@
 #include "libhmsbeagle/plugin/Plugin.h"
 #include "config.h"
 
-#define BEAGLE_VERSION  PACKAGE_VERSION
-#define BEAGLE_CITATION "Using BEAGLE library v" PACKAGE_VERSION " for accelerated, parallel likelihood evaluation\n\
-2009-2016, BEAGLE Working Group - https://beagle-dev.github.io/\n\
+#define BEAGLE_VERSION  PACKAGE_VERSION  //" (PRE-RELEASE)"
+#define BEAGLE_CITATION "Using BEAGLE library v" BEAGLE_VERSION " for accelerated, parallel likelihood evaluation\n\
+2009-, BEAGLE Working Group - https://beagle-dev.github.io/\n\
 Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
 
 typedef std::pair<int, int> IntPair;
@@ -81,6 +81,13 @@ double debugGetTime() {
 #define DEBUG_START_TIME()
 #define DEBUG_END_TIME()
 #define DEBUG_FINALIZE_TIME()
+#endif
+
+// #define BEAGLE_DEBUG_FP_REDUCED_PRECISION
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+#define FP_REDUCED_PRECISION_MASK 0xFFFFFFFFFFFFFFE0 // throwing away last 5 bits of significand
+
+int debugPatternCount;
 #endif
 
 //@CHANGED make this a std::vector<BeagleImpl *> and use at to reference.
@@ -452,6 +459,11 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 int partitionCount,
                                                                 int calculateDerivatives,
                                                                 long benchmarkFlags) {
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+    debugPatternCount = patternCount;
+#endif
+
     if (rsrcList == NULL)
         beagleGetResourceList();
 
@@ -735,6 +747,17 @@ int beagleFinalizeInstance(int instance) {
     catch (...) {
         return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
     }
+}
+
+int beagleSetCPUThreadCount(int instance,
+                            int threadCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setCPUThreadCount(threadCount);
+    DEBUG_END_TIME();
+    return returnValue;
 }
 
 int beagleSetTipStates(int instance,
@@ -1374,6 +1397,14 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                                            count,
                                                            outSumLogLikelihood);
         DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        dfp.f = *outSumLogLikelihood;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumLogLikelihood = dfp.f;
+#endif
+
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1414,7 +1445,21 @@ int beagleCalculateRootLogLikelihoodsByPartition(int instance,
                                                                                  outSumLogLikelihoodByPartition,
                                                                                  outSumLogLikelihood);
         DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        for(int i=0; i < partitionCount; i++) {
+            dfp.f = outSumLogLikelihoodByPartition[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outSumLogLikelihoodByPartition[i] = dfp.f;
+        }
+        dfp.f = *outSumLogLikelihood;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumLogLikelihood = dfp.f;
+#endif
+
         return returnValue;
+
 //    }
 //    catch (std::bad_alloc &) {
 //        return BEAGLE_ERROR_OUT_OF_MEMORY;
@@ -1456,6 +1501,20 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                                            outSumLogLikelihood, outSumFirstDerivative,
                                                            outSumSecondDerivative);
         DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        dfp.f = *outSumLogLikelihood;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumLogLikelihood = dfp.f;
+        dfp.f = *outSumFirstDerivative;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumFirstDerivative = dfp.f;
+        dfp.f = *outSumSecondDerivative;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumSecondDerivative = dfp.f;
+#endif
+
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1511,6 +1570,26 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
                                                         outSumSecondDerivativeByPartition,
                                                         outSumSecondDerivative);
         DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        for(int i=0; i < partitionCount; i++) {
+            dfp.f = outSumLogLikelihoodByPartition[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outSumLogLikelihoodByPartition[i] = dfp.f;
+            dfp.f = outSumFirstDerivativeByPartition[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outSumFirstDerivativeByPartition[i] = dfp.f;
+            dfp.f = outSumSecondDerivativeByPartition[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outSumSecondDerivativeByPartition[i] = dfp.f;
+        }
+        dfp.f = *outSumLogLikelihood;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumLogLikelihood = dfp.f;
+#endif
+
+
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1524,6 +1603,49 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
 //    }
 }
 
+int beagleGetLogLikelihood(int instance,
+                            double* outSumLogLikelihood) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->getLogLikelihood(outSumLogLikelihood);
+    DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        dfp.f = *outSumLogLikelihood;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumLogLikelihood = dfp.f;
+#endif
+
+    return returnValue;
+}
+
+int beagleGetDerivatives(int instance,
+                            double* outSumFirstDerivative,
+                            double* outSumSecondDerivative) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->getDerivatives(outSumFirstDerivative,
+                                                     outSumSecondDerivative);
+    DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        dfp.f = *outSumFirstDerivative;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumFirstDerivative = dfp.f;
+        dfp.f = *outSumSecondDerivative;
+        dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+        *outSumSecondDerivative = dfp.f;
+#endif
+
+    return returnValue;
+}
+
 int beagleGetSiteLogLikelihoods(int instance,
                                 double* outLogLikelihoods) {
     DEBUG_START_TIME();
@@ -1532,6 +1654,16 @@ int beagleGetSiteLogLikelihoods(int instance,
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getSiteLogLikelihoods(outLogLikelihoods);
     DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        for(int i=0; i < debugPatternCount; i++) {
+            dfp.f = outLogLikelihoods[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outLogLikelihoods[i] = dfp.f;
+        }
+#endif
+
     return returnValue;
 }
 
@@ -1544,6 +1676,19 @@ int beagleGetSiteDerivatives(int instance,
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getSiteDerivatives(outFirstDerivatives, outSecondDerivatives);
     DEBUG_END_TIME();
+
+#ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
+        union {double f; long l;} dfp;
+        for(int i=0; i < debugPatternCount; i++) {
+            dfp.f = outFirstDerivatives[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outFirstDerivatives[i] = dfp.f;
+            dfp.f = outSecondDerivatives[i];
+            dfp.l = dfp.l & FP_REDUCED_PRECISION_MASK;
+            outSecondDerivatives[i] = dfp.f;
+        }
+#endif
+
     return returnValue;
 }
 

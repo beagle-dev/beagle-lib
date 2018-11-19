@@ -840,7 +840,7 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
     return dPtr;
 }
 
-unsigned int GPUInterface::GetAvailableMemory() {
+size_t GPUInterface::GetAvailableMemory() {
 #if CUDA_VERSION >= 3020
     size_t availableMem = 0;
     size_t totalMem = 0;
@@ -850,7 +850,7 @@ unsigned int GPUInterface::GetAvailableMemory() {
     unsigned int totalMem = 0;
     SAFE_CUPP(cuMemGetInfo(&availableMem, &totalMem));
 #endif
-    return availableMem;
+    return (size_t) availableMem;
 }
 
 void GPUInterface::GetDeviceName(int deviceNumber,

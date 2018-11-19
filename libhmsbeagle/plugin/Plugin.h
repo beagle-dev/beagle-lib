@@ -55,8 +55,7 @@ class BEAGLE_DLLEXPORT PluginManager
   public:
       static PluginManager& instance();
 
-      Plugin* findPlugin(const char* name)
-      throw (SharedLibraryException);
+      Plugin* findPlugin(const char* name) noexcept(false);
 
     private:
         struct PluginInfo {

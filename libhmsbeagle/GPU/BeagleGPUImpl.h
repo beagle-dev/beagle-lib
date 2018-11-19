@@ -95,6 +95,8 @@ private:
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
+
+    int kResultPaddedPatterns;
     
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -138,6 +140,7 @@ private:
     GPUPtr* dTipPartialsBuffers;
     
     bool kUsingMultiGrid;
+    bool kDerivBuffersInitialised;
     int kNumPatternBlocks;
     int kSitesPerBlock;
     int kSitesPerIntegrateBlock;
@@ -225,6 +228,8 @@ public:
                        long requirementFlags);
     
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
+
+    int setCPUThreadCount(int threadCount);
 
     int setTipStates(int tipIndex,
                      const int* inStates);
@@ -402,6 +407,11 @@ public:
                                                double* outSumFirstDerivative,
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
+
+    int getLogLikelihood(double* outSumLogLikelihood);
+
+    int getDerivatives(double* outSumFirstDerivative,
+                       double* outSumSecondDerivative);
 
     int getSiteLogLikelihoods(double* outLogLikelihoods);
     

@@ -20,22 +20,21 @@ def main():
     parser.add_argument('synthetictest_path', help='path to synthetictest')
     args = parser.parse_args()
 
-    taxa_list = [16, 400]
+    taxa_list = [8, 128]
     rates = 4
     precision_list = ['double']
 
     states_list = [4]
-    site_samples = 100
-    # site_samples = 2
+    site_samples = 40
     sites_min = 100
-    rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu']
-    reps = 100
-    # reps = 10
+    sites_max = 1000000
+    sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
+    rsrc_list = ['cpu', 'cpu-threaded', 'pll', 'pll-repeats', 'gpu','dual-gpu']
+    reps = 10
 
-    seed_list = range(1,101)
-    # seed_list = range(1,2)
+    seed_list = range(1,11)
 
-    extra_args = ['--randomtree', '--stdrand', '--fulltiming']
+    extra_args = ['--randomtree', '--stdrand', '--fulltiming', '--newtree', '--newparameters']
 
     throughput_re = re.compile('tree throughput total:   (.*) M partials/second')
 
@@ -47,10 +46,6 @@ def main():
     iteration = 0
 
     for taxa in taxa_list:
-        sites_max = 1000000
-        if (taxa == 400):
-            sites_max = 100000
-        sites_list = gen_log_site_list(sites_min, sites_max, site_samples)
         for rsrc in rsrc_list:
             for precision in precision_list:
                 for states in states_list:
@@ -66,19 +61,20 @@ def main():
                             synthetictest_cmd.extend(['--states', str(states), '--sites', str(sites)])
                             synthetictest_cmd.extend(['--taxa', str(taxa), '--compacttips', str(taxa)])
                             synthetictest_cmd.extend(['--reps', str(reps), '--rates', str(rates)])
+                            synthetictest_cmd.extend(['--seed', str(seed)])
                             throughput_re_index = 0
                             if   rsrc == 'cpu':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads', '--postorder'])
                             elif rsrc == 'cpu-threaded':
-                                synthetictest_cmd.extend(['--rsrc', '0'])
+                                synthetictest_cmd.extend(['--rsrc', '0', '--postorder'])
                             elif rsrc == 'pll':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest'])
-                                throughput_re_index = 1
+                                synthetictest_cmd.extend(['--rsrc', '0', '--pllonly', '--postorder'])
                             elif rsrc == 'pll-repeats':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--plltest', '--pllrepeats'])
-                                throughput_re_index = 1
+                                synthetictest_cmd.extend(['--rsrc', '0', '--pllonly', '--pllrepeats', '--postorder'])
                             elif rsrc == 'gpu':
                                 synthetictest_cmd.extend(['--rsrc', '1'])
+                            elif rsrc == 'dual-gpu':
+                                synthetictest_cmd.extend(['--rsrc', '1,2','--multirsrc'])
                             synthetictest_cmd.extend(extra_args)
                             if precision == 'double':
                                 synthetictest_cmd.extend(['--doubleprecision'])
@@ -88,11 +84,9 @@ def main():
                                 throughput = throughput_re.findall(synthetictest_out)
                                 if throughput:
                                     out_string +=  ', ' + throughput[throughput_re_index]
-                                else:
-                                    out_string += ', ' + 'NA'
+                                    print out_string
                             except subprocess.CalledProcessError:
-                                out_string += 'ERROR'
-                            print out_string
+                                debug_file.write('ERROR')
                             debug_file.write('===============================================================\n')
                             debug_file.write(out_string + '\n')
                             debug_file.write(' '.join(synthetictest_cmd) + '\n')
