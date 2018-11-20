@@ -582,7 +582,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTipPartials(int tipIndex,
         inPartialsOffset = inPartials;
         for (int i = 0; i < kPatternCount; i++) {
             beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-            tmpRealPartialsOffset += kPartialsPaddedStateCount;
+            tmpRealPartialsOffset += kStateCount;
+            // Pad extra buffer with zeros
+            for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
+                *tmpRealPartialsOffset++ = 0;
+            }
             inPartialsOffset += kStateCount;
         }
         // Pad extra buffer with zeros
@@ -3371,7 +3375,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
 
                 w += kTransPaddedStateCount;
             }
-            v += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    destP[v] = 0.0;
+                    v++;
+                }
+            }
         }
     }
 }
@@ -3401,7 +3410,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALTYPE* d
 
                 w += kTransPaddedStateCount;
             }
-            v += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    destP[v] = 0.0;
+                    v++;
+                }
+            }
         }
     }
 }
@@ -3455,7 +3469,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
                 
                 *(destPtr++) = tmp * (sumA + sumB);
             }
-            destPtr += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPtr++) = 0.0;
+                }
+            }
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
@@ -3508,7 +3526,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
                 
                 *(destPtr++) = tmp * (sumA + sumB) * oneOverScaleFactor;
             }
-            destPtr += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPtr++) = 0.0;
+                }
+            }
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }                                            

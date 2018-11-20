@@ -290,7 +290,11 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 #endif
 
             }
-            destPu += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPu++) = 0.0;
+                }
+            }
             v += kPartialsPaddedStateCount;
         }
     }
@@ -309,8 +313,8 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(d
     int stateCountMinusOne = kPartialsPaddedStateCount - 1;
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-    	double* destPu = destP + l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
-    	int v = l*kPartialsPaddedStateCount*kPatternCount;
+      int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+      double* destPu = destP + v;
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             const V_Real scalar = VEC_SPLAT(scaleFactors[k]);
@@ -344,7 +348,11 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(d
 
                 destPu++;
             }
-            destPu += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPu++) = 0.0;
+                }
+            }
             v += kPartialsPaddedStateCount;
         }
     }
