@@ -1784,6 +1784,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
             // Set-up and call GPU kernel
             kernels->GetTransitionProbabilitiesSquare(dMatrices[0], dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
                                                       dEigenValues[eigenIndex], dDistanceQueue, totalCount);
+
+#ifdef FW_OPENCL
+            // todo: unclear why this is necessary to fix numerical instability, investigate further
+            if (kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU && kPaddedStateCount != kStateCount) {
+                gpu->SynchronizeHost();
+            }
+#endif
         } else if (secondDerivativeIndices == NULL) {        
             
             totalCount = count * kCategoryCount;
