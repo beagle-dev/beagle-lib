@@ -64,9 +64,9 @@ def main():
                             synthetictest_cmd.extend(['--seed', str(seed)])
                             throughput_re_index = 0
                             if   rsrc == 'cpu':
-                                synthetictest_cmd.extend(['--rsrc', '0', '--disablethreads', '--postorder'])
-                            elif rsrc == 'cpu-threaded':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--postorder'])
+                            elif rsrc == 'cpu-threaded':
+                                synthetictest_cmd.extend(['--rsrc', '0', '--enablethreads', '--postorder'])
                             elif rsrc == 'pll':
                                 synthetictest_cmd.extend(['--rsrc', '0', '--pllonly', '--postorder'])
                             elif rsrc == 'pll-repeats':
