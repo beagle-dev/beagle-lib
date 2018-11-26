@@ -440,7 +440,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
         if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
             kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
-        } else {
+        } else if (kPatternCount < BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT) {
             hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
