@@ -20,7 +20,7 @@ def main():
     parser.add_argument('synthetictest_path', help='path to synthetictest')
     args = parser.parse_args()
 
-    taxa_list = [8, 128]
+    taxa_list = [128]
     rates = 4
     precision_list = ['double']
 
