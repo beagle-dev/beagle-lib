@@ -437,11 +437,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
-        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
-        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
-            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
-        } else if (kPatternCount < BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT) {
-            hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
+        if (kStateCount <= 4) {
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+            if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+                kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+            } else if (kPatternCount < BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT) {
+                hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
+            }
+        } else {
+            // todo: assess minimum pattern count for efficient auto-threading
+            //       for higher state-count values
+            kMinPatternCount = 2;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
@@ -509,10 +515,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
     kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
-        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
-        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
-            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
-        } 
+        if (kStateCount <= 4) {
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+            if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+                kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+            }
+        } else {
+            // todo: assess minimum pattern count for efficient auto-threading
+            //       for higher state-count values
+            kMinPatternCount = 2;
+        }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
             if (partitionCount > threadCount) {
