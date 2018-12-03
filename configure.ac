@@ -75,11 +75,11 @@ CHECK_LIB_PATH="\$(top_builddir)/libhmsbeagle/CPU/.libs:\$(top_builddir)/libhmsb
 AC_SUBST(CHECK_LIB_PATH)
 
 # ------------------------------------------------------------------------------
-# Check for libtool development libraries for plugin loading
+# libtool development libraries for plugin loading (experimental)
 # ------------------------------------------------------------------------------
 
 AC_ARG_ENABLE(libtool_dev,
-    AC_HELP_STRING([--disable-libtool-dev],[do not use libtool development libraries]), , [enable_libtool_dev=yes])
+    AC_HELP_STRING([--enable-libtool-dev],[use libtool development libraries for plugin loading (may cause issues with CPU threading)]), , [enable_libtool_dev=no])
 if test  "$enable_libtool_dev" = yes; then
   AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
   if test "x$ac_cv_search_lt_dlinit" == "xno"
