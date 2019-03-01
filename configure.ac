@@ -307,6 +307,22 @@ then
 fi
 
 # ------------------------------------------------------------------------------
+# Setup ncl library for synthetictest
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([ncl],
+   [AS_HELP_STRING([--with-ncl=PATH],[path for NEXUS Class Library (used with synthetictest for empirical testing) @<:@default=no@:>@])],
+   [],
+   [with_ncl=no])
+
+if test "x$with_ncl" != "xno"
+then
+  SYNTHETICTEST_CPPFLAGS+=" -I$with_ncl/include -D HAVE_NCL"
+  SYNTHETICTEST_LDFLAGS+=" -lncl -L$with_ncl/lib/ncl"
+fi
+
+
+# ------------------------------------------------------------------------------
 # Setup SSE
 # ------------------------------------------------------------------------------
 
