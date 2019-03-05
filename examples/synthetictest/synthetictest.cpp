@@ -1988,6 +1988,12 @@ void runBeagle(int resource,
         }
     }
 
+    gt_srand(randomSeed);   // reset the random seed...
+
+#ifdef HAVE_PLL
+    if (!pllOnly) {
+#endif
+
     if ((treenewick || randomTree) && eigenCount==1 && !unrooted) {
         generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
             edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
@@ -1995,16 +2001,11 @@ void runBeagle(int resource,
             pllTest, pll_operations,
 #endif
 #ifdef HAVE_NCL
-            treenewick,
+            (newTreePerRep ? NULL : treenewick),
 #endif 
             operations);
     }
 
-    gt_srand(randomSeed);   // reset the random seed...
-
-#ifdef HAVE_PLL
-    if (!pllOnly) {
-#endif
 //  replicate loop
     for (int i=0; i<nreps; i++){
 
@@ -2023,7 +2024,7 @@ void runBeagle(int resource,
             }
         }
 
-        if (newTreePerRep) {
+        if (newTreePerRep && i > 0 && i != (nreps-1)) {
             generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
                 edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
 #ifdef HAVE_PLL
@@ -2032,6 +2033,20 @@ void runBeagle(int resource,
 #ifdef HAVE_NCL
                 NULL,
 #endif 
+                operations);
+
+            for(int j=0; j<edgeCount; j++) {
+                edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+            }
+        } else if (newTreePerRep && treenewick && i == (nreps-1)) {
+            generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+    #ifdef HAVE_PLL
+                pllTest, pll_operations,
+    #endif
+    #ifdef HAVE_NCL
+                treenewick,
+    #endif 
                 operations);
 
             for(int j=0; j<edgeCount; j++) {
@@ -2307,7 +2322,7 @@ void runBeagle(int resource,
             // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
             // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
     
-        if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
+        if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal || (treenewick && i == (nreps-1)))  {
             bestTimeTotal = getTimeDiff(time0, time5);
             bestTimeSetPartitions = getTimeDiff(time0, time1);
             bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
@@ -2475,6 +2490,18 @@ void runBeagle(int resource,
 
         gt_srand(randomSeed);   // reset the random seed...
 
+        if ((treenewick || randomTree) && eigenCount==1 && !unrooted) {
+            generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+    #ifdef HAVE_PLL
+                pllTest, pll_operations,
+    #endif
+    #ifdef HAVE_NCL
+                (newTreePerRep ? NULL : treenewick),
+    #endif 
+                operations);
+        }
+
         for (int i=0; i<nreps; i++){
 
             if (newDataPerRep) {
@@ -2499,7 +2526,7 @@ void runBeagle(int resource,
             }
 
 
-            if (newTreePerRep && randomTree && eigenCount==1 && !unrooted) {
+            if (newTreePerRep && randomTree && eigenCount==1 && !unrooted && i > 0 && i != (nreps-1)) {
                 generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal,
                     dynamicScaling,
                     edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
@@ -2507,6 +2534,20 @@ void runBeagle(int resource,
 #ifdef HAVE_NCL
                     NULL,
 #endif 
+                    operations);
+
+                for(int j=0; j<edgeCount; j++) {
+                    edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+                }
+            } else if (newTreePerRep && treenewick && i == (nreps-1)) {
+                generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                    edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+        #ifdef HAVE_PLL
+                    pllTest, pll_operations,
+        #endif
+        #ifdef HAVE_NCL
+                    treenewick,
+        #endif 
                     operations);
 
                 for(int j=0; j<edgeCount; j++) {
@@ -2592,7 +2633,7 @@ void runBeagle(int resource,
             gettimeofday(&time5,NULL);
             
 
-            if (i == 0 || getTimeDiff(time0, time5) < pll_bestTimeTotal) {
+            if (i == 0 || getTimeDiff(time0, time5) < pll_bestTimeTotal || (treenewick && i == (nreps-1))) {
                 pll_bestTimeTotal = getTimeDiff(time0, time5);
                 pll_bestTimeSetPartitions = getTimeDiff(time0, time1);
                 pll_bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
@@ -3036,9 +3077,6 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (*newTreePerRep && *unrooted)
         abort("new tree per replicate can only be used with rooted trees");
-
-    if (*newTreePerRep && treenewick)
-        abort("new tree per replicate cannot be used with tree from Newick file");
 }
 
 int main( int argc, const char* argv[] )
