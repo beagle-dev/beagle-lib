@@ -63,6 +63,12 @@
 /examples/tinytest/Makefile
 /examples/tinytest/tinytest
 
+# /examples/swig_python/
+/examples/swig_python/__pycache__/
+/examples/swig_python/_beagle.so
+/examples/swig_python/beagle.pyc
+/examples/swig_python/beagle_wrap.o
+
 # /libhmsbeagle/
 /libhmsbeagle/config.h.in
 /libhmsbeagle/Makefile.in
