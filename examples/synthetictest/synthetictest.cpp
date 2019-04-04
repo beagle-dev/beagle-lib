@@ -962,7 +962,15 @@ void generateNewTree(int ntaxa,
     std::vector <node*> nodes;
     node* root = NULL;
 
-    if (!treenewick) {
+
+    bool useNewickTree = false;
+
+#ifdef HAVE_NCL
+    useNewickTree = treenewick;
+#endif 
+
+    if (!useNewickTree)
+    {
         nodes.push_back(createNewNode(0));
         int tipsAdded = 1;
         node* newParent;
@@ -999,7 +1007,9 @@ void generateNewTree(int ntaxa,
         root->data = rootIndex;
     } else {
         root = createNewNode(0);
+#ifdef HAVE_NCL
         ncl_generateTreeFromNewick(treenewick, ntaxa, nodes, root);
+#endif 
     }
 
     if (rerootTrees) {
