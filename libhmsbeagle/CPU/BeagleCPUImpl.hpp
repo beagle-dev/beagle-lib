@@ -626,7 +626,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPartials(int bufferIndex,
     for (int l = 0; l < kCategoryCount; l++) {
         for (int i = 0; i < kPatternCount; i++) {
             beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-            tmpRealPartialsOffset += kPartialsPaddedStateCount;
+            tmpRealPartialsOffset += kStateCount;
+            // Pad extra buffer with zeros
+            for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
+                *tmpRealPartialsOffset++ = 0;
+            }
             inPartialsOffset += kStateCount;
         }
         // Pad extra buffer with zeros
@@ -642,22 +646,31 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
                                int cumulativeScaleIndex,
                                double* outPartials) {
-    // TODO: Make this work with partials padding
     
     // TODO: Test with and without padding
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-    if (kPatternCount == kPaddedPatternCount) {
+    if ((kPatternCount == kPaddedPatternCount) && (kStateCount == kPartialsPaddedStateCount)) {
         beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
-    } else { // Need to remove padding
-        double *offsetOutPartials;
+    } else if (kStateCount == kPartialsPaddedStateCount) {
+        double *offsetOutPartials = outPartials;
         REALTYPE* offsetBeaglePartials = gPartials[bufferIndex];
-        for(int i = 0; i < kCategoryCount; i++) {
-            beagleMemCpy(offsetOutPartials,offsetBeaglePartials,
-                    kPatternCount * kStateCount);
+        for(int l = 0; l < kCategoryCount; l++) {
+            beagleMemCpy(offsetOutPartials, offsetBeaglePartials, kPatternCount * kStateCount);
             offsetOutPartials += kPatternCount * kStateCount;
             offsetBeaglePartials += kPaddedPatternCount * kStateCount;
+        }
+    } else {
+        double *offsetOutPartials = outPartials;
+        REALTYPE* offsetBeaglePartials = gPartials[bufferIndex];
+        for(int l = 0; l < kCategoryCount; l++) {
+            for (int i = 0; i < kPatternCount; i++) {
+                beagleMemCpy(offsetOutPartials, offsetBeaglePartials, kStateCount);
+                offsetOutPartials += kStateCount;
+                offsetBeaglePartials += kPartialsPaddedStateCount;
+            }
+            offsetBeaglePartials += (kPaddedPatternCount - kPatternCount) * kPartialsPaddedStateCount;
         }
     }
 
