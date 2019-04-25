@@ -1937,7 +1937,21 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int count,
                                                          int cumulativeScaleIndex) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updatePrePartials\n");
+#endif
+
+    int returnCode = BEAGLE_ERROR_GENERAL;
+
+    bool byPartition = false;
+    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePrePartials\n");
+#endif
+
+    return returnCode;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -2470,6 +2484,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationP
 #endif    
     
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
+                                                     const int* operations,
+                                                     int count,
+                                                     int cumulativeScaleIndex) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 BEAGLE_GPU_TEMPLATE

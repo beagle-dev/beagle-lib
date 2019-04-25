@@ -93,6 +93,14 @@ libhmsbeagle?jni*.l?
 /libhmsbeagle/CPU/.deps
 /libhmsbeagle/CPU/Makefile
 
+# /libhmsbeagle/benchmark/
+/libhmsbeagle/benchmark/Makefile.in
+/libhmsbeagle/benchmark/.deps
+/libhmsbeagle/benchmark/Makefile
+/libhmsbeagle/benchmark/libbenchmark.la
+libhmsbeagle/benchmark/libbenchmark_la-BeagleBenchmark.lo
+libhmsbeagle/benchmark/libbenchmark_la-linalg.lo
+
 # /libhmsbeagle/GPU/
 /libhmsbeagle/GPU/Makefile.in
 /libhmsbeagle/GPU/PeelingFunctions.linkinfo
@@ -141,6 +149,7 @@ libhmsbeagle?jni*.l?
 /project/beagle-xcode/beagle-xcode.xcodeproj/project.xcworkspace
 
 # other
+lib/
 .DS_Store
 installed/
 libhmsbeagle/.libs/

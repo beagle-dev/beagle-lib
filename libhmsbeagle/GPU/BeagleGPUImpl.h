@@ -431,6 +431,11 @@ private:
                    int operationCount,
                    int cumulativeScalingIndex);
 
+	int upPrePartials(bool byPartition,
+					  const int* operations,
+					  int count,
+					  int cumulativeScaleIndex);
+
 };
 
 BEAGLE_GPU_TEMPLATE
