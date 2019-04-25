@@ -12,6 +12,8 @@ include_directories(
 add_definitions(-DFW_OPENCL -DDLS_MACOS)
 #include_directories(${OpenCL_INCLUDE_DIRS})
 
+add_subdirectory("kernels")
+
 add_library(hmsbeagle-opencl.31 MODULE
         BeagleGPUImpl.h
         BeagleGPUImpl.hpp
