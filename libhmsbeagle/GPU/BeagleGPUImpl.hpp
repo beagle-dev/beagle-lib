@@ -2492,6 +2492,147 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
                                                      int count,
                                                      int cumulativeScaleIndex) {
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    // Below is the old serial version of upPartials (as a far starting point)
+
+//    GPUPtr cumulativeScalingBuffer = 0;
+//    if (cumulativeScalingIndex != BEAGLE_OP_NONE)
+//        cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
+//
+//    // Serial version
+//    for (int op = 0; op < operationCount; op++) {
+//        const int parIndex = operations[op * 7];
+//        const int writeScalingIndex = operations[op * 7 + 1];
+//        const int readScalingIndex = operations[op * 7 + 2];
+//        const int child1Index = operations[op * 7 + 3];
+//        const int child1TransMatIndex = operations[op * 7 + 4];
+//        const int child2Index = operations[op * 7 + 5];
+//        const int child2TransMatIndex = operations[op * 7 + 6];
+//
+//        GPUPtr matrices1 = dMatrices[child1TransMatIndex];
+//        GPUPtr matrices2 = dMatrices[child2TransMatIndex];
+//
+//        GPUPtr partials1 = dPartials[child1Index];
+//        GPUPtr partials2 = dPartials[child2Index];
+//
+//        GPUPtr partials3 = dPartials[parIndex];
+//
+//        GPUPtr tipStates1 = dStates[child1Index];
+//        GPUPtr tipStates2 = dStates[child2Index];
+//
+//        int rescale = BEAGLE_OP_NONE;
+//        GPUPtr scalingFactors = (GPUPtr)NULL;
+//
+//        if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
+//            int sIndex = parIndex - kTipCount;
+//
+//            if (tipStates1 == 0 && tipStates2 == 0) {
+//                rescale = 2;
+//                scalingFactors = dScalingFactors[sIndex];
+//            }
+//        } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+//            rescale = 1;
+//            scalingFactors = dScalingFactors[parIndex - kTipCount];
+//        } else if ((kFlags & BEAGLE_FLAG_SCALING_MANUAL) && writeScalingIndex >= 0) {
+//            rescale = 1;
+//            scalingFactors = dScalingFactors[writeScalingIndex];
+//        } else if ((kFlags & BEAGLE_FLAG_SCALING_MANUAL) && readScalingIndex >= 0) {
+//            rescale = 0;
+//            scalingFactors = dScalingFactors[readScalingIndex];
+//        }
+//
+//#ifdef BEAGLE_DEBUG_VALUES
+//        fprintf(stderr, "kPaddedPatternCount = %d\n", kPaddedPatternCount);
+//        fprintf(stderr, "kPatternCount = %d\n", kPatternCount);
+//        fprintf(stderr, "categoryCount  = %d\n", kCategoryCount);
+//        fprintf(stderr, "partialSize = %d\n", kPartialsSize);
+//        fprintf(stderr, "writeIndex = %d,  readIndex = %d, rescale = %d\n",writeScalingIndex,readScalingIndex,rescale);
+//        fprintf(stderr, "child1 = \n");
+//        Real r = 0;
+//        if (tipStates1)
+//            gpu->PrintfDeviceInt(tipStates1, kPaddedPatternCount);
+//        else
+//            gpu->PrintfDeviceVector(partials1, kPartialsSize, r);
+//        fprintf(stderr, "child2 = \n");
+//        if (tipStates2)
+//            gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
+//        else
+//            gpu->PrintfDeviceVector(partials2, kPartialsSize, r);
+//        fprintf(stderr, "node index = %d\n", parIndex);
+//#endif
+//
+//        if (tipStates1 != 0) {
+//            if (tipStates2 != 0 ) {
+//                kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
+//                                                           matrices1, matrices2, scalingFactors,
+//                                                           cumulativeScalingBuffer,
+//                                                           kPaddedPatternCount, kCategoryCount,
+//                                                           rescale);
+//            } else {
+//                kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
+//                                                             matrices1, matrices2, scalingFactors,
+//                                                             cumulativeScalingBuffer,
+//                                                             kPaddedPatternCount, kCategoryCount,
+//                                                             rescale);
+//            }
+//        } else {
+//            if (tipStates2 != 0) {
+//                kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
+//                                                             matrices2, matrices1, scalingFactors,
+//                                                             cumulativeScalingBuffer,
+//                                                             kPaddedPatternCount, kCategoryCount,
+//                                                             rescale);
+//            } else {
+//                if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+//                    kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
+//                                                                        matrices1, matrices2, writeScalingIndex, readScalingIndex,
+//                                                                        cumulativeScalingIndex, dScalingFactors, dScalingFactorsMaster,
+//                                                                        kPaddedPatternCount, kCategoryCount,
+//                                                                        rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
+//                } else {
+//                    kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
+//                                                                   matrices1, matrices2, scalingFactors,
+//                                                                   cumulativeScalingBuffer,
+//                                                                   kPaddedPatternCount, kCategoryCount,
+//                                                                   rescale);
+//                }
+//            }
+//        }
+//
+//        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
+//            int parScalingIndex = parIndex - kTipCount;
+//            int child1ScalingIndex = child1Index - kTipCount;
+//            int child2ScalingIndex = child2Index - kTipCount;
+//            if (child1ScalingIndex >= 0 && child2ScalingIndex >= 0) {
+//                int scalingIndices[2] = {child1ScalingIndex, child2ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 2, parScalingIndex);
+//            } else if (child1ScalingIndex >= 0) {
+//                int scalingIndices[1] = {child1ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+//            } else if (child2ScalingIndex >= 0) {
+//                int scalingIndices[1] = {child2ScalingIndex};
+//                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
+//            }
+//        }
+//
+//#ifdef BEAGLE_DEBUG_VALUES
+//        if (rescale > -1) {
+//        	fprintf(stderr,"scalars = ");
+//        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount, r);
+//        }
+//        fprintf(stderr, "parent = \n");
+//        int signal = 0;
+//        if (writeScalingIndex == -1)
+//        	gpu->PrintfDeviceVector(partials3, kPartialsSize, r);
+//        else
+//        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
+//#endif
+//    }
+//
+//#ifdef BEAGLE_DEBUG_SYNCH
+//    gpu->Synchronize();
+//#endif
+
+
 }
 
 BEAGLE_GPU_TEMPLATE
