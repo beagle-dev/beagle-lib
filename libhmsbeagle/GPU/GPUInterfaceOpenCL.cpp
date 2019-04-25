@@ -126,9 +126,10 @@ int GPUInterface::Initialize() {
             openClDeviceId = deviceIds[j];
             BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
             if (deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_CPU &&
-                deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU &&
-                deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU &&
-                deviceCode != BEAGLE_OPENCL_DEVICE_NVIDA_GPU)
+                //deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU &&
+                //deviceCode != BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU &&
+                //deviceCode != BEAGLE_OPENCL_DEVICE_NVIDA_GPU &&
+                    true)
                 openClDeviceMap.insert(std::pair<int, cl_device_id>(deviceAdded++, deviceIds[j])); 
             openClDeviceId = NULL;
         }
