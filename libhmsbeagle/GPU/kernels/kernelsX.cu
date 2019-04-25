@@ -368,6 +368,20 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 
+KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    int totalPatterns) {
+// TODO This needs to rewritten
+    DETERMINE_INDICES_X_GPU();
+    SUM_PARTIALS_PARTIALS_X_GPU();
+    if (pattern < totalPatterns) {
+        partials3[u] = sum1 *sum2;
+    }
+}
+
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,

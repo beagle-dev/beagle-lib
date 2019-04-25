@@ -2489,10 +2489,31 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationP
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
                                                      const int* operations,
-                                                     int count,
+                                                     int operationCount,
                                                      int cumulativeScaleIndex) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+
     // Below is the old serial version of upPartials (as a far starting point)
+    for (int op = 0; op < operationCount; op++) {
+        const int parIndex = operations[op * 7];
+        const int writeScalingIndex = operations[op * 7 + 1];
+        const int readScalingIndex = operations[op * 7 + 2];
+        const int child1Index = operations[op * 7 + 3];
+        const int child1TransMatIndex = operations[op * 7 + 4];
+        const int child2Index = operations[op * 7 + 5];
+        const int child2TransMatIndex = operations[op * 7 + 6];
+
+        GPUPtr matrices1 = dMatrices[child1TransMatIndex];
+        GPUPtr matrices2 = dMatrices[child2TransMatIndex];
+
+        GPUPtr partials1 = dPartials[child1Index];
+        GPUPtr partials2 = dPartials[child2Index];
+        GPUPtr partials3 = dPartials[parIndex];
+
+        kernels->PartialsPartialsGrowing(partials1, partials2, partials3,
+                                         matrices1, matrices2,
+                                         kPaddedPatternCount, kCategoryCount,
+                                         sizeof(Real));
+    }
 
 //    GPUPtr cumulativeScalingBuffer = 0;
 //    if (cumulativeScalingIndex != BEAGLE_OP_NONE)
@@ -2613,26 +2634,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 //                accumulateScaleFactors(scalingIndices, 1, parScalingIndex);
 //            }
 //        }
-//
-//#ifdef BEAGLE_DEBUG_VALUES
-//        if (rescale > -1) {
-//        	fprintf(stderr,"scalars = ");
-//        	gpu->PrintfDeviceVector(scalingFactors,kPaddedPatternCount, r);
-//        }
-//        fprintf(stderr, "parent = \n");
-//        int signal = 0;
-//        if (writeScalingIndex == -1)
-//        	gpu->PrintfDeviceVector(partials3, kPartialsSize, r);
-//        else
-//        	gpu->PrintfDeviceVector(partials3, kPartialsSize, 1.0, &signal, r);
-//#endif
 //    }
 //
-//#ifdef BEAGLE_DEBUG_SYNCH
-//    gpu->Synchronize();
-//#endif
 
-
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->Synchronize();
+#endif
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 BEAGLE_GPU_TEMPLATE

@@ -238,6 +238,9 @@ void KernelLauncher::LoadKernels() {
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
                 "kernelPartialsPartialsAutoScale");
 
+    fPartialsPartialsGrowing = gpu->GetFunction(
+            "kernelPartialsPartialsGrowing");
+
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
             "kernelPartialsPartialsCheckScale");
@@ -629,6 +632,31 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
+#endif
+}
+
+void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
+                                             GPUPtr partials2,
+                                             GPUPtr partials3,
+                                             GPUPtr matrices1,
+                                             GPUPtr matrices2,
+                                             unsigned int patternCount,
+                                             unsigned int categoryCount,
+                                             int sizeReal) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsGrowing\n");
+#endif
+
+    gpu->LaunchKernel(fPartialsPartialsGrowing,
+                      bgPeelingBlock, bgPeelingGrid,
+                      5, 7,
+                      partials1, partials2, partials3, matrices1, matrices2,
+                      patternCount, categoryCount);
+    gpu->SynchronizeDevice();
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
 #endif
 }
 

@@ -60,6 +60,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
+	GPUFunction fPartialsPartialsGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -286,7 +287,16 @@ public:
                                            int doRescaling,
                                            int streamIndex,
                                            int waitIndex);
-    
+
+	void PartialsPartialsGrowing(GPUPtr partials1,
+								 GPUPtr partials2,
+								 GPUPtr partials3,
+								 GPUPtr matrices1,
+								 GPUPtr matrices2,
+								 unsigned int patternCount,
+								 unsigned int categoryCount,
+								 int sizeReal);
+
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,
                                             GPUPtr dWeights,
