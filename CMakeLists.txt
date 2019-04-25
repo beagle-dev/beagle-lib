@@ -24,7 +24,7 @@ include_directories(
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/CPU
-#        ${PROJECT_SOURCE_DIR}/libhmsbeagle/GPU
+        ${PROJECT_SOURCE_DIR}/libhmsbeagle/GPU
         ${PROJECT_SOURCE_DIR}/libhmsbeagle/JNI
 )
 
@@ -34,10 +34,13 @@ link_directories(
 
 add_subdirectory(libhmsbeagle)
 
-#link_libraries(hmsbeagle)
+link_libraries(hmsbeagle)
 
-#add_executable(hmctest
-#        examples/hmctest/hmctest.cpp)
+add_executable(hmctest
+        examples/hmctest/hmctest.cpp)
+
+add_executable(tinytest
+        examples/tinytest/tinytest.cpp)
 
 #add_executable(hmctestMedium
 #        examples/hmctest/hmctestMedium.cpp)
@@ -51,6 +54,6 @@ add_subdirectory(libhmsbeagle)
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
-#target_link_libraries(hmctest hmsbeagle)
+target_link_libraries(hmctest hmsbeagle)
 #target_link_libraries(genomictest beagle_lib)
-#target_link_libraries(tinytest beagle_lib)
+target_link_libraries(tinytest hmsbeagle)

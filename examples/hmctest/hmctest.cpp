@@ -116,7 +116,9 @@ int main( int argc, const char* argv[] )
     int rateCategoryCount = 2;
     
     int scaleCount = (scaling ? 7 : 0);
-    
+
+    bool useGpu = argc > 1 && std::strcmp(argv[1] , "--gpu") == 0;
+
     BeagleInstanceDetails instDetails;
 
     /// Doubled the size of partials buffer from 5 to 10
@@ -134,6 +136,8 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
+                            useGpu ?
+                                  BEAGLE_FLAG_PROCESSOR_GPU :
                                   BEAGLE_FLAG_PROCESSOR_CPU,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);

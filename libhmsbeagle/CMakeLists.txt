@@ -26,7 +26,7 @@ add_library(hmsbeagle SHARED
         )
 
 add_subdirectory(CPU)
-#add_subdirectory(GPU)
+add_subdirectory(GPU)
 add_subdirectory(JNI)
 
 install(TARGETS hmsbeagle
