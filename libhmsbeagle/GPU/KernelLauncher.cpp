@@ -649,9 +649,9 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
-                      5, 7,
+                      5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
-                      patternCount, categoryCount);
+                      patternCount);
     gpu->SynchronizeDevice();
 
 
