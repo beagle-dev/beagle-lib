@@ -852,9 +852,19 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
     LOAD_PARTIALS_PARTIALS_4_GPU();
-    LOAD_MATRIX_4_GPU();
+
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2; /*Points to *this* matrix*/
+    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + x2;
+    KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/
+    KW_LOCAL_MEM REAL sMatrix2[16];
+    if (patIdx == 0 ) {
+        sMatrix1[multBy4(state) | pat] = matrix1[tx]; /* Should write transpose into sMatrix1 */
+        sMatrix2[tx] = matrix2[tx];
+    }
+    KW_LOCAL_FENCE;
+
     if (pattern < endPattern) { // Remove padded threads!
-        SUM_PARTIALS_PARTIALS_4_GPU();
+        SUM_PARTIALS_PARTIALS_4_GPU(); /* TODO */
         partials3[u] = sum1 * sum2;
     }
 #endif // FW_OPENCL_CPU
