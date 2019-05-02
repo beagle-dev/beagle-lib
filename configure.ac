@@ -154,6 +154,8 @@ AM_CXXFLAGS="$AM_CXXFLAGS -std=c++11"
 
 CPU_CFLAGS=
 CPU_LIBS=
+SYNTHETICTEST_CPPFLAGS=
+SYNTHETICTEST_LDFLAGS=
 
 case $host_os in
 *linux*)
@@ -162,6 +164,8 @@ case $host_os in
   then
     CPU_CFLAGS="$CPU_CFLAGS -pthread"
     CPU_LIBS="$CPU_LIBS -lpthread"
+    SYNTHETICTEST_CPPFLAGS="$SYNTHETICTEST_CPPFLAGS $CPU_CFLAGS"
+    SYNTHETICTEST_LDFLAGS="$SYNTHETICTEST_LDFLAGS $CPU_LIBS"
   fi
 esac
 
@@ -296,9 +300,6 @@ AC_ARG_WITH([pll],
    [AS_HELP_STRING([--with-pll=PATH],[path for libpll (used with synthetictest for comparison testing) @<:@default=no@:>@])],
    [],
    [with_pll=no])
-
-SYNTHETICTEST_CPPFLAGS=
-SYNTHETICTEST_LDFLAGS=
 
 if test "x$with_pll" != "xno"
 then
