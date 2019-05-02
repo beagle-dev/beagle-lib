@@ -16,6 +16,12 @@
 #include <stack>
 #include <queue>
 #include <cstdarg>
+#include <thread>
+#include <future>
+#include <queue>
+#include <condition_variable>
+#include <mutex>
+#include <functional>
 
 #ifdef _WIN32
     #include <winsock.h>
@@ -128,6 +134,14 @@ int* getRandomTipStates( int nsites, int stateCount )
     return states;
 }
 
+struct threadData
+{
+    std::thread t; // The thread object
+    std::queue<std::packaged_task<void()>> jobs; // The job queue
+    std::condition_variable cv; // The condition variable to wait for threads
+    std::mutex m; // Mutex used for avoiding data races
+    bool stop = false; // When set, this flag tells the thread that it should exit
+};
 
 struct node
 {
@@ -1233,14 +1247,6 @@ void setNewCategoryWeights(int eigenCount,
             } //if (!pllOnly) {
 #endif
         }
-    
-#ifdef HAVE_PLL
-        if (!pllOnly) {
-#endif
-        beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
-#ifdef HAVE_PLL
-        } //if (!pllOnly) {
-#endif
 
 #ifdef HAVE_PLL
         if (pllTest) {
@@ -1488,6 +1494,31 @@ void printFlags(long inFlags) {
 }
 
 
+void threadWaiting(threadData* tData)
+{
+    std::unique_lock<std::mutex> l(tData->m, std::defer_lock);
+    while (true)
+    {
+        l.lock();
+
+        // Wait until the queue won't be empty or stop is signaled
+        tData->cv.wait(l, [tData] () {
+            return (tData->stop || !tData->jobs.empty()); 
+            });
+
+        // Stop was signaled, let's exit the thread
+        if (tData->stop) { return; }
+
+        // Pop one task from the queue...
+        std::packaged_task<void()> j = std::move(tData->jobs.front());
+        tData->jobs.pop();
+
+        l.unlock();
+
+        // Execute the task!
+        j();
+    }
+}
 
 void runBeagle(int resource, 
                int stateCount, 
@@ -1531,7 +1562,8 @@ void runBeagle(int resource,
                int* resourceList,
                int  resourceCount,
                bool alignmentFromFile,
-               char* treenewick)
+               char* treenewick,
+               bool clientThreadingEnabled)
 {
 
     int instanceCount = 1;
@@ -1681,7 +1713,7 @@ void runBeagle(int resource,
                     &instanceResource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                     1,                /**< Length of resourceList list (input) */
                     (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0) |
-                    (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
+                    ((multiRsrc && !clientThreadingEnabled) ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
 		    (multiRsrc ? BEAGLE_FLAG_PARALLELOPS_STREAMS : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                     (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
                     (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
@@ -2016,6 +2048,240 @@ void runBeagle(int resource,
             operations);
     }
 
+    int numThreads = 0;
+    threadData* threads;
+    std::shared_future<void>* futures;
+    std::vector<double> threadLogL;
+
+    if (clientThreadingEnabled) {
+        numThreads = instanceCount;
+        threads = new threadData[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].t = std::thread(threadWaiting, &threads[i]);
+            threadLogL.push_back(0.0);
+        }
+        futures = new std::shared_future<void>[numThreads];
+        if (futures == NULL)
+            throw std::bad_alloc();
+    }
+
+    auto computeLikelihood = [&] (int i,
+                                  double* replicateLogL,
+                                  int replicateInstanceCount,
+                                  int* replicateInstances,
+                                  int* replicateInstanceSitesCount) {
+
+        if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
+            if (beagleSetPatternPartitions(replicateInstances[0], partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
+                printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
+                exit(-1);
+            }
+        }
+
+        gettimeofday(&time1,NULL);
+
+        if (partitionCount > 1) {
+            int totalEdgeCount = edgeCount * modelCount;
+            beagleUpdateTransitionMatricesWithMultipleModels(
+                                           replicateInstances[0],     // instance
+                                           eigenIndices,   // eigenIndex
+                                           categoryRateIndices,   // category rate index
+                                           edgeIndices,   // probabilityIndices
+                                           (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
+                                           (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
+                                           edgeLengths,   // edgeLengths
+                                           totalEdgeCount);            // count
+        } else {
+            for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+                if (!setmatrix) {
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        // tell BEAGLE to populate the transition matrices for the above edge lengths
+                        beagleUpdateTransitionMatrices(replicateInstances[inst],     // instance
+                                                       eigenIndex,             // eigenIndex
+                                                       &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
+                                                       (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
+                                                       (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
+                                                       edgeLengths,   // edgeLengths
+                                                       edgeCount);            // count
+                    }
+
+                } else {
+                    double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
+                    for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
+                        for(int z=0;z<rateCategoryCount;z++){
+                            for(int x=0;x<stateCount;x++){
+                                for(int y=0;y<stateCount;y++){
+                                    inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
+                                }
+                            } 
+                        }
+                        beagleSetTransitionMatrix(replicateInstances[0], edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                        if (calcderivs) {
+                            beagleSetTransitionMatrix(replicateInstances[0], edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                            beagleSetTransitionMatrix(replicateInstances[0], edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        // std::cout.setf(std::ios::showpoint);
+        // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+        // std::cout.precision(4);
+        // unsigned int partialsOps = internalCount * eigenCount;
+        // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+        // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+        // unsigned long long partialsTotal = partialsSize * partialsOps;
+        // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+
+        // std::cout << " compute throughput:   ";
+
+        // for (int pRep=0; pRep < 50; pRep++) {
+            gettimeofday(&time2, NULL);
+
+            // update the partials
+            if (partitionCount > 1) {
+                beagleUpdatePartialsByPartition( replicateInstances[0],                   // instance
+                                (BeagleOperationByPartition*)operations,     // operations
+                                internalCount*eigenCount*partitionCount);    // operationCount
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleUpdatePartials( replicateInstances[inst],      // instance
+                                    (BeagleOperation*)operations,     // operations
+                                    internalCount*eigenCount,              // operationCount
+                                    (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+                }
+            }
+
+            gettimeofday(&time3, NULL);
+
+            // struct timespec ts;
+            // ts.tv_sec = 0;
+            // ts.tv_nsec = 100000000;
+            // nanosleep(&ts, NULL);
+
+            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << ", ";
+        // }
+        // std::cout << " GFLOPS " << std::endl<< std::endl;
+
+        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
+
+
+        int scalingFactorsCount = internalCount;
+                
+        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+            if (manualScaling && !(i % rescaleFrequency)) {
+                beagleResetScaleFactors(replicateInstances[0],
+                                        cumulativeScalingFactorIndices[eigenIndex]);
+                
+                beagleAccumulateScaleFactors(replicateInstances[0],
+                                       &scalingFactorsIndices[eigenIndex*internalCount],
+                                       scalingFactorsCount,
+                                       cumulativeScalingFactorIndices[eigenIndex]);
+            } else if (autoScaling) {
+                beagleAccumulateScaleFactors(replicateInstances[0], &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
+            }
+        }
+        
+        gettimeofday(&time4, NULL);
+
+        // calculate the site likelihoods at the root node
+        if (!unrooted) {
+            if (partitionCount > 1) {
+                beagleCalculateRootLogLikelihoodsByPartition(
+                                            replicateInstances[0],               // instance
+                                            rootIndices,// bufferIndices
+                                            categoryWeightsIndices,                // weights
+                                            stateFrequencyIndices,                 // stateFrequencies
+                                            cumulativeScalingFactorIndices,
+                                            partitionIndices,
+                                            partitionCount,
+                                            eigenCount,                      // count
+                                            partitionLogLs,
+                                            replicateLogL);         // outLogLikelihoods
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleCalculateRootLogLikelihoods(replicateInstances[inst],               // instance
+                                                rootIndices,// bufferIndices
+                                                categoryWeightsIndices,                // weights
+                                                stateFrequencyIndices,                 // stateFrequencies
+                                                cumulativeScalingFactorIndices,
+                                                eigenCount,                      // count
+                                                replicateLogL);         // outLogLikelihoods
+                }
+                if (multiRsrc && !clientThreadingEnabled) {
+                    *replicateLogL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        *replicateLogL += instLogL;
+                    }
+                }
+            }
+        } else {
+            if (partitionCount > 1) {
+                beagleCalculateEdgeLogLikelihoodsByPartition(
+                                                  replicateInstances[0],
+                                                  rootIndices,
+                                                  lastTipIndices,
+                                                  lastTipIndices,
+                                                  (calcderivs ? lastTipIndicesD1 : NULL),
+                                                  (calcderivs ? lastTipIndicesD2 : NULL),
+                                                  categoryWeightsIndices,
+                                                  stateFrequencyIndices,
+                                                  cumulativeScalingFactorIndices,
+                                                  partitionIndices,
+                                                  partitionCount,
+                                                  eigenCount,
+                                                  partitionLogLs,
+                                                  replicateLogL,
+                                                  (calcderivs ? partitionD1 : NULL),
+                                                  (calcderivs ? &deriv1 : NULL),
+                                                  (calcderivs ? partitionD2 : NULL),
+                                                  (calcderivs ? &deriv2 : NULL));
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleCalculateEdgeLogLikelihoods(replicateInstances[inst],               // instance
+                                                      rootIndices,// bufferIndices
+                                                      lastTipIndices,
+                                                      lastTipIndices,
+                                                      (calcderivs ? lastTipIndicesD1 : NULL),
+                                                      (calcderivs ? lastTipIndicesD2 : NULL),
+                                                      categoryWeightsIndices,                // weights
+                                                      stateFrequencyIndices,                 // stateFrequencies
+                                                      cumulativeScalingFactorIndices,
+                                                      eigenCount,                      // count
+                                                      replicateLogL,    // outLogLikelihood
+                                                      (calcderivs ? &deriv1 : NULL),
+                                                      (calcderivs ? &deriv2 : NULL));
+                }
+                if (multiRsrc && !clientThreadingEnabled) {
+                    *replicateLogL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        *replicateLogL += instLogL;
+                    }
+                    if (calcderivs) {
+                        deriv1 = deriv2 = 0.0;
+                        double instDeriv1, instDeriv2;
+                        for(int inst=0; inst<replicateInstanceCount; inst++) {
+                            beagleGetDerivatives(inst,
+                                                 &instDeriv1,
+                                                 &instDeriv2);
+                            deriv1 += instDeriv1;
+                            deriv2 += instDeriv2;
+                        }
+                    }
+                }
+            }
+
+        }
+    }; // end lambda
+
 //  replicate loop
     for (int i=0; i<nreps; i++){
 
@@ -2100,219 +2366,42 @@ void runBeagle(int resource,
                 operations[beagleOpCount*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
             }
         }
+
+        if (clientThreadingEnabled) {
+            for (int j=0; j<numThreads; j++) {
+
+                std::packaged_task<void()> threadTask(
+                    std::bind(computeLikelihood, i, &threadLogL[j], 1,
+                        &instances[j], &instanceSitesCount[j]));
+
+                futures[j] = threadTask.get_future();
+                threadData* td = &threads[j];
+
+                std::unique_lock<std::mutex> l(td->m);
+                td->jobs.push(std::move(threadTask));
+                l.unlock();
+
+            }
+
+            logL = 0.0;
+        }
         
         // start timing!
         gettimeofday(&time0,NULL);
 
-        if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
-            if (beagleSetPatternPartitions(instances[0], partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
-                printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
-                exit(-1);
+        if (clientThreadingEnabled) {
+            for (int j=0; j<numThreads; j++) {
+                threads[j].cv.notify_one();
+
             }
-        }
-
-        gettimeofday(&time1,NULL);
-
-        if (partitionCount > 1) {
-            int totalEdgeCount = edgeCount * modelCount;
-            beagleUpdateTransitionMatricesWithMultipleModels(
-                                           instances[0],     // instance
-                                           eigenIndices,   // eigenIndex
-                                           categoryRateIndices,   // category rate index
-                                           edgeIndices,   // probabilityIndices
-                                           (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
-                                           (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
-                                           edgeLengths,   // edgeLengths
-                                           totalEdgeCount);            // count
-        } else {
-            for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
-                if (!setmatrix) {
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        // tell BEAGLE to populate the transition matrices for the above edge lengths
-                        beagleUpdateTransitionMatrices(instances[inst],     // instance
-                                                       eigenIndex,             // eigenIndex
-                                                       &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
-                                                       (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
-                                                       (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
-                                                       edgeLengths,   // edgeLengths
-                                                       edgeCount);            // count
-                    }
-
-                } else {
-                    double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
-                    for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
-                        for(int z=0;z<rateCategoryCount;z++){
-                            for(int x=0;x<stateCount;x++){
-                                for(int y=0;y<stateCount;y++){
-                                    inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
-                                }
-                            } 
-                        }
-                        beagleSetTransitionMatrix(instances[0], edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
-                        if (calcderivs) {
-                            beagleSetTransitionMatrix(instances[0], edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                            beagleSetTransitionMatrix(instances[0], edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                        }
-                    }
-                }
-            }
-
-        }
-
-        // std::cout.setf(std::ios::showpoint);
-        // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
-        // std::cout.precision(4);
-        // unsigned int partialsOps = internalCount * eigenCount;
-        // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
-        // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
-        // unsigned long long partialsTotal = partialsSize * partialsOps;
-        // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-
-        // std::cout << " compute throughput:   ";
-
-        // for (int pRep=0; pRep < 50; pRep++) {
-            gettimeofday(&time2, NULL);
-
-            // update the partials
-            if (partitionCount > 1) {
-                beagleUpdatePartialsByPartition( instances[0],                   // instance
-                                (BeagleOperationByPartition*)operations,     // operations
-                                internalCount*eigenCount*partitionCount);    // operationCount
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleUpdatePartials( instances[inst],      // instance
-                                    (BeagleOperation*)operations,     // operations
-                                    internalCount*eigenCount,              // operationCount
-                                    (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
-                }
-            }
-
-            gettimeofday(&time3, NULL);
-
-            // struct timespec ts;
-            // ts.tv_sec = 0;
-            // ts.tv_nsec = 100000000;
-            // nanosleep(&ts, NULL);
-
-            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << ", ";
-        // }
-        // std::cout << " GFLOPS " << std::endl<< std::endl;
-
-        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
-
-
-        int scalingFactorsCount = internalCount;
-                
-        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
-            if (manualScaling && !(i % rescaleFrequency)) {
-                beagleResetScaleFactors(instances[0],
-                                        cumulativeScalingFactorIndices[eigenIndex]);
-                
-                beagleAccumulateScaleFactors(instances[0],
-                                       &scalingFactorsIndices[eigenIndex*internalCount],
-                                       scalingFactorsCount,
-                                       cumulativeScalingFactorIndices[eigenIndex]);
-            } else if (autoScaling) {
-                beagleAccumulateScaleFactors(instances[0], &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
-            }
-        }
-        
-        gettimeofday(&time4, NULL);
-
-        // calculate the site likelihoods at the root node
-        if (!unrooted) {
-            if (partitionCount > 1) {
-                beagleCalculateRootLogLikelihoodsByPartition(
-                                            instances[0],               // instance
-                                            rootIndices,// bufferIndices
-                                            categoryWeightsIndices,                // weights
-                                            stateFrequencyIndices,                 // stateFrequencies
-                                            cumulativeScalingFactorIndices,
-                                            partitionIndices,
-                                            partitionCount,
-                                            eigenCount,                      // count
-                                            partitionLogLs,
-                                            &logL);         // outLogLikelihoods
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleCalculateRootLogLikelihoods(instances[inst],               // instance
-                                                rootIndices,// bufferIndices
-                                                categoryWeightsIndices,                // weights
-                                                stateFrequencyIndices,                 // stateFrequencies
-                                                cumulativeScalingFactorIndices,
-                                                eigenCount,                      // count
-                                                &logL);         // outLogLikelihoods
-                }
-                if (multiRsrc) {
-                    logL = 0.0;
-                    double instLogL;
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        beagleGetLogLikelihood(inst,
-                                               &instLogL);
-                        logL += instLogL;
-                    }
-                }
+            for (int j=0; j<numThreads; j++) {
+                futures[j].wait();
+                logL += threadLogL[j];
             }
         } else {
-            if (partitionCount > 1) {
-                beagleCalculateEdgeLogLikelihoodsByPartition(
-                                                  instances[0],
-                                                  rootIndices,
-                                                  lastTipIndices,
-                                                  lastTipIndices,
-                                                  (calcderivs ? lastTipIndicesD1 : NULL),
-                                                  (calcderivs ? lastTipIndicesD2 : NULL),
-                                                  categoryWeightsIndices,
-                                                  stateFrequencyIndices,
-                                                  cumulativeScalingFactorIndices,
-                                                  partitionIndices,
-                                                  partitionCount,
-                                                  eigenCount,
-                                                  partitionLogLs,
-                                                  &logL,
-                                                  (calcderivs ? partitionD1 : NULL),
-                                                  (calcderivs ? &deriv1 : NULL),
-                                                  (calcderivs ? partitionD2 : NULL),
-                                                  (calcderivs ? &deriv2 : NULL));
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleCalculateEdgeLogLikelihoods(instances[inst],               // instance
-                                                      rootIndices,// bufferIndices
-                                                      lastTipIndices,
-                                                      lastTipIndices,
-                                                      (calcderivs ? lastTipIndicesD1 : NULL),
-                                                      (calcderivs ? lastTipIndicesD2 : NULL),
-                                                      categoryWeightsIndices,                // weights
-                                                      stateFrequencyIndices,                 // stateFrequencies
-                                                      cumulativeScalingFactorIndices,
-                                                      eigenCount,                      // count
-                                                      &logL,    // outLogLikelihood
-                                                      (calcderivs ? &deriv1 : NULL),
-                                                      (calcderivs ? &deriv2 : NULL));
-                }
-                if (multiRsrc) {
-                    logL = 0.0;
-                    double instLogL;
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        beagleGetLogLikelihood(inst,
-                                               &instLogL);
-                        logL += instLogL;
-                    }
-                    if (calcderivs) {
-                        deriv1 = deriv2 = 0.0;
-                        double instDeriv1, instDeriv2;
-                        for(int inst=0; inst<instanceCount; inst++) {
-                            beagleGetDerivatives(inst,
-                                                 &instDeriv1,
-                                                 &instDeriv2);
-                            deriv1 += instDeriv1;
-                            deriv2 += instDeriv2;
-                        }
-                    }
-                }
-            }
-
+            computeLikelihood(i, &logL, instanceCount, &instances[0], &instanceSitesCount[0]);
         }
+
         // end timing!
         gettimeofday(&time5,NULL);
         
@@ -2360,6 +2449,25 @@ void runBeagle(int resource,
         previousLogL = logL;
         previousDeriv1 = deriv1;
         previousDeriv2 = deriv2;        
+    }
+
+    if (clientThreadingEnabled) {
+        // Send stop signal to all threads and join them...
+        for (int i = 0; i < numThreads; i++) {
+            threadData* td = &threads[i];
+            std::unique_lock<std::mutex> l(td->m);
+            td->stop = true;
+            td->cv.notify_one();
+        }
+
+        // Join all the threads
+        for (int i = 0; i < numThreads; i++) {
+            threadData* td = &threads[i];
+            td->t.join();
+        }
+
+        delete[] threads;
+        delete[] futures;
     }
 
     if (resource == 0) {
@@ -2758,7 +2866,7 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--enablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters] [--threads]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--enablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters] [--threadcount] [--clientthreads]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllonly]";
@@ -2818,7 +2926,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     int* threadCount,
                                     char** alignmentdna,
                                     bool* compress,
-                                    char** treenewick)    {
+                                    char** treenewick,
+                                    bool* clientThreadingEnabled)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -2972,7 +3081,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *newTreePerRep = true;
         } else if (option == "--newparameters") {
             *newParametersPerRep = true;
-        } else if (option == "--threads") {
+        } else if (option == "--threadcount") {
             expecting_threads = true;
 #ifdef HAVE_NCL
         } else if (option == "--alignmentdna") {
@@ -2982,6 +3091,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (option == "--tree") {
             expecting_treenewick = true;
 #endif // HAVE_NCL
+        } else if (option == "--clientthreads") {
+            *clientThreadingEnabled = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -3087,6 +3198,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (*newTreePerRep && *unrooted)
         abort("new tree per replicate can only be used with rooted trees");
+
+    if (*clientThreadingEnabled && *multiRsrc==false)
+        abort("client-side threading requires 'multirsrc' setting to be enabled");
 }
 
 int main( int argc, const char* argv[] )
@@ -3132,6 +3246,7 @@ int main( int argc, const char* argv[] )
     bool alignmentFromFile = false;
     bool compress = false;
     char* treenewick = NULL;
+    bool clientThreadingEnabled = false;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
@@ -3151,7 +3266,8 @@ int main( int argc, const char* argv[] )
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &pllOnly, &multiRsrc,
                                    &postorderTraversal, &newTreePerRep, &newParametersPerRep,
-                                   &threadCount, &alignmentdna, &compress, &treenewick);
+                                   &threadCount, &alignmentdna, &compress, &treenewick,
+                                   &clientThreadingEnabled);
 
     if (alignmentdna == NULL) {
         std::cout << "\nSimulating genomic ";
@@ -3241,7 +3357,8 @@ int main( int argc, const char* argv[] )
                           rsrcList,
                           rsrcCount,
                           alignmentFromFile,
-                          treenewick);
+                          treenewick,
+                          clientThreadingEnabled);
             }
         }
     } else {
