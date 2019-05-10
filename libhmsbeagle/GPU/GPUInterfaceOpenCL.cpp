@@ -485,7 +485,7 @@ void GPUInterface::SynchronizeDevice() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDevice\n");
 #endif                
 
-    // TODO: synchronize on device only    
+    // TODO: synchronize on device only
 
     // SAFE_CL(clFinish(openClCommandQueues[0]));
     
@@ -499,7 +499,7 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
 #endif                
 
-    // TODO: synchronize on device only    
+    // TODO: synchronize on device only
 
     // SAFE_CL(clFinish(openClCommandQueues[0]));
     

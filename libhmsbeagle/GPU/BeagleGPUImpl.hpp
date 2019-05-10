@@ -175,8 +175,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         #ifdef FW_OPENCL
             gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
         #else
-            // gpu->FreeHostMemory(hPartialsPtrs);
-            gpu->FreePinnedHostMemory(hPartialsPtrs);
+            gpu->FreeHostMemory(hPartialsPtrs);
+            // gpu->FreePinnedHostMemory(hPartialsPtrs);
         #endif
             gpu->FreeMemory(dPartialsPtrs);
             // gpu->FreeMemory(dPartitionOffsets);
@@ -727,6 +727,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
         // size_t transferSize = sizeof(unsigned int) * kNumPatternBlocks * 2;
         // gpu->MemcpyHostToDevice(dPartitionOffsets, hPartitionOffsets, transferSize);
+    } else {
+        gpu->ResizeStreamCount(kTipCount/2 + 1);
+        // gpu->ResizeStreamCount(1);
     }
 
     hCategoryRates = (double**) calloc(sizeof(double*),kEigenDecompCount); // Keep in double-precision
@@ -771,8 +774,8 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateMultiGridBuffers() {
     hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, kOpOffsetsSize);
     #else
     dPartialsPtrs = gpu->AllocateMemory(kOpOffsetsSize);
-    // hPartialsPtrs = (unsigned int*) gpu->MallocHost(kOpOffsetsSize);
-    hPartialsPtrs = (unsigned int*) gpu->AllocatePinnedHostMemory(kOpOffsetsSize, true, false);
+    hPartialsPtrs = (unsigned int*) gpu->MallocHost(kOpOffsetsSize);
+    // hPartialsPtrs = (unsigned int*) gpu->AllocatePinnedHostMemory(kOpOffsetsSize, true, false);
     #endif
     checkHostMemory(hPartialsPtrs);
 
@@ -1255,8 +1258,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
         hStreamIndices = (int*) malloc(sizeof(int) * kBufferCount * kPartitionCount);
         checkHostMemory(hStreamIndices);
 
-        if ((kPaddedPatternCount >= BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_GRID))
+        if ((kPaddedPatternCount >= BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_GRID)) {
             gpu->ResizeStreamCount((kTipCount/2 + 1) * kPartitionCount);
+         }
     }
             
     memcpy(hPatternPartitions, inPatternPartitions, sizeof(int) * kPatternCount);
@@ -1330,6 +1334,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
         }
         hPatternPartitionsStartBlocks = (int*) malloc(sizeof(int) * (kPartitionCount+1));
         checkHostMemory(hPatternPartitionsStartBlocks);
+
     }
 
     int blockIndex = 0;
@@ -2003,7 +2008,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
     int streamIndex = -1;
     int waitIndex = -1;
-    if (!kUsingMultiGrid || anyRescale == 1) {
+    if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
         gpu->SynchronizeDevice();
         for (int i = 0; i < kBufferCount * kPartitionCount; i++) {
             hStreamIndices[i] = -1;
@@ -2028,7 +2033,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 cumulativeScalingBuffer = 0;
         }
 
-        if (!kUsingMultiGrid || anyRescale == 1) {
+        if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
             int pOffset = currentPartition * kBufferCount;
             waitIndex = hStreamIndices[child2Index + pOffset];
             if (hStreamIndices[child1Index + pOffset] != -1) {
@@ -2296,19 +2301,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
 
     if (kUsingMultiGrid && (anyRescale != 1)) {
-// printf("USING MULTIGRID!\n");
         size_t transferSize = sizeof(unsigned int) * gridOpIndex;
         #ifdef FW_OPENCL
         gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
         #else
         gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
         #endif
-// int statesStatesCount = 0;
         gridStartOp[gridLaunches] = operationCount;
         int gridStart = 0;
         for (int i=0; i < gridLaunches; i++) {
             int gridSize = gridOpBlocks[i];
-// printf("%d ", (gridStartOp[i+1] - gridStartOp[i]));
             int rescaleMulti = BEAGLE_OP_NONE;
             GPUPtr scalingFactorsMulti = (GPUPtr)NULL;
             if (gridOpType[i] < 0) {
@@ -2316,7 +2318,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 rescaleMulti = 0;
                 gridOpType[i] *= -1;
             }
-// printf("rescaleMulti[%d] = %d, opType = %d\n", i, rescaleMulti, gridOpType[i]);
 
             if (((gridStartOp[i+1] - gridStartOp[i]) == 1) && !byPartition && (kDeviceCode != BEAGLE_OPENCL_DEVICE_AMD_GPU)) {
                 int child1Index         = hGridOpIndices[i*6+0];
@@ -2336,11 +2337,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 GPUPtr partials3 = dPartials[parIndex];
                 GPUPtr matrices1 = dMatrices[child1TransMatIndex];
                 GPUPtr matrices2 = dMatrices[child2TransMatIndex];
-
-
-                // printf("op[%03d]: c1 %03d (%d), c2 %03d (%d), c1m %03d, c2m %03d, par %03d, rescale %d\n", i, child1Index, (tipStates1?1:0), child2Index, (tipStates2?1:0), child1TransMatIndex, child2TransMatIndex, parIndex, rescaleMulti);
                 
-
                 if (gridOpType[i] == 1) {
                         kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
                                                                        matrices1, matrices2, scalingFactorsMulti,
@@ -2392,7 +2389,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                                                         gridStart, gridSize,
                                                         rescaleMulti);
                 } else {
-    // statesStatesCount += gridSize;
                     kernels->StatesStatesPruningMulti(dStatesOrigin, dPartialsOrigin, dMatrices[0],
                                                       scalingFactorsMulti,
                                                       dPartialsPtrs,
@@ -2402,19 +2398,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 }
             }
             gridStart += gridSize;
-// gpu->SynchronizeHost();
         }
-// printf("gridLaunches total = %d\n", gridLaunches);
-// printf("    gridSize total = %d\n", gridStart/gridOpBlocks[0]);
-// printf("statesStatesCount = %d\n", statesStatesCount);
-// exit(-1);
+
         #ifdef FW_OPENCL
         hPartialsPtrs = (unsigned int*)gpu->MapMemory(dPartialsPtrs, kOpOffsetsSize);
         #endif
 
     }
 
-    if (!kUsingMultiGrid || anyRescale == 1) {
+    if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
         gpu->SynchronizeDevice();
     }
 
@@ -2477,13 +2469,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
         kernels->AccumulateFactorsAutoScaling(dScalingFactors[0], dPtrQueue, dAccumulatedScalingFactors, count, kPaddedPatternCount, kScaleBufferSize);
                 
     } else {        
-        for(int n = 0; n < count; n++)
+        for(int n = 0; n < count; n++) {
             hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
-        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
-        
+        }
 
-    // Compute scaling factors at the root
-    kernels->AccumulateFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+
+        // Compute scaling factors at the root
+        kernels->AccumulateFactorsDynamicScaling(dScalingFactors[0], dPtrQueue, dScalingFactors[cumulativeScalingIndex], count, kPaddedPatternCount);
     }
     
 #ifdef BEAGLE_DEBUG_SYNCH    

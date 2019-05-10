@@ -1952,7 +1952,6 @@ void KernelLauncher::SumSites1(GPUPtr dArray1,
 
     int parameterCountV = 3;
     int totalParameterCount = 4;
-    // gpu->SynchronizeDevice();  
     gpu->LaunchKernel(fSumSites1,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,
@@ -2003,7 +2002,6 @@ void KernelLauncher::SumSites2(GPUPtr dArray1,
 
     int parameterCountV = 5;
     int totalParameterCount = 6;
-    // gpu->SynchronizeDevice();
     gpu->LaunchKernel(fSumSites2,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,
@@ -2030,7 +2028,6 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
     
     int parameterCountV = 7;
     int totalParameterCount = 8;
-    // gpu->SynchronizeDevice();
     gpu->LaunchKernel(fSumSites3,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,

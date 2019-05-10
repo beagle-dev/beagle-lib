@@ -79,7 +79,7 @@ private:
     CUcontext cudaContext;
     CUmodule cudaModule;
     CUstream* cudaStreams;
-    CUevent* cudaEvents;
+    CUevent cudaEvent;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id 
