@@ -54,6 +54,6 @@ add_executable(tinytest
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
-target_link_libraries(hmctest hmsbeagle)
+target_link_libraries(hmctest hmsbeagle hmsbeagle-opencl)
 #target_link_libraries(genomictest beagle_lib)
 target_link_libraries(tinytest hmsbeagle)

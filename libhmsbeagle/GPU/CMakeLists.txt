@@ -32,7 +32,7 @@ add_library(hmsbeagle-opencl.31 MODULE
 
 target_link_libraries(hmsbeagle-opencl.31 ${OpenCL_LIBRARIES})
 
-add_library(hmsbeagle-opencl MODULE
+add_library(hmsbeagle-opencl SHARED
         BeagleGPUImpl.h
         BeagleGPUImpl.hpp
         GPUImplDefs.h
@@ -46,7 +46,10 @@ add_library(hmsbeagle-opencl MODULE
         OpenCLPlugin.cpp
         OpenCLPlugin.h
         Precision.h
+        kernels/BeagleOpenCL_kernels.h
         )
+
+add_dependencies(hmsbeagle-opencl OpenKernels)
 
 target_link_libraries(hmsbeagle-opencl ${OpenCL_LIBRARIES})
 
