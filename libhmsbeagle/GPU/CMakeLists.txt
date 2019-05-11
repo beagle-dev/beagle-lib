@@ -30,9 +30,11 @@ add_library(hmsbeagle-opencl.31 MODULE
         Precision.h
         )
 
+add_dependencies(hmsbeagle-opencl.31 OpenKernels)
+
 target_link_libraries(hmsbeagle-opencl.31 ${OpenCL_LIBRARIES})
 
-add_library(hmsbeagle-opencl SHARED
+add_library(hmsbeagle-opencl MODULE
         BeagleGPUImpl.h
         BeagleGPUImpl.hpp
         GPUImplDefs.h
