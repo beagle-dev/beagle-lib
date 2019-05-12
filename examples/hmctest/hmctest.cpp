@@ -137,7 +137,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                             useGpu ?
-                                  BEAGLE_FLAG_PROCESSOR_GPU :
+                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE :
                                   BEAGLE_FLAG_PROCESSOR_CPU,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
@@ -381,10 +381,22 @@ int main( int argc, const char* argv[] )
                                       &logL);         // outLogLikelihoods
 
 
-    beagleSetRootPrePartials(instance,
-                             (const int *) &rootPreIndex,               // bufferIndices
-                             &stateFrequencyIndex,                  // stateFrequencies
-                             1);                                    // count
+    double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+    int offset = 0;
+    for (int c = 0; c < rateCategoryCount; ++c) {
+        for (int p = 0; p < nPatterns; ++p) {
+            for (int s = 0; s < stateCount; ++s) {
+                seerootPartials[offset++] = freqs[s];
+            }
+        }
+    }
+    beagleSetPartials(instance, rootPreIndex, seerootPartials);
+    fprintf(stderr, "Setting preroot: %d\n", rootPreIndex);
+
+//    beagleSetRootPrePartials(instance, // TODO Remove from API -- not necessary?
+//                             (const int *) &rootPreIndex,               // bufferIndices
+//                             &stateFrequencyIndex,                  // stateFrequencies
+//                             1);                                    // count
 
     // update the pre-order partials
     beagleUpdatePrePartials(instance,
@@ -430,9 +442,8 @@ int main( int argc, const char* argv[] )
 //  need to consider rate variation case
 
 
-    double * seeprePartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
-    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns *rateCategoryCount);
-    double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+    double * seeprePartials  = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
 
     double * tmpNumerator = (double*)   malloc(sizeof(double)  * nPatterns * rateCategoryCount);
 
