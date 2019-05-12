@@ -984,19 +984,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
 #endif
 
     gpu->MemcpyDeviceToHost(hPartialsCache, dPartials[bufferIndex], sizeof(Real) * kPartialsSize);
-    
-    double* outPartialsOffset = outPartials;
-    Real* tmpRealPartialsOffset = hPartialsCache;
-    
-    for (int i = 0; i < kPatternCount; i++) {
-//#ifdef DOUBLE_PRECISION
-//        memcpy(outPartialsOffset, tmpRealPartialsOffset, sizeof(Real) * kStateCount);
-//#else
-//        MEMCNV(outPartialsOffset, tmpRealPartialsOffset, kStateCount, double);
-//#endif
-        beagleMemCpy(outPartialsOffset, tmpRealPartialsOffset, kStateCount);
-        tmpRealPartialsOffset += kPaddedStateCount;
-        outPartialsOffset += kStateCount;
+
+    double *outPartialsOffset = outPartials;
+    Real *tmpRealPartialsOffset = hPartialsCache;
+
+    for (int c = 0; c < kCategoryCount; c++) {
+        for (int i = 0; i < kPatternCount; i++) {
+            beagleMemCpy(outPartialsOffset, tmpRealPartialsOffset, kStateCount);
+            tmpRealPartialsOffset += kPaddedStateCount;
+            outPartialsOffset += kStateCount;
+        }
+        tmpRealPartialsOffset += kPaddedStateCount * (kPaddedPatternCount - kPatternCount);
     }
     
 #ifdef BEAGLE_DEBUG_FLOW
