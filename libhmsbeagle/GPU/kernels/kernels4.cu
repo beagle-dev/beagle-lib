@@ -863,7 +863,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
     KW_LOCAL_FENCE;
 
-    KW_LOCAL_MEM REAL sProduct[16];
+    KW_LOCAL_MEM REAL sProduct[PATTERN_BLOCK_SIZE * 4 * 4];
     if (pattern < endPattern) { // Remove padded threads!
         REAL sum2;
         int i = pat;
@@ -877,7 +877,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
         i = (i + 1) & 0x3;
         FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
-        sProduct[tx] = sPartials1[multBy16(patIdx) | tx] * sum2;
+        sProduct[multBy16(patIdx) | tx] = sPartials1[multBy16(patIdx) | tx] * sum;
+        //partials3[u] = sProduct[multBy16(patIdx) | tx]; /* These appear correct */
     }
 
     KW_LOCAL_FENCE;
@@ -887,13 +888,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
         int i = pat;
         int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
 
-        sum1 = sMatrix1[multBy4(i) | state] * sProduct[multBy4(pat) | i]; /* TODO patIdx16pat4 is probably wrong here */
+        sum1 = sMatrix1[multBy4(i) | state] * sProduct[patIdx16pat4 | i];
         i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sProduct[multBy4(pat) | i], sum1);
+        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
         i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sProduct[multBy4(pat) | i], sum1);
+        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
         i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sProduct[multBy4(pat) | i], sum1);
+        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
 
         partials3[u] = sum1;
     }
