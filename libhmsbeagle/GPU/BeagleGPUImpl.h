@@ -97,6 +97,8 @@ private:
     int kLastTipPartialsBufferIndex;
 
     int kResultPaddedPatterns;
+
+    int kRunNumber;
     
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -154,6 +156,7 @@ private:
     unsigned int kWeightsOffset;
     unsigned int kFrequenciesOffset;
     GPUPtr  dPartialsPtrs;
+    GPUPtr  dPartialsPtrsIntegrate;
     // GPUPtr  dPartitionOffsets;
     GPUPtr  dPatternsNewOrder;
     GPUPtr  dTipOffsets;

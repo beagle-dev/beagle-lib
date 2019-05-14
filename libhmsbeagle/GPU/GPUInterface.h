@@ -79,7 +79,9 @@ private:
     CUcontext cudaContext;
     CUmodule cudaModule;
     CUstream* cudaStreams;
-    CUevent cudaEvent;
+    CUevent* cudaEvents;
+    CUgraph cudaGraph;
+    CUgraphExec cudaExecGraph;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id 
@@ -116,6 +118,10 @@ public:
                                     int streamWaitIndex);
     
     GPUFunction GetFunction(const char* functionName);
+
+    void GraphCaptureBegin();
+    void GraphCaptureEnd();
+    void GraphLaunch();
     
     void LaunchKernel(GPUFunction deviceFunction,
                                Dim3Int block,

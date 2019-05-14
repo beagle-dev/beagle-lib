@@ -129,7 +129,7 @@ GPUInterface::GPUInterface() {
     cudaContext = NULL;
     cudaModule = NULL;
     cudaStreams = NULL;
-    cudaEvent = NULL;
+    cudaEvents = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
 
@@ -145,14 +145,18 @@ GPUInterface::~GPUInterface() {
 
     if (cudaStreams != NULL) {
         for(int i=0; i<numStreams; i++) {
-            if (cudaStreams[i] != NULL && cudaStreams[i] != CU_STREAM_LEGACY)
+            if (cudaStreams[i] != NULL)
                 SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
         }
         free(cudaStreams);
     }
 
-    if (cudaEvent != NULL) {
-        SAFE_CUDA(cuEventDestroy(cudaEvent));
+    if (cudaEvents != NULL) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaEvents[i] != NULL)
+                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
+        }
+        free(cudaEvents);
     }
 
     if (cudaContext != NULL) {
@@ -293,11 +297,15 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
 
     numStreams = 1;
     cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-    // CUstream stream;
-    // SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
-    cudaStreams[0] = CU_STREAM_LEGACY;
-
-    cuEventCreate(&cudaEvent, CU_EVENT_DISABLE_TIMING);
+    CUstream stream;
+    SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
+    cudaStreams[0] = stream;
+    CUevent event;
+    cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
+    for(int i=0; i<2; i++) {
+        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+        cudaEvents[i] = event;
+    }
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
 
@@ -317,16 +325,31 @@ void GPUInterface::ResizeStreamCount(int newStreamCount) {
 
     if (cudaStreams != NULL) {
         for(int i=0; i<numStreams; i++) {
-            if (cudaStreams[i] != NULL && cudaStreams[i] != CU_STREAM_LEGACY)
+            if (cudaStreams[i] != NULL)
                 SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
         }
         free(cudaStreams);
     }
 
+    if (cudaEvents != NULL) {
+        for(int i=0; i<numStreams; i++) {
+            if (cudaEvents[i] != NULL)
+                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
+        }
+        free(cudaEvents);
+    }
+
     if (newStreamCount == 1) {
         numStreams = 1;
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-        cudaStreams[0] = CU_STREAM_LEGACY;
+        CUstream stream;
+        SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
+        cudaStreams[0] = stream;
+        CUevent event;
+        for(int i=0; i<2; i++) {
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
+        }
     } else {
         numStreams = newStreamCount;
         if (numStreams > BEAGLE_STREAM_COUNT) {
@@ -334,10 +357,16 @@ void GPUInterface::ResizeStreamCount(int newStreamCount) {
         }
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
         CUstream stream;
+        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
+        CUevent event;
         for(int i=0; i<numStreams; i++) {
             SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
             cudaStreams[i] = stream;
+            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+            cudaEvents[i] = event;
         }
+        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
+        cudaEvents[numStreams] = event;
     }
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
@@ -366,8 +395,8 @@ void GPUInterface::SynchronizeDevice() {
 
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
 
-    SAFE_CUDA(cuEventRecord(cudaEvent, 0));
-    SAFE_CUDA(cuStreamWaitEvent(0, cudaEvent, 0));
+    SAFE_CUDA(cuEventRecord(cudaEvents[numStreams], 0));
+    SAFE_CUDA(cuStreamWaitEvent(0, cudaEvents[numStreams], 0));
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
 
@@ -380,6 +409,9 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDeviceWithIndex\n");
 #endif
+
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+
     CUstream streamRecord  = NULL;
     CUstream streamWait    = NULL;
     if (streamRecordIndex >= 0)
@@ -387,11 +419,71 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
     if (streamWaitIndex >= 0)
         streamWait   = cudaStreams[streamWaitIndex % numStreams];
 
-    SAFE_CUPP(cuEventRecord(cudaEvent, streamRecord));
-    SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvent, 0));
+    if (streamRecordIndex >= 0 && streamWaitIndex < 0) {
+        // record streamRecord and wait on all others
+        SAFE_CUDA(cuEventRecord(cudaEvents[numStreams], streamRecord));
+        for (int i = 0; i < numStreams; i++) {
+            if (i != (streamRecordIndex % numStreams)) {
+                SAFE_CUDA(cuStreamWaitEvent(cudaStreams[i], cudaEvents[numStreams], 0));
+            }
+        }
+    } else if (streamRecordIndex < 0 && streamWaitIndex >= 0) {
+         // record all other streams and wait on streamWait 
+        for (int i = 0; i < numStreams; i++) {
+            if (i != (streamWaitIndex % numStreams)) {
+                SAFE_CUDA(cuEventRecord(cudaEvents[i], cudaStreams[i]));
+                SAFE_CUDA(cuStreamWaitEvent(streamWait, cudaEvents[i], 0));
+            }
+        }
+    } else {
+         // record streamRecord and wait on streamWait 
+        SAFE_CUDA(cuEventRecord(cudaEvents[numStreams], streamRecord));
+        SAFE_CUDA(cuStreamWaitEvent(streamWait, cudaEvents[numStreams], 0));
+    }
+
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
+#endif
+}
+
+void GPUInterface::GraphCaptureBegin() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GraphCaptureBegin\n");
+#endif
+
+    SAFE_CUPP(cuStreamBeginCapture(cudaStreams[0], CU_STREAM_CAPTURE_MODE_GLOBAL));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GraphCaptureBegin\n");
+#endif
+}
+
+
+void GPUInterface::GraphCaptureEnd() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GraphCaptureEnd\n");
+#endif
+
+        SAFE_CUPP(cuStreamEndCapture(cudaStreams[0], &cudaGraph));
+
+        SAFE_CUPP(cuGraphInstantiate(&cudaExecGraph, cudaGraph, NULL, NULL, 0));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GraphCaptureEnd\n");
+#endif
+}
+
+void GPUInterface::GraphLaunch() {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::GraphLaunch\n");
+#endif
+
+        SAFE_CUDA(cuGraphLaunch(cudaExecGraph, cudaStreams[0]));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tLeaving  GPUInterface::GraphLaunch\n");
 #endif
 }
 
@@ -500,12 +592,18 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 
         if (waitIndex >= 0) {
             int waitIndexMod = waitIndex % numStreams;
-            SAFE_CUDA(cuStreamSynchronize(cudaStreams[waitIndexMod]));
+            // SAFE_CUDA(cuStreamSynchronize(cudaStreams[waitIndexMod]));
+            SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndexMod], 0));
         }
+
+        // printf("stream %d launching\n", streamIndexMod);
 
         SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                                  block.x, block.y, block.z, 0,
                                  cudaStreams[streamIndexMod], params, NULL));
+
+        SAFE_CUDA(cuEventRecord(cudaEvents[streamIndexMod], cudaStreams[streamIndexMod]));
+
     } else {
         SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                                  block.x, block.y, block.z, 0,
