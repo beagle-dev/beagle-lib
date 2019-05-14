@@ -519,7 +519,6 @@ GPUFunction GPUInterface::GetFunction(const char* functionName) {
     
     int err;
     openClFunction = clCreateKernel(openClProgram, functionName, &err);
-    SAFE_CL(err);
     if (!openClFunction) {
         fprintf(stderr, "OpenCL error: Failed to create compute kernel %s\n", functionName);
         exit(-1);

@@ -1760,17 +1760,52 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(
     fprintf(stderr, "\t Entering BeagleGPUImpl::transposeTransitionMatrices \n");
 #endif
 
-    int returnCode = BEAGLE_SUCCESS;
+//    if (kPaddedStateCount == 4) {
+//#ifdef BEAGLE_DEBUG_FLOW
+//        fprintf(stderr, "Transposition not necessary for 4-state-count models.\n");
+//#endif
+//        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+//    }
 
     if (matrixCount > 0) {
 
+        for (int u = 0; u < matrixCount; u++) {
+            if (inputIndices[u] == resultIndices[u]) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+                fprintf(stderr, "In-place transposition is not allowed.\n");
+#endif
+
+                return BEAGLE_ERROR_GENERAL;
+            }
+        }
+
+        int totalMatrixCount = matrixCount * kCategoryCount;
+
+        int ptrIndex = 0;
+        int indexOffset = kMatrixSize * kCategoryCount;
+        int categoryOffset = kMatrixSize;
+
+        for (int i = 0; i < matrixCount; i++) {
+            for (int j = 0; j < kCategoryCount; j++) {
+
+                hPtrQueue[ptrIndex] = inputIndices[i] * indexOffset + j * categoryOffset;
+                hPtrQueue[ptrIndex + totalMatrixCount] = resultIndices[i] * indexOffset + j * categoryOffset;
+
+                ptrIndex++;
+            }
+        }
+
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * totalMatrixCount * 2);
+
+        kernels->TransposeTransitionMatrices(dMatrices[0], dPtrQueue, totalMatrixCount);
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t Leaving BeagleGPUImpl::transposeTransitionMatrices \n");
 #endif
 
-    return returnCode;
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE

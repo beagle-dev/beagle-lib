@@ -877,7 +877,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
         i = (i + 1) & 0x3;
         FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
-        sProduct[multBy16(patIdx) | tx] = sPartials1[multBy16(patIdx) | tx] * sum;
+        sProduct[multBy16(patIdx) | tx] = sPartials1[multBy16(patIdx) | tx] * sum2;
         //partials3[u] = sProduct[multBy16(patIdx) | tx]; /* These appear correct */
     }
 

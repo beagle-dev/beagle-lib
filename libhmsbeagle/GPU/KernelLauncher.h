@@ -46,6 +46,7 @@ private:
     GPUInterface* gpu;
     
     GPUFunction fMatrixConvolution;
+    GPUFunction fMatrixTranspose;
     GPUFunction fMatrixMulADBMulti;
     GPUFunction fMatrixMulADB;
     GPUFunction fMatrixMulADBFirstDeriv;
@@ -164,6 +165,10 @@ public:
     void ConvolveTransitionMatrices(GPUPtr dMatrices,
                           GPUPtr dPtrQueue,
                           unsigned int totalMatrixCount);
+
+    void TransposeTransitionMatrices(GPUPtr dMatrices,
+    								 GPUPtr dPtrQueue,
+    								 unsigned int totalMatrixCount);
 
     void GetTransitionProbabilitiesSquareMulti(GPUPtr dMatrices,
                                                GPUPtr dPtrQueue,

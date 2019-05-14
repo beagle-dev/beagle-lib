@@ -210,8 +210,10 @@ void KernelLauncher::LoadKernels() {
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
     fSumSites1 = gpu->GetFunction("kernelSumSites1");
 #else
-	//TODO: Epoch Model
+
 	fMatrixConvolution = gpu ->GetFunction("kernelMatrixConvolution");
+
+	fMatrixTranspose = gpu->GetFunction("kernelMatrixTranspose");
 
     if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
         fMatrixMulADBMulti = gpu->GetFunction("kernelMatrixMulADBComplexMulti");
@@ -481,9 +483,6 @@ void KernelLauncher::ReorderPatterns(GPUPtr dPartials,
 #endif
 }
 
-///////////////////////////
-//---TODO: Epoch Model---//
-///////////////////////////
 
 void KernelLauncher::ConvolveTransitionMatrices(GPUPtr dMatrices,
 		                                        GPUPtr dPtrQueue,
@@ -510,7 +509,35 @@ void KernelLauncher::ConvolveTransitionMatrices(GPUPtr dMatrices,
 #ifdef BEAGLE_DEBUG_FLOW
 	fprintf(stderr, "\t \t Leaving  KernelLauncher::ConvolveMatrices \n");
 #endif
-}//END: ConvolveMatrices
+}
+
+void KernelLauncher::TransposeTransitionMatrices(GPUPtr dMatrices,
+		                                         GPUPtr dPtrQueue,
+		                                         unsigned int totalMatrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t \t Entering KernelLauncher::TransposeMatrices \n");
+#endif
+
+	bgTransitionProbabilitiesGrid.x *= totalMatrixCount;
+
+	int parameterCountV = 2;
+	int totalParameterCount = 3;
+
+	fprintf(stderr, "# matrices = %d\n", totalMatrixCount);
+	fprintf(stderr, "block: %d x %d\n", bgTransitionProbabilitiesBlock.x, bgTransitionProbabilitiesBlock.y);
+	fprintf(stderr, "grid : %d x %d\n", bgTransitionProbabilitiesGrid.x, bgTransitionProbabilitiesGrid.y);
+
+	gpu->LaunchKernel(fMatrixTranspose, bgTransitionProbabilitiesBlock,
+			bgTransitionProbabilitiesGrid, parameterCountV,
+			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);
+
+	bgTransitionProbabilitiesGrid.x /= totalMatrixCount; // Reset value
+
+#ifdef BEAGLE_DEBUG_FLOW
+	fprintf(stderr, "\t \t Leaving  KernelLauncher::TransposeMatrices \n");
+#endif
+}
 
 void KernelLauncher::GetTransitionProbabilitiesSquareMulti(GPUPtr dMatrices,
                                                            GPUPtr dPtrQueue,

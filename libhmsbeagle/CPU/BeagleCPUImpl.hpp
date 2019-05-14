@@ -1143,11 +1143,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
     fprintf(stderr, "\t Entering BeagleCPUImpl::transposeTransitionMatrices \n");
 #endif
 
-    int returnCode = BEAGLE_SUCCESS;
-
-    for (int u = 0; u < matrixCount; u++) {
-
-    }
+    int returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t Leaving BeagleCPUImpl::transposeTransitionMatrices \n");
