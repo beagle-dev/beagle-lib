@@ -111,14 +111,14 @@ public:
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
 
-    ///////////////////////////
-    //---TODO: Epoch model---//
-    ///////////////////////////
+	virtual int convolveTransitionMatrices(const int* firstIndices,
+										   const int* secondIndices,
+										   const int* resultIndices,
+										   int matrixCount) = 0;
 
-	  virtual int convolveTransitionMatrices(const int* firstIndices,
-		      	                               const int* secondIndices,
-	                                         const int* resultIndices,
-	                                         int matrixCount) = 0;
+	virtual int transposeTransitionMatrices(const int* inputIndices,
+											const int* resultIndices,
+											int matrixCount) = 0;
 
     virtual int updateTransitionMatrices(int eigenIndex,
                                          const int* probabilityIndices,

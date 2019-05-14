@@ -1044,10 +1044,6 @@ int beagleGetTransitionMatrix(int instance,
     return returnValue;
 }
 
-///////////////////////////
-//---TODO: Epoch model---//
-///////////////////////////
-
 int beagleConvolveTransitionMatrices(int instance,
                                      const int* firstIndices,
                                      const int* secondIndices,
@@ -1064,8 +1060,24 @@ int beagleConvolveTransitionMatrices(int instance,
         DEBUG_END_TIME();
         return returnValue;
     }
+}
 
-}//END: beagleConvolveTransitionMatrices
+int beagleTransposeTransitionMatrices(int instance,
+                                      const int* inputIndices,
+                                      const int* resultIndices,
+                                      int matrixCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    } else {
+        int returnValue = beagleInstance->transposeTransitionMatrices(
+                inputIndices, resultIndices, matrixCount);
+        DEBUG_END_TIME();
+        return returnValue;
+    }
+}
 
 int beagleUpdateTransitionMatrices(int instance,
                              int eigenIndex,

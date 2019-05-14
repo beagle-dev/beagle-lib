@@ -1692,10 +1692,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
     return BEAGLE_SUCCESS;
 }
 
-///////////////////////////
-//---TODO: Epoch model---//
-///////////////////////////
-
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
         const int* secondIndices,
@@ -1752,8 +1748,30 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* fir
 #endif
 
     return returnCode;
-}//END: convolveTransitionMatrices
+}
 
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(
+        const int* inputIndices,
+        const int* resultIndices,
+        int matrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t Entering BeagleGPUImpl::transposeTransitionMatrices \n");
+#endif
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    if (matrixCount > 0) {
+
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t Leaving BeagleGPUImpl::transposeTransitionMatrices \n");
+#endif
+
+    return returnCode;
+}
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,

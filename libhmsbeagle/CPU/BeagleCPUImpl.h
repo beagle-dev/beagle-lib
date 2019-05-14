@@ -269,6 +269,10 @@ public:
             const int* resultIndices,
             int count);
 
+    int transposeTransitionMatrices(const int* inputIndices,
+                                    const int* resultIndices,
+                                    int matrixCount);
+
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //

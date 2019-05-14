@@ -1060,10 +1060,6 @@ if (T_PAD != 0) {
     return BEAGLE_SUCCESS;
 }
 
-///////////////////////////
-//---TODO: Epoch model---//
-///////////////////////////
-
 //TODO: move to EigenDecompositionSquare
 
 BEAGLE_CPU_TEMPLATE
@@ -1126,38 +1122,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* fir
             A += kStateCount * kTransPaddedStateCount;
             B += kStateCount * kTransPaddedStateCount;
 
-
-            ///////////////
-            //      printf("rate category: %d \n", l);
-            //
-            //      printf("A:");
-            //      for (int i = 0; i < kStateCount; i++) {
-            //          printf("| ");
-            //          for (int j = 0; j < kStateCount; j++)
-            //          printf("%f ", A[j + i * kTransPaddedStateCount]);
-            //          printf("|\n");
-            //      }
-            //      printf("\n");
-            //
-            //      printf("A:");
-            //      for (int i = 0; i < kStateCount; i++) {
-            //          printf("| ");
-            //          for (int j = 0; j < kStateCount; j++)
-            //          printf("%f ", B[j + i * kTransPaddedStateCount]);
-            //          printf("|\n");
-            //      }
-            //      printf("\n");
-            //
-//                      printf("C: \n");
-//                      for (int i = 0; i < kStateCount; i++) {
-//                          printf("| ");
-//                          for (int j = 0; j < kTransPaddedStateCount; j++)
-//                          printf("%.20f ", C[j + i * kTransPaddedStateCount]);
-//                          printf("|\n");
-//                      }
-//                      printf("\n");
-            ////////////////
-
         }//END: rates loop
 
     }//END: u loop
@@ -1167,8 +1131,30 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* fir
 #endif
 
     return returnCode;
-}//END: convolveTransitionMatrices
+}
 
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
+        const int* inputIndices,
+        const int* resultIndices,
+        int matrixCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t Entering BeagleCPUImpl::transposeTransitionMatrices \n");
+#endif
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    for (int u = 0; u < matrixCount; u++) {
+
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t Leaving BeagleCPUImpl::transposeTransitionMatrices \n");
+#endif
+
+    return returnCode;
+}
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
