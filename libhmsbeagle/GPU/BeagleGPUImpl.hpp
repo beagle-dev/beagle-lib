@@ -1311,7 +1311,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
             #ifdef FW_OPENCL
             gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
             #else
-            gpu->FreePinnedHostMemory(hPartialsPtrs);
+            gpu->FreeHostMemory(hPartialsPtrs);
             #endif
             gpu->FreeMemory(dPartialsPtrs);
             // gpu->FreeMemory(dPartitionOffsets);
