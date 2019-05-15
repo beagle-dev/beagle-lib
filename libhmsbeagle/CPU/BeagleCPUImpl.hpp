@@ -1143,7 +1143,38 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
     fprintf(stderr, "\t Entering BeagleCPUImpl::transposeTransitionMatrices \n");
 #endif
 
-    int returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
+    int returnCode = BEAGLE_SUCCESS;
+
+    for (int u = 0; u < matrixCount; u++) {
+
+        if (inputIndices[u] == resultIndices[u]) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "In-place transpose is not allowed.\n");
+#endif
+
+            returnCode = BEAGLE_ERROR_OUT_OF_RANGE;
+            break;
+
+        }
+
+        REALTYPE* A = gTransitionMatrices[inputIndices[u]];
+        REALTYPE* C = gTransitionMatrices[resultIndices[u]];
+
+        for (int l = 0; l < kCategoryCount; l++) {
+
+            for (int i = 0; i < kStateCount; i++) {
+                for (int j = 0; j < kStateCount; j++) {
+
+                    C[kTransPaddedStateCount * j + i] = A[kTransPaddedStateCount * i + j];
+
+                }
+            }
+
+            A += kStateCount * kTransPaddedStateCount;
+            C += kStateCount * kTransPaddedStateCount;
+        }
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t Leaving BeagleCPUImpl::transposeTransitionMatrices \n");

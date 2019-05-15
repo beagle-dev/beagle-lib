@@ -379,7 +379,7 @@ int main( int argc, const char* argv[] )
 
     int categoryWeightsIndex = 0;
     int stateFrequencyIndex = 0;
-    int transpose = (stateCount == 4) ? 0 : 4;
+    int transpose = (stateCount == 4 || !useGpu) ? 0 : 6;
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
     // destPartials point to the pre-order partials
