@@ -524,10 +524,6 @@ void KernelLauncher::TransposeTransitionMatrices(GPUPtr dMatrices,
 	int parameterCountV = 2;
 	int totalParameterCount = 3;
 
-	fprintf(stderr, "# matrices = %d\n", totalMatrixCount);
-	fprintf(stderr, "block: %d x %d\n", bgTransitionProbabilitiesBlock.x, bgTransitionProbabilitiesBlock.y);
-	fprintf(stderr, "grid : %d x %d\n", bgTransitionProbabilitiesGrid.x, bgTransitionProbabilitiesGrid.y);
-
 	gpu->LaunchKernel(fMatrixTranspose, bgTransitionProbabilitiesBlock,
 			bgTransitionProbabilitiesGrid, parameterCountV,
 			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);

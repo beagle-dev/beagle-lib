@@ -758,7 +758,6 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 
 #ifdef CUDA
         KW_LOCAL_MEM REAL* A;
-        KW_LOCAL_MEM REAL* B;
         KW_LOCAL_MEM REAL* C;
         if (tx == 0 && ty == 0) {
             A = dMatrices + list[wMatrix]; // Non-coalescent read
@@ -766,7 +765,6 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
         }
 #elif defined(FW_OPENCL)
         KW_GLOBAL_VAR REAL* A;
-        KW_GLOBAL_VAR REAL* B;
         KW_GLOBAL_VAR REAL* C;
         A = dMatrices + list[wMatrix];
         C = dMatrices + list[wMatrix + totalMatrixCount];
@@ -774,55 +772,26 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 
 	    KW_LOCAL_FENCE;
 
-//	    const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
+        const int rowOffset = MULTIPLY_BLOCK_SIZE * bx;
+        const int colOffset = MULTIPLY_BLOCK_SIZE * by;
 
-	    // Step size used to iterate through the sub-matrices of A
-	    int aStep = MULTIPLY_BLOCK_SIZE;
+        const int row = rowOffset + tx;
+        const int col = colOffset + ty;
 
-	    // Step size used to iterate through the sub-matrices of B
-	    int cStep = MULTIPLY_BLOCK_SIZE * PADDED_STATE_COUNT;
-
-        int rowOffset = MULTIPLY_BLOCK_SIZE * bx;
-        int colOffset = MULTIPLY_BLOCK_SIZE * by;
-
-        int row = rowOffset + tx;
-        int col = colOffset + ty;
-
-	    int a = PADDED_STATE_COUNT * colOffset + rowOffset;
-	    int c = PADDED_STATE_COUNT * rowOffset + colOffset;
+	const int a = PADDED_STATE_COUNT * colOffset + rowOffset;
+	const int c = PADDED_STATE_COUNT * rowOffset + colOffset;
 
 	    KW_LOCAL_MEM REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
 
-//	    for (int i = 0; i < BLOCKS - 1; i++) {
-//
-//	        As[ty][tx] = A[a + PADDED_STATE_COUNT * ty + tx];
-//
-//	        KW_LOCAL_FENCE;
-//
-//            C[c + PADDED_STATE_COUNT * ty + tx] = As[tx][ty];
-//
-//            // Write to C[];
-//
-//	        KW_LOCAL_FENCE;
-//
-//	        a += aStep;
-//	        c += cStep;
-//	    }
-
-	    // Last block is too long
 	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {
 	        As[ty][tx] = A[a + PADDED_STATE_COUNT * col + row];
-            A[a + PADDED_STATE_COUNT * col + row] = wMatrix;
-            C[c + PADDED_STATE_COUNT * col + row] = wMatrix;
 	    }
 
-//	    KW_LOCAL_FENCE;
-//
-//        if (tx < EDGE && ty < EDGE) {
-//            C[c + PADDED_STATE_COUNT * ty + tx] = wMatrix;
-//            A[a + PADDED_STATE_COUNT * ty + tx] = wMatrix;
-//C[tx] = BLOCKS + 1;
-//        }
+	    KW_LOCAL_FENCE;
+	   
+	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {		
+		C[c + PADDED_STATE_COUNT * col + row] = As[tx][ty];
+	    }
 }
 
 KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,

@@ -122,7 +122,7 @@ int main( int argc, const char* argv[] )
     
     int scaleCount = (scaling ? 7 : 0);
 
-    bool useGpu = argc > 1 && std::strcmp(argv[1] , "--gpu") == 0;
+    bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
     BeagleInstanceDetails instDetails;
 
@@ -314,7 +314,7 @@ int main( int argc, const char* argv[] )
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
     // a list of indices and edge lengths
-	int nodeIndices[4] = { 2, 1, 3, 0 };
+	int nodeIndices[4] = { 0, 1, 2, 3 };
 	double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
     
     // tell BEAGLE to populate the transition matrices for the above edge lengths

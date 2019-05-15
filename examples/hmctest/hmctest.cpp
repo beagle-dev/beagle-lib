@@ -117,7 +117,7 @@ int main( int argc, const char* argv[] )
     
     int scaleCount = (scaling ? 7 : 0);
 
-    bool useGpu = argc > 1 && std::strcmp(argv[1] , "--gpu") == 0;
+    bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
     BeagleInstanceDetails instDetails;
 
