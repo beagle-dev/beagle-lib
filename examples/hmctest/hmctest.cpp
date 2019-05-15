@@ -322,7 +322,7 @@ int main( int argc, const char* argv[] )
     double* matrix2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
 
     beagleGetTransitionMatrix(instance, 0, matrix1);
-    beagleGetTransitionMatrix(instance, 1, matrix2);
+    beagleGetTransitionMatrix(instance, 6, matrix2);
 
     int nodeId = 0;
     std::cout << "Matrix for node " << nodeId << std::endl;
