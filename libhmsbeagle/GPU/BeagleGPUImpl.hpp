@@ -43,6 +43,7 @@
 #include "libhmsbeagle/GPU/KernelLauncher.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/Precision.h"
+#include "BeagleGPUImpl.h"
 
 namespace beagle {
 namespace gpu {
@@ -1795,6 +1796,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(
                 ptrIndex++;
             }
         }
+
+        fprintf(stderr, "totalMatrixCount = %d\n", totalMatrixCount);
+        fprintf(stderr, "indexOffset = %d\n", indexOffset);
+
+        for (int i = 0; i < totalMatrixCount * 2; ++i) {
+            fprintf(stderr, " %d", hPtrQueue[i]);
+        }
+        fprintf(stderr, "\n");
 
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * totalMatrixCount * 2);
 

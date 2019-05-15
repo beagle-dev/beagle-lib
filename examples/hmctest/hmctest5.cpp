@@ -29,35 +29,35 @@ char *gorilla = (char*)"AAATCCAA";
 //char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
 
-int* getStates(char *sequence) {
-	int n = strlen(sequence);
-	int *states = (int*) malloc(sizeof(int) * n);
-    
-	for (int i = 0; i < n; i++) {
-		switch (sequence[i]) {
-			case 'A':
-				states[i] = 0;
-				break;
-			case 'C':
-				states[i] = 1;
-				break;
-			case 'G':
-				states[i] = 2;
-				break;
-			case 'T':
-				states[i] = 3;
-				break;
-			default:
-				states[i] = 4;
-				break;
-		}
-	}
-	return states;
-}
+//int* getStates(char *sequence) {
+//	int n = strlen(sequence);
+//	int *states = (int*) malloc(sizeof(int) * n);
+//
+//	for (int i = 0; i < n; i++) {
+//		switch (sequence[i]) {
+//			case 'A':
+//				states[i] = 0;
+//				break;
+//			case 'C':
+//				states[i] = 1;
+//				break;
+//			case 'G':
+//				states[i] = 2;
+//				break;
+//			case 'T':
+//				states[i] = 3;
+//				break;
+//			default:
+//				states[i] = 4;
+//				break;
+//		}
+//	}
+//	return states;
+//}
 
 double* getPartials(char *sequence) {
 	int n = strlen(sequence);
-	double *partials = (double*)malloc(sizeof(double) * n * 4);
+	double *partials = (double*)malloc(sizeof(double) * n * 5);
     
     int k = 0;
 	for (int i = 0; i < n; i++) {
@@ -67,30 +67,35 @@ double* getPartials(char *sequence) {
 				partials[k++] = 0;
 				partials[k++] = 0;
 				partials[k++] = 0;
+                partials[k++] = 0;
 				break;
 			case 'C':
 				partials[k++] = 0;
 				partials[k++] = 1;
 				partials[k++] = 0;
 				partials[k++] = 0;
+                partials[k++] = 0;
 				break;
 			case 'G':
 				partials[k++] = 0;
 				partials[k++] = 0;
 				partials[k++] = 1;
 				partials[k++] = 0;
+                partials[k++] = 0;
 				break;
 			case 'T':
 				partials[k++] = 0;
 				partials[k++] = 0;
 				partials[k++] = 0;
 				partials[k++] = 1;
+                partials[k++] = 0;
 				break;
 			default:
 				partials[k++] = 1;
 				partials[k++] = 1;
 				partials[k++] = 1;
 				partials[k++] = 1;
+                partials[k++] = 1;
 				break;
 		}
 	}
@@ -106,7 +111,7 @@ int main( int argc, const char* argv[] )
     bool doJC = true;
 
     // is nucleotides...
-    int stateCount = 4;
+    int stateCount = 5;
 	
     // get the number of site patterns
 	int nPatterns = strlen(human);
@@ -191,7 +196,7 @@ int main( int argc, const char* argv[] )
     beagleSetPatternWeights(instance, patternWeights);
 	
     // create base frequency array
-	double freqs[4] = { 0.1, 0.3, 0.2, 0.4 };
+	double freqs[5] = { 0.1, 0.3, 0.2, 0.4, 0.0 };
 //    double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
     
     beagleSetStateFrequencies(instance, 0, freqs);
@@ -247,52 +252,59 @@ int main( int argc, const char* argv[] )
 //#endif
 
     ///eigen decomposition of the HKY85 model
-    double evec[4 * 4] = {
-            0.9819805,  0.040022305,  0.04454354,  -0.5,
-            -0.1091089, -0.002488732, 0.81606029,  -0.5,
-            -0.1091089, -0.896939683, -0.11849713, -0.5,
-            -0.1091089,  0.440330814, -0.56393254, -0.5
+    double evec[5 * 5] = {
+            0.9819805,  0.040022305,  0.04454354,  -0.5, 0,
+            -0.1091089, -0.002488732, 0.81606029,  -0.5, 0,
+            -0.1091089, -0.896939683, -0.11849713, -0.5, 0,
+            -0.1091089,  0.440330814, -0.56393254, -0.5, 0,
+            0, 0, 0, 0, 1
     };
 
-    double ivec[4 * 4] = {
-            0.9165151, -0.3533241, -0.1573578, -0.4058332,
-            0.0,  0.2702596, -0.8372848,  0.5670252,
-            0.0,  0.8113638, -0.2686725, -0.5426913,
-            -0.2, -0.6, -0.4, -0.8
+    double ivec[5 * 5] = {
+            0.9165151, -0.3533241, -0.1573578, -0.4058332, 0,
+            0.0,  0.2702596, -0.8372848,  0.5670252, 0,
+            0.0,  0.8113638, -0.2686725, -0.5426913, 0,
+            -0.2, -0.6, -0.4, -0.8, 0,
+            0, 0, 0, 0, 1
     };
 
     ///array of real parts + array of imaginary parts
-    double eval[8] = { -1.42857105618099456, -1.42857095607719153, -1.42857087221423851, 0.0,
-                       0.0, 0.0, 0.0, 0.0 };
+    double eval[10] = { -1.42857105618099456, -1.42857095607719153, -1.42857087221423851, 0.0, 0.0,
+                       0.0, 0.0, 0.0, 0.0, 0.0 };
 
     ///Q^T matrix
-    double QT[4 * 4] = {
-            -1.2857138,  0.1428570,  0.1428570,  0.1428570,
-            0.4285712, -0.9999997,  0.4285714,  0.4285713,
-            0.2857142,  0.2857143, -1.1428568,  0.2857142,
-            0.5714284,  0.5714284,  0.5714284, -0.8571426
+    double QT[5 * 5] = {
+            -1.2857138,  0.1428570,  0.1428570,  0.1428570, 0,
+            0.4285712, -0.9999997,  0.4285714,  0.4285713, 0,
+            0.2857142,  0.2857143, -1.1428568,  0.2857142, 0,
+            0.5714284,  0.5714284,  0.5714284, -0.8571426, 0,
+            0, 0, 0, 0, 0
     };
 
-    double Q[4 * 4 * 2] = {
-            -1.285714,  0.4285712,  0.2857142,  0.5714284,
-            0.142857, -0.9999997,  0.2857143,  0.5714284,
-            0.142857,  0.4285714, -1.1428568,  0.5714284,
-            0.142857,  0.4285713,  0.2857142, -0.8571426,
-            -1.285714,  0.4285712,  0.2857142,  0.5714284,
-            0.142857, -0.9999997,  0.2857143,  0.5714284,
-            0.142857,  0.4285714, -1.1428568,  0.5714284,
-            0.142857,  0.4285713,  0.2857142, -0.8571426
+    double Q[5 * 5 * 2] = {
+            -1.285714,  0.4285712,  0.2857142,  0.5714284, 0,
+            0.142857, -0.9999997,  0.2857143,  0.5714284, 0,
+            0.142857,  0.4285714, -1.1428568,  0.5714284, 0,
+            0.142857,  0.4285713,  0.2857142, -0.8571426, 0,
+            0, 0, 0, 0, 0,
+            -1.285714,  0.4285712,  0.2857142,  0.5714284, 0,
+            0.142857, -0.9999997,  0.2857143,  0.5714284, 0,
+            0.142857,  0.4285714, -1.1428568,  0.5714284, 0,
+            0.142857,  0.4285713,  0.2857142, -0.8571426, 0,
+            0, 0, 0, 0, 0
     };
 
-    double Q2[4 * 4 * 2] = {
-            1.8367333, -0.6122443, -0.4081629, -0.8163261,
-            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
-            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
-            -0.2040814, -0.6122446, -0.4081630,  1.2244890,
-            1.8367333, -0.6122443, -0.4081629, -0.8163261,
-            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
-            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
-            -0.2040814, -0.6122446, -0.4081630,  1.2244890
+    double Q2[5 * 5 * 2] = {
+            1.8367333, -0.6122443, -0.4081629, -0.8163261, 0,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259, 0,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261, 0,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890, 0,
+            0, 0, 0, 0, 0,
+            1.8367333, -0.6122443, -0.4081629, -0.8163261, 0,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259, 0,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261, 0,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890, 0,
+            0, 0, 0, 0, 0
     };
 
     beagleSetTransitionMatrix(instance, 4, Q, 0.0);
@@ -302,7 +314,7 @@ int main( int argc, const char* argv[] )
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
     
     // a list of indices and edge lengths
-	int nodeIndices[4] = { 0, 1, 2, 3 };
+	int nodeIndices[4] = { 2, 1, 3, 0 };
 	double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
     
     // tell BEAGLE to populate the transition matrices for the above edge lengths
@@ -322,7 +334,7 @@ int main( int argc, const char* argv[] )
     double* matrix2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
 
     beagleGetTransitionMatrix(instance, 0, matrix1);
-    beagleGetTransitionMatrix(instance, 1, matrix2);
+    beagleGetTransitionMatrix(instance, 6, matrix2);
 
     int nodeId = 0;
     std::cout << "Matrix for node " << nodeId << std::endl;

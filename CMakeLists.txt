@@ -39,6 +39,9 @@ link_libraries(hmsbeagle)
 add_executable(hmctest
         examples/hmctest/hmctest.cpp)
 
+add_executable(hmctest5
+		examples/hmctest/hmctest5.cpp)
+
 add_executable(tinytest
         examples/tinytest/tinytest.cpp)
 
