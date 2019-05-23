@@ -1289,10 +1289,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivative(const int *postBu
                                                                int count,
                                                                double *outFirstDerivative,
                                                                double *outDiagonalSecondDerivative) {
-    int returnCode = BEAGLE_ERROR_GENERAL;
 
     bool byPartition = false;
-    returnCode = calcEdgeDerivative(byPartition, postBufferIndices, preBufferIndices, rootBufferIndex,
+    int returnCode = calcEdgeDerivative(byPartition, postBufferIndices, preBufferIndices, rootBufferIndex,
                                     firstDerivativeIndices, secondDerivativeIndices, categoryWeightsIndex,
                                     categoryRatesIndex, stateFrequenciesIndex,
                                     cumulativeScaleIndices, count, outFirstDerivative,
@@ -2083,6 +2082,8 @@ BEAGLE_CPU_TEMPLATE
                                                                        int count,
                                                                        double *outSumLogLikelihood) {
 
+    std::cerr << "BBB" << std::endl;
+
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
@@ -2115,8 +2116,16 @@ BEAGLE_CPU_TEMPLATE
                 return BEAGLE_SUCCESS;
             }
         } else {
-            return calcRootLogLikelihoods(bufferIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
-                                          cumulativeScalingFactorIndex, outSumLogLikelihood);
+
+            std::cout << "AAAA" << std::endl;
+
+            if (categoryWeightsIndices[0] >= 0) {
+                return calcRootLogLikelihoods(bufferIndices[0], categoryWeightsIndices[0], stateFrequenciesIndices[0],
+                                              cumulativeScalingFactorIndex, outSumLogLikelihood);
+            } else {
+                return calcRootLogLikelihoodsPerCategory(
+                        bufferIndices[0], stateFrequenciesIndices[0], cumulativeScalingFactorIndex, outSumLogLikelihood);
+            }
         }
     } else {
         return calcRootLogLikelihoodsMulti(bufferIndices, categoryWeightsIndices, stateFrequenciesIndices,
@@ -2362,6 +2371,49 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsMulti(const int* bu
     
     return returnCode;
 
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsPerCategory(
+        const int bufferIndex,
+        const int stateFrequenciesIndex,
+        const int scalingFactorsIndex,
+        double* outLogLikelihoodPerCategory) {
+
+    std::cout << "HERE" << std::endl;
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    const REALTYPE* rootPartials = gPartials[bufferIndex];
+    const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
+
+    int u = 0;
+    int v = 0;
+    for (int l = 0; l < kCategoryCount; l++) {
+        for (int k = 0; k < kPatternCount; k++) {
+            REALTYPE sum = 0.0;
+            for (int i = 0; i < kStateCount; i++) {
+                sum += rootPartials[v] * freqs[i];
+                v++;
+            }
+            outLogLikelihoodPerCategory[u] = log(sum);
+            u++;
+            v += P_PAD;
+        }
+    }
+
+    if (scalingFactorsIndex >= 0) {
+        const REALTYPE* cumulativeScaleFactors = gScaleBuffers[scalingFactorsIndex];
+        int u = 0;
+        for (int l = 0; l < kCategoryCount; l++) {
+            for (int i = 0; i < kPatternCount; i++) {
+                outLogLikelihoodPerCategory[u] += cumulativeScaleFactors[i];
+                u++;
+            }
+        }
+    }
+
+    return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE

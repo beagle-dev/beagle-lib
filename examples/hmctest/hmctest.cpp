@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <iostream>
 #include <libhmsbeagle/BeagleImpl.h>
+#include <cmath>
+#include <vector>
 
 //#define JC
 
@@ -20,9 +22,9 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGTAACC";
-char *chimp = (char*)"GAGGGGTT";
-char *gorilla = (char*)"AAATCCAA";
+char *human = (char*)"GAGT";
+char *chimp = (char*)"GAGG";
+char *gorilla = (char*)"AAAT";
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
@@ -137,8 +139,8 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                             useGpu ?
-                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE :
-                                  BEAGLE_FLAG_PROCESSOR_CPU,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
+                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
@@ -316,12 +318,13 @@ int main( int argc, const char* argv[] )
 
 	int transposeIndices[4] = { 6, 7, 8, 9 };
 
-	beagleTransposeTransitionMatrices(instance, nodeIndices, transposeIndices, 4);
-
     double* matrix1 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
     double* matrix2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
 
     beagleGetTransitionMatrix(instance, 0, matrix1);
+
+    beagleTransposeTransitionMatrices(instance, nodeIndices, transposeIndices, 4);
+
     beagleGetTransitionMatrix(instance, 6, matrix2);
 
     int nodeId = 0;
@@ -559,6 +562,40 @@ int main( int argc, const char* argv[] )
             }
 //            std::cout<<std::endl;
         }
+
+        std::cout << "site-rate like";
+        for (s = 0; s < rateCategoryCount; ++s) {
+            double ws = weights[s];
+            for (m = 0; m < nPatterns; ++m) {
+                double like = 0;
+                for (k = 0; k < stateCount; ++k) {
+                    double product = seeprePartials[t] * seepostPartials[t];
+                    like += product;
+                    ++t;
+                }
+                std::cout << " " << like;
+            }
+        }
+        std::cout << std::endl;
+
+        int noCategory = -1;
+
+        std::vector<double> logLikelihoodPerCategory(nPatterns * rateCategoryCount);
+
+        beagleCalculateRootLogLikelihoods(instance,               // instance
+                                          (const int *)&rootIndex,// bufferIndices
+                                          (const int *)&noCategory,                // weights
+                                          &stateFrequencyIndex,                  // stateFrequencies
+                                          &cumulativeScalingIndex,// cumulative scaling index
+                                          1,                      // count
+                                          logLikelihoodPerCategory.data());         // outLogLikelihoods
+        std::cout << "siteLogLikelihood =";
+        for (int i = 0; i < nPatterns * rateCategoryCount; ++i) {
+            std::cout << " " << exp(logLikelihoodPerCategory[i]);
+        }
+        std::cout << std::endl;
+        exit(-1);
+
 
 //        std::cout<<"  Grand numerator:\n    ";
 //        for(m=0; m < nPatterns; m++){

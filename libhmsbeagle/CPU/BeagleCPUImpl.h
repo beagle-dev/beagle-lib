@@ -549,6 +549,11 @@ protected:
                                         const int scaleBufferIndex,
                                         double* outSumLogLikelihood);
 
+    virtual int calcRootLogLikelihoodsPerCategory(const int bufferIndex,
+                                                  const int stateFrequenciesIndex,
+                                                  const int scaleBufferIndex,
+                                                  double* outSumLogLikelihood);
+
     virtual void calcRootLogLikelihoodsByPartitionAsync(const int* bufferIndices,
                                                        const int* categoryWeightsIndices,
                                                        const int* stateFrequenciesIndices,

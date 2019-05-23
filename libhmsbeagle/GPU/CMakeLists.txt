@@ -5,6 +5,11 @@ if(OpenCL_FOUND)
     message(STATUS "OpenCL Libraries: ${OpenCL_LIBRARIES}")
 endif(OpenCL_FOUND)
 
+find_package(CUDA REQUIRED)
+if(CUDA_FOUND)
+    message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
+endif(CUDA_FOUND)
+
 include_directories(
         ${OpenCL_INCLUDE_DIRS}
 )
