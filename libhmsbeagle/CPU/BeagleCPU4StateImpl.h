@@ -62,10 +62,10 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryWeights;
     using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryRates;
     using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorDerivTmp;
-    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorLowerBoundDerivTmp;
-    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorUpperBoundDerivTmp;
+//    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorLowerBoundDerivTmp;
+//    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandNumeratorUpperBoundDerivTmp;
     using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::grandDenominatorDerivTmp;
-    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::cLikelihoodTmp;
+//    using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::cLikelihoodTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternWeights;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;

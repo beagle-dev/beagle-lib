@@ -130,11 +130,11 @@ protected:
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
 
-    REALTYPE* cLikelihoodTmp;
+//    REALTYPE* cLikelihoodTmp;
     REALTYPE* grandDenominatorDerivTmp;
     REALTYPE* grandNumeratorDerivTmp;
-    REALTYPE* grandNumeratorLowerBoundDerivTmp;
-    REALTYPE* grandNumeratorUpperBoundDerivTmp;
+//    REALTYPE* grandNumeratorLowerBoundDerivTmp;
+//    REALTYPE* grandNumeratorUpperBoundDerivTmp;
 
     REALTYPE* outLogLikelihoodsTmp;
     REALTYPE* outFirstDerivativesTmp;
