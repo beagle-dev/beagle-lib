@@ -1029,7 +1029,7 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
             double sumOverEndState = freqs[0] * rootPartials[v] + freqs[1] * rootPartials[v + 1]
                                      + freqs[2] * rootPartials[v + 2] + freqs[3] * rootPartials[v + 3];
             v += 4;
-            cLikelihoodTmp[patternIndex++] = sumOverEndState;
+//            cLikelihoodTmp[patternIndex++] = sumOverEndState;
             grandDenominatorDerivTmp[pattern] += weight * sumOverEndState;
         }
         patternIndex += kExtraPatterns;
