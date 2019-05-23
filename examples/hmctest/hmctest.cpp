@@ -428,6 +428,15 @@ int main( int argc, const char* argv[] )
                                       &logL);         // outLogLikelihoods
 
 
+    std::vector<double> siteLogLikelihoods(nPatterns);
+    beagleGetSiteLogLikelihoods(instance, siteLogLikelihoods.data());
+
+    std::cerr << "site-log-like:";
+    for (double logLike : siteLogLikelihoods) {
+        std::cerr << " " << logLike;
+    }
+    std::cerr << std::endl;
+
     double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     int offset = 0;
     for (int c = 0; c < rateCategoryCount; ++c) {
