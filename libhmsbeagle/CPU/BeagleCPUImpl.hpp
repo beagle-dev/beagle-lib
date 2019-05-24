@@ -1945,7 +1945,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
 
     const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
 
-    for (int category = 0; category < 1; category++) {
+    for (int category = 0; category < kCategoryCount; category++) {
         const REALTYPE weight = categoryWeights[category];
 
         for (int pattern = 0; pattern < kPatternCount; pattern++) {
