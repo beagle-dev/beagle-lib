@@ -429,7 +429,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     secondDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
 
 //    cLikelihoodTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kCategoryCount);
-    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
+    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount); // TODO Deprecate in favor of integrationTmp
     grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
 //    grandNumeratorLowerBoundDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
 //    grandNumeratorUpperBoundDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
@@ -1310,9 +1310,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeLogDerivatives(const int *po
                                                                    const int *cumulativeScaleIndices,
                                                                    int count,
                                                                    const double *siteLogLikelihoods,
-                                                                   double *outLogFirstDerivative,
-                                                                   double *outLogDiagonalSecondDerivative) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+                                                                   double *outLogFirstDerivatives,
+                                                                   double *outLogDiagonalSecondDerivatives) {
+    return calcEdgeLogDerivatives(
+            postBufferIndices, preBufferIndices,
+            firstDerivativeIndices, secondDerivativeIndices,
+            categoryWeightsIndices,categoryRatesIndices, cumulativeScaleIndices,
+            count,
+            siteLogLikelihoods,
+            outLogFirstDerivatives, outLogDiagonalSecondDerivatives);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1764,7 +1770,67 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
     return BEAGLE_SUCCESS;
 }
 
-// TODO Maybe call this calcEdgeLogDerivatives (to handle numeric stability issues)
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBufferIndices,
+                                                              const int *preBufferIndices,
+                                                              const int *firstDerivativeIndices,
+                                                              const int *secondDerivativeIndices,
+                                                              const int *categoryWeightsIndices,
+                                                              const int *categoryRatesIndices,
+                                                              const int *cumulativeScaleIndices,
+                                                              int count,
+                                                              const double *siteLogLikelihoods,
+                                                              double *outLogFirstDerivatives,
+                                                              double *outLogDiagonalSecondDerivatives) {
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+
+        const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+        const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
+
+        const int firstDerivativeIndex = firstDerivativeIndices[nodeNum];
+ //       const int secondDerivativeIndex = secondDerivativeIndices[nodeNum];
+        const int secondDerivativeIndex = BEAGLE_OP_NONE;
+
+        const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
+        const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
+
+//        const REALTYPE *cumulativeScaleBuffer = NULL;
+//        if (cumulativeScaleIndices[nodeNum] != BEAGLE_OP_NONE) {
+//            cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndices[nodeNum]];
+//        }
+
+        const int scalingFactorsIndex = cumulativeScaleIndices[nodeNum];
+
+        const int patternOffset = nodeNum * kPatternCount;
+        double* outLogFirstDerivativesForNode = outLogFirstDerivatives + patternOffset;
+        double* outLogDiagonalSecondDerivatiesForNode = (outLogFirstDerivativesForNode == NULL) ?
+                NULL : outLogDiagonalSecondDerivatives + patternOffset;
+
+        if (tipStates != NULL) {
+
+            calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
+                                        secondDerivativeIndex, categoryRates, categoryWeights,
+                                        siteLogLikelihoods,
+                                        outLogFirstDerivativesForNode,
+                                        outLogDiagonalSecondDerivatiesForNode);
+
+        } else {
+
+            const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+            calcEdgeLogDerivativesPartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
+                                       secondDerivativeIndex, categoryRates, categoryWeights,
+                                       scalingFactorsIndex, siteLogLikelihoods,
+                                       outLogFirstDerivativesForNode,
+                                       outLogDiagonalSecondDerivatiesForNode);
+        }
+    }
+
+    return returnCode;
+}
+
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
@@ -1845,6 +1911,95 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
     }
 
     return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *tipStates,
+                                                                     const REALTYPE *preOrderPartial,
+                                                                     const int firstDerivativeIndex,
+                                                                     const int secondDerivativeIndex,
+                                                                     const double *categoryRates,
+                                                                     const REALTYPE *categoryWeights,
+                                                                     //const int scalingFactorsIndex,
+                                                                     //const REALTYPE *cumulativeScaleBuffer,
+                                                                     const double *siteLogLikelihoods,
+                                                                     double *outLogFirstDerivatives,
+                                                                     double *outLogDiagonalSecondDerivatives) {
+
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
+                                                                       const REALTYPE *preOrderPartial,
+                                                                       const int firstDerivativeIndex,
+                                                                       const int secondDerivativeIndex,
+                                                                       const double *categoryRates,
+                                                                       const REALTYPE *categoryWeights,
+                                                                       const int scalingFactorsIndex,
+//                                                                       const REALTYPE *cumulativeScaleBuffer,
+                                                                       const double *siteLogLikelihoods,
+                                                                       double *outLogFirstDerivatives,
+                                                                       double *outLogDiagonalSecondDerivatives) {
+
+    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+
+    const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
+
+    for (int category = 0; category < 1; category++) {
+        const REALTYPE weight = categoryWeights[category];
+
+        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+            int w = category * kMatrixSize;
+
+            const int patternIndex = category * kPatternCount + pattern;
+            const int v = patternIndex * kPartialsPaddedStateCount;
+
+            REALTYPE numerator = 0.0;
+
+            for (int k = 0; k < kStateCount; k++) {
+
+                REALTYPE sumOverEndState = 0.0;
+                for (int j = 0; j < kStateCount; j++) {
+                    sumOverEndState += firstDerivMatrix[w]
+                                       * postOrderPartial[v + j]; // fix padded index
+                    w++;
+                }
+                w += T_PAD;
+
+                numerator += sumOverEndState * preOrderPartial[v + k];
+            }
+
+            grandNumeratorDerivTmp[pattern] += weight * numerator;
+        }
+    }
+
+    if (scalingFactorsIndex != BEAGLE_OP_NONE) {
+        const REALTYPE* scalingFactors = gScaleBuffers[scalingFactorsIndex];
+        for (int k=0; k < kPatternCount; k++) {
+
+            REALTYPE numerator = grandNumeratorDerivTmp[k];
+
+            int sign = 2 * (numerator > REALTYPE(0)) - 1;
+            numerator *= sign;
+
+            REALTYPE ratio = log(numerator) - outLogLikelihoodsTmp[k] + scalingFactors[k]; // TODO + or - scalingFactor on numerator?
+
+            outLogFirstDerivatives[k] = sign * exp(ratio);
+        }
+    } else {
+        for (int k=0; k < kPatternCount; k++) {
+
+            REALTYPE numerator = grandNumeratorDerivTmp[k];
+
+            int sign = 2 * (numerator > REALTYPE(0)) - 1;
+            numerator *= sign;
+
+            REALTYPE ratio = log(numerator) - outLogLikelihoodsTmp[k];
+
+            outLogFirstDerivatives[k] = sign * exp(ratio);
+        }
+    }
 }
 
 BEAGLE_CPU_TEMPLATE

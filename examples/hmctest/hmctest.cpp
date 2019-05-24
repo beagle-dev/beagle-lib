@@ -297,6 +297,14 @@ int main( int argc, const char* argv[] )
             -0.2040814, -0.6122446, -0.4081630,  1.2244890
     };
 
+    std::vector<double> scaledQ(4 * 4 * 2);
+
+    for (int rate = 0; rate < rateCategoryCount; ++rate) {
+        for (int entry = 0; entry < stateCount * stateCount; ++entry) {
+            scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
+        }
+    }
+
     beagleSetTransitionMatrix(instance, 4, Q, 0.0);
     beagleSetTransitionMatrix(instance, 5, Q2, 0.0);
 
@@ -515,10 +523,10 @@ int main( int argc, const char* argv[] )
             grand_denominator[m] = 0;
             grand_numerator[m] = 0;
         }
-        int postBufferIndices = 4-i;
-        int preBufferIndices = 5+i;
-        beagleGetPartials(instance, preBufferIndices, BEAGLE_OP_NONE, seeprePartials);
-        beagleGetPartials(instance, postBufferIndices, BEAGLE_OP_NONE, seepostPartials);
+        int postBufferIndex = 4-i;
+        int preBufferIndex = 5+i;
+        beagleGetPartials(instance, preBufferIndex, BEAGLE_OP_NONE, seeprePartials);
+        beagleGetPartials(instance, postBufferIndex, BEAGLE_OP_NONE, seepostPartials);
 
         double * prePartialsPtr = seeprePartials;
         double * postPartialsPtr = seepostPartials;
@@ -567,43 +575,60 @@ int main( int argc, const char* argv[] )
                 grand_numerator[m] += tmpNumerator[t];
                 grand_denominator[m] += ws * clikelihood[t];
                 t++;
-//                std::cout<<numerator / denominator <<"  ";
+                std::cout<<numerator / denominator <<"  ";
             }
-//            std::cout<<std::endl;
+            std::cout<<std::endl;
         }
 
-        std::cout << "site-rate like";
-        for (s = 0; s < rateCategoryCount; ++s) {
-            double ws = weights[s];
-            for (m = 0; m < nPatterns; ++m) {
-                double like = 0;
-                for (k = 0; k < stateCount; ++k) {
-                    double product = seeprePartials[t] * seepostPartials[t];
-                    like += product;
-                    ++t;
-                }
-                std::cout << " " << like;
-            }
-        }
-        std::cout << std::endl;
+//        std::cout << "site-rate like";
+//        for (s = 0; s < rateCategoryCount; ++s) {
+//            double ws = weights[s];
+//            for (m = 0; m < nPatterns; ++m) {
+//                double like = 0;
+//                for (k = 0; k < stateCount; ++k) {
+//                    double product = seeprePartials[t] * seepostPartials[t];
+//                    like += product;
+//                    ++t;
+//                }
+//                std::cout << " " << like;
+//            }
+//        }
+//        std::cout << std::endl;
+//
+//        int noCategory = -1;
+//
+//        std::vector<double> logLikelihoodPerCategory(nPatterns * rateCategoryCount);
+//
+//        beagleCalculateRootLogLikelihoods(instance,               // instance
+//                                          (const int *)&rootIndex,// bufferIndices
+//                                          (const int *)&noCategory,                // weights
+//                                          &stateFrequencyIndex,                  // stateFrequencies
+//                                          &cumulativeScalingIndex,// cumulative scaling index
+//                                          1,                      // count
+//                                          logLikelihoodPerCategory.data());         // outLogLikelihoods
+//        std::cout << "siteLogLikelihood =";
+//        for (int i = 0; i < nPatterns * rateCategoryCount; ++i) {
+//            std::cout << " " << exp(logLikelihoodPerCategory[i]);
+//        }
+//        std::cout << std::endl;
 
-        int noCategory = -1;
 
-        std::vector<double> logLikelihoodPerCategory(nPatterns * rateCategoryCount);
 
-        beagleCalculateRootLogLikelihoods(instance,               // instance
-                                          (const int *)&rootIndex,// bufferIndices
-                                          (const int *)&noCategory,                // weights
-                                          &stateFrequencyIndex,                  // stateFrequencies
-                                          &cumulativeScalingIndex,// cumulative scaling index
-                                          1,                      // count
-                                          logLikelihoodPerCategory.data());         // outLogLikelihoods
-        std::cout << "siteLogLikelihood =";
-        for (int i = 0; i < nPatterns * rateCategoryCount; ++i) {
-            std::cout << " " << exp(logLikelihoodPerCategory[i]);
-        }
-        std::cout << std::endl;
-        exit(-1);
+
+//        BEAGLE_DLLEXPORT int beagleCalculateEdgeLogDerivatives(int instance,
+//                                                               const int *postBufferIndices,
+//                                                               const int *preBufferIndices,
+//                                                               const int *firstDerivativeIndices,
+//                                                               const int *secondDerivativeIndices,
+//                                                               const int *categoryWeightsIndices,
+//                                                               const int *categoryRatesIndices,
+//                                                               const int *cumulativeScaleIndices,
+//                                                               int count,
+//                                                               const double *siteLogLikelihoods,
+//                                                               double *outLogFirstDerivative,
+//                                                               double *outLogDiagonalSecondDerivative);
+
+//        exit(-1);
 
 
 //        std::cout<<"  Grand numerator:\n    ";
@@ -653,6 +678,30 @@ int main( int argc, const char* argv[] )
         }
 
     }
+
+    std::vector<double> firstBuffer(nPatterns);
+
+    beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+
+
+    beagleCalculateEdgeLogDerivatives(instance,
+                                      postBufferIndices, preBufferIndices,
+                                      firstDervIndices,
+                                      NULL,
+                                      &categoryWeightsIndex,
+                                      &categoryRatesIndex,
+                                      &cumulativeScalingIndex,
+                                      1,
+                                      siteLogLikelihoods.data(),
+                                      firstBuffer.data(),
+                                      NULL);
+
+    std::cout << "check:";
+    for (double x : firstBuffer) {
+        std::cout << " " << x;
+    }
+    std::cout << std::endl;
+
 
     free(patternWeights);
     

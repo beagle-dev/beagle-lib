@@ -462,6 +462,18 @@ protected:
                               int count,
                               int cumulativeScaleIndex);
 
+    virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
+                                       const int *preBufferIndices,
+                                       const int *firstDerivativeIndices,
+                                       const int *secondDerivativeIndices,
+                                       const int *categoryWeightsIndices,
+                                       const int *categoryRatesIndices,
+                                       const int *cumulativeScaleIndices,
+                                       int count,
+                                       const double *siteLogLikelihoods,
+                                       double *outLogFirstDerivatives,
+                                       double *outLogDiagonalSecondDerivatives);
+
     virtual int calcEdgeDerivative(bool byPartition,
                                    const int *postBufferIndices,
                                    const int *preBufferIndices,
@@ -477,6 +489,29 @@ protected:
                                    double *outDiagonalSecondDerivative,
                                    int startPattern,
                                    int endPattern);
+
+    virtual void calcEdgeLogDerivativesStates(const int *tipStates,
+                                              const REALTYPE *preOrderPartial,
+                                              const int firstDerivativeIndex,
+                                              const int secondDerivativeIndex,
+                                              const double *categoryRates,
+                                              const REALTYPE *categoryWeights,
+//                                              const REALTYPE *cumulativeScaleBuffer,
+                                              const double *siteLogLikelihoods,
+                                              double *outLogFirstDerivatives,
+                                              double *outLogDiagonalSecondDerivatives);
+
+    virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
+                                                const REALTYPE *preOrderPartial,
+                                                const int firstDerivativeIndex,
+                                                const int secondDerivativeIndex,
+                                                const double *categoryRates,
+                                                const REALTYPE *categoryWeights,
+                                                const int scalingFactorsIndex,
+//                                                const REALTYPE *cumulativeScaleBuffer,
+                                                const double *siteLogLikelihoods,
+                                                double *outLogFirstDerivatives,
+                                                double *outLogDiagonalSecondDerivatives);
 
     virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
                                             const REALTYPE *preOrderPartial,
