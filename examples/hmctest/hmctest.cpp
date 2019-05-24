@@ -298,15 +298,17 @@ int main( int argc, const char* argv[] )
     };
 
     std::vector<double> scaledQ(4 * 4 * 2);
+    std::vector<double> scaledQ2(4 * 4 * 2);
 
     for (int rate = 0; rate < rateCategoryCount; ++rate) {
         for (int entry = 0; entry < stateCount * stateCount; ++entry) {
             scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
+            scaledQ2[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
         }
     }
 
-    beagleSetTransitionMatrix(instance, 4, Q, 0.0);
-    beagleSetTransitionMatrix(instance, 5, Q2, 0.0);
+    beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+    beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     // set the Eigen decomposition
 	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -681,9 +683,6 @@ int main( int argc, const char* argv[] )
 
     std::vector<double> firstBuffer(nPatterns);
 
-    beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
-
-
     beagleCalculateEdgeLogDerivatives(instance,
                                       postBufferIndices, preBufferIndices,
                                       firstDervIndices,
@@ -730,3 +729,9 @@ int main( int argc, const char* argv[] )
 #endif
     
 }
+
+//Gradient:
+//-0.248521  -0.194621  -0.248521  0.36811
+//-0.248521  -0.194621  -0.248521  0.114741
+//0.221279  -0.171686  0.221279  -0.00658093
+//0.22128  -0.171686  0.22128  -0.00658095
