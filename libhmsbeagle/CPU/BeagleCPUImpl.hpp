@@ -1301,6 +1301,21 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivative(const int *postBu
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeLogDerivatives(const int *postBufferIndices,
+                                                                   const int *preBufferIndices,
+                                                                   const int *firstDerivativeIndices,
+                                                                   const int *secondDerivativeIndices,
+                                                                   const int *categoryWeightsIndices,
+                                                                   const int *categoryRatesIndices,
+                                                                   const int *cumulativeScaleIndices,
+                                                                   int count,
+                                                                   const double *siteLogLikelihoods,
+                                                                   double *outLogFirstDerivative,
+                                                                   double *outLogDiagonalSecondDerivative) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* operations,
                                                                  int count) {
     

@@ -410,6 +410,18 @@ public:
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
 
+    int calculateEdgeLogDerivatives(const int *postBufferIndices,
+                                    const int *preBufferIndices,
+                                    const int *firstDerivativeIndices,
+                                    const int *secondDerivativeIndices,
+                                    const int *categoryWeightsIndices,
+                                    const int *categoryRatesIndices,
+                                    const int *cumulativeScaleIndices,
+                                    int count,
+                                    const double *siteLogLikelihoods,
+                                    double *outLogFirstDerivative,
+                                    double *outLogDiagonalSecondDerivative);
+
     int calculateEdgeDerivative(const int *postBufferIndices,
                                 const int *preBufferIndices,
                                 const int rootBufferIndex,

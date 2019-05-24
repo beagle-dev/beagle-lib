@@ -194,7 +194,20 @@ public:
                                                        int count,
                                                        double* outSumLogLikelihoodByPartition,
                                                        double* outSumLogLikelihood) = 0;
-    virtual int calculateEdgeDerivative(const int *postBufferIndices,
+
+	virtual int calculateEdgeLogDerivatives(const int *postBufferIndices,
+											const int *preBufferIndices,
+											const int *firstDerivativeIndices,
+											const int *secondDerivativeIndices,
+											const int *categoryWeightsIndices,
+											const int *categoryRatesIndices,
+											const int *cumulativeScaleIndices,
+											int count,
+											const double *siteLogLikelihoods,
+											double *outLogFirstDerivative,
+											double *outLogDiagonalSecondDerivative) = 0;
+
+	virtual int calculateEdgeDerivative(const int *postBufferIndices,
                                         const int *preBufferIndices,
                                         const int rootBufferIndex,
                                         const int *firstDerivativeIndices,
