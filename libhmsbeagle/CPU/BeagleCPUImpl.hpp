@@ -1766,7 +1766,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
                                                           int startPattern,
                                                           int endPattern) {
 
-    REALTYPE *cumulativeScaleBuffer = NULL;  // don't need to normalize/transform back preOrderPartials, off by constant rescaling factor is fine
+    REALTYPE *cumulativeScaleBuffer = NULL; // TODO Fix
 //    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
 //        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
 
@@ -1801,6 +1801,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
             grandDenominatorDerivTmp[pattern] += weight * sumOverEndState;
         }
     }
+
+    // TODO Use outLogLikelihoodsTmp (and remember to include scaleFactors on postOrderBuffer)
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
         const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
@@ -1897,6 +1899,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const REALTYP
 //                                        (grandNumeratorLowerBoundDerivTmp[pattern] +
 //                                         grandNumeratorUpperBoundDerivTmp[pattern]) / 2.0;
         outFirstDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
+        // TODO Use outLogLikelihoodsTmp (and remember to include scaleFactors on postOrderBuffer)
     }
 
     if (outDiagonalSecondDerivative != NULL) {
