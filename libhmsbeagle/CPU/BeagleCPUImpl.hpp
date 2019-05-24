@@ -1749,17 +1749,19 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
     return BEAGLE_SUCCESS;
 }
 
+// TODO Maybe call this calcEdgeLogDerivatives (to handle numeric stability issues)
+
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
                                                           const int *postBufferIndices,
                                                           const int *preBufferIndices,
-                                                          const int rootBufferIndex,
+                                                          const int rootBufferIndex, // TODO Unnecessary
                                                           const int *firstDerivativeIndices,
                                                           const int *secondDerivativeIndices,
                                                           const int categoryWeightsIndex,
                                                           const int categoryRatesIndex,
                                                           const int stateFrequenciesIndex,
-                                                          const int *cumulativeScaleIndices,
+                                                          const int *cumulativeScaleIndices, // TODO Needed
                                                           int count,
                                                           double *outFirstDerivative,
                                                           double *outDiagonalSecondDerivative,
