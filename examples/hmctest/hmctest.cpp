@@ -681,7 +681,8 @@ int main( int argc, const char* argv[] )
 
     }
 
-    std::vector<double> firstBuffer(nPatterns);
+    std::vector<double> firstBuffer(nPatterns * 4);
+    int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
     beagleCalculateEdgeLogDerivatives(instance,
                                       postBufferIndices, preBufferIndices,
@@ -689,8 +690,8 @@ int main( int argc, const char* argv[] )
                                       NULL,
                                       &categoryWeightsIndex,
                                       &categoryRatesIndex,
-                                      &cumulativeScalingIndex,
-                                      1,
+                                      cumulativeScalingIndices,
+                                      4,
                                       siteLogLikelihoods.data(),
                                       firstBuffer.data(),
                                       NULL);
