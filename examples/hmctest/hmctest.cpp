@@ -141,7 +141,7 @@ int main( int argc, const char* argv[] )
     }
     fprintf(stdout, "\n");
 
-    bool scaling = false;
+    bool scaling = true;
 //    bool scaling = false; // disable scaling for now
 
     bool doJC = true;
@@ -342,7 +342,7 @@ int main( int argc, const char* argv[] )
     for (int rate = 0; rate < rateCategoryCount; ++rate) {
         for (int entry = 0; entry < stateCount * stateCount; ++entry) {
             scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
-            scaledQ2[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
+            scaledQ2[entry + rate * stateCount * stateCount] = Q2[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
         }
     }
 
@@ -515,6 +515,7 @@ int main( int argc, const char* argv[] )
     int preBufferIndices[4] = {8, 9, 7, 6};
     int firstDervIndices[4] = {4, 4, 4, 4};
     int secondDervIndices[4] = {5, 5, 5, 5};
+    int cumulativeScalingInices[4] = {6, 5, 4, 3};
     int categoryRatesIndex = categoryWeightsIndex;
     double* gradient = (double*) malloc(sizeof(double) * nPatterns * 4);
     double* diagonalHessian = (double*) malloc(sizeof(double) * nPatterns * 4);
