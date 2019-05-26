@@ -132,7 +132,7 @@ int main( int argc, const char* argv[] )
             stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
             nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
             1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
-            8,		        /**< Number of rate matrix buffers (input) */
+            10,		        /**< Number of rate matrix buffers (input) */
             rateCategoryCount,/**< Number of rate categories (input) */
             10,       /**< Number of scaling buffers */
             NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
@@ -276,6 +276,39 @@ int main( int argc, const char* argv[] )
             0.2857142,  0.2857143, -1.1428568,  0.2857142,
             0.5714284,  0.5714284,  0.5714284, -0.8571426
     };
+    double Q[4 * 4 * 2] = {
+            -1.285714,  0.4285712,  0.2857142,  0.5714284,
+            0.142857, -0.9999997,  0.2857143,  0.5714284,
+            0.142857,  0.4285714, -1.1428568,  0.5714284,
+            0.142857,  0.4285713,  0.2857142, -0.8571426,
+            -1.285714,  0.4285712,  0.2857142,  0.5714284,
+            0.142857, -0.9999997,  0.2857143,  0.5714284,
+            0.142857,  0.4285714, -1.1428568,  0.5714284,
+            0.142857,  0.4285713,  0.2857142, -0.8571426
+    };
+
+    double Q2[4 * 4 * 2] = {
+            1.8367333, -0.6122443, -0.4081629, -0.8163261,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890,
+            1.8367333, -0.6122443, -0.4081629, -0.8163261,
+            -0.2040814,  1.4285705, -0.4081632, -0.8163259,
+            -0.2040814, -0.6122447,  1.6326522, -0.8163261,
+            -0.2040814, -0.6122446, -0.4081630,  1.2244890
+    };
+    double *scaledQ = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
+    double *scaledQ2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
+
+    for (int rate = 0; rate < rateCategoryCount; ++rate) {
+        for (int entry = 0; entry < stateCount * stateCount; ++entry) {
+            scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
+            scaledQ2[entry + rate * stateCount * stateCount] = Q2[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
+        }
+    }
+
+    beagleSetTransitionMatrix(instance, 8, scaledQ, 0.0);
+    beagleSetTransitionMatrix(instance, 9, scaledQ2, 0.0);
 
     // set the Eigen decomposition
     beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -298,11 +331,15 @@ int main( int argc, const char* argv[] )
 
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
-    BeagleOperation operations[4] = {
+    BeagleOperation operations[8] = {
              9, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
             10, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3,
             11, (scaling ? 2 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 9, 5, 10, 6,
-            12, (scaling ? 3 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 11, 7, 4, 4
+            12, (scaling ? 3 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 11, 7, 4, 4,
+             5, (scaling ? 0 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 0, 0, 1, 1,
+             6, (scaling ? 1 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 2, 2, 3, 3,
+             7, (scaling ? 2 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 5, 6, 6,
+             8, (scaling ? 3 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 7, 7, 4, 4
     };
 
     int rootIndex = 12;
@@ -310,7 +347,7 @@ int main( int argc, const char* argv[] )
     // update the partials
     beagleUpdatePartials(instance,      // instance
                          operations,     // operations
-                         4,              // operationCount
+                         8,              // operationCount
                          BEAGLE_OP_NONE);          // cumulative scaling index
 
     int categoryWeightsIndex = 0;
@@ -381,46 +418,6 @@ int main( int argc, const char* argv[] )
         beagleGetTransitionMatrix(instance, i, seePtrSelf);
         beagleGetTransitionMatrix(instance, 4, seePtrSibling);
 
-        //Show Ptr matrix
-//        std::cout<<"Show Ptr matrix of node: "<<i<<"\n";
-//        for(int j = 0; j < rateCategoryCount; j++){
-//            for(int i = 0; i < stateCount * stateCount ; i++){
-//                std::cout<<seePtrSelf[j * stateCount * stateCount + i]<<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-//        std::cout<<"\nShow Ptr matrix of sibling node: 4\n";
-//        for(int j = 0; j < rateCategoryCount; j++){
-//            for(int i = 0; i < stateCount * stateCount ; i++){
-//                std::cout<<seePtrSibling[j * stateCount * stateCount + i]<<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-//
-//        std::cout<<"\nPre Partial for parent node: ";
-//        for(int j = 0; j < rateCategoryCount; j++){
-//            for(int i = 0; i < nPatterns * stateCount; i++){
-//                std::cout<<seepreParentPartials[j * nPatterns * stateCount + i]<<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-//
-//        std::cout<<"\nPre Partial for current node: \n";
-//        for(int j = 0; j < rateCategoryCount; j++){
-//            for(int i = 0; i < nPatterns * stateCount; i++){
-//                std::cout<<seeprePartials[j * nPatterns * stateCount + i]<<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-//
-//        std::cout<<"\nPost Partial for current node: \n";
-//        for(int j = 0; j < rateCategoryCount; j++){
-//            for(int i = 0; i < nPatterns * stateCount; i++){
-//                std::cout<<seepostPartials[j * nPatterns * stateCount + i]<<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-
         double * prePartialsPtr = seeprePartials;
         double * postPartialsPtr = seepostPartials;
 
@@ -467,10 +464,10 @@ int main( int argc, const char* argv[] )
                 //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
                 grand_numerator[m] += tmpNumerator[t];
                 grand_denominator[m] += ws * clikelihood[t];
+//                std::cout<< denominator<<",  "<<ws*clikelihood[t]<<",  "<<clikelihood[t]<<"  \n";
                 t++;
-                std::cout<<numerator / denominator <<"  ";
             }
-            std::cout<<std::endl;
+//            std::cout<<std::endl;
         }
 
         double gradient = 0.0;
@@ -479,39 +476,7 @@ int main( int argc, const char* argv[] )
             std::cout<<grand_numerator[m] / grand_denominator[m]<< "  ";
         }
 
-        std::cout<< std::endl <<gradient * edgeLengths[i] <<std::endl;
-//        for(m=0; m < nPatterns; m++){
-//            l = 0;
-//            numerator = 0;
-//            denominator = 0;
-//            for(k = 0; k < stateCount; k++){
-//                tmp = 0.0;
-//                for(j=0; j < stateCount; j++){
-//                    tmp += QT[l++]*prePartialsPtr[j];
-//                }
-//                numerator += tmp * postPartialsPtr[k];
-//                denominator += postPartialsPtr[k] * prePartialsPtr[k];
-//            }
-//            postPartialsPtr += stateCount;
-//            prePartialsPtr  += stateCount;
-//            std::cout<<numerator / denominator <<"  ";
-//        }
-//        std::cout<<std::endl;
-
-//        std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
-//
-//        l = 0;
-//        for(s = 0; s < rateCategoryCount; s++){
-//            std::cout<<"  rate category"<< s+1<< ": \n";
-//            for(k = 0; k<100; k++){
-//                for(j=0; j < stateCount; j++){
-//                    std::cout<< k * stateCount + j<< "   " <<seeprePartials[l++]<<", \n";
-//                }
-//                //std::cout<<std::endl;
-//            }
-//            std::cout<<std::endl;
-//        }
-
+        std::cout<< std::endl <<gradient * edgeLengths[i]<<std::endl;
     }
 
     double *patternLogLik = (double*)malloc(sizeof(double) * nPatterns);
@@ -544,6 +509,33 @@ int main( int argc, const char* argv[] )
                                       &cumulativeScalingIndex,// cumulative scaling index
                                       1,                      // count
                                       &logL);         // outLogLikelihoods
+
+    int postBufferIndices[8] = {0, 1, 2, 3, 9, 10, 11, 12};
+    int preBufferIndices[8] = {22, 23, 24, 25, 26, 27, 28, 29};
+    int firstDervIndices[8] = {8, 8, 8, 8, 8, 8, 8, 8};
+    int secondDervIndices[8] = {9, 9, 9, 9, 9, 9, 9, 9};
+    int categoryRatesIndex = categoryWeightsIndex;
+    double* gradient = (double*) malloc(sizeof(double) * nPatterns * 8);
+    double* diagonalHessian = (double*) malloc(sizeof(double) * nPatterns * 8);
+
+    beagleSetTransitionMatrix(instance, 8, scaledQ, 0.0);
+    beagleSetTransitionMatrix(instance, 9, scaledQ2, 0.0);
+
+    beagleCalculateEdgeDerivative(instance, postBufferIndices, preBufferIndices,
+                                  rootIndex, firstDervIndices, secondDervIndices,
+                                  categoryWeightsIndex, categoryRatesIndex,
+                                  stateFrequencyIndex, &cumulativeScalingIndex,
+                                  8, gradient, NULL);
+
+    std::cout<<"Gradient: \n";
+    for (int i = 0; i < 8; i++) {
+        double sum = 0;
+        for (int m = 0; m < nPatterns; m++) {
+            std::cout<<gradient[i * nPatterns + m]<<"  ";
+            sum += gradient[i * nPatterns + m] * patternWeights[m];
+        }
+        std::cout<<std::endl<<sum * edgeLengths[i]<<std::endl;
+    }
 
 #ifndef JC
     fprintf(stdout, "logL = %.5f (R = -11773.29178724702)\n\n", logL);
