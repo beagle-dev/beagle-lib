@@ -140,7 +140,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     }
 
     // Set up block/grid for derivative computation
-    if (kPaddedStateCount == 4) {
+    if (false /* kPaddedStateCount == 4 */) {
         if (kCPUImplementation) {
             bgDerivativeBlock = Dim3Int(kPatternBlockSize, 1);
             bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
