@@ -61,6 +61,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockAutoScaling;
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
+	GPUFunction fPartialsPartialsEdgeFirstDerivatives;
 	GPUFunction fPartialsPartialsGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
@@ -115,6 +116,8 @@ private:
     Dim3Int bgTransitionProbabilitiesGrid;
     Dim3Int bgPeelingBlock;
     Dim3Int bgPeelingGrid;
+	Dim3Int bgDerivativeBlock;
+	Dim3Int bgDerivativeGrid;
     Dim3Int bgLikelihoodBlock;
     Dim3Int bgLikelihoodGrid;
     Dim3Int bgAccumulateBlock;
@@ -301,6 +304,15 @@ public:
 								 unsigned int patternCount,
 								 unsigned int categoryCount,
 								 int sizeReal);
+
+	void PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
+											  GPUPtr partials1,
+											  GPUPtr partials2,
+											  GPUPtr matrices1,
+											  GPUPtr weights,
+											  unsigned int nodeCount,
+											  unsigned int patternCount,
+											  unsigned int categoryCount);
 
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,

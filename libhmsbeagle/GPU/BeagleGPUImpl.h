@@ -448,6 +448,10 @@ private:
 					  int count,
 					  int cumulativeScaleIndex);
 
+    int
+    calcEdgeFirstDerivatives(const int *postBufferIndices, const int *preBufferIndices, const int *firstDerivativeIndices,
+                             const int *categoryWeightsIndices, const int *scaleIndices, int count,
+                             double *outFirstDerivatives);
 };
 
 BEAGLE_GPU_TEMPLATE

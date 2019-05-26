@@ -138,7 +138,36 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         }
         bgLikelihoodGrid  = Dim3Int(kPatternCount);
     }
-    
+
+    // Set up block/grid for derivative computation
+    if (kPaddedStateCount == 4) {
+        if (kCPUImplementation) {
+            bgDerivativeBlock = Dim3Int(kPatternBlockSize, 1);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        } else {
+            bgDerivativeBlock = Dim3Int(16, kPatternBlockSize);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4),
+                                        kCategoryCount);
+            if (kPatternCount % (kPatternBlockSize * 4) != 0) {
+                bgDerivativeGrid.x += 1;
+            }
+        }
+    } else {
+        if (kAppleCPUImplementation) {
+            bgDerivativeBlock = Dim3Int(kPaddedStateCount, 1, 1);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, kCategoryCount);
+        } else if (kCPUImplementation) {
+            bgDerivativeBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize, 1);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1, kCategoryCount);
+        } else {
+            bgDerivativeBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+        }
+        if (!kCPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
+            bgDerivativeGrid.x += 1;
+        }
+    }
+
     // Set up block/grid for scale factor accumulation
     bgAccumulateBlock = Dim3Int(kPatternBlockSize);
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
@@ -242,6 +271,9 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsGrowing = gpu->GetFunction(
             "kernelPartialsPartialsGrowing");
+
+    fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
+            "kernelPartialsPartialsEdgeFirstDerivatives");
 
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
@@ -655,6 +687,40 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
     
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
+#endif
+}
+
+void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
+                                                          GPUPtr queue,
+                                                          GPUPtr partials0,
+                                                          GPUPtr matrices0,
+                                                          GPUPtr weights,
+                                                          unsigned int nodeCount,
+                                                          unsigned int patternCount,
+                                                          unsigned int categoryCount) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
+#endif
+
+    unsigned int saved = bgDerivativeGrid.y;
+    bgDerivativeGrid.y = nodeCount;
+
+    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
+    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
+    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
+
+    gpu->LaunchKernel(fPartialsPartialsEdgeFirstDerivatives,
+                      bgDerivativeBlock, bgDerivativeGrid,
+                      5, 7,
+                      out, queue, partials0, matrices0, weights,
+                      patternCount, categoryCount);
+    gpu->SynchronizeDevice();
+
+    bgDerivativeGrid.y = saved;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
 #endif
 }
 

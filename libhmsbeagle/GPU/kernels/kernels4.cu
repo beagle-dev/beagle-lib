@@ -835,7 +835,65 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleMulti(KW_GLOBAL_VAR REAL* KW_
 #endif // FW_OPENCL_CPU
 }
 
-
+KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
+                                                                 int endPattern, int rateCategories) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    // Not implemented
+#else // GPU implementation
+//    DETERMINE_INDICES_4_GPU();
+//    LOAD_PARTIALS_PARTIALS_4_GPU();
+//
+//    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2; /*Points to *this* matrix*/
+//    const KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + x2;
+//    KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/
+//    KW_LOCAL_MEM REAL sMatrix2[16];
+//    if (patIdx == 0 ) {
+//        sMatrix1[multBy4(state) | pat] = matrix1[tx]; /* Should write transpose into sMatrix1 */
+//        sMatrix2[tx] = matrix2[tx];
+//    }
+//    KW_LOCAL_FENCE;
+//
+//    KW_LOCAL_MEM REAL sProduct[PATTERN_BLOCK_SIZE * 4 * 4];
+//    if (pattern < endPattern) { // Remove padded threads!
+//        REAL sum2;
+//        int i = pat;
+//        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+//
+//        sum2 = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
+//
+//        sProduct[multBy16(patIdx) | tx] = sPartials1[multBy16(patIdx) | tx] * sum2;
+//        //partials3[u] = sProduct[multBy16(patIdx) | tx]; /* These appear correct */
+//    }
+//
+//    KW_LOCAL_FENCE;
+//
+//    if (pattern < endPattern) {
+//        REAL sum1;
+//        int i = pat;
+//        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+//
+//        sum1 = sMatrix1[multBy4(i) | state] * sProduct[patIdx16pat4 | i];
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
+//        i = (i + 1) & 0x3;
+//        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
+//
+//        partials3[u] = sum1;
+//    }
+#endif // FW_OPENCL_CPU
+}
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
