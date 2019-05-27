@@ -78,6 +78,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dDistanceQueue = (GPUPtr)NULL;
     
     dPtrQueue = (GPUPtr)NULL;
+
+    dDerivativeQueue = (GPUPtr)NULL;
     
     dMaxScalingFactors = (GPUPtr)NULL;
     dIndexMaxScalingFactors = (GPUPtr)NULL;
@@ -210,6 +212,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeMemory(dDistanceQueue);
         
         gpu->FreeMemory(dPtrQueue);
+
+        gpu->FreeMemory(dDerivativeQueue);
         
         gpu->FreeMemory(dMaxScalingFactors);
         gpu->FreeMemory(dIndexMaxScalingFactors);
@@ -243,6 +247,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(hStatesOffsets);
 
         gpu->FreeHostMemory(hPtrQueue);
+
+        gpu->FreeHostMemory(hDerivativeQueue);
         
         gpu->FreeHostMemory(hPatternWeightsCache);
     
@@ -698,6 +704,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dPtrQueue = gpu->AllocateMemory(sizeof(unsigned int) * ptrQueueLength);
     hPtrQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
+
+    dDerivativeQueue = gpu->AllocateMemory(sizeof(unsigned int) * kBufferCount * 3);
+    hDerivativeQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * kBufferCount * 3);
+    checkHostMemory(hDerivativeQueue);
 
     if (kPaddedStateCount == 4)
         kSitesPerIntegrateBlock = gpu->kernelResource->patternBlockSize;
@@ -2041,7 +2051,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogDerivatives(const int *po
     std::cout << "AAA" << std::endl;
 
     if (dOutFirstDeriv == NULL) {
-        dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + kResultPaddedPatterns) * sizeof(Real));
+        dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
     }
 
     int returnCode = BEAGLE_ERROR_GENERAL;
@@ -4040,19 +4050,39 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                                                                 int count,
                                                                 double *outFirstDerivatives) {
 
+    int instructionOffset = 0;
     for (int i = 0; i < count; i++) {
-        hPtrQueue[0 * count + i] = kPartialsSize * postBufferIndices[i];
-        hPtrQueue[1 * count + i] = kPartialsSize * preBufferIndices[i];
-        hPtrQueue[2 * count + i] = firstDerivativeIndices[i];
+        hDerivativeQueue[instructionOffset++] = hPartialsOffsets[postBufferIndices[i]];
+        hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
+        hDerivativeQueue[instructionOffset++] = firstDerivativeIndices[i] * kIndexOffsetMat;
+
+        fprintf(stderr, "post: %d, pre: %d @ %d %d\n",
+                postBufferIndices[i], preBufferIndices[i],
+                hPartialsOffsets[postBufferIndices[i]], hPartialsOffsets[preBufferIndices[i]]);
+
     }
 
-    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * 3 * count);
+//#ifdef FW_OPENCL
+//    gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
+//#else
+    gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 3 * count);
+//#endif
+
+//    gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, sizeof(unsigned int) * 3 * count);
+
+//    std::vector<unsigned int> tmp(3 * count);
+//    gpu->MemcpyDeviceToHost(tmp.data(), dDerivativeQueue,sizeof(unsigned int) * 3 * count);
+//
+//    for (auto i : tmp) {
+//        std::cout << " " << i;
+//    }
+//    std::cout << std::endl;
 
     kernels->PartialsPartialsEdgeFirstDerivatives(
             dOutFirstDeriv,
-            dPtrQueue,
-            dPartials[0],
+            dPartialsOrigin,
             dMatrices[0],
+            dDerivativeQueue,
             dWeights[0], // TODO Use categoryWeightsIndices
             count,
             kPatternCount,
@@ -4060,8 +4090,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
 
     std::cout << "BBB" << std::endl;
 
-    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount);
-    beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount);
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount * count * 2);
+    beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount * count * 2);
 
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }

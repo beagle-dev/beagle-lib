@@ -143,11 +143,11 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     if (false /* kPaddedStateCount == 4 */) {
         if (kCPUImplementation) {
             bgDerivativeBlock = Dim3Int(kPatternBlockSize, 1);
-            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1);
         } else {
             bgDerivativeBlock = Dim3Int(16, kPatternBlockSize);
             bgDerivativeGrid  = Dim3Int(kPatternCount / (kPatternBlockSize * 4),
-                                        kCategoryCount);
+                                        1);
             if (kPatternCount % (kPatternBlockSize * 4) != 0) {
                 bgDerivativeGrid.x += 1;
             }
@@ -155,13 +155,13 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     } else {
         if (kAppleCPUImplementation) {
             bgDerivativeBlock = Dim3Int(kPaddedStateCount, 1, 1);
-            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, kCategoryCount);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kPatternBlockSize, 1);
         } else if (kCPUImplementation) {
             bgDerivativeBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize, 1);
-            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1, kCategoryCount);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1, 1);
         } else {
             bgDerivativeBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
-            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+            bgDerivativeGrid  = Dim3Int(kPatternCount / kPatternBlockSize, 1);
         }
         if (!kCPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
             bgDerivativeGrid.x += 1;
@@ -691,9 +691,9 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
 }
 
 void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
-                                                          GPUPtr queue,
                                                           GPUPtr partials0,
                                                           GPUPtr matrices0,
+                                                          GPUPtr offsets,
                                                           GPUPtr weights,
                                                           unsigned int nodeCount,
                                                           unsigned int patternCount,
@@ -713,7 +713,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
     gpu->LaunchKernel(fPartialsPartialsEdgeFirstDerivatives,
                       bgDerivativeBlock, bgDerivativeGrid,
                       5, 7,
-                      out, queue, partials0, matrices0, weights,
+                      out, partials0, matrices0, offsets, weights,
                       patternCount, categoryCount);
     gpu->SynchronizeDevice();
 

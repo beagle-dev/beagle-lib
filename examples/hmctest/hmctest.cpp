@@ -141,8 +141,8 @@ int main( int argc, const char* argv[] )
     }
     fprintf(stdout, "\n");
 
-    bool scaling = true;
-//    bool scaling = false; // disable scaling for now
+//    bool scaling = true;
+    bool scaling = false; // disable scaling for now
 
     bool doJC = true;
 
@@ -178,7 +178,7 @@ int main( int argc, const char* argv[] )
                                   NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   0,			    /**< Length of resourceList list (input) */
                             useGpu ?
-                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_SCALERS_RAW:
+                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
                                   BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
@@ -685,8 +685,20 @@ int main( int argc, const char* argv[] )
         for(m=0; m < nPatterns; m++){
             std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
         }
-
         std::cout<<std::endl;
+
+        std::cout << "n: ";
+        for(m=0; m < nPatterns; m++){
+            std::cout<<grand_numerator[m] << "  ";
+        }
+        std::cout<<std::endl;
+
+        std::cout << "d: ";
+        for(m=0; m < nPatterns; m++){
+            std::cout<< grand_denominator[m] << "  ";
+        }
+        std::cout<<std::endl;
+
 //        for(m=0; m < nPatterns; m++){
 //            l = 0;
 //            numerator = 0;
@@ -721,7 +733,7 @@ int main( int argc, const char* argv[] )
 
     }
 
-    std::vector<double> firstBuffer(nPatterns * 4);
+    std::vector<double> firstBuffer(nPatterns * 4 * 2); // Get both numerator and denominator
     int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
     beagleCalculateEdgeLogDerivatives(instance,
@@ -736,11 +748,24 @@ int main( int argc, const char* argv[] )
                                       firstBuffer.data(),
                                       NULL);
 
-    std::cout << "check:";
-    for (double x : firstBuffer) {
-        std::cout << " " << x;
+    std::cout << "check numerators  :";
+    for (int i = 0; i < 4 * nPatterns; ++i) {
+        std::cout << " " << firstBuffer[i];
     }
     std::cout << std::endl;
+    std::cout << "check denominators:";
+    for (int i = 4 * nPatterns; i < 2 * 4 * nPatterns; ++i) {
+        std::cout << " " << firstBuffer[i];
+    }
+    std::cout << std::endl;
+
+    for (int i = 0; i < 4; ++i) {
+        double sum = 0.0;
+        for (int k = 0; k < nPatterns; ++k) {
+            sum += firstBuffer[i * 4 + k];
+        }
+        std::cerr << "node " << i << ": " << sum << std::endl;
+    }
 
 
     free(patternWeights);

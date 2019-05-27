@@ -306,10 +306,10 @@ public:
 								 int sizeReal);
 
 	void PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
-											  GPUPtr partials1,
-											  GPUPtr partials2,
-											  GPUPtr matrices1,
+											  GPUPtr partials0,
+											  GPUPtr matrices0,
 											  GPUPtr weights,
+											  GPUPtr offsets,
 											  unsigned int nodeCount,
 											  unsigned int patternCount,
 											  unsigned int categoryCount);

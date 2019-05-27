@@ -116,6 +116,8 @@ private:
     GPUPtr dDistanceQueue;
     
     GPUPtr dPtrQueue;
+
+	GPUPtr dDerivativeQueue;
 	
     GPUPtr dMaxScalingFactors;
     GPUPtr dIndexMaxScalingFactors;
@@ -187,6 +189,8 @@ private:
     int* hGridOpIndices;
 
     unsigned int* hPtrQueue;
+
+	unsigned int* hDerivativeQueue;
     
     double** hCategoryRates; // Can keep in double-precision
 
