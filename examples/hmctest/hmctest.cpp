@@ -34,7 +34,7 @@ char *gorilla = (char*)"AAAT";
 int* getStates(char *sequence) {
 	int n = strlen(sequence);
 	int *states = (int*) malloc(sizeof(int) * n);
-    
+
 	for (int i = 0; i < n; i++) {
 		switch (sequence[i]) {
 			case 'A':
@@ -60,7 +60,7 @@ int* getStates(char *sequence) {
 double* getPartials(char *sequence) {
 	int n = strlen(sequence);
 	double *partials = (double*)malloc(sizeof(double) * n * 4);
-    
+
     int k = 0;
 	for (int i = 0; i < n; i++) {
 		switch (sequence[i]) {
@@ -148,14 +148,14 @@ int main( int argc, const char* argv[] )
 
     // is nucleotides...
     int stateCount = 4;
-	
+
     // get the number of site patterns
 	int nPatterns = strlen(human);
 
     // change # rate category to 2
 //    int rateCategoryCount = 4;
     int rateCategoryCount = 2;
-    
+
     int scaleCount = (scaling ? 7 : 0);
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
@@ -163,7 +163,7 @@ int main( int argc, const char* argv[] )
     BeagleInstanceDetails instDetails;
 
     /// Doubled the size of partials buffer from 5 to 10
-    
+
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -186,29 +186,29 @@ int main( int argc, const char* argv[] )
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
     }
-    
-    
+
+
     int rNumber = instDetails.resourceNumber;
     fprintf(stdout, "Using resource %i:\n", rNumber);
     fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
     fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
     fprintf(stdout, "\n");
-    
-    
+
+
 //    beagleSetTipStates(instance, 0, getStates(human));
 //    beagleSetTipStates(instance, 1, getStates(chimp));
 //    beagleSetTipStates(instance, 2, getStates(gorilla));
-    
+
     // set the sequences for each tip using partial likelihood arrays
     double *humanPartials   = getPartials(human);
     double *chimpPartials   = getPartials(chimp);
     double *gorillaPartials = getPartials(gorilla);
-    
-	beagleSetTipPartials(instance, 0, humanPartials);
-	beagleSetTipPartials(instance, 1, chimpPartials);
-	beagleSetTipPartials(instance, 2, gorillaPartials);
-    
+
+    beagleSetTipPartials(instance, 2, gorillaPartials);
+    beagleSetTipPartials(instance, 1, chimpPartials);
+    beagleSetTipPartials(instance, 0, humanPartials);
+
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
 #else
@@ -220,23 +220,23 @@ int main( int argc, const char* argv[] )
 //    }
     rates[0] = 0.14251623900062188;
     rates[1] = 1.857483760999378;
-    
+
 	beagleSetCategoryRates(instance, &rates[0]);
-    
+
 	double* patternWeights = (double*) malloc(sizeof(double) * nPatterns);
-    
+
     for (int i = 0; i < nPatterns; i++) {
         patternWeights[i] = 1.0;
-    }    
+    }
 
     beagleSetPatternWeights(instance, patternWeights);
-	
+
     // create base frequency array
 	double freqs[4] = { 0.1, 0.3, 0.2, 0.4 };
 //    double freqs[4] = { 0.25, 0.25, 0.25, 0.25 };
-    
+
     beagleSetStateFrequencies(instance, 0, freqs);
-    
+
     // create an array containing site category weights
 #ifdef _WIN32
 	std::vector<double> weights(rateCategoryCount);
@@ -247,9 +247,9 @@ int main( int argc, const char* argv[] )
         weights[i] = 1.0/rateCategoryCount;
 //        weights[i] = 2.0 * double(i + 1)/ double(rateCategoryCount * (rateCategoryCount + 1));
     }
-    
+
     beagleSetCategoryWeights(instance, 0, &weights[0]);
-    
+
 //#ifndef JC
 //	// an eigen decomposition for the 4-state 1-step circulant infinitesimal generator
 //	double evec[4 * 4] = {
@@ -354,18 +354,16 @@ int main( int argc, const char* argv[] )
         }
     }
 
-    beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
-    beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     // set the Eigen decomposition
-	beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
-    
+    beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
+
     // a list of indices and edge lengths
-	int nodeIndices[4] = { 0, 1, 2, 3 };
-	double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
-    
+    int nodeIndices[4] = { 0, 1, 2, 3 };
+    double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
+
     // tell BEAGLE to populate the transition matrices for the above edge lengths
-	beagleUpdateTransitionMatrices(instance,     // instance
+    beagleUpdateTransitionMatrices(instance,     // instance
 	                         0,             // eigenIndex
 	                         nodeIndices,   // probabilityIndices
 	                         NULL,          // firstDerivativeIndices
@@ -373,7 +371,10 @@ int main( int argc, const char* argv[] )
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-	int transposeIndices[4] = { 6, 7, 8, 9 };
+    beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
+
+    int transposeIndices[4] = { 6, 7, 8, 9 };
 
     double* matrix1 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
     double* matrix2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
@@ -416,7 +417,7 @@ int main( int argc, const char* argv[] )
             std::cout << std::endl;
         }
     }
-    
+
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
 	BeagleOperation operations[2] = {
@@ -425,7 +426,7 @@ int main( int argc, const char* argv[] )
 	};
 
 	int rootIndex = 4;
-    
+
     // update the partials
 	beagleUpdatePartials(instance,      // instance
                    operations,     // eigenIndex
@@ -778,7 +779,7 @@ int main( int argc, const char* argv[] )
 
 
     free(patternWeights);
-    
+
 	free(patternLogLik);
 	free(humanPartials);
 	free(chimpPartials);
@@ -793,7 +794,7 @@ int main( int argc, const char* argv[] )
     free(diagonalHessian);
     free(matrix1);
     free(matrix2);
-    
+
     beagleFinalizeInstance(instance);
 
 #ifdef _WIN32
@@ -802,7 +803,7 @@ int main( int argc, const char* argv[] )
     fflush( stderr);
     getchar();
 #endif
-    
+
 }
 
 //Gradient:
