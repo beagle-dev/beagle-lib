@@ -338,15 +338,23 @@ int main( int argc, const char* argv[] )
 
     std::vector<double> scaledQ(4 * 4 * 2);
     std::vector<double> scaledQ2(4 * 4 * 2);
+    std::vector<double> scaledQT(4 * 4 * 2);
 
     for (int rate = 0; rate < rateCategoryCount; ++rate) {
         for (int entry = 0; entry < stateCount * stateCount; ++entry) {
             scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
             scaledQ2[entry + rate * stateCount * stateCount] = Q2[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
         }
+
+        for (int i = 0; i < stateCount; ++i) {
+            for (int j = 0; j < stateCount; ++j) {
+                scaledQT[i * stateCount + j + rate * stateCount * stateCount] =
+                        scaledQ[j * stateCount + i + rate * stateCount * stateCount];
+            }
+        }
     }
 
-    beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+    beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
     beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     // set the Eigen decomposition
@@ -605,17 +613,18 @@ int main( int argc, const char* argv[] )
                 for(k = 0; k < stateCount; k++){
                     tmp = 0.0;
                     for(j=0; j < stateCount; j++){
-                        tmp += QT[l++]*prePartialsPtr[j];
+                        tmp += QT[k * stateCount + j] * prePartialsPtr[j];
                     }
                     numerator += tmp * postPartialsPtr[k];
                     denominator += postPartialsPtr[k] * prePartialsPtr[k];
                 }
                 postPartialsPtr += stateCount;
                 prePartialsPtr  += stateCount;
-                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
+//                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
+                tmpNumerator[t] = ws * rs * numerator;
                 //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
                 grand_numerator[m] += tmpNumerator[t];
-                grand_denominator[m] += ws * clikelihood[t];
+                grand_denominator[m] += ws * denominator /*clikelihood[t]*/;
                 t++;
                 std::cout<<numerator / denominator <<"  ";
             }
@@ -748,16 +757,16 @@ int main( int argc, const char* argv[] )
                                       firstBuffer.data(),
                                       NULL);
 
-    std::cout << "check numerators  :";
+    std::cout << "check gradients  :";
     for (int i = 0; i < 4 * nPatterns; ++i) {
         std::cout << " " << firstBuffer[i];
     }
     std::cout << std::endl;
-    std::cout << "check denominators:";
-    for (int i = 4 * nPatterns; i < 2 * 4 * nPatterns; ++i) {
-        std::cout << " " << firstBuffer[i];
-    }
-    std::cout << std::endl;
+//    std::cout << "check denominators:";
+//    for (int i = 4 * nPatterns; i < 2 * 4 * nPatterns; ++i) {
+//        std::cout << " " << firstBuffer[i];
+//    }
+//    std::cout << std::endl;
 
     for (int i = 0; i < 4; ++i) {
         double sum = 0.0;

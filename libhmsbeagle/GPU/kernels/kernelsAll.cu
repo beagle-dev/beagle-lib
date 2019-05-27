@@ -1976,7 +1976,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
             }
             KW_LOCAL_FENCE;
 
-            for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            // TODO 2nd check is unncessary for stateCount >= 16
+            for (int j = 0; (j < BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
                 FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
             }
             KW_LOCAL_FENCE;
@@ -2004,9 +2005,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     if (pattern < totalPatterns) {
         if (state == 0) {
             // TODO Transpose results and do coalesced write
-            //out[totalPatterns * node + pattern] = sPartials1[patIdx][0] / sPartials2[patIdx][0]; // pre;
-            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];
-            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0];
+            out[totalPatterns * node + pattern] = sPartials1[patIdx][0] / sPartials2[patIdx][0]; // pre;
+//            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
+//            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denomiator
         }
     }
 

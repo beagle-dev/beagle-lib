@@ -4090,8 +4090,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
 
     std::cout << "BBB" << std::endl;
 
-    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount * count * 2);
-    beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount * count * 2);
+    gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount * count);
+    beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount * count);
 
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
