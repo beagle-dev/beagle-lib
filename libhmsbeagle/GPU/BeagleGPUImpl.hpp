@@ -579,13 +579,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             return BEAGLE_ERROR_NO_IMPLEMENTATION;
 #endif
         } else {
-            dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * kScaleBufferCount);
+            // allocating extra buffer for zeroes to use with partitioned problems and mixed scaling on/off
+            dScalingFactors = (GPUPtr*) malloc(sizeof(GPUPtr) * (kScaleBufferCount + 1));
             ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(Real));
             kScaleBufferSize = ptrIncrement / sizeof(Real);
-            GPUPtr dScalingFactorsOrigin = gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
-            for (int i=0; i < kScaleBufferCount; i++) {
+            GPUPtr dScalingFactorsOrigin = gpu->AllocateMemory(ptrIncrement * (kScaleBufferCount + 1));
+            for (int i=0; i < (kScaleBufferCount + 1); i++) {
                 dScalingFactors[i] = gpu->CreateSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
             }
+            Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedPatternCount);
+            // Fill with zeroes
+            gpu->MemcpyHostToDevice(dScalingFactors[kScaleBufferCount], zeroes,
+                                    sizeof(Real) * kPaddedPatternCount);
+            gpu->FreeHostMemory(zeroes);
         }
     }
 
@@ -2933,7 +2939,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
     int gridOpIndex = 0;
     int gridSize = 0;
 
-    int scale = 0;
+    bool scale = false;
+
+    for (int p = 0; p < partitionCount; p++) {
+        if (cumulativeScaleIndices[p] != BEAGLE_OP_NONE) {
+            scale = true;
+        }
+    }
 
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
@@ -2946,19 +2958,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
         const int rootNodeIndex = bufferIndices[p];
         const int categoryWeightsIndex = categoryWeightsIndices[p];
         const int stateFrequenciesIndex = stateFrequenciesIndices[p];
-              int cumulativeScalingIndex = 0;
+              int cumulativeScalingIndex = kScaleBufferCount; // default to buffer with zeroes
 
-        if (cumulativeScaleIndices[p] != BEAGLE_OP_NONE) {
-            if (scale == -1) {
-                return BEAGLE_ERROR_NO_IMPLEMENTATION;
-            }
+        if ((scale == true) && (cumulativeScaleIndices[p] != BEAGLE_OP_NONE)) {
             cumulativeScalingIndex = cumulativeScaleIndices[p];
-            scale = 1;
-        } else {
-            if (scale == 1) {
-                return BEAGLE_ERROR_NO_IMPLEMENTATION;
-            }
-            scale = -1;
         }
 
         unsigned int rNOff      = hPartialsOffsets[rootNodeIndex];
@@ -2996,7 +2999,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
     gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
     #endif
 
-    if (scale == 1) {
+    if (scale == true) {
         kernels->IntegrateLikelihoodsDynamicScalingPartition(dIntegrationTmp,
                                                              dPartialsOrigin,
                                                              dWeights[0],
@@ -3509,7 +3512,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
 
     gridOpIndex = 0;
     gridSize = 0;
-    int scale = 0;
+
+    bool scale = false;
+
+    for (int p = 0; p < partitionCount; p++) {
+        if (cumulativeScaleIndices[p] != BEAGLE_OP_NONE) {
+            scale = true;
+        }
+    }
 
     for (int p = 0; p < partitionCount; p++) {
         int pIndex = partitionIndices[p];
@@ -3521,19 +3531,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
     
         const int categoryWeightsIndex  = categoryWeightsIndices[p];
         const int stateFrequenciesIndex = stateFrequenciesIndices[p];
-              int cumulativeScalingIndex = 0;
-    
-        if (cumulativeScaleIndices[p] != BEAGLE_OP_NONE) {
-            if (scale == -1) {
-                return BEAGLE_ERROR_NO_IMPLEMENTATION;
-            }
+              int cumulativeScalingIndex = kScaleBufferCount; // default to buffer with zeroes
+
+        if ((scale == true) && (cumulativeScaleIndices[p] != BEAGLE_OP_NONE)) {
             cumulativeScalingIndex = cumulativeScaleIndices[p];
-            scale = 1;
-        } else {
-            if (scale == 1) {
-                return BEAGLE_ERROR_NO_IMPLEMENTATION;
-            }
-            scale = -1;
         }
 
         unsigned int cWOff      = categoryWeightsIndex   * kWeightsOffset;
@@ -3557,7 +3558,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
     gpu->MemcpyHostToDevice(dPartialsPtrs, hPartialsPtrs, transferSize);
     #endif
 
-    if (scale == 1) {
+    if (scale == true) {
         kernels->IntegrateLikelihoodsDynamicScalingPartition(dIntegrationTmp,
                                                              dPartialsTmp,
                                                              dWeights[0],
