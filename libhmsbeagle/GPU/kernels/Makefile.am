@@ -12,7 +12,7 @@ BUILT_SOURCES += BeagleCUDA_kernels.h
 CLEANFILES += BeagleCUDA_kernels.h BeagleCUDA_kernels.ptx
 
 # rules for building cuda files
-BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplDefs.h
+BeagleCUDA_kernels.h: Makefile kernels4.cu kernels4Derivatives.cu kernelsX.cu kernelsXDerivatives.cu kernelsAll.cu ../GPUImplDefs.h
 	echo "// auto-generated header file with CUDA kernels PTX code" > BeagleCUDA_kernels.h
 #
 # Compile single-precision kernels
@@ -56,7 +56,7 @@ BeagleCUDA_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplD
 		echo "\"" >> BeagleCUDA_kernels.h; \
 	done
 
-EXTRA_DIST += kernels4.cu kernelsX.cu kernelsAll.cu
+EXTRA_DIST += kernels4.cu kernels4Derivatives.cu kernelsX.cu kernelsXDerivatives.cu kernelsAll.cu
 
 libcuda_kernels_la_CXXFLAGS = $(CUDA_CFLAGS)
 
@@ -68,7 +68,7 @@ BUILT_SOURCES += BeagleOpenCL_kernels.h
 CLEANFILES += BeagleOpenCL_kernels.h
 
 # rules for building opencl files
-BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImplDefs.h
+BeagleOpenCL_kernels.h: Makefile kernels4.cu kernels4Derivatives.cu kernelsX.cu kernelsXDerivatives.cu kernelsAll.cu ../GPUImplDefs.h
 	echo "// auto-generated header file with OpenCL kernels code" > BeagleOpenCL_kernels.h
 
 #
@@ -80,6 +80,7 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 	cat $(srcdir)/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	cat $(srcdir)/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	cat $(srcdir)/kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat $(srcdir)/kernels4Derivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -92,6 +93,7 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 		cat $(srcdir)/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		cat $(srcdir)/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		cat $(srcdir)/kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat $(srcdir)/kernelsXDerivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "\"" >> BeagleOpenCL_kernels.h; \
 	done
 
@@ -105,6 +107,7 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 	cat $(srcdir)/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	cat $(srcdir)/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	cat $(srcdir)/kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
+	cat $(srcdir)/kernels4Derivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h
 	echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -118,10 +121,11 @@ BeagleOpenCL_kernels.h: Makefile kernels4.cu kernelsX.cu kernelsAll.cu ../GPUImp
 		cat $(srcdir)/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		cat $(srcdir)/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		cat $(srcdir)/kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+		cat $(srcdir)/kernelsXDerivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$$/\\n\\/' >> BeagleOpenCL_kernels.h; \
 		echo "\"" >> BeagleOpenCL_kernels.h; \
 	done
 
-EXTRA_DIST += kernels4.cu kernelsX.cu kernelsAll.cu
+EXTRA_DIST += kernels4.cu kernels4Derivatives.cu kernelsX.cu kernelsXDerivatives.cu kernelsAll.cu
 
 libopencl_kernels_la_CXXFLAGS = $(OPENCL_CFLAGS)
 

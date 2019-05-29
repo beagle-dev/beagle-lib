@@ -160,6 +160,16 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
+    int whichDevice = -1;
+    if (useGpu) {
+        if (argc > 2) {
+            whichDevice = atol(argv[2]);
+            if (whichDevice < 0) {
+                whichDevice = -1;
+            }
+        }
+    }
+
     BeagleInstanceDetails instDetails;
 
     /// Doubled the size of partials buffer from 5 to 10
@@ -175,8 +185,8 @@ int main( int argc, const char* argv[] )
                                   6 * 2,		    /**< Number of rate matrix buffers (input) */
                                   rateCategoryCount,/**< Number of rate categories (input) */
                                   scaleCount,       /**< Number of scaling buffers */
-                                  NULL,			    /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
-                                  0,			    /**< Length of resourceList list (input) */
+                                  whichDevice >= 0 ? &whichDevice : NULL, /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
+                                  whichDevice >= 0 ? 1 : 0,			    /**< Length of resourceList list (input) */
                             useGpu ?
                                   BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
                                   BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
