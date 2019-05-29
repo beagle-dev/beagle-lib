@@ -205,9 +205,9 @@ int main( int argc, const char* argv[] )
     double *chimpPartials   = getPartials(chimp);
     double *gorillaPartials = getPartials(gorilla);
 
-    beagleSetTipPartials(instance, 2, gorillaPartials);
-    beagleSetTipPartials(instance, 1, chimpPartials);
     beagleSetTipPartials(instance, 0, humanPartials);
+    beagleSetTipPartials(instance, 1, chimpPartials);
+    beagleSetTipPartials(instance, 2, gorillaPartials);
 
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);

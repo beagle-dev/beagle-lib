@@ -919,7 +919,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex,
         if (dPartials[tipIndex] == 0) {
             assert(kLastTipPartialsBufferIndex == kTipPartialsBufferCount - 1);
             for (int tmpTipIndex = 0; tmpTipIndex < kTipCount; ++tmpTipIndex) {
-                dPartials[tmpTipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
+                dPartials[tmpTipIndex] = dTipPartialsBuffers[kTipCount - 1 - kLastTipPartialsBufferIndex];
                 hPartialsOffsets[tmpTipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
                 kLastTipPartialsBufferIndex--;
             }
@@ -972,7 +972,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
         if (dPartials[bufferIndex] == 0) {
             assert(kLastTipPartialsBufferIndex == kTipPartialsBufferCount - 1);
             for (int tmpTipIndex = 0; tmpTipIndex < kTipCount; ++tmpTipIndex) {
-                dPartials[tmpTipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
+                dPartials[tmpTipIndex] = dTipPartialsBuffers[kTipCount - 1 - kLastTipPartialsBufferIndex];
                 hPartialsOffsets[tmpTipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
                 kLastTipPartialsBufferIndex--;
             }
