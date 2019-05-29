@@ -1994,8 +1994,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 
     KW_LOCAL_FENCE;
 
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
     for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
         if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
             sPartials1[patIdx][state] += sPartials1[patIdx][state + i];
             sPartials2[patIdx][state] += sPartials2[patIdx][state + i];
         }
