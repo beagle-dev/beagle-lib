@@ -27,7 +27,7 @@ echo "\"" >> BeagleOpenCL_kernels.h
 #
 for s in $STATE_COUNT_LIST
 do
-   echo "Making state count = $s" ; \
+   echo "Making OpenCL SP state count = $s" ; \
    echo "#define KERNELS_STRING_SP_$s \"" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    echo "#define STATE_COUNT $s" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
@@ -55,7 +55,7 @@ echo "\"" >> BeagleOpenCL_kernels.h
 #
 for s in $STATE_COUNT_LIST
 do
-   echo "Making state count = $s DP"; \
+   echo "Making OpenCL DP state count = $s DP"; \
    echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    echo "#define STATE_COUNT $s" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    echo "#define DOUBLE_PRECISION" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
