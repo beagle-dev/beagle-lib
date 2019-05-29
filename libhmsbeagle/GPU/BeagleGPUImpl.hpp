@@ -4087,7 +4087,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
             dDerivativeQueue,
             dWeights[0], // TODO Use categoryWeightsIndices
             count,
-            kPatternCount,
+            kPaddedPatternCount,
             kCategoryCount);
 
     std::cout << "BBB" << std::endl;
