@@ -4,7 +4,7 @@
 add_custom_target(OpenKernels
         ${CMAKE_CURRENT_SOURCE_DIR}/make_opencl_kernels.sh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DEPENDS "kernels4.cu" "kernels4Derivatives.cu" "kernels4Derivatives.cu" "kernelsAll.cu"
+        DEPENDS "kernels4.cu" "kernels4Derivatives.cu" "kernelsXDerivatives.cu" "kernelsAll.cu"
         COMMENT "Building kernels")
 
 #add_dependencies(OpenKernels
