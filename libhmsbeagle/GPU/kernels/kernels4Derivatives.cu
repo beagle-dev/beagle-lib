@@ -122,7 +122,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         }
     }
 
-    if (pattern < totalPatterns) {
+//    if (pattern < totalPatterns) {
 //        if (state == 0) {
 //            out[totalPatterns * node + pattern] =
 //                    sPartials1[patIdx * PATTERN_BLOCK_SIZE + multBy4(pat) + 0] /
@@ -130,6 +130,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 ////            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
 ////            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denominator
 //        }
-    }
+//    }
 #endif
 }
