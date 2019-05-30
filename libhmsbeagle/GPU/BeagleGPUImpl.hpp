@@ -917,12 +917,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex,
 
     if (tipIndex < kTipCount) {
         if (dPartials[tipIndex] == 0) {
-            assert(kLastTipPartialsBufferIndex == kTipPartialsBufferCount - 1);
-            for (int tmpTipIndex = 0; tmpTipIndex < kTipCount; ++tmpTipIndex) {
-                dPartials[tmpTipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
-                hPartialsOffsets[tmpTipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
-                kLastTipPartialsBufferIndex--;
-            }
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                                                       kTipPartialsBufferCount);
+            dPartials[tipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
+            hPartialsOffsets[tipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
+            kLastTipPartialsBufferIndex--;
         }
     }
     // Copy to GPU device
@@ -970,12 +969,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setPartials(int bufferIndex,
 
     if (bufferIndex < kTipCount) {
         if (dPartials[bufferIndex] == 0) {
-            assert(kLastTipPartialsBufferIndex == kTipPartialsBufferCount - 1);
-            for (int tmpTipIndex = 0; tmpTipIndex < kTipCount; ++tmpTipIndex) {
-                dPartials[tmpTipIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
-                hPartialsOffsets[tmpTipIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
-                kLastTipPartialsBufferIndex--;
-            }
+            assert(kLastTipPartialsBufferIndex >= 0 && kLastTipPartialsBufferIndex <
+                                                       kTipPartialsBufferCount);
+            dPartials[bufferIndex] = dTipPartialsBuffers[kLastTipPartialsBufferIndex];
+            hPartialsOffsets[bufferIndex] = kIndexOffsetPat*kLastTipPartialsBufferIndex;
+            kLastTipPartialsBufferIndex--;
         }
     }
     // Copy to GPU device
