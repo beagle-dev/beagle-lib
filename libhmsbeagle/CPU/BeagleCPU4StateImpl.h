@@ -52,6 +52,7 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTransitionMatrices;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPatternCount;
+	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kMatrixSize;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPaddedPatternCount;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kExtraPatterns;
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kStateCount;
