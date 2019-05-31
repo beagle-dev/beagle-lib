@@ -2106,7 +2106,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int *tipS
             REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + state];
 
             for (int k = 0; k < kStateCount; k++) {
-                numerator += firstDerivMatrix[k * matrixIncr + state] *
+                numerator += firstDerivMatrix[category * kMatrixSize + k * matrixIncr + state] *
                              preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
             }
 
