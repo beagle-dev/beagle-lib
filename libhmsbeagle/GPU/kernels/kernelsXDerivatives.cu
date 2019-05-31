@@ -104,21 +104,21 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     }
 
     // TODO Test this coalesced write code out
-//    int tx = KW_LOCAL_ID_0;
-//    if (tx < PATTERN_BLOCK_SIZE && patIdx == 0) { // Use first PATTERN_BLOCK_SIZE threads to write
-//        int site = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + tx;
-//        if (site < totalPatterns) {
-//            out[totalPatterns * node + site] = sPartials1[tx][0] / sPartials[tx][0];
-//        }
-//    }
-
-    if (pattern < totalPatterns) {
-        if (state == 0) {
-            out[totalPatterns * node + pattern] = sPartials1[patIdx][0] / sPartials2[patIdx][0]; // pre;
-//            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
-//            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denomiator
+    int tx = KW_LOCAL_ID_0;
+    if (tx < PATTERN_BLOCK_SIZE && patIdx == 0) { // Use first PATTERN_BLOCK_SIZE threads to write
+        int site = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + tx;
+        if (site < totalPatterns) {
+            out[totalPatterns * node + site] = sPartials1[tx][0] / sPartials2[tx][0];
         }
     }
+
+//    if (pattern < totalPatterns) {
+//        if (state == 0) {
+//            out[totalPatterns * node + pattern] = sPartials1[patIdx][0] / sPartials2[patIdx][0]; // pre;
+////            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
+////            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denomiator
+//        }
+//    }
 
 #endif
 }
