@@ -113,74 +113,74 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
 #ifdef UNROLL
 	int stateCountModFour = (kStateCount / 4) * 4;
 #endif
-	if (probabilityIndices == NULL) {  // used to store derivative matrices for derivatives through pre-order traversals
-
-	    if (secondDerivativeIndices == NULL) {
-            for (int u = 0; u < count; u++) {
-                REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
-                int n = 0;
-                for (int l = 0; l < kCategoryCount; l++) {
-
-                    for (int i = 0; i < kStateCount; i++) {
-                        firstDerivTmp[i] = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
-                    }
-
-                    int m = 0;
-                    for (int i = 0; i < kStateCount; i++) {
-                        for (int j = 0; j < kStateCount; j++) {
-                            REALTYPE sumD1 = 0.0;
-                            for (int k = 0; k < kStateCount; k++) {
-                                sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
-                                m++;
-                            }
-                            firstDerivMat[n] = sumD1;
-                            n++;
-                        }
-                        if (T_PAD != 0) {
-                            firstDerivMat[n] = 0.0;
-                            n += T_PAD;
-                        }
-                    }
-                }
-            }
-	    } else {
-            for (int u = 0; u < count; u++) {
-                REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
-                REALTYPE* secondDerivMat = transitionMatrices[secondDerivativeIndices[u]];
-                int n = 0;
-                for (int l = 0; l < kCategoryCount; l++) {
-
-                    for (int i = 0; i < kStateCount; i++) {
-                        REALTYPE scaledEigenValue = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
-                        firstDerivTmp[i] = scaledEigenValue;
-                        secondDerivTmp[i] = scaledEigenValue * ((REALTYPE)categoryRates[l]);
-                    }
-
-                    int m = 0;
-                    for (int i = 0; i < kStateCount; i++) {
-                        for (int j = 0; j < kStateCount; j++) {
-                            REALTYPE sumD1 = 0.0;
-                            REALTYPE sumD2 = 0.0;
-                            for (int k = 0; k < kStateCount; k++) {
-                                sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
-                                sumD2 += gCMatrices[eigenIndex][m] * secondDerivTmp[k];
-                                m++;
-                            }
-                            firstDerivMat[n] = sumD1;
-                            secondDerivMat[n] = sumD2;
-                            n++;
-                        }
-                        if (T_PAD != 0) {
-                            firstDerivMat[n] = 0.0;
-                            secondDerivMat[n] = 0.0;
-                            n += T_PAD;
-                        }
-                    }
-                }
-            }
-	    }
-
-	} else {
+//	if (probabilityIndices == NULL) {  // used to store derivative matrices for derivatives through pre-order traversals
+//
+//	    if (secondDerivativeIndices == NULL) {
+//            for (int u = 0; u < count; u++) {
+//                REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
+//                int n = 0;
+//                for (int l = 0; l < kCategoryCount; l++) {
+//
+//                    for (int i = 0; i < kStateCount; i++) {
+//                        firstDerivTmp[i] = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
+//                    }
+//
+//                    int m = 0;
+//                    for (int i = 0; i < kStateCount; i++) {
+//                        for (int j = 0; j < kStateCount; j++) {
+//                            REALTYPE sumD1 = 0.0;
+//                            for (int k = 0; k < kStateCount; k++) {
+//                                sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
+//                                m++;
+//                            }
+//                            firstDerivMat[n] = sumD1;
+//                            n++;
+//                        }
+//                        if (T_PAD != 0) {
+//                            firstDerivMat[n] = 0.0;
+//                            n += T_PAD;
+//                        }
+//                    }
+//                }
+//            }
+//	    } else {
+//            for (int u = 0; u < count; u++) {
+//                REALTYPE* firstDerivMat = transitionMatrices[firstDerivativeIndices[u]];
+//                REALTYPE* secondDerivMat = transitionMatrices[secondDerivativeIndices[u]];
+//                int n = 0;
+//                for (int l = 0; l < kCategoryCount; l++) {
+//
+//                    for (int i = 0; i < kStateCount; i++) {
+//                        REALTYPE scaledEigenValue = gEigenValues[eigenIndex][i] * ((REALTYPE)categoryRates[l]);
+//                        firstDerivTmp[i] = scaledEigenValue;
+//                        secondDerivTmp[i] = scaledEigenValue * ((REALTYPE)categoryRates[l]);
+//                    }
+//
+//                    int m = 0;
+//                    for (int i = 0; i < kStateCount; i++) {
+//                        for (int j = 0; j < kStateCount; j++) {
+//                            REALTYPE sumD1 = 0.0;
+//                            REALTYPE sumD2 = 0.0;
+//                            for (int k = 0; k < kStateCount; k++) {
+//                                sumD1 += gCMatrices[eigenIndex][m] * firstDerivTmp[k];
+//                                sumD2 += gCMatrices[eigenIndex][m] * secondDerivTmp[k];
+//                                m++;
+//                            }
+//                            firstDerivMat[n] = sumD1;
+//                            secondDerivMat[n] = sumD2;
+//                            n++;
+//                        }
+//                        if (T_PAD != 0) {
+//                            firstDerivMat[n] = 0.0;
+//                            secondDerivMat[n] = 0.0;
+//                            n += T_PAD;
+//                        }
+//                    }
+//                }
+//            }
+//	    }
+//
+//	} else {
 
         if (firstDerivativeIndices == NULL &&secondDerivativeIndices == NULL) {
             for (int u = 0; u < count; u++) {
@@ -318,7 +318,7 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
                 }
             }
         }
-    }
+//    }
 }
 
 } // cpu
