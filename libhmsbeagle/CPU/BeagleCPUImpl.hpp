@@ -1849,10 +1849,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
                                                           int startPattern,
                                                           int endPattern) {
 
-    REALTYPE *cumulativeScaleBuffer = NULL; // TODO remove
-//    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
-//        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
-
     int matrixIncr = kStateCount;
 
     // increment for the extra column at the end
@@ -1861,30 +1857,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
     int returnCode = BEAGLE_SUCCESS;
     const double *rt = gCategoryRates[categoryRatesIndex];
     const REALTYPE *wt = gCategoryWeights[categoryWeightsIndex];
-//    const REALTYPE *freqs = gStateFrequencies[stateFrequenciesIndex];
-//    const REALTYPE *rootPartials = gPartials[rootBufferIndex];
-
-//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
-//
-//    int v = 0;
-//    for (int category = 0; category < kCategoryCount; category++) {
-//
-//        const REALTYPE weight = wt[category];
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//            const int patternIndex = category * kPatternCount + pattern;
-//
-//            double sumOverEndState = 0.0;
-//            for (int k = 0; k < kStateCount; k++) {
-//                sumOverEndState += freqs[k] * rootPartials[v++];
-//            }
-//            v += P_PAD;
-//            grandDenominatorDerivTmp[pattern] += weight * sumOverEndState;
-//        }
-//    }
-
-    // TODO Use outLogLikelihoodsTmp
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
         const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
@@ -1898,15 +1870,27 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
         if (tipStates != NULL) {
             calcEdgeDerivativeStates(tipStates, preOrderPartial, firstDerivativeIndex,
-                                     secondDerivativeIndex, wt, rt, matrixIncr, outFirstDerivative,
-                                     outDiagonalSecondDerivative,
+                                     NULL, wt, rt, matrixIncr, outFirstDerivative,
+                                     NULL,
                                      patternOffset, startPattern, endPattern);
+            if (outDiagonalSecondDerivative != NULL) {
+                calcEdgeDerivativeStates(tipStates, preOrderPartial, secondDerivativeIndex,
+                                         NULL, wt, rt, matrixIncr, outDiagonalSecondDerivative,
+                                         NULL,
+                                         patternOffset, startPattern, endPattern);
+            }
 
         } else {
             calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
-                                       secondDerivativeIndex, wt, rt, matrixIncr, outFirstDerivative,
-                                       outDiagonalSecondDerivative,
+                                       NULL, wt, rt, matrixIncr, outFirstDerivative,
+                                       NULL,
                                        patternOffset, startPattern, endPattern);
+            if (outDiagonalSecondDerivative != NULL) {
+                calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, secondDerivativeIndex,
+                                           NULL, wt, rt, matrixIncr, outDiagonalSecondDerivative,
+                                           NULL,
+                                           patternOffset, startPattern, endPattern);
+            }
         }
     }
 
