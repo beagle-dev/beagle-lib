@@ -681,6 +681,23 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int count);
 
 /**
+ * @brief Calculate a list of transition probability matrices with 
+ *         categories that use different eigen decomps.
+ *
+ * write something here
+ * 
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesWithModelCategories(int instance,
+                                   int* eigenIndices,
+                                   const int* probabilityIndices,
+                                   const int* firstDerivativeIndices,
+                                   const int* secondDerivativeIndices,
+                                   const double* edgeLengths,
+                                   int count);
+
+
+/**
  * @brief Calculate a list of transition probability matrices with multiple models
  *
  * This function calculates a list of transition probabilities matrices and their first and
