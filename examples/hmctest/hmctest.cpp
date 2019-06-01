@@ -381,7 +381,11 @@ int main( int argc, const char* argv[] )
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-    beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    if (useGpu) {
+        beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    } else {
+        beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+    }
     beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     int transposeIndices[4] = { 6, 7, 8, 9 };
