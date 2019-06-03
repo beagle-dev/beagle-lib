@@ -1073,11 +1073,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const R
                                                                          const int endPattern) {
     std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
     std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+
+    const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
     
     for (int category = 0; category < kCategoryCount; category++) {
-
-        const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
-
+        
         const REALTYPE *firstDerivMatrixPtr = firstDerivMatrix + category * kMatrixSize;
 
         for (int pattern = startPattern; pattern < endPattern; pattern++) {
