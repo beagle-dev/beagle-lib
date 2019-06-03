@@ -1014,25 +1014,6 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
     assert(rootPartials);
     const double *rt = gCategoryRates[categoryRatesIndex];
     const REALTYPE *wt = gCategoryWeights[categoryWeightsIndex];
-//    const REALTYPE *freqs = gStateFrequencies[stateFrequenciesIndex];
-
-//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
-//
-//    int v = 0;
-//    int patternIndex = 0;
-//    for (int category = 0; category < kCategoryCount; category++) {
-//
-//        const REALTYPE weight = wt[category];
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//            double sumOverEndState = freqs[0] * rootPartials[v] + freqs[1] * rootPartials[v + 1]
-//                                     + freqs[2] * rootPartials[v + 2] + freqs[3] * rootPartials[v + 3];
-//            v += 4;
-//            grandDenominatorDerivTmp[pattern] += weight * sumOverEndState;
-//        }
-//        patternIndex += kExtraPatterns;
-//    }
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
         REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
@@ -1102,37 +1083,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const R
         outFirstDerivative[patternOffset + pattern] =
                 grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
     }
-
-//    if (outDiagonalSecondDerivative != NULL) {
-//        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-//
-//        const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
-//
-//        for (int category = 0; category < kCategoryCount; category++) {
-//            const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
-//
-//
-//            for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//                const int patternIndex = category * kPatternCount + pattern;
-//                const int patternOffset = patternIndex * 4;
-//
-//                PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
-//                PREFETCH_MATRIX(0, secondDerivMatrix, 0);
-//                DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
-//                PREFETCH_PARTIALS(1, preOrderPartial, patternOffset);
-//
-//                REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
-//                grandNumeratorDerivTmp[pattern] += weightedRate * numerator;
-//
-//            }
-//        }
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//            outDiagonalSecondDerivative[patternOffset + pattern] =
-//                    grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
-//        }
-//    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1177,41 +1127,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int
     for (int pattern = startPattern; pattern < endPattern; pattern++) {
         outFirstDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
     }
-//
-//    if (outDiagonalSecondDerivative != NULL) {
-//        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-//
-//        const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
-//
-//        for (int category = 0; category < kCategoryCount; category++) {
-//
-//            const REALTYPE weightedRate = wt[category] * rt[category] * rt[category];
-//
-//
-//            for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//                const int patternIndex = category * kPatternCount + pattern;
-//                const int patternOffset = patternIndex * 4;
-//
-//                const int state = tipStates[pattern];
-//
-//
-//                PREFETCH_MATRIX_COLUMN(0, secondDerivMatrix, state);
-//
-//                REALTYPE numerator =
-//                        sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
-//                        + sum02 * preOrderPartial[patternOffset + 2] +
-//                        sum03 * preOrderPartial[patternOffset + 3];
-//                grandNumeratorDerivTmp[pattern] += weightedRate * numerator;
-//
-//            }
-//        }
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//            outDiagonalSecondDerivative[patternOffset + pattern] =
-//                    grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
-//        }
-//    }
 }
 
 BEAGLE_CPU_TEMPLATE
