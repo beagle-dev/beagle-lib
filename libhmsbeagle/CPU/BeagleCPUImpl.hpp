@@ -1870,24 +1870,24 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
 
         if (tipStates != NULL) {
             calcEdgeDerivativeStates(tipStates, preOrderPartial, firstDerivativeIndex,
-                                     NULL, wt, rt, matrixIncr, outFirstDerivative,
+                                     BEAGLE_OP_NONE, wt, rt, matrixIncr, outFirstDerivative,
                                      NULL,
                                      patternOffset, startPattern, endPattern);
             if (outDiagonalSecondDerivative != NULL) {
                 calcEdgeDerivativeStates(tipStates, preOrderPartial, secondDerivativeIndex,
-                                         NULL, wt, rt, matrixIncr, outDiagonalSecondDerivative,
+                                         BEAGLE_OP_NONE, wt, rt, matrixIncr, outDiagonalSecondDerivative,
                                          NULL,
                                          patternOffset, startPattern, endPattern);
             }
 
         } else {
             calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
-                                       NULL, wt, rt, matrixIncr, outFirstDerivative,
+                                       BEAGLE_OP_NONE, wt, rt, matrixIncr, outFirstDerivative,
                                        NULL,
                                        patternOffset, startPattern, endPattern);
             if (outDiagonalSecondDerivative != NULL) {
                 calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, secondDerivativeIndex,
-                                           NULL, wt, rt, matrixIncr, outDiagonalSecondDerivative,
+                                           BEAGLE_OP_NONE, wt, rt, matrixIncr, outDiagonalSecondDerivative,
                                            NULL,
                                            patternOffset, startPattern, endPattern);
             }
