@@ -146,6 +146,9 @@ void beagleLoadPlugins(void) {
     beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
     try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-cpu-sse" << std::endl;
+#endif
         beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
         plugins->push_back(sseplug);
     }catch(beagle::plugin::SharedLibraryException sle){
@@ -164,6 +167,9 @@ void beagleLoadPlugins(void) {
     }
 
     try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-cuda" << std::endl;
+#endif
         beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
         plugins->push_back(cudaplug);
     }catch(beagle::plugin::SharedLibraryException sle) {
@@ -173,6 +179,9 @@ void beagleLoadPlugins(void) {
     }
 
     try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-opencl" << std::endl;
+#endif
         beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
         plugins->push_back(openclplug);
     }catch(beagle::plugin::SharedLibraryException sle) {
