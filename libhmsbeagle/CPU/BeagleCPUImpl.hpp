@@ -2019,46 +2019,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const REALTYP
 
     for (int pattern = startPattern; pattern < endPattern; pattern++) {
         outFirstDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
-        // TODO Use outLogLikelihoodsTmp (and remember to include scaleFactors on postOrderBuffer)
     }
 
-//    if (outDiagonalSecondDerivative != NULL) {
-//        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-//
-//        const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
-//
-//        for (int category = 0; category < kCategoryCount; category++) {
-//
-//            int w = category * kMatrixSize;
-//
-//            for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//                const int patternIndex = category * kPatternCount + pattern;
-//
-//                REALTYPE numerator = 0.0;
-//
-//                for (int k = 0; k < kStateCount; k++) {
-//
-//                    REALTYPE sumOverEndState = 0.0;
-//                    for (int j = 0; j < kStateCount; j++) {
-//                        sumOverEndState += secondDerivMatrix[w]
-//                                           * postOrderPartial[patternIndex * kPartialsPaddedStateCount +
-//                                                              j]; // fix padded index
-//                    }
-//                    const int partialPaddedIndex = patternIndex * kPartialsPaddedStateCount + k;
-//                    numerator += sumOverEndState * preOrderPartial[partialPaddedIndex];
-//                    w += T_PAD;
-//                }
-//
-//                grandNumeratorDerivTmp[pattern] += wt[category] * numerator;
-//
-//            }
-//        }
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//            outDiagonalSecondDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
-//        }
-//    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2103,38 +2065,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int *tipS
     for (int pattern = startPattern; pattern < endPattern; pattern++) {
         outFirstDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
     }
-//
-//    if (outDiagonalSecondDerivative != NULL) {
-//        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-//
-//        const REALTYPE *secondDerivMatrix = gTransitionMatrices[secondDerivativeIndex];
-//
-//        for (int category = 0; category < kCategoryCount; category++) {
-//
-//            int w = category * kMatrixSize;
-//
-//            for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//
-//                const int patternIndex = category * kPatternCount + pattern;
-//                const int state = tipStates[pattern];
-//
-//                REALTYPE numerator = 0.0;
-//
-//                for (int k = 0; k < kStateCount; k++) {
-//                    numerator += secondDerivMatrix[w] *
-//                                 preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
-//                    w++;
-//                }
-//                grandNumeratorDerivTmp[pattern] += wt[category] * numerator;
-//                w += T_PAD;
-//
-//            }
-//        }
-//
-//        for (int pattern = startPattern; pattern < endPattern; pattern++) {
-//            outDiagonalSecondDerivative[patternOffset + pattern] = grandNumeratorDerivTmp[pattern] / grandDenominatorDerivTmp[pattern];
-//        }
-//    }
 }
 
 BEAGLE_CPU_TEMPLATE

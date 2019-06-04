@@ -2029,8 +2029,35 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
                                                                int count,
                                                                double *outFirstDerivative,
                                                                double *outDiagonalSecondDerivative) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivatives\n");
+#endif
+    
+    if (dOutFirstDeriv == NULL) {
+        dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
+    }
+
+    int returnCode = BEAGLE_ERROR_GENERAL;
+    
+    returnCode = calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
+                                          firstDerivativeIndices, &categoryWeightsIndex,
+                                          cumulativeScaleIndices, count,
+                                          outFirstDerivative);
+    if (outDiagonalSecondDerivative != NULL) {
+        int diagonalSecondDerivativeReturnCode = 
+                calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
+                        secondDerivativeIndices, &categoryWeightsIndex,
+                        cumulativeScaleIndices, count,
+                        outDiagonalSecondDerivative);        
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeDerivatives\n");
+#endif
+
+    return returnCode;
 }
+
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogDerivatives(const int *postBufferIndices,
@@ -4088,7 +4115,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
             kPaddedPatternCount,
             kCategoryCount);
 
-    std::cout << "BBB" << std::endl;
+//    std::cout << "BBB" << std::endl;
 
     gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dOutFirstDeriv, sizeof(Real) * kPatternCount * count);
     beagleMemCpy(outFirstDerivatives, hLogLikelihoodsCache, kPatternCount * count);
