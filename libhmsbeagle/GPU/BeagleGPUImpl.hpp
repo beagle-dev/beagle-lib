@@ -2776,7 +2776,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 #ifdef BEAGLE_DEBUG_SYNCH
     gpu->Synchronize();
 #endif
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE
