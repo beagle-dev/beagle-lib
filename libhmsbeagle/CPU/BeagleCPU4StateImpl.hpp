@@ -1064,12 +1064,12 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const R
         for (int pattern = startPattern; pattern < endPattern; pattern++) {
 
             const int patternIndex = category * kPatternCount + pattern;
-            const int patternOffset = patternIndex * 4;
+            const int localPatternOffset = patternIndex * 4;
 
-            PREFETCH_PARTIALS(0, postOrderPartial, patternOffset); //save into p00, p01, p02, p03
+            PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
             PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
             DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
-            PREFETCH_PARTIALS(1, preOrderPartial, patternOffset);
+            PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
 
             REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
             REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
@@ -1107,16 +1107,16 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int
         for (int pattern = startPattern; pattern < endPattern; pattern++) {
 
             const int patternIndex = category * kPatternCount + pattern;
-            const int patternOffset = patternIndex * 4;
+            const int localPatternOffset = patternIndex * 4;
 
             const int state = tipStates[pattern];
 
             PREFETCH_MATRIX_COLUMN(0, firstDerivMatrix, state);
 
             REALTYPE numerator =
-                    sum00 * preOrderPartial[patternOffset] + sum01 * preOrderPartial[patternOffset + 1]
-                    + sum02 * preOrderPartial[patternOffset + 2] + sum03 * preOrderPartial[patternOffset + 3];
-            REALTYPE denominator = preOrderPartial[patternOffset + state];
+                    sum00 * preOrderPartial[localPatternOffset] + sum01 * preOrderPartial[localPatternOffset + 1]
+                    + sum02 * preOrderPartial[localPatternOffset + 2] + sum03 * preOrderPartial[localPatternOffset + 3];
+            REALTYPE denominator = preOrderPartial[localPatternOffset + state];
 
             grandNumeratorDerivTmp[pattern] += wt[category] * numerator;
             grandDenominatorDerivTmp[pattern] += wt[category] * denominator;
