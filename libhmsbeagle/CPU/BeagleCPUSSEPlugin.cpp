@@ -44,9 +44,9 @@ Plugin("CPU-SSE", "CPU-SSE")
 	// list with compatible factories and resources
 
 	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<double>());
-//	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
+// 	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSSEImplFactory<float>()); // TODO Not yet written
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<double>()); // TODO In process of writing (disabled until it works for all input)
-//	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<float>()); // TODO Not yet written
+// 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSSEImplFactory<float>()); // TODO Not yet written
 }
 
 }	// namespace cpu
@@ -159,7 +159,7 @@ bool check_sse2(){
       __asm__("cpuid"
         : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
         : "a" (op));
-	return edx & 0x04000000;  
+	return edx & 0x04000000;
 }
 #endif
 #endif
@@ -167,7 +167,7 @@ bool check_sse2(){
 
 void* plugin_init(void){
 	if(!check_sse2()){
-		return NULL;	// no SSE no plugin?! 
+		return NULL;	// no SSE no plugin?!
 	}
 	return new beagle::cpu::BeagleCPUSSEPlugin();
 }

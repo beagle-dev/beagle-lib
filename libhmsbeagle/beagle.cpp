@@ -50,6 +50,7 @@
 
 #include "libhmsbeagle/plugin/Plugin.h"
 #include "config.h"
+#include "beagle.h"
 
 #define BEAGLE_VERSION  PACKAGE_VERSION  //" (PRE-RELEASE)"
 #define BEAGLE_CITATION "Using BEAGLE library v" BEAGLE_VERSION " for accelerated, parallel likelihood evaluation\n\
@@ -61,6 +62,9 @@ typedef std::list<IntPair> PairedList;
 typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> > RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
+
+
+#define BEAGLE_DEBUG_LOAD
 
 #define BEAGLE_PREORDER
 //#define BEAGLE_DEBUG_TIME
@@ -144,7 +148,11 @@ void beagleLoadPlugins(void) {
     try{
         beagle::plugin::Plugin* sseplug = pm.findPlugin("hmsbeagle-cpu-sse");
         plugins->push_back(sseplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
+    }catch(beagle::plugin::SharedLibraryException sle){
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-cpu-sse: " << sle.getError() << std::endl;
+#endif
+    }
 
     try{
         beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
@@ -158,12 +166,21 @@ void beagleLoadPlugins(void) {
     try{
         beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
         plugins->push_back(cudaplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-cuda: " << sle.getError() << std::endl;
+#endif
+    }
 
     try{
         beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
         plugins->push_back(openclplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
+        std::cerr << "Load opencl" << std::endl;
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-opencl: " << sle.getError() << std::endl;
+#endif
+    }
 
     try{
         beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
