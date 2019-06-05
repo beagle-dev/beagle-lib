@@ -1791,16 +1791,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
         const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
 
         const int firstDerivativeIndex = firstDerivativeIndices[nodeNum];
- //       const int secondDerivativeIndex = secondDerivativeIndices[nodeNum];
         const int secondDerivativeIndex = BEAGLE_OP_NONE;
 
         const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
         const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
 
-//        const REALTYPE *cumulativeScaleBuffer = NULL;
-//        if (cumulativeScaleIndices[nodeNum] != BEAGLE_OP_NONE) {
-//            cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndices[nodeNum]];
-//        }
 
         const int scalingFactorsIndex = cumulativeScaleIndices[nodeNum];
 
@@ -1904,12 +1899,38 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
                                                                      const int secondDerivativeIndex,
                                                                      const double *categoryRates,
                                                                      const REALTYPE *categoryWeights,
-                                                                     //const int scalingFactorsIndex,
-                                                                     //const REALTYPE *cumulativeScaleBuffer,
                                                                      const double *siteLogLikelihoods,
                                                                      double *outLogFirstDerivatives,
                                                                      double *outLogDiagonalSecondDerivatives) {
+    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
 
+    const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
+
+    for (int category = 0; category < kCategoryCount; category++) {
+
+        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+            const int patternIndex = category * kPatternCount + pattern;
+            const int state = tipStates[pattern];
+
+            REALTYPE numerator = 0.0;
+            REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + state];
+
+            for (int k = 0; k < kStateCount; k++) {
+                numerator += firstDerivMatrix[category * kMatrixSize + k * kTransPaddedStateCount + state] *
+                             preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
+            }
+
+            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
+            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+
+        }
+    }
+
+    for (int k = 0; k < kPatternCount; k++) {
+        outLogFirstDerivatives[k] = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+    }
 }
 
 BEAGLE_CPU_TEMPLATE
