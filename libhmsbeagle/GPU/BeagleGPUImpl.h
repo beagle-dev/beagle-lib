@@ -110,6 +110,7 @@ private:
     GPUPtr dSumSecondDeriv;
 
 	GPUPtr dMultipleDerivatives;
+	GPUPtr dMultipleDerivativeSum;
     
     GPUPtr dPatternWeights;    
 	

@@ -218,6 +218,14 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     if (kUnpaddedPatternCount % kSumSitesBlockSize != 0)
         bgSumSitesGrid.x += 1;
 
+    // Set up block for multiple node accumulation
+    if (kCPUImplementation) {
+        bgMultiNodeSumBlock = Dim3Int(1);
+    } else {
+        bgMultiNodeSumBlock = Dim3Int(MULTI_NODE_SUM_BLOCK_SIZE);
+    }
+    bgMultiNodeSumGrid  = Dim3Int(1);
+
     // Set up block for reordering partials
     if (kAppleCPUImplementation) {
         bgReorderPatternsBlock = Dim3Int(REORDER_BLOCK_SIZE_APPLECPU);
@@ -274,6 +282,9 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
             "kernelPartialsPartialsEdgeFirstDerivatives");
+
+    fMultipleNodeSiteReduction = gpu->GetFunction(
+            "kernelMultpleNodeSiteReduction");
 
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
@@ -721,6 +732,36 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
+#endif
+}
+
+void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
+                                               GPUPtr inSiteValues,
+                                               GPUPtr weights,
+                                               unsigned int stride,
+                                               unsigned int count) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::MultipleNodeSiteReduction\n");
+#endif
+
+    unsigned int saved = bgMultiNodeSumGrid.y;
+    bgMultiNodeSumGrid.x = count;
+
+    fprintf(stderr, "Executing for %d nodes\n", count);
+    fprintf(stderr, "block = %d %d\n", bgMultiNodeSumBlock.x, bgMultiNodeSumBlock.y);
+    fprintf(stderr, "grid  = %d %d\n", bgMultiNodeSumGrid.x, bgMultiNodeSumGrid.y);
+
+    gpu->LaunchKernel(fMultipleNodeSiteReduction,
+                      bgMultiNodeSumBlock, bgMultiNodeSumGrid,
+                      3, 4,
+                      outSiteValues, inSiteValues, weights, stride);
+    gpu->SynchronizeDevice();
+
+    bgMultiNodeSumGrid.x = saved;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::MultipleNodeSiteReduction\n");
 #endif
 }
 

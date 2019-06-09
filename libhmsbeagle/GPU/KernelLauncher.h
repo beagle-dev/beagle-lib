@@ -62,6 +62,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockCheckScaling;
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
 	GPUFunction fPartialsPartialsEdgeFirstDerivatives;
+	GPUFunction fMultipleNodeSiteReduction;
 	GPUFunction fPartialsPartialsGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
@@ -128,6 +129,8 @@ private:
     Dim3Int bgSumSitesGrid;
     Dim3Int bgReorderPatternsBlock;
     Dim3Int bgReorderPatternsGrid;
+	Dim3Int bgMultiNodeSumBlock;
+	Dim3Int bgMultiNodeSumGrid;
 
     
     unsigned int kPaddedStateCount;
@@ -313,6 +316,12 @@ public:
 											  unsigned int nodeCount,
 											  unsigned int patternCount,
 											  unsigned int categoryCount);
+
+	void MultipleNodeSiteReduction(GPUPtr outSiteValues,
+								   GPUPtr inSiteValues,
+								   GPUPtr weights,
+								   unsigned int stride,
+								   unsigned int count);
 
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,

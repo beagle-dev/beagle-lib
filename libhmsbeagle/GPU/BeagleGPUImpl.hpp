@@ -72,6 +72,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dSumSecondDeriv = (GPUPtr)NULL;
 
     dMultipleDerivatives = (GPUPtr)NULL;
+    dMultipleDerivativeSum = (GPUPtr)NULL;
 
     dPatternWeights = (GPUPtr)NULL;
 
@@ -209,6 +210,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
 
         if (kMultipleDerivativesInitialised) {
             gpu->FreeMemory(dMultipleDerivatives);
+            gpu->FreeMemory(dMultipleDerivativeSum);
         }
 
         gpu->FreeMemory(dPatternWeights);
@@ -4097,6 +4099,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
     if (!kMultipleDerivativesInitialised) { // TODO Move into calling function
         dMultipleDerivatives = gpu->AllocateMemory(
                 kPaddedPatternCount * kBufferCount * sizeof(Real)); // TODO Make much smaller
+        dMultipleDerivativeSum = gpu->AllocateMemory(
+                kBufferCount * sizeof(Real));
         kMultipleDerivativesInitialised = true;
     }
 
@@ -4110,6 +4114,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
             kPaddedPatternCount,
             kCategoryCount);
 
+    kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
+                                       dMultipleDerivatives,
+                                       dPatternWeights,
+                                       kPaddedPatternCount,
+                                       count);
+
     std::vector<Real> hTmp(count * kPaddedPatternCount); // TODO Use existing buffer
 
     gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedPatternCount * count);
@@ -4119,6 +4129,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                      hTmp.data() + i * kPaddedPatternCount,
                      kPatternCount);
     }
+
+    gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * count);
+
+    std::cerr << "Per-node sum =";
+    for (int i = 0; i < count; ++i) {
+        std::cerr << " " << hTmp[i];
+    }
+    std::cerr << "\n";
 
     return BEAGLE_SUCCESS;
 }
