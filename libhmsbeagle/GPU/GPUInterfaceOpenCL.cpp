@@ -849,7 +849,8 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
     SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
 
-    if (strcmp(param_value, "NVIDIA Corporation") != 0 || offset != 0) {
+    // TODO REVERT after discussion with DA
+    if ((strcmp(param_value, "NVIDIA Corporation") != 0 && strcmp(param_value, "Apple") != 0) || offset != 0) { //TODO: use the right platform + device check
         cl_buffer_region dPtrRegion;
         dPtrRegion.origin = offset;
         dPtrRegion.size = size;
@@ -882,7 +883,8 @@ size_t GPUInterface::AlignMemOffset(size_t offset) {
     SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
     SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
 
-    if (strcmp(param_value, "NVIDIA Corporation")) {
+    // TODO REVERT after discussion with DA
+    if ((strcmp(param_value, "NVIDIA Corporation") != 0 && strcmp(param_value, "Apple") != 0)) { //TODO: use the right platform + device check
         cl_uint baseAlign;
         SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &baseAlign, NULL));
         baseAlign /= 8; // convert bits to bytes;
