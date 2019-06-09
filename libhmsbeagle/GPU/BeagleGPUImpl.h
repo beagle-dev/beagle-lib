@@ -108,6 +108,8 @@ private:
     GPUPtr dSumLogLikelihood;
     GPUPtr dSumFirstDeriv;
     GPUPtr dSumSecondDeriv;
+
+	GPUPtr dMultipleDerivatives;
     
     GPUPtr dPatternWeights;    
 	
@@ -143,6 +145,8 @@ private:
     
     bool kUsingMultiGrid;
     bool kDerivBuffersInitialised;
+	bool kMultipleDerivativesInitialised; // TODO Change to length (max node count used)
+
     int kNumPatternBlocks;
     int kSitesPerBlock;
     int kSitesPerIntegrateBlock;
