@@ -3101,6 +3101,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
 
         dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + kResultPaddedPatterns) * sizeof(Real));
         dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + kResultPaddedPatterns) * sizeof(Real));
+
+        kDerivBuffersInitialised = true;
     }
     
     if (count == 1) { 
@@ -3428,6 +3430,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
 
         dOutFirstDeriv = gpu->AllocateMemory((kPaddedPatternCount + kResultPaddedPatterns) * sizeof(Real));
         dOutSecondDeriv = gpu->AllocateMemory((kPaddedPatternCount + kResultPaddedPatterns) * sizeof(Real));
+
+        kDerivBuffersInitialised = true;
     }
 
     if (count != 1 ||  firstDerivativeIndices != NULL ||  secondDerivativeIndices != NULL || 
