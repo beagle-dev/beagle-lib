@@ -123,6 +123,13 @@ public:
                                          const double* edgeLengths,
                                          int count) = 0;
 
+    virtual int updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                         const int* probabilityIndices,
+                                         const int* firstDerivativeIndices,
+                                         const int* secondDerivativeIndices,
+                                         const double* edgeLengths,
+                                         int count) = 0;
+
     virtual int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
                                                            const int* categoryRateIndices,
                                                            const int* probabilityIndices,

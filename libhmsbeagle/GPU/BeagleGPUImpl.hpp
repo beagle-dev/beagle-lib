@@ -1868,6 +1868,114 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                            const int* probabilityIndices,
+                                            const int* firstDerivativeIndices,
+                                            const int* secondDerivativeIndices,
+                                            const double* edgeLengths,
+                                            int count) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\tEntering BeagleGPUImpl::updateTransitionMatrices\n");
+#endif
+
+    if (count > 0) {
+        // TODO: improve performance of calculation of derivatives and of model cats
+
+        int categoryOffset = kMatrixSize;
+
+        if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
+            for (int i = 0; i < count; i++) {
+                hDistanceQueue[i] = (Real) (edgeLengths[i]);
+            }
+            gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * count);
+
+            for (int j = 0; j < kCategoryCount; j++) {
+                for (int i = 0; i < count; i++) {
+                    hPtrQueue[i] = probabilityIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                }
+                gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+
+                int eigenIndex = eigenIndices[j];
+                // Set-up and call GPU kernel
+                kernels->GetTransitionProbabilitiesSquare(dMatrices[0], dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+                                                          dEigenValues[eigenIndex], dDistanceQueue, count);
+            }
+
+        } else if (secondDerivativeIndices == NULL) {
+
+            for (int i = 0; i < count; i++) {
+                hDistanceQueue[i] = (Real) (edgeLengths[i]);
+                hDistanceQueue[i + count] = (Real) 1.0;
+            }
+            gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * count * 2);
+
+            for (int j = 0; j < kCategoryCount; j++) {
+                for (int i = 0; i < count; i++) {
+                    hPtrQueue[i] = probabilityIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                    hPtrQueue[i + count] = firstDerivativeIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                }
+                gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count * 2);
+
+                int eigenIndex = eigenIndices[j];
+                // Set-up and call GPU kernel
+                kernels->GetTransitionProbabilitiesSquareFirstDeriv(dMatrices[0], dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+                                                          dEigenValues[eigenIndex], dDistanceQueue, count);
+            }
+
+        } else {
+
+            for (int i = 0; i < count; i++) {
+                hDistanceQueue[i] = (Real) (edgeLengths[i]);
+                hDistanceQueue[i + count] = (Real) 1.0;
+            }
+            gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * count * 2);
+
+            for (int j = 0; j < kCategoryCount; j++) {
+                for (int i = 0; i < count; i++) {
+                    hPtrQueue[i] = probabilityIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                    hPtrQueue[i + count] = firstDerivativeIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                    hPtrQueue[i + count*2] = secondDerivativeIndices[i] * kIndexOffsetMat + j * categoryOffset;
+                }
+                gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count * 3);
+
+                int eigenIndex = eigenIndices[j];
+                // Set-up and call GPU kernel
+                kernels->GetTransitionProbabilitiesSquareSecondDeriv(dMatrices[0], dPtrQueue, dEvec[eigenIndex], dIevc[eigenIndex],
+                                                          dEigenValues[eigenIndex], dDistanceQueue, count);
+            }
+        }
+
+#ifdef FW_OPENCL
+            // todo: unclear why this is necessary to fix numerical instability, investigate further
+            if (kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU && kStateCount != 4) {
+                gpu->SynchronizeHost();
+            }
+#endif
+
+    #ifdef BEAGLE_DEBUG_VALUES
+        Real r = 0;
+        for (int i = 0; i < count; i++) {
+            fprintf(stderr, "dMatrices[probabilityIndices[%d]]  (hDQ = %1.5e, eL = %1.5e) =\n", i,hDistanceQueue[i], edgeLengths[i]);
+            gpu->PrintfDeviceVector(dMatrices[probabilityIndices[i]], kMatrixSize * kCategoryCount, r);
+            for(int j=0; j<kCategoryCount; j++)
+                fprintf(stderr, " %1.5f",categoryRates[j]);
+            fprintf(stderr,"\n");
+        }
+    #endif
+
+    #ifdef BEAGLE_DEBUG_SYNCH
+        gpu->SynchronizeHost();
+    #endif
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateTransitionMatrices\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
                                                                                   const int* categoryRateIndices,
                                                                                   const int* probabilityIndices,
