@@ -112,23 +112,30 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     KW_LOCAL_FENCE;
 
     if (patIdx < PATTERN_BLOCK_SIZE / 4) { // Need the first PATTERN_BLOCK_SIZE * 4 threads
-        int site = patIdx * 16 + tx;
+        int offset = patIdx * PATTERN_BLOCK_SIZE  + tx;
+        int site = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + offset;
         if (site < totalPatterns) {
-            int row = site >> 2; // divide by 4
-            int col = site & 0x3; // mod 4
-            out[totalPatterns * node + site] = // TODO Check that these are all coalesced writes
-                        sPartials1[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0] /
-                        sPartials2[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0];
+            int row = offset >> 2; // divide by 4
+            int col = offset & 0x3; // mod 4
+            REAL numerator = sPartials1[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0];
+            REAL denominator = sPartials2[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0];
+            REAL ratio = 0.0;
+            if (denominator != 0.0) {
+                ratio = numerator / denominator;
+            }
+            out[totalPatterns * node + site] = ratio; // TODO Check that these are all coalesced writes
         }
     }
 
 //    if (pattern < totalPatterns) {
 //        if (state == 0) {
-//            out[totalPatterns * node + pattern] =
-//                    sPartials1[patIdx * PATTERN_BLOCK_SIZE + multBy4(pat) + 0] /
-//                    sPartials2[patIdx * PATTERN_BLOCK_SIZE + multBy4(pat) + 0]; // pre;
-////            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
-////            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denominator
+//            REAL numerator = sPartials1[patIdx * PATTERN_BLOCK_SIZE + multBy4(pat) + 0];
+//            REAL denominator = sPartials2[patIdx * PATTERN_BLOCK_SIZE + multBy4(pat) + 0];
+//            REAL ratio = 0.0;
+//            if (denominator != 0.0) {
+//                ratio = numerator / denominator;
+//            }
+//            out[totalPatterns * node + pattern] = ratio;
 //        }
 //    }
 #endif

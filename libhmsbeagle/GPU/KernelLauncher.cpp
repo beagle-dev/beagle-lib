@@ -717,9 +717,9 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
-    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
-    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
-    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
+//    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
+//    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
+//    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
 
     gpu->LaunchKernel(fPartialsPartialsEdgeFirstDerivatives,
                       bgDerivativeBlock, bgDerivativeGrid,
@@ -748,9 +748,9 @@ void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
     unsigned int saved = bgMultiNodeSumGrid.y;
     bgMultiNodeSumGrid.x = count;
 
-    fprintf(stderr, "Executing for %d nodes\n", count);
-    fprintf(stderr, "block = %d %d\n", bgMultiNodeSumBlock.x, bgMultiNodeSumBlock.y);
-    fprintf(stderr, "grid  = %d %d\n", bgMultiNodeSumGrid.x, bgMultiNodeSumGrid.y);
+//    fprintf(stderr, "Executing for %d nodes\n", count);
+//    fprintf(stderr, "block = %d %d\n", bgMultiNodeSumBlock.x, bgMultiNodeSumBlock.y);
+//    fprintf(stderr, "grid  = %d %d\n", bgMultiNodeSumGrid.x, bgMultiNodeSumGrid.y);
 
     gpu->LaunchKernel(fMultipleNodeSiteReduction,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,

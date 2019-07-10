@@ -4114,12 +4114,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
             kPaddedPatternCount,
             kCategoryCount);
 
-    kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
-                                       dMultipleDerivatives,
-                                       dPatternWeights,
-                                       kPaddedPatternCount,
-                                       count);
-
     std::vector<Real> hTmp(count * kPaddedPatternCount); // TODO Use existing buffer
 
     gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedPatternCount * count);
@@ -4130,13 +4124,33 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                      kPatternCount);
     }
 
+//    std::cout << kPatternCount << " " << kPaddedPatternCount << std::endl;
+//
+//    std::cout << "Per-node sum A =";
+//    for (int i = 0; i < kPaddedPatternCount * count; ++i) {
+//        std::cout << " " << hTmp[i];
+//        if (hTmp[i] != hTmp[i]) {
+//            exit(-1);
+//        }
+//    }
+//    std::cout << std::endl;
+
+    kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
+                                       dMultipleDerivatives,
+                                       dPatternWeights,
+                                       kPaddedPatternCount,
+                                       count);
+
     gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * count);
 
-    std::cerr << "Per-node sum =";
-    for (int i = 0; i < count; ++i) {
-        std::cerr << " " << hTmp[i];
-    }
-    std::cerr << "\n";
+//    std::cout << "Per-node sum B =";
+//    for (int i = 0; i < count; ++i) {
+//        std::cout << " " << hTmp[i];
+//        if (hTmp[i] != hTmp[i]) {
+//            exit(-1);
+//        }
+//    }
+//    std::cout << "\n";
 
     return BEAGLE_SUCCESS;
 }
