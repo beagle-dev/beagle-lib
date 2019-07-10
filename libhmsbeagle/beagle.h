@@ -1138,18 +1138,15 @@ BEAGLE_DLLEXPORT int beagleCalculateEdgeDerivative(int instance,
                                                    double *outFirstDerivative,
                                                    double *outDiagonalSecondDerivative);
 
-BEAGLE_DLLEXPORT int beagleCalculateEdgeLogDerivatives(int instance,
-                                                       const int *postBufferIndices,
-                                                       const int *preBufferIndices,
-                                                       const int *firstDerivativeIndices,
-                                                       const int *secondDerivativeIndices,
-                                                       const int *categoryWeightsIndices,
-                                                       const int *categoryRatesIndices,
-                                                       const int *cumulativeScaleIndices,
-                                                       int count,
-                                                       const double *siteLogLikelihoods,
-                                                       double *outLogFirstDerivative,
-                                                       double *outLogDiagonalSecondDerivative);
+BEAGLE_DLLEXPORT int beagleCalculateEdgeDerivatives(int instance,
+                                                    const int *postBufferIndices,
+                                                    const int *preBufferIndices,
+                                                    const int *derivativeMatrixIndices,
+                                                    const int *categoryWeightsIndices,
+                                                    int count,
+                                                    double *outDerivatives,
+                                                    double *outSumDerivatives,
+                                                    double *outSumSquaredDerivatives);
 
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge

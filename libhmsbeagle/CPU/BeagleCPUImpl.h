@@ -410,17 +410,16 @@ public:
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
 
-    int calculateEdgeLogDerivatives(const int *postBufferIndices,
-                                    const int *preBufferIndices,
-                                    const int *firstDerivativeIndices,
-                                    const int *secondDerivativeIndices,
-                                    const int *categoryWeightsIndices,
-                                    const int *categoryRatesIndices,
-                                    const int *cumulativeScaleIndices,
-                                    int count,
-                                    const double *siteLogLikelihoods,
-                                    double *outLogFirstDerivative,
-                                    double *outLogDiagonalSecondDerivative);
+    int calculateEdgeDerivatives(const int *postBufferIndices,
+                                 const int *preBufferIndices,
+                                 const int *derivativeMatrixIndices,
+                                 const int *categoryWeightsIndices,
+                                 const int *categoryRatesIndices,
+                                 const int *cumulativeScaleIndices,
+                                 int count,
+                                 double *outDerivatives,
+                                 double *outSumDerivatives,
+                                 double *outSumSquaredDerivatives);
 
     int calculateEdgeDerivative(const int *postBufferIndices,
                                 const int *preBufferIndices,
@@ -470,7 +469,7 @@ protected:
                                        const int *categoryRatesIndices,
                                        const int *cumulativeScaleIndices,
                                        int count,
-                                       const double *siteLogLikelihoods,
+                                       double *siteLogLikelihoods,
                                        double *outLogFirstDerivatives,
                                        double *outLogDiagonalSecondDerivatives);
 
@@ -497,7 +496,7 @@ protected:
                                               const double *categoryRates,
                                               const REALTYPE *categoryWeights,
 //                                              const REALTYPE *cumulativeScaleBuffer,
-                                              const double *siteLogLikelihoods,
+                                              double *siteLogLikelihoods,
                                               double *outLogFirstDerivatives,
                                               double *outLogDiagonalSecondDerivatives);
 
@@ -509,7 +508,7 @@ protected:
                                                 const REALTYPE *categoryWeights,
                                                 const int scalingFactorsIndex,
 //                                                const REALTYPE *cumulativeScaleBuffer,
-                                                const double *siteLogLikelihoods,
+                                                double *siteLogLikelihoods,
                                                 double *outLogFirstDerivatives,
                                                 double *outLogDiagonalSecondDerivatives);
 

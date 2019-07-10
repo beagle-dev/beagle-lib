@@ -1729,18 +1729,15 @@ int beagleGetSiteDerivatives(int instance,
     return returnValue;
 }
 
-int beagleCalculateEdgeLogDerivatives(int instance,
-                                      const int *postBufferIndices,
-                                      const int *preBufferIndices,
-                                      const int *firstDerivativeIndices,
-                                      const int *secondDerivativeIndices,
-                                      const int *categoryWeightsIndices,
-                                      const int *categoryRatesIndices,
-                                      const int *cumulativeScaleIndices,
-                                      int count,
-                                      const double *siteLogLikelihoods,
-                                      double *outLogFirstDerivative,
-                                      double *outLogDiagonalSecondDerivative) {
+int beagleCalculateEdgeDerivatives(int instance,
+                                   const int *postBufferIndices,
+                                   const int *preBufferIndices,
+                                   const int *derivativeMatrixIndices,
+                                   const int *categoryWeightsIndices,
+                                   int count,
+                                   double *outDerivatives,
+                                   double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives) {
     DEBUG_START_TIME();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -1748,17 +1745,17 @@ int beagleCalculateEdgeLogDerivatives(int instance,
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     }
 
-    int returnValue = beagleInstance->calculateEdgeLogDerivatives(postBufferIndices,
-                                                                  preBufferIndices,
-                                                                  firstDerivativeIndices,
-                                                                  secondDerivativeIndices,
-                                                                  categoryWeightsIndices,
-                                                                  categoryRatesIndices,
-                                                                  cumulativeScaleIndices,
-                                                                  count,
-                                                                  siteLogLikelihoods,
-                                                                  outLogFirstDerivative,
-                                                                  outLogDiagonalSecondDerivative);
+    int returnValue = beagleInstance->calculateEdgeDerivatives(postBufferIndices,
+                                                               preBufferIndices,
+                                                               derivativeMatrixIndices,
+                                                               categoryWeightsIndices,
+                                                               NULL,
+                                                               NULL,
+                                                               count,
+                                                               outDerivatives,
+                                                               outSumDerivatives,
+                                                               outSumSquaredDerivatives);
+
     DEBUG_END_TIME();
 
     return returnValue;

@@ -22,40 +22,40 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGT";
-char *chimp = (char*)"GAGG";
-char *gorilla = (char*)"AAAT";
+char *human = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
+char *chimp = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
+char *gorilla = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
 //char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
 
-int* getStates(char *sequence) {
-	int n = strlen(sequence);
-	int *states = (int*) malloc(sizeof(int) * n);
-
-	for (int i = 0; i < n; i++) {
-		switch (sequence[i]) {
-			case 'A':
-				states[i] = 0;
-				break;
-			case 'C':
-				states[i] = 1;
-				break;
-			case 'G':
-				states[i] = 2;
-				break;
-			case 'T':
-				states[i] = 3;
-				break;
-			default:
-				states[i] = 4;
-				break;
-		}
-	}
-	return states;
-}
+//int* getStates(char *sequence) {
+//	int n = strlen(sequence);
+//	int *states = (int*) malloc(sizeof(int) * n);
+//
+//	for (int i = 0; i < n; i++) {
+//		switch (sequence[i]) {
+//			case 'A':
+//				states[i] = 0;
+//				break;
+//			case 'C':
+//				states[i] = 1;
+//				break;
+//			case 'G':
+//				states[i] = 2;
+//				break;
+//			case 'T':
+//				states[i] = 3;
+//				break;
+//			default:
+//				states[i] = 4;
+//				break;
+//		}
+//	}
+//	return states;
+//}
 
 double* getPartials(char *sequence) {
 	int n = strlen(sequence);
@@ -189,7 +189,7 @@ int main( int argc, const char* argv[] )
                                   whichDevice >= 0 ? 1 : 0,			    /**< Length of resourceList list (input) */
                             useGpu ?
                                   BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
-                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
@@ -503,11 +503,11 @@ int main( int argc, const char* argv[] )
     std::vector<double> siteLogLikelihoods(nPatterns);
     beagleGetSiteLogLikelihoods(instance, siteLogLikelihoods.data());
 
-    std::cerr << "site-log-like:";
+    std::cout << "site-log-like:";
     for (double logLike : siteLogLikelihoods) {
-        std::cerr << " " << logLike;
+        std::cout << " " << logLike;
     }
-    std::cerr << std::endl;
+    std::cout << std::endl;
 
     double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     int offset = 0;
@@ -758,19 +758,17 @@ int main( int argc, const char* argv[] )
     }
 
     std::vector<double> firstBuffer(nPatterns * 4 * 2); // Get both numerator and denominator
+    std::vector<double> sumBuffer(4);
     int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
-    beagleCalculateEdgeLogDerivatives(instance,
-                                      postBufferIndices, preBufferIndices,
-                                      firstDervIndices,
-                                      NULL,
-                                      &categoryWeightsIndex,
-                                      &categoryRatesIndex,
-                                      cumulativeScalingIndices,
-                                      4,
-                                      siteLogLikelihoods.data(),
-                                      firstBuffer.data(),
-                                      NULL);
+    beagleCalculateEdgeDerivatives(instance,
+                                   postBufferIndices, preBufferIndices,
+                                   firstDervIndices,
+                                   &categoryWeightsIndex,
+                                   4,
+                                   firstBuffer.data(),
+                                   sumBuffer.data(),
+                                   NULL);
 
     std::cout << "check gradients  :";
     for (int i = 0; i < 4 * nPatterns; ++i) {
@@ -786,9 +784,9 @@ int main( int argc, const char* argv[] )
     for (int i = 0; i < 4; ++i) {
         double sum = 0.0;
         for (int k = 0; k < nPatterns; ++k) {
-            sum += firstBuffer[i * 4 + k];
+            sum += firstBuffer[i * nPatterns + k];
         }
-        std::cerr << "node " << i << ": " << sum << std::endl;
+        std::cout << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
     }
 
 
@@ -825,3 +823,6 @@ int main( int argc, const char* argv[] )
 //-0.248521  -0.194621  -0.248521  0.114741
 //0.221279  -0.171686  0.221279  -0.00658093
 //0.22128  -0.171686  0.22128  -0.00658095
+
+
+// Bob and Isabelle Fox

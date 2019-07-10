@@ -1301,24 +1301,25 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivative(const int *postBu
 }
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeLogDerivatives(const int *postBufferIndices,
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postBufferIndices,
                                                                    const int *preBufferIndices,
-                                                                   const int *firstDerivativeIndices,
-                                                                   const int *secondDerivativeIndices,
+                                                                   const int *derivativeMatrixIndices,
                                                                    const int *categoryWeightsIndices,
                                                                    const int *categoryRatesIndices,
                                                                    const int *cumulativeScaleIndices,
                                                                    int count,
-                                                                   const double *siteLogLikelihoods,
-                                                                   double *outLogFirstDerivatives,
-                                                                   double *outLogDiagonalSecondDerivatives) {
+                                                                   double *outDerivatives,
+                                                                   double *outSumDerivatives,
+                                                                   double *outSumSquaredDerivatives) {
+    std::cerr << "HERE" << std::endl;
+
     return calcEdgeLogDerivatives(
             postBufferIndices, preBufferIndices,
-            firstDerivativeIndices, secondDerivativeIndices,
+            derivativeMatrixIndices, NULL,
             categoryWeightsIndices,categoryRatesIndices, cumulativeScaleIndices,
             count,
-            siteLogLikelihoods,
-            outLogFirstDerivatives, outLogDiagonalSecondDerivatives);
+            outDerivatives,
+            outSumDerivatives, outSumSquaredDerivatives);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1779,9 +1780,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
                                                               const int *categoryRatesIndices,
                                                               const int *cumulativeScaleIndices,
                                                               int count,
-                                                              const double *siteLogLikelihoods,
-                                                              double *outLogFirstDerivatives,
-                                                              double *outLogDiagonalSecondDerivatives) {
+                                                              double *outDerivatives,
+                                                              double *outSumDerivatives,
+                                                              double *outSumSquaredDerivatives) {
 
     int returnCode = BEAGLE_SUCCESS;
 
@@ -1793,33 +1794,40 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
         const int firstDerivativeIndex = firstDerivativeIndices[nodeNum];
         const int secondDerivativeIndex = BEAGLE_OP_NONE;
 
-        const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
+        const double *categoryRates = NULL; // gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
         const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
 
 
-        const int scalingFactorsIndex = cumulativeScaleIndices[nodeNum];
+        const int scalingFactorsIndex = -1; // cumulativeScaleIndices[nodeNum];
 
         const int patternOffset = nodeNum * kPatternCount;
-        double* outLogFirstDerivativesForNode = outLogFirstDerivatives + patternOffset;
-        double* outLogDiagonalSecondDerivatiesForNode = (outLogFirstDerivativesForNode == NULL) ?
-                NULL : outLogDiagonalSecondDerivatives + patternOffset;
+        double* outDerivativesForNode = (outDerivatives == NULL) ?
+                NULL : outDerivatives + patternOffset;
+        double* outSumDerivativesForNode = (outSumDerivatives == NULL) ?
+                NULL : outSumDerivatives + nodeNum;
+        double* outSumSquaredDerivaticesForNode = (outSumSquaredDerivatives == NULL) ?
+                NULL : outSumSquaredDerivatives + nodeNum;
+
+//        double* outLogDiagonalSecondDerivatiesForNode = (outLogFirstDerivativesForNode == NULL) ?
+//                NULL : outLogDiagonalSecondDerivatives + patternOffset;
 
         if (tipStates != NULL) {
 
             calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
                                         secondDerivativeIndex, categoryRates, categoryWeights,
-                                        siteLogLikelihoods,
-                                        outLogFirstDerivativesForNode,
-                                        outLogDiagonalSecondDerivatiesForNode);
+                                        outDerivativesForNode,
+                                        outSumDerivativesForNode,
+                                        outSumSquaredDerivaticesForNode);
 
         } else {
 
             const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
             calcEdgeLogDerivativesPartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
                                        secondDerivativeIndex, categoryRates, categoryWeights,
-                                       scalingFactorsIndex, siteLogLikelihoods,
-                                       outLogFirstDerivativesForNode,
-                                       outLogDiagonalSecondDerivatiesForNode);
+                                       scalingFactorsIndex,
+                                       outDerivativesForNode,
+                                       outSumDerivativesForNode,
+                                       outSumSquaredDerivaticesForNode);
         }
     }
 
@@ -1899,9 +1907,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
                                                                      const int secondDerivativeIndex,
                                                                      const double *categoryRates,
                                                                      const REALTYPE *categoryWeights,
-                                                                     const double *siteLogLikelihoods,
-                                                                     double *outLogFirstDerivatives,
-                                                                     double *outLogDiagonalSecondDerivatives) {
+                                                                     double *outDerivatives,
+                                                                     double *outSumDerivatives,
+                                                                     double *outSumSquaredDerivatives) {
+
     std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
     std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
 
@@ -1928,8 +1937,23 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
         }
     }
 
+    REALTYPE sum = 0.0;
+    REALTYPE sumSquared = 0.0;
     for (int k = 0; k < kPatternCount; k++) {
-        outLogFirstDerivatives[k] = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        sum += derivative;
+        sumSquared += derivative * derivative;
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
     }
 }
 
@@ -1942,9 +1966,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
                                                                        const REALTYPE *categoryWeights,
                                                                        const int scalingFactorsIndex,
 //                                                                       const REALTYPE *cumulativeScaleBuffer,
-                                                                       const double *siteLogLikelihoods,
-                                                                       double *outLogFirstDerivatives,
-                                                                       double *outLogDiagonalSecondDerivatives) {
+                                                                       double *outDerivatives,
+                                                                       double *outSumDerivatives,
+                                                                       double *outSumSquaredDerivatives) {
 
     std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
     std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
@@ -1983,8 +2007,23 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
         }
     }
 
+    REALTYPE sum = 0.0;
+    REALTYPE sumSquared = 0.0;
     for (int k = 0; k < kPatternCount; k++) {
-        outLogFirstDerivatives[k] = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        sum += derivative;
+        sumSquared += derivative * derivative;
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
     }
 }
 

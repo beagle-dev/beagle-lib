@@ -335,17 +335,16 @@ public:
 								double *outFirstDerivative,
 								double *outDiagonalSecondDerivative);
 
-    int calculateEdgeLogDerivatives(const int *postBufferIndices,
-                                    const int *preBufferIndices,
-                                    const int *firstDerivativeIndices,
-                                    const int *secondDerivativeIndices,
-                                    const int *categoryWeightsIndices,
-                                    const int *categoryRatesIndices,
-                                    const int *cumulativeScaleIndices,
-                                    int count,
-                                    const double *siteLogLikelihoods,
-                                    double *outLogFirstDerivative,
-                                    double *outLogDiagonalSecondDerivative);
+    int calculateEdgeDerivatives(const int *postBufferIndices,
+                                 const int *preBufferIndices,
+                                 const int *derivativeMatrixIndices,
+                                 const int *categoryWeightsIndices,
+                                 const int *categoryRatesIndices,
+                                 const int *cumulativeScaleIndices,
+                                 int count,
+                                 double *outDerivatives,
+                                 double *outSumDerivatives,
+                                 double *outSumSquaredDerivatives);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
@@ -460,7 +459,9 @@ private:
     int
     calcEdgeFirstDerivatives(const int *postBufferIndices, const int *preBufferIndices, const int *firstDerivativeIndices,
                              const int *categoryWeightsIndices, const int *scaleIndices, int count,
-                             double *outFirstDerivatives);
+                             double *outFirstDerivatives,
+                             double *outSumFirstDerivatives,
+                             double *outSumSquaredFirstDerivatives);
 };
 
 BEAGLE_GPU_TEMPLATE

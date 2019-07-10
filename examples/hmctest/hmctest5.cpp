@@ -766,18 +766,16 @@ int main( int argc, const char* argv[] )
     }
 
     std::vector<double> firstBuffer(nPatterns * 5 * 2); // Get both numerator and denominator
+    std::vector<double> sumBuffer(5);
     int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
-    beagleCalculateEdgeLogDerivatives(instance,
+    beagleCalculateEdgeDerivatives(instance,
                                       postBufferIndices, preBufferIndices,
                                       firstDervIndices,
-                                      NULL,
                                       &categoryWeightsIndex,
-                                      &categoryRatesIndex,
-                                      cumulativeScalingIndices,
                                       4,
-                                      siteLogLikelihoods.data(),
                                       firstBuffer.data(),
+                                      sumBuffer.data(),
                                       NULL);
 
     std::cout << "check gradients  :";
@@ -794,9 +792,9 @@ int main( int argc, const char* argv[] )
     for (int i = 0; i < 4; ++i) {
         double sum = 0.0;
         for (int k = 0; k < nPatterns; ++k) {
-            sum += firstBuffer[i * 4 + k];
+            sum += firstBuffer[i * nPatterns + k];
         }
-        std::cerr << "node " << i << ": " << sum << std::endl;
+        std::cerr << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
     }
 
 
