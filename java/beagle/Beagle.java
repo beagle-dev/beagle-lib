@@ -144,7 +144,7 @@ public interface Beagle extends Serializable {
      * CPU implementation. It should only be called after beagleCreateInstance and
      * requires the THREADING_CPP flag to be set. It has no effect on GPU-based
      * implementations. It has no effect with the default THREADING_NONE setting.
-     * If THREADING_CPP is set and this function is not called BEAGLE will use 
+     * If THREADING_CPP is set and this function is not called BEAGLE will use
      * a heuristic to set an appropriate number of threads.
      *
      * @param threadCount          Number of threads (input)
@@ -257,19 +257,19 @@ public interface Beagle extends Serializable {
             int bufferIndex,
             int scaleIndex,
             final double[] outPartials);
-                        
+
     /**
      * Get scale factors from instance buffer on log-scale
      *
      * This function copies an array of scale factors from an instance buffer. The outFactors array should
      * be patternCount in length.
-     *   
+     *
      * @param scaleIndex    Index of scaleBuffer to get (input)
      * @param  outFactors  Pointer to which to receive partialsBuffer (output)
      */
-    void getLogScaleFactors(           
+    void getLogScaleFactors(
             int scaleIndex,
-            final double[] outFactors);            
+            final double[] outFactors);
 
     /**
      * Set an eigen-decomposition buffer
@@ -342,7 +342,7 @@ public interface Beagle extends Serializable {
             final int[] secondIndices,
             final int[] resultIndices,
             int matrixCount);
-    
+
     /**
      * Calculate a list of transition probability matrices
      *
@@ -464,18 +464,44 @@ public interface Beagle extends Serializable {
      * @param outDiagonalSecondDerivative       diagonal hessian output array
      *
      */
-    void calculateEdgeDerivative(final int[] postBufferIndices,
-                                 final int[] preBufferIndices,
-                                 final int rootBufferIndex,
-                                 final int[] firstDerivativeIndices,
-                                 final int[] secondDerivativeIndices,
-                                 final int categoryWeightsIndex,
-                                 final int categoryRatesIndex,
-                                 final int stateFrequenciesIndex,
-                                 final int[] cumulativeScaleIndices,
-                                 int count,
-                                 double[] outFirstDerivative,
-                                 double[] outDiagonalSecondDerivative);
+    void calculateEdgeDerivative(
+    		final int[] postBufferIndices,
+	        final int[] preBufferIndices,
+	        final int rootBufferIndex,
+    	    final int[] firstDerivativeIndices,
+	        final int[] secondDerivativeIndices,
+	        final int categoryWeightsIndex,
+	        final int categoryRatesIndex,
+	        final int stateFrequenciesIndex,
+	        final int[] cumulativeScaleIndices,
+	        int count,
+	        double[] outFirstDerivative,
+    	    double[] outDiagonalSecondDerivative);
+
+    /**
+     * Calculate differential w.r.t. edges
+     *
+     * This function calculates a derivative of the log likelihood with respect to edge-differentials.
+     *
+     * @param postBufferIndices                 list of post order buffer indices
+     * @param preBufferIndices                  list of pre  order buffer indices
+     * @param derivativeMatrixIndices           differential Q matrix indices
+     * @param categoryWeightsIndices            category weights indices
+     * @param count                             number of edges
+     * @param outDerivatives                    derivative-per-site output array
+     * @param outSumDerivatives                 sum of derivatives across sites output array
+     * @param outSumSquaredDerivatives          sum of squared derivatives output array
+     *
+     */
+    void calculateEdgeDifferentials(
+    		final int[] postBufferIndices,
+        	final int[] preBufferIndices,
+	        final int[] derivativeMatrixIndices,
+    	    final int[] categoryWeightsIndices,
+        	int count,
+	        double[] outDerivatives,
+	        double[] outSumDerivatives,
+	        double[] outSumSquaredDerivatives);
 
     /**
      * Calculate or queue for calculation partials using a list of operations
@@ -614,7 +640,7 @@ public interface Beagle extends Serializable {
     void copyScaleFactors(
         int destScalingIndex,
         int srcScalingIndex
-    );    
+    );
 
     /**
      * Reset scalefactors
@@ -674,8 +700,8 @@ public interface Beagle extends Serializable {
      *                                      should be one set for each of parentBufferIndices
      * @param cumulativeScaleIndices    List of scalingFactors indices to accumulate over (input). There
      *                                      should be one set for each of parentBufferIndices
-     * @param partitionIndices          List of partition indices indicating which sites in each 
-     *                                  partialsBuffer should be used (input). There should be one 
+     * @param partitionIndices          List of partition indices indicating which sites in each
+     *                                  partialsBuffer should be used (input). There should be one
      *                                  index for each of bufferIndices
      * @param partitionCount            Number of partialsBuffer to integrate (input)
      * @param count                     Number of sets of partitions to integrate across (input)

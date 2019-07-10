@@ -198,4 +198,4 @@ libhmsbeagle/GPU/libhmsbeagle_opencl_la-KernelResource.lo
 libhmsbeagle/GPU/libhmsbeagle_opencl_la-OpenCLPlugin.lo
 libhmsbeagle/config.h.in~
 project/beagle-xcode/BEAGLE-1.0.pkg
-
+*.class

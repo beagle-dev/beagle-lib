@@ -81,7 +81,7 @@ public class BeagleJNIWrapper {
 
     public native int getPartials(int instance, int bufferIndex, int scaleIndex,
                                   final double[] outPartials);
-    
+
     public native int getLogScaleFactors(int stance, int scaleIndex, final double[] outFactors);
 
     public native int setEigenDecomposition(int instance,
@@ -110,11 +110,11 @@ public class BeagleJNIWrapper {
     public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
 
 	public native int convolveTransitionMatrices(int instance,
-			                                     final int[] firstIndices, 
+			                                     final int[] firstIndices,
 			                                     final int[] secondIndices,
-			                                     final int[] resultIndices, 
+			                                     final int[] resultIndices,
 			                                     int matrixCount);
-    
+
     public native int updateTransitionMatrices(int instance, int eigenIndex,
                                                final int[] probabilityIndices,
                                                final int[] firstDerivativeIndices,
@@ -219,8 +219,19 @@ public class BeagleJNIWrapper {
     public native int getSiteLogLikelihoods(final int instance,
                                             final double[] outLogLikelihoods);
 
-    public native int calculateEdgeDerivative(final int instance,
-                                              final int[] postBufferIndices,
+
+    public native int calculateEdgeDifferentials(int instance,
+    										     final int[] postBufferIndices,
+              		                             final int[] preBufferIndices,
+                    	                         final int[] derivativeMatrixIndices,
+                                                 final int[] categoryWeightsIndices,
+                                 	             int count,
+                                      		     double[] outDerivatives,
+	                                             double[] outSumDerivatives,
+       		                                     double[] outSumSquaredDerivatives);
+
+    public native int calculateEdgeDerivative(int instance,
+    										  final int[] postBufferIndices,
                                               final int[] preBufferIndices,
                                               final int rootBufferIndex,
                                               final int[] firstDerivativeIndices,

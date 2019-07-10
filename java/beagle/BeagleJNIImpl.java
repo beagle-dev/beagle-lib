@@ -123,7 +123,7 @@ public class BeagleJNIImpl implements Beagle {
             throw new BeagleException("getPartials", errCode);
         }
     }
-    
+
     public void getLogScaleFactors(int scaleIndex, final double[] outFactors) {
         int errCode = BeagleJNIWrapper.INSTANCE.getLogScaleFactors(instance, scaleIndex, outFactors);
         if (errCode != 0) {
@@ -168,7 +168,7 @@ public class BeagleJNIImpl implements Beagle {
 
     public void setCategoryRatesWithIndex( int categoryRatesIndex,
                                            double[] inCategoryRates) {
-        int errCode = BeagleJNIWrapper.INSTANCE.setCategoryRatesWithIndex(instance, 
+        int errCode = BeagleJNIWrapper.INSTANCE.setCategoryRatesWithIndex(instance,
                                                                           categoryRatesIndex,
                                                                           inCategoryRates);
         if (errCode != 0) {
@@ -194,22 +194,22 @@ public class BeagleJNIImpl implements Beagle {
 	// ---TODO: Epoch model---//
 	// /////////////////////////
 
-	public void convolveTransitionMatrices(final int[] firstIndices, 
+	public void convolveTransitionMatrices(final int[] firstIndices,
                                            final int[] secondIndices,
-                                           final int[] resultIndices, 
+                                           final int[] resultIndices,
                                            int matrixCount) {
 
         int errCode = BeagleJNIWrapper.INSTANCE.convolveTransitionMatrices(instance,
-                                                                           firstIndices, 
+                                                                           firstIndices,
                                                                            secondIndices,
-                                                                           resultIndices, 
+                                                                           resultIndices,
                                                                            matrixCount);
         if (errCode != 0) {
             throw new BeagleException("convolveTransitionMatrices", errCode);
         }
-		
-	}//END: convolveTransitionMatrices    
-    
+
+	}//END: convolveTransitionMatrices
+
     public void updateTransitionMatrices(int eigenIndex,
                                          final int[] probabilityIndices,
                                          final int[] firstDerivativeIndices,
@@ -251,6 +251,25 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("updatePrePartials", errCode);
+        }
+    }
+
+    public void calculateEdgeDifferentials(final int[] postBufferIndices,
+                                           final int[] preBufferIndices,
+                                           final int[] derivativeMatrixIndices,
+                                           final int[] categoryWeightsIndices,
+                                           int count,
+                                           double[] outDerivatives,
+                                           double[] outSumDerivatives,
+                                           double[] outSumSquaredDerivatives) {
+
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateEdgeDifferentials(instance,
+        	postBufferIndices, preBufferIndices, derivativeMatrixIndices,
+        	categoryWeightsIndices, count,
+        	outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+
+        if (errCode != 0) {
+        	throw new BeagleException("calculateEdgeDifferentials", errCode);
         }
     }
 

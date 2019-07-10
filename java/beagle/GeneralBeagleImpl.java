@@ -249,7 +249,7 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(this.matrices[matrixIndex],0,outMatrix,0,outMatrix.length);
     }
 
-    
+
 	// /////////////////////////
 	// ---TODO: Epoch model---//
 	// /////////////////////////
@@ -260,32 +260,32 @@ public class GeneralBeagleImpl implements Beagle {
             int matrixCount) {
 
 		for (int u = 0; u < matrixCount; u++) {
-			
+
 			  int firstIndex = firstIndices[u];
 			  int secondIndex = secondIndices[u];
 			  int resultIndex = resultIndices[u];
-		
+
 			     if (DEBUG) {
 			    	 System.err.println("Convolving matrix " + firstIndex + " with matrix  " + secondIndex + " into " + resultIndex);
 			    	 }
-			  
+
 			for (int l = 0; l < categoryCount; l++) {
 
 				for (int i = 0; i < stateCount; i++) {
 					for (int j = 0; j < stateCount; j++) {
 
-						
+
 						for (int k = 0; k < stateCount; k++) {
-							
-//							sum += 
-							
+
+//							sum +=
+
 						}//END: k loop
-						
-						
-						
-						
-						
-						
+
+
+
+
+
+
 					}// END: j loop
 				}// END: i loop
 			}// /END: l loop
@@ -293,8 +293,8 @@ public class GeneralBeagleImpl implements Beagle {
 		}// END: u loop
 
 	}// END: convolveTransitionMatrices
-    
-    
+
+
     public void updateTransitionMatrices(final int eigenIndex,
                                          final int[] probabilityIndices,
                                          final int[] firstDerivativeIndices,
@@ -437,9 +437,32 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+	@Override
+    public void calculateEdgeDifferentials(final int[] postBufferIndices,
+                                           final int[] preBufferIndices,
+                                           final int[] derivativeMatrixIndices,
+                                           final int[] categoryWeightsIndices,
+                                           int count,
+                                           double[] outDerivatives,
+                                           double[] outSumDerivatives,
+                                           double[] outSumSquaredDerivatives) {
+		throw new RuntimeException("Not yet implemented");
+    }
+
     @Override
-    public void calculateEdgeDerivative(int[] postBufferIndices, int[] preBufferIndices, int rootBufferIndex, int[] firstDerivativeIndices, int[] secondDerivativeIndices, int categoryWeightsIndex, int categoryRatesIndex, int stateFrequenciesIndex, int[] cumulativeScaleIndices, int count, double[] outFirstDerivative, double[] outDiagonalSecondDerivative) {
-        // TODO: yet to implement
+    public void calculateEdgeDerivative(int[] postBufferIndices,
+    									int[] preBufferIndices,
+    									int rootBufferIndex,
+    									int[] firstDerivativeIndices,
+    									int[] secondDerivativeIndices,
+    									int categoryWeightsIndex,
+    									int categoryRatesIndex,
+    									int stateFrequenciesIndex,
+    									int[] cumulativeScaleIndices,
+    									int count,
+    									double[] outFirstDerivative,
+    									double[] outDiagonalSecondDerivative) {
+        throw new RuntimeException("Not yet implemented");
     }
 
     /**

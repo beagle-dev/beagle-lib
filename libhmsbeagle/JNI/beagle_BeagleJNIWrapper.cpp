@@ -458,6 +458,62 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateEdgeDifferentials
+ * Signature: (I[I[I[I[II[D[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDifferentials
+        (JNIEnv *env, jobject obj, jint instance,
+                jintArray postBufferIndices,
+                jintArray preBufferIndices,
+                jintArray derivativeMatrixIndices,
+                jintArray categoryWeightsIndices,
+                jint count,
+                jdoubleArray outDerivatives,
+                jdoubleArray outSumDerivatives,
+                jdoubleArray outSumSquaredDerivatives) {
+
+    jdouble *jOutDerivatives = outDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outDerivatives, NULL);
+
+    jdouble* jOutSumDerivatives = outSumDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumDerivatives, NULL);
+
+    jdouble* jOutSumSquaredDerivatives = outSumSquaredDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumSquaredDerivatives, NULL);
+
+    jint *jPostBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
+    jint *jPreBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
+
+    jint *jDerivativeMatrixIndices = env->GetIntArrayElements(derivativeMatrixIndices, NULL);
+    jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
+
+    jint errCode = beagleCalculateEdgeDerivatives(instance, jPostBufferIndices, jPreBufferIndices,
+                                                 jDerivativeMatrixIndices, jCategoryWeightsIndices, count,
+                                                 jOutDerivatives, jOutSumDerivatives, jOutSumSquaredDerivatives);
+
+    env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(preBufferIndices, jPreBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(derivativeMatrixIndices, jDerivativeMatrixIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryWeightsIndices, jCategoryWeightsIndices, JNI_ABORT);
+
+    if (outDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outDerivatives, jOutDerivatives, 0);
+    }
+
+    if (outSumDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumDerivatives, jOutSumDerivatives, 0);
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumSquaredDerivatives, jOutSumSquaredDerivatives, 0);
+    }
+
+    return errCode;
+}
+
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateEdgeDerivative
  * Signature: (I[I[II[I[IIII[II[D[D)I
  */
