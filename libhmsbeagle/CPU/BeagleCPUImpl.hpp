@@ -1311,8 +1311,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
                                                                    double *outDerivatives,
                                                                    double *outSumDerivatives,
                                                                    double *outSumSquaredDerivatives) {
-    std::cerr << "HERE" << std::endl;
-
     return calcEdgeLogDerivatives(
             postBufferIndices, preBufferIndices,
             derivativeMatrixIndices, NULL,
@@ -1941,8 +1939,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
     REALTYPE sumSquared = 0.0;
     for (int k = 0; k < kPatternCount; k++) {
         REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
-        sum += derivative;
-        sumSquared += derivative * derivative;
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * derivative * gPatternWeights[k];
         if (outDerivatives != NULL) {
             outDerivatives[k] = derivative;
         }
@@ -2011,8 +2009,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
     REALTYPE sumSquared = 0.0;
     for (int k = 0; k < kPatternCount; k++) {
         REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
-        sum += derivative;
-        sumSquared += derivative * derivative;
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * derivative * gPatternWeights[k];
         if (outDerivatives != NULL) {
             outDerivatives[k] = derivative;
         }
@@ -2439,8 +2437,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsPerCategory(
         const int stateFrequenciesIndex,
         const int scalingFactorsIndex,
         double* outLogLikelihoodPerCategory) {
-
-    std::cout << "HERE" << std::endl;
 
     int returnCode = BEAGLE_SUCCESS;
 
