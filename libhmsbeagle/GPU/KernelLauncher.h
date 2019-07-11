@@ -64,6 +64,7 @@ private:
 	GPUFunction fPartialsPartialsEdgeFirstDerivatives;
 	GPUFunction fMultipleNodeSiteReduction;
 	GPUFunction fPartialsPartialsGrowing;
+	GPUFunction fPartialsStatesGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -299,14 +300,23 @@ public:
                                            int streamIndex,
                                            int waitIndex);
 
-	void PartialsPartialsGrowing(GPUPtr partials1,
-								 GPUPtr partials2,
-								 GPUPtr partials3,
-								 GPUPtr matrices1,
-								 GPUPtr matrices2,
-								 unsigned int patternCount,
-								 unsigned int categoryCount,
-								 int sizeReal);
+	void PartialsStatesGrowing(GPUPtr partials1,
+                               GPUPtr partials2,
+                               GPUPtr partials3,
+                               GPUPtr matrices1,
+                               GPUPtr matrices2,
+                               unsigned int patternCount,
+                               unsigned int categoryCount,
+                               int sizeReal);
+
+    void PartialsPartialsGrowing(GPUPtr partials1,
+                                 GPUPtr partials2,
+                                 GPUPtr partials3,
+                                 GPUPtr matrices1,
+                                 GPUPtr matrices2,
+                                 unsigned int patternCount,
+                                 unsigned int categoryCount,
+                                 int sizeReal);
 
 	void PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr partials0,

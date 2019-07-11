@@ -280,6 +280,9 @@ void KernelLauncher::LoadKernels() {
     fPartialsPartialsGrowing = gpu->GetFunction(
             "kernelPartialsPartialsGrowing");
 
+    fPartialsStatesGrowing = gpu->GetFunction(
+            "kernelPartialsStatesGrowing");
+
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
             "kernelPartialsPartialsEdgeFirstDerivatives");
 
@@ -762,6 +765,31 @@ void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::MultipleNodeSiteReduction\n");
+#endif
+}
+
+void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
+                                           GPUPtr states2,
+                                           GPUPtr partials3,
+                                           GPUPtr matrices1,
+                                           GPUPtr matrices2,
+                                           unsigned int patternCount,
+                                           unsigned int categoryCount,
+                                           int sizeReal) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesGrowing\n");
+#endif
+
+    gpu->LaunchKernel(fPartialsStatesGrowing,
+                      bgPeelingBlock, bgPeelingGrid,
+                      5, 6,
+                      partials1, states2, partials3, matrices1, matrices2,
+                      patternCount);
+    gpu->SynchronizeDevice();
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
 }
 

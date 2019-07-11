@@ -2644,12 +2644,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 
     // Below is the old serial version of upPartials (as a far starting point)
     for (int op = 0; op < operationCount; op++) {
-        const int parIndex = operations[op * 7];
+        const int parIndex = operations[op * 7];                // Self
         const int writeScalingIndex = operations[op * 7 + 1];
         const int readScalingIndex = operations[op * 7 + 2];
-        const int child1Index = operations[op * 7 + 3];
+        const int child1Index = operations[op * 7 + 3];         // Parent
         const int child1TransMatIndex = operations[op * 7 + 4];
-        const int child2Index = operations[op * 7 + 5];
+        const int child2Index = operations[op * 7 + 5];         // Sibling
         const int child2TransMatIndex = operations[op * 7 + 6];
 
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
@@ -2659,10 +2659,20 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
         GPUPtr partials2 = dPartials[child2Index];
         GPUPtr partials3 = dPartials[parIndex];
 
-        kernels->PartialsPartialsGrowing(partials1, partials2, partials3,
-                                         matrices1, matrices2,
-                                         kPaddedPatternCount, kCategoryCount,
-                                         sizeof(Real));
+        GPUPtr tipStates1 = dStates[child1Index];
+        GPUPtr tipStates2 = dStates[child2Index];
+
+        if (tipStates2 != 0) {
+            kernels->PartialsStatesGrowing(partials1, tipStates2, partials3,
+                                           matrices1, matrices2,
+                                           kPaddedPatternCount, kCategoryCount,
+                                           sizeof(Real));
+        } else {
+            kernels->PartialsPartialsGrowing(partials1, partials2, partials3,
+                                             matrices1, matrices2,
+                                             kPaddedPatternCount, kCategoryCount,
+                                             sizeof(Real));
+        }
     }
 
 //    GPUPtr cumulativeScalingBuffer = 0;

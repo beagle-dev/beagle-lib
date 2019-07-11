@@ -31,31 +31,31 @@ char *gorilla = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGT
 //char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
 
-//int* getStates(char *sequence) {
-//	int n = strlen(sequence);
-//	int *states = (int*) malloc(sizeof(int) * n);
-//
-//	for (int i = 0; i < n; i++) {
-//		switch (sequence[i]) {
-//			case 'A':
-//				states[i] = 0;
-//				break;
-//			case 'C':
-//				states[i] = 1;
-//				break;
-//			case 'G':
-//				states[i] = 2;
-//				break;
-//			case 'T':
-//				states[i] = 3;
-//				break;
-//			default:
-//				states[i] = 4;
-//				break;
-//		}
-//	}
-//	return states;
-//}
+int* getStates(char *sequence) {
+	int n = strlen(sequence);
+	int *states = (int*) malloc(sizeof(int) * n);
+
+	for (int i = 0; i < n; i++) {
+		switch (sequence[i]) {
+			case 'A':
+				states[i] = 0;
+				break;
+			case 'C':
+				states[i] = 1;
+				break;
+			case 'G':
+				states[i] = 2;
+				break;
+			case 'T':
+				states[i] = 3;
+				break;
+			default:
+				states[i] = 4;
+				break;
+		}
+	}
+	return states;
+}
 
 double* getPartials(char *sequence) {
 	int n = strlen(sequence);
@@ -160,6 +160,8 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
+    bool useTipStates = true;
+
     int whichDevice = -1;
     if (useGpu) {
         if (argc > 2) {
@@ -178,7 +180,7 @@ int main( int argc, const char* argv[] )
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
                                   10,	            /**< Number of partials buffers to create (input) */
-                                  0,		        /**< Number of compact state representation buffers to create (input) */
+                                  useTipStates ? 3 : 0,		        /**< Number of compact state representation buffers to create (input) */
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
@@ -205,19 +207,34 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
     fprintf(stdout, "\n");
 
+    if (useTipStates) {
+        // set the sequences for each tip using state likelihood arrays
+        int *humanStates = getStates(human);
+        int *chimpStates = getStates(chimp);
+        int *gorillaStates = getStates(gorilla);
 
-//    beagleSetTipStates(instance, 0, getStates(human));
-//    beagleSetTipStates(instance, 1, getStates(chimp));
-//    beagleSetTipStates(instance, 2, getStates(gorilla));
+        beagleSetTipStates(instance, 0, humanStates);
+        beagleSetTipStates(instance, 1, chimpStates);
+        beagleSetTipStates(instance, 2, gorillaStates);
 
-    // set the sequences for each tip using partial likelihood arrays
-    double *humanPartials   = getPartials(human);
-    double *chimpPartials   = getPartials(chimp);
-    double *gorillaPartials = getPartials(gorilla);
+        free(humanStates);
+        free(chimpStates);
+        free(gorillaStates);
 
-    beagleSetTipPartials(instance, 0, humanPartials);
-    beagleSetTipPartials(instance, 1, chimpPartials);
-    beagleSetTipPartials(instance, 2, gorillaPartials);
+    } else {
+        // set the sequences for each tip using partial likelihood arrays
+        double *humanPartials = getPartials(human);
+        double *chimpPartials = getPartials(chimp);
+        double *gorillaPartials = getPartials(gorilla);
+
+        beagleSetTipPartials(instance, 0, humanPartials);
+        beagleSetTipPartials(instance, 1, chimpPartials);
+        beagleSetTipPartials(instance, 2, gorillaPartials);
+
+        free(humanPartials);
+        free(chimpPartials);
+        free(gorillaPartials);
+    }
 
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
@@ -793,9 +810,6 @@ int main( int argc, const char* argv[] )
     free(patternWeights);
 
 	free(patternLogLik);
-	free(humanPartials);
-	free(chimpPartials);
-	free(gorillaPartials);
     free(seepostPartials);
     free(seeprePartials);
     free(seerootPartials);
