@@ -2040,7 +2040,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
                                                                double *outFirstDerivative,
                                                                double *outDiagonalSecondDerivative) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivatives\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivative\n");
 #endif
     
     if (dOutFirstDeriv == NULL) {
@@ -2062,7 +2062,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeDerivatives\n");
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeDerivative\n");
 #endif
 
     return returnCode;
@@ -2071,20 +2071,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivatives(const int *postBufferIndices,
-                                                                   const int *preBufferIndices,
-                                                                   const int *derivativeMatrixIndices,
-                                                                   const int *categoryWeightsIndices,
-                                                                   const int *categoryRatesIndices,
-                                                                   const int *cumulativeScaleIndices,
-                                                                   int count,
-                                                                   double *outDerivatives,
-                                                                   double *outSumDerivatives,
-                                                                   double *outSumSquaredDerivatives) {
+                                                                const int *preBufferIndices,
+                                                                const int *derivativeMatrixIndices,
+                                                                const int *categoryWeightsIndices,
+                                                                const int *categoryRatesIndices,
+                                                                const int *cumulativeScaleIndices,
+                                                                int count,
+                                                                double *outDerivatives,
+                                                                double *outSumDerivatives,
+                                                                double *outSumSquaredDerivatives) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivatives\n");
 #endif
-
-//    std::cout << "AAA" << std::endl;
 
     if (dOutFirstDeriv == NULL) {
         dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
@@ -2096,23 +2094,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivatives(const int *postB
                                           derivativeMatrixIndices, categoryWeightsIndices,
                                           cumulativeScaleIndices, count,
                                           outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
-
-//    if (outLogFirstDerivatives != NULL) {
-//        if (outLogDiagonalSecondDerivative != NULL) {
-////            returnCode = calcEdgeFirstAndSecondDerivatives();
-//            returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
-//        } else {
-//            returnCode = calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
-//                                                  firstDerivativeIndices, categoryWeightsIndices,
-//                                                  cumulativeScaleIndices, count,
-//                                                  outLogFirstDerivatives, NULL, NULL);
-//        }
-//    } else {
-//        if (outLogDiagonalSecondDerivative != NULL) {
-//            returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
-//        }
-//    }
-
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeDerivatives\n");
 #endif
@@ -4098,19 +4079,35 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                                                                 const int *firstDerivativeIndices,
                                                                 const int *categoryWeightsIndices,
                                                                 const int *scaleIndices,
-                                                                int count,
+                                                                int totalCount,
                                                                 double *outFirstDerivatives,
                                                                 double *outSumFirstDerivatives,
                                                                 double *outSumSquaredFirstDerivatives) {
 
     int instructionOffset = 0;
-    for (int i = 0; i < count; i++) {
-        hDerivativeQueue[instructionOffset++] = hPartialsOffsets[postBufferIndices[i]];
-        hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
-        hDerivativeQueue[instructionOffset++] = firstDerivativeIndices[i] * kIndexOffsetMat;
+    int statesTipsCount = 0;
+
+    if (kCompactBufferCount > 0) {
+        for (int i = 0; i < totalCount; ++i) {
+
+            if (postBufferIndices[i] < kCompactBufferCount) {
+                hDerivativeQueue[instructionOffset++] = hStatesOffsets[postBufferIndices[i]];
+                hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
+                hDerivativeQueue[instructionOffset++] = firstDerivativeIndices[i] * kIndexOffsetMat;
+                ++statesTipsCount;
+            }
+        }
     }
 
-    gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 3 * count);
+    for (int i = 0; i < totalCount; i++) {
+        if (postBufferIndices[i] >= kCompactBufferCount) {
+            hDerivativeQueue[instructionOffset++] = hPartialsOffsets[postBufferIndices[i]];
+            hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
+            hDerivativeQueue[instructionOffset++] = firstDerivativeIndices[i] * kIndexOffsetMat;
+        }
+    }
+
+    gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 3 * totalCount);
 
     if (!kMultipleDerivativesInitialised) { // TODO Move into calling function
         dMultipleDerivatives = gpu->AllocateMemory(
@@ -4120,23 +4117,32 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
         kMultipleDerivativesInitialised = true;
     }
 
+    if (statesTipsCount > 0) {
+        kernels->PartialsStatesEdgeFirstDerivatives(
+                dMultipleDerivatives,
+                dStatesOrigin,
+                dPartialsOrigin,
+                dMatrices[0],
+                dDerivativeQueue,
+                dWeights[0], // TODO Use categoryWeightsIndices
+                0, statesTipsCount, kPaddedPatternCount, kCategoryCount, false);
+    }
+
     kernels->PartialsPartialsEdgeFirstDerivatives(
             dMultipleDerivatives,
             dPartialsOrigin,
             dMatrices[0],
             dDerivativeQueue,
             dWeights[0], // TODO Use categoryWeightsIndices
-            count,
-            kPaddedPatternCount,
-            kCategoryCount);
+            statesTipsCount, (totalCount - statesTipsCount), kPaddedPatternCount, kCategoryCount, true);
 
-    std::vector<Real> hTmp(count * kPaddedPatternCount); // TODO Use existing buffer
+    std::vector<Real> hTmp(totalCount * kPaddedPatternCount); // TODO Use existing buffer
 
     if (outFirstDerivatives != NULL) {
 
-        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedPatternCount * count);
+        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedPatternCount * totalCount);
 
-        for (int i = 0; i < count; ++i) {
+        for (int i = 0; i < totalCount; ++i) {
             beagleMemCpy(outFirstDerivatives + i * kPatternCount,
                          hTmp.data() + i * kPaddedPatternCount,
                          kPatternCount);
@@ -4149,11 +4155,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                                            dMultipleDerivatives,
                                            dPatternWeights,
                                            kPaddedPatternCount,
-                                           count);
+                                           totalCount);
 
-        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * count);
+        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * totalCount);
 
-        beagleMemCpy(outSumFirstDerivatives, hTmp.data(), count);
+        beagleMemCpy(outSumFirstDerivatives, hTmp.data(), totalCount);
     }
 
     if (outSumSquaredFirstDerivatives != NULL) {

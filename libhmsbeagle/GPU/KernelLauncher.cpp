@@ -286,6 +286,9 @@ void KernelLauncher::LoadKernels() {
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
             "kernelPartialsPartialsEdgeFirstDerivatives");
 
+    fPartialsStatesEdgeFirstDerivatives = gpu->GetFunction(
+            "kernelPartialsStatesEdgeFirstDerivatives");
+
     fMultipleNodeSiteReduction = gpu->GetFunction(
             "kernelMultpleNodeSiteReduction");
 
@@ -704,14 +707,54 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
 #endif
 }
 
+void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
+                                                        GPUPtr states0,
+                                                        GPUPtr partials0,
+                                                        GPUPtr matrices0,
+                                                        GPUPtr instructions,
+                                                        GPUPtr weights,
+                                                        unsigned int instructionOffset,
+                                                        unsigned int nodeCount,
+                                                        unsigned int patternCount,
+                                                        unsigned int categoryCount,
+                                                        bool synchronize) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
+#endif
+
+    unsigned int saved = bgDerivativeGrid.y;
+    bgDerivativeGrid.y = nodeCount;
+
+    // TODO
+
+    gpu->LaunchKernel(fPartialsStatesEdgeFirstDerivatives,
+                      bgDerivativeBlock, bgDerivativeGrid,
+                      6, 9,
+                      out, states0, partials0, matrices0, instructions, weights,
+                      instructionOffset, patternCount, categoryCount);
+
+    if (synchronize) {
+        gpu->SynchronizeDevice();
+    }
+
+    bgDerivativeGrid.y = saved;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
+#endif
+}
+
 void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
                                                           GPUPtr partials0,
                                                           GPUPtr matrices0,
-                                                          GPUPtr offsets,
+                                                          GPUPtr instructions,
                                                           GPUPtr weights,
+                                                          unsigned int instructionOffset,
                                                           unsigned int nodeCount,
                                                           unsigned int patternCount,
-                                                          unsigned int categoryCount) {
+                                                          unsigned int categoryCount,
+                                                          bool synchronize) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
@@ -726,10 +769,13 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 
     gpu->LaunchKernel(fPartialsPartialsEdgeFirstDerivatives,
                       bgDerivativeBlock, bgDerivativeGrid,
-                      5, 7,
-                      out, partials0, matrices0, offsets, weights,
-                      patternCount, categoryCount);
-    gpu->SynchronizeDevice();
+                      5, 8,
+                      out, partials0, matrices0, instructions, weights,
+                      instructionOffset, patternCount, categoryCount);
+
+    if (synchronize) {
+        gpu->SynchronizeDevice();
+    }
 
     bgDerivativeGrid.y = saved;
 
