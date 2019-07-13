@@ -320,33 +320,24 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 
     REAL numerator = 0;
     REAL denominator = 0;
+    
+    int lState1 = (pattern < totalPatterns) ?
+            states0[states1Offset + pattern] : PADDED_STATE_COUNT;
 
-    REAL lPartial1;
+    REAL lPartial1 = (lState1 >= PADDED_STATE_COUNT || state == lState1) ?
+            1 : 0;
+
     REAL lPartial2;
 
     for (int c = 0; c < categoryCount; ++c) {
 
-        KW_GLOBAL_VAR int* KW_RESTRICT states1 = states0 + states1Offset + totalPatterns * PADDED_STATE_COUNT * c;
         KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials0 + partials2Offset + totalPatterns * PADDED_STATE_COUNT * c;
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices0 + matrices1Offset + PADDED_STATE_COUNT * PADDED_STATE_COUNT * c;
 
-
-//        int state1 = states1[pattern];
-//if (state2 < PADDED_STATE_COUNT) {
-//sum2 = sMatrix2[state2 * 4 + state];
-//}
-
         /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE length partials*/
         if (pattern < totalPatterns) {
-            int lState1 = states1[pattern]; // TODO Are these coalesced?
-            lPartial1 = 0;
-            if (lState1 >= PADDED_STATE_COUNT || state == lState1) {
-                lPartial1 = 1;
-            }
-            //lPartial1 = partials1[y | tx]; /*All coalesced memory*/
             sPartials2[multBy16(patIdx) | tx] = lPartial2 = partials2[y | tx];
         } else {
-            lPartial1 = 0;
             sPartials2[multBy16(patIdx) | tx] = lPartial2 = 0;
         }
 
