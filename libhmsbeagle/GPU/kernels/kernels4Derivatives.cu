@@ -320,7 +320,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 
     REAL numerator = 0;
     REAL denominator = 0;
-    
+
     int lState1 = (pattern < totalPatterns) ?
             states0[states1Offset + pattern] : PADDED_STATE_COUNT;
 
