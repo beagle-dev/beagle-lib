@@ -297,7 +297,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
     int node = KW_GROUP_ID_1;
     int instructionOffset = (skip + node) * 3;
 
-    unsigned int states1Offset = instructions[instructionOffset + 0];
+    unsigned int states1Offset   = instructions[instructionOffset + 0];
     unsigned int partials2Offset = instructions[instructionOffset + 1];
     unsigned int matrices1Offset = instructions[instructionOffset + 2];
 
