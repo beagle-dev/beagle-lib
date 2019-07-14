@@ -276,7 +276,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
-                                                               KW_GLOBAL_VAR int* KW_RESTRICT states0,
+                                                               KW_GLOBAL_VAR int*  KW_RESTRICT states0,
                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
                                                                KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,

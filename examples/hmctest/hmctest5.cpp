@@ -31,31 +31,31 @@ char *gorilla = (char*)"AAAT";
 //char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
 
-//int* getStates(char *sequence) {
-//	int n = strlen(sequence);
-//	int *states = (int*) malloc(sizeof(int) * n);
-//
-//	for (int i = 0; i < n; i++) {
-//		switch (sequence[i]) {
-//			case 'A':
-//				states[i] = 0;
-//				break;
-//			case 'C':
-//				states[i] = 1;
-//				break;
-//			case 'G':
-//				states[i] = 2;
-//				break;
-//			case 'T':
-//				states[i] = 3;
-//				break;
-//			default:
-//				states[i] = 4;
-//				break;
-//		}
-//	}
-//	return states;
-//}
+int* getStates(char *sequence) {
+	int n = strlen(sequence);
+	int *states = (int*) malloc(sizeof(int) * n);
+
+	for (int i = 0; i < n; i++) {
+		switch (sequence[i]) {
+			case 'A':
+				states[i] = 0;
+				break;
+			case 'C':
+				states[i] = 1;
+				break;
+			case 'G':
+				states[i] = 2;
+				break;
+			case 'T':
+				states[i] = 3;
+				break;
+			default:
+				states[i] = 4;
+				break;
+		}
+	}
+	return states;
+}
 
 double* getPartials(char *sequence) {
 	int n = strlen(sequence);
@@ -165,6 +165,8 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
+    bool useTipStates = true;
+
     int whichDevice = -1;
     if (useGpu) {
         if (argc > 2) {
@@ -183,7 +185,7 @@ int main( int argc, const char* argv[] )
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
                                   10,	            /**< Number of partials buffers to create (input) */
-                                  0,		        /**< Number of compact state representation buffers to create (input) */
+                                  useTipStates ? 3 : 0,		        /**< Number of compact state representation buffers to create (input) */
                                   stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
                                   nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
                                   1,		        /**< Number of rate matrix eigen-decomposition buffers to allocate (input) */
@@ -194,7 +196,7 @@ int main( int argc, const char* argv[] )
                                   whichDevice >= 0 ? 1 : 0,			    /**< Length of resourceList list (input) */
                             useGpu ?
                                   BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
-                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
@@ -210,19 +212,34 @@ int main( int argc, const char* argv[] )
     fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
     fprintf(stdout, "\n");
 
+    if (useTipStates) {
+        // set the sequences for each tip using state likelihood arrays
+        int *humanStates = getStates(human);
+        int *chimpStates = getStates(chimp);
+        int *gorillaStates = getStates(gorilla);
 
-//    beagleSetTipStates(instance, 0, getStates(human));
-//    beagleSetTipStates(instance, 1, getStates(chimp));
-//    beagleSetTipStates(instance, 2, getStates(gorilla));
+        beagleSetTipStates(instance, 0, humanStates);
+        beagleSetTipStates(instance, 1, chimpStates);
+        beagleSetTipStates(instance, 2, gorillaStates);
 
-    // set the sequences for each tip using partial likelihood arrays
-    double *humanPartials   = getPartials(human);
-    double *chimpPartials   = getPartials(chimp);
-    double *gorillaPartials = getPartials(gorilla);
+        free(humanStates);
+        free(chimpStates);
+        free(gorillaStates);
 
-    beagleSetTipPartials(instance, 0, humanPartials);
-    beagleSetTipPartials(instance, 1, chimpPartials);
-    beagleSetTipPartials(instance, 2, gorillaPartials);
+    } else {
+        // set the sequences for each tip using partial likelihood arrays
+        double *humanPartials = getPartials(human);
+        double *chimpPartials = getPartials(chimp);
+        double *gorillaPartials = getPartials(gorilla);
+
+        beagleSetTipPartials(instance, 0, humanPartials);
+        beagleSetTipPartials(instance, 1, chimpPartials);
+        beagleSetTipPartials(instance, 2, gorillaPartials);
+
+        free(humanPartials);
+        free(chimpPartials);
+        free(gorillaPartials);
+    }
 
 #ifdef _WIN32
 	std::vector<double> rates(rateCategoryCount);
@@ -393,7 +410,11 @@ int main( int argc, const char* argv[] )
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-    beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    if (useGpu) {
+        beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    } else {
+        beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+    }
     beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     int transposeIndices[4] = { 6, 7, 8, 9 };
@@ -511,11 +532,11 @@ int main( int argc, const char* argv[] )
     std::vector<double> siteLogLikelihoods(nPatterns);
     beagleGetSiteLogLikelihoods(instance, siteLogLikelihoods.data());
 
-    std::cerr << "site-log-like:";
+    std::cout << "site-log-like:";
     for (double logLike : siteLogLikelihoods) {
-        std::cerr << " " << logLike;
+        std::cout << " " << logLike;
     }
-    std::cerr << std::endl;
+    std::cout << std::endl;
 
     double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     int offset = 0;
@@ -599,163 +620,85 @@ int main( int argc, const char* argv[] )
         int postBufferIndex = 4-i;
         int preBufferIndex = 5+i;
         beagleGetPartials(instance, preBufferIndex, BEAGLE_OP_NONE, seeprePartials);
-        beagleGetPartials(instance, postBufferIndex, BEAGLE_OP_NONE, seepostPartials);
+//        beagleGetPartials(instance, postBufferIndex, BEAGLE_OP_NONE, seepostPartials);
 
-        double * prePartialsPtr = seeprePartials;
-        double * postPartialsPtr = seepostPartials;
-
-        double denominator = 0;
-        double numerator = 0;
-
-        double tmp = 0;
-        int k, j, l, m, s, t;
-        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": \n";
-
-        ///get likelihood for each rate category first
-        double clikelihood[rateCategoryCount * nPatterns];
-        l = 0; j = 0;
-        for(s = 0; s < rateCategoryCount; s++){
-            for(m = 0; m < nPatterns; m++){
-                double clikelihood_tmp = 0.0;
-                for(k=0; k < stateCount; k++){
-                    clikelihood_tmp += freqs[k] * seerootPartials[l++];
-                }
-                clikelihood[j++] = clikelihood_tmp;
-            }
-        }
-
-        ///now calculate weights
-        t = 0;
-        for(s = 0; s < rateCategoryCount; s++){
-            double ws = weights[s];
-            double rs = rates[s];
-            for(m=0; m < nPatterns; m++){
-                l = 0;
-                numerator = 0;
-                denominator = 0;
-                for(k = 0; k < stateCount; k++){
-                    tmp = 0.0;
-                    for(j=0; j < stateCount; j++){
-                        tmp += QT[k * stateCount + j] * prePartialsPtr[j];
-                    }
-                    numerator += tmp * postPartialsPtr[k];
-                    denominator += postPartialsPtr[k] * prePartialsPtr[k];
-                }
-                postPartialsPtr += stateCount;
-                prePartialsPtr  += stateCount;
-//                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
-                tmpNumerator[t] = ws * rs * numerator;
-                //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
-                grand_numerator[m] += tmpNumerator[t];
-                grand_denominator[m] += ws * denominator /*clikelihood[t]*/;
-                t++;
-                std::cout<<numerator / denominator <<"  ";
-            }
-            std::cout<<std::endl;
-        }
-
-//        std::cout << "site-rate like";
-//        for (s = 0; s < rateCategoryCount; ++s) {
+//        double * prePartialsPtr = seeprePartials;
+//        double * postPartialsPtr = seepostPartials;
+//
+//        double denominator = 0;
+//        double numerator = 0;
+//
+//        double tmp = 0;
+//        int k, j, l, m, s, t;
+//        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": \n";
+//
+//        ///get likelihood for each rate category first
+//        double clikelihood[rateCategoryCount * nPatterns];
+//        l = 0; j = 0;
+//        for(s = 0; s < rateCategoryCount; s++){
+//            for(m = 0; m < nPatterns; m++){
+//                double clikelihood_tmp = 0.0;
+//                for(k=0; k < stateCount; k++){
+//                    clikelihood_tmp += freqs[k] * seerootPartials[l++];
+//                }
+//                clikelihood[j++] = clikelihood_tmp;
+//            }
+//        }
+//
+//        ///now calculate weights
+//        t = 0;
+//        for(s = 0; s < rateCategoryCount; s++){
 //            double ws = weights[s];
-//            for (m = 0; m < nPatterns; ++m) {
-//                double like = 0;
-//                for (k = 0; k < stateCount; ++k) {
-//                    double product = seeprePartials[t] * seepostPartials[t];
-//                    like += product;
-//                    ++t;
+//            double rs = rates[s];
+//            for(m=0; m < nPatterns; m++){
+//                l = 0;
+//                numerator = 0;
+//                denominator = 0;
+//                for(k = 0; k < stateCount; k++){
+//                    tmp = 0.0;
+//                    for(j=0; j < stateCount; j++){
+//                        tmp += QT[k * stateCount + j] * prePartialsPtr[j];
+//                    }
+//                    numerator += tmp * postPartialsPtr[k];
+//                    denominator += postPartialsPtr[k] * prePartialsPtr[k];
 //                }
-//                std::cout << " " << like;
+//                postPartialsPtr += stateCount;
+//                prePartialsPtr  += stateCount;
+////                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
+//                tmpNumerator[t] = ws * rs * numerator;
+//                //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
+//                grand_numerator[m] += tmpNumerator[t];
+//                grand_denominator[m] += ws * denominator /*clikelihood[t]*/;
+//                t++;
+//                std::cout<<numerator / denominator <<"  ";
 //            }
+//            std::cout<<std::endl;
 //        }
-//        std::cout << std::endl;
 //
-//        int noCategory = -1;
+//        for(m=0; m < nPatterns; m++){
+//            std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
+//        }
+//        std::cout<<std::endl;
 //
-//        std::vector<double> logLikelihoodPerCategory(nPatterns * rateCategoryCount);
+//        std::cout << "n: ";
+//        for(m=0; m < nPatterns; m++){
+//            std::cout<<grand_numerator[m] << "  ";
+//        }
+//        std::cout<<std::endl;
 //
-//        beagleCalculateRootLogLikelihoods(instance,               // instance
-//                                          (const int *)&rootIndex,// bufferIndices
-//                                          (const int *)&noCategory,                // weights
-//                                          &stateFrequencyIndex,                  // stateFrequencies
-//                                          &cumulativeScalingIndex,// cumulative scaling index
-//                                          1,                      // count
-//                                          logLikelihoodPerCategory.data());         // outLogLikelihoods
-//        std::cout << "siteLogLikelihood =";
-//        for (int i = 0; i < nPatterns * rateCategoryCount; ++i) {
-//            std::cout << " " << exp(logLikelihoodPerCategory[i]);
-//        }
-//        std::cout << std::endl;
-
-
-
-
-//        BEAGLE_DLLEXPORT int beagleCalculateEdgeLogDerivatives(int instance,
-//                                                               const int *postBufferIndices,
-//                                                               const int *preBufferIndices,
-//                                                               const int *firstDerivativeIndices,
-//                                                               const int *secondDerivativeIndices,
-//                                                               const int *categoryWeightsIndices,
-//                                                               const int *categoryRatesIndices,
-//                                                               const int *cumulativeScaleIndices,
-//                                                               int count,
-//                                                               const double *siteLogLikelihoods,
-//                                                               double *outLogFirstDerivative,
-//                                                               double *outLogDiagonalSecondDerivative);
-
-//        exit(-1);
-
-
-//        std::cout<<"  Grand numerator:\n    ";
+//        std::cout << "d: ";
 //        for(m=0; m < nPatterns; m++){
-//            std::cout<<grand_numerator[m]<< "  ";
-//        }
-//        std::cout<<"\n  Grand denominator:\n    ";
-//        for(m=0; m < nPatterns; m++){
-//            std::cout<<grand_denominator[m] << "  ";
-//        }
-//        std::cout<<"\n  Grand derivative:\n    ";
-        for(m=0; m < nPatterns; m++){
-            std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
-        }
-        std::cout<<std::endl;
-
-        std::cout << "n: ";
-        for(m=0; m < nPatterns; m++){
-            std::cout<<grand_numerator[m] << "  ";
-        }
-        std::cout<<std::endl;
-
-        std::cout << "d: ";
-        for(m=0; m < nPatterns; m++){
-            std::cout<< grand_denominator[m] << "  ";
-        }
-        std::cout<<std::endl;
-
-//        for(m=0; m < nPatterns; m++){
-//            l = 0;
-//            numerator = 0;
-//            denominator = 0;
-//            for(k = 0; k < stateCount; k++){
-//                tmp = 0.0;
-//                for(j=0; j < stateCount; j++){
-//                    tmp += QT[l++]*prePartialsPtr[j];
-//                }
-//                numerator += tmp * postPartialsPtr[k];
-//                denominator += postPartialsPtr[k] * prePartialsPtr[k];
-//            }
-//            postPartialsPtr += stateCount;
-//            prePartialsPtr  += stateCount;
-//            std::cout<<numerator / denominator <<"  ";
+//            std::cout<< grand_denominator[m] << "  ";
 //        }
 //        std::cout<<std::endl;
 
         std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
 
-        l = 0;
-        for(s = 0; s < rateCategoryCount; s++){
+        int l = 0;
+        for(int s = 0; s < rateCategoryCount; s++){
             std::cout<<"  rate category"<< s+1<< ": \n";
-            for(k = 0; k<nPatterns; k++){
-                for(j=0; j < stateCount; j++){
+            for(int k = 0; k<nPatterns; k++){
+                for(int j=0; j < stateCount; j++){
                     std::cout<<seeprePartials[l++]<<", ";
                 }
                 std::cout<<std::endl;
@@ -770,13 +713,13 @@ int main( int argc, const char* argv[] )
     int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
     beagleCalculateEdgeDerivatives(instance,
-                                      postBufferIndices, preBufferIndices,
-                                      firstDervIndices,
-                                      &categoryWeightsIndex,
-                                      4,
-                                      firstBuffer.data(),
-                                      sumBuffer.data(),
-                                      NULL);
+                                   postBufferIndices, preBufferIndices,
+                                   firstDervIndices,
+                                   &categoryWeightsIndex,
+                                   4,
+                                   firstBuffer.data(),
+                                   sumBuffer.data(),
+                                   NULL);
 
     std::cout << "check gradients  :";
     for (int i = 0; i < 4 * nPatterns; ++i) {
@@ -794,16 +737,13 @@ int main( int argc, const char* argv[] )
         for (int k = 0; k < nPatterns; ++k) {
             sum += firstBuffer[i * nPatterns + k];
         }
-        std::cerr << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
+        std::cout << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
     }
 
 
     free(patternWeights);
 
 	free(patternLogLik);
-	free(humanPartials);
-	free(chimpPartials);
-	free(gorillaPartials);
     free(seepostPartials);
     free(seeprePartials);
     free(seerootPartials);
