@@ -160,7 +160,7 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
-    bool useTipStates = true;
+    bool useTipStates = false;
 
     int whichDevice = -1;
     if (useGpu) {
@@ -524,7 +524,7 @@ int main( int argc, const char* argv[] )
         }
     }
     beagleSetPartials(instance, rootPreIndex, seerootPartials);
-    fprintf(stderr, "Setting preroot: %d\n", rootPreIndex);
+    fprintf(stdout, "Setting preroot: %d\n", rootPreIndex);
 
 //    beagleSetRootPrePartials(instance, // TODO Remove from API -- not necessary?
 //                             (const int *) &rootPreIndex,               // bufferIndices

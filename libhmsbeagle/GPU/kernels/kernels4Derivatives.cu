@@ -2,6 +2,18 @@
 #define multBy4(x)  ((x) << 2)
 #define multBy16(x) ((x) << 4)
 
+#define DETERMINE_INDICES_4_GPU()\
+    int tx = KW_LOCAL_ID_0;\
+    int state = tx & 0x3;\
+    int pat = tx >> 2;\
+    int patIdx = KW_LOCAL_ID_1;\
+    int matrix = KW_GROUP_ID_1;\
+    int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;\
+    int deltaPartialsByState = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);\
+    int deltaPartialsByMatrix = __umul24(matrix, multBy4(endPattern));\
+    int x2 = multBy16(matrix);\
+    int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+    
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
