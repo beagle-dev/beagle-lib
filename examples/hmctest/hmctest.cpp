@@ -22,9 +22,9 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
-char *chimp = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
-char *gorilla = (char*)"GAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTGAGTG";
+char *human = (char*)"AAAT";
+char *chimp = (char*)"GAGT";
+char *gorilla = (char*)"GAGG";
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
@@ -398,22 +398,18 @@ int main( int argc, const char* argv[] )
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-    if (useGpu) {
-        beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
-    } else {
-        beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
-    }
+    beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
     beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
-    int transposeIndices[4] = { 6, 7, 8, 9 };
+    int originalIndices[6]  = { 0, 1, 2, 3, 4, 5 };
+    int transposeIndices[6] = { 6, 7, 8, 9, 10, 11 };
+
+    beagleTransposeTransitionMatrices(instance, originalIndices, transposeIndices, 6);
 
     double* matrix1 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
     double* matrix2 = (double*) malloc(sizeof(double) * stateCount * stateCount * rateCategoryCount);
 
     beagleGetTransitionMatrix(instance, 0, matrix1);
-
-    beagleTransposeTransitionMatrices(instance, nodeIndices, transposeIndices, 4);
-
     beagleGetTransitionMatrix(instance, 6, matrix2);
 
     int nodeId = 0;
@@ -583,11 +579,6 @@ int main( int argc, const char* argv[] )
 //    }
 
 
-//  print pre-order partials and edge length log-likelihood gradient to screen
-//  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp
-//  need to consider rate variation case
-
-
     double * seeprePartials  = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
 
@@ -704,7 +695,7 @@ int main( int argc, const char* argv[] )
                                    postBufferIndices, preBufferIndices,
                                    firstDervIndices,
                                    &categoryWeightsIndex,
-                                   4,
+                                   4 + transpose,
                                    firstBuffer.data(),
                                    sumBuffer.data(),
                                    NULL);

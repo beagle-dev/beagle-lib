@@ -1876,10 +1876,11 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlowScalersLog(KW_GLOBAL_VAR R
 
 }
 
-KW_GLOBAL_KERNEL void kernelMultpleNodeSiteReduction(KW_GLOBAL_VAR REAL* dOut,
-                                      KW_GLOBAL_VAR REAL* dIn,
-                                      KW_GLOBAL_VAR REAL* dPatternWeights,
-                                      int patternCount) {
+KW_GLOBAL_KERNEL void kernelMultipleNodeSiteReduction(KW_GLOBAL_VAR REAL* dOut,
+                                                      KW_GLOBAL_VAR REAL* dIn,
+                                                      KW_GLOBAL_VAR REAL* dPatternWeights,
+                                                      int outOffset,
+                                                      int patternCount) {
 #ifdef FW_OPENCL_CPU
     // TODO
 #else
@@ -1910,7 +1911,48 @@ KW_GLOBAL_KERNEL void kernelMultpleNodeSiteReduction(KW_GLOBAL_VAR REAL* dOut,
     }
 
     if (tx == 0) {
-        dOut[node] = reduce[0];
+        dOut[outOffset + node] = reduce[0];
+    }
+#endif
+}
+
+KW_GLOBAL_KERNEL void kernelMultipleNodeSiteSquaredReduction(KW_GLOBAL_VAR REAL* dOut,
+                                                             KW_GLOBAL_VAR REAL* dIn,
+                                                             KW_GLOBAL_VAR REAL* dPatternWeights,
+                                                             int outOffset,
+                                                             int patternCount) {
+#ifdef FW_OPENCL_CPU
+    // TODO
+#else
+
+    KW_LOCAL_MEM REAL reduce[MULTI_NODE_SUM_BLOCK_SIZE];
+
+    int tx = KW_LOCAL_ID_0;
+    int node = KW_GROUP_ID_0;
+    int offset = patternCount * node;
+    int pattern = tx;
+
+    REAL sum = 0;
+
+    while (pattern < patternCount) {
+        REAL value = dIn[offset + pattern];
+        FMA(value * value, dPatternWeights[pattern], sum);
+        pattern += MULTI_NODE_SUM_BLOCK_SIZE;
+    }
+
+    reduce[tx] = sum;
+
+    KW_LOCAL_FENCE;
+
+    for (unsigned int s = MULTI_NODE_SUM_BLOCK_SIZE / 2; s > 0; s >>= 1) {
+        if (tx < s) {
+            reduce[tx] += reduce[tx + s];
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    if (tx == 0) {
+        dOut[outOffset + node] = reduce[0];
     }
 #endif
 }

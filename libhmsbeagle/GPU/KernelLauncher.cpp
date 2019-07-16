@@ -290,7 +290,10 @@ void KernelLauncher::LoadKernels() {
             "kernelPartialsStatesEdgeFirstDerivatives");
 
     fMultipleNodeSiteReduction = gpu->GetFunction(
-            "kernelMultpleNodeSiteReduction");
+            "kernelMultipleNodeSiteReduction");
+
+    fMultipleNodeSiteSquaredReduction = gpu->GetFunction(
+            "kernelMultipleNodeSiteSquaredReduction");
 
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
@@ -787,6 +790,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
                                                GPUPtr inSiteValues,
                                                GPUPtr weights,
+                                               unsigned int outputOffset,
                                                unsigned int stride,
                                                unsigned int count) {
 
@@ -803,14 +807,45 @@ void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
 
     gpu->LaunchKernel(fMultipleNodeSiteReduction,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,
-                      3, 4,
-                      outSiteValues, inSiteValues, weights, stride);
+                      3, 5,
+                      outSiteValues, inSiteValues, weights, outputOffset, stride);
     gpu->SynchronizeDevice();
 
     bgMultiNodeSumGrid.x = saved;
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::MultipleNodeSiteReduction\n");
+#endif
+}
+
+void KernelLauncher::MultipleNodeSiteSquaredReduction(GPUPtr outSiteValues,
+                                                      GPUPtr inSiteValues,
+                                                      GPUPtr weights,
+                                                      unsigned int outputOffset,
+                                                      unsigned int stride,
+                                                      unsigned int count) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::MultipleNodeSiteSquaredReduction\n");
+#endif
+
+    unsigned int saved = bgMultiNodeSumGrid.y;
+    bgMultiNodeSumGrid.x = count;
+
+//    fprintf(stderr, "Executing for %d nodes\n", count);
+//    fprintf(stderr, "block = %d %d\n", bgMultiNodeSumBlock.x, bgMultiNodeSumBlock.y);
+//    fprintf(stderr, "grid  = %d %d\n", bgMultiNodeSumGrid.x, bgMultiNodeSumGrid.y);
+
+    gpu->LaunchKernel(fMultipleNodeSiteSquaredReduction,
+                      bgMultiNodeSumBlock, bgMultiNodeSumGrid,
+                      3, 5,
+                      outSiteValues, inSiteValues, weights, outputOffset, stride);
+    gpu->SynchronizeDevice();
+
+    bgMultiNodeSumGrid.x = saved;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving KernelLauncher::MultipleNodeSiteSquaredReduction\n");
 #endif
 }
 

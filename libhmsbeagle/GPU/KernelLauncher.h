@@ -64,6 +64,7 @@ private:
 	GPUFunction fPartialsPartialsEdgeFirstDerivatives;
 	GPUFunction fPartialsStatesEdgeFirstDerivatives;
 	GPUFunction fMultipleNodeSiteReduction;
+	GPUFunction fMultipleNodeSiteSquaredReduction;
 	GPUFunction fPartialsPartialsGrowing;
 	GPUFunction fPartialsStatesGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
@@ -345,8 +346,16 @@ public:
 	void MultipleNodeSiteReduction(GPUPtr outSiteValues,
 								   GPUPtr inSiteValues,
 								   GPUPtr weights,
+								   unsigned int outOffset,
 								   unsigned int stride,
 								   unsigned int count);
+
+	void MultipleNodeSiteSquaredReduction(GPUPtr outSiteValues,
+								          GPUPtr inSiteValues,
+								          GPUPtr weights,
+								          unsigned int outOffset,
+								          unsigned int stride,
+								          unsigned int count);
 
     void IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,

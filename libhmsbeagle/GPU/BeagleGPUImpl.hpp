@@ -4149,22 +4149,40 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
         }
     }
 
-    if (outSumFirstDerivatives != NULL) {
+    if (outSumFirstDerivatives != NULL || outSumSquaredFirstDerivatives != NULL) {
 
-        kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
-                                           dMultipleDerivatives,
-                                           dPatternWeights,
-                                           kPaddedPatternCount,
-                                           totalCount);
+        int length = 0;
+        if (outSumFirstDerivatives != NULL) {
+            kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
+                                               dMultipleDerivatives,
+                                               dPatternWeights,
+                                               length,
+                                               kPaddedPatternCount,
+                                               totalCount);
+            length += totalCount;
+        }
 
-        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * totalCount);
+        if (outSumSquaredFirstDerivatives != NULL) {
+            kernels->MultipleNodeSiteSquaredReduction(dMultipleDerivativeSum,
+                                                      dMultipleDerivatives,
+                                                      dPatternWeights,
+                                                      length,
+                                                      kPaddedPatternCount,
+                                                      totalCount);
+            length += totalCount;
+        }
 
-        beagleMemCpy(outSumFirstDerivatives, hTmp.data(), totalCount);
-    }
+        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * length);
 
-    if (outSumSquaredFirstDerivatives != NULL) {
-        std::cerr << "Not yet implemented" << std::endl;
-        exit(-1);
+        length = 0;
+        if (outSumFirstDerivatives != NULL) {
+            beagleMemCpy(outSumFirstDerivatives, hTmp.data(), totalCount);
+            length += totalCount;
+        }
+
+        if (outSumSquaredFirstDerivatives != NULL) {
+            beagleMemCpy(outSumSquaredFirstDerivatives, hTmp.data() + length, totalCount);
+        }
     }
 
     return BEAGLE_SUCCESS;
