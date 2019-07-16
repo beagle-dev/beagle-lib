@@ -30,33 +30,36 @@ char *gorilla = (char*)"AAAT";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
 //char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTATTTCTACTAGGACTATGAGAATTGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTGTCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTCACATCCTTCCCGTACTAAGAAATTTAGGTTAAACATAGACCAAGAGCCTTCAAAGCCCTTAGTAAGTTA-CAACACTTAATTTCTGTAAGGACTGCAAAACCCTACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATCAATGGGACTCAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAGTCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAT-TCACCTCGGAGCTTGGTAAAAAGAGGCCCAGCCTCTGTCTTTAGATTTACAGTCCAATGCCTTA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGACCTTCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAGGTTAAATTACGGGTT-AAACCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCGTTAACCTTTTAAGTTAAAGATTAAGAGTATCGGCACCTCTTTGCAGTGA";
 
-int* getStates(char *sequence) {
+int* getStates(char *sequence, int repeats) {
 	int n = strlen(sequence);
-	int *states = (int*) malloc(sizeof(int) * n);
+	int *states = (int*) malloc(sizeof(int) * n * repeats);
 
-	for (int i = 0; i < n; i++) {
-		switch (sequence[i]) {
-			case 'A':
-				states[i] = 0;
-				break;
-			case 'C':
-				states[i] = 1;
-				break;
-			case 'G':
-				states[i] = 2;
-				break;
-			case 'T':
-				states[i] = 3;
-				break;
-			default:
-				states[i] = 4;
-				break;
-		}
-	}
+	int k = 0;
+	for (int r = 0; r < repeats; ++r) {
+        for (int i = 0; i < n; i++) {
+            switch (sequence[i]) {
+                case 'A':
+                    states[k++] = 0;
+                    break;
+                case 'C':
+                    states[k++] = 1;
+                    break;
+                case 'G':
+                    states[k++] = 2;
+                    break;
+                case 'T':
+                    states[k++] = 3;
+                    break;
+                default:
+                    states[k++] = 4;
+                    break;
+            }
+        }
+    }
 	return states;
 }
 
-double* getPartials(char *sequence) {
+double* getPartials(char *sequence, int repeats) {
 	int n = strlen(sequence);
 	double *partials = (double*)malloc(sizeof(double) * n * 4);
 
@@ -148,8 +151,10 @@ int main( int argc, const char* argv[] )
     // is nucleotides...
     int stateCount = 4;
 
+    int nRepeats = 1;
+
     // get the number of site patterns
-	int nPatterns = strlen(human);
+	int nPatterns = strlen(human) * nRepeats;
 
     // change # rate category to 2
 //    int rateCategoryCount = 4;
@@ -208,9 +213,9 @@ int main( int argc, const char* argv[] )
 
     if (useTipStates) {
         // set the sequences for each tip using state likelihood arrays
-        int *humanStates = getStates(human);
-        int *chimpStates = getStates(chimp);
-        int *gorillaStates = getStates(gorilla);
+        int *humanStates = getStates(human, nRepeats);
+        int *chimpStates = getStates(chimp, nRepeats);
+        int *gorillaStates = getStates(gorilla, nRepeats);
 
         beagleSetTipStates(instance, 0, humanStates);
         beagleSetTipStates(instance, 1, chimpStates);
@@ -222,9 +227,9 @@ int main( int argc, const char* argv[] )
 
     } else {
         // set the sequences for each tip using partial likelihood arrays
-        double *humanPartials = getPartials(human);
-        double *chimpPartials = getPartials(chimp);
-        double *gorillaPartials = getPartials(gorilla);
+        double *humanPartials = getPartials(human, nRepeats);
+        double *chimpPartials = getPartials(chimp, nRepeats);
+        double *gorillaPartials = getPartials(gorilla, nRepeats);
 
         beagleSetTipPartials(instance, 0, humanPartials);
         beagleSetTipPartials(instance, 1, chimpPartials);
