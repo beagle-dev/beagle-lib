@@ -47,7 +47,6 @@ add_library(hmsbeagle-opencl MODULE
         ../OpenCLPlugin.cpp
         ../OpenCLPlugin.h
         ../Precision.h
-        ../kernels/BeagleOpenCL_kernels.h
         )
 
 add_dependencies(hmsbeagle-opencl OpenKernels)

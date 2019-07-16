@@ -5,7 +5,6 @@ add_library(hmsbeagle SHARED
         beagle.cpp
         beagle.h
         BeagleImpl.h
-        config.h
         platform.h
 
         benchmark/BeagleBenchmark.h
