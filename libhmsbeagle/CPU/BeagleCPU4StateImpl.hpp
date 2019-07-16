@@ -1026,13 +1026,26 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
         const int patternOffset = nodeNum * kPatternCount;
 
         if (tipStates != NULL) {
-            calcEdgeDerivativeStates(tipStates, preOrderPartial, firstDerivativeIndex, secondDerivativeIndex,
-                                     wt, rt, outFirstDerivative, outDiagonalSecondDerivative, patternOffset,
+            calcEdgeDerivativeStates(tipStates, preOrderPartial, firstDerivativeIndex, -1,
+                                     wt, rt, outFirstDerivative, NULL, patternOffset,
                                      startPattern, endPattern);
+
+            if (outDiagonalSecondDerivative != NULL) {
+                calcEdgeDerivativeStates(tipStates, preOrderPartial, secondDerivativeIndex, -1,
+                                         wt, rt, outDiagonalSecondDerivative, NULL, patternOffset,
+                                         startPattern, endPattern);
+            }
+
         } else {
-            calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, firstDerivativeIndex, secondDerivativeIndex,
-                                       wt, rt, outFirstDerivative, outDiagonalSecondDerivative, patternOffset,
+            calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, firstDerivativeIndex, -1,
+                                       wt, rt, outFirstDerivative, NULL, patternOffset,
                                        startPattern, endPattern);
+
+            if (outDiagonalSecondDerivative != NULL) {
+                calcEdgeDerivativePartials(postOrderPartial, preOrderPartial, secondDerivativeIndex, -1,
+                                           wt, rt, outDiagonalSecondDerivative, NULL, patternOffset,
+                                           startPattern, endPattern);
+            }
         }
     }
 

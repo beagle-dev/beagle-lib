@@ -160,7 +160,7 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
-    bool useTipStates = false;
+    bool useTipStates = true;
 
     int whichDevice = -1;
     if (useGpu) {
@@ -334,12 +334,12 @@ int main( int argc, const char* argv[] )
                        0.0, 0.0, 0.0, 0.0 };
 
     ///Q^T matrix
-    double QT[4 * 4] = {
-            -1.2857138,  0.1428570,  0.1428570,  0.1428570,
-            0.4285712, -0.9999997,  0.4285714,  0.4285713,
-            0.2857142,  0.2857143, -1.1428568,  0.2857142,
-            0.5714284,  0.5714284,  0.5714284, -0.8571426
-    };
+//    double QT[4 * 4] = {
+//            -1.2857138,  0.1428570,  0.1428570,  0.1428570,
+//            0.4285712, -0.9999997,  0.4285714,  0.4285713,
+//            0.2857142,  0.2857143, -1.1428568,  0.2857142,
+//            0.5714284,  0.5714284,  0.5714284, -0.8571426
+//    };
 
     double Q[4 * 4 * 2] = {
             -1.285714,  0.4285712,  0.2857142,  0.5714284,
@@ -365,22 +365,14 @@ int main( int argc, const char* argv[] )
 
     std::vector<double> scaledQ(4 * 4 * 2);
     std::vector<double> scaledQ2(4 * 4 * 2);
-    std::vector<double> scaledQT(4 * 4 * 2);
+//    std::vector<double> scaledQT(4 * 4 * 2);
 
     for (int rate = 0; rate < rateCategoryCount; ++rate) {
         for (int entry = 0; entry < stateCount * stateCount; ++entry) {
             scaledQ[entry + rate * stateCount * stateCount] = Q[entry + rate * stateCount * stateCount] * rates[rate];
             scaledQ2[entry + rate * stateCount * stateCount] = Q2[entry + rate * stateCount * stateCount] * rates[rate] * rates[rate];
         }
-
-        for (int i = 0; i < stateCount; ++i) {
-            for (int j = 0; j < stateCount; ++j) {
-                scaledQT[i * stateCount + j + rate * stateCount * stateCount] =
-                        scaledQ[j * stateCount + i + rate * stateCount * stateCount];
-            }
-        }
     }
-
 
     // set the Eigen decomposition
     beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
@@ -560,7 +552,7 @@ int main( int argc, const char* argv[] )
                                   rootIndex, firstDervIndices, secondDervIndices,
                                   categoryWeightsIndex, categoryRatesIndex,
                                   stateFrequencyIndex, &cumulativeScalingIndex,
-                                  4, gradient, NULL);
+                                  4, gradient, diagonalHessian);
 
     std::cout<<"Gradient: \n";
     for (int i = 0; i < 4; i++) {
