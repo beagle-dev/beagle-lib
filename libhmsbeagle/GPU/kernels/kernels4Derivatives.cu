@@ -13,7 +13,7 @@
     int deltaPartialsByMatrix = __umul24(matrix, multBy4(endPattern));\
     int x2 = multBy16(matrix);\
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
-    
+
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -213,7 +213,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         if (patIdx == 0 ) {
-            sMatrix2[tx] = matrix2[tx];
+            sMatrix2[multBy4(state) | pat] = matrix2[tx]; // transposed
         }
 
         KW_LOCAL_FENCE;
@@ -356,7 +356,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         if (patIdx == 0 ) {
-            sMatrix2[tx] = matrix2[tx];
+            sMatrix2[multBy4(state) | pat] = matrix2[tx]; // transposed
         }
 
         KW_LOCAL_FENCE;
