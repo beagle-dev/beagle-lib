@@ -108,8 +108,8 @@ inline int ConvertSMVer2CoresDRV(int major, int minor)
 #define SAFE_CUDA(call) { \
                             CUresult error = call; \
                             if(error != CUDA_SUCCESS) { \
-                                fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n", \
-                                        GetCUDAErrorDescription(error), __FILE__, __LINE__); \
+                                fprintf(stderr, "CUDA error: \"%s\" (%d) from file <%s>, line %i.\n", \
+                                        GetCUDAErrorDescription(error), error, __FILE__, __LINE__); \
                                 exit(-1); \
                             } \
                         }
@@ -123,83 +123,79 @@ inline int ConvertSMVer2CoresDRV(int major, int minor)
 GPUInterface::GPUInterface() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GPUInterface\n");
-#endif    
-    
+#endif
+
     cudaDevice = (CUdevice) 0;
     cudaContext = NULL;
     cudaModule = NULL;
     cudaStreams = NULL;
-    cudaEvents = NULL;
+    cudaEvent = NULL;
     kernelResource = NULL;
     supportDoublePrecision = true;
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
-#endif    
+#endif
 }
 
 GPUInterface::~GPUInterface() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
-#endif    
+#endif
 
     if (cudaStreams != NULL) {
         for(int i=0; i<numStreams; i++) {
-            if (cudaStreams[i] != NULL)
+            if (cudaStreams[i] != NULL && cudaStreams[i] != CU_STREAM_LEGACY)
                 SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
         }
         free(cudaStreams);
     }
 
-    if (cudaEvents != NULL) {
-        for(int i=0; i<numStreams; i++) {
-            if (cudaEvents[i] != NULL)
-                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
-        }
-        free(cudaEvents);
+    if (cudaEvent != NULL) {
+        SAFE_CUDA(cuEventDestroy(cudaEvent));
     }
 
     if (cudaContext != NULL) {
         SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-        SAFE_CUDA(cuCtxDestroy(cudaContext));
+        SAFE_CUDA(cuDevicePrimaryCtxRelease(cudaDevice));
     }
-    
+
     if (kernelResource != NULL) {
         delete kernelResource;
     }
-    
+
     if (resourceMap) {
         delete resourceMap;
     }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::~GPUInterface\n");
-#endif    
-    
+#endif
+
 }
 
 int GPUInterface::Initialize() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::Initialize\n");
-#endif    
-    
+#endif
+
     resourceMap = new std::map<int, int>;
-    
+
     // Driver init; CUDA manual: "Currently, the Flags parameter must be 0."
     CUresult error = cuInit(0);
-    
+
     if (error != CUDA_SUCCESS) {
         return 0;
     }
-    
+
     int numDevices = 0;
     SAFE_CUDA(cuDeviceGetCount(&numDevices));
-    
+
     CUdevice tmpCudaDevice;
     int capabilityMajor;
     int capabilityMinor;
     int currentDevice = 0;
-    for (int i=0; i < numDevices; i++) {        
+    for (int i=0; i < numDevices; i++) {
         SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, i));
         SAFE_CUDA(cuDeviceGetAttribute(&capabilityMajor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
         SAFE_CUDA(cuDeviceGetAttribute(&capabilityMinor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
@@ -207,23 +203,23 @@ int GPUInterface::Initialize() {
             resourceMap->insert(std::make_pair(currentDevice++, i));
         }
     }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::Initialize\n");
-#endif    
-    
+#endif
+
     return 1;
 }
 
 int GPUInterface::GetDeviceCount() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetDeviceCount\n");
-#endif        
-        
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceCount\n");
-#endif            
-    
+#endif
+
     return resourceMap->size();
 }
 
@@ -260,26 +256,28 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
                              long flags) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
-#endif            
+#endif
 
     SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
-    
-    unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
 
-    if (flags & BEAGLE_FLAG_SCALING_DYNAMIC) {
-        ctxFlags |= CU_CTX_MAP_HOST;
-    }
+    // unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
 
-    CUresult error = cuCtxCreate(&cudaContext, ctxFlags, cudaDevice);
-    if(error != CUDA_SUCCESS) { 
-        fprintf(stderr, "CUDA error: \"%s\" from file <%s>, line %i.\n", 
-                GetCUDAErrorDescription(error), __FILE__, __LINE__); 
+    // if (flags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+    //     ctxFlags |= CU_CTX_MAP_HOST;
+    // }
+
+    CUresult error = cuDevicePrimaryCtxRetain(&cudaContext, cudaDevice);
+    if(error != CUDA_SUCCESS) {
+        fprintf(stderr, "CUDA error: \"%s\" (%d) from file <%s>, line %i.\n",
+                GetCUDAErrorDescription(error), error, __FILE__, __LINE__);
         if (error == CUDA_ERROR_INVALID_DEVICE) {
             fprintf(stderr, "(The requested CUDA device is likely set to compute exclusive mode. This mode prevents multiple processes from running on the device.)");
         }
-        exit(-1); 
-    } 
-    
+        exit(-1);
+    }
+
+    SAFE_CUDA(cuCtxSetCurrent(cudaContext));
+
     InitializeKernelResource(paddedStateCount, flags & BEAGLE_FLAG_PRECISION_DOUBLE);
 
     if (!kernelResource) {
@@ -290,80 +288,45 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     kernelResource->patternCount = paddedPatternCount;
     kernelResource->unpaddedPatternCount = unpaddedPatternCount;
     kernelResource->flags = flags;
-                
+
     SAFE_CUDA(cuModuleLoadData(&cudaModule, kernelResource->kernelCode));
 
-    if ((paddedPatternCount < BEAGLE_MULTI_GRID_MAX || flags & BEAGLE_FLAG_PARALLELOPS_GRID) && !(flags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
-        numStreams = 1;
-        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
-        cudaStreams[0] = NULL;
-        CUevent event;
-        for(int i=0; i<2; i++) {
-            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-            cudaEvents[i] = event;
-        }
-    } else {
-        numStreams = tipCount/2 + 1;
-        if (numStreams > BEAGLE_STREAM_COUNT) {
-            numStreams = BEAGLE_STREAM_COUNT;
-        }
-        cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-        CUstream stream;
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
-        CUevent event;
-        for(int i=0; i<numStreams; i++) {
-            SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
-            cudaStreams[i] = stream;
-            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-            cudaEvents[i] = event;
-        }
-        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-        cudaEvents[numStreams] = event;
-    }
+    numStreams = 1;
+    cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
+    // CUstream stream;
+    // SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
+    cudaStreams[0] = CU_STREAM_LEGACY;
+
+    cuEventCreate(&cudaEvent, CU_EVENT_DISABLE_TIMING);
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SetDevice\n");
-#endif            
-    
+#endif
+
 }
 
-void GPUInterface::ResizeStreamCount(int newStreamCount) {    
+void GPUInterface::ResizeStreamCount(int newStreamCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::ResizeStreamCount\n");
-#endif                
+#endif
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
 
     SAFE_CUDA(cuCtxSynchronize());
 
     if (cudaStreams != NULL) {
         for(int i=0; i<numStreams; i++) {
-            if (cudaStreams[i] != NULL)
+            if (cudaStreams[i] != NULL && cudaStreams[i] != CU_STREAM_LEGACY)
                 SAFE_CUDA(cuStreamDestroy(cudaStreams[i]));
         }
         free(cudaStreams);
     }
 
-    if (cudaEvents != NULL) {
-        for(int i=0; i<numStreams; i++) {
-            if (cudaEvents[i] != NULL)
-                SAFE_CUDA(cuEventDestroy(cudaEvents[i]));
-        }
-        free(cudaEvents);
-    }
-
     if (newStreamCount == 1) {
         numStreams = 1;
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
-        cudaStreams[0] = NULL;
-        CUevent event;
-        for(int i=0; i<2; i++) {
-            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-            cudaEvents[i] = event;
-        }
+        cudaStreams[0] = CU_STREAM_LEGACY;
     } else {
         numStreams = newStreamCount;
         if (numStreams > BEAGLE_STREAM_COUNT) {
@@ -371,48 +334,46 @@ void GPUInterface::ResizeStreamCount(int newStreamCount) {
         }
         cudaStreams = (CUstream*) malloc(sizeof(CUstream) * numStreams);
         CUstream stream;
-        cudaEvents = (CUevent*) malloc(sizeof(CUevent) * (numStreams + 1));
-        CUevent event;
         for(int i=0; i<numStreams; i++) {
             SAFE_CUDA(cuStreamCreate(&stream, CU_STREAM_DEFAULT));
             cudaStreams[i] = stream;
-            SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-            cudaEvents[i] = event;
         }
-        SAFE_CUDA(cuEventCreate(&event, CU_EVENT_DISABLE_TIMING));
-        cudaEvents[numStreams] = event;
     }
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::ResizeStreamCount\n");
-#endif                
+#endif
 }
 
-void GPUInterface::SynchronizeHost() {    
+void GPUInterface::SynchronizeHost() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeHost\n");
-#endif                
-    
+#endif
+
     SAFE_CUPP(cuCtxSynchronize());
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeHost\n");
-#endif                
+#endif
 }
 
 void GPUInterface::SynchronizeDevice() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SynchronizeDevice\n");
-#endif                
+#endif
 
-    SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], 0));
-    SAFE_CUPP(cuStreamWaitEvent(0, cudaEvents[numStreams], 0));
-    
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+
+    SAFE_CUDA(cuEventRecord(cudaEvent, 0));
+    SAFE_CUDA(cuStreamWaitEvent(0, cudaEvent, 0));
+
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDevice\n");
-#endif                
+#endif
 }
 
 void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamWaitIndex) {
@@ -426,27 +387,27 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
     if (streamWaitIndex >= 0)
         streamWait   = cudaStreams[streamWaitIndex % numStreams];
 
-    SAFE_CUPP(cuEventRecord(cudaEvents[numStreams], streamRecord));
-    SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvents[numStreams], 0));
-    
+    SAFE_CUPP(cuEventRecord(cudaEvent, streamRecord));
+    SAFE_CUPP(cuStreamWaitEvent(streamWait, cudaEvent, 0));
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeDeviceWithIndex\n");
-#endif                
+#endif
 }
 
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetFunction\n");
-#endif                    
-    
-    GPUFunction cudaFunction; 
-    
+#endif
+
+    GPUFunction cudaFunction;
+
     SAFE_CUPP(cuModuleGetFunction(&cudaFunction, cudaModule, functionName));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetFunction\n");
-#endif                
-    
+#endif
+
     return cudaFunction;
 }
 
@@ -458,10 +419,10 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                          ...) { // parameters
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
-#endif                
-    
+#endif
+
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-    
+
     void** params;
     GPUPtr* paramPtrs;
     unsigned int* paramInts;
@@ -471,7 +432,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     paramInts = (unsigned int*)malloc(sizeof(unsigned int) * totalParameterCount);
 
     va_list parameters;
-    va_start(parameters, totalParameterCount);  
+    va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
        paramPtrs[i] = (GPUPtr)(size_t)va_arg(parameters, GPUPtr);
        params[i] = (void*)&paramPtrs[i];
@@ -486,17 +447,17 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                              block.x, block.y, block.z, 0,
                              cudaStreams[0], params, NULL));
-    
+
     free(params);
     free(paramPtrs);
     free(paramInts);
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
-#endif                
-    
+#endif
+
 }
 
 void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
@@ -509,10 +470,10 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                          ...) { // parameters
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernelConcurrent\n");
-#endif                
-    
+#endif
+
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
-    
+
     void** params;
     GPUPtr* paramPtrs;
     unsigned int* paramInts;
@@ -522,7 +483,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     paramInts = (unsigned int*)malloc(sizeof(unsigned int) * totalParameterCount);
 
     va_list parameters;
-    va_start(parameters, totalParameterCount);  
+    va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
        paramPtrs[i] = (GPUPtr)(size_t)va_arg(parameters, GPUPtr);
        params[i] = (void*)&paramPtrs[i];
@@ -539,18 +500,16 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 
         if (waitIndex >= 0) {
             int waitIndexMod = waitIndex % numStreams;
-            SAFE_CUDA(cuStreamWaitEvent(cudaStreams[streamIndexMod], cudaEvents[waitIndexMod], 0));
+            SAFE_CUDA(cuStreamSynchronize(cudaStreams[waitIndexMod]));
         }
 
         SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                                  block.x, block.y, block.z, 0,
                                  cudaStreams[streamIndexMod], params, NULL));
-        
-        SAFE_CUDA(cuEventRecord(cudaEvents[streamIndexMod], cudaStreams[streamIndexMod]));
     } else {
         SAFE_CUDA(cuLaunchKernel(deviceFunction, grid.x, grid.y, grid.z,
                                  block.x, block.y, block.z, 0,
-                                 cudaStreams[0], params, NULL));        
+                                 cudaStreams[0], params, NULL));
     }
 
     free(params);
@@ -561,17 +520,17 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernelConcurrent\n");
-#endif                
-    
+#endif
+
 }
 
 void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");
 #endif
-    
+
     void* ptr;
-    
+
 #ifdef BEAGLE_MEMORY_PINNED
     ptr = AllocatePinnedHostMemory(memSize, false, false);
 #else
@@ -581,7 +540,7 @@ void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MallocHost\n");
 #endif
-    
+
     return ptr;
 }
 
@@ -589,21 +548,21 @@ void* GPUInterface::CallocHost(size_t size, size_t length) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::CallocHost\n");
 #endif
-    
+
     void* ptr;
     size_t memSize = size * length;
-    
+
 #ifdef BEAGLE_MEMORY_PINNED
     ptr = AllocatePinnedHostMemory(memSize, false, false);
     memset(ptr, 0, memSize);
 #else
     ptr = calloc(size, length);
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::CallocHost\n");
 #endif
-    
+
     return ptr;
 }
 
@@ -611,27 +570,27 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocatePinnedHostMemory\n");
 #endif
-    
+
     void* ptr;
-    
+
     unsigned int flags = 0;
-    
+
     if (writeCombined)
         flags |= CU_MEMHOSTALLOC_WRITECOMBINED;
     if (mapped)
         flags |= CU_MEMHOSTALLOC_DEVICEMAP;
 
     SAFE_CUPP(cuMemHostAlloc(&ptr, memSize, flags));
-    
-    
+
+
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated pinned host (CPU) memory %ld to %lu .\n", (long)ptr, ((long)ptr + memSize));
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
 #endif
-    
+
     return ptr;
 }
 
@@ -639,19 +598,19 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateMemory\n");
 #endif
-    
+
     GPUPtr ptr;
-    
+
     SAFE_CUPP(cuMemAlloc(&ptr, memSize));
 
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + memSize));
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateMemory\n");
 #endif
-    
+
     return ptr;
 }
 
@@ -667,11 +626,11 @@ GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateRealMemory\n");
 #endif
-    
+
     return ptr;
 }
 
@@ -681,13 +640,13 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
 #endif
 
     GPUPtr ptr;
-    
+
     SAFE_CUPP(cuMemAlloc(&ptr, SIZE_INT * length));
 
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateIntMemory\n");
 #endif
@@ -696,18 +655,18 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
 }
 
 GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
-                                      size_t offset, 
+                                      size_t offset,
                                       size_t size) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::CreateSubPointer\n");
-#endif    
-    
+#endif
+
     GPUPtr subPtr = dPtr + offset;
-        
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::CreateSubPointer\n");
-#endif    
-    
+#endif
+
     return subPtr;
 }
 
@@ -718,8 +677,8 @@ size_t GPUInterface::AlignMemOffset(size_t offset) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AlignMemOffset\n");
-#endif    
-    
+#endif
+
     return offset;
 }
 
@@ -728,14 +687,14 @@ void GPUInterface::MemsetShort(GPUPtr dest,
                                size_t count) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetShort\n");
-#endif    
-    
+#endif
+
     SAFE_CUPP(cuMemsetD16(dest, val, count));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetShort\n");
-#endif    
-    
+#endif
+
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
@@ -743,15 +702,14 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
-#endif    
-    
-    // SAFE_CUPP(cuMemcpyHtoDAsync(dest, src, memSize, cudaStreams[0]));
-    SAFE_CUPP(cuMemcpyHtoD(dest, src, memSize));
-    
+#endif
+
+    SAFE_CUPP(cuMemcpyHtoDAsync(dest, src, memSize, cudaStreams[0]));
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
-#endif    
-    
+#endif
+
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dest,
@@ -759,14 +717,14 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
-#endif        
-    
+#endif
+
     SAFE_CUPP(cuMemcpyDtoHAsync(dest, src, memSize, cudaStreams[0]));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");
-#endif    
-    
+#endif
+
 }
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
@@ -774,27 +732,27 @@ void GPUInterface::MemcpyDeviceToDevice(GPUPtr dest,
                                         size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToDevice\n");
-#endif    
-    
+#endif
+
     SAFE_CUPP(cuMemcpyDtoDAsync(dest, src, memSize, cudaStreams[0]));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToDevice\n");
-#endif    
-    
+#endif
+
 }
 
 void GPUInterface::FreeHostMemory(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreeHostMemory\n");
 #endif
-    
+
 #ifdef BEAGLE_MEMORY_PINNED
     FreePinnedHostMemory(hPtr);
 #else
     free(hPtr);
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeHostMemory\n");
 #endif
@@ -804,9 +762,9 @@ void GPUInterface::FreePinnedHostMemory(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
 #endif
-    
+
     SAFE_CUPP(cuMemFreeHost(hPtr));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreePinnedHostMemory\n");
 #endif
@@ -816,7 +774,7 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreeMemory\n");
 #endif
-    
+
     SAFE_CUPP(cuMemFree(dPtr));
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -828,11 +786,11 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceHostPointer\n");
 #endif
-    
+
     GPUPtr dPtr;
-    
+
     SAFE_CUPP(cuMemHostGetDevicePointer(&dPtr, hPtr, 0));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GetDeviceHostPointer\n");
 #endif
@@ -858,40 +816,40 @@ void GPUInterface::GetDeviceName(int deviceNumber,
                                   int nameLength) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceName\n");
-#endif    
-    
+#endif
+
     CUdevice tmpCudaDevice;
 
     SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
-    
+
     SAFE_CUDA(cuDeviceGetName(deviceName, nameLength, tmpCudaDevice));
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceName\n");
-#endif        
+#endif
 }
 
 bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
-	CUdevice tmpCudaDevice;
-	SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
+    CUdevice tmpCudaDevice;
+    SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
 
-	int major = 0;
-	int minor = 0;
+    int major = 0;
+    int minor = 0;
     SAFE_CUDA(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, tmpCudaDevice));
     SAFE_CUDA(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, tmpCudaDevice));
-	return (major >= 2 || (major >= 1 && minor >= 3));
+    return (major >= 2 || (major >= 1 && minor >= 3));
 }
 
 void GPUInterface::GetDeviceDescription(int deviceNumber,
-                                        char* deviceDescription) {    
+                                        char* deviceDescription) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceDescription\n");
 #endif
-    
+
     CUdevice tmpCudaDevice;
-    
+
     SAFE_CUDA(cuDeviceGet(&tmpCudaDevice, (*resourceMap)[deviceNumber]));
-    
+
 #if CUDA_VERSION >= 3020
     size_t totalGlobalMemory = 0;
 #else
@@ -913,24 +871,24 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
             int(totalGlobalMemory / 1024.0 / 1024.0 + 0.5),
             clockSpeed / 1000000.0,
             util::ConvertSMVer2CoresDRV(major, minor) * mpCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceDescription\n");
-#endif    
+#endif
 }
 
 void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
-                             int length) {    
+                             int length) {
     int* hPtr = (int*) malloc(SIZE_INT * length);
-    
+
     MemcpyDeviceToHost(hPtr, dPtr, SIZE_INT * length);
-    
+
     printfInt(hPtr, length);
-    
+
     free(hPtr);
 }
 
-long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {       
+long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceTypeFlag\n");
 #endif
@@ -945,7 +903,7 @@ long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 }
 
 
-BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int deviceNumber) {       
+BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int deviceNumber) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceImplementationCode\n");
 #endif
@@ -960,9 +918,9 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
 }
 
 const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
-    
+
     const char* errorDesc;
-    
+
     // from cuda.h
     switch(errorCode) {
         case CUDA_SUCCESS: errorDesc = "No errors"; break;
@@ -970,10 +928,10 @@ const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
         case CUDA_ERROR_OUT_OF_MEMORY: errorDesc = "Out of memory"; break;
         case CUDA_ERROR_NOT_INITIALIZED: errorDesc = "Driver not initialized"; break;
         case CUDA_ERROR_DEINITIALIZED: errorDesc = "Driver deinitialized"; break;
-            
+
         case CUDA_ERROR_NO_DEVICE: errorDesc = "No CUDA-capable device available"; break;
         case CUDA_ERROR_INVALID_DEVICE: errorDesc = "Invalid device"; break;
-            
+
         case CUDA_ERROR_INVALID_IMAGE: errorDesc = "Invalid kernel image"; break;
         case CUDA_ERROR_INVALID_CONTEXT: errorDesc = "Invalid context"; break;
         case CUDA_ERROR_CONTEXT_ALREADY_CURRENT: errorDesc = "Context already current"; break;
@@ -984,27 +942,27 @@ const char* GPUInterface::GetCUDAErrorDescription(int errorCode) {
         case CUDA_ERROR_NO_BINARY_FOR_GPU: errorDesc = "No binary for GPU"; break;
         case CUDA_ERROR_ALREADY_ACQUIRED: errorDesc = "Already acquired"; break;
         case CUDA_ERROR_NOT_MAPPED: errorDesc = "Not mapped"; break;
-            
+
         case CUDA_ERROR_INVALID_SOURCE: errorDesc = "Invalid source"; break;
         case CUDA_ERROR_FILE_NOT_FOUND: errorDesc = "File not found"; break;
-            
+
         case CUDA_ERROR_INVALID_HANDLE: errorDesc = "Invalid handle"; break;
-            
+
         case CUDA_ERROR_NOT_FOUND: errorDesc = "Not found"; break;
-            
+
         case CUDA_ERROR_NOT_READY: errorDesc = "CUDA not ready"; break;
-            
+
         case CUDA_ERROR_LAUNCH_FAILED: errorDesc = "Launch failed"; break;
         case CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES: errorDesc = "Launch exceeded resources"; break;
         case CUDA_ERROR_LAUNCH_TIMEOUT: errorDesc = "Launch exceeded timeout"; break;
         case CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING: errorDesc =
             "Launch with incompatible texturing"; break;
-            
+
         case CUDA_ERROR_UNKNOWN: errorDesc = "Unknown error"; break;
-            
+
         default: errorDesc = "Unknown error";
     }
-    
+
     return errorDesc;
 }
 

@@ -15,6 +15,13 @@
 #include <cmath>
 #include <stack>
 #include <queue>
+#include <cstdarg>
+#include <thread>
+#include <future>
+#include <queue>
+#include <condition_variable>
+#include <mutex>
+#include <functional>
 
 #ifdef _WIN32
     #include <winsock.h>
@@ -25,6 +32,11 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "linalg.h"
+
+#ifdef HAVE_NCL
+    #include "ncl/nxsmultiformat.h"
+    #include <regex>
+#endif // HAVE_NCL
 
 #ifdef HAVE_PLL
     #include "libpll/pll.h"
@@ -89,6 +101,16 @@ void abort(std::string msg) {
     std::exit(1);
 }
 
+void abortf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    std::cerr << "\nAborting..." << std::endl;        \
+    std::exit(1);
+}
+
+
 double* getRandomTipPartials( int nsites, int stateCount )
 {
     double *partials = (double*) calloc(sizeof(double), nsites * stateCount); // 'malloc' was a bug
@@ -111,6 +133,552 @@ int* getRandomTipStates( int nsites, int stateCount )
     }
     return states;
 }
+
+struct threadData
+{
+    std::thread t; // The thread object
+    std::queue<std::packaged_task<void()>> jobs; // The job queue
+    std::condition_variable cv; // The condition variable to wait for threads
+    std::mutex m; // Mutex used for avoiding data races
+    bool stop = false; // When set, this flag tells the thread that it should exit
+};
+
+struct node
+{
+    int data;
+    double edge;
+    struct node* left;
+    struct node* right;
+    struct node* parent;
+};
+
+
+node* createNewNode(int data)
+{
+    node* temp = new node;
+    temp->data = data;
+    temp->edge = 0.0;
+    temp->left = NULL;
+    temp->right = NULL;
+    temp->parent = NULL;
+ 
+    return (temp);
+}
+
+#ifdef HAVE_NCL
+
+typedef std::vector<double>             pattern_counts_t;
+typedef std::vector<int>                pattern_t;
+typedef std::map< pattern_t, unsigned > pattern_map_t;
+typedef std::vector< pattern_t >        data_matrix_t;
+
+pattern_map_t                           _pattern_map;       // used as workspace
+data_matrix_t                           _data_matrix;
+pattern_counts_t                        _pattern_counts;
+
+NxsTaxaBlock* taxaBlock;
+NxsCharactersBlock* charBlock;
+
+// code adapted from NCL documentation 
+//  (http://phylo.bio.ku.edu/ncldocs/v2.1/funcdocs/index.html)
+// and Phylogenetic Software Development Tutorial (version 2)
+//  (Paul O. Lewis Laboratory, https://phylogeny.uconn.edu/tutorial-v2)
+
+void ncl_readAlignmentDNA(char* filename, int* ntaxa, int* nsites, bool compress)
+{
+    MultiFormatReader nexusReader(-1, NxsReader::IGNORE_WARNINGS);
+    nexusReader.ReadFilepath(filename, MultiFormatReader::RELAXED_PHYLIP_DNA_FORMAT);
+
+    taxaBlock = nexusReader.GetTaxaBlock(0);
+    charBlock = nexusReader.GetCharactersBlock(taxaBlock, 0);
+
+    *ntaxa = taxaBlock->GetNTax();
+    *nsites = charBlock->GetNCharTotal();
+
+    std::cout << "\nReading DNA alignment from file " << filename;
+    std::cout << ", with " << *ntaxa << " taxa and " << *nsites << " sites";
+
+    unsigned ntax = *ntaxa;
+
+    _data_matrix.resize(ntax);
+
+    for (unsigned t = 0; t < ntax; ++t) {
+        const NxsDiscreteStateRow & row = charBlock->GetDiscreteMatrixRow(t);
+        unsigned seqlen = (unsigned)row.size();
+        _data_matrix[t].resize(seqlen);
+        unsigned k = 0;
+        for (auto state_code : row) {
+            if (state_code < 0 || state_code > 3) {
+                _data_matrix[t][k++] = 4; 
+            } else {
+                _data_matrix[t][k++] = state_code;
+            }
+        }
+    }
+
+    if (compress) {
+        // create map with keys equal to patterns and values equal to site counts
+        _pattern_map.clear();
+
+        std::vector<int> pattern;
+        unsigned numtaxa = (unsigned)_data_matrix.size();
+        unsigned seqlen = (unsigned)_data_matrix[0].size();
+        for (unsigned i = 0; i < seqlen; ++i)
+            {
+            // Create vector representing pattern at site i
+            pattern.clear();
+            for (unsigned j = 0; j < numtaxa; ++j)
+                {
+                pattern.push_back(_data_matrix[j][i]);
+                }
+
+            // Add this pattern to pattern_counts
+            // If pattern is not already in pattern_map, insert it and set value to 1.
+            // If it does exist, increment its current value.
+            // (see item 24, p. 110, in Meyers' Efficient STL for more info on the technique used here)
+            pattern_map_t::iterator lowb = _pattern_map.lower_bound(pattern);
+            if (lowb != _pattern_map.end() && !(_pattern_map.key_comp()(pattern, lowb->first)))
+                {
+                // this pattern has already been seen
+                lowb->second += 1;
+                }
+            else
+                {
+                // this pattern has not yet been seen
+                _pattern_map.insert(lowb, pattern_map_t::value_type(pattern, 1));
+                }
+            }
+            
+        // resize _pattern_counts
+        unsigned npatterns = (unsigned)_pattern_map.size();
+        _pattern_counts.resize(npatterns);
+        
+        // resize _data_matrix so that we can use operator[] to assign values
+        _data_matrix.resize(numtaxa);
+        for (auto & row : _data_matrix)
+            {
+            row.resize(npatterns);
+            }
+
+        unsigned j = 0;
+        for (auto & pc : _pattern_map)
+            {
+            _pattern_counts[j] = pc.second;
+
+            unsigned i = 0;
+            for (auto sc : pc.first)
+                {
+                _data_matrix[i][j] = sc;
+                ++i;
+                }
+
+            ++j;
+            }
+
+        // Everything has been transferred to _data_matrix and _pattern_counts, so can now free this memory
+        _pattern_map.clear();
+
+        std::cout << " (" << npatterns << " unique patterns)";
+
+        *nsites = npatterns;
+    }
+}
+
+int* ncl_getAlignmentTipStates( int nsites, int taxa)
+{
+    int *states = (int*) calloc(sizeof(int), nsites); 
+    for( int i=0; i<nsites; i++ )
+    {
+        states[i]= _data_matrix[taxa][i];
+    }
+    return states;
+}
+
+
+void ncl_generateTreeFromNewick(char* filename, int ntaxa, std::vector <node*> &nodes, node* root)
+{
+    bool rooted = true;
+
+    // readTreefile
+    MultiFormatReader nexusReader(-1, NxsReader::IGNORE_WARNINGS);
+    try {
+        nexusReader.ReadFilepath(filename, MultiFormatReader::RELAXED_PHYLIP_TREE_FORMAT);
+        }
+    catch(...)
+        {
+        nexusReader.DeleteBlocksFromFactories();
+        abort("Error reading Newick file");
+        }
+    const NxsTreesBlock * treesBlock = nexusReader.GetTreesBlock(nexusReader.GetTaxaBlock(0), 0);
+    const NxsFullTreeDescription & d = treesBlock->GetFullTreeDescription(0);
+    // store the newick tree description
+    std::string raw_newick = d.GetNewick();
+    nexusReader.DeleteBlocksFromFactories();
+
+    // stripOutNexusComments
+    std::regex commentexpr("\\[.*?\\]");
+    std::string newick = std::regex_replace(raw_newick, commentexpr, std::string(""));
+
+    // countNewickLeaves
+    std::regex taxonexpr("[(,]\\s*(\\d+|\\S+?|['].+?['])\\s*(?=[,):])");
+    std::sregex_iterator m1(newick.begin(), newick.end(), taxonexpr);
+    std::sregex_iterator m2;
+    int ntaxa_newick = (unsigned)std::distance(m1, m2);
+
+    if (ntaxa_newick != ntaxa) {
+        abortf("Wrong number of taxa in Newick file (%d != %d)", ntaxa_newick, ntaxa);
+    }
+
+    // CHECK if 0 should be 1
+    unsigned max_nodes = 2*ntaxa - (rooted ? 0 : 2);
+
+    // std::vector <node*> nodes;
+
+    std::set<unsigned> used; // used to ensure that two tips do not have the same number
+    unsigned curr_leaf = 0;
+    node* first_tip = NULL;
+
+    unsigned num_edge_lengths = 0;
+    unsigned curr_node_index = 0;
+    unsigned curr_internal_node = ntaxa;
+
+    // Root node
+    node* nd = root;
+    root->data = curr_node_index;
+    nodes.push_back(root);
+
+    // if (rooted)
+    //     {
+    //     curr_node_index++;
+    //     nd = createNewNode(curr_node_index);
+    //     nodes.push_back(nd);    
+    //     nd->parent = root;
+    //     nd->parent->left = nd;
+    //     }
+
+    // Some flags to keep track of what we did last
+    enum {
+        Prev_Tok_LParen     = 0x01, // previous token was a left parenthesis ('(') 
+        Prev_Tok_RParen     = 0x02, // previous token was a right parenthesis (')') 
+        Prev_Tok_Colon      = 0x04, // previous token was a colon (':') 
+        Prev_Tok_Comma      = 0x08, // previous token was a comma (',') 
+        Prev_Tok_Name       = 0x10, // previous token was a node name (e.g. '2', 'P._articulata')
+        Prev_Tok_EdgeLen    = 0x20  // previous token was an edge length (e.g. '0.1', '1.7e-3') 
+        };
+    unsigned previous = Prev_Tok_LParen;
+
+
+    // Some useful flag combinations 
+    unsigned LParen_Valid = (Prev_Tok_LParen | Prev_Tok_Comma);
+    unsigned RParen_Valid = (Prev_Tok_RParen | Prev_Tok_Name | Prev_Tok_EdgeLen);
+    unsigned Comma_Valid  = (Prev_Tok_RParen | Prev_Tok_Name | Prev_Tok_EdgeLen);
+    unsigned Colon_Valid  = (Prev_Tok_RParen | Prev_Tok_Name);
+    unsigned Name_Valid   = (Prev_Tok_RParen | Prev_Tok_LParen | Prev_Tok_Comma);
+
+    // Set to true while reading an edge length
+    bool inside_edge_length = false;
+    std::string edge_length_str;
+    unsigned edge_length_position = 0;
+
+    // Set to true while reading a node name surrounded by (single) quotes
+    bool inside_quoted_name = false;
+
+    // Set to true while reading a node name not surrounded by (single) quotes
+    bool inside_unquoted_name = false;
+
+    // Set to start of each node name and used in case of error
+    unsigned node_name_position = 0;
+
+    // loop through the characters in newick, building up tree as we go
+    unsigned position_in_string = 0;
+
+    for (auto ch : newick)
+        {
+        position_in_string++;
+
+        if (inside_quoted_name)
+            {
+            if (ch == '\'')
+                {
+                inside_quoted_name = false;
+                node_name_position = 0;
+                if (!nd->left)
+                    {
+                    // extractNodeNumberFromName(nd, used);
+                    if (nd->data != curr_leaf)
+                        {
+                        node* tmp_node;
+                        for (auto n : nodes)
+                            {
+                            if (n->data == curr_leaf)
+                                {
+                                tmp_node = n;
+                                break;
+                                }
+                            }
+                        tmp_node->data = nd->data;
+                        nd->data = curr_leaf; 
+                        }
+                    curr_leaf++;
+                    if (!first_tip)
+                        first_tip = nd;
+                    }
+
+                previous = Prev_Tok_Name;
+                }
+            // else if (iswspace(ch))
+            //     nd->_name += ' ';
+            // else
+            //     nd->_name += ch;
+
+            continue;
+            }
+            else if (inside_unquoted_name)
+                {
+                if (ch == '(')
+                    abortf("Unexpected left parenthesis inside node name at position %d in tree description", node_name_position);
+
+                if (iswspace(ch) || ch == ':' || ch == ',' || ch == ')')
+                    {
+                    inside_unquoted_name = false;
+
+                    // Expect node name only after a left paren (child's name), a comma (sib's name) or a right paren (parent's name)
+                    if (!(previous & Name_Valid))
+                        abortf("Unexpected node name at position %d in tree description", node_name_position);
+
+                    if (!nd->left)
+                        {
+                        // extractNodeNumberFromName(nd, used);
+                        if (nd->data != curr_leaf)
+                            {
+                            node* tmp_node;
+                            for (auto n : nodes)
+                                {
+                                if (n->data == curr_leaf)
+                                    {
+                                    tmp_node = n;
+                                    break;
+                                    }
+                                }
+                            tmp_node->data = nd->data;
+                            nd->data = curr_leaf; 
+                            }
+                        curr_leaf++;
+                        if (!first_tip)
+                            first_tip = nd;
+                        }
+
+                    previous = Prev_Tok_Name;
+                    }
+                else
+                    {
+                    // nd->_name += ch;
+                    continue;
+                    }
+                }
+        else if (inside_edge_length)
+            {
+            if (ch == ',' || ch == ')' || iswspace(ch))
+                {
+                inside_edge_length = false;
+                edge_length_position = 0;
+                // extractEdgeLen(nd, edge_length_str);
+                double d = 0.0;
+                try
+                    {
+                    d = std::stof(edge_length_str);
+                    }
+                catch(std::invalid_argument &)
+                    {
+                    // edge_length_string could not be converted to a double value
+                    abortf("%s is not interpretable as an edge length", edge_length_str.c_str());
+                    }
+                // conversion succeeded
+                nd->edge = (d < 0.0 ? 0.0 : d);
+                ++num_edge_lengths;
+                previous = Prev_Tok_EdgeLen;
+                }
+            else
+                {
+                bool valid = (ch =='e' || ch == 'E' || ch =='.' || ch == '-' || ch == '+' || isdigit(ch));
+                if (!valid)
+                    abortf("Invalid branch length character (%c) at position %d in tree description", ch, position_in_string);
+
+                edge_length_str += ch;
+                continue;
+                }
+            }
+
+        if (iswspace(ch))
+            continue;
+
+        switch(ch)
+            {
+            case ';':
+                break;
+
+            case ')':
+                // If nd is bottommost node, expecting left paren or semicolon, but not right paren
+                if (!nd->parent)
+                    abortf("Too many right parentheses at position %d in tree description", position_in_string);
+
+                // Expect right paren only after an edge length, a node name, or another right paren
+                if (!(previous & RParen_Valid))
+                    abortf("Unexpected right parenthesisat position %d in tree description", position_in_string);
+
+                // Go down a level
+                nd = nd->parent;
+                if (!nd->right)
+                    abortf("Internal node has only one child at position %d in tree description", position_in_string);
+                previous = Prev_Tok_RParen;
+                break;
+
+            case ':':
+                // Expect colon only after a node name or another right paren
+                if (!(previous & Colon_Valid))
+                    abortf("Unexpected colon at position %d in tree description", position_in_string);
+                previous = Prev_Tok_Colon;
+                break;
+
+            case ',':
+                // Expect comma only after an edge length, a node name, or a right paren
+                if (!nd->parent || !(previous & Comma_Valid))
+                    abortf("Unexpected comma at position %d in tree description", position_in_string);
+
+                // Check for polytomies
+                {
+                bool nd_can_have_sibling = true;
+                if (!nd->parent)
+                    {
+                    // trying to give root node a sibling
+                    nd_can_have_sibling = false;
+                    }
+
+                if (nd != nd->parent->left)
+                    {
+                    if (nd->parent->parent)
+                        {
+                        // trying to give a sibling to a sibling of nd, and nd's parent is not the root
+                        nd_can_have_sibling = false;
+                        }
+                    else
+                        {
+                        if (rooted)
+                            {
+                            // root node has exactly 2 children in rooted trees
+                            nd_can_have_sibling = false;
+                            }
+                        else if (nd != nd->parent->right)
+                            {
+                            // trying to give root node more than 3 children
+                            nd_can_have_sibling = false;
+                            }
+                        }
+                    }
+
+                    if (!nd_can_have_sibling)
+                        abortf("Polytomy found in the following tree description but polytomies prohibited:\n%s", newick.c_str());
+                }
+
+                // Create the sibling
+                curr_node_index++;
+                if (curr_node_index == max_nodes)
+                    abortf("Wrong number of nodes specified by tree description (%d nodes allocated for %d leaves)", max_nodes, ntaxa);
+                nd->parent->right = createNewNode(curr_node_index);
+                nd->parent->right->parent = nd->parent;
+                nd = nd->parent->right;
+                nodes.push_back(nd);
+                previous = Prev_Tok_Comma;
+                break;
+
+            case '(':
+                // Expect left paren only after a comma or another left paren
+                if (!(previous & LParen_Valid))
+                    abortf("Not expecting left parenthesis at position %d in tree description", position_in_string);
+
+                // Create new node above and to the left of the current node
+                assert(!nd->left);
+                curr_node_index++;
+                if (curr_node_index == max_nodes)
+                    abortf("malformed tree description (more than %d nodes specified)", max_nodes);
+                nd->left = createNewNode(curr_node_index);
+                nd->left->parent = nd;
+                nd = nd->left;
+                nodes.push_back(nd);
+                previous = Prev_Tok_LParen;
+                break;
+
+            case '\'':
+                // Encountered an apostrophe, which always indicates the start of a
+                // node name (but note that node names do not have to be quoted)
+
+                // Expect node name only after a left paren (child's name), a comma (sib's name)
+                // or a right paren (parent's name)
+                if (!(previous & Name_Valid))
+                    abortf("Not expecting node name at position %d in tree description", position_in_string);
+
+                // Get the rest of the name
+                // nd->_name.clear();
+
+                inside_quoted_name = true;
+                node_name_position = position_in_string;
+
+                break;
+
+            default:
+                // Get here if ch is not one of ();:,'
+
+                // Expecting either an edge length or an unquoted node name
+                if (previous == Prev_Tok_Colon)
+                    {
+                    // Edge length expected (e.g. "235", "0.12345", "1.7e-3")
+                    inside_edge_length = true;
+                    edge_length_position = position_in_string;
+                    edge_length_str = ch;
+                    }
+                else
+                    {
+                    // Get the node name
+                    // nd->_name = ch;
+
+                    inside_unquoted_name = true;
+                    node_name_position = position_in_string;
+                    }
+
+            }   // end of switch statement
+        }   // loop over characters in newick string    
+
+
+        if (inside_unquoted_name)
+            abortf("Tree description ended before end of node name starting at position %d was found", node_name_position);
+        if (inside_edge_length)
+            abortf("Tree description ended before end of edge length starting at position %d was found", edge_length_position);
+        if (inside_quoted_name)
+            abortf("Expecting single quote to mark the end of node name at position %d in tree description", node_name_position);
+
+        // root has to be highest index
+        if (root->data != max_nodes-2)
+            {
+            node* tmp_node;
+            for (auto n : nodes)
+                {
+                if (n->data == max_nodes-2)
+                    {
+                    tmp_node = n;
+                    break;
+                    }
+                }
+            tmp_node->data = nd->data;
+            nd->data = max_nodes-2; 
+            }
+
+        // if (!rooted)
+        //     {
+        //     rerootAt(0);
+        //     }
+}
+
+#endif // HAVE_NCL
 
 #ifdef HAVE_PLL
 
@@ -175,14 +743,6 @@ double getTimeDiff(struct timeval t1,
                    struct timeval t2) {
     return ((double)(t2.tv_sec - t1.tv_sec)*1000.0 + (double)(t2.tv_usec-t1.tv_usec)/1000.0);
 }
-
-struct node
-{
-    int data;
-    struct node* left;
-    struct node* right;
-    struct node* parent;
-};
 
 /* Given a binary tree, print its nodes according to the
 "bottom-up" postorder traversal. */
@@ -291,18 +851,6 @@ int countLaunches(node* root, bool postorderTraversal)
     }
 
     return launchCount;
-}
-
-
-node* createNewNode(int data)
-{
-    node* temp = new node;
-    temp->data = data;
-    temp->left = NULL;
-    temp->right = NULL;
-    temp->parent = NULL;
- 
-    return (temp);
 }
 
 void addChildren(node* newNode, node* originalNode, std::vector<node*> newNodes)
@@ -420,43 +968,63 @@ void generateNewTree(int ntaxa,
                     bool pllTest,
                     pll_operation_t* pll_operations,
 #endif
+#ifdef HAVE_NCL
+                    char* treenewick,
+#endif 
                     int* operations)
 {
     std::vector <node*> nodes;
-    nodes.push_back(createNewNode(0));
-    int tipsAdded = 1;
-    node* newParent;
-    while (tipsAdded < ntaxa) {
-        int sibling;
-        if (pectinate)
-            sibling = nodes.size()-1;
-        else
-            sibling = gt_rand() % nodes.size();
-        node* newTip = createNewNode(tipsAdded);
-        newParent = createNewNode(ntaxa + tipsAdded - 1);
-        nodes.push_back(newTip);
-        nodes.push_back(newParent);
-        tipsAdded++;            
-        newParent->left  = nodes[sibling];
-        newParent->right = newTip;            
-        if (nodes[sibling]->parent != NULL) {
-            newParent->parent = nodes[sibling]->parent;
-            if (nodes[sibling]->parent->left == nodes[sibling]) {
-                nodes[sibling]->parent->left = newParent;
-            } else {
-                nodes[sibling]->parent->right = newParent;
+    node* root = NULL;
+
+
+    bool useNewickTree = false;
+
+#ifdef HAVE_NCL
+    useNewickTree = treenewick;
+#endif 
+
+    if (!useNewickTree)
+    {
+        nodes.push_back(createNewNode(0));
+        int tipsAdded = 1;
+        node* newParent;
+        while (tipsAdded < ntaxa) {
+            int sibling;
+            if (pectinate)
+                sibling = nodes.size()-1;
+            else
+                sibling = gt_rand() % nodes.size();
+            node* newTip = createNewNode(tipsAdded);
+            newParent = createNewNode(ntaxa + tipsAdded - 1);
+            nodes.push_back(newTip);
+            nodes.push_back(newParent);
+            tipsAdded++;            
+            newParent->left  = nodes[sibling];
+            newParent->right = newTip;            
+            if (nodes[sibling]->parent != NULL) {
+                newParent->parent = nodes[sibling]->parent;
+                if (nodes[sibling]->parent->left == nodes[sibling]) {
+                    nodes[sibling]->parent->left = newParent;
+                } else {
+                    nodes[sibling]->parent->right = newParent;
+                }
             }
+            nodes[sibling]->parent = newParent;
+            newTip->parent         = newParent;
         }
-        nodes[sibling]->parent = newParent;
-        newTip->parent         = newParent;
+        root = nodes[0];
+        while(root->parent != NULL) {
+            root = root->parent;
+        }
+        int rootIndex = newParent->data;
+        newParent->data = root->data;
+        root->data = rootIndex;
+    } else {
+        root = createNewNode(0);
+#ifdef HAVE_NCL
+        ncl_generateTreeFromNewick(treenewick, ntaxa, nodes, root);
+#endif 
     }
-    node* root = nodes[0];
-    while(root->parent != NULL) {
-        root = root->parent;
-    }
-    int rootIndex = newParent->data;
-    newParent->data = root->data;
-    root->data = rootIndex;
 
     if (rerootTrees) {
         int bestRerootNode = -1;
@@ -564,7 +1132,7 @@ void generateNewTree(int ntaxa,
     #endif // HAVE_PLL
 
         // printf("op %02d part %02d dest %02d c1 %02d c2 %02d\n",
-        //        opJ, j, parentIndex, child1Index, child2Index);
+               // opJ, j, parentIndex, child1Index, child2Index);
         }
         // printf("\n");
     }   
@@ -679,14 +1247,6 @@ void setNewCategoryWeights(int eigenCount,
             } //if (!pllOnly) {
 #endif
         }
-    
-#ifdef HAVE_PLL
-        if (!pllOnly) {
-#endif
-        beagleSetCategoryWeights(instances[0], eigenIndex, &weights[0]);
-#ifdef HAVE_PLL
-        } //if (!pllOnly) {
-#endif
 
 #ifdef HAVE_PLL
         if (pllTest) {
@@ -934,6 +1494,31 @@ void printFlags(long inFlags) {
 }
 
 
+void threadWaiting(threadData* tData)
+{
+    std::unique_lock<std::mutex> l(tData->m, std::defer_lock);
+    while (true)
+    {
+        l.lock();
+
+        // Wait until the queue won't be empty or stop is signaled
+        tData->cv.wait(l, [tData] () {
+            return (tData->stop || !tData->jobs.empty()); 
+            });
+
+        // Stop was signaled, let's exit the thread
+        if (tData->stop) { return; }
+
+        // Pop one task from the queue...
+        std::packaged_task<void()> j = std::move(tData->jobs.front());
+        tData->jobs.pop();
+
+        l.unlock();
+
+        // Execute the task!
+        j();
+    }
+}
 
 void runBeagle(int resource, 
                int stateCount, 
@@ -975,8 +1560,12 @@ void runBeagle(int resource,
                bool newParametersPerRep,
                int  threadCount,
                int* resourceList,
-               int  resourceCount)
+               int  resourceCount,
+               bool alignmentFromFile,
+               char* treenewick,
+               bool clientThreadingEnabled)
 {
+
     int instanceCount = 1;
 
     std::vector<int> instanceSitesCount;
@@ -1124,7 +1713,7 @@ void runBeagle(int resource,
                     &instanceResource,        /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                     1,                /**< Length of resourceList list (input) */
                     (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0) |
-                    (multiRsrc ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
+                    ((multiRsrc && !clientThreadingEnabled) ? BEAGLE_FLAG_COMPUTATION_ASYNCH : 0) |
 		    (multiRsrc ? BEAGLE_FLAG_PARALLELOPS_STREAMS : 0),         /**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
                     (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0) |
                     (opencl ? BEAGLE_FLAG_FRAMEWORK_OPENCL : 0) |
@@ -1191,7 +1780,15 @@ void runBeagle(int resource,
 #endif // HAVE_PLL
             free(tmpPartials);
         } else {
-            int* tmpStates = getRandomTipStates(nsites, stateCount);
+            int* tmpStates;
+            if (!alignmentFromFile) {
+                tmpStates = getRandomTipStates(nsites, stateCount);
+            }
+#ifdef HAVE_NCL
+            else {
+                tmpStates = ncl_getAlignmentTipStates(nsites, i);
+            }
+#endif // HAVE_NCL
             size_t instanceOffset = 0;
             for(int inst=0; inst<instanceCount; inst++) {
 #ifdef HAVE_PLL
@@ -1433,20 +2030,258 @@ void runBeagle(int resource,
         }
     }
 
-    if (randomTree && eigenCount==1 && !unrooted) {
-        generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
-            edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
-#ifdef HAVE_PLL
-            pllTest, pll_operations,
-#endif
-            operations);
-    }
-
     gt_srand(randomSeed);   // reset the random seed...
 
 #ifdef HAVE_PLL
     if (!pllOnly) {
 #endif
+
+    if ((treenewick || randomTree) && eigenCount==1 && !unrooted) {
+        generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+            edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+#ifdef HAVE_PLL
+            pllTest, pll_operations,
+#endif
+#ifdef HAVE_NCL
+            (newTreePerRep ? NULL : treenewick),
+#endif 
+            operations);
+    }
+
+    int numThreads = 0;
+    threadData* threads;
+    std::shared_future<void>* futures;
+    std::vector<double> threadLogL;
+
+    if (clientThreadingEnabled) {
+        numThreads = instanceCount;
+        threads = new threadData[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].t = std::thread(threadWaiting, &threads[i]);
+            threadLogL.push_back(0.0);
+        }
+        futures = new std::shared_future<void>[numThreads];
+        if (futures == NULL)
+            throw std::bad_alloc();
+    }
+
+    auto computeLikelihood = [&] (int i,
+                                  double* replicateLogL,
+                                  int replicateInstanceCount,
+                                  int* replicateInstances,
+                                  int* replicateInstanceSitesCount) {
+
+        if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
+            if (beagleSetPatternPartitions(replicateInstances[0], partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
+                printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
+                exit(-1);
+            }
+        }
+
+        gettimeofday(&time1,NULL);
+
+        if (partitionCount > 1) {
+            int totalEdgeCount = edgeCount * modelCount;
+            beagleUpdateTransitionMatricesWithMultipleModels(
+                                           replicateInstances[0],     // instance
+                                           eigenIndices,   // eigenIndex
+                                           categoryRateIndices,   // category rate index
+                                           edgeIndices,   // probabilityIndices
+                                           (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
+                                           (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
+                                           edgeLengths,   // edgeLengths
+                                           totalEdgeCount);            // count
+        } else {
+            for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
+                if (!setmatrix) {
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        // tell BEAGLE to populate the transition matrices for the above edge lengths
+                        beagleUpdateTransitionMatrices(replicateInstances[inst],     // instance
+                                                       eigenIndex,             // eigenIndex
+                                                       &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
+                                                       (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
+                                                       (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
+                                                       edgeLengths,   // edgeLengths
+                                                       edgeCount);            // count
+                    }
+
+                } else {
+                    double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
+                    for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
+                        for(int z=0;z<rateCategoryCount;z++){
+                            for(int x=0;x<stateCount;x++){
+                                for(int y=0;y<stateCount;y++){
+                                    inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
+                                }
+                            } 
+                        }
+                        beagleSetTransitionMatrix(replicateInstances[0], edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
+                        if (calcderivs) {
+                            beagleSetTransitionMatrix(replicateInstances[0], edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                            beagleSetTransitionMatrix(replicateInstances[0], edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        // std::cout.setf(std::ios::showpoint);
+        // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
+        // std::cout.precision(4);
+        // unsigned int partialsOps = internalCount * eigenCount;
+        // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
+        // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
+        // unsigned long long partialsTotal = partialsSize * partialsOps;
+        // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
+
+        // std::cout << " compute throughput:   ";
+
+        // for (int pRep=0; pRep < 50; pRep++) {
+            gettimeofday(&time2, NULL);
+
+            // update the partials
+            if (partitionCount > 1) {
+                beagleUpdatePartialsByPartition( replicateInstances[0],                   // instance
+                                (BeagleOperationByPartition*)operations,     // operations
+                                internalCount*eigenCount*partitionCount);    // operationCount
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleUpdatePartials( replicateInstances[inst],      // instance
+                                    (BeagleOperation*)operations,     // operations
+                                    internalCount*eigenCount,              // operationCount
+                                    (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
+                }
+            }
+
+            gettimeofday(&time3, NULL);
+
+            // struct timespec ts;
+            // ts.tv_sec = 0;
+            // ts.tv_nsec = 100000000;
+            // nanosleep(&ts, NULL);
+
+            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << ", ";
+        // }
+        // std::cout << " GFLOPS " << std::endl<< std::endl;
+
+        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
+
+
+        int scalingFactorsCount = internalCount;
+                
+        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
+            if (manualScaling && !(i % rescaleFrequency)) {
+                beagleResetScaleFactors(replicateInstances[0],
+                                        cumulativeScalingFactorIndices[eigenIndex]);
+                
+                beagleAccumulateScaleFactors(replicateInstances[0],
+                                       &scalingFactorsIndices[eigenIndex*internalCount],
+                                       scalingFactorsCount,
+                                       cumulativeScalingFactorIndices[eigenIndex]);
+            } else if (autoScaling) {
+                beagleAccumulateScaleFactors(replicateInstances[0], &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
+            }
+        }
+        
+        gettimeofday(&time4, NULL);
+
+        // calculate the site likelihoods at the root node
+        if (!unrooted) {
+            if (partitionCount > 1) {
+                beagleCalculateRootLogLikelihoodsByPartition(
+                                            replicateInstances[0],               // instance
+                                            rootIndices,// bufferIndices
+                                            categoryWeightsIndices,                // weights
+                                            stateFrequencyIndices,                 // stateFrequencies
+                                            cumulativeScalingFactorIndices,
+                                            partitionIndices,
+                                            partitionCount,
+                                            eigenCount,                      // count
+                                            partitionLogLs,
+                                            replicateLogL);         // outLogLikelihoods
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleCalculateRootLogLikelihoods(replicateInstances[inst],               // instance
+                                                rootIndices,// bufferIndices
+                                                categoryWeightsIndices,                // weights
+                                                stateFrequencyIndices,                 // stateFrequencies
+                                                cumulativeScalingFactorIndices,
+                                                eigenCount,                      // count
+                                                replicateLogL);         // outLogLikelihoods
+                }
+                if (multiRsrc && !clientThreadingEnabled) {
+                    *replicateLogL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        *replicateLogL += instLogL;
+                    }
+                }
+            }
+        } else {
+            if (partitionCount > 1) {
+                beagleCalculateEdgeLogLikelihoodsByPartition(
+                                                  replicateInstances[0],
+                                                  rootIndices,
+                                                  lastTipIndices,
+                                                  lastTipIndices,
+                                                  (calcderivs ? lastTipIndicesD1 : NULL),
+                                                  (calcderivs ? lastTipIndicesD2 : NULL),
+                                                  categoryWeightsIndices,
+                                                  stateFrequencyIndices,
+                                                  cumulativeScalingFactorIndices,
+                                                  partitionIndices,
+                                                  partitionCount,
+                                                  eigenCount,
+                                                  partitionLogLs,
+                                                  replicateLogL,
+                                                  (calcderivs ? partitionD1 : NULL),
+                                                  (calcderivs ? &deriv1 : NULL),
+                                                  (calcderivs ? partitionD2 : NULL),
+                                                  (calcderivs ? &deriv2 : NULL));
+            } else {
+                for(int inst=0; inst<replicateInstanceCount; inst++) {
+                    beagleCalculateEdgeLogLikelihoods(replicateInstances[inst],               // instance
+                                                      rootIndices,// bufferIndices
+                                                      lastTipIndices,
+                                                      lastTipIndices,
+                                                      (calcderivs ? lastTipIndicesD1 : NULL),
+                                                      (calcderivs ? lastTipIndicesD2 : NULL),
+                                                      categoryWeightsIndices,                // weights
+                                                      stateFrequencyIndices,                 // stateFrequencies
+                                                      cumulativeScalingFactorIndices,
+                                                      eigenCount,                      // count
+                                                      replicateLogL,    // outLogLikelihood
+                                                      (calcderivs ? &deriv1 : NULL),
+                                                      (calcderivs ? &deriv2 : NULL));
+                }
+                if (multiRsrc && !clientThreadingEnabled) {
+                    *replicateLogL = 0.0;
+                    double instLogL;
+                    for(int inst=0; inst<replicateInstanceCount; inst++) {
+                        beagleGetLogLikelihood(inst,
+                                               &instLogL);
+                        *replicateLogL += instLogL;
+                    }
+                    if (calcderivs) {
+                        deriv1 = deriv2 = 0.0;
+                        double instDeriv1, instDeriv2;
+                        for(int inst=0; inst<replicateInstanceCount; inst++) {
+                            beagleGetDerivatives(inst,
+                                                 &instDeriv1,
+                                                 &instDeriv2);
+                            deriv1 += instDeriv1;
+                            deriv2 += instDeriv2;
+                        }
+                    }
+                }
+            }
+
+        }
+    }; // end lambda
+
 //  replicate loop
     for (int i=0; i<nreps; i++){
 
@@ -1465,12 +2300,29 @@ void runBeagle(int resource,
             }
         }
 
-        if (newTreePerRep) {
+        if (newTreePerRep && i > 0 && i != (nreps-1)) {
             generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
                 edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
 #ifdef HAVE_PLL
                 false, pll_operations,
 #endif
+#ifdef HAVE_NCL
+                NULL,
+#endif 
+                operations);
+
+            for(int j=0; j<edgeCount; j++) {
+                edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+            }
+        } else if (newTreePerRep && treenewick && i == (nreps-1)) {
+            generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+    #ifdef HAVE_PLL
+                pllTest, pll_operations,
+    #endif
+    #ifdef HAVE_NCL
+                treenewick,
+    #endif 
                 operations);
 
             for(int j=0; j<edgeCount; j++) {
@@ -1514,219 +2366,42 @@ void runBeagle(int resource,
                 operations[beagleOpCount*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
             }
         }
+
+        if (clientThreadingEnabled) {
+            for (int j=0; j<numThreads; j++) {
+
+                std::packaged_task<void()> threadTask(
+                    std::bind(computeLikelihood, i, &threadLogL[j], 1,
+                        &instances[j], &instanceSitesCount[j]));
+
+                futures[j] = threadTask.get_future();
+                threadData* td = &threads[j];
+
+                std::unique_lock<std::mutex> l(td->m);
+                td->jobs.push(std::move(threadTask));
+                l.unlock();
+
+            }
+
+            logL = 0.0;
+        }
         
         // start timing!
         gettimeofday(&time0,NULL);
 
-        if (partitionCount > 1 && i==0) { //!(i % rescaleFrequency)) {
-            if (beagleSetPatternPartitions(instances[0], partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
-                printf("ERROR: No BEAGLE implementation for beagleSetPatternPartitions\n");
-                exit(-1);
+        if (clientThreadingEnabled) {
+            for (int j=0; j<numThreads; j++) {
+                threads[j].cv.notify_one();
+
             }
-        }
-
-        gettimeofday(&time1,NULL);
-
-        if (partitionCount > 1) {
-            int totalEdgeCount = edgeCount * modelCount;
-            beagleUpdateTransitionMatricesWithMultipleModels(
-                                           instances[0],     // instance
-                                           eigenIndices,   // eigenIndex
-                                           categoryRateIndices,   // category rate index
-                                           edgeIndices,   // probabilityIndices
-                                           (calcderivs ? edgeIndicesD1 : NULL), // firstDerivativeIndices
-                                           (calcderivs ? edgeIndicesD2 : NULL), // secondDerivativeIndices
-                                           edgeLengths,   // edgeLengths
-                                           totalEdgeCount);            // count
-        } else {
-            for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
-                if (!setmatrix) {
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        // tell BEAGLE to populate the transition matrices for the above edge lengths
-                        beagleUpdateTransitionMatrices(instances[inst],     // instance
-                                                       eigenIndex,             // eigenIndex
-                                                       &edgeIndices[eigenIndex*edgeCount],   // probabilityIndices
-                                                       (calcderivs ? &edgeIndicesD1[eigenIndex*edgeCount] : NULL), // firstDerivativeIndices
-                                                       (calcderivs ? &edgeIndicesD2[eigenIndex*edgeCount] : NULL), // secondDerivativeIndices
-                                                       edgeLengths,   // edgeLengths
-                                                       edgeCount);            // count
-                    }
-
-                } else {
-                    double* inMatrix = new double[stateCount*stateCount*rateCategoryCount];
-                    for (int matrixIndex=0; matrixIndex < edgeCount; matrixIndex++) {
-                        for(int z=0;z<rateCategoryCount;z++){
-                            for(int x=0;x<stateCount;x++){
-                                for(int y=0;y<stateCount;y++){
-                                    inMatrix[z*stateCount*stateCount + x*stateCount + y] = gt_rand() / (double) GT_RAND_MAX;
-                                }
-                            } 
-                        }
-                        beagleSetTransitionMatrix(instances[0], edgeIndices[eigenIndex*edgeCount + matrixIndex], inMatrix, 1);
-                        if (calcderivs) {
-                            beagleSetTransitionMatrix(instances[0], edgeIndicesD1[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                            beagleSetTransitionMatrix(instances[0], edgeIndicesD2[eigenIndex*edgeCount + matrixIndex], inMatrix, 0);
-                        }
-                    }
-                }
-            }
-
-        }
-
-        // std::cout.setf(std::ios::showpoint);
-        // // std::cout.setf(std::ios::floatfield, std::ios::fixed);
-        // std::cout.precision(4);
-        // unsigned int partialsOps = internalCount * eigenCount;
-        // unsigned int flopsPerPartial = (stateCount * 4) - 2 + 1;
-        // unsigned long long partialsSize = stateCount * nsites * rateCategoryCount;
-        // unsigned long long partialsTotal = partialsSize * partialsOps;
-        // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
-
-        // std::cout << " compute throughput:   ";
-
-        // for (int pRep=0; pRep < 50; pRep++) {
-            gettimeofday(&time2, NULL);
-
-            // update the partials
-            if (partitionCount > 1) {
-                beagleUpdatePartialsByPartition( instances[0],                   // instance
-                                (BeagleOperationByPartition*)operations,     // operations
-                                internalCount*eigenCount*partitionCount);    // operationCount
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleUpdatePartials( instances[inst],      // instance
-                                    (BeagleOperation*)operations,     // operations
-                                    internalCount*eigenCount,              // operationCount
-                                    (dynamicScaling ? internalCount : BEAGLE_OP_NONE));             // cumulative scaling index
-                }
-            }
-
-            gettimeofday(&time3, NULL);
-
-            // struct timespec ts;
-            // ts.tv_sec = 0;
-            // ts.tv_nsec = 100000000;
-            // nanosleep(&ts, NULL);
-
-            // std::cout << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << ", ";
-        // }
-        // std::cout << " GFLOPS " << std::endl<< std::endl;
-
-        // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
-
-
-        int scalingFactorsCount = internalCount;
-                
-        for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
-            if (manualScaling && !(i % rescaleFrequency)) {
-                beagleResetScaleFactors(instances[0],
-                                        cumulativeScalingFactorIndices[eigenIndex]);
-                
-                beagleAccumulateScaleFactors(instances[0],
-                                       &scalingFactorsIndices[eigenIndex*internalCount],
-                                       scalingFactorsCount,
-                                       cumulativeScalingFactorIndices[eigenIndex]);
-            } else if (autoScaling) {
-                beagleAccumulateScaleFactors(instances[0], &scalingFactorsIndices[eigenIndex*internalCount], scalingFactorsCount, BEAGLE_OP_NONE);
-            }
-        }
-        
-        gettimeofday(&time4, NULL);
-
-        // calculate the site likelihoods at the root node
-        if (!unrooted) {
-            if (partitionCount > 1) {
-                beagleCalculateRootLogLikelihoodsByPartition(
-                                            instances[0],               // instance
-                                            rootIndices,// bufferIndices
-                                            categoryWeightsIndices,                // weights
-                                            stateFrequencyIndices,                 // stateFrequencies
-                                            cumulativeScalingFactorIndices,
-                                            partitionIndices,
-                                            partitionCount,
-                                            eigenCount,                      // count
-                                            partitionLogLs,
-                                            &logL);         // outLogLikelihoods
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleCalculateRootLogLikelihoods(instances[inst],               // instance
-                                                rootIndices,// bufferIndices
-                                                categoryWeightsIndices,                // weights
-                                                stateFrequencyIndices,                 // stateFrequencies
-                                                cumulativeScalingFactorIndices,
-                                                eigenCount,                      // count
-                                                &logL);         // outLogLikelihoods
-                }
-                if (multiRsrc) {
-                    logL = 0.0;
-                    double instLogL;
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        beagleGetLogLikelihood(inst,
-                                               &instLogL);
-                        logL += instLogL;
-                    }
-                }
+            for (int j=0; j<numThreads; j++) {
+                futures[j].wait();
+                logL += threadLogL[j];
             }
         } else {
-            if (partitionCount > 1) {
-                beagleCalculateEdgeLogLikelihoodsByPartition(
-                                                  instances[0],
-                                                  rootIndices,
-                                                  lastTipIndices,
-                                                  lastTipIndices,
-                                                  (calcderivs ? lastTipIndicesD1 : NULL),
-                                                  (calcderivs ? lastTipIndicesD2 : NULL),
-                                                  categoryWeightsIndices,
-                                                  stateFrequencyIndices,
-                                                  cumulativeScalingFactorIndices,
-                                                  partitionIndices,
-                                                  partitionCount,
-                                                  eigenCount,
-                                                  partitionLogLs,
-                                                  &logL,
-                                                  (calcderivs ? partitionD1 : NULL),
-                                                  (calcderivs ? &deriv1 : NULL),
-                                                  (calcderivs ? partitionD2 : NULL),
-                                                  (calcderivs ? &deriv2 : NULL));
-            } else {
-                for(int inst=0; inst<instanceCount; inst++) {
-                    beagleCalculateEdgeLogLikelihoods(instances[inst],               // instance
-                                                      rootIndices,// bufferIndices
-                                                      lastTipIndices,
-                                                      lastTipIndices,
-                                                      (calcderivs ? lastTipIndicesD1 : NULL),
-                                                      (calcderivs ? lastTipIndicesD2 : NULL),
-                                                      categoryWeightsIndices,                // weights
-                                                      stateFrequencyIndices,                 // stateFrequencies
-                                                      cumulativeScalingFactorIndices,
-                                                      eigenCount,                      // count
-                                                      &logL,    // outLogLikelihood
-                                                      (calcderivs ? &deriv1 : NULL),
-                                                      (calcderivs ? &deriv2 : NULL));
-                }
-                if (multiRsrc) {
-                    logL = 0.0;
-                    double instLogL;
-                    for(int inst=0; inst<instanceCount; inst++) {
-                        beagleGetLogLikelihood(inst,
-                                               &instLogL);
-                        logL += instLogL;
-                    }
-                    if (calcderivs) {
-                        deriv1 = deriv2 = 0.0;
-                        double instDeriv1, instDeriv2;
-                        for(int inst=0; inst<instanceCount; inst++) {
-                            beagleGetDerivatives(inst,
-                                                 &instDeriv1,
-                                                 &instDeriv2);
-                            deriv1 += instDeriv1;
-                            deriv2 += instDeriv2;
-                        }
-                    }
-                }
-            }
-
+            computeLikelihood(i, &logL, instanceCount, &instances[0], &instanceSitesCount[0]);
         }
+
         // end timing!
         gettimeofday(&time5,NULL);
         
@@ -1746,7 +2421,7 @@ void runBeagle(int resource,
             // unsigned long long flopsTotal = partialsTotal * flopsPerPartial;
             // std::cout << " compute throughput:   " << (flopsTotal/getTimeDiff(time2, time3))/1000000.0 << " GFLOPS " << std::endl;
     
-        if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
+        if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal || (treenewick && i == (nreps-1)))  {
             bestTimeTotal = getTimeDiff(time0, time5);
             bestTimeSetPartitions = getTimeDiff(time0, time1);
             bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
@@ -1774,6 +2449,25 @@ void runBeagle(int resource,
         previousLogL = logL;
         previousDeriv1 = deriv1;
         previousDeriv2 = deriv2;        
+    }
+
+    if (clientThreadingEnabled) {
+        // Send stop signal to all threads and join them...
+        for (int i = 0; i < numThreads; i++) {
+            threadData* td = &threads[i];
+            std::unique_lock<std::mutex> l(td->m);
+            td->stop = true;
+            td->cv.notify_one();
+        }
+
+        // Join all the threads
+        for (int i = 0; i < numThreads; i++) {
+            threadData* td = &threads[i];
+            td->t.join();
+        }
+
+        delete[] threads;
+        delete[] futures;
     }
 
     if (resource == 0) {
@@ -1914,6 +2608,18 @@ void runBeagle(int resource,
 
         gt_srand(randomSeed);   // reset the random seed...
 
+        if ((treenewick || randomTree) && eigenCount==1 && !unrooted) {
+            generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+    #ifdef HAVE_PLL
+                pllTest, pll_operations,
+    #endif
+    #ifdef HAVE_NCL
+                (newTreePerRep ? NULL : treenewick),
+    #endif 
+                operations);
+        }
+
         for (int i=0; i<nreps; i++){
 
             if (newDataPerRep) {
@@ -1938,11 +2644,28 @@ void runBeagle(int resource,
             }
 
 
-            if (newTreePerRep && randomTree && eigenCount==1 && !unrooted) {
+            if (newTreePerRep && randomTree && eigenCount==1 && !unrooted && i > 0 && i != (nreps-1)) {
                 generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal,
                     dynamicScaling,
                     edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
                     pllTest, pll_operations,
+#ifdef HAVE_NCL
+                    NULL,
+#endif 
+                    operations);
+
+                for(int j=0; j<edgeCount; j++) {
+                    edgeLengths[j] = gt_rand() / (double) GT_RAND_MAX;
+                }
+            } else if (newTreePerRep && treenewick && i == (nreps-1)) {
+                generateNewTree(ntaxa, rerootTrees, pectinate, postorderTraversal, dynamicScaling,
+                    edgeCount, internalCount, unpartOpsCount, partitionCount, beagleOpCount,
+        #ifdef HAVE_PLL
+                    pllTest, pll_operations,
+        #endif
+        #ifdef HAVE_NCL
+                    treenewick,
+        #endif 
                     operations);
 
                 for(int j=0; j<edgeCount; j++) {
@@ -2028,7 +2751,7 @@ void runBeagle(int resource,
             gettimeofday(&time5,NULL);
             
 
-            if (i == 0 || getTimeDiff(time0, time5) < pll_bestTimeTotal) {
+            if (i == 0 || getTimeDiff(time0, time5) < pll_bestTimeTotal || (treenewick && i == (nreps-1))) {
                 pll_bestTimeTotal = getTimeDiff(time0, time5);
                 pll_bestTimeSetPartitions = getTimeDiff(time0, time1);
                 pll_bestTimeUpdateTransitionMatrices = getTimeDiff(time1, time2);
@@ -2143,12 +2866,17 @@ void printResourceList() {
 
 void helpMessage() {
     std::cerr << "Usage:\n\n";
-    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--enablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters] [--threads]";
+    std::cerr << "synthetictest [--help] [--resourcelist] [--benchmarklist] [--states <integer>] [--taxa <integer>] [--sites <integer>] [--rates <integer>] [--manualscale] [--autoscale] [--dynamicscale] [--rsrc <integer>] [--reps <integer>] [--doubleprecision] [--disablevector] [--enablethreads] [--compacttips <integer>] [--seed <integer>] [--rescalefrequency <integer>] [--fulltiming] [--unrooted] [--calcderivs] [--logscalers] [--eigencount <integer>] [--eigencomplex] [--ievectrans] [--setmatrix] [--opencl] [--partitions <integer>] [--sitelikes] [--newdata] [--randomtree] [--reroot] [--stdrand] [--pectinate] [--multirsrc] [--postorder] [--newtree] [--newparameters] [--threadcount] [--clientthreads]";
 #ifdef HAVE_PLL
     std::cerr << " [--plltest]";
     std::cerr << " [--pllonly]";
     std::cerr << " [--pllrepeats]";
 #endif // HAVE_PLL
+#ifdef HAVE_NCL
+    std::cerr << " [--alignmentdna]";
+    std::cerr << " [--compress]";
+    std::cerr << " [--tree]";
+#endif // HAVE_NCL
     std::cerr << "\n\n";
     std::cerr << "If --help is specified, this usage message is shown\n\n";
     std::cerr << "If --manualscale, --autoscale, or --dynamicscale is specified, BEAGLE will rescale the partials during computation\n\n";
@@ -2195,7 +2923,11 @@ void interpretCommandLineParameters(int argc, const char* argv[],
                                     bool* postorderTraversal,
                                     bool* newTreePerRep,
                                     bool* newParametersPerRep,
-                                    int* threadCount)    {
+                                    int* threadCount,
+                                    char** alignmentdna,
+                                    bool* compress,
+                                    char** treenewick,
+                                    bool* clientThreadingEnabled)    {
     bool expecting_stateCount = false;
     bool expecting_ntaxa = false;
     bool expecting_nsites = false;
@@ -2208,6 +2940,8 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     bool expecting_eigenCount = false;
     bool expecting_partitions = false;
     bool expecting_threads = false;
+    bool expecting_alignmentdna = false;
+    bool expecting_treenewick = false;
     
     for (unsigned i = 1; i < argc; ++i) {
         std::string option = argv[i];
@@ -2254,6 +2988,14 @@ void interpretCommandLineParameters(int argc, const char* argv[],
         } else if (expecting_threads) {
             *threadCount = (unsigned)atoi(option.c_str());
             expecting_threads = false;
+        } else if (expecting_alignmentdna) {
+            *alignmentdna = (char*) malloc(sizeof(char) * sizeof(option.c_str()));
+            strcpy(*alignmentdna, option.c_str());
+            expecting_alignmentdna = false;
+        } else if (expecting_treenewick) {
+            *treenewick = (char*) malloc(sizeof(char) * sizeof(option.c_str()));
+            strcpy(*treenewick, option.c_str());
+            expecting_treenewick = false;
         } else if (option == "--help") {
             helpMessage();
         } else if (option == "--resourcelist") {
@@ -2339,8 +3081,18 @@ void interpretCommandLineParameters(int argc, const char* argv[],
             *newTreePerRep = true;
         } else if (option == "--newparameters") {
             *newParametersPerRep = true;
-        } else if (option == "--threads") {
+        } else if (option == "--threadcount") {
             expecting_threads = true;
+#ifdef HAVE_NCL
+        } else if (option == "--alignmentdna") {
+            expecting_alignmentdna = true;
+        } else if (option == "--compress") {
+            *compress = true;
+        } else if (option == "--tree") {
+            expecting_treenewick = true;
+#endif // HAVE_NCL
+        } else if (option == "--clientthreads") {
+            *clientThreadingEnabled = true;
         } else {
             std::string msg("Unknown command line parameter \"");
             msg.append(option);         
@@ -2435,7 +3187,7 @@ void interpretCommandLineParameters(int argc, const char* argv[],
     if (*sitelikes && *multiRsrc)
         abort("multiple resources cannot be used with site likelihoods output");
 
-    if (*postorderTraversal && *randomTree==false)
+    if (*postorderTraversal && (*randomTree==false && treenewick==NULL))
         abort("postorder traversal can only be used with randomtree option");
 
     if (*newTreePerRep && *randomTree==false)
@@ -2446,6 +3198,9 @@ void interpretCommandLineParameters(int argc, const char* argv[],
 
     if (*newTreePerRep && *unrooted)
         abort("new tree per replicate can only be used with rooted trees");
+
+    if (*clientThreadingEnabled && *multiRsrc==false)
+        abort("client-side threading requires 'multirsrc' setting to be enabled");
 }
 
 int main( int argc, const char* argv[] )
@@ -2487,6 +3242,11 @@ int main( int argc, const char* argv[] )
     bool newParametersPerRep = false;
     int threadCount = 1;
     useStdlibRand = false;
+    char* alignmentdna = NULL;
+    bool alignmentFromFile = false;
+    bool compress = false;
+    char* treenewick = NULL;
+    bool clientThreadingEnabled = false;
 
     std::vector<int> rsrc;
     rsrc.push_back(-1);
@@ -2506,19 +3266,30 @@ int main( int argc, const char* argv[] )
                                    &eigenCount, &eigencomplex, &ievectrans, &setmatrix, &opencl,
                                    &partitions, &sitelikes, &newDataPerRep, &randomTree, &rerootTrees, &pectinate, &benchmarklist, &pllTest, &pllSiteRepeats, &pllOnly, &multiRsrc,
                                    &postorderTraversal, &newTreePerRep, &newParametersPerRep,
-                                   &threadCount);
-    
+                                   &threadCount, &alignmentdna, &compress, &treenewick,
+                                   &clientThreadingEnabled);
 
-    std::cout << "\nSimulating genomic ";
-    if (stateCount == 4)
-        std::cout << "DNA";
-    else
-        std::cout << stateCount << "-state data";
-    if (partitions > 1) {
-        std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions";
-    } else {
-        std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns";
+    if (alignmentdna == NULL) {
+        std::cout << "\nSimulating genomic ";
+        if (stateCount == 4)
+            std::cout << "DNA";
+        else
+            std::cout << stateCount << "-state data";
+        if (partitions > 1) {
+            std::cout << " with " << ntaxa << " taxa, " << nsites << " site patterns, and " << partitions << " partitions";
+        } else {
+            std::cout << " with " << ntaxa << " taxa and " << nsites << " site patterns";
+        }
     }
+#ifdef HAVE_NCL
+    else {
+        stateCount = 4;
+        ncl_readAlignmentDNA(alignmentdna, &ntaxa, &nsites, compress);
+        compactTipCount = ntaxa;
+        alignmentFromFile = true;
+        free(alignmentdna);
+    }
+#endif //HAVE_NCL
 
     if (!benchmarklist)
         std::cout << " (" << nreps << " rep" << (nreps > 1 ? "s" : "");
@@ -2584,7 +3355,10 @@ int main( int argc, const char* argv[] )
                           newParametersPerRep,
                           threadCount,
                           rsrcList,
-                          rsrcCount);
+                          rsrcCount,
+                          alignmentFromFile,
+                          treenewick,
+                          clientThreadingEnabled);
             }
         }
     } else {

@@ -716,6 +716,37 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int count);
 
 /**
+ * @brief Calculate a list of transition probability matrices with 
+ *         each category using a different eigen decompsition
+ *
+ * This function calculates a list of transition probabilities matrices and their first and
+ * second derivatives (if requested). Each matrix is calculated for categoryCount categories,
+ * with each category using a different eigen decomposition based on eigenIndices.
+ *
+ * @param instance                  Instance number (input)
+ * @param eigenIndices              List of indices of eigen-decomposition buffers,
+ *                                   with categoryCount length (input)
+ * @param probabilityIndices        List of indices of transition probability matrices to update
+ *                                   (input)
+ * @param firstDerivativeIndices    List of indices of first derivative matrices to update
+ *                                   (input, NULL implies no calculation)
+ * @param secondDerivativeIndices    List of indices of second derivative matrices to update
+ *                                   (input, NULL implies no calculation)
+ * @param edgeLengths               List of edge lengths with which to perform calculations (input)
+ * @param count                     Length of lists (except for eigenIndices list)
+ * 
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesWithModelCategories(int instance,
+                                   int* eigenIndices,
+                                   const int* probabilityIndices,
+                                   const int* firstDerivativeIndices,
+                                   const int* secondDerivativeIndices,
+                                   const double* edgeLengths,
+                                   int count);
+
+
+/**
  * @brief Calculate a list of transition probability matrices with multiple models
  *
  * This function calculates a list of transition probabilities matrices and their first and

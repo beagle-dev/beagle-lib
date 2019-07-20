@@ -306,6 +306,13 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                 const int* probabilityIndices,
+                                 const int* firstDerivativeIndices,
+                                 const int* secondDerivativeIndices,
+                                 const double* edgeLengths,
+                                 int count);
+
     int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
                                                    const int* categoryRateIndices,
                                                    const int* probabilityIndices,

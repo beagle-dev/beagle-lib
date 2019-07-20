@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.59])
-AC_INIT(libhmsbeagle, 3.1.1, beagle-dev@googlegroups.com)
+AC_INIT(libhmsbeagle, 3.2.0, beagle-dev@googlegroups.com)
 
 : ${CXXFLAGS=""}
 
@@ -12,15 +12,15 @@ GENERIC_LIBRARY_NAME=libhmsbeagle
 
 #release versioning
 GENERIC_MAJOR_VERSION=3
-GENERIC_MINOR_VERSION=1
-GENERIC_MICRO_VERSION=1
+GENERIC_MINOR_VERSION=2
+GENERIC_MICRO_VERSION=0
 
 #API version
 GENERIC_API_VERSION=1
 AC_SUBST(GENERIC_API_VERSION)
 
 #shared library versioning
-GENERIC_LIBRARY_VERSION=4:1:3
+GENERIC_LIBRARY_VERSION=5:0:4
 #
 #             current:revision:age
 #                |        |     |
@@ -75,11 +75,11 @@ CHECK_LIB_PATH="\$(top_builddir)/libhmsbeagle/CPU/.libs:\$(top_builddir)/libhmsb
 AC_SUBST(CHECK_LIB_PATH)
 
 # ------------------------------------------------------------------------------
-# Check for libtool development libraries for plugin loading
+# libtool development libraries for plugin loading (experimental)
 # ------------------------------------------------------------------------------
 
 AC_ARG_ENABLE(libtool_dev,
-    AC_HELP_STRING([--disable-libtool-dev],[do not use libtool development libraries]), , [enable_libtool_dev=yes])
+    AC_HELP_STRING([--enable-libtool-dev],[use libtool development libraries for plugin loading (may cause issues with CPU threading)]), , [enable_libtool_dev=no])
 if test  "$enable_libtool_dev" = yes; then
   AC_SEARCH_LIBS(lt_dlinit,ltdl,[AC_DEFINE(HAVE_LIBLTDL,"1","Defined if the libtool dev libs are present")])
   if test "x$ac_cv_search_lt_dlinit" == "xno"
@@ -154,6 +154,8 @@ AM_CXXFLAGS="$AM_CXXFLAGS -std=c++11"
 
 CPU_CFLAGS=
 CPU_LIBS=
+SYNTHETICTEST_CPPFLAGS=
+SYNTHETICTEST_LDFLAGS=
 
 case $host_os in
 *linux*)
@@ -162,6 +164,8 @@ case $host_os in
   then
     CPU_CFLAGS="$CPU_CFLAGS -pthread"
     CPU_LIBS="$CPU_LIBS -lpthread"
+    SYNTHETICTEST_CPPFLAGS="$SYNTHETICTEST_CPPFLAGS $CPU_CFLAGS"
+    SYNTHETICTEST_LDFLAGS="$SYNTHETICTEST_LDFLAGS $CPU_LIBS"
   fi
 esac
 
@@ -309,14 +313,27 @@ AC_ARG_WITH([pll],
    [],
    [with_pll=no])
 
-SYNTHETICTEST_CPPFLAGS=
-SYNTHETICTEST_LDFLAGS=
-
 if test "x$with_pll" != "xno"
 then
   SYNTHETICTEST_CPPFLAGS+=" -I$with_pll/include -D HAVE_PLL"
   SYNTHETICTEST_LDFLAGS+=" -lpll -L$with_pll/lib"
 fi
+
+# ------------------------------------------------------------------------------
+# Setup ncl library for synthetictest
+# ------------------------------------------------------------------------------
+
+AC_ARG_WITH([ncl],
+   [AS_HELP_STRING([--with-ncl=PATH],[path for NEXUS Class Library (used with synthetictest for empirical testing) @<:@default=no@:>@])],
+   [],
+   [with_ncl=no])
+
+if test "x$with_ncl" != "xno"
+then
+  SYNTHETICTEST_CPPFLAGS+=" -I$with_ncl/include -D HAVE_NCL"
+  SYNTHETICTEST_LDFLAGS+=" -lncl -L$with_ncl/lib/ncl"
+fi
+
 
 # ------------------------------------------------------------------------------
 # Setup SSE

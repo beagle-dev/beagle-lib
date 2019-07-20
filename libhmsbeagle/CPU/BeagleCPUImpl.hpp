@@ -449,11 +449,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
-        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
-        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
-            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+        if (kStateCount <= 4) {
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+            if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+                kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+            } else if (kPatternCount < BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT) {
+                hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
+            }
         } else {
-            hardwareThreads = BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD;
+            // todo: assess minimum pattern count for efficient auto-threading
+            //       for higher state-count values
+            kMinPatternCount = 2;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
@@ -521,9 +527,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
     kAutoPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
-        kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
-        if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
-            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+        if (kStateCount <= 4) {
+            kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW;
+            if (hardwareThreads < BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD) {
+                kMinPatternCount = BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH;
+            }
+        } else {
+            // todo: assess minimum pattern count for efficient auto-threading
+            //       for higher state-count values
+            kMinPatternCount = 2;
         }
         if (kPatternCount >= kMinPatternCount && hardwareThreads > 2) {
             int partitionCount = kPatternCount/(kMinPatternCount/2);
@@ -594,7 +606,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTipPartials(int tipIndex,
         inPartialsOffset = inPartials;
         for (int i = 0; i < kPatternCount; i++) {
             beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-            tmpRealPartialsOffset += kPartialsPaddedStateCount;
+            tmpRealPartialsOffset += kStateCount;
+            // Pad extra buffer with zeros
+            for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
+                *tmpRealPartialsOffset++ = 0;
+            }
             inPartialsOffset += kStateCount;
         }
         // Pad extra buffer with zeros
@@ -681,7 +697,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPartials(int bufferIndex,
     for (int l = 0; l < kCategoryCount; l++) {
         for (int i = 0; i < kPatternCount; i++) {
             beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-            tmpRealPartialsOffset += kPartialsPaddedStateCount;
+            tmpRealPartialsOffset += kStateCount;
+            // Pad extra buffer with zeros
+            for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
+                *tmpRealPartialsOffset++ = 0;
+            }
             inPartialsOffset += kStateCount;
         }
         // Pad extra buffer with zeros
@@ -697,22 +717,31 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
                                int cumulativeScaleIndex,
                                double* outPartials) {
-    // TODO: Make this work with partials padding
 
     // TODO: Test with and without padding
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-    if (kPatternCount == kPaddedPatternCount) {
+    if ((kPatternCount == kPaddedPatternCount) && (kStateCount == kPartialsPaddedStateCount)) {
         beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
-    } else { // Need to remove padding
-        double *offsetOutPartials;
+    } else if (kStateCount == kPartialsPaddedStateCount) {
+        double *offsetOutPartials = outPartials;
         REALTYPE* offsetBeaglePartials = gPartials[bufferIndex];
-        for(int i = 0; i < kCategoryCount; i++) {
-            beagleMemCpy(offsetOutPartials,offsetBeaglePartials,
-                    kPatternCount * kStateCount);
+        for(int l = 0; l < kCategoryCount; l++) {
+            beagleMemCpy(offsetOutPartials, offsetBeaglePartials, kPatternCount * kStateCount);
             offsetOutPartials += kPatternCount * kStateCount;
             offsetBeaglePartials += kPaddedPatternCount * kStateCount;
+        }
+    } else {
+        double *offsetOutPartials = outPartials;
+        REALTYPE* offsetBeaglePartials = gPartials[bufferIndex];
+        for(int l = 0; l < kCategoryCount; l++) {
+            for (int i = 0; i < kPatternCount; i++) {
+                beagleMemCpy(offsetOutPartials, offsetBeaglePartials, kStateCount);
+                offsetOutPartials += kStateCount;
+                offsetBeaglePartials += kPartialsPaddedStateCount;
+            }
+            offsetBeaglePartials += (kPaddedPatternCount - kPatternCount) * kPartialsPaddedStateCount;
         }
     }
 
@@ -1198,6 +1227,21 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
                                                   edgeLengths,gCategoryRates[0],gTransitionMatrices,count);
     return BEAGLE_SUCCESS;
 }
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                            const int* probabilityIndices,
+                                            const int* firstDerivativeIndices,
+                                            const int* secondDerivativeIndices,
+                                            const double* edgeLengths,
+                                            int count) {
+
+    gEigenDecomposition->updateTransitionMatricesWithModelCategories(eigenIndices,probabilityIndices,firstDerivativeIndices,secondDerivativeIndices,
+                                                  edgeLengths,gTransitionMatrices,count);
+    return BEAGLE_SUCCESS;
+}
+
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
@@ -4094,7 +4138,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(REALTYPE* destP,
 
                 w += kTransPaddedStateCount;
             }
-            v += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    destP[v] = 0.0;
+                    v++;
+                }
+            }
         }
     }
 }
@@ -4124,7 +4173,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesStatesFixedScaling(REALTYPE* d
 
                 w += kTransPaddedStateCount;
             }
-            v += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    destP[v] = 0.0;
+                    v++;
+                }
+            }
         }
     }
 }
@@ -4178,7 +4232,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(REALTYPE* destP,
 
                 *(destPtr++) = tmp * (sumA + sumB);
             }
-            destPtr += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPtr++) = 0.0;
+                }
+            }
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
@@ -4231,7 +4289,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesPartialsFixedScaling(REALTYPE*
 
                 *(destPtr++) = tmp * (sumA + sumB) * oneOverScaleFactor;
             }
-            destPtr += P_PAD;
+            if (P_PAD) {
+                for (int pad = 0; pad < P_PAD; pad++)  {
+                    *(destPtr++) = 0.0;
+                }
+            }
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
