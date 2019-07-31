@@ -3,11 +3,15 @@ project(test_beagle_lib)
 
 set(CMAKE_CXX_STANDARD 11)
 
+#SET(CMAKE_BUILD_TYPE Debug)
+
+SET(BEAGLE_VERSION 32)
+
 ## flags for standard library
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
 find_package(JNI REQUIRED)
@@ -36,16 +40,16 @@ link_directories(
 
 add_subdirectory(libhmsbeagle)
 
-link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
+link_libraries(hmsbeagle)
 
 add_executable(hmctest
         examples/hmctest/hmctest.cpp)
 
-add_executable(hmctest5
-		examples/hmctest/hmctest5.cpp)
-
-add_executable(tinytest
-        examples/tinytest/tinytest.cpp)
+#add_executable(hmctest5
+#		examples/hmctest/hmctest5.cpp)
+#
+#add_executable(tinytest
+#        examples/tinytest/tinytest.cpp)
 
 #add_executable(hmctestMedium
 #        examples/hmctest/hmctestMedium.cpp)
@@ -59,6 +63,6 @@ add_executable(tinytest
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
-#target_link_libraries(hmctest hmsbeagle hmsbeagle-opencl)
+target_link_libraries(hmctest hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
-target_link_libraries(tinytest hmsbeagle)
+#target_link_libraries(tinytest hmsbeagle)
