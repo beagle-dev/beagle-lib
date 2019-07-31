@@ -36,7 +36,7 @@ link_directories(
 
 add_subdirectory(libhmsbeagle)
 
-link_libraries(hmsbeagle)
+link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
 
 add_executable(hmctest
         examples/hmctest/hmctest.cpp)
