@@ -16,7 +16,7 @@ link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib)
 
 
 set(NVCC "/usr/local/cuda/bin/nvcc")
-set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin /usr/bin/clang -m64 -D_POSIX_C_SOURCE")
+set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_CXX_COMPILER} -m64 -D_POSIX_C_SOURCE")
 set(NVCC_INC "-I${CMAKE_SOURCE_DIR}")
 
 # For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
