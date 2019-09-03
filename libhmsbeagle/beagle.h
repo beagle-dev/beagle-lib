@@ -180,7 +180,10 @@ enum BeagleFlags {
     BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27,   /**< Use CPU implementation */
 
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
-    BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29    /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1 << 31 /**< Automatically transpose pre-order transition matrices */
 };
 
 

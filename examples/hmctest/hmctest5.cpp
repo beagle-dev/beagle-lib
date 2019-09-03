@@ -129,6 +129,8 @@ void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CPU)      fprintf(stdout, " FRAMEWORK_CPU");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     fprintf(stdout, " FRAMEWORK_CUDA");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   fprintf(stdout, " FRAMEWORK_OPENCL");
+    if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL)    fprintf(stdout, " PREORDER_TRANSPOSE_MANUAL");
+    if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO)      fprintf(stdout, " PREORDER_TRANSPOSE_AUTO");
 }
 
 int main( int argc, const char* argv[] )
@@ -167,6 +169,8 @@ int main( int argc, const char* argv[] )
 
     bool useTipStates = true;
 
+    bool autoTranspose = true;
+
     int whichDevice = -1;
     if (useGpu) {
         if (argc > 2) {
@@ -195,8 +199,10 @@ int main( int argc, const char* argv[] )
                                   whichDevice >= 0 ? &whichDevice : NULL, /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   whichDevice >= 0 ? 1 : 0,			    /**< Length of resourceList list (input) */
                             useGpu ?
-                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
+                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW :
                                   BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
+                            autoTranspose ?
+                                  BEAGLE_FLAG_EIGEN_REAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO :
                                   BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
@@ -424,7 +430,9 @@ int main( int argc, const char* argv[] )
 
     beagleGetTransitionMatrix(instance, 0, matrix1);
 
-    beagleTransposeTransitionMatrices(instance, nodeIndices, transposeIndices, 4);
+    if (!autoTranspose) {
+        beagleTransposeTransitionMatrices(instance, nodeIndices, transposeIndices, 4);
+    }
 
     beagleGetTransitionMatrix(instance, 6, matrix2);
 
@@ -483,7 +491,12 @@ int main( int argc, const char* argv[] )
 
     int categoryWeightsIndex = 0;
     int stateFrequencyIndex = 0;
-    int transpose = (stateCount == 4 || !useGpu) ? 0 : 6;
+
+    int transpose = 0;
+    if (!autoTranspose) {
+        transpose = (stateCount == 4 || !useGpu) ? 0 : 6;
+    }
+
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
     // destPartials point to the pre-order partials

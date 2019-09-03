@@ -35,6 +35,7 @@ Plugin("CPU-AVX", "CPU-AVX")
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                                          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                                         BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                          BEAGLE_FLAG_FRAMEWORK_CPU;
         resource.supportFlags |= BEAGLE_FLAG_VECTOR_AVX;
         resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CPU;

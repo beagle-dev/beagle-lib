@@ -26,7 +26,7 @@ add_custom_target(CudaKernels
         DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
         COMMENT "Building kernels")
 
-add_library(hmsbeagle-cuda.31 MODULE
+add_library(hmsbeagle-cuda.32 MODULE
         ../BeagleGPUImpl.h
         ../BeagleGPUImpl.hpp
         ../GPUImplDefs.h
@@ -42,9 +42,9 @@ add_library(hmsbeagle-cuda.31 MODULE
         ../Precision.h
         )
 
-add_dependencies(hmsbeagle-cuda.31 CudaKernels)
+add_dependencies(hmsbeagle-cuda.32 CudaKernels)
 
-target_link_libraries(hmsbeagle-cuda.31 cuda ${CUDA_LIBRARIES})
+target_link_libraries(hmsbeagle-cuda.32 cuda ${CUDA_LIBRARIES})
 
 add_library(hmsbeagle-cuda MODULE
         ../BeagleGPUImpl.h
@@ -66,6 +66,6 @@ add_dependencies(hmsbeagle-cuda CudaKernels)
 
 target_link_libraries(hmsbeagle-cuda cuda ${CUDA_LIBRARIES})
 
-install(TARGETS hmsbeagle-cuda.31 hmsbeagle-cuda
+install(TARGETS hmsbeagle-cuda.32 hmsbeagle-cuda
         DESTINATION lib
         )

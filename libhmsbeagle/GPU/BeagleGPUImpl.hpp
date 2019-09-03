@@ -310,6 +310,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
 
+    kExtraMatrixCount = 0;
+
     kPartitionCount = 1;
     kMaxPartitionCount = kPartitionCount;
     kPartitionsInitialised = false;
@@ -484,6 +486,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_COMPUTATION_ASYNCH;
     } else {
         kFlags |= BEAGLE_FLAG_COMPUTATION_SYNCH;
+    }
+
+    if (preferenceFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO || requirementFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO) {
+        kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
+    } else {
+        kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL;
     }
 
     Real r = 0;
@@ -772,6 +780,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
     }
+
+    kUsingAutoTranspose = (kPaddedStateCount > 4 &&
+            kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
@@ -2731,10 +2742,61 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationP
 }
 
 BEAGLE_GPU_TEMPLATE
+std::vector<int>
+BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int *operations,
+                                                                       int operationCount) {
+
+    if (kExtraMatrixCount < operationCount) {
+
+        size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
+        GPUPtr dMatricesOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
+
+        gpu->MemcpyDeviceToDevice(dMatricesOrigin, dMatrices[0],
+                (kMatrixCount + kExtraMatrixCount) * ptrIncrement);
+
+        gpu->FreeMemory(dMatrices[0]);
+        free(dMatrices);
+
+        dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * (kMatrixCount + operationCount));
+
+        for (int i = 0; i < kMatrixCount + operationCount; ++i) {
+            dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement);
+
+        }
+
+        kExtraMatrixCount = operationCount;
+    }
+
+    std::vector<int> newOperation(operations, operations + (7 * operationCount)); // make copy
+    std::vector<int> oldMatrices(operationCount);
+    std::vector<int> newMatrices(operationCount);
+
+    int currentMatrix = kMatrixCount;
+    for (int op = 0; op < operationCount; ++op) {
+        oldMatrices[op] = newOperation[op * 7 + 4];
+        newMatrices[op] = currentMatrix;
+        newOperation[op * 7 + 4] = currentMatrix;
+        ++currentMatrix;
+    }
+
+    transposeTransitionMatrices(oldMatrices.data(), newMatrices.data(), operationCount);
+
+    return newOperation;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
-                                                     const int* operations,
+                                                     const int* inOperations,
                                                      int operationCount,
                                                      int cumulativeScaleIndex) {
+
+    const int* operations = inOperations;
+    std::vector<int> newOperations;
+
+    if (kUsingAutoTranspose) {
+        newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+        operations = newOperations.data();
+    }
 
     // Below is the old serial version of upPartials (as a far starting point)
     for (int op = 0; op < operationCount; op++) {
@@ -4384,6 +4446,7 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+          BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
           BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS;
 
 #ifdef CUDA

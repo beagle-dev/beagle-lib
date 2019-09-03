@@ -147,6 +147,7 @@ private:
     bool kUsingMultiGrid;
     bool kDerivBuffersInitialised;
 	bool kMultipleDerivativesInitialised; // TODO Change to length (max node count used)
+	bool kUsingAutoTranspose;
 
     int kNumPatternBlocks;
     int kSitesPerBlock;
@@ -192,6 +193,8 @@ private:
     int* hIntegratePartitionsStartBlocks;
     int* hPatternsNewOrder;
     int* hGridOpIndices;
+
+    int kExtraMatrixCount;
 
     unsigned int* hPtrQueue;
 
@@ -452,6 +455,9 @@ private:
     void  allocateMultiGridBuffers();
 
     int  reorderPatternsByPartition();
+
+    std::vector<int> transposeTransitionMatricesOnTheFly(const int *operations,
+                                                         int operationCount);
 
     int upPartials(bool byPartition,
                    const int* operations,

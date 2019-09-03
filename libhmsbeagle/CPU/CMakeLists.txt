@@ -1,4 +1,4 @@
-add_library(hmsbeagle-cpu.31 MODULE
+add_library(hmsbeagle-cpu.32 MODULE
         BeagleCPU4StateImpl.h
         BeagleCPU4StateImpl.hpp
         BeagleCPUImpl.h
@@ -28,6 +28,6 @@ add_library(hmsbeagle-cpu MODULE
         Precision.h
         SSEDefinitions.h
         )
-install(TARGETS hmsbeagle-cpu.31 hmsbeagle-cpu
+install(TARGETS hmsbeagle-cpu.32 hmsbeagle-cpu
         DESTINATION lib
         )
