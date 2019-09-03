@@ -18,7 +18,7 @@ public enum BeagleFlag {
     SCALING_MANUAL(1 << 6, "manual scaling"),
     SCALING_AUTO(1 << 7, "auto-scaling on"),
     SCALING_ALWAYS(1 << 8, "scale at every update"),
-    SCALING_DYNAMIC(1 << 19, "manual scaling with dynamic checking"),            
+    SCALING_DYNAMIC(1 << 19, "manual scaling with dynamic checking"),
 
     SCALERS_RAW(1 << 9, "save raw scalers"),
     SCALERS_LOG(1 << 10, "save log scalers"),
@@ -40,7 +40,10 @@ public enum BeagleFlag {
     FRAMEWORK_CPU(1 << 27, "use CPU implementation"),
 
     PARALLELOPS_STREAMS(1 << 28, "Operations in updatePartials may be assigned to separate device streams"),
-    PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)");
+    PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)"),
+
+    PREORDER_TRANSPOSE_MANUAL(1 << 30, "Pre-order transition matrices passed to BEAGLE have been transposed"),
+    PREORDER_TRANSPOSE_AUTO(1 << 31, "Automatically transpose pre-order transition matrices");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
