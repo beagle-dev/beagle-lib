@@ -13,7 +13,7 @@ add_custom_target(OpenKernels
         DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
         COMMENT "Building kernels")
 
-add_library(hmsbeagle-opencl.32 MODULE
+add_library(hmsbeagle-opencl.${BEAGLE_VERSION} MODULE
         ../BeagleGPUImpl.h
         ../BeagleGPUImpl.hpp
         ../GPUImplDefs.h
@@ -29,9 +29,9 @@ add_library(hmsbeagle-opencl.32 MODULE
         ../Precision.h
         )
 
-add_dependencies(hmsbeagle-opencl.32 OpenKernels)
+add_dependencies(hmsbeagle-opencl.${BEAGLE_VERSION} OpenKernels)
 
-target_link_libraries(hmsbeagle-opencl.32 ${OpenCL_LIBRARIES})
+target_link_libraries(hmsbeagle-opencl.${BEAGLE_VERSION} ${OpenCL_LIBRARIES})
 
 add_library(hmsbeagle-opencl MODULE
         ../BeagleGPUImpl.h
@@ -53,6 +53,6 @@ add_dependencies(hmsbeagle-opencl OpenKernels)
 
 target_link_libraries(hmsbeagle-opencl ${OpenCL_LIBRARIES})
 
-install(TARGETS hmsbeagle-opencl.32 hmsbeagle-opencl
+install(TARGETS hmsbeagle-opencl.${BEAGLE_VERSION} hmsbeagle-opencl
         DESTINATION lib
         )
