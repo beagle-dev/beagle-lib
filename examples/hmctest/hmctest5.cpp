@@ -160,7 +160,6 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human);
 
     // change # rate category to 2
-//    int rateCategoryCount = 4;
     int rateCategoryCount = 2;
 
     int scaleCount = (scaling ? 7 : 0);
@@ -381,9 +380,9 @@ int main( int argc, const char* argv[] )
             0, 0, 0, 0, 0
     };
 
-    std::vector<double> scaledQ(5 * 5 * 2);
-    std::vector<double> scaledQ2(5 * 5 * 2);
-    std::vector<double> scaledQT(5 * 5 * 2);
+    std::vector<double> scaledQ(5 * 5 * rateCategoryCount);
+    std::vector<double> scaledQ2(5 * 5 * rateCategoryCount);
+    std::vector<double> scaledQT(5 * 5 * rateCategoryCount);
 
     for (int rate = 0; rate < rateCategoryCount; ++rate) {
         for (int entry = 0; entry < stateCount * stateCount; ++entry) {
@@ -416,12 +415,13 @@ int main( int argc, const char* argv[] )
 	                         edgeLengths,   // edgeLengths
 	                         4);            // count
 
-    if (useGpu) {
-        beagleSetTransitionMatrix(instance, 4, scaledQT.data(), 0.0);
+    if (autoTranspose || !useGpu) {
+        beagleSetDifferentialMatrix(instance, 4, scaledQ.data());
+        beagleSetDifferentialMatrix(instance, 5, scaledQ2.data());
     } else {
-        beagleSetTransitionMatrix(instance, 4, scaledQ.data(), 0.0);
+        beagleSetDifferentialMatrix(instance, 4, scaledQT.data());
+        beagleSetDifferentialMatrix(instance, 5, scaledQ2.data());
     }
-    beagleSetTransitionMatrix(instance, 5, scaledQ2.data(), 0.0);
 
     int transposeIndices[4] = { 6, 7, 8, 9 };
 

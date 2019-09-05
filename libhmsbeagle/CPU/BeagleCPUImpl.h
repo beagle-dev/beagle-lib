@@ -252,6 +252,9 @@ public:
                             const double* inMatrix,
                             double paddedValue);
 
+    int setDifferentialMatrix(int matrixIndex,
+                              const double* inMatrix);
+
     int setTransitionMatrices(const int* matrixIndices,
                               const double* inMatrices,
                               const double* paddedValues,

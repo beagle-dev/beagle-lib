@@ -343,6 +343,21 @@ public interface Beagle extends Serializable {
             final int[] resultIndices,
             int matrixCount);
 
+
+    /**
+     * Transpose lists of transition probability matrices
+     *
+     * This function transposes a lists of transition probability matrices.
+     *
+     * @param inIndices              List of indices of the transition probability matrices to transpose (input)
+     * @param outIndices             List of indices of the resulting transition probability matrices (input)
+     * @param matrixCount               Lenght of lists
+     */
+    void transposeTransitionMatrices(
+    		final int[] inIndices,
+    		final int[] outIndices,
+    		int matrixCount);
+
     /**
      * Calculate a list of transition probability matrices
      *
@@ -395,13 +410,26 @@ public interface Beagle extends Serializable {
      *
      * This function copies a finite-time transition probability matrix into a matrix buffer.
      * @param matrixIndex   Index of matrix buffer (input)
-     * @param inMatrix          Pointer to source transition probability matrix (input)
+     * @param inMatrix      Pointer to source transition probability matrix (input)
      * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
      */
     void setTransitionMatrix(
             int matrixIndex,			/**< Index of matrix buffer (input) */
             final double[] inMatrix, 	/**< Pointer to source transition probability matrix (input) */
             double paddedValue);
+
+    /**
+     * This function copies a differential transition probability matrix into a matrix buffer.
+     * The inMatrix array should be of size stateCount * stateCount * categoryCount and will
+     * contain one matrix for each rate category.
+     *
+     * This function copies a differential transition probability matrix into a matrix buffer.
+     * @param matrixIndex   Index of matrix buffer (input)
+     * @param inMatrix      Pointer to source transition probability matrix (input)
+     */
+    void setDifferentialMatrix(
+            int matrixIndex,			/**< Index of matrix buffer (input) */
+            final double[] inMatrix); 	/**< Pointer to source transition probability matrix (input) */
 
     /**
      * Get a finite-time transition probability matrix

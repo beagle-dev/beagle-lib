@@ -46,7 +46,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 	if (rl == NULL) {
 	    return NULL;
     }
-    
+
 	jclass objClass = env->FindClass("beagle/ResourceDetails");
 	if (objClass == NULL) {
 		printf("NULL returned in FindClass: can't find class: beagle/ResourceDetails\n");
@@ -92,7 +92,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getResourceList
 
         env->SetObjectArrayElement(resourceArray, i, resourceObj);
 	}
-	
+
 	return resourceArray;
 }
 
@@ -126,7 +126,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getBenchmarkedResour
     if (brl == NULL) {
         return NULL;
     }
-    
+
     jclass objClass = env->FindClass("beagle/BenchmarkedResourceDetails");
     if (objClass == NULL) {
         printf("NULL returned in FindClass: can't find class: beagle/BenchmarkedResourceDetails\n");
@@ -229,7 +229,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getBenchmarkedResour
 
         env->SetObjectArrayElement(benchmarkedResourceArray, i, benchmarkedResourceObj);
     }
-    
+
     return benchmarkedResourceArray;
 }
 
@@ -242,7 +242,7 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getBenchmarkedResour
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
     (JNIEnv *env, jobject obj, jint tipCount, jint partialsBufferCount, jint compactBufferCount,
     jint stateCount, jint patternCount, jint eigenBufferCount, jint matrixBufferCount, jint
-     categoryCount, jint scaleBufferCount, 
+     categoryCount, jint scaleBufferCount,
 	 jintArray inResourceList, jint resourceCount, jlong preferenceFlags, jlong requirementFlags,
 	 jobject outInstanceDetails)
 {
@@ -251,7 +251,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
     jint *resourceList = NULL;
     if (inResourceList != NULL)
         resourceList = env->GetIntArrayElements(inResourceList, NULL);
-    
+
      jint instance = (jint)beagleCreateInstance(tipCount,
                                     partialsBufferCount,
                                     compactBufferCount,
@@ -266,29 +266,29 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
                                     preferenceFlags,
                                     requirementFlags,
 									&instanceDetails);
-    
+
     if(inResourceList != NULL)
         env->ReleaseIntArrayElements(inResourceList, resourceList, JNI_ABORT);
-    
+
 	if (instance >= 0) {
 		jclass objClass = env->FindClass("beagle/InstanceDetails");
 		if (objClass == NULL) {
 			printf("NULL returned in FindClass: can't find class: beagle/InstanceDetails\n");
 			return BEAGLE_ERROR_GENERAL;
 		}
-		
+
 		jmethodID setResourceNumberMethodID = env->GetMethodID(objClass, "setResourceNumber", "(I)V");
 		if (setResourceNumberMethodID == NULL) {
 			printf("NULL returned in FindClass: can't find 'setResourceNumber' method in class: beagle/InstanceDetails\n");
 			return BEAGLE_ERROR_GENERAL;
 		}
-		
+
 		jmethodID setFlagsMethodID = env->GetMethodID(objClass, "setFlags", "(J)V");
 		if (setFlagsMethodID == NULL) {
 			printf("NULL returned in FindClass: can't find 'setFlags' method in class: beagle/InstanceDetails\n");
 			return BEAGLE_ERROR_GENERAL;
 		}
-		
+
 		env->CallVoidMethod(outInstanceDetails, setResourceNumberMethodID, instanceDetails.resourceNumber);
 		env->CallVoidMethod(outInstanceDetails, setFlagsMethodID, instanceDetails.flags);
 	}
@@ -326,12 +326,12 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCPUThreadCount
  * Signature: (I[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPatternWeights
-(JNIEnv *env, jobject obj, jint instance, jdoubleArray inPatternWeights) 
+(JNIEnv *env, jobject obj, jint instance, jdoubleArray inPatternWeights)
 {
     jdouble *patternWeights = env->GetDoubleArrayElements(inPatternWeights, NULL);
-    
+
 	jint errCode = (jint)beagleSetPatternWeights(instance, (double *)patternWeights);
-    
+
     env->ReleaseDoubleArrayElements(inPatternWeights, patternWeights, JNI_ABORT);
     return errCode;
 }
@@ -362,9 +362,9 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipStates
 (JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray inTipStates)
 {
     jint *tipStates = env->GetIntArrayElements(inTipStates, NULL);
-    
+
 	jint errCode = (jint)beagleSetTipStates(instance, tipIndex, (int *)tipStates);
-    
+
     env->ReleaseIntArrayElements(inTipStates, tipStates, JNI_ABORT);
     return errCode;
 }
@@ -378,12 +378,12 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTipStates
 (JNIEnv *env, jobject obj, jint instance, jint tipIndex, jintArray outTipStates)
 {
 	fprintf(stderr,"beagleGetTipStates is not yet implemented\n");
-    exit(0);   
-    
-//    jint *tipStates = env->GetIntArrayElements(outTipStates, NULL);    
-// 
+    exit(0);
+
+//    jint *tipStates = env->GetIntArrayElements(outTipStates, NULL);
+//
 //	jint errCode = (jint)beagleGetTipStates(instance, tipIndex, (int *)tipStates);
-//    
+//
 //    env->ReleaseIntArrayElements(outTipStates, tipStates, 0);
 //    return errCode;
 }
@@ -397,9 +397,9 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTipPartials
 (JNIEnv *env, jobject obj, jint instance, jint tipIndex, jdoubleArray inPartials)
 {
     jdouble *partials = env->GetDoubleArrayElements(inPartials, NULL);
-    
+
 	jint errCode = (jint)beagleSetTipPartials(instance, tipIndex, (double *)partials);
-    
+
     env->ReleaseDoubleArrayElements(inPartials, partials, JNI_ABORT);
     return errCode;
 }
@@ -592,11 +592,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setStateFrequencies
 (JNIEnv *env, jobject obj, jint instance, jint stateFrequenciesIndex, jdoubleArray inStateFrequencies)
 {
     jdouble *stateFrequencies = env->GetDoubleArrayElements(inStateFrequencies, NULL);
-	
+
 	jint errCode = (jint)beagleSetStateFrequencies(instance, stateFrequenciesIndex, (double *)stateFrequencies);
-	
+
     env->ReleaseDoubleArrayElements(inStateFrequencies, stateFrequencies, JNI_ABORT);
-	
+
     return errCode;
 }
 
@@ -609,11 +609,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCategoryWeights
 (JNIEnv *env, jobject obj, jint instance, jint categoryWeightsIndex, jdoubleArray inCategoryWeights)
 {
     jdouble *categoryWeights = env->GetDoubleArrayElements(inCategoryWeights, NULL);
-	
+
 	jint errCode = (jint)beagleSetCategoryWeights(instance, categoryWeightsIndex, (double *)categoryWeights);
-	
+
     env->ReleaseDoubleArrayElements(inCategoryWeights, categoryWeights, JNI_ABORT);
-	
+
     return errCode;
 }
 
@@ -670,6 +670,23 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
     return errCode;
 }
 
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setDifferentialMatrix
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setDifferentialMatrix
+  (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray inMatrix)
+{
+    jdouble *matrix = env->GetDoubleArrayElements(inMatrix, NULL);
+
+	jint errCode = (jint)beagleSetDifferentialMatrix(instance, matrixIndex, (double *)matrix);
+
+    env->ReleaseDoubleArrayElements(inMatrix, matrix, JNI_ABORT);
+
+    return errCode;
+}
+
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
   (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jdoubleArray outMatrix)
 {
@@ -709,6 +726,27 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
 
     return errCode;
 }
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    transposeTransitionMatrices
+ * Signature: (I[I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_transposeTransitionMatrices
+        (JNIEnv *env, jobject, jint instance, jintArray jInIndices, jintArray jOutIndices, jint matrixCount) {
+
+    jint errCode;
+
+    jint *inIndices = env->GetIntArrayElements(jInIndices, NULL);
+    jint *outIndices = env->GetIntArrayElements(jOutIndices, NULL);
+
+    errCode = (jint)beagleTransposeTransitionMatrices(instance, (int *)inIndices, (int *)outIndices, matrixCount);
+
+    env->ReleaseIntArrayElements(jInIndices, inIndices, JNI_ABORT);
+
+    return errCode;
+}
+
 
 
 /*
@@ -834,7 +872,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_waitForPartials
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactors
   (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
-	
+
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
 	jint errCode = (jint)beagleAccumulateScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
@@ -864,11 +902,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_accumulateScaleFactorsByPart
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jintArray inScaleIndices, jint count, jint cumulativeScalingIndex) {
-	
+
 	jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
 	jint errCode = (jint)beagleRemoveScaleFactors(instance, (int*)scaleIndices, count, cumulativeScalingIndex);
 	env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
-    
+
 	return errCode;
 }
 
@@ -883,7 +921,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactorsByPartitio
     jint *scaleIndices = env->GetIntArrayElements(inScaleIndices, NULL);
     jint errCode = (jint)beagleRemoveScaleFactorsByPartition(instance, (int*)scaleIndices, count, cumulativeScalingIndex, partitionIndex);
     env->ReleaseIntArrayElements(inScaleIndices, scaleIndices, JNI_ABORT);
-    
+
     return errCode;
 }
 
@@ -894,7 +932,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_removeScaleFactorsByPartitio
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_resetScaleFactors
 (JNIEnv *env, jobject obj, jint instance, jint cumulativeScalingIndex) {
-	
+
 	jint errCode = (jint)beagleResetScaleFactors(instance, cumulativeScalingIndex);
 	return errCode;
 }
@@ -930,7 +968,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_copyScaleFactors
  * Signature: (I[I[D[DI[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
-  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCategoryWeightsIndices, 
+  (JNIEnv *env, jobject obj, jint instance, jintArray inBufferIndices, jintArray inCategoryWeightsIndices,
    jintArray inStateFrequenciesIndices, jintArray inScalingIndices, jint count, jdoubleArray outSumLogLikelihoods)
 {
     jint *bufferIndices = env->GetIntArrayElements(inBufferIndices, NULL);
@@ -938,12 +976,12 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoods
     jint *frequenciesIndices = env->GetIntArrayElements(inStateFrequenciesIndices, NULL);
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
     //    jint *scalingCount = env->GetIntArrayElements(inScalingCount, NULL);
-	
+
     jdouble *sumLogLikelihoods = env->GetDoubleArrayElements(outSumLogLikelihoods, NULL);
 
-	jint errCode = (jint)beagleCalculateRootLogLikelihoods(instance, (int *)bufferIndices, 
+	jint errCode = (jint)beagleCalculateRootLogLikelihoods(instance, (int *)bufferIndices,
 														   (int *)weightsIndices,
-														   (int *)frequenciesIndices, 
+														   (int *)frequenciesIndices,
 														   (int *)scalingIndices,
 														   count, (double *)sumLogLikelihoods);
 
@@ -974,14 +1012,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateRootLogLikelihoodsB
     jint *scalingIndices = env->GetIntArrayElements(inScalingIndices, NULL);
     jint *partitionIndices = env->GetIntArrayElements(inPartitionIndices, NULL);
 
-    jdouble *sumLogLikelihoodsByPartition = env->GetDoubleArrayElements(outSumLogLikelihoodByPartition, NULL);    
+    jdouble *sumLogLikelihoodsByPartition = env->GetDoubleArrayElements(outSumLogLikelihoodByPartition, NULL);
     jdouble *sumLogLikelihoods = env->GetDoubleArrayElements(outSumLogLikelihoods, NULL);
 
     jint errCode = (jint)beagleCalculateRootLogLikelihoodsByPartition(
                                                            instance,
-                                                           (int *)bufferIndices, 
+                                                           (int *)bufferIndices,
                                                            (int *)weightsIndices,
-                                                           (int *)frequenciesIndices, 
+                                                           (int *)frequenciesIndices,
                                                            (int *)scalingIndices,
                                                            (int *)partitionIndices,
                                                            partitionCount,
@@ -1029,12 +1067,12 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
 
 	jint errCode = (jint)beagleCalculateEdgeLogLikelihoods(instance, (int *)parentBufferIndices, (int *)childBufferIndices,
 	                                                    (int *)probabilityIndices, (int *)firstDerivativeIndices,
-	                                                    (int *)secondDerivativeIndices, 
+	                                                    (int *)secondDerivativeIndices,
 														(int *)weightsIndices,
-														(int *)frequenciesIndices, 
+														(int *)frequenciesIndices,
 														(int *)scalingIndices,// (int *)scalingCount,
-	                                                    count, 
-														(double *)sumLogLikelihoods, 
+	                                                    count,
+														(double *)sumLogLikelihoods,
 														(double *)sumFirstDerivatives,
 	                                                    (double *)sumSecondDerivatives);
 
@@ -1065,22 +1103,22 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeLogLikelihoods
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getSiteLogLikelihoods
 (JNIEnv *env, jobject obj, jint instance, jdoubleArray outSiteLogLikelihoods) {
-	
+
 	jdouble *siteLogLikelihoods = env->GetDoubleArrayElements(outSiteLogLikelihoods, NULL);
-	
+
 	jint errCode = (jint)beagleGetSiteLogLikelihoods(instance, (double *)siteLogLikelihoods);
-	
+
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(outSiteLogLikelihoods, siteLogLikelihoods, 0);
     return errCode;
 }
 
 //void __attribute__ ((constructor)) beagle_jni_library_initialize(void) {
-//	
+//
 //}
 
 
 //void __attribute__ ((destructor)) beagle_jni_library_finialize(void) {
-//	
+//
 //}
 

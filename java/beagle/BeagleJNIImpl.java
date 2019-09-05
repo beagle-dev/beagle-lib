@@ -183,6 +183,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void setDifferentialMatrix(int matrixIndex, final double[] inMatrix) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setDifferentialMatrix(instance, matrixIndex, inMatrix);
+        if (errCode != 0) {
+            throw new BeagleException("setDifferentialMatrix", errCode);
+        }
+    }
+
     public void getTransitionMatrix(int matrixIndex, final double[] outMatrix) {
         int errCode = BeagleJNIWrapper.INSTANCE.getTransitionMatrix(instance, matrixIndex, outMatrix);
         if (errCode != 0) {
@@ -209,6 +216,20 @@ public class BeagleJNIImpl implements Beagle {
         }
 
 	}//END: convolveTransitionMatrices
+
+	public void transposeTransitionMatrices(final int[] inIndices,
+											final int[] outIndices,
+											int matrixCount) {
+
+		int errCode = BeagleJNIWrapper.INSTANCE.transposeTransitionMatrices(instance,
+																		    inIndices,
+																		    outIndices,
+																		    matrixCount);
+
+		if (errCode != 0) {
+			throw new BeagleException("transposeTransitionMatrices", errCode);
+		}
+	}
 
     public void updateTransitionMatrices(int eigenIndex,
                                          final int[] probabilityIndices,

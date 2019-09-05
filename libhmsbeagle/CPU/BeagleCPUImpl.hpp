@@ -1036,7 +1036,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getSiteDerivatives(double* outFirstDeriva
     return BEAGLE_SUCCESS;
 }
 
-
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix,
@@ -1058,6 +1057,13 @@ if (T_PAD != 0) {
                  kMatrixSize * kCategoryCount);
 }
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setDifferentialMatrix(int matrixIndex,
+                                       const double* inMatrix) {
+
+    return setTransitionMatrix(matrixIndex, inMatrix, 0.0);
 }
 
 BEAGLE_CPU_TEMPLATE

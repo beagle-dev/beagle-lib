@@ -185,6 +185,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setTransitionMatrix
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setDifferentialMatrix
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setDifferentialMatrix
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    getTransitionMatrix
  * Signature: (II[D)I
  */
@@ -198,6 +206,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getTransitionMatrix
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
   (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    transposeTransitionMatrices
+ * Signature: (I[I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_transposeTransitionMatrices
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper

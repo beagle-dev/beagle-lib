@@ -284,6 +284,9 @@ public:
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue);
+
+    int setDifferentialMatrix(int matrixIndex,
+                              const double* inMatrix);
     
     int setTransitionMatrices(const int* matrixIndices,
                               const double* inMatrices,
@@ -458,6 +461,11 @@ private:
 
     std::vector<int> transposeTransitionMatricesOnTheFly(const int *operations,
                                                          int operationCount);
+
+    int setMatrixBufferImpl(int matrixIndex,
+                            const double* inMatrix,
+                            double paddedValue,
+                            bool transpose);
 
     int upPartials(bool byPartition,
                    const int* operations,

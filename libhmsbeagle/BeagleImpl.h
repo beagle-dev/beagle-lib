@@ -103,6 +103,9 @@ public:
                                     const double* inMatrix,
                                     double paddedValue) = 0;
 
+    virtual int setDifferentialMatrix(int matrixIndex,
+                                    const double* inMatrix) = 0;
+
     virtual int setTransitionMatrices(const int* matrixIndices,
                                       const double* inMatrices,
                                       const double* paddedValues,

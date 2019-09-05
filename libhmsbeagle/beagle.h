@@ -799,6 +799,22 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
                               double paddedValue);
 
 /**
+ * @brief Set a differential transition probability matrix
+ *
+ * This function copies a differential transition probability matrix into a matrix buffer. The inMatrix array should be
+ * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ *
+ * @param instance      Instance number (input)
+ * @param matrixIndex   Index of matrix buffer (input)
+ * @param inMatrix      Pointer to source transition probability matrix (input)
+  *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleSetDifferentialMatrix(int instance,
+                                                 int matrixIndex,
+                                                 const double* inMatrix);
+
+/**
  * @brief Get a finite-time transition probability matrix
  *
  * This function copies a finite-time transition matrix buffer into the array outMatrix. The

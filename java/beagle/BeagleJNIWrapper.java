@@ -107,6 +107,8 @@ public class BeagleJNIWrapper {
 
     public native int setTransitionMatrix(int instance, int matrixIndex, final double[] inMatrix, double paddedValue);
 
+    public native int setDifferentialMatrix(int instance, int matrixIndex, final double[] inMatrix);
+
     public native int getTransitionMatrix(int instance, int matrixIndex, final double[] outMatrix);
 
 	public native int convolveTransitionMatrices(int instance,
@@ -114,6 +116,11 @@ public class BeagleJNIWrapper {
 			                                     final int[] secondIndices,
 			                                     final int[] resultIndices,
 			                                     int matrixCount);
+
+	public native int transposeTransitionMatrices(int instance,
+												  final int[] inIndices,
+												  final int[] outIndices,
+												  int matrixCount);
 
     public native int updateTransitionMatrices(int instance, int eigenIndex,
                                                final int[] probabilityIndices,

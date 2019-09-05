@@ -245,10 +245,13 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(inMatrix, 0, this.matrices[matrixIndex], 0, this.matrixSize);
     }
 
+    public void setDifferentialMatrix(final int matrixIndex, final double[] inMatrix) {
+    	setTransitionMatrix(matrixIndex, inMatrix, 0.0);
+    }
+
     public void getTransitionMatrix(final int matrixIndex, final double[] outMatrix) {
         System.arraycopy(this.matrices[matrixIndex],0,outMatrix,0,outMatrix.length);
     }
-
 
 	// /////////////////////////
 	// ---TODO: Epoch model---//
@@ -294,6 +297,12 @@ public class GeneralBeagleImpl implements Beagle {
 
 	}// END: convolveTransitionMatrices
 
+
+	public void transposeTransitionMatrices(final int[] inIndices,
+											final int[] outIndices,
+											int matrixCount) {
+		throw new RuntimeException("Not yet implemented");
+	}
 
     public void updateTransitionMatrices(final int eigenIndex,
                                          final int[] probabilityIndices,

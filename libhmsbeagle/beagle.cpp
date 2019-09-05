@@ -1032,6 +1032,19 @@ int beagleSetTransitionMatrix(int instance,
 //    }
 }
 
+int beagleSetDifferentialMatrix(int instance,
+                                int matrixIndex,
+                                const double* inMatrix) {
+    DEBUG_START_TIME();
+
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setDifferentialMatrix(matrixIndex, inMatrix);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetTransitionMatrices(int instance,
                               const int* matrixIndices,
                               const double* inMatrices,
