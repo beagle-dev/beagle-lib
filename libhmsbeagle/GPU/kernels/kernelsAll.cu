@@ -784,13 +784,15 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 	    KW_LOCAL_MEM REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
 
 	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {
-	        As[ty][tx] = A[a + PADDED_STATE_COUNT * col + row];
+	        As[ty][tx] = A[PADDED_STATE_COUNT * colOffset + rowOffset +
+                           PADDED_STATE_COUNT * ty + tx];
 	    }
 
 	    KW_LOCAL_FENCE;
 	   
-	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {		
-		C[c + PADDED_STATE_COUNT * col + row] = As[tx][ty];
+	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {
+		    C[PADDED_STATE_COUNT * rowOffset + colOffset +
+		      PADDED_STATE_COUNT * ty + tx] = As[tx][ty];
 	    }
 }
 
