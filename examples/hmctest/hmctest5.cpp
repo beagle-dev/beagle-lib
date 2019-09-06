@@ -563,11 +563,6 @@ int main( int argc, const char* argv[] )
     beagleSetPartials(instance, rootPreIndex, seerootPartials);
     fprintf(stderr, "Setting preroot: %d\n", rootPreIndex);
 
-//    beagleSetRootPrePartials(instance, // TODO Remove from API -- not necessary?
-//                             (const int *) &rootPreIndex,               // bufferIndices
-//                             &stateFrequencyIndex,                  // stateFrequencies
-//                             1);                                    // count
-
     // update the pre-order partials
     beagleUpdatePrePartials(instance,
                             pre_order_operations,
@@ -582,128 +577,16 @@ int main( int argc, const char* argv[] )
     int secondDervIndices[4] = {5, 5, 5, 5};
     int cumulativeScalingInices[4] = {6, 5, 4, 3};
     int categoryRatesIndex = categoryWeightsIndex;
+
     double* gradient = (double*) malloc(sizeof(double) * nPatterns * 4);
-    double* diagonalHessian = (double*) malloc(sizeof(double) * nPatterns * 4);
-
-    beagleCalculateEdgeDerivative(instance, postBufferIndices, preBufferIndices,
-                                  rootIndex, firstDervIndices, secondDervIndices,
-                                  categoryWeightsIndex, categoryRatesIndex,
-                                  stateFrequencyIndex, &cumulativeScalingIndex,
-                                  4, gradient, NULL);
-
-    std::cout<<"Gradient: \n";
-    for (int i = 0; i < 4; i++) {
-        for (int m = 0; m < nPatterns; m++) {
-            std::cout<<gradient[i * nPatterns + m]<<"  ";
-        }
-        std::cout<<std::endl;
-    }
-
-//    std::cout<<"Diagonal Hessian: \n";
-//    for (int i = 0; i < 4; i++) {
-//        for (int m = 0; m < nPatterns; m++) {
-//            std::cout<<diagonalHessian[i * nPatterns + m]<<"  ";
-//        }
-//        std::cout<<std::endl;
-//    }
-
-
-//  print pre-order partials and edge length log-likelihood gradient to screen
-//  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp
-//  need to consider rate variation case
-
-
     double * seeprePartials  = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
-    double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
 
-    double * tmpNumerator = (double*)   malloc(sizeof(double)  * nPatterns * rateCategoryCount);
-
-    double * grand_denominator = (double*) malloc(sizeof(double)  * nPatterns);
-    double * grand_numerator = (double*) malloc(sizeof(double)  * nPatterns);
-    /// state frequencies stored in freqs
-    /// category weights stored in weights
-
-
-    beagleGetPartials(instance, rootIndex, BEAGLE_OP_NONE, seerootPartials);
     for(int i = 0; i < 5; i++){
-        for(int m = 0; m < nPatterns; m++){
-            grand_denominator[m] = 0;
-            grand_numerator[m] = 0;
-        }
+
         int postBufferIndex = 4-i;
         int preBufferIndex = 5+i;
-        beagleGetPartials(instance, preBufferIndex, BEAGLE_OP_NONE, seeprePartials);
-//        beagleGetPartials(instance, postBufferIndex, BEAGLE_OP_NONE, seepostPartials);
 
-//        double * prePartialsPtr = seeprePartials;
-//        double * postPartialsPtr = seepostPartials;
-//
-//        double denominator = 0;
-//        double numerator = 0;
-//
-//        double tmp = 0;
-//        int k, j, l, m, s, t;
-//        std::cout<<"Gradient for branch (of node) "<< 4 -i <<": \n";
-//
-//        ///get likelihood for each rate category first
-//        double clikelihood[rateCategoryCount * nPatterns];
-//        l = 0; j = 0;
-//        for(s = 0; s < rateCategoryCount; s++){
-//            for(m = 0; m < nPatterns; m++){
-//                double clikelihood_tmp = 0.0;
-//                for(k=0; k < stateCount; k++){
-//                    clikelihood_tmp += freqs[k] * seerootPartials[l++];
-//                }
-//                clikelihood[j++] = clikelihood_tmp;
-//            }
-//        }
-//
-//        ///now calculate weights
-//        t = 0;
-//        for(s = 0; s < rateCategoryCount; s++){
-//            double ws = weights[s];
-//            double rs = rates[s];
-//            for(m=0; m < nPatterns; m++){
-//                l = 0;
-//                numerator = 0;
-//                denominator = 0;
-//                for(k = 0; k < stateCount; k++){
-//                    tmp = 0.0;
-//                    for(j=0; j < stateCount; j++){
-//                        tmp += QT[k * stateCount + j] * prePartialsPtr[j];
-//                    }
-//                    numerator += tmp * postPartialsPtr[k];
-//                    denominator += postPartialsPtr[k] * prePartialsPtr[k];
-//                }
-//                postPartialsPtr += stateCount;
-//                prePartialsPtr  += stateCount;
-////                tmpNumerator[t] = ws * rs * numerator / denominator * clikelihood[t];
-//                tmpNumerator[t] = ws * rs * numerator;
-//                //std::cout<< tmpNumerator[t]<<",  "<<ws*clikelihood[t]<<"  \n";
-//                grand_numerator[m] += tmpNumerator[t];
-//                grand_denominator[m] += ws * denominator /*clikelihood[t]*/;
-//                t++;
-//                std::cout<<numerator / denominator <<"  ";
-//            }
-//            std::cout<<std::endl;
-//        }
-//
-//        for(m=0; m < nPatterns; m++){
-//            std::cout<<grand_numerator[m] / grand_denominator[m] << "  ";
-//        }
-//        std::cout<<std::endl;
-//
-//        std::cout << "n: ";
-//        for(m=0; m < nPatterns; m++){
-//            std::cout<<grand_numerator[m] << "  ";
-//        }
-//        std::cout<<std::endl;
-//
-//        std::cout << "d: ";
-//        for(m=0; m < nPatterns; m++){
-//            std::cout<< grand_denominator[m] << "  ";
-//        }
-//        std::cout<<std::endl;
+        beagleGetPartials(instance, preBufferIndex, BEAGLE_OP_NONE, seeprePartials);
 
         std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
 
@@ -718,12 +601,11 @@ int main( int argc, const char* argv[] )
             }
             std::cout<<std::endl;
         }
-
     }
 
     std::vector<double> firstBuffer(nPatterns * 5 * 2); // Get both numerator and denominator
     std::vector<double> sumBuffer(5);
-    int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
+//    int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
     beagleCalculateEdgeDerivatives(instance,
                                    postBufferIndices, preBufferIndices,
@@ -755,16 +637,10 @@ int main( int argc, const char* argv[] )
 
 
     free(patternWeights);
-
 	free(patternLogLik);
-    free(seepostPartials);
     free(seeprePartials);
     free(seerootPartials);
-    free(tmpNumerator);
-    free(grand_denominator);
-    free(grand_numerator);
     free(gradient);
-    free(diagonalHessian);
     free(matrix1);
     free(matrix2);
 

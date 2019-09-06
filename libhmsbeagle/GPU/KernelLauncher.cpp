@@ -870,7 +870,6 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
                       patternCount);
     gpu->SynchronizeDevice();
 
-
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
@@ -894,7 +893,6 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
