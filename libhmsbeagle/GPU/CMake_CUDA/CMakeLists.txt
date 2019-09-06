@@ -7,19 +7,11 @@ add_definitions(-DCUDA -DDLS_MACOS)
 
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib)
 
-# For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
-##add_custom_target(CudaKernels
-##        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_opencl_kernels.sh
-##        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-##        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
-##        COMMENT "Building kernels")
-
-
 set(NVCC "/usr/local/cuda/bin/nvcc")
 set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_CXX_COMPILER} -m64 -D_POSIX_C_SOURCE")
 set(NVCC_INC "-I${CMAKE_SOURCE_DIR}")
 
-# For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
+# For CUDA, we need to generate the file `BeagleCUDA_kernels.h` using the commands (and dependencies) below
 add_custom_target(CudaKernels
         ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_cuda_kernels.sh ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels

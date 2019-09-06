@@ -580,6 +580,8 @@ void KernelLauncher::TransposeTransitionMatrices(GPUPtr dMatrices,
 			bgTransitionProbabilitiesGrid, parameterCountV,
 			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);
 
+    gpu->SynchronizeDevice();
+
 	bgTransitionProbabilitiesGrid.x /= totalMatrixCount; // Reset value
 
 #ifdef BEAGLE_DEBUG_FLOW

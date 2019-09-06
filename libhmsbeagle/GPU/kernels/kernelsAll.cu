@@ -778,9 +778,6 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
         const int row = rowOffset + tx;
         const int col = colOffset + ty;
 
-	const int a = PADDED_STATE_COUNT * colOffset + rowOffset;
-	const int c = PADDED_STATE_COUNT * rowOffset + colOffset;
-
 	    KW_LOCAL_MEM REAL As[MULTIPLY_BLOCK_SIZE][MULTIPLY_BLOCK_SIZE];
 
 	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {
