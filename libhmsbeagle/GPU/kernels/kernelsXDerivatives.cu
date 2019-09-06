@@ -156,9 +156,11 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     todo(); // TODO
 #else // GPU implementation
 
+#define NEW_BLOCK_PEELING_SIZE PATTERN_BLOCK_SIZE
+
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + patIdx;
+    int pattern = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + patIdx;
 
     int node = KW_GROUP_ID_1 + skip;
     int instructionOffset = node * 3;
@@ -167,7 +169,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     unsigned int partials2Offset = instructions[instructionOffset + 1];
     unsigned int matrices1Offset = instructions[instructionOffset + 2];
 
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[NEW_BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
@@ -209,18 +211,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
-            if (patIdx < BLOCK_PEELING_SIZE) {
+            if (patIdx < NEW_BLOCK_PEELING_SIZE) {
                 /* These are all coherent global memory reads. */
                 sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
                 /* sMatrix now filled with starting in state and ending in i */
-                matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+                matrix2 += NEW_BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
             }
             KW_LOCAL_FENCE;
 
             // TODO 2nd check is unncessary for stateCount >= 16
-            for (int j = 0; (j < BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
+            for (int j = 0; (j < NEW_BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
                 FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
             }
             KW_LOCAL_FENCE;
@@ -254,7 +256,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     // TODO Test this coalesced write code out
     int tx = KW_LOCAL_ID_0;
     if (tx < PATTERN_BLOCK_SIZE && patIdx == 0) { // Use first PATTERN_BLOCK_SIZE threads to write
-        int site = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + tx;
+        int site = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + tx;
         if (site < totalPatterns) {
             REAL numerator = sPartials1[tx][0];
             REAL denominator = sPartials2[tx][0];
@@ -289,9 +291,11 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
     todo(); // TODO
 #else // GPU implementation
 
+#define NEW_BLOCK_PEELING_SIZE PATTERN_BLOCK_SIZE
+
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + patIdx;
+    int pattern = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + patIdx;
 
     int node = KW_GROUP_ID_1 + skip;
     int instructionOffset = node * 3;
@@ -300,7 +304,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
     unsigned int partials2Offset = instructions[instructionOffset + 1];
     unsigned int matrices1Offset = instructions[instructionOffset + 2];
 
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[NEW_BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
 
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
@@ -344,18 +348,18 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
-            if (patIdx < BLOCK_PEELING_SIZE) {
+            if (patIdx < NEW_BLOCK_PEELING_SIZE) {
                 /* These are all coherent global memory reads. */
                 sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
                 /* sMatrix now filled with starting in state and ending in i */
-                matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+                matrix2 += NEW_BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
             }
             KW_LOCAL_FENCE;
 
             // TODO 2nd check is unncessary for stateCount >= 16
-            for (int j = 0; (j < BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
+            for (int j = 0; (j < NEW_BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
                 FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
             }
             KW_LOCAL_FENCE;
@@ -389,7 +393,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
     // TODO Test this coalesced write code out
     int tx = KW_LOCAL_ID_0;
     if (tx < PATTERN_BLOCK_SIZE && patIdx == 0) { // Use first PATTERN_BLOCK_SIZE threads to write
-        int site = KW_GROUP_ID_0 * BLOCK_PEELING_SIZE + tx;
+        int site = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + tx;
         if (site < totalPatterns) {
             REAL numerator = sPartials1[tx][0];
             REAL denominator = sPartials2[tx][0];
@@ -397,7 +401,8 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
             if (denominator != 0.0) {
                 ratio = numerator / denominator;
             }
-            out[totalPatterns * node + site] = ratio;        }
+            out[totalPatterns * node + site] = ratio;
+        }
     }
 
 #endif
