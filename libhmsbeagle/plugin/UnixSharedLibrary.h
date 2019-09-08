@@ -19,7 +19,6 @@
 
 #include <dlfcn.h>
 #include <string>
-#include <libhmsbeagle/config.h>
 
 namespace beagle {
 namespace plugin {
@@ -41,13 +40,10 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
 {
     std::string libname = "lib";
     libname += name;
-
-#define DLS_MACOS
 #ifdef DLS_MACOS
     libname += ".";
     libname += PLUGIN_VERSION;
     libname += ".so";
-//    libname += ".dylib";
 #else
     libname += ".so.";
     libname += PLUGIN_VERSION;
