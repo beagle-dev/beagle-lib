@@ -2819,7 +2819,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
     std::vector<int> newOperations;
 
     if (kUsingAutoTranspose) {
-        newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+        newOperations = this->transposeTransitionMatricesOnTheFly(operations, operationCount);
         operations = newOperations.data();
     }
 
