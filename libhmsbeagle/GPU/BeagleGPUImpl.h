@@ -34,6 +34,8 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <vector>
+
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
