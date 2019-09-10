@@ -3,7 +3,7 @@ include_directories(
         ${CUDA_INCLUDE_DIRS}
 )
 
-add_definitions(-DCUDA -DDLS_MACOS)
+add_definitions(-DCUDA)
 
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib)
 

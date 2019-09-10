@@ -3,7 +3,7 @@ include_directories(
         ${OpenCL_INCLUDE_DIRS}
 )
 
-add_definitions(-D FW_OPENCL -DDLS_MACOS)
+add_definitions(-DFW_OPENCL)
 #include_directories(${OpenCL_INCLUDE_DIRS})
 
 # For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
