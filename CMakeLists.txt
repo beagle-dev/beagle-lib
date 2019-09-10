@@ -14,6 +14,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
+if(APPLE)
+    add_compile_definitions(DLS_MACOS)
+endif(APPLE)
+
+add_compile_definitions(HAVE_CONFIG_H)
+
 find_package(JNI REQUIRED)
 if(JNI_FOUND)
     message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
