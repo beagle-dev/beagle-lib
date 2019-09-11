@@ -12,11 +12,21 @@ set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_C
 set(NVCC_INC "-I${CMAKE_SOURCE_DIR}")
 
 # For CUDA, we need to generate the file `BeagleCUDA_kernels.h` using the commands (and dependencies) below
-add_custom_target(CudaKernels
-        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_cuda_kernels.sh ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
+add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_cuda_kernels.sh ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
         DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
-        COMMENT "Building kernels")
+        COMMENT "Building kernels"
+        VERBATIM)
+
+add_custom_target(CudaKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h)
+
+#add_custom_target(CudaKernels
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_cuda_kernels.sh ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
+#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
+#        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
+#        COMMENT "Building kernels")
 
 add_library(hmsbeagle-cuda.${BEAGLE_VERSION} MODULE
         ../BeagleGPUImpl.h

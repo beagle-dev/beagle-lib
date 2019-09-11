@@ -7,11 +7,21 @@ add_definitions(-DFW_OPENCL)
 #include_directories(${OpenCL_INCLUDE_DIRS})
 
 # For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
-add_custom_target(OpenKernels
-        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_opencl_kernels.sh
+add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCL_kernels.h
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_opencl_kernels.sh
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
         DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
-        COMMENT "Building kernels")
+        COMMENT "Building kernels"
+        VERBATIM)
+
+add_custom_target(OpenKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCL_kernels.h)
+
+#add_custom_target(OpenKernels
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_opencl_kernels.sh
+#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
+#        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
+#        COMMENT "Building kernels")
 
 add_library(hmsbeagle-opencl.${BEAGLE_VERSION} MODULE
         ../BeagleGPUImpl.h
