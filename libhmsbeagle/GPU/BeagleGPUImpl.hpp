@@ -2205,7 +2205,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivative\n");
 #endif
     
-    if (dOutFirstDeriv == NULL) {
+    if (dOutFirstDeriv == (GPUPtr)NULL) {
         dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
     }
 
@@ -2246,7 +2246,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivatives(const int *postB
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivatives\n");
 #endif
 
-    if (dOutFirstDeriv == NULL) {
+    if (dOutFirstDeriv == (GPUPtr)NULL) {
         dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
     }
 
