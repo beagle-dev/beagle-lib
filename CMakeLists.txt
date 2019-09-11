@@ -15,10 +15,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
 if(APPLE)
-    add_compile_definitions(DLS_MACOS)
+    add_definitions(-DDLS_MACOS)
 endif(APPLE)
 
-add_compile_definitions(HAVE_CONFIG_H)
+add_definitions(-DHAVE_CONFIG_H)
 
 find_package(JNI REQUIRED)
 if(JNI_FOUND)
