@@ -1169,6 +1169,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* fir
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::addTransitionMatrices(const int* firstIndices,
+                                                             const int* secondIndices,
+                                                             const int* resultIndices,
+                                                             int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
         const int* inputIndices,
         const int* resultIndices,

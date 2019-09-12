@@ -119,6 +119,11 @@ public:
 										   const int* resultIndices,
 										   int matrixCount) = 0;
 
+	virtual int addTransitionMatrices(const int* firstIndices,
+									  const int* secondIndices,
+									  const int* resultIndices,
+									  int matrixCount) = 0;
+
 	virtual int transposeTransitionMatrices(const int* inputIndices,
 											const int* resultIndices,
 											int matrixCount) = 0;

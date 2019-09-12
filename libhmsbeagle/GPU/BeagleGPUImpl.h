@@ -303,6 +303,11 @@ public:
                                    const int* resultIndices,
                                    int matrixCount);
 
+	int addTransitionMatrices(const int* firstIndices,
+							  const int* secondIndices,
+							  const int* resultIndices,
+							  int matrixCount);
+
     int transposeTransitionMatrices(const int* inputIndices,
                                     const int* resultIndices,
                                     int matrixCount);

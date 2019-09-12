@@ -1819,6 +1819,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* fir
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::addTransitionMatrices(const int* firstIndices,
+                                                             const int* secondIndices,
+                                                             const int* resultIndices,
+                                                             int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(
         const int* inputIndices,
         const int* resultIndices,
