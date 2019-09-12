@@ -675,6 +675,26 @@ BEAGLE_DLLEXPORT int beagleConvolveTransitionMatrices(int instance,
                                     int matrixCount);
 
 /**
+ * @brief Adds lists of transition probability matrices
+ *
+ * This function adds two lists of transition probability matrices.
+ *
+ * @param instance                  Instance number (input)
+ * @param firstIndices              List of indices of the first transition probability matrices
+ *                                   to add (input)
+ * @param secondIndices             List of indices of the second transition probability matrices
+ *                                   to add (input)
+ * @param resultIndices             List of indices of resulting transition probability matrices
+ *                                   (input)
+ * @param matrixCount               Length of lists
+ */
+BEAGLE_DLLEXPORT int beagleAddTransitionMatrices(int instance,
+                                                 const int* firstIndices,
+                                                 const int* secondIndices,
+                                                 const int* resultIndices,
+                                                 int matrixCount);
+
+/**
  * @brief Transpose lists of transition probability matrices
  *
  * This function transposes lists of transition probability matrices.

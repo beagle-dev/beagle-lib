@@ -729,6 +729,29 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_convolveTransitionMatrices
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    addTransitionMatrices
+ * Signature: (I[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_addTransitionMatrices
+        (JNIEnv *env, jobject obj, jint instance, jintArray inFirstIndices, jintArray inSecondIndices, jintArray inResultIndices, jint matrixCount)
+{
+    jint errCode;
+
+    jint *firstIndices = env->GetIntArrayElements(inFirstIndices, NULL);
+    jint *secondIndices = env->GetIntArrayElements(inSecondIndices, NULL);
+    jint *resultIndices = env->GetIntArrayElements(inResultIndices, NULL);
+
+    errCode = (jint)beagleAddTransitionMatrices(instance, (int *)firstIndices, (int *)secondIndices, (int *)resultIndices, matrixCount);
+
+    env->ReleaseIntArrayElements(inFirstIndices, firstIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inSecondIndices, secondIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inResultIndices, resultIndices, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    transposeTransitionMatrices
  * Signature: (I[I[II)I
  */

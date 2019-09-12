@@ -1100,6 +1100,22 @@ int beagleConvolveTransitionMatrices(int instance,
     }
 }
 
+int beagleAddTransitionMatrices(int instance,
+                                const int* firstIndices,
+                                const int* secondIndices,
+                                const int* resultIndices,
+                                int matrixCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    } else {
+        DEBUG_END_TIME();
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+}
+
 int beagleTransposeTransitionMatrices(int instance,
                                       const int* inputIndices,
                                       const int* resultIndices,
