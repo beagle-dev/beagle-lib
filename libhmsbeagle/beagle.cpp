@@ -1111,8 +1111,11 @@ int beagleAddTransitionMatrices(int instance,
     if (beagleInstance == NULL) {
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     } else {
+        int returnValue = beagleInstance->addTransitionMatrices(
+                firstIndices, secondIndices,
+                resultIndices, matrixCount);
         DEBUG_END_TIME();
-        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+        return returnValue;
     }
 }
 

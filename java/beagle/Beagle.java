@@ -1,7 +1,7 @@
 /**
  * @file Beagle.java
  *
- * Copyright 2009-2016 Phylogenetic Likelihood Working Group
+ * Copyright 2009-2019 Phylogenetic Likelihood Working Group
  *
  * This file is part of BEAGLE.
  *
@@ -343,6 +343,22 @@ public interface Beagle extends Serializable {
             final int[] resultIndices,
             int matrixCount);
 
+
+    /**
+     * Add lists of transition probability matrices
+     *
+     * This function add two lists of transition probability matrices.
+     *
+     * @param firstIndices              List of indices of the first transition probability matrices to convolve (input)
+     * @param secondIndices             List of indices of the second transition probability matrices to convolve (input)
+     * @param resultIndices             List of indices of resulting transition probability matrices (input)
+     * @param matrixCount               Lenght of lists
+     */
+    void addTransitionMatrices(
+            final int[] firstIndices,
+            final int[] secondIndices,
+            final int[] resultIndices,
+            int matrixCount);
 
     /**
      * Transpose lists of transition probability matrices

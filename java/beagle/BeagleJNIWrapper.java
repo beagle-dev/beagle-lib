@@ -117,6 +117,12 @@ public class BeagleJNIWrapper {
 			                                     final int[] resultIndices,
 			                                     int matrixCount);
 
+    public native int addTransitionMatrices(int instance,
+                                            final int[] firstIndices,
+                                            final int[] secondIndices,
+                                            final int[] resultIndices,
+                                            int matrixCount);
+
 	public native int transposeTransitionMatrices(int instance,
 												  final int[] inIndices,
 												  final int[] outIndices,

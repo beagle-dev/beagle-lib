@@ -217,6 +217,22 @@ public class BeagleJNIImpl implements Beagle {
 
 	}//END: convolveTransitionMatrices
 
+    public void addTransitionMatrices(final int[] firstIndices,
+                                      final int[] secondIndices,
+                                      final int[] resultIndices,
+                                      int matrixCount) {
+
+        int errCode = BeagleJNIWrapper.INSTANCE.addTransitionMatrices(instance,
+                firstIndices,
+                secondIndices,
+                resultIndices,
+                matrixCount);
+        if (errCode != 0) {
+            throw new BeagleException("addTransitionMatrices", errCode);
+        }
+
+    }//END: convolveTransitionMatrices
+
 	public void transposeTransitionMatrices(final int[] inIndices,
 											final int[] outIndices,
 											int matrixCount) {

@@ -297,6 +297,13 @@ public class GeneralBeagleImpl implements Beagle {
 
 	}// END: convolveTransitionMatrices
 
+    public void addTransitionMatrices(
+            final int[] firstIndices,
+            final int[] secondIndices,
+            final int[] resultIndices,
+            int matrixCount) {
+        throw new RuntimeException("Not yet implemented");
+    }
 
 	public void transposeTransitionMatrices(final int[] inIndices,
 											final int[] outIndices,
