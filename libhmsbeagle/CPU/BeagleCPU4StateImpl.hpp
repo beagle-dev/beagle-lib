@@ -1054,6 +1054,223 @@ int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBufferIndices,
+                                                                     const int *preBufferIndices,
+                                                                     const int *firstDerivativeIndices,
+                                                                     const int *secondDerivativeIndices,
+                                                                     const int *categoryWeightsIndices,
+                                                                     const int *categoryRatesIndices,
+                                                                     const int *cumulativeScaleIndices,
+                                                                     int count,
+                                                                     double *outDerivatives,
+                                                                     double *outSumDerivatives,
+                                                                     double *outSumSquaredDerivatives) {
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    const int secondDerivativeIndex = BEAGLE_OP_NONE;
+    const double *categoryRates = NULL; // gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
+    const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
+
+//    double* siteLogLikelihood = (double*) mallocAligned(sizeof(double) * kPatternCount);
+//    getSiteLogLikelihoods(siteLogLikelihood);
+//    for (int pattern = 0; pattern < kPatternCount; pattern++) {
+//        grandDenominatorDerivTmp[pattern] = exp(siteLogLikelihood[pattern]);
+//    }
+//    free(siteLogLikelihood);
+    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+    const int *tipStates = gTipStates[postBufferIndices[0]];
+    const REALTYPE *preOrderPartial = gPartials[preBufferIndices[0]];
+    if (tipStates != NULL) {
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+                const int patternIndex = category * kPatternCount + pattern;
+                const int state = tipStates[pattern];
+
+                REALTYPE siteLikelihood = preOrderPartial[patternIndex * 4 + state];
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * siteLikelihood;
+
+            }
+        }
+
+    } else {
+        const REALTYPE *postOrderPartial = gPartials[postBufferIndices[0]];
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * 4;
+
+                REALTYPE denominator = 0.0;
+
+                for (int k = 0; k < kStateCount; k++) {
+                    denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
+                }
+
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            }
+        }
+    }
+
+    for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+
+        const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+        const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
+
+        const int firstDerivativeIndex = firstDerivativeIndices[nodeNum];
+
+
+        const int scalingFactorsIndex = -1; // cumulativeScaleIndices[nodeNum];
+
+        const int patternOffset = nodeNum * kPatternCount;
+        double *outDerivativesForNode = (outDerivatives == NULL) ?
+                                        NULL : outDerivatives + patternOffset;
+        double *outSumDerivativesForNode = (outSumDerivatives == NULL) ?
+                                           NULL : outSumDerivatives + nodeNum;
+        double *outSumSquaredDerivaticesForNode = (outSumSquaredDerivatives == NULL) ?
+                                                  NULL : outSumSquaredDerivatives + nodeNum;
+
+//        double* outLogDiagonalSecondDerivatiesForNode = (outLogFirstDerivativesForNode == NULL) ?
+//                NULL : outLogDiagonalSecondDerivatives + patternOffset;
+
+        if (tipStates != NULL) {
+
+            calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
+                                         secondDerivativeIndex, categoryRates, categoryWeights,
+                                         outDerivativesForNode,
+                                         outSumDerivativesForNode,
+                                         outSumSquaredDerivaticesForNode);
+
+        } else {
+
+            const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+            calcEdgeLogDerivativesPartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
+                                           secondDerivativeIndex, categoryRates, categoryWeights,
+                                           scalingFactorsIndex,
+                                           outDerivativesForNode,
+                                           outSumDerivativesForNode,
+                                           outSumSquaredDerivaticesForNode);
+        }
+    }
+
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *tipStates,
+                                                                           const REALTYPE *preOrderPartial,
+                                                                           const int firstDerivativeIndex,
+                                                                           const int secondDerivativeIndex,
+                                                                           const double *categoryRates,
+                                                                           const REALTYPE *categoryWeights,
+                                                                           double *outDerivatives,
+                                                                           double *outSumDerivatives,
+                                                                           double *outSumSquaredDerivatives) {
+
+    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+
+    for (int category = 0; category < kCategoryCount; category++) {
+
+        const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
+
+        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+            const int patternIndex = category * kPatternCount + pattern;
+            const int localPatternOffset = patternIndex * 4;
+
+            const int state = tipStates[pattern];
+
+            PREFETCH_MATRIX_COLUMN(0, firstDerivMatrix, state);
+
+            REALTYPE numerator =
+                    sum00 * preOrderPartial[localPatternOffset] + sum01 * preOrderPartial[localPatternOffset + 1]
+                    + sum02 * preOrderPartial[localPatternOffset + 2] + sum03 * preOrderPartial[localPatternOffset + 3];
+
+            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
+        }
+    }
+
+    REALTYPE sum = 0.0;
+    REALTYPE sumSquared = 0.0;
+    for (int k = 0; k < kPatternCount; k++) {
+        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * derivative * gPatternWeights[k];
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
+                                                                             const REALTYPE *preOrderPartial,
+                                                                             const int firstDerivativeIndex,
+                                                                             const int secondDerivativeIndex,
+                                                                             const double *categoryRates,
+                                                                             const REALTYPE *categoryWeights,
+                                                                             const int scalingFactorsIndex,
+                                                                             double *outDerivatives,
+                                                                             double *outSumDerivatives,
+                                                                             double *outSumSquaredDerivatives) {
+
+    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+
+    for (int category = 0; category < kCategoryCount; category++) {
+
+        const REALTYPE *firstDerivMatrixPtr = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
+        const REALTYPE weight = categoryWeights[category];
+
+        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+            const int patternIndex = category * kPatternCount + pattern;
+            const int localPatternOffset = patternIndex * 4;
+
+            PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
+            PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
+            PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
+            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+
+            REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
+            grandNumeratorDerivTmp[pattern] += weight * numerator;
+
+        }
+    }
+
+    REALTYPE sum = 0.0;
+    REALTYPE sumSquared = 0.0;
+    for (int k = 0; k < kPatternCount; k++) {
+        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * derivative * gPatternWeights[k];
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
                                                                          const REALTYPE *preOrderPartial,
                                                                          const int firstDerivativeIndex,
@@ -1066,7 +1283,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const R
                                                                          const int startPattern,
                                                                          const int endPattern) {
     std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
 
     const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
     
@@ -1081,13 +1298,13 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativePartials(const R
 
             PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
             PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
-            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
             PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
+            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
 
             REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
-            REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
+//            REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
             grandNumeratorDerivTmp[pattern] += wt[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += wt[category] * denominator;
+//            grandDenominatorDerivTmp[pattern] += wt[category] * denominator;
 
         }
     }
@@ -1111,7 +1328,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int
                                                                        const int startPattern,
                                                                        const int endPattern) {
     std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
     
     for (int category = 0; category < kCategoryCount; category++) {
 
@@ -1129,10 +1346,10 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivativeStates(const int
             REALTYPE numerator =
                     sum00 * preOrderPartial[localPatternOffset] + sum01 * preOrderPartial[localPatternOffset + 1]
                     + sum02 * preOrderPartial[localPatternOffset + 2] + sum03 * preOrderPartial[localPatternOffset + 3];
-            REALTYPE denominator = preOrderPartial[localPatternOffset + state];
+//            REALTYPE denominator = preOrderPartial[localPatternOffset + state];
 
             grandNumeratorDerivTmp[pattern] += wt[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += wt[category] * denominator;
+//            grandDenominatorDerivTmp[pattern] += wt[category] * denominator;
 
         }
     }

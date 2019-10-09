@@ -134,6 +134,39 @@ public:
 								   int startPattern,
 								   int endPattern);
 
+    virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
+                                       const int *preBufferIndices,
+                                       const int *firstDerivativeIndices,
+                                       const int *secondDerivativeIndices,
+                                       const int *categoryWeightsIndices,
+                                       const int *categoryRatesIndices,
+                                       const int *cumulativeScaleIndices,
+                                       int count,
+                                       double *outDerivatives,
+                                       double *outSumDerivatives,
+                                       double *outSumSquaredDerivatives);
+
+    virtual void calcEdgeLogDerivativesStates(const int *tipStates,
+                                             const REALTYPE *preOrderPartial,
+                                             const int firstDerivativeIndex,
+                                             const int secondDerivativeIndex,
+                                             const double *categoryRates,
+                                             const REALTYPE *categoryWeights,
+                                             double *outDerivatives,
+                                             double *outSumDerivatives,
+                                             double *outSumSquaredDerivatives);
+
+    virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
+                                               const REALTYPE *preOrderPartial,
+                                               const int firstDerivativeIndex,
+                                               const int secondDerivativeIndex,
+                                               const double *categoryRates,
+                                               const REALTYPE *categoryWeights,
+                                               const int scalingFactorsIndex,
+                                               double *outDerivatives,
+                                               double *outSumDerivatives,
+                                               double *outSumSquaredDerivatives);
+
     virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
                                             const REALTYPE *preOrderPartial,
                                             const int firstDerivativeIndex,
