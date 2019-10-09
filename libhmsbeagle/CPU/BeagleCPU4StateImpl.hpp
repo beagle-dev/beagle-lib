@@ -391,8 +391,12 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* 
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount + 4*startPattern;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+            u += 4*startPattern;
+        }
         int w = l*4*OFFSET;
+
 
         PREFETCH_MATRIX_TRANSPOSE(1,matrices1,w); //m100, m101, ..., m133
         PREFETCH_MATRIX(2,matrices2,w); // m200, m201, ..., m233
@@ -429,8 +433,12 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* de
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int u = l * 4 * kPaddedPatternCount + 4 * startPattern;
-        int w = l * 4 * OFFSET;
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+            u += 4*startPattern;
+        }
+        int w = l*4*OFFSET;
+
 
         PREFETCH_MATRIX_TRANSPOSE(1, matrices1, w); //m100, m101, ..., m133
         for (int k = startPattern; k < endPattern; k++) {
@@ -1232,6 +1240,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
     for (int category = 0; category < kCategoryCount; category++) {
 
         const REALTYPE *firstDerivMatrixPtr = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
+        PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
         const REALTYPE weight = categoryWeights[category];
 
         for (int pattern = 0; pattern < kPatternCount; pattern++) {
@@ -1240,7 +1249,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
             const int localPatternOffset = patternIndex * 4;
 
             PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
-            PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
             PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
             DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
 
