@@ -234,6 +234,16 @@ private:
                                                 double* outDerivatives,
                                                 double* outSumDerivatives,
                                                 double* outSumSquaredDerivatives);
+
+    virtual void calcEdgeLogDerivativesStates(const int* tipStates,
+                                              const double *__restrict preOrderPartial,
+                                              const int firstDerivativeIndex,
+                                              const int secondDerivativeIndex,
+                                              const double* __restrict categoryRates,
+                                              const double* __restrict categoryWeights,
+                                              double *outDerivatives,
+                                              double *outSumDerivatives,
+                                              double *outSumSquaredDerivatives);
     
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,

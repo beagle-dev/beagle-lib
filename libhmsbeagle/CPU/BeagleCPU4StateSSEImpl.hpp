@@ -562,19 +562,17 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
 
     int v = 0;
     int w = 0;
+    const double* transMatrix = gTransitionMatrices[firstDerivativeIndex];
 
     for (int l = 0; l < kCategoryCount; l++) {
 
-        const double* transMatrix = gTransitionMatrices[firstDerivativeIndex] + w;
         /* Load transition-probability matrix into vectors */
         VecUnion vu_m[OFFSET][2];
-        SSE_PREFETCH_MATRIX(transMatrix, vu_m);
+        SSE_PREFETCH_MATRIX(transMatrix + w, vu_m);
 
         V_Real * vcl_p = (V_Real *)cl_p;
         V_Real vwt = VEC_SPLAT(wt[l]);
         for (int k = 0; k < kPatternCount; k++) {
-
-            V_Real vwt = VEC_SPLAT(wt[l]);
 
             /* This would probably be faster on PPC/Altivec, which has a fused multiply-add
                vector instruction */
@@ -607,6 +605,81 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             vcl_r += 2 * kExtraPatterns;
             v += 4 * kExtraPatterns;
         }
+    }
+
+    double sum = 0.0;
+    double sumSquared = 0.0;
+    int u = 0;
+    double* denominator = grandDenominatorDerivTmp;
+    for(int k = 0; k < kPatternCount; k++) {
+        double sumOverI = 0.0;
+        for(int i = 0; i < kStateCount; i++) {
+            sumOverI += cl_p[u];
+            u++;
+        }
+
+        double derivative = sumOverI / denominator[k];
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * gPatternWeights[k];
+
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
+    }
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStates(const int* tipStates,
+                                                                                   const double* preOrderPartial,
+                                                                                   const int firstDerivativeIndex,
+                                                                                   const int secondDerivativeIndex,
+                                                                                   const double* categoryRates,
+                                                                                   const double* categoryWeights,
+                                                                                   double *outDerivatives,
+                                                                                   double *outSumDerivatives,
+                                                                                   double *outSumSquaredDerivatives) {
+    double* cl_p = integrationTmp;
+    memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
+
+    const double* cl_r = preOrderPartial;
+    const double* wt = categoryWeights;
+
+    const int* statesChild = tipStates;
+
+    int w = 0;
+    V_Real *vcl_r = (V_Real *)cl_r;
+    const double* transMatrix = gTransitionMatrices[firstDerivativeIndex];
+
+    for (int l = 0; l < kCategoryCount; l++) {
+
+        /* Load transition-probability matrix into vectors */
+        VecUnion vu_m[OFFSET][2];
+        SSE_PREFETCH_MATRIX(transMatrix + w, vu_m);
+
+        V_Real * vcl_p = (V_Real *)cl_p;
+        V_Real vwt = VEC_SPLAT(wt[l]);
+        for (int k = 0; k < kPatternCount; k++) {
+
+            const int stateChild = statesChild[k];
+
+            V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
+            *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+            vcl_p++;
+
+            wtdPartials = VEC_MULT(*vcl_r++, vwt);
+            *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
+            vcl_p++;
+        }
+        w += OFFSET*4;
+        vcl_r += 2 * kExtraPatterns;
     }
 
     double sum = 0.0;
