@@ -206,6 +206,14 @@ private:
                                       const double* __restrict matrices2,
                                       int startPattern,
                                       int endPattern);
+
+    virtual void calcPrePartialsPartials(double* __restrict destP,
+                                      const double* __restrict partials1,
+                                      const double* __restrict matrices1,
+                                      const double* __restrict partials2,
+                                      const double* __restrict matrices2,
+                                      int startPattern,
+                                      int endPattern);
     
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,
