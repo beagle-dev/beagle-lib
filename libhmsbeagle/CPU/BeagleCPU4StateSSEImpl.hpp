@@ -542,6 +542,103 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPartials(const double* postOrderPartial,
+                                                                                     const double* preOrderPartial,
+                                                                                     const int firstDerivativeIndex,
+                                                                                     const int secondDerivativeIndex,
+                                                                                     const double* categoryRates,
+                                                                                     const double* categoryWeights,
+                                                                                     const int scalingFactorsIndex,
+                                                                                     double* outDerivatives,
+                                                                                     double* outSumDerivatives,
+                                                                                     double* outSumSquaredDerivatives) {
+    double* cl_p = integrationTmp;
+    memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
+
+    const double* cl_r = preOrderPartial;
+    const double* wt = categoryWeights;
+
+    V_Real * vcl_r = (V_Real *)cl_r;
+
+    int v = 0;
+    int w = 0;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+
+        const double* transMatrix = gTransitionMatrices[firstDerivativeIndex] + w;
+        /* Load transition-probability matrix into vectors */
+        VecUnion vu_m[OFFSET][2];
+        SSE_PREFETCH_MATRIX(transMatrix, vu_m);
+
+        V_Real * vcl_p = (V_Real *)cl_p;
+        V_Real vwt = VEC_SPLAT(wt[l]);
+        for (int k = 0; k < kPatternCount; k++) {
+
+            V_Real vwt = VEC_SPLAT(wt[l]);
+
+            /* This would probably be faster on PPC/Altivec, which has a fused multiply-add
+               vector instruction */
+
+            V_Real vcl_q0, vcl_q1, vcl_q2, vcl_q3;
+            SSE_PREFETCH_PARTIALS(vcl_q,postOrderPartial,v);
+
+            V_Real vclp_01, vclp_23;
+            vclp_01 = VEC_MULT(vcl_q0, vu_m[0][0].vx);
+            vclp_01 = VEC_MADD(vcl_q1, vu_m[1][0].vx, vclp_01);
+            vclp_01 = VEC_MADD(vcl_q2, vu_m[2][0].vx, vclp_01);
+            vclp_01 = VEC_MADD(vcl_q3, vu_m[3][0].vx, vclp_01);
+            vclp_23 = VEC_MULT(vcl_q0, vu_m[0][1].vx);
+            vclp_23 = VEC_MADD(vcl_q1, vu_m[1][1].vx, vclp_23);
+            vclp_23 = VEC_MADD(vcl_q2, vu_m[2][1].vx, vclp_23);
+            vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
+            vclp_01 = VEC_MULT(vclp_01, vwt);
+            vclp_23 = VEC_MULT(vclp_23, vwt);
+
+
+            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+            vcl_p++;
+            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+            vcl_p++;
+
+            v += 4;
+        }
+        w += 4*OFFSET;
+        if (kExtraPatterns) {
+            vcl_r += 2 * kExtraPatterns;
+            v += 4 * kExtraPatterns;
+        }
+    }
+
+    double sum = 0.0;
+    double sumSquared = 0.0;
+    int u = 0;
+    double* denominator = grandDenominatorDerivTmp;
+    for(int k = 0; k < kPatternCount; k++) {
+        double sumOverI = 0.0;
+        for(int i = 0; i < kStateCount; i++) {
+            sumOverI += cl_p[u];
+            u++;
+        }
+
+        double derivative = sumOverI / denominator[k];
+        sum += derivative * gPatternWeights[k];
+        sumSquared += derivative * gPatternWeights[k];
+
+        if (outDerivatives != NULL) {
+            outDerivatives[k] = derivative;
+        }
+    }
+
+    if (outSumDerivatives != NULL) {
+        *outSumDerivatives = sum;
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        *outSumSquaredDerivatives = sumSquared;
+    }
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(double* destP,
 		                                                                                   const double* partials_q,
 		                                                                                   const double* matrices_q,

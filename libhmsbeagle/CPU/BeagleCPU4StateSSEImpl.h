@@ -163,6 +163,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternWeights;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandDenominatorDerivTmp;
     
 public:
     virtual const char* getName();
@@ -222,6 +223,17 @@ private:
                                          const double* __restrict matrices2,
                                          int startPattern,
                                          int endPattern);
+
+    virtual void calcEdgeLogDerivativesPartials(const double* __restrict postOrderPartial,
+                                                const double* __restrict preOrderPartial,
+                                                const int firstDerivativeIndex,
+                                                const int secondDerivativeIndex,
+                                                const double* __restrict categoryRates,
+                                                const double* __restrict categoryWeights,
+                                                const int scalingFactorsIndex,
+                                                double* outDerivatives,
+                                                double* outSumDerivatives,
+                                                double* outSumSquaredDerivatives);
     
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,
