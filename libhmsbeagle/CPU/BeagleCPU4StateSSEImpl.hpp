@@ -473,6 +473,75 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartials(do
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(double* destP,
+                                                                              const double*  partials_q,
+                                                                              const double*  matrices_q,
+                                                                              const int*     states_r,
+                                                                              const double*  matrices_r,
+                                                                              int startPattern,
+                                                                              int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23, destr_01, destr_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_PRE_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            /* This would probably be faster on PPC/Altivec, which has a fused multiply-add
+               vector instruction */
+
+            const int state_r = states_r[k];
+
+            V_Real destr_01, destr_23;
+            destr_01 = vu_mr[state_r][0].vx;
+            destr_23 = vu_mr[state_r][1].vx;
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_SCHUR_PRODUCT_PARTIALS(vpq_, partials_q, v, destr_);
+
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+
+            destPvec[0] = destq_01;
+            destPvec[1] = destq_23;
+            destPvec += 2;
+
+            /* VEC_STORE did demonstrate a measurable performance gain as
+           it copies all (2/4) values to memory simultaneously;
+           I can no longer reproduce the performance gain (?) */
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(double* destP,
 		                                                                                   const double* partials_q,
 		                                                                                   const double* matrices_q,
