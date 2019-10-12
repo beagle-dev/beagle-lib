@@ -598,6 +598,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
             vcl_p++;
 
+            // TODO Do reduction over 4 states before writing to grandNumeratorDerivTmp (cl_p currently)
+
             v += 4;
         }
         w += 4*OFFSET;
@@ -615,7 +617,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
     double* denominator = grandDenominatorDerivTmp;
     for(int k = 0; k < kPatternCount; k++) {
         double sumOverI = 0.0;
-        for(int i = 0; i < kStateCount; i++) {
+        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
             sumOverI += cl_p[u];
             u++;
         }
