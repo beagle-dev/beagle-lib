@@ -398,11 +398,11 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* 
         int w = l*4*OFFSET;
 
 
-        PREFETCH_MATRIX_TRANSPOSE(1,matrices1,w); //m100, m101, ..., m133
         PREFETCH_MATRIX(2,matrices2,w); // m200, m201, ..., m233
+        PREFETCH_MATRIX_TRANSPOSE(1,matrices1,w); //m100, m101, ..., m133
         for (int k = startPattern; k < endPattern; k++) {
-            PREFETCH_PARTIALS(1,partials1,u); // p10, p11, p12, p13
             PREFETCH_PARTIALS(2,partials2,u); // p20, p21, p22, p23
+            PREFETCH_PARTIALS(1,partials1,u); // p10, p11, p12, p13
 
             DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
             DO_SCHUR_PRODUCT(1, 1, 2); // reWrites p10, p11, p12, p13
