@@ -71,6 +71,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternWeights;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternPartitionsStartPatterns;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::accumulateDerivatives;
     
 public:    
     virtual const char* getName();
@@ -164,6 +165,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternWeights;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandDenominatorDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives;
     
 public:
     virtual const char* getName();

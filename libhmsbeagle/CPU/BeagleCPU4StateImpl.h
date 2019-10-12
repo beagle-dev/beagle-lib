@@ -72,6 +72,7 @@ protected:
 	using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::realtypeMin;
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshold;
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternPartitionsStartPatterns;
+  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives;
 
 public:
     virtual ~BeagleCPU4StateImpl();

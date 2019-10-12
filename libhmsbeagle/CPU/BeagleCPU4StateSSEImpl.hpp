@@ -607,6 +607,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
         }
     }
 
+    // TODO Use accumulateDerivatives() to avoid code duplication
+
     double sum = 0.0;
     double sumSquared = 0.0;
     int u = 0;
@@ -681,6 +683,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
     }
+
+    // TODO Use accumulateDerivatives() to avoid code duplication
 
     double sum = 0.0;
     double sumSquared = 0.0;

@@ -524,6 +524,10 @@ protected:
                                                 double *outLogFirstDerivatives,
                                                 double *outLogDiagonalSecondDerivatives);
 
+    void accumulateDerivatives(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
     virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
                                             const REALTYPE *preOrderPartial,
                                             const int firstDerivativeIndex,

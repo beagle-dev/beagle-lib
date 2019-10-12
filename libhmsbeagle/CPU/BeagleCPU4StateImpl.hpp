@@ -1202,24 +1202,26 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
         }
     }
 
-    REALTYPE sum = 0.0;
-    REALTYPE sumSquared = 0.0;
-    for (int k = 0; k < kPatternCount; k++) {
-        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * derivative * gPatternWeights[k];
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
-    }
+    accumulateDerivatives(outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
 
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
+//    REALTYPE sum = 0.0;
+//    REALTYPE sumSquared = 0.0;
+//    for (int k = 0; k < kPatternCount; k++) {
+//        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+//        sum += derivative * gPatternWeights[k];
+//        sumSquared += derivative * derivative * gPatternWeights[k];
+//        if (outDerivatives != NULL) {
+//            outDerivatives[k] = derivative;
+//        }
+//    }
+//
+//    if (outSumDerivatives != NULL) {
+//        *outSumDerivatives = sum;
+//    }
+//
+//    if (outSumSquaredDerivatives != NULL) {
+//        *outSumSquaredDerivatives = sumSquared;
+//    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1258,24 +1260,26 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
         }
     }
 
-    REALTYPE sum = 0.0;
-    REALTYPE sumSquared = 0.0;
-    for (int k = 0; k < kPatternCount; k++) {
-        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * derivative * gPatternWeights[k];
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
-    }
+    accumulateDerivatives(outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
 
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
+//    REALTYPE sum = 0.0;
+//    REALTYPE sumSquared = 0.0;
+//    for (int k = 0; k < kPatternCount; k++) {
+//        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+//        sum += derivative * gPatternWeights[k];
+//        sumSquared += derivative * derivative * gPatternWeights[k];
+//        if (outDerivatives != NULL) {
+//            outDerivatives[k] = derivative;
+//        }
+//    }
+//
+//    if (outSumDerivatives != NULL) {
+//        *outSumDerivatives = sum;
+//    }
+//
+//    if (outSumSquaredDerivatives != NULL) {
+//        *outSumSquaredDerivatives = sumSquared;
+//    }
 }
 
 BEAGLE_CPU_TEMPLATE
