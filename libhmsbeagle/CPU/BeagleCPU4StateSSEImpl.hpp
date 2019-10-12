@@ -594,6 +594,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
 //            vclp_23 = VEC_MULT(vclp_23, *vcl_r++);
 //            VReal vsum = VEC_ADD(vclp_01, vclp_23);
 //            vsum = _mm_hadd_pd(vsum, vsum);
+// or
+//            vsum = VEC_ADD(vsum, VEC_SWAP(vsum)); // May be faster than hadd
 //            double sum = _mm_cvtsd_f64(vsum) * wt[l];
 
             vclp_01 = VEC_MULT(vclp_01, vwt);
