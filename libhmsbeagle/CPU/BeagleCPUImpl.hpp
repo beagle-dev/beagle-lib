@@ -1998,10 +1998,91 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeDerivative(bool byPartition,
     return returnCode;
 }
 
+BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
+        double* outDerivatives,
+        double* outSumDerivatives,
+        double* outSumSquaredDerivatives) {
+
+    REALTYPE sum = 0.0;
+    REALTYPE sumSquared = 0.0;
+
+    for (int k = 0; k < kPatternCount; k++) {
+        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        if (DoDerivatives) {
+            outDerivatives[k] = derivative;
+        }
+        if (DoSum) { // TODO Confirm that these are compile-time
+            sum += derivative * gPatternWeights[k];
+        }
+        if (DoSumSquared) {
+            sumSquared += derivative * derivative * gPatternWeights[k];
+        }
+    }
+
+    if (DoSum) {
+        *outSumDerivatives = sum;
+    }
+
+    if (DoSumSquared) {
+        *outSumSquaredDerivatives = sumSquared;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum>
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch3(
+        double* outDerivatives,
+        double* outSumDerivatives,
+        double* outSumSquaredDerivatives) {
+
+    if (outSumSquaredDerivatives == NULL) {
+        accumulateDerivativesImpl<DoDerivatives, DoSum, false>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    } else {
+        accumulateDerivativesImpl<DoDerivatives, DoSum, true>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE template <bool DoDerivatives>
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch2(
+        double* outDerivatives,
+        double* outSumDerivatives,
+        double* outSumSquaredDerivatives) {
+
+    if (outSumDerivatives == NULL) {
+        accumulateDerivativesDispatch3<DoDerivatives, false>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    } else {
+        accumulateDerivativesDispatch3<DoDerivatives, true>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch(
+        double* outDerivatives,
+        double* outSumDerivatives,
+        double* outSumSquaredDerivatives) {
+
+    if (outDerivatives == NULL) {
+        accumulateDerivativesDispatch2<false>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    } else {
+        accumulateDerivativesDispatch2<true>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    }
+}
+
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives(double* outDerivatives,
                                                               double* outSumDerivatives,
                                                               double* outSumSquaredDerivatives) {
+
+    // TODO try:
+//    accumulateDerivativesDispatch(
+//            outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+
     REALTYPE sum = 0.0;
     REALTYPE sumSquared = 0.0;
     for (int k = 0; k < kPatternCount; k++) {

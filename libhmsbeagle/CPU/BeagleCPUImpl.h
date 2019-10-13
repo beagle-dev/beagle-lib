@@ -528,6 +528,25 @@ protected:
                                double* outSumDerivatives,
                                double* outSumSquaredDerivatives);
 
+    void accumulateDerivativesDispatch(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
+    template <bool DoDerivatives>
+    void accumulateDerivativesDispatch2(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
+    template <bool DoDerivatives, bool DoSum>
+    void accumulateDerivativesDispatch3(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
+    template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
+    void accumulateDerivativesImpl(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
     virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
                                             const REALTYPE *preOrderPartial,
                                             const int firstDerivativeIndex,
