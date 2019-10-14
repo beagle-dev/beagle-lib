@@ -221,19 +221,6 @@ public:
                                          double *outSumDerivatives,
                                          double *outSumSquaredDerivatives) = 0;
 
-	virtual int calculateEdgeDerivative(const int *postBufferIndices,
-                                        const int *preBufferIndices,
-                                        const int rootBufferIndex,
-                                        const int *firstDerivativeIndices,
-                                        const int *secondDerivativeIndices,
-                                        const int categoryWeightsIndex,
-                                        const int categoryRatesIndex,
-                                        const int stateFrequenciesIndex,
-                                        const int *cumulativeScaleIndices,
-                                        int count,
-                                        double *outFirstDerivative,
-                                        double *outDiagonalSecondDerivative) = 0;
-
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,

@@ -1829,23 +1829,7 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
                                   const int categoryWeightsIndex, const int categoryRatesIndex,
                                   const int stateFrequenciesIndex, const int *cumulativeScaleIndices, int count,
                                   double *outFirstDerivative, double *outDiagonalSecondDerivative) {
-    DEBUG_START_TIME();
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL)
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->calculateEdgeDerivative(postBufferIndices,
-                                                              preBufferIndices,
-                                                              rootBufferIndex,
-                                                              firstDerivativeIndices,
-                                                              secondDerivativeIndices,
-                                                              categoryWeightsIndex,
-                                                              categoryRatesIndex,
-                                                              stateFrequenciesIndex,
-                                                              cumulativeScaleIndices,
-                                                              count,
-                                                              outFirstDerivative,
-                                                              outDiagonalSecondDerivative);
-    DEBUG_END_TIME();
-    return returnValue;
+    fprintf(stderr, "Depricated");
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 

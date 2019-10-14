@@ -120,34 +120,6 @@ public:
                                        int startPattern,
                                        int endPattern);
 
-	virtual int calcEdgeDerivative(bool byPartition,
-								   const int *postBufferIndices,
-								   const int *preBufferIndices,
-								   const int rootBufferIndex,
-								   const int *firstDerivativeIndices,
-								   const int *secondDerivativeIndices,
-								   const int categoryWeightsIndex,
-								   const int categoryRatesIndex,
-								   const int stateFrequenciesIndex,
-								   const int *cumulativeScaleIndices,
-								   int count,
-								   double *outFirstDerivative,
-								   double *outDiagonalSecondDerivative,
-								   int startPattern,
-								   int endPattern);
-
-//    virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
-//                                       const int *preBufferIndices,
-//                                       const int *firstDerivativeIndices,
-//                                       const int *secondDerivativeIndices,
-//                                       const int *categoryWeightsIndices,
-//                                       const int *categoryRatesIndices,
-//                                       const int *cumulativeScaleIndices,
-//                                       int count,
-//                                       double *outDerivatives,
-//                                       double *outSumDerivatives,
-//                                       double *outSumSquaredDerivatives);
-
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
                                              const REALTYPE *preOrderPartial,
                                              const int firstDerivativeIndex,
@@ -168,30 +140,6 @@ public:
                                                double *outDerivatives,
                                                double *outSumDerivatives,
                                                double *outSumSquaredDerivatives);
-
-    virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
-                                            const REALTYPE *preOrderPartial,
-                                            const int firstDerivativeIndex,
-                                            const int secondDerivativeIndex,
-                                            const REALTYPE *wt,
-                                            const double *rt,
-                                            double *outFirstDerivative,
-                                            double *outDiagonalSecondDerivative,
-                                            const int patternOffset,
-                                            const int startPattern,
-                                            const int endPattern);
-
-    virtual void calcEdgeDerivativeStates(const int *tipStates,
-                                          const REALTYPE *preOrderPartial,
-                                          const int firstDerivativeIndex,
-                                          const int secondDerivativeIndex,
-                                          const REALTYPE *wt,
-                                          const double *rt,
-                                          double *outFirstDerivative,
-                                          double *outDiagonalSecondDerivative,
-                                          const int patternOffset,
-                                          const int startPattern,
-                                          const int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,

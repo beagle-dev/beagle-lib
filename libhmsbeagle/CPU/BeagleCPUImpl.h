@@ -433,19 +433,6 @@ public:
                                  double *outSumDerivatives,
                                  double *outSumSquaredDerivatives);
 
-    int calculateEdgeDerivative(const int *postBufferIndices,
-                                const int *preBufferIndices,
-                                const int rootBufferIndex,
-                                const int *firstDerivativeIndices,
-                                const int *secondDerivativeIndices,
-                                const int categoryWeightsIndex,
-                                const int categoryRatesIndex,
-                                const int stateFrequenciesIndex,
-                                const int *cumulativeScaleIndices,
-                                int count,
-                                double *outFirstDerivative,
-                                double *outDiagonalSecondDerivative);
-
     int getLogLikelihood(double* outSumLogLikelihood);
 
     int getDerivatives(double* outSumFirstDerivative,
@@ -484,22 +471,6 @@ protected:
                                        double *siteLogLikelihoods,
                                        double *outLogFirstDerivatives,
                                        double *outLogDiagonalSecondDerivatives);
-
-    virtual int calcEdgeDerivative(bool byPartition,
-                                   const int *postBufferIndices,
-                                   const int *preBufferIndices,
-                                   const int rootBufferIndex,
-                                   const int *firstDerivativeIndices,
-                                   const int *secondDerivativeIndices,
-                                   const int categoryWeightsIndex,
-                                   const int categoryRatesIndex,
-                                   const int stateFrequenciesIndex,
-                                   const int *cumulativeScaleIndices,
-                                   int count,
-                                   double *outFirstDerivative,
-                                   double *outDiagonalSecondDerivative,
-                                   int startPattern,
-                                   int endPattern);
 
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
                                               const REALTYPE *preOrderPartial,
@@ -546,32 +517,6 @@ protected:
     void accumulateDerivativesImpl(double* outDerivatives,
                                double* outSumDerivatives,
                                double* outSumSquaredDerivatives);
-
-    virtual void calcEdgeDerivativePartials(const REALTYPE *postOrderPartial,
-                                            const REALTYPE *preOrderPartial,
-                                            const int firstDerivativeIndex,
-                                            const int secondDerivativeIndex,
-                                            const REALTYPE *wt,
-                                            const double *rt,
-                                            const int matrixIncr,
-                                            double *outFirstDerivative,
-                                            double *outDiagonalSecondDerivative,
-                                            const int patternOffset,
-                                            const int startPattern,
-                                            const int endPattern);
-
-    virtual void calcEdgeDerivativeStates(const int *tipStates,
-                                          const REALTYPE *preOrderPartial,
-                                          const int firstDerivativeIndex,
-                                          const int secondDerivativeIndex,
-                                          const REALTYPE *wt,
-                                          const double *rt,
-                                          const int matrixIncr,
-                                          double *outFirstDerivative,
-                                          double *outDiagonalSecondDerivative,
-                                          const int patternOffset,
-                                          const int startPattern,
-                                          const int endPattern);
 
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,

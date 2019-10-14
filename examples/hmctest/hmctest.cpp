@@ -551,29 +551,7 @@ int main( int argc, const char* argv[] )
     int categoryRatesIndex = categoryWeightsIndex;
     double* gradient = (double*) malloc(sizeof(double) * nPatterns * 4);
     double* diagonalHessian = (double*) malloc(sizeof(double) * nPatterns * 4);
-
-    beagleCalculateEdgeDerivative(instance, postBufferIndices, preBufferIndices,
-                                  rootIndex, firstDervIndices, secondDervIndices,
-                                  categoryWeightsIndex, categoryRatesIndex,
-                                  stateFrequencyIndex, &cumulativeScalingIndex,
-                                  4, gradient, diagonalHessian);
-
-    std::cout<<"Gradient: \n";
-    for (int i = 0; i < 4; i++) {
-        for (int m = 0; m < nPatterns; m++) {
-            std::cout<<gradient[i * nPatterns + m]<<"  ";
-        }
-        std::cout<<std::endl;
-    }
-
-    std::cout<<"Hessian: \n";
-    for (int i = 0; i < 4; i++) {
-        for (int m = 0; m < nPatterns; m++) {
-            std::cout<<diagonalHessian[i * nPatterns + m]<<"  ";
-        }
-        std::cout<<std::endl;
-    }
-
+    
     double * seeprePartials  = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     double * seepostPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
 
