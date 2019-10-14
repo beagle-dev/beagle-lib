@@ -73,6 +73,7 @@ protected:
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::scalingExponentThreshold;
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternPartitionsStartPatterns;
   using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives;
+  using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives;
 
 public:
     virtual ~BeagleCPU4StateImpl();
@@ -135,17 +136,17 @@ public:
 								   int startPattern,
 								   int endPattern);
 
-    virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
-                                       const int *preBufferIndices,
-                                       const int *firstDerivativeIndices,
-                                       const int *secondDerivativeIndices,
-                                       const int *categoryWeightsIndices,
-                                       const int *categoryRatesIndices,
-                                       const int *cumulativeScaleIndices,
-                                       int count,
-                                       double *outDerivatives,
-                                       double *outSumDerivatives,
-                                       double *outSumSquaredDerivatives);
+//    virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
+//                                       const int *preBufferIndices,
+//                                       const int *firstDerivativeIndices,
+//                                       const int *secondDerivativeIndices,
+//                                       const int *categoryWeightsIndices,
+//                                       const int *categoryRatesIndices,
+//                                       const int *cumulativeScaleIndices,
+//                                       int count,
+//                                       double *outDerivatives,
+//                                       double *outSumDerivatives,
+//                                       double *outSumSquaredDerivatives);
 
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
                                              const REALTYPE *preOrderPartial,
