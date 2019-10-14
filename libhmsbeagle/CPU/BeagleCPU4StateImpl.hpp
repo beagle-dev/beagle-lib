@@ -1013,9 +1013,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
                                                                            double *outSumDerivatives,
                                                                            double *outSumSquaredDerivatives) {
 
-    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
-
     for (int category = 0; category < kCategoryCount; category++) {
 
         const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
@@ -1041,8 +1038,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
             grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
         }
     }
-
-    accumulateDerivatives(outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1056,9 +1051,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
                                                                              double *outDerivatives,
                                                                              double *outSumDerivatives,
                                                                              double *outSumSquaredDerivatives) {
-
-    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
 
     for (int category = 0; category < kCategoryCount; category++) {
 
@@ -1082,8 +1074,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
             grandDenominatorDerivTmp[pattern] += weight * denominator;
         }
     }
-
-    accumulateDerivatives(outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
 }
 
 BEAGLE_CPU_TEMPLATE
