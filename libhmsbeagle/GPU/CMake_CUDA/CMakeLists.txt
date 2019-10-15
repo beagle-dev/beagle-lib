@@ -22,33 +22,7 @@ add_custom_command(
 
 add_custom_target(CudaKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h)
 
-#add_custom_target(CudaKernels
-#        ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/make_cuda_kernels.sh ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
-#        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-#        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
-#        COMMENT "Building kernels")
-
-add_library(hmsbeagle-cuda.${BEAGLE_VERSION} MODULE
-        ../BeagleGPUImpl.h
-        ../BeagleGPUImpl.hpp
-        ../GPUImplDefs.h
-        ../GPUImplHelper.cpp
-        ../GPUImplHelper.h
-        ../GPUInterfaceCUDA.cpp
-        ../KernelLauncher.cpp
-        ../KernelLauncher.h
-        ../KernelResource.cpp
-        ../KernelResource.h
-        ../CUDAPlugin.cpp
-        ../CUDAPlugin.h
-        ../Precision.h
-        )
-
-add_dependencies(hmsbeagle-cuda.${BEAGLE_VERSION} CudaKernels)
-
-target_link_libraries(hmsbeagle-cuda.${BEAGLE_VERSION} cuda ${CUDA_LIBRARIES})
-
-add_library(hmsbeagle-cuda MODULE
+add_library(hmsbeagle-cuda SHARED
         ../BeagleGPUImpl.h
         ../BeagleGPUImpl.hpp
         ../GPUImplDefs.h
@@ -68,6 +42,12 @@ add_dependencies(hmsbeagle-cuda CudaKernels)
 
 target_link_libraries(hmsbeagle-cuda cuda ${CUDA_LIBRARIES})
 
-install(TARGETS hmsbeagle-cuda.${BEAGLE_VERSION} hmsbeagle-cuda
+install(TARGETS hmsbeagle-cuda
         DESTINATION lib
+        )
+
+SET_TARGET_PROPERTIES(hmsbeagle-cuda
+        PROPERTIES
+        SOVERSION ${BEAGLE_VERSION}
+        SUFFIX .so
         )
