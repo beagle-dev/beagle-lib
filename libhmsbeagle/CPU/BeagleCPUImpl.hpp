@@ -1861,8 +1861,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
         double* outSumSquaredDerivativesForNode = (outSumSquaredDerivatives == NULL) ?
                 NULL : outSumSquaredDerivatives + nodeNum;
 
-        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-        std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+        resetDerivativeTemporaries();
 
         if (tipStates != NULL) {
 
@@ -1967,6 +1966,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch(
                 outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
     }
 }
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetDerivativeTemporaries() {
+        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+        std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+}
+
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives(double* outDerivatives,

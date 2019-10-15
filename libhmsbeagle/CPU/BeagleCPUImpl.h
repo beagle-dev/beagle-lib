@@ -495,7 +495,9 @@ protected:
                                                 double *outLogFirstDerivatives,
                                                 double *outLogDiagonalSecondDerivatives);
 
-    void accumulateDerivatives(double* outDerivatives,
+    virtual void resetDerivativeTemporaries();
+
+    virtual void accumulateDerivatives(double* outDerivatives,
                                double* outSumDerivatives,
                                double* outSumSquaredDerivatives);
 
