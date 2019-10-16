@@ -43,11 +43,11 @@ add_library(hmsbeagle-cpu-sse SHARED
         SSEDefinitions.h
         )
 
-#install(TARGETS hmsbeagle-cpu-sse
-#        DESTINATION lib
-#        )
-#SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
-#        PROPERTIES
-#        SOVERSION ${BEAGLE_VERSION}
-#        SUFFIX .so
-#        )
+install(TARGETS hmsbeagle-cpu-sse
+        DESTINATION lib
+        )
+SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
+        PROPERTIES
+        SOVERSION ${BEAGLE_VERSION}
+        SUFFIX .so
+        )

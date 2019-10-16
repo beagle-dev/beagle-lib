@@ -542,6 +542,63 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::resetDerivativeTemporaries() {
+    // TODO Remove
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::removeThisFunction(
+        const int* postBufferIndices,
+        const int* preBufferIndices,
+        const double* categoryWeights
+        ) {
+
+    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+    const int *tipStates = gTipStates[postBufferIndices[0]];
+    const double *preOrderPartial = gPartials[preBufferIndices[0]];
+    if (tipStates != NULL) {
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+                const int patternIndex = category * kPatternCount + pattern;
+                const int state = tipStates[pattern];
+
+                double siteLikelihood = preOrderPartial[patternIndex * 4 + state];
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * siteLikelihood;
+
+            }
+        }
+
+    } else {
+        const double *postOrderPartial = gPartials[postBufferIndices[0]];
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * 4;
+
+                double denominator = 0.0;
+
+                for (int k = 0; k < kStateCount; k++) {
+                    denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
+                }
+
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            }
+        }
+    }
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
+                                           double* outSumDerivatives,
+                                           double* outSumSquaredDerivatives) {
+    // TODO Remove
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPartials(const double* postOrderPartial,
                                                                                      const double* preOrderPartial,
                                                                                      const int firstDerivativeIndex,
