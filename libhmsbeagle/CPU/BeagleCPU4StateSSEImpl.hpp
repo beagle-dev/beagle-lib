@@ -38,6 +38,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <pmmintrin.h>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
@@ -591,12 +592,12 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::removeThisFunction(
     }
 }
 
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
-                                           double* outSumDerivatives,
-                                           double* outSumSquaredDerivatives) {
-    // TODO Remove
-}
+//BEAGLE_CPU_4_SSE_TEMPLATE
+//void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
+//                                           double* outSumDerivatives,
+//                                           double* outSumSquaredDerivatives) {
+//    // TODO Remove
+//}
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPartials(const double* postOrderPartial,
@@ -647,8 +648,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             vclp_23 = VEC_MADD(vcl_q2, vu_m[2][1].vx, vclp_23);
             vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
 
-//            vclp_01 = VEC_MULT(vclp_01, *vcl_r++);
-//            vclp_23 = VEC_MULT(vclp_23, *vcl_r++);
+            vclp_01 = VEC_MULT(vclp_01, *vcl_r++);
+            vclp_23 = VEC_MULT(vclp_23, *vcl_r++);
 //            VReal vsum = VEC_ADD(vclp_01, vclp_23);
 //            vsum = _mm_hadd_pd(vsum, vsum);
 // or
@@ -658,11 +659,15 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             vclp_01 = VEC_MULT(vclp_01, vwt);
             vclp_23 = VEC_MULT(vclp_23, vwt);
 
+            V_Real vsum = VEC_ADD(vclp_01, vclp_23);
+            *vcl_p = VEC_ADD(_mm_hadd_pd(vsum, vsum), *vcl_p);
+            vcl_p++;
 
-            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
-            vcl_p++;
-            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
-            vcl_p++;
+
+//            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+//            vcl_p++;
+//            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+//            vcl_p++;
 
             // TODO Do reduction over 4 states before writing to grandNumeratorDerivTmp (cl_p currently)
 
@@ -674,36 +679,40 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             v += 4 * kExtraPatterns;
         }
     }
+    for (int k = 0; k < kPatternCount; k++) {
+        grandNumeratorDerivTmp[k] = cl_p[2 * k];
+    }
 
     // TODO Use accumulateDerivatives() to avoid code duplication
 
-    double sum = 0.0;
-    double sumSquared = 0.0;
-    int u = 0;
-    double* denominator = grandDenominatorDerivTmp;
-    for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI = 0.0;
-        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
-            sumOverI += cl_p[u];
-            u++;
-        }
-
-        double derivative = sumOverI / denominator[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * gPatternWeights[k];
-
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
-    }
-
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
+//    double sum = 0.0;
+//    double sumSquared = 0.0;
+//    int u = 0;
+//    double* denominator = grandDenominatorDerivTmp;
+//    for(int k = 0; k < kPatternCount; k++) {
+////        double sumOverI = 0.0;
+////        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
+////            sumOverI += cl_p[u];
+////            u++;
+////        }
+////
+////        double derivative = sumOverI / denominator[k];
+//        double derivative = grandNumeratorDerivTmp[k] / denominator[k];
+//        sum += derivative * gPatternWeights[k];
+//        sumSquared += derivative * gPatternWeights[k];
+//
+//        if (outDerivatives != NULL) {
+//            outDerivatives[k] = derivative;
+//        }
+//    }
+//
+//    if (outSumDerivatives != NULL) {
+//        *outSumDerivatives = sum;
+//    }
+//
+//    if (outSumSquaredDerivatives != NULL) {
+//        *outSumSquaredDerivatives = sumSquared;
+//    }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
