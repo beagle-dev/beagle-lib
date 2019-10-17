@@ -165,6 +165,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternWeights;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandDenominatorDerivTmp;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandNumeratorDerivTmp;
 //    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives;
 
 public:
@@ -175,17 +176,17 @@ public:
 protected:
     virtual int getPaddedPatternsModulus();
 
-    virtual void resetDerivativeTemporaries();
+//    virtual void resetDerivativeTemporaries();
 
-    virtual void removeThisFunction(
-            const int* postBufferIndices,
-            const int* preBufferIndices,
-            const double* categoryWeights
-    );
+//    virtual void removeThisFunction(
+//            const int* postBufferIndices,
+//            const int* preBufferIndices,
+//            const double* categoryWeights
+//    );
 
-    virtual void accumulateDerivatives(double* outDerivatives,
-                                       double* outSumDerivatives,
-                                       double* outSumSquaredDerivatives);
+//    virtual void accumulateDerivatives(double* outDerivatives,
+//                                       double* outSumDerivatives,
+//                                       double* outSumSquaredDerivatives);
     
 private:
     

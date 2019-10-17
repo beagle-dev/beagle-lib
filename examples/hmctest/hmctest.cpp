@@ -148,6 +148,9 @@ int main( int argc, const char* argv[] )
 
     bool doJC = true;
 
+    bool singlePrecision = false;
+    bool useSSE = true;
+
     // is nucleotides...
     int stateCount = 4;
 
@@ -178,7 +181,26 @@ int main( int argc, const char* argv[] )
 
     BeagleInstanceDetails instDetails;
 
-    /// Doubled the size of partials buffer from 5 to 10
+    long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;
+
+    if (useGpu) {
+        preferenceFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
+    } else {
+        preferenceFlags |= BEAGLE_FLAG_PROCESSOR_CPU;
+    }
+
+    if (singlePrecision) {
+        preferenceFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
+    } else {
+        preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+    }
+
+    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
+    if (useSSE) {
+        requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
+    } else {
+        requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
+    }
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
@@ -193,10 +215,8 @@ int main( int argc, const char* argv[] )
                                   scaleCount,       /**< Number of scaling buffers */
                                   whichDevice >= 0 ? &whichDevice : NULL, /**< List of potential resource on which this instance is allowed (input, NULL implies no restriction */
                                   whichDevice >= 0 ? 1 : 0,			    /**< Length of resourceList list (input) */
-                            useGpu ?
-                                  BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW:
-                                  BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_SCALERS_RAW,             	/**< Bit-flags indicating preferred implementation charactertistics, see BeagleFlags (input) */
-                                  BEAGLE_FLAG_EIGEN_REAL,                 /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
+                                  preferenceFlags,
+                                  requirementFlags, /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");

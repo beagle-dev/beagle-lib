@@ -501,11 +501,11 @@ protected:
                                double* outSumDerivatives,
                                double* outSumSquaredDerivatives);
 
-    virtual void removeThisFunction(
-            const int* postBufferIndices,
-            const int* preBufferIndices,
-            const REALTYPE* categoryWeights
-    );
+//    virtual void removeThisFunction(
+//            const int* postBufferIndices,
+//            const int* preBufferIndices,
+//            const REALTYPE* categoryWeights
+//    );
 
     void accumulateDerivativesDispatch(double* outDerivatives,
                                double* outSumDerivatives,

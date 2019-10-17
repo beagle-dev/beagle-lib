@@ -541,62 +541,63 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
     }
 }
 
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::resetDerivativeTemporaries() {
-    // TODO Remove
-}
+//BEAGLE_CPU_4_SSE_TEMPLATE
+//void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::resetDerivativeTemporaries() {
+//    std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+//}
 
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::removeThisFunction(
-        const int* postBufferIndices,
-        const int* preBufferIndices,
-        const double* categoryWeights
-        ) {
+//BEAGLE_CPU_4_SSE_TEMPLATE
+//void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::removeThisFunction(
+//        const int* postBufferIndices,
+//        const int* preBufferIndices,
+//        const double* categoryWeights
+//        ) {
+//
+//    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+//    const int *tipStates = gTipStates[postBufferIndices[0]];
+//    const double *preOrderPartial = gPartials[preBufferIndices[0]];
+//    if (tipStates != NULL) {
+//        for (int category = 0; category < kCategoryCount; category++) {
+//
+//            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+//
+//                const int patternIndex = category * kPatternCount + pattern;
+//                const int state = tipStates[pattern];
+//
+//                double siteLikelihood = preOrderPartial[patternIndex * 4 + state];
+//                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * siteLikelihood;
+//
+//            }
+//        }
+//
+//    } else {
+//        const double *postOrderPartial = gPartials[postBufferIndices[0]];
+//        for (int category = 0; category < kCategoryCount; category++) {
+//
+//            for (int pattern = 0; pattern < kPatternCount; pattern++) {
+//
+//                const int patternIndex = category * kPatternCount + pattern;
+//                const int v = patternIndex * 4;
+//
+//                double denominator = 0.0;
+//
+//                for (int k = 0; k < kStateCount; k++) {
+//                    denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
+//                }
+//
+//                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+//            }
+//        }
+//    }
+//}
 
-    std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
-    const int *tipStates = gTipStates[postBufferIndices[0]];
-    const double *preOrderPartial = gPartials[preBufferIndices[0]];
-    if (tipStates != NULL) {
-        for (int category = 0; category < kCategoryCount; category++) {
-
-            for (int pattern = 0; pattern < kPatternCount; pattern++) {
-
-                const int patternIndex = category * kPatternCount + pattern;
-                const int state = tipStates[pattern];
-
-                double siteLikelihood = preOrderPartial[patternIndex * 4 + state];
-                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * siteLikelihood;
-
-            }
-        }
-
-    } else {
-        const double *postOrderPartial = gPartials[postBufferIndices[0]];
-        for (int category = 0; category < kCategoryCount; category++) {
-
-            for (int pattern = 0; pattern < kPatternCount; pattern++) {
-
-                const int patternIndex = category * kPatternCount + pattern;
-                const int v = patternIndex * 4;
-
-                double denominator = 0.0;
-
-                for (int k = 0; k < kStateCount; k++) {
-                    denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
-                }
-
-                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
-            }
-        }
-    }
-}
-
-BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
-                                           double* outSumDerivatives,
-                                           double* outSumSquaredDerivatives) {
-    // TODO Remove
-}
+//BEAGLE_CPU_4_SSE_TEMPLATE
+//void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
+//                                           double* outSumDerivatives,
+//                                           double* outSumSquaredDerivatives) {
+//    // TODO Remove
+//}
 
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPartials(const double* postOrderPartial,
@@ -647,22 +648,31 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             vclp_23 = VEC_MADD(vcl_q2, vu_m[2][1].vx, vclp_23);
             vclp_23 = VEC_MADD(vcl_q3, vu_m[3][1].vx, vclp_23);
 
-//            vclp_01 = VEC_MULT(vclp_01, *vcl_r++);
-//            vclp_23 = VEC_MULT(vclp_23, *vcl_r++);
-//            VReal vsum = VEC_ADD(vclp_01, vclp_23);
-//            vsum = _mm_hadd_pd(vsum, vsum);
-// or
-//            vsum = VEC_ADD(vsum, VEC_SWAP(vsum)); // May be faster than hadd
-//            double sum = _mm_cvtsd_f64(vsum) * wt[l];
+            vclp_01 = VEC_MULT(vclp_01, *vcl_r);
+            tmp_vcl_q01 = VEC_MULT(tmp_vcl_q01, *vcl_r++);
+            vclp_23 = VEC_MULT(vclp_23, *vcl_r);
+            tmp_vcl_q23 = VEC_MULT(tmp_vcl_q23, *vcl_r++);
 
-            vclp_01 = VEC_MULT(vclp_01, vwt);
-            vclp_23 = VEC_MULT(vclp_23, vwt);
+            V_Real vnumer = VEC_ADD(vclp_01, vclp_23);
+            vnumer = VEC_ADD(vnumer, VEC_SWAP(vnumer));
+
+            V_Real vdenom = VEC_ADD(tmp_vcl_q01, tmp_vcl_q23);
+            vdenom = VEC_ADD(vdenom, VEC_SWAP(vdenom));
+
+            double numer = _mm_cvtsd_f64(vnumer) * wt[l];
+            double denon = _mm_cvtsd_f64(vdenom) * wt[l];
+
+            grandNumeratorDerivTmp[k] += numer; // TODO Merge [numer, denom] into single SSE transactions
+            grandDenominatorDerivTmp[k] += denon;
+
+//            vclp_01 = VEC_MULT(vclp_01, vwt);
+//            vclp_23 = VEC_MULT(vclp_23, vwt);
 
 
-            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
-            vcl_p++;
-            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
-            vcl_p++;
+//            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
+//            vcl_p++;
+//            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
+//            vcl_p++;
 
             // TODO Do reduction over 4 states before writing to grandNumeratorDerivTmp (cl_p currently)
 
@@ -677,33 +687,34 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
 
     // TODO Use accumulateDerivatives() to avoid code duplication
 
-    double sum = 0.0;
-    double sumSquared = 0.0;
-    int u = 0;
-    double* denominator = grandDenominatorDerivTmp;
-    for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI = 0.0;
-        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
-            sumOverI += cl_p[u];
-            u++;
-        }
-
-        double derivative = sumOverI / denominator[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * gPatternWeights[k];
-
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
-    }
-
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
+//    double sum = 0.0;
+//    double sumSquared = 0.0;
+//    int u = 0;
+//    double* denominator = grandDenominatorDerivTmp;
+//    for(int k = 0; k < kPatternCount; k++) {
+//        double sumOverI = 0.0;
+////        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
+////            sumOverI += cl_p[u];
+////            u++;
+////        }
+//        sumOverI = grandNumeratorDerivTmp[k];
+//
+//        double derivative = sumOverI / denominator[k];
+//        sum += derivative * gPatternWeights[k];
+//        sumSquared += derivative * gPatternWeights[k];
+//
+//        if (outDerivatives != NULL) {
+//            outDerivatives[k] = derivative;
+//        }
+//    }
+//
+//    if (outSumDerivatives != NULL) {
+//        *outSumDerivatives = sum;
+//    }
+//
+//    if (outSumSquaredDerivatives != NULL) {
+//        *outSumSquaredDerivatives = sumSquared;
+//    }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -740,47 +751,62 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
 
             const int stateChild = statesChild[k];
 
-            V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
-            *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
-            vcl_p++;
+//            V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
+//            *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
+//            vcl_p++;
+//
+//            wtdPartials = VEC_MULT(*vcl_r++, vwt);
+//            *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
+//            vcl_p++;
 
-            wtdPartials = VEC_MULT(*vcl_r++, vwt);
-            *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
-            vcl_p++;
+            V_Real p01, p23;
+            p01 = VEC_MULT(vu_m[stateChild][0].vx, *vcl_r++);
+            p23 = VEC_MULT(vu_m[stateChild][1].vx, *vcl_r++);
+
+            V_Real vnumer = VEC_ADD(p01, p23);
+            vnumer = VEC_ADD(vnumer, VEC_SWAP(vnumer));
+
+            double numer = _mm_cvtsd_f64(vnumer);
+            double denom = cl_r[stateChild]; cl_r += 4;
+
+            grandNumeratorDerivTmp[k] += numer * wt[l];
+            grandDenominatorDerivTmp[k] += denom * wt[l];
         }
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
+        cl_r += 4 * kExtraPatterns;
     }
 
     // TODO Use accumulateDerivatives() to avoid code duplication
 
-    double sum = 0.0;
-    double sumSquared = 0.0;
-    int u = 0;
-    double* denominator = grandDenominatorDerivTmp;
-    for(int k = 0; k < kPatternCount; k++) {
-        double sumOverI = 0.0;
-        for(int i = 0; i < kStateCount; i++) {
-            sumOverI += cl_p[u];
-            u++;
-        }
-
-        double derivative = sumOverI / denominator[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * gPatternWeights[k];
-
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
-    }
-
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
+//    double sum = 0.0;
+//    double sumSquared = 0.0;
+//    int u = 0;
+//    double* denominator = grandDenominatorDerivTmp;
+//    for(int k = 0; k < kPatternCount; k++) {
+//        double sumOverI = 0.0;
+////        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
+////            sumOverI += cl_p[u];
+////            u++;
+////        }
+//        sumOverI = grandNumeratorDerivTmp[k];
+//
+//        double derivative = sumOverI / denominator[k];
+//        sum += derivative * gPatternWeights[k];
+//        sumSquared += derivative * gPatternWeights[k];
+//
+//        if (outDerivatives != NULL) {
+//            outDerivatives[k] = derivative;
+//        }
+//    }
+//
+//    if (outSumDerivatives != NULL) {
+//        *outSumDerivatives = sum;
+//    }
+//
+//    if (outSumSquaredDerivatives != NULL) {
+//        *outSumSquaredDerivatives = sumSquared;
+//    }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE

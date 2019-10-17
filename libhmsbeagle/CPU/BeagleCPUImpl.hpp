@@ -1845,7 +1845,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
     const double *categoryRates = NULL; // gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
     const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
 
-    removeThisFunction(postBufferIndices, preBufferIndices, categoryWeights);
+//    removeThisFunction(postBufferIndices, preBufferIndices, categoryWeights);
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
 
@@ -1893,12 +1893,12 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
     return returnCode;
 }
 
-        BEAGLE_CPU_TEMPLATE
-        void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeThisFunction(
-                const int* postBufferIndices,
-                const int* preBufferIndices,
-                const REALTYPE* categoryWeights
-        ) {}
+//        BEAGLE_CPU_TEMPLATE
+//        void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeThisFunction(
+//                const int* postBufferIndices,
+//                const int* preBufferIndices,
+//                const REALTYPE* categoryWeights
+//        ) {}
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
