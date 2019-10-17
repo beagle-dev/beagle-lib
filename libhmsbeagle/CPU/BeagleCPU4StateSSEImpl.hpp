@@ -38,6 +38,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <pmmintrin.h>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
