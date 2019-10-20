@@ -1082,7 +1082,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 
     int w = 0;
     for(int l = 0; l < kCategoryCount; l++) {
-        int u = 0;
+
         int v = l*kPaddedPatternCount*4;
 
         const REALTYPE weight = categoryWeights[l];
@@ -1105,7 +1105,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
             grandDenominatorDerivTmp[k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
             grandNumeratorDerivTmp[k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
 
-            u += 4;
             v += 4;
         }
         w += OFFSET*4;
