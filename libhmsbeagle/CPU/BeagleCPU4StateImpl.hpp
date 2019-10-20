@@ -1052,27 +1052,63 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
                                                                              double *outSumDerivatives,
                                                                              double *outSumSquaredDerivatives) {
 
-    for (int category = 0; category < kCategoryCount; category++) {
+//    for (int category = 0; category < kCategoryCount; category++) {
+//
+//        const REALTYPE *firstDerivMatrixPtr = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
+//        PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
+//        const REALTYPE weight = categoryWeights[category];
+//
+//        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+//
+//            const int patternIndex = category * kPatternCount + pattern;
+//            const int localPatternOffset = patternIndex * 4;
+//
+//            PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
+//            PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
+//            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+//
+//            REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
+//            REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
+//
+//            grandNumeratorDerivTmp[pattern] += weight * numerator;
+//            grandDenominatorDerivTmp[pattern] += weight * denominator;
+//        }
+//    }
 
-        const REALTYPE *firstDerivMatrixPtr = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
-        PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
-        const REALTYPE weight = categoryWeights[category];
+    const REALTYPE* postPartials = postOrderPartial;
 
-        for (int pattern = 0; pattern < kPatternCount; pattern++) {
+    const REALTYPE* prePartials = preOrderPartial;
+    const REALTYPE* transMatrix = gTransitionMatrices[firstDerivativeIndex];
 
-            const int patternIndex = category * kPatternCount + pattern;
-            const int localPatternOffset = patternIndex * 4;
+    int w = 0;
+    for(int l = 0; l < kCategoryCount; l++) {
+        int u = 0;
+        int v = l*kPaddedPatternCount*4;
 
-            PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
-            PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
-            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
+        const REALTYPE weight = categoryWeights[l];
 
-            REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
-            REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
+        PREFETCH_MATRIX(1,transMatrix,w);
 
-            grandNumeratorDerivTmp[pattern] += weight * numerator;
-            grandDenominatorDerivTmp[pattern] += weight * denominator;
+        for(int k = 0; k < kPatternCount; k++) {
+
+            PREFETCH_PARTIALS(1,postPartials,v);
+            PREFETCH_PARTIALS(0, prePartials, v);
+
+
+            DO_INTEGRATION(1);
+
+//            grandNumeratorDerivTmp[k] += (sum10 * prePartials[v] + sum11 * prePartials[v + 1]
+//                    + sum12 * prePartials[v + 2] + sum13 * prePartials[v + 3]) * weight;
+//            grandDenominatorDerivTmp[k] += (postPartials[v] * prePartials[v] + postPartials[v + 1] * prePartials[v + 1]
+//                    + postPartials[v + 2] * prePartials[v + 2] + postPartials[v + 3] * prePartials[v + 3]) * weight;
+
+            grandDenominatorDerivTmp[k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
+            grandNumeratorDerivTmp[k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
+
+            u += 4;
+            v += 4;
         }
+        w += OFFSET*4;
     }
 }
 
