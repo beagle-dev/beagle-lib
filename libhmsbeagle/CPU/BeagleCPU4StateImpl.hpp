@@ -1075,9 +1075,9 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 //        }
 //    }
 
-    const REALTYPE* postPartials = postOrderPartial;
+    const REALTYPE* postPartials = postOrderPartial; // TODO Does nothing
+    const REALTYPE* prePartials = preOrderPartial; // TODO Does nothing
 
-    const REALTYPE* prePartials = preOrderPartial;
     const REALTYPE* transMatrix = gTransitionMatrices[firstDerivativeIndex];
 
     int w = 0;
@@ -1087,7 +1087,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 
         const REALTYPE weight = categoryWeights[l];
 
-        PREFETCH_MATRIX(1,transMatrix,w);
+        PREFETCH_MATRIX(1,transMatrix,w); // TODO Use _TRANSPOSE and then reverse integration below
 
         for(int k = 0; k < kPatternCount; k++) {
 
