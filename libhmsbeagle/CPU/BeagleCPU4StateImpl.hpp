@@ -1052,32 +1052,6 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
                                                                              double *outSumDerivatives,
                                                                              double *outSumSquaredDerivatives) {
 
-//    for (int category = 0; category < kCategoryCount; category++) {
-//
-//        const REALTYPE *firstDerivMatrixPtr = gTransitionMatrices[firstDerivativeIndex] + category * kMatrixSize;
-//        PREFETCH_MATRIX(0, firstDerivMatrixPtr, 0);
-//        const REALTYPE weight = categoryWeights[category];
-//
-//        for (int pattern = 0; pattern < kPatternCount; pattern++) {
-//
-//            const int patternIndex = category * kPatternCount + pattern;
-//            const int localPatternOffset = patternIndex * 4;
-//
-//            PREFETCH_PARTIALS(0, postOrderPartial, localPatternOffset); //save into p00, p01, p02, p03
-//            PREFETCH_PARTIALS(1, preOrderPartial, localPatternOffset);
-//            DO_INTEGRATION(0); // defines sum00, sum01, sum02, sum03
-//
-//            REALTYPE numerator = sum00 * p10 + sum01 * p11 + sum02 * p12 + sum03 * p13;
-//            REALTYPE denominator = p00 * p10 + p01 * p11 + p02 * p12 + p03 * p13;
-//
-//            grandNumeratorDerivTmp[pattern] += weight * numerator;
-//            grandDenominatorDerivTmp[pattern] += weight * denominator;
-//        }
-//    }
-
-    const REALTYPE* postPartials = postOrderPartial; // TODO Does nothing
-    const REALTYPE* prePartials = preOrderPartial; // TODO Does nothing
-
     const REALTYPE* transMatrix = gTransitionMatrices[firstDerivativeIndex];
 
     int w = 0;
@@ -1091,8 +1065,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 
         for(int k = 0; k < kPatternCount; k++) {
 
-            PREFETCH_PARTIALS(1,postPartials,v);
-            PREFETCH_PARTIALS(0, prePartials, v);
+            PREFETCH_PARTIALS(1, postOrderPartial,v);
+            PREFETCH_PARTIALS(0, preOrderPartial, v);
 
 
             DO_INTEGRATION(1);
