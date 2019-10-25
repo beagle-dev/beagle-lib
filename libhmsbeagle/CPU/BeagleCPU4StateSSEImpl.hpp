@@ -557,13 +557,19 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
         V_Real numerator = VEC_LOAD(grandNumeratorDerivTmp + k);
         V_Real denominator = VEC_LOAD(grandDenominatorDerivTmp + k);
         V_Real derivative = VEC_DIV(numerator, denominator);
+        V_Real patternWeight = VEC_LOAD(gPatternWeights + k);
 
         if (DoDerivatives) {
             VEC_STOREU(outDerivatives + k, derivative);
         }
 
         if (DoSum) {
-            vSum += derivative;
+            vSum = VEC_MADD(derivative, patternWeight, vSum);
+        }
+
+        if (DoSumSquared) {
+            derivative = VEC_MULT(derivative, derivative);
+            vSumSquared = VEC_MADD(derivative, patternWeight, vSumSquared);
         }
     }
 
