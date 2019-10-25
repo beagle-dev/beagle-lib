@@ -429,8 +429,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     secondDerivTmp = (REALTYPE*) malloc(sizeof(REALTYPE) * kPatternCount * kStateCount);
 
 //    cLikelihoodTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kCategoryCount);
-    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount); // TODO Deprecate in favor of integrationTmp
-    grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
+    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount); // TODO Deprecate in favor of integrationTmp
+    grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount);
 //    grandNumeratorLowerBoundDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
 //    grandNumeratorUpperBoundDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount);
 
@@ -1893,13 +1893,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
     return returnCode;
 }
 
-//        BEAGLE_CPU_TEMPLATE
-//        void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeThisFunction(
-//                const int* postBufferIndices,
-//                const int* preBufferIndices,
-//                const REALTYPE* categoryWeights
-//        ) {}
-
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
         double* outDerivatives,
@@ -1932,7 +1925,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
 }
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum>
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch3(
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch2(
         double* outDerivatives,
         double* outSumDerivatives,
         double* outSumSquaredDerivatives) {
@@ -1947,39 +1940,24 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch3(
 }
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives>
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch2(
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch1(
         double* outDerivatives,
         double* outSumDerivatives,
         double* outSumSquaredDerivatives) {
 
     if (outSumDerivatives == NULL) {
-        accumulateDerivativesDispatch3<DoDerivatives, false>(
+        accumulateDerivativesDispatch2<DoDerivatives, false>(
                 outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
     } else {
-        accumulateDerivativesDispatch3<DoDerivatives, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
-    }
-}
-
-BEAGLE_CPU_TEMPLATE
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
-
-    if (outDerivatives == NULL) {
-        accumulateDerivativesDispatch2<false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
-    } else {
-        accumulateDerivativesDispatch2<true>(
+        accumulateDerivativesDispatch2<DoDerivatives, true>(
                 outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
     }
 }
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetDerivativeTemporaries() {
-        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPatternCount, 0);
-        std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPatternCount, 0);
+        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPaddedPatternCount, 0);
+        std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPaddedPatternCount, 0);
 }
 
 
@@ -1987,32 +1965,13 @@ BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives(double* outDerivatives,
                                                               double* outSumDerivatives,
                                                               double* outSumSquaredDerivatives) {
-
-#if 1
-    // TODO try:
-    accumulateDerivativesDispatch(
-            outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
-#else
-
-    REALTYPE sum = 0.0;
-    REALTYPE sumSquared = 0.0;
-    for (int k = 0; k < kPatternCount; k++) {
-        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
-        sum += derivative * gPatternWeights[k];
-        sumSquared += derivative * derivative * gPatternWeights[k];
-        if (outDerivatives != NULL) {
-            outDerivatives[k] = derivative;
-        }
+    if (outDerivatives == NULL) {
+        accumulateDerivativesDispatch1<false>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+    } else {
+        accumulateDerivativesDispatch1<true>(
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
     }
-
-    if (outSumDerivatives != NULL) {
-        *outSumDerivatives = sum;
-    }
-
-    if (outSumSquaredDerivatives != NULL) {
-        *outSumSquaredDerivatives = sumSquared;
-    }
-#endif
 }
 
 BEAGLE_CPU_TEMPLATE

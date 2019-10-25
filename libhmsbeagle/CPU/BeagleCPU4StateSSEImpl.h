@@ -71,7 +71,6 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::outLogLikelihoodsTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternWeights;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::gPatternPartitionsStartPatterns;
-    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_FLOAT>::accumulateDerivatives;
     
 public:    
     virtual const char* getName();
@@ -166,7 +165,7 @@ protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::gPatternPartitionsStartPatterns;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandDenominatorDerivTmp;
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::grandNumeratorDerivTmp;
-//    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives;
+    using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives;
 
 public:
     virtual const char* getName();
@@ -176,19 +175,26 @@ public:
 protected:
     virtual int getPaddedPatternsModulus();
 
-//    virtual void resetDerivativeTemporaries();
+	virtual void accumulateDerivatives(double* outDerivatives,
+									   double* outSumDerivatives,
+									   double* outSumSquaredDerivatives);
 
-//    virtual void removeThisFunction(
-//            const int* postBufferIndices,
-//            const int* preBufferIndices,
-//            const double* categoryWeights
-//    );
-
-//    virtual void accumulateDerivatives(double* outDerivatives,
-//                                       double* outSumDerivatives,
-//                                       double* outSumSquaredDerivatives);
-    
 private:
+
+	template <bool DoDerivatives>
+	void accumulateDerivativesDispatch1(double* outDerivatives,
+										double* outSumDerivatives,
+										double* outSumSquaredDerivatives);
+
+	template <bool DoDerivatives, bool DoSum>
+	void accumulateDerivativesDispatch2(double* outDerivatives,
+										double* outSumDerivatives,
+										double* outSumSquaredDerivatives);
+
+	template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
+	void accumulateDerivativesImpl(double* outDerivatives,
+								   double* outSumDerivatives,
+								   double* outSumSquaredDerivatives);
     
     virtual void calcStatesStates(double* destP,
                                   const int* states1,

@@ -501,31 +501,6 @@ protected:
                                double* outSumDerivatives,
                                double* outSumSquaredDerivatives);
 
-//    virtual void removeThisFunction(
-//            const int* postBufferIndices,
-//            const int* preBufferIndices,
-//            const REALTYPE* categoryWeights
-//    );
-
-    void accumulateDerivativesDispatch(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
-
-    template <bool DoDerivatives>
-    void accumulateDerivativesDispatch2(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
-
-    template <bool DoDerivatives, bool DoSum>
-    void accumulateDerivativesDispatch3(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
-
-    template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-    void accumulateDerivativesImpl(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
-
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
                                                  int count,
@@ -764,6 +739,22 @@ protected:
 
     void threadWaiting(threadData* tData);
 
+private:
+
+    template <bool DoDerivatives>
+    void accumulateDerivativesDispatch1(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
+    template <bool DoDerivatives, bool DoSum>
+    void accumulateDerivativesDispatch2(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
+
+    template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
+    void accumulateDerivativesImpl(double* outDerivatives,
+                               double* outSumDerivatives,
+                               double* outSumSquaredDerivatives);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE

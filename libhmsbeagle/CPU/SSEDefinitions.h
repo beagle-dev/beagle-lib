@@ -55,6 +55,7 @@ typedef double VecEl_t;
 #	define VEC_LOAD_SCALAR(a)	_mm_load1_pd(a)
 #	define VEC_STORE(a, b)		_mm_store_pd((a), (b))
 #   define VEC_STORE_SCALAR(a, b) _mm_store_sd((a), (b))
+#   define VEC_STOREU(a, b)     _mm_storeu_pd((a), (b))
 #	define VEC_MULT(a, b)		_mm_mul_pd((a), (b))
 #	define VEC_DIV(a, b)		_mm_div_pd((a), (b))
 #	define VEC_MADD(a, b, c)	_mm_add_pd(_mm_mul_pd((a), (b)), (c))
