@@ -641,9 +641,6 @@ BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
                                                                             double* outSumDerivatives,
                                                                             double* outSumSquaredDerivatives) {
-#if 0 // TODO Test if SSE code is faster
-    BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
-#else
     if (outDerivatives == NULL) {
         accumulateDerivativesDispatch1<false>(
                 outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
@@ -651,7 +648,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(doub
         accumulateDerivativesDispatch1<true>(
                 outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
     }
-#endif
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -739,37 +735,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             v += 4 * kExtraPatterns;
         }
     }
-
-    // TODO Use accumulateDerivatives() to avoid code duplication
-
-//    double sum = 0.0;
-//    double sumSquared = 0.0;
-//    int u = 0;
-//    double* denominator = grandDenominatorDerivTmp;
-//    for(int k = 0; k < kPatternCount; k++) {
-//        double sumOverI = 0.0;
-////        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
-////            sumOverI += cl_p[u];
-////            u++;
-////        }
-//        sumOverI = grandNumeratorDerivTmp[k];
-//
-//        double derivative = sumOverI / denominator[k];
-//        sum += derivative * gPatternWeights[k];
-//        sumSquared += derivative * gPatternWeights[k];
-//
-//        if (outDerivatives != NULL) {
-//            outDerivatives[k] = derivative;
-//        }
-//    }
-//
-//    if (outSumDerivatives != NULL) {
-//        *outSumDerivatives = sum;
-//    }
-//
-//    if (outSumSquaredDerivatives != NULL) {
-//        *outSumSquaredDerivatives = sumSquared;
-//    }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
@@ -831,37 +796,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
         vcl_r += 2 * kExtraPatterns;
         cl_r += 4 * kExtraPatterns;
     }
-
-    // TODO Use accumulateDerivatives() to avoid code duplication
-
-//    double sum = 0.0;
-//    double sumSquared = 0.0;
-//    int u = 0;
-//    double* denominator = grandDenominatorDerivTmp;
-//    for(int k = 0; k < kPatternCount; k++) {
-//        double sumOverI = 0.0;
-////        for(int i = 0; i < kStateCount; i++) { // TODO Do this reduction in register above
-////            sumOverI += cl_p[u];
-////            u++;
-////        }
-//        sumOverI = grandNumeratorDerivTmp[k];
-//
-//        double derivative = sumOverI / denominator[k];
-//        sum += derivative * gPatternWeights[k];
-//        sumSquared += derivative * gPatternWeights[k];
-//
-//        if (outDerivatives != NULL) {
-//            outDerivatives[k] = derivative;
-//        }
-//    }
-//
-//    if (outSumDerivatives != NULL) {
-//        *outSumDerivatives = sum;
-//    }
-//
-//    if (outSumSquaredDerivatives != NULL) {
-//        *outSumSquaredDerivatives = sumSquared;
-//    }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
