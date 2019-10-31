@@ -43,7 +43,7 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 * [Release notes](https://github.com/beagle-dev/beagle-lib/wiki/ReleaseNotes)
 * [API documentation](https://beagle-dev.github.io/html/beagle_8h.html)
-* [Phylogenetic Software Development Tutorial](https://phylogeny.uconn.edu/tutorial-v2/)
+* [Phylogenetic Software Development Tutorial](https://stromtutorial.github.io/)
 
 ### Acknowledgements
 
