@@ -241,6 +241,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80); break;
         case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
         case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
+        case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256); break;
         case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
         case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
         case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
@@ -249,6 +250,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
         case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
         case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
+        case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256); break;
     }
 }
 

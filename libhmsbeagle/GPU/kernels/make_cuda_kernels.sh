@@ -10,7 +10,7 @@ echo "INCLUDE_DIRS=${INCLUDE_DIRS}"
 
 # For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
 
-STATE_COUNT_LIST='16 32 48 64 80 128 192'
+STATE_COUNT_LIST='16 32 48 64 80 128 192 256'
 
 srcdir="."
 

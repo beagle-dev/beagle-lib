@@ -250,11 +250,13 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
             case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,_AMDGPU,_AMDGPU,); break;
             case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,_AMDGPU,_AMDGPU,); break;
             case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,_AMDGPU,_AMDGPU,); break;
+            case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256,_AMDGPU,_AMDGPU,); break;
             case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48,_AMDGPU,_AMDGPU,); break;
             case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64,_AMDGPU,_AMDGPU,); break;
             case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,_AMDGPU,_AMDGPU,); break;
             case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,_AMDGPU,_AMDGPU,); break;
             case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,_AMDGPU,_AMDGPU,); break;
+            case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256,_AMDGPU,_AMDGPU,); break;
         }
     } else if (AppleCPUImpl) {
         switch(id) {
@@ -266,6 +268,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
             case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,,,_APPLECPU); break;
             case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,,,_APPLECPU); break;
             case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,,,_APPLECPU); break;
+            case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256,,,_APPLECPU); break;
             case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4,_APPLECPU,,_APPLECPU); break;
             case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,,,_APPLECPU); break;
             case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,,,_APPLECPU); break;
@@ -274,6 +277,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
             case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,,,_APPLECPU); break;
             case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,,,_APPLECPU); break;
             case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,,,_APPLECPU); break;
+            case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256,,,_APPLECPU); break;
         }
     } else {
         switch(id) {
@@ -285,6 +289,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
             case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80,,,); break;
             case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128,,,); break;
             case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192,,,); break;
+            case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256,,,); break;
             case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4,,,); break;
             case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16,,,); break;
             case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32,,,); break;
@@ -293,6 +298,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
             case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80,,,); break;
             case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128,,,); break;
             case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192,,,); break;
+            case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256,,,); break;
         }
     }
 

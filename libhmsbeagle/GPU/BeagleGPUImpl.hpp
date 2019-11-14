@@ -338,8 +338,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kPaddedStateCount = 80;
     } else if (kStateCount <= 128) {
         kPaddedStateCount = 128;
-    } else if (kStateCount <= 192){
+    } else if (kStateCount <= 192) {
         kPaddedStateCount = 192;
+    } else if (kStateCount <= 256) {
+        kPaddedStateCount = 256;
     } else {
         kPaddedStateCount = kStateCount + kStateCount % 16;
     }

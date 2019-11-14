@@ -252,6 +252,17 @@ enum BeagleDeviceImplementationCodes {
 #define SMALLEST_POWER_OF_TWO_SP_192     256
 #define SLOW_REWEIGHING_SP_192           1
 
+// PADDED_STATE_COUNT == 256
+#define PATTERN_BLOCK_SIZE_SP_256        2
+#define PATTERN_BLOCK_SIZE_SP_256_AMDGPU 1
+#define MATRIX_BLOCK_SIZE_SP_256         8
+#define MATRIX_BLOCK_SIZE_SP_256_AMDGPU  1
+#define BLOCK_PEELING_SIZE_SP_256        2
+#define BLOCK_PEELING_SIZE_SP_256_AMDGPU 1
+#define IS_POWER_OF_TWO_SP_256           1
+#define SMALLEST_POWER_OF_TWO_SP_256     256
+#define SLOW_REWEIGHING_SP_256           1
+
 // DOUBLE PRECISION definitions   TODO None of these have been checked
 
 // PADDED_STATE_COUNT == 4
@@ -335,8 +346,19 @@ enum BeagleDeviceImplementationCodes {
 #define SMALLEST_POWER_OF_TWO_DP_192     256
 #define SLOW_REWEIGHING_DP_192           1
 
+// PADDED_STATE_COUNT == 256
+#define PATTERN_BLOCK_SIZE_DP_256        2
+#define PATTERN_BLOCK_SIZE_DP_256_AMDGPU 1
+#define MATRIX_BLOCK_SIZE_DP_256         8
+#define MATRIX_BLOCK_SIZE_DP_256_AMDGPU  1
+#define BLOCK_PEELING_SIZE_DP_256        2
+#define BLOCK_PEELING_SIZE_DP_256_AMDGPU 1
+#define IS_POWER_OF_TWO_DP_256           1
+#define SMALLEST_POWER_OF_TWO_DP_256     256
+#define SLOW_REWEIGHING_DP_256           1
+
 #ifdef STATE_COUNT
-#if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192)
+#if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192 || STATE_COUNT == 256)
 	#define PADDED_STATE_COUNT	STATE_COUNT
 #else
 	#error *** Precompiler directive state count not defined ***
