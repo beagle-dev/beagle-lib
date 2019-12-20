@@ -1,4 +1,4 @@
 #!/bin/sh
 mkdir -p config
-libtoolize
+case `uname` in Darwin*) glibtoolize ;; *) libtoolize ;; esac
 autoreconf --force --install -I config -I m4
