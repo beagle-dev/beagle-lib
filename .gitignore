@@ -80,6 +80,12 @@ libhmsbeagle?jni*.l?
 /examples/tinytest/Makefile
 /examples/tinytest/tinytest
 
+# /examples/swig_python/
+/examples/swig_python/__pycache__/
+/examples/swig_python/_beagle.so
+/examples/swig_python/beagle.pyc
+/examples/swig_python/beagle_wrap.o
+
 # /libhmsbeagle/
 /libhmsbeagle/config.h.in
 /libhmsbeagle/Makefile.in
@@ -126,11 +132,23 @@ libhmsbeagle/benchmark/libbenchmark_la-linalg.lo
 /libhmsbeagle/JNI/Makefile.in
 /libhmsbeagle/JNI/.deps
 /libhmsbeagle/JNI/Makefile
-
+/libhmsbeagle/JNI/.libs/
+/libhmsbeagle/JNI/libhmsbeagle-jni.la
+/libhmsbeagle/JNI/libhmsbeagle_jni_la-beagle_BeagleJNIWrapper.lo
+/
 # /libhmsbeagle/plugin/
 /libhmsbeagle/plugin/Makefile.in
 /libhmsbeagle/plugin/.deps
 /libhmsbeagle/plugin/Makefile
+
+# /libhmsbeagle/benchmark/
+/libhmsbeagle/benchmark/.deps/
+/libhmsbeagle/benchmark/.libs/
+/libhmsbeagle/benchmark/Makefile
+/libhmsbeagle/benchmark/Makefile.in
+/libhmsbeagle/benchmark/libbenchmark.la
+/libhmsbeagle/benchmark/libbenchmark_la-BeagleBenchmark.lo
+/libhmsbeagle/benchmark/libbenchmark_la-linalg.lo
 
 # /m4/
 /m4/libtool.m4
