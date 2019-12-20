@@ -716,17 +716,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             grandNumeratorDerivTmp[k] += numer; // TODO Merge [numer, denom] into single SSE transactions
             grandDenominatorDerivTmp[k] += denon;
 
-//            vclp_01 = VEC_MULT(vclp_01, vwt);
-//            vclp_23 = VEC_MULT(vclp_23, vwt);
-
-
-//            *vcl_p = VEC_MADD(vclp_01, *vcl_r++, *vcl_p);
-//            vcl_p++;
-//            *vcl_p = VEC_MADD(vclp_23, *vcl_r++, *vcl_p);
-//            vcl_p++;
-
-            // TODO Do reduction over 4 states before writing to grandNumeratorDerivTmp (cl_p currently)
-
             v += 4;
         }
         w += 4*OFFSET;
@@ -770,14 +759,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
         for (int k = 0; k < kPatternCount; k++) {
 
             const int stateChild = statesChild[k];
-
-//            V_Real wtdPartials = VEC_MULT(*vcl_r++, vwt);
-//            *vcl_p = VEC_MADD(vu_m[stateChild][0].vx, wtdPartials, *vcl_p);
-//            vcl_p++;
-//
-//            wtdPartials = VEC_MULT(*vcl_r++, vwt);
-//            *vcl_p = VEC_MADD(vu_m[stateChild][1].vx, wtdPartials, *vcl_p);
-//            vcl_p++;
 
             V_Real p01, p23;
             p01 = VEC_MULT(vu_m[stateChild][0].vx, *vcl_r++);
