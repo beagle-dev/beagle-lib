@@ -11,7 +11,7 @@ set(BEAGLE_VERSION_MINOR "2")
 set(BEAGLE_VERSION_PATCH "0")
 
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
-set(BEAGLE_VERSION_PLUGIN "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
+set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 
 ## flags for standard library
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
@@ -81,10 +81,6 @@ add_executable(hmctest5
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
-install(TARGETS hmctest
-    DESTINATION "."
-    )
-
 target_link_libraries(hmctest hmsbeagle ${CMAKE_DL_LIBS})
 target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
@@ -101,10 +97,10 @@ if(WIN32)
     set(CPACK_GENERATOR WIX)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "Common Files/libhmsbeagle")
     set(CPACK_WIX_UPGRADE_GUID "57FC5933-B420-4F10-97F3-B5DDCFF2AE13")
-    set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/COPYING.LESSER.rtf")
-    set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/banner.jpg")
-    set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/welcome.jpg")
-    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/patch.xml")
+    set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/COPYING.LESSER.rtf")
+    set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/banner.jpg")
+    set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
+    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml")
 endif(WIN32)
 
 include(CPack)
