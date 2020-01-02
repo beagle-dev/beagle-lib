@@ -1,0 +1,9 @@
+<CPackWiXPatch>
+	<CPackWiXFragment Id="CM_CP_hmsbeagle64.dll">
+		<Environment Id="MyPath" Action="set" Part="first"
+			Name="PATH" Value="[INSTALL_ROOT]"
+			System="yes"/>
+	</CPackWiXFragment>
+</CPackWiXPatch>
+
+

@@ -11,11 +11,11 @@ target_link_libraries(hmsbeagle-jni hmsbeagle)
 if(APPLE)
     set_target_properties(hmsbeagle-jni PROPERTIES PREFIX "lib" SUFFIX ".jnilib")
 elseif(WIN32)
-    set_target_properties(hmsbeagle-jni PROPERTIES PREFIX "" SUFFIX ".dll")
+    set_target_properties(hmsbeagle-jni PROPERTIES PREFIX "" SUFFIX "64.dll")
 elseif(UNIX)
     set_target_properties(hmsbeagle-jni PROPERTIES PREFIX "lib" SUFFIX ".so")
 endif(APPLE)
 
 install(TARGETS hmsbeagle-jni
-        DESTINATION lib
+        DESTINATION ${BEAGLE_INSTALL_DIR}
         )

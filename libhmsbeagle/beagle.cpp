@@ -49,7 +49,6 @@
 #include "libhmsbeagle/benchmark/BeagleBenchmark.h"
 
 #include "libhmsbeagle/plugin/Plugin.h"
-#include "config.h"
 #include "beagle.h"
 
 #define BEAGLE_VERSION  PACKAGE_VERSION  " (PRE-RELEASE)"

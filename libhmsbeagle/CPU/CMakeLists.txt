@@ -15,13 +15,14 @@ add_library(hmsbeagle-cpu SHARED
         )
 
 install(TARGETS hmsbeagle-cpu
-        DESTINATION lib
-        )
+    DESTINATION ${BEAGLE_INSTALL_DIR}
+    )
+
 SET_TARGET_PROPERTIES(hmsbeagle-cpu
-        PROPERTIES
-        SOVERSION ${BEAGLE_VERSION}
-        SUFFIX .so
-        )
+    PROPERTIES
+    SOVERSION ${BEAGLE_VERSION}
+	SUFFIX ${BEAGLE_PLUGIN_SUFFIX}
+    )
 
 add_library(hmsbeagle-cpu-sse SHARED
         BeagleCPU4StateSSEImpl.h
@@ -44,10 +45,11 @@ add_library(hmsbeagle-cpu-sse SHARED
         )
 
 install(TARGETS hmsbeagle-cpu-sse
-        DESTINATION lib
-        )
+	DESTINATION ${BEAGLE_INSTALL_DIR}
+    )
+
 SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
-        PROPERTIES
-        SOVERSION ${BEAGLE_VERSION}
-        SUFFIX .so
-        )
+    PROPERTIES
+    SOVERSION ${BEAGLE_VERSION}
+	SUFFIX ${BEAGLE_PLUGIN_SUFFIX}
+    )

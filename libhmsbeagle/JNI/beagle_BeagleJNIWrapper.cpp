@@ -1,6 +1,7 @@
-#ifdef _WIN32
-#include "libhmsbeagle/JNI/winjni.h"
-#endif
+
+// #ifdef _WIN32
+// #include "libhmsbeagle/JNI/winjni.h"
+// #endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -487,8 +488,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDifferentials
     jint *jDerivativeMatrixIndices = env->GetIntArrayElements(derivativeMatrixIndices, NULL);
     jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
 
-    jint errCode = beagleCalculateEdgeDerivatives(instance, jPostBufferIndices, jPreBufferIndices,
-                                                 jDerivativeMatrixIndices, jCategoryWeightsIndices, count,
+    jint errCode = beagleCalculateEdgeDerivatives(instance, (int*)jPostBufferIndices, (int*)jPreBufferIndices,
+                                                 (int*)jDerivativeMatrixIndices, (int*)jCategoryWeightsIndices, count,
                                                  jOutDerivatives, jOutSumDerivatives, jOutSumSquaredDerivatives);
 
     env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
@@ -533,10 +534,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
     jint *cumulativeScalingIndices = env->GetIntArrayElements(cumulativeScaleIndices, NULL);
 
 
-    jint errCode = beagleCalculateEdgeDerivative(instance, postOrderBufferIndices, preOrderBufferIndices,
-                                                 rootBufferIndex, gradientMatrixIndices, hessianMatrixIndices,
+    jint errCode = beagleCalculateEdgeDerivative(instance, (int*)postOrderBufferIndices, (int*)preOrderBufferIndices,
+                                                 rootBufferIndex, (int*)gradientMatrixIndices, (int*)hessianMatrixIndices,
                                                  categoryWeightsIndex, categoryRatesIndex, stateFrequenciesIndex,
-                                                 cumulativeScalingIndices, count, outGradient, outDiagonalHessian);
+                                                 (int*)cumulativeScalingIndices, count, outGradient, outDiagonalHessian);
     env->ReleaseDoubleArrayElements(outFirstDerivative, outGradient, 0);
     if (outDiagonalSecondDerivative != NULL) {
         env->ReleaseDoubleArrayElements(outDiagonalSecondDerivative, outDiagonalHessian, 0);

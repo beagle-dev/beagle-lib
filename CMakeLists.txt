@@ -1,25 +1,36 @@
 cmake_minimum_required(VERSION 3.9)
-project(test_beagle_lib)
+project(BEAGLE)
 
 set(CMAKE_CXX_STANDARD 11)
 
 #SET(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
-SET(BEAGLE_VERSION 32)
+set(BEAGLE_VERSION_MAJOR "3")
+set(BEAGLE_VERSION_MINOR "2")
+set(BEAGLE_VERSION_PATCH "0")
+
+set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
+set(BEAGLE_VERSION_PLUGIN "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 
 ## flags for standard library
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread")
-#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
-#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 
-if(APPLE)
-    add_definitions(-DDLS_MACOS)
-endif(APPLE)
+if(WIN32)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot /MT")
+else(WIN32)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread")
+	#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
+	#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+endif(WIN32)
 
-add_definitions(-DHAVE_CONFIG_H)
+if(NOT WIN32)
+    add_definitions(-DHAVE_CONFIG_H)
+    if(APPLE)
+        add_definitions(-DDLS_MACOS)
+    endif(APPLE)
+endif(NOT WIN32)
 
 find_package(JNI REQUIRED)
 if(JNI_FOUND)
@@ -70,7 +81,30 @@ add_executable(hmctest5
 #add_executable(complextest
 #        examples/complextest/complextest.cpp)
 
+install(TARGETS hmctest
+    DESTINATION "."
+    )
+
 target_link_libraries(hmctest hmsbeagle ${CMAKE_DL_LIBS})
 target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
 #target_link_libraries(tinytest hmsbeagle)
+
+set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")
+set(CPACK_PACKAGE_MAJOR "${BEAGLE_VERSION_MAJOR}")
+set(CPACK_PACKAGE_MINOR "${BEAGLE_VERSION_MINOR}")
+set(CPACK_PACKAGE_PATCH "${BEAGLE_VERSION_PATCH}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+
+if(WIN32) 
+    set(CPACK_GENERATOR WIX)
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY "Common Files/libhmsbeagle")
+    set(CPACK_WIX_UPGRADE_GUID "57FC5933-B420-4F10-97F3-B5DDCFF2AE13")
+    set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/COPYING.LESSER.rtf")
+    set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/banner.jpg")
+    set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/welcome.jpg")
+    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-vix/patch.xml")
+endif(WIN32)
+
+include(CPack)
