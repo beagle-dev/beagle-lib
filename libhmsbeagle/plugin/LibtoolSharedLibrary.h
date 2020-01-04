@@ -49,6 +49,10 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
     libname += ".";
     libname += PLUGIN_VERSION;
     libname += ".so";
+#elif defined(__OpenBSD__) || defined(__NetBSD__)
+    libname += ".so.";
+    libname += PLUGIN_VERSION;
+    libname += ".0";
 #else
     libname += ".so.";
     libname += PLUGIN_VERSION;
