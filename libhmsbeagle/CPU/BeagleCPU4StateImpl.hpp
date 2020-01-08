@@ -1024,18 +1024,22 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
 
             const int state = tipStates[pattern];
 
-            PREFETCH_MATRIX_COLUMN(0, firstDerivMatrix, state);
+            if(state < kStateCount){
+                PREFETCH_MATRIX_COLUMN(0, firstDerivMatrix, state);
+                REALTYPE numerator = sum00 * preOrderPartial[localPatternOffset] +
+                sum01 * preOrderPartial[localPatternOffset + 1] +
+                sum02 * preOrderPartial[localPatternOffset + 2] +
+                sum03 * preOrderPartial[localPatternOffset + 3];
 
-            REALTYPE numerator =
-                    sum00 * preOrderPartial[localPatternOffset] +
-                    sum01 * preOrderPartial[localPatternOffset + 1] +
-                    sum02 * preOrderPartial[localPatternOffset + 2] +
-                    sum03 * preOrderPartial[localPatternOffset + 3];
+                REALTYPE denominator = preOrderPartial[localPatternOffset + state];
 
-            REALTYPE denominator = preOrderPartial[localPatternOffset + state];
-
-            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+                grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            }
+            else{
+                grandNumeratorDerivTmp[pattern] = 0;
+                grandDenominatorDerivTmp[pattern] = 1; // anything but 0
+            }
         }
     }
 }

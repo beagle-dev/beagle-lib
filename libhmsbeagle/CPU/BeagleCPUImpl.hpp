@@ -1994,16 +1994,22 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
             const int patternIndex = category * kPatternCount + pattern;
             const int state = tipStates[pattern];
 
-            REALTYPE numerator = 0.0;
-            REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + state];
+            if(state < kStateCount){
+                REALTYPE numerator = 0.0;
+                REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + state];
 
-            for (int k = 0; k < kStateCount; k++) {
-                numerator += firstDerivMatrix[category * kMatrixSize + k * kTransPaddedStateCount + state] *
-                             preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
+                for (int k = 0; k < kStateCount; k++) {
+                    numerator += firstDerivMatrix[category * kMatrixSize + k * kTransPaddedStateCount + state] *
+                                 preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
+                }
+
+                grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
+                grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
             }
-
-            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            else{
+                grandNumeratorDerivTmp[pattern] = 0;
+                grandDenominatorDerivTmp[pattern] = 1; // anything but 0
+            }
         }
     }
 }

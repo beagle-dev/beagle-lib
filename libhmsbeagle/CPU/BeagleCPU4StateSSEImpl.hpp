@@ -760,18 +760,26 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
 
             const int stateChild = statesChild[k];
 
-            V_Real p01, p23;
-            p01 = VEC_MULT(vu_m[stateChild][0].vx, *vcl_r++);
-            p23 = VEC_MULT(vu_m[stateChild][1].vx, *vcl_r++);
+            if(stateChild < kStateCount){
+                V_Real p01, p23;
+                p01 = VEC_MULT(vu_m[stateChild][0].vx, *vcl_r++);
+                p23 = VEC_MULT(vu_m[stateChild][1].vx, *vcl_r++);
 
-            V_Real vnumer = VEC_ADD(p01, p23);
-            vnumer = VEC_ADD(vnumer, VEC_SWAP(vnumer));
+                V_Real vnumer = VEC_ADD(p01, p23);
+                vnumer = VEC_ADD(vnumer, VEC_SWAP(vnumer));
 
-            double numer = _mm_cvtsd_f64(vnumer);
-            double denom = cl_r[stateChild]; cl_r += 4;
+                double numer = _mm_cvtsd_f64(vnumer);
+                double denom = cl_r[stateChild];
 
-            grandNumeratorDerivTmp[k] += numer * wt[l];
-            grandDenominatorDerivTmp[k] += denom * wt[l];
+                grandNumeratorDerivTmp[k] += numer * wt[l];
+                grandDenominatorDerivTmp[k] += denom * wt[l];
+            }
+            else{
+                vcl_r += 2;
+                grandNumeratorDerivTmp[k] = 0;
+                grandDenominatorDerivTmp[k] = 1;
+            }
+            cl_r += 4;
         }
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
