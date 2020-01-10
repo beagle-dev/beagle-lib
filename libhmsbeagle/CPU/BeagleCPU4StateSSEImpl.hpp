@@ -768,7 +768,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
             vnumer = VEC_ADD(vnumer, VEC_SWAP(vnumer));
 
             double numer = _mm_cvtsd_f64(vnumer);
-            double denom = cl_r[stateChild]; cl_r += 4;
+            double denom = cl_r[stateChild & 3]; cl_r += 4;
 
             grandNumeratorDerivTmp[k] += numer * wt[l];
             grandDenominatorDerivTmp[k] += denom * wt[l];
