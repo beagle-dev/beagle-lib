@@ -1032,7 +1032,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
                     sum02 * preOrderPartial[localPatternOffset + 2] +
                     sum03 * preOrderPartial[localPatternOffset + 3];
 
-            REALTYPE denominator = preOrderPartial[localPatternOffset + state];
+            REALTYPE denominator = preOrderPartial[localPatternOffset + (state & 3)];
 
             grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
             grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;

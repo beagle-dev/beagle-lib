@@ -79,6 +79,9 @@ add_executable(hmctest
 add_executable(hmctest5
 		examples/hmctest/hmctest5.cpp)
 
+add_executable(hmcGaptest
+        examples/hmctest/hmcGapTest.cpp)
+
 #add_executable(tinytest
 #        examples/tinytest/tinytest.cpp)
 
