@@ -4,8 +4,8 @@ if(WIN32)
 	add_definitions(-D_EXPORTING)
 	add_definitions(-DWIN32)
 	add_definitions(-D_CONSOLE)
-	add_definitions(-DPACKAGE_VERSION="${BEAGLE_VERSION}")
-	add_definitions(-DPLUGIN_VERSION="${BEAGLE_PLUGIN_VERSION}")
+#	add_definitions(-DPACKAGE_VERSION="${BEAGLE_VERSION}")
+#	add_definitions(-DPLUGIN_VERSION="${BEAGLE_PLUGIN_VERSION}")
 
 	set(BEAGLE_PLUGIN_SUFFIX "64-${BEAGLE_PLUGIN_VERSION}.dll")
     set(BEAGLE_INSTALL_DIR ".")
@@ -26,10 +26,25 @@ else(WIN32)
     set(BEAGLE_PLUGIN_SOURCE
         plugin/UnixSharedLibrary.cpp
 	    plugin/UnixSharedLibrary.h
+		plugin/LibtoolSharedLibrary.h
         )
 
     set(BEAGLE_INTEGRATED_JNI_SOURCE
         )
+
+	if(BEAGLE_EXPERIMENTAL_LTDL)
+	    find_library(BEAGLE_LTDL_LIB
+    		NAMES ltdl
+	    	PATH_SUFFIXES lib lib64)
+	endif(BEAGLE_EXPERIMENTAL_LTDL)
+
+    if(BEAGLE_LTDL_LIB)
+    	add_definitions(-DHAVE_LIBLTDL)
+    	message(STATUS "Using libtools for plugins: ${BEAGLE_LTDL_LIB}")
+    else(BEAGLE_LTDL_LIB)
+    	message(STATUS "Not using libtools for plugins")
+    endif(BEAGLE_LTDL_LIB)
+
 endif(WIN32)
 
 # build minimum functional beagle-lib
@@ -47,7 +62,6 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_INTEGRATED_JNI_SOURCE}
 
         plugin/BeaglePlugin.h
-        plugin/LibtoolSharedLibrary.h
         plugin/Plugin.cpp
         plugin/Plugin.h
         plugin/SharedLibrary.h
@@ -62,6 +76,7 @@ endif(NOT WIN32)
 
 install(TARGETS hmsbeagle
 	DESTINATION ${BEAGLE_INSTALL_DIR}
+	COMPONENT main
     )
 
 if(WIN32)

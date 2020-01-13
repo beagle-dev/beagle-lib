@@ -15,7 +15,7 @@ if(WIN32)
     set(CMD_NAME createCUDAKernals.bat)
 else(WIN32)
     set(NVCC "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
-    set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_CXX_COMPILER} -m64 -D_POSIX_C_SOURCE")
+    set(NVCCFLAGS "-O3 -arch compute_30 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_CXX_COMPILER} -m64 -D_POSIX_C_SOURCE -std=c++11")
     set(NVCC_INC "-I${CMAKE_SOURCE_DIR}")
      set(CMD_NAME make_cuda_kernels.sh)
 endif(WIN32)
@@ -52,6 +52,7 @@ target_link_libraries(hmsbeagle-cuda cuda ${CUDA_LIBRARIES})
 
 install(TARGETS hmsbeagle-cuda
     DESTINATION ${BEAGLE_INSTALL_DIR}
+    COMPONENT cuda
     )
 
 SET_TARGET_PROPERTIES(hmsbeagle-cuda

@@ -16,6 +16,7 @@ add_library(hmsbeagle-cpu SHARED
 
 install(TARGETS hmsbeagle-cpu
     DESTINATION ${BEAGLE_INSTALL_DIR}
+    COMPONENT cpu
     )
 
 SET_TARGET_PROPERTIES(hmsbeagle-cpu
@@ -46,6 +47,7 @@ add_library(hmsbeagle-cpu-sse SHARED
 
 install(TARGETS hmsbeagle-cpu-sse
 	DESTINATION ${BEAGLE_INSTALL_DIR}
+	COMPONENT cpu_sse
     )
 
 SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
