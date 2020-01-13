@@ -54,7 +54,7 @@
 #define BEAGLE_VERSION  PACKAGE_VERSION  " (PRE-RELEASE)"
 #define BEAGLE_CITATION "Using BEAGLE library v" BEAGLE_VERSION " for accelerated, parallel likelihood evaluation\n\
 2009-, BEAGLE Working Group - https://beagle-dev.github.io/\n\
-Citation: Ayres et al (2012) Systematic Biology 61: 170-173 | doi:10.1093/sysbio/syr100\n"
+Citation: Ayres et al (2019) Systematic Biology 68: 1052-1061 | doi:10.1093/sysbio/syz020\n"
 
 typedef std::pair<int, int> IntPair;
 typedef std::list<IntPair> PairedList;
@@ -62,10 +62,9 @@ typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> > RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
 
-
 #define BEAGLE_DEBUG_LOAD
-
 #define BEAGLE_PREORDER
+
 //#define BEAGLE_DEBUG_TIME
 #ifdef BEAGLE_DEBUG_TIME
 #include <sys/time.h>
