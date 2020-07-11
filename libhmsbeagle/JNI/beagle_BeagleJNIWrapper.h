@@ -249,6 +249,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePrePartialsByPartition
+ * Signature: (I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
+  (JNIEnv *, jobject, jint, jintArray, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePartials
  * Signature: (I[III)I
  */

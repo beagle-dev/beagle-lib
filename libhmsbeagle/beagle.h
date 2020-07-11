@@ -902,9 +902,9 @@ typedef struct {
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
-                         const BeagleOperation* operations,
-                         int operationCount,
-                         int cumulativeScaleIndex);
+                                          const BeagleOperation* operations,
+                                          int operationCount,
+                                          int cumulativeScaleIndex);
 
 /**
  * @brief Calculate or queue for calculation pre-order partials using a list of operations
@@ -922,9 +922,9 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
-                                          const BeagleOperation* operations,
-                                          int operationCount,
-                                          int cumulativeScaleIndex);
+                                             const BeagleOperation* operations,
+                                             int operationCount,
+                                             int cumulativeScaleIndex);
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation for a partitioned analysis.
@@ -957,6 +957,23 @@ typedef struct {
 BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
                                                      const BeagleOperationByPartition* operations,
                                                      int operationCount);
+
+/**
+ * @brief Calculate or queue for calculation pre-order partials using a list of partition operations
+ *
+ * This function either calculates or queues for calculation a list partitioned pre-order partials. Implementations
+ * supporting ASYNCH may queue these calculations while other implementations perform these
+ * operations immediately and in order.
+ *
+ * @param instance                  Instance number (input)
+ * @param operations                BeagleOperation list specifying operations (input)
+ * @param operationCount            Number of operations (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition(const int instance,
+                                                        const BeagleOperationByPartition* operations,
+                                                        int operationCount);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

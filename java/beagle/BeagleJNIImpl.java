@@ -291,6 +291,14 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount);
+        if (errCode != 0) {
+            throw new BeagleException("updatePrePartialsByPartition", errCode);
+        }
+    }
+
     public void calculateEdgeDifferentials(final int[] postBufferIndices,
                                            final int[] preBufferIndices,
                                            final int[] derivativeMatrixIndices,

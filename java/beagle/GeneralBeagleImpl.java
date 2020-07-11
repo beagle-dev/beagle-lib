@@ -453,6 +453,10 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
+        throw new BeagleException("updatePrePartialsByPartition", -1);
+    }
+
 	@Override
     public void calculateEdgeDifferentials(final int[] postBufferIndices,
                                            final int[] preBufferIndices,

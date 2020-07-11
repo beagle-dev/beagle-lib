@@ -160,7 +160,10 @@ public:
 
     virtual int updatePartialsByPartition(const int* operations,
                                           int operationCount) = 0;
-    
+
+    virtual int updatePrePartialsByPartition(const int* operations,
+                                             int operationCount) = 0;
+
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
     

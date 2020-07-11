@@ -1398,6 +1398,27 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* operations,
+                                                                    int count) {
+
+    int returnCode = BEAGLE_ERROR_GENERAL;
+
+    if (kThreadingEnabled) {
+//        TODO
+//        returnCode = upPrePartialsByPartitionAsync(operations,
+//                                                   count);
+    } else {
+        bool byPartition = true;
+        returnCode = upPrePartials(byPartition,
+                                  operations,
+                                  count,
+                                  BEAGLE_OP_NONE);
+    }
+
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoPartitionPartialsOperations(const int* operations,
                                                                         int* partitionOperations,
                                                                         int count,

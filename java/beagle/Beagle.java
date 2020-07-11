@@ -489,6 +489,10 @@ public interface Beagle extends Serializable {
             int operationCount,
             int cumulativeScaleIndex);
 
+    void updatePrePartialsByPartition(
+            final int[] operations,
+            int operationCount);
+
     /**
      * Calculate gradient or / and diagonal hessian of given edges
      *

@@ -2293,6 +2293,26 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* oper
     return returnCode;
 }
 
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartialsByPartition(const int* operations,
+                                                                    int operationCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updatePrePartialsByPartition\n");
+#endif
+
+    bool byPartition = true;
+    int returnCode = upPrePartials(byPartition,
+                                   operations,
+                                   operationCount,
+                                   BEAGLE_OP_NONE);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePrePartialsByPartition\n");
+#endif
+
+    return returnCode;
+}
+
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,

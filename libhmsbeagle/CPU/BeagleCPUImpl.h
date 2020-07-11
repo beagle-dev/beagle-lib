@@ -323,6 +323,9 @@ public:
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 
+    int updatePrePartialsByPartition(const int* operations,
+                                     int operationCount);
+
     // Block until all calculations that write to the specified partials have completed.
     //
     // This function is optional and only has to be called by clients that "recycle" partials.

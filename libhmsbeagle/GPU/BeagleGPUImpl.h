@@ -368,7 +368,10 @@ public:
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
-    
+
+    int updatePrePartialsByPartition(const int* operations,
+                                     int operationCount);
+
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
     

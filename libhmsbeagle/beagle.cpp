@@ -1263,6 +1263,18 @@ int beagleUpdatePartialsByPartition(const int instance,
     return returnValue;
 }
 
+int beagleUpdatePrePartialsByPartition(const int instance,
+                                       const BeagleOperationByPartition* operations,
+                                       int operationCount) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleWaitForPartials(const int instance,
                     const int* destinationPartials,
                     int destinationPartialsCount) {
