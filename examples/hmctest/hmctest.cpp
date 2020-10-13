@@ -167,7 +167,7 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
-    bool useTipStates = true;
+    bool useTipStates = false;
 
     int whichDevice = -1;
     if (useGpu) {
@@ -269,6 +269,7 @@ int main( int argc, const char* argv[] )
 //        rates[i] = 1.0;
 ////        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
 //    }
+
     rates[0] = 0.14251623900062188;
     rates[1] = 1.857483760999378;
 
@@ -711,6 +712,52 @@ int main( int argc, const char* argv[] )
         }
         std::cout << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
     }
+
+
+    std::cout << "\n\ncheck cross-products  :\n";
+
+    std::vector<double> element(32, 0.0);
+    element[0] = element[16 + 0] = 1.0;
+
+    beagleSetTransitionMatrix(instance, 4, element.data(), 0.0);
+    beagleSetTransitionMatrix(instance, 5, element.data(), 0.0);
+
+    std::cout << "transpose = " << transpose << "\n";
+
+    beagleCalculateEdgeDerivatives(instance,
+                                   postBufferIndices, preBufferIndices,
+                                   firstDervIndices,
+                                   &categoryWeightsIndex,
+                                   4,
+                                   firstBuffer.data(),
+                                   sumBuffer.data(),
+                                   NULL);
+
+    std::cout << "sum buffer for element:";
+    double total = 0.0;
+    for (int i = 0; i < 4; ++i) {
+        total += sumBuffer[i];
+        std::cout << " " << sumBuffer[i];
+    }
+    std::cout << " == " << total << "\n";
+
+    firstBuffer[0] = 0.0;
+
+    beagleCalculateCrossProducts(instance,
+                                   postBufferIndices, preBufferIndices,
+                                   &categoryWeightsIndex,
+                                   4,
+                                   firstBuffer.data());
+
+    std::cout << "now: " << firstBuffer[0] << std::endl;
+
+
+
+//    std::cout
+
+
+
+
 
 
     free(patternWeights);

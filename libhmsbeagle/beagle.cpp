@@ -1833,6 +1833,30 @@ int beagleCalculateEdgeDerivatives(int instance,
     return returnValue;
 }
 
+int beagleCalculateCrossProducts(int instance,
+                                   const int *postBufferIndices,
+                                   const int *preBufferIndices,
+                                   const int *categoryWeightsIndices,
+                                   int count,
+                                   double *outCrossProducts) {
+    DEBUG_START_TIME();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->calculateCrossProducts(postBufferIndices,
+                                                               preBufferIndices,
+                                                               categoryWeightsIndices,
+                                                               count,
+                                                               outCrossProducts);
+
+    DEBUG_END_TIME();
+
+    return returnValue;
+}
+
 int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, const int *preBufferIndices,
                                   const int rootBufferIndex,
                                   const int *firstDerivativeIndices, const int *secondDerivativeIndices,

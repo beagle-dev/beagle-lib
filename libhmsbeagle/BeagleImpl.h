@@ -224,6 +224,12 @@ public:
                                          double *outSumDerivatives,
                                          double *outSumSquaredDerivatives) = 0;
 
+	virtual int calculateCrossProducts(const int *postBufferIndices,
+			                           const int *preBufferIndices,
+			                           const int *categoryWeightsIndices,
+			                           int count,
+			                           double *crossProducts) = 0;
+
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,
@@ -258,7 +264,7 @@ public:
     virtual int getLogLikelihood(double* outSumLogLikelihood) = 0;
 
     virtual int getDerivatives(double* outSumFirstDerivative,
-                              double* outSumSecondDerivative) = 0;
+                               double* outSumSecondDerivative) = 0;
 
     virtual int getSiteLogLikelihoods(double* outLogLikelihoods) = 0;
     

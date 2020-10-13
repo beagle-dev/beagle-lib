@@ -451,6 +451,12 @@ public:
                                                double* outSumSecondDerivativeByPartition,
                                                double* outSumSecondDerivative);
 
+	int calculateCrossProducts(const int *postBufferIndices,
+							   const int *preBufferIndices,
+							   const int *categoryWeightsIndices,
+							   int count,
+							   double *outCrossProducts);
+
     int getLogLikelihood(double* outSumLogLikelihood);
 
     int getDerivatives(double* outSumFirstDerivative,

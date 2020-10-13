@@ -1235,6 +1235,13 @@ BEAGLE_DLLEXPORT int beagleCalculateEdgeDerivatives(int instance,
                                                     double *outSumDerivatives,
                                                     double *outSumSquaredDerivatives);
 
+BEAGLE_DLLEXPORT int beagleCalculateCrossProducts(int instance,
+                                                  const int *postBufferIndices,
+                                                  const int *preBufferIndices,
+                                                  const int *categoryWeightsIndices,
+                                                  int count,
+                                                  double *outCrossProducts);
+
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
  *

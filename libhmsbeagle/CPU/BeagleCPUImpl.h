@@ -133,6 +133,7 @@ protected:
 //    REALTYPE* cLikelihoodTmp;
     REALTYPE* grandDenominatorDerivTmp;
     REALTYPE* grandNumeratorDerivTmp;
+    REALTYPE* crossProductNumeratorTmp;
 //    REALTYPE* grandNumeratorLowerBoundDerivTmp;
 //    REALTYPE* grandNumeratorUpperBoundDerivTmp;
 
@@ -436,6 +437,12 @@ public:
                                  double *outSumDerivatives,
                                  double *outSumSquaredDerivatives);
 
+    int calculateCrossProducts(const int *postBufferIndices,
+                               const int *preBufferIndices,
+                               const int *categoryWeightsIndices,
+                               int count,
+                               double *outCrossProducts);
+
     int getLogLikelihood(double* outSumLogLikelihood);
 
     int getDerivatives(double* outSumFirstDerivative,
@@ -497,6 +504,17 @@ protected:
                                                 double *siteLogLikelihoods,
                                                 double *outLogFirstDerivatives,
                                                 double *outLogDiagonalSecondDerivatives);
+
+    virtual int calcCrossProducts(const int *postBufferIndices,
+                                  const int *preBufferIndices,
+                                  const int *categoryWeightsIndices,
+                                  int count,
+                                  double *outCrossProducts);
+
+    virtual void calcCrossProductsPartials(const REALTYPE *postOrderPartial,
+                                           const REALTYPE *preOrderPartial,
+                                           const REALTYPE *categoryWeights,
+                                           double *outCrossProducts);
 
     virtual void resetDerivativeTemporaries();
 
