@@ -270,7 +270,7 @@ if test x$DEBUG = xtrue
 then
    NVCCFLAGS="-g"
 else
-   NVCCFLAGS="-O3 -arch compute_30"
+   NVCCFLAGS="-O3"
 fi
 if test x$EMULATION = xtrue
 then
