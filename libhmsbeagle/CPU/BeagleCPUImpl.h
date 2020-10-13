@@ -511,6 +511,11 @@ protected:
                                   int count,
                                   double *outCrossProducts);
 
+    virtual void calcCrossProductsStates(const int *tipStates,
+                                         const REALTYPE *preOrderPartial,
+                                         const REALTYPE *categoryWeights,
+                                         double *outCrossProducts);
+
     virtual void calcCrossProductsPartials(const REALTYPE *postOrderPartial,
                                            const REALTYPE *preOrderPartial,
                                            const REALTYPE *categoryWeights,

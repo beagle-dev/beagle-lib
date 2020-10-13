@@ -167,7 +167,7 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
-    bool useTipStates = false;
+    bool useTipStates = true;
 
     int whichDevice = -1;
     if (useGpu) {

@@ -1905,14 +1905,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIn
 //
         if (tipStates != NULL) {
 
-//            calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
-//                                        secondDerivativeIndex, categoryRates, categoryWeights,
-//                                        outDerivativesForNode,
-//                                        outSumDerivativesForNode,
-//                                        outSumSquaredDerivativesForNode);
-
-            fprintf(stderr, "Not yet implemented.\n");
-            exit(-1);
+            calcCrossProductsStates(tipStates, preOrderPartial,
+                                    categoryWeights,
+                                    outCrossProducts);
 
         } else {
 
@@ -2102,6 +2097,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
 
             REALTYPE numerator = 0.0;
             REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + (state % kStateCount)];
+            // TODO (state % kStateCount) is not correct; should imply missing character
 
             for (int k = 0; k < kStateCount; k++) {
                 numerator += firstDerivMatrix[category * kMatrixSize + k * kTransPaddedStateCount + state] *
@@ -2115,6 +2111,43 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipStates,
+                                                                const REALTYPE *preOrderPartial,
+                                                                const REALTYPE *categoryWeights,
+                                                                double *outCrossProducts) {
+
+    for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+        std::vector<REALTYPE> tmp(kStateCount * kStateCount, 0.0); // TODO Handle temporary memory better
+
+        REALTYPE patternDenominator = 0.0;
+
+        const int state = tipStates[pattern];
+        const int j = (state % kStateCount); // TODO (state % kStateCount) is not correct; should imply missing character
+
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            const REALTYPE weight = categoryWeights[category];
+            const int patternIndex = category * kPatternCount + pattern;
+            const int v = patternIndex * kPartialsPaddedStateCount;
+            
+            REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + j];
+            patternDenominator += denominator * weight;
+
+            for (int k = 0; k < kStateCount; k++) {
+                tmp[k * kStateCount + j] += preOrderPartial[v + k] * weight;
+            }
+        }
+
+        for (int k = 0; k < kStateCount; k++) {
+            outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
+                                                         * gPatternWeights[pattern];
+
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE *postOrderPartial,
                                                                   const REALTYPE *preOrderPartial,
                                                                   const REALTYPE *categoryWeights,
@@ -2122,7 +2155,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
 
     for (int pattern = 0; pattern < kPatternCount; pattern++) {
 
-        std::vector<REALTYPE> tmp(kStateCount * kStateCount, 0.0);
+        std::vector<REALTYPE> tmp(kStateCount * kStateCount, 0.0); // TODO Handle temporary memory better
 
         REALTYPE patternDenominator = 0.0;
 
@@ -2152,34 +2185,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
             }
         }
     }
-
-//    for (int category = 0; category < kCategoryCount; category++) {
-//        const REALTYPE weight = categoryWeights[category];
-//
-//        for (int pattern = 0; pattern < kPatternCount; pattern++) {
-//
-//            int w = category * kMatrixSize;
-//
-//            const int patternIndex = category * kPatternCount + pattern;
-//            const int v = patternIndex * kPartialsPaddedStateCount;
-//
-//            REALTYPE numerator = 0.0;
-//            REALTYPE denominator = 0.0;
-//
-//            for (int k = 0; k < kStateCount; k++) {
-//
-//                denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
-//
-//                REALTYPE pre = weight * preOrderPartial[v + k];
-//                for (int j = 0; j < kStateCount; j++) {
-//                    crossProductNumeratorTmp[pattern * kStateCount * kStateCount + k * kStateCount + j] +=
-//                            pre * postOrderPartial[v + j];
-//                }
-//            }
-//
-//            grandDenominatorDerivTmp[pattern] += weight * denominator;
-//        }
-//    }
 }
 
 BEAGLE_CPU_TEMPLATE
