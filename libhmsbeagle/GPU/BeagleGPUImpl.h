@@ -453,9 +453,12 @@ public:
 
 	int calculateCrossProducts(const int *postBufferIndices,
 							   const int *preBufferIndices,
+							   const int *categoryRatesIndices,
 							   const int *categoryWeightsIndices,
+							   const double *edgeLengths,
 							   int count,
-							   double *outCrossProducts);
+							   double *outSumDerivatives,
+							   double *outSumSquaredDerivatives);
 
     int getLogLikelihood(double* outSumLogLikelihood);
 

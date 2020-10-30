@@ -22,9 +22,14 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGTC";
-char *chimp = (char*)"GAGGC";
-char *gorilla = (char*)"AAATC";
+//char *human = (char*)"GAGTC";
+//char *chimp = (char*)"GAGGC";
+//char *gorilla = (char*)"AAATC";
+
+char *human = (char*)"G";
+char *chimp = (char*)"G";
+char *gorilla = (char*)"A";
+
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTATACCCTTCCCGTACTAAGAAATTTAGGTTAAATACAGACCAAGAGCCTTCAAAGCCCTCAGTAAGTTG-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGACCAATGGGACTTAAACCCACAAACACTTAGTTAACAGCTAAGCACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCGGAGCTTGGTAAAAAGAGGCCTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCCAAAGCTGGTTTCAAGCCAACCCCATGGCCTCCATGACTTTTTCAAAAGGTATTAGAAAAACCATTTCATAACTTTGTCAAAGTTAAATTATAGGCT-AAATCCTATATATCTTA-CACTGTAAAGCTAACTTAGCATTAACCTTTTAAGTTAAAGATTAAGAGAACCAACACCTCTTTACAGTGA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATACCCCGAAAATGTTGGTTACACCCTTCCCGTACTAAGAAATTTAGGTTAAGCACAGACCAAGAGCCTTCAAAGCCCTCAGCAAGTTA-CAATACTTAATTTCTGTAAGGACTGCAAAACCCCACTCTGCATCAACTGAACGCAAATCAGCCACTTTAATTAAGCTAAGCCCTTCTAGATTAATGGGACTTAAACCCACAAACATTTAGTTAACAGCTAAACACCCTAATCAAC-TGGCTTCAATCTAAAGCCCCGGCAGG-TTTGAAGCTGCTTCTTCGAATTTGCAATTCAATATGAAAA-TCACCTCAGAGCTTGGTAAAAAGAGGCTTAACCCCTGTCTTTAGATTTACAGTCCAATGCTTCA-CTCAGCCATTTTACCACAAAAAAGGAAGGAATCGAACCCCCTAAAGCTGGTTTCAAGCCAACCCCATGACCTCCATGACTTTTTCAAAAGATATTAGAAAAACTATTTCATAACTTTGTCAAAGTTAAATTACAGGTT-AACCCCCGTATATCTTA-CACTGTAAAGCTAACCTAGCATTAACCTTTTAAGTTAAAGATTAAGAGGACCGACACCTCTTTACAGTGA";
@@ -161,7 +166,7 @@ int main( int argc, const char* argv[] )
 
     // change # rate category to 2
 //    int rateCategoryCount = 4;
-    int rateCategoryCount = 2;
+    int rateCategoryCount = 1;
 
     int scaleCount = (scaling ? 7 : 0);
 
@@ -270,8 +275,10 @@ int main( int argc, const char* argv[] )
 ////        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
 //    }
 
-    rates[0] = 0.14251623900062188;
-    rates[1] = 1.857483760999378;
+//    rates[0] = 0.14251623900062188;
+//    rates[1] = 1.857483760999378;
+
+    rates[0] = 1.0;
 
 	beagleSetCategoryRates(instance, &rates[0]);
 
@@ -404,7 +411,8 @@ int main( int argc, const char* argv[] )
 
     // a list of indices and edge lengths
     int nodeIndices[4] = { 0, 1, 2, 3 };
-    double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
+//    double edgeLengths[4] = { 0.6, 0.6, 1.3, 0.7};
+    double edgeLengths[4] = { 1.0, 1.0, 1.0, 1.0};
 
     // tell BEAGLE to populate the transition matrices for the above edge lengths
     beagleUpdateTransitionMatrices(instance,     // instance
@@ -717,7 +725,8 @@ int main( int argc, const char* argv[] )
     std::cout << "\n\ncheck cross-products  :\n";
 
     std::vector<double> element(32, 0.0);
-    element[0] = element[16 + 0] = 1.0;
+    element[0] = element[16 + 0] = -1.0;
+    element[1] = element[16 + 1] = 1.0;
 
     beagleSetTransitionMatrix(instance, 4, element.data(), 0.0);
     beagleSetTransitionMatrix(instance, 5, element.data(), 0.0);
@@ -742,14 +751,16 @@ int main( int argc, const char* argv[] )
     std::cout << " == " << total << "\n";
 
     firstBuffer[0] = 0.0;
+    firstBuffer[1] = 0.0;
 
-    beagleCalculateCrossProducts(instance,
+    beagleCalculateCrossProductDerivative(instance,
                                    postBufferIndices, preBufferIndices,
-                                   &categoryWeightsIndex,
+                                   &categoryRatesIndex, &categoryWeightsIndex,
+                                          edgeLengths,
                                    4,
-                                   firstBuffer.data());
+                                   firstBuffer.data(), nullptr);
 
-    std::cout << "now: " << firstBuffer[0] << std::endl;
+    std::cout << "now: " << firstBuffer[0] << " " << firstBuffer[1] << " ?= " << (firstBuffer[1] - firstBuffer[0]) << std::endl;
 
 
 

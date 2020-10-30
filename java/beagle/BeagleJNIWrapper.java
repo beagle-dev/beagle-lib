@@ -16,7 +16,7 @@ package beagle;
 
 public class BeagleJNIWrapper {
 
-    public static final String LIBRARY_NAME = getPlatformSpecificLibraryName();
+    private static final String LIBRARY_NAME = getPlatformSpecificLibraryName();
 
     /**
      * private constructor to enforce singleton instance
@@ -238,7 +238,7 @@ public class BeagleJNIWrapper {
                                             final double[] outLogLikelihoods);
 
 
-    public native int calculateEdgeDifferentials(int instance,
+    public native int calculateEdgeDifferentials(final int instance,
     										     final int[] postBufferIndices,
               		                             final int[] preBufferIndices,
                     	                         final int[] derivativeMatrixIndices,
@@ -247,6 +247,16 @@ public class BeagleJNIWrapper {
                                       		     double[] outDerivatives,
 	                                             double[] outSumDerivatives,
        		                                     double[] outSumSquaredDerivatives);
+
+    public native int calculateCrossProductDifferentials(final int instance,
+    													 final int[] postBufferIndices,
+        												 final int[] preBufferIndices,
+    	    											 final int[] categoryRateIndices,
+    	    											 final int[] categoryWeightsIndices,
+        												 final double[] edgeLengths,
+        												 int count,
+	        											 double[] outSumDerivatives,
+	        											 double[] outSumSquaredDerivatives);
 
     public native int calculateEdgeDerivative(int instance,
     										  final int[] postBufferIndices,

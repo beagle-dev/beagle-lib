@@ -368,7 +368,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // kernel macros GPU
 
-// Do not use | (instead of +) for any term involing PATTERN_BLOCK_SIZE
+// Do not use | (instead of +) for any term involving PATTERN_BLOCK_SIZE
 // as this should be adjustable
 #define DETERMINE_INDICES_4_GPU()\
     int tx = KW_LOCAL_ID_0;\

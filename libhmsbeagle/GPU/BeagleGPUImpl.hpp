@@ -3642,9 +3642,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateCrossProducts(const int *postBufferIndices,
                                                               const int *preBufferIndices,
+                                                              const int *categoryRatesIndices,
                                                               const int *categoryWeightsIndices,
+                                                              const double *edgeLengths,
                                                               int count,
-                                                              double *outCrossProducts) {
+                                                              double *outSumDerivatives,
+                                                              double *outSumSquaredDerivatives) {
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     return returnCode;

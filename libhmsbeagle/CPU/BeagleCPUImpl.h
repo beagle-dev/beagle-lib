@@ -439,9 +439,12 @@ public:
 
     int calculateCrossProducts(const int *postBufferIndices,
                                const int *preBufferIndices,
+                               const int *categoryRatesIndices,
                                const int *categoryWeightsIndices,
+                               const double *edgeLengths,
                                int count,
-                               double *outCrossProducts);
+                               double *outSumDerivatives,
+                               double *outSumSquaredDerivatives);
 
     int getLogLikelihood(double* outSumLogLikelihood);
 
@@ -507,19 +510,28 @@ protected:
 
     virtual int calcCrossProducts(const int *postBufferIndices,
                                   const int *preBufferIndices,
+                                  const int *categoryRatesIndices,
                                   const int *categoryWeightsIndices,
+                                  const double *edgeLengths,
                                   int count,
-                                  double *outCrossProducts);
+                                  double *outSumDerivatives,
+                                  double *outSumSquaredDerivatives);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,
+                                         const double *categoryRates,
                                          const REALTYPE *categoryWeights,
-                                         double *outCrossProducts);
+                                         const double edgeLength,
+                                         double *outCrossProducts,
+                                         double *outSumSquaredDerivatives);
 
     virtual void calcCrossProductsPartials(const REALTYPE *postOrderPartial,
                                            const REALTYPE *preOrderPartial,
+                                           const double *categoryRates,
                                            const REALTYPE *categoryWeights,
-                                           double *outCrossProducts);
+                                           const double edgeLength,
+                                           double *outCrossProducts,
+                                           double *outSumSquaredDerivatives);
 
     virtual void resetDerivativeTemporaries();
 

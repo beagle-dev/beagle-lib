@@ -226,9 +226,12 @@ public:
 
 	virtual int calculateCrossProducts(const int *postBufferIndices,
 			                           const int *preBufferIndices,
+			                           const int *categoryRatesIndices,
 			                           const int *categoryWeightsIndices,
+			                           const double *edgeLengths,
 			                           int count,
-			                           double *crossProducts) = 0;
+			                           double *outSumDerivatives,
+			                           double *outSumSquaredDerivatives) = 0;
 
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,

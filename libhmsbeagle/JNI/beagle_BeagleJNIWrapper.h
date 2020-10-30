@@ -369,6 +369,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDifferentials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateCrossProductDifferentials
+ * Signature: (I[I[I[I[II[D[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateCrossProductDifferentials
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jintArray, jintArray, jdoubleArray, jint, jdoubleArray, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateEdgeDerivative
  * Signature: (I[I[II[I[IIII[II[D[D)I
  */

@@ -318,6 +318,25 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void calculateCrossProductDifferentials(final int[] postBufferIndices,
+                                           		   final int[] preBufferIndices,
+                                                   final int[] categoryRateIndices,
+                                           		   final int[] categoryWeightsIndices,
+                                                   final double[] edgeLengths,
+                                           		   int count,
+                                           		   double[] outSumDerivatives,
+                                           		   double[] outSumSquaredDerivatives) {
+
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateCrossProductDifferentials(instance,
+        	postBufferIndices, preBufferIndices,
+                categoryRateIndices, categoryWeightsIndices, edgeLengths, count,
+        	outSumDerivatives, outSumSquaredDerivatives);
+
+        if (errCode != 0) {
+        	throw new BeagleException("calculateEdgeDifferentials", errCode);
+        }
+    }
+
     public void calculateEdgeDerivative(final int[] postBufferIndices,
                                         final int[] preBufferIndices,
                                         final int rootBufferIndex,

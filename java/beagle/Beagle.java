@@ -552,6 +552,29 @@ public interface Beagle extends Serializable {
 	        double[] outSumSquaredDerivatives);
 
     /**
+     * Calculate differential w.r.t. substitution-model generator elements
+     *
+     * This function calculates a derivative of the log likelihood with respect to the
+     * substitution model generator elements
+     *
+     * @param postBufferIndices                 list of post order buffer indices
+     * @param preBufferIndices                  list of pre  order buffer indices
+     * @param categoryWeightsIndices            category weights indices
+     * @param count                             number of edges
+     * @param outDerivatives                    derivative-per-element output array
+     *
+     */
+    void calculateCrossProductDifferentials(
+    		final int[] postBufferIndices,
+        	final int[] preBufferIndices,
+    	    final int[] categoryRateIndices,
+    	    final int[] categoryWeightsIndices,
+        	final double[] edgeLengths,
+        	int count,
+	        double[] outSumDerivatives,
+	        double[] outSumSquaredDerivatives);
+
+    /**
      * Calculate or queue for calculation partials using a list of operations
      *
      * This function either calculates or queues for calculation a list partials. Implementations

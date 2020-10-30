@@ -469,6 +469,18 @@ public class GeneralBeagleImpl implements Beagle {
 		throw new RuntimeException("Not yet implemented");
     }
 
+	@Override
+    public void calculateCrossProductDifferentials(final int[] postBufferIndices,
+                                           		   final int[] preBufferIndices,
+                                           		   final int[] categoryRateIndices,
+                                           		   final int[] categoryWeightsIndices,
+                                           		   final double[] edgeLengths,
+                                           		   int count,
+                                           		   double[] outSumDerivatives,
+                                           		   double[] outSumSquaredDerivatives) {
+		throw new RuntimeException("Not yet implemented");
+    }
+
     @Override
     public void calculateEdgeDerivative(int[] postBufferIndices,
     									int[] preBufferIndices,

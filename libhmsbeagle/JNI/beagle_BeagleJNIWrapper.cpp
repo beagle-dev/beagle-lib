@@ -512,6 +512,56 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDifferentials
     return errCode;
 }
 
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateCrossProductDifferentials
+  (JNIEnv *env, jobject obj, jint instance,
+		jintArray postBufferIndices,
+		jintArray preBufferIndices,
+		jintArray categoryRatesIndices,
+		jintArray categoryWeightsIndices,
+		jdoubleArray edgeLengths,
+		jint count,
+		jdoubleArray outSumDerivatives,
+		jdoubleArray outSumSquaredDerivatives) {
+
+    jdouble* jOutSumDerivatives = outSumDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumDerivatives, NULL);
+
+    jdouble* jOutSumSquaredDerivatives = outSumSquaredDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumSquaredDerivatives, NULL);
+
+    jint *jPostBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
+    jint *jPreBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
+
+    jint *jCategoryRatesIndices = env->GetIntArrayElements(categoryRatesIndices, NULL);
+    jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
+
+    jdouble* jEdgeLengths = env->GetDoubleArrayElements(edgeLengths, NULL);
+
+    jint errCode = beagleCalculateCrossProductDerivative(instance, (int*)jPostBufferIndices, (int*)jPreBufferIndices,
+                                                         (int*)jCategoryRatesIndices, (int*)jCategoryWeightsIndices,
+                                                         (double*)jEdgeLengths, count,
+                                                         jOutSumDerivatives, jOutSumSquaredDerivatives);
+
+    env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(preBufferIndices, jPreBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryRatesIndices, jCategoryRatesIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryWeightsIndices, jCategoryWeightsIndices, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(edgeLengths, jEdgeLengths, JNI_ABORT);
+
+    if (outSumDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumDerivatives, jOutSumDerivatives, 0);
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumSquaredDerivatives, jOutSumSquaredDerivatives, 0);
+    }
+
+    return errCode;
+
+
+}
+
+
 
 /*
  * Class:     beagle_BeagleJNIWrapper

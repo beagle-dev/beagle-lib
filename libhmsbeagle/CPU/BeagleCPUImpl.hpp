@@ -1385,14 +1385,20 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
         BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateCrossProducts(const int *postBufferIndices,
                                                               const int *preBufferIndices,
+                                                              const int *categoryRatesIndices,
                                                               const int *categoryWeightsIndices,
+                                                              const double *edgeLengths,
                                                               int count,
-                                                              double *outCrossProducts) {
+                                                              double *outSumDerivatives,
+                                                              double *outSumSquaredDerivatives) {
     return calcCrossProducts(
             postBufferIndices, preBufferIndices,
+            categoryRatesIndices,
             categoryWeightsIndices,
+            edgeLengths,
             count,
-            outCrossProducts);
+            outSumDerivatives,
+            outSumSquaredDerivatives);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1868,14 +1874,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIndices,
                                                          const int *preBufferIndices,
+                                                         const int *categoryRatesIndices,
                                                          const int *categoryWeightsIndices,
+                                                         const double *edgeLengths,
                                                          int count,
-                                                         double *outCrossProducts) {
+                                                         double *outSumDerivatives,
+                                                         double *outSumSquaredDerivatives) {
 
     int returnCode = BEAGLE_SUCCESS;
 
     const int secondDerivativeIndex = BEAGLE_OP_NONE;
-    const double *categoryRates = NULL; // gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
+    const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
     const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
 
     if (crossProductNumeratorTmp == nullptr) {
@@ -1886,6 +1895,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIn
 //    std::fill(outCrossProducts, outCrossProducts + kStateCount * kStateCount, 0.0); // TODO Remove
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+
+        const double edgeLength = edgeLengths[nodeNum];
 
         const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
         const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
@@ -1906,15 +1917,21 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIn
         if (tipStates != NULL) {
 
             calcCrossProductsStates(tipStates, preOrderPartial,
+                                    categoryRates,
                                     categoryWeights,
-                                    outCrossProducts);
+                                    edgeLength,
+                                    outSumDerivatives,
+                                    outSumSquaredDerivatives);
 
         } else {
 
             const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
             calcCrossProductsPartials(postOrderPartial, preOrderPartial,
+                                      categoryRates,
                                       categoryWeights,
-                                      outCrossProducts);
+                                      edgeLength,
+                                      outSumDerivatives,
+                                      outSumSquaredDerivatives);
         }
 //
 //        accumulateDerivatives(outDerivativesForNode,
@@ -2113,8 +2130,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipStates,
                                                                 const REALTYPE *preOrderPartial,
+                                                                const double *categoryRates,
                                                                 const REALTYPE *categoryWeights,
-                                                                double *outCrossProducts) {
+                                                                const double edgeLength,
+                                                                double *outCrossProducts,
+                                                                double *outSumSquaredDerivatives) {
 
     for (int pattern = 0; pattern < kPatternCount; pattern++) {
 
@@ -2127,31 +2147,39 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipSt
 
         for (int category = 0; category < kCategoryCount; category++) {
 
+            const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+
             const REALTYPE weight = categoryWeights[category];
             const int patternIndex = category * kPatternCount + pattern;
             const int v = patternIndex * kPartialsPaddedStateCount;
-            
+
             REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + j];
             patternDenominator += denominator * weight;
 
             for (int k = 0; k < kStateCount; k++) {
-                tmp[k * kStateCount + j] += preOrderPartial[v + k] * weight;
+                tmp[k * kStateCount + j] += preOrderPartial[v + k] * weight * scale;
             }
         }
 
         for (int k = 0; k < kStateCount; k++) {
-            outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
+            outCrossProducts[k * kStateCount + j]
+//            outCrossProducts[j * kStateCount + k]
+            += tmp[k * kStateCount + j] / patternDenominator
                                                          * gPatternWeights[pattern];
-
         }
     }
+    fprintf(stderr, "Die\n");
+    exit(-1);
 }
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE *postOrderPartial,
                                                                   const REALTYPE *preOrderPartial,
+                                                                  const double *categoryRates,
                                                                   const REALTYPE *categoryWeights,
-                                                                  double *outCrossProducts) {
+                                                                  const double edgeLength,
+                                                                  double *outCrossProducts,
+                                                                  double *outSumSquaredDerivatives) {
 
     for (int pattern = 0; pattern < kPatternCount; pattern++) {
 
@@ -2160,6 +2188,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
         REALTYPE patternDenominator = 0.0;
 
         for (int category = 0; category < kCategoryCount; category++) {
+
+            const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
 
             const REALTYPE weight = categoryWeights[category];
             const int patternIndex = category * kPatternCount + pattern; // Bad memory access
@@ -2173,14 +2203,16 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
 
             for (int k = 0; k < kStateCount; k++) {
                 for (int j = 0; j < kStateCount; j++) {
-                    tmp[k * kStateCount + j] += preOrderPartial[v + k] * postOrderPartial[v + j] * weight;
+                    tmp[k * kStateCount + j] += preOrderPartial[v + k] * postOrderPartial[v + j] * weight * scale;
                 }
             }
         }
 
         for (int k = 0; k < kStateCount; k++) {
             for (int j = 0; j < kStateCount; j++) {
-                outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
+                outCrossProducts[k * kStateCount + j]
+//                outCrossProducts[j * kStateCount + k]
+                += tmp[k * kStateCount + j] / patternDenominator
                         * gPatternWeights[pattern];
             }
         }
