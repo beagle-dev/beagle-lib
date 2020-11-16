@@ -26,9 +26,9 @@
 #define __GPUImplDefs__
 
 #ifndef OPENCL_KERNEL_BUILD
-    #ifdef HAVE_CONFIG_H
-    #include "libhmsbeagle/config.h"
-    #endif
+//     #ifdef HAVE_CONFIG_H
+//     #include "libhmsbeagle/config.h"
+//     #endif
     #include "libhmsbeagle/platform.h"
 
     #include <cfloat>
@@ -117,7 +117,7 @@ enum BeagleDeviceImplementationCodes {
     #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
     #define BEAGLE_MULTI_GRID_MAX  16384 // use multi-grid for fewer than this many sites
     #define KW_GLOBAL_KERNEL __kernel
-    #define KW_DEVICE_FUNC   
+    #define KW_DEVICE_FUNC
     #define KW_GLOBAL_VAR    __global
     #define KW_LOCAL_MEM     __local
     #define KW_LOCAL_FENCE   barrier(CLK_LOCAL_MEM_FENCE)
@@ -153,14 +153,14 @@ enum BeagleDeviceImplementationCodes {
  * BLOCK_PEELING_SIZE - # of the states to pre-fetch in inner-sum in pruning;
  *                      BLOCK_PEELING_SIZE <= PATTERN_BLOCK_SIZE and
  *                      *must* be a divisor of PADDED_STATE_COUNT
- *                      
- * IS_POWER_OF_TWO    - 1 if PADDED_STATE_COUNT = 2^{N} for some integer N, otherwise 0  
+ *
+ * IS_POWER_OF_TWO    - 1 if PADDED_STATE_COUNT = 2^{N} for some integer N, otherwise 0
  *
  * SMALLEST_POWER_OF_TWO - Smallest power of 2 greater than or equal to PADDED_STATE_COUNT
  *                         (if not already a power of 2)
- *    
- * SLOW_REWEIGHING    - 1 if requires the slow reweighing algorithm, otherwise 0                    
- *    
+ *
+ * SLOW_REWEIGHING    - 1 if requires the slow reweighing algorithm, otherwise 0
+ *
  */
 
 /* Table of pre-optimized compiler definitions
@@ -240,7 +240,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_SP_128           1
 #define SMALLEST_POWER_OF_TWO_SP_128     128
 #define SLOW_REWEIGHING_SP_128           1
- 
+
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_SP_192        2
 #define PATTERN_BLOCK_SIZE_SP_192_AMDGPU 1
