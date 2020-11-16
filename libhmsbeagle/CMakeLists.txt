@@ -45,6 +45,12 @@ else(WIN32)
     	message(STATUS "Not using libtools for plugins")
     endif(BEAGLE_LTDL_LIB)
 
+    if(NOT APPLE)
+    	set(BEAGLE_PLUGIN_VERSION_EXTENDED "${BEAGLE_PLUGIN_VERSION}.0.0")
+    else(NOT APPLE)
+    	set(BEAGLE_PLUGIN_VERSION_EXTENDED "${BEAGLE_PLUGIN_VERSION}")
+    endif(NOT APPLE)
+
 endif(WIN32)
 
 # build minimum functional beagle-lib
