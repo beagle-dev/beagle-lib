@@ -99,6 +99,7 @@ add_executable(hmcGaptest
 
 target_link_libraries(hmctest hmsbeagle ${CMAKE_DL_LIBS})
 target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
+target_link_libraries(hmcGaptest hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
 #target_link_libraries(tinytest hmsbeagle)
 

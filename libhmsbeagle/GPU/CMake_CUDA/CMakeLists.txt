@@ -6,7 +6,9 @@ include_directories(
 add_definitions(-DCUDA)
 
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib
-     ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64)
+     ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+     ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+     )
 
 if(WIN32)
     set(NVCC "nvcc.exe")
