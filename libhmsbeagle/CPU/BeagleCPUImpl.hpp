@@ -2115,6 +2115,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
             REALTYPE numerator = 0.0;
             REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + (state % kStateCount)];
             // TODO (state % kStateCount) is not correct; should imply missing character
+            // TODO See calcCrossProductsStates() for possible solution
 
             for (int k = 0; k < kStateCount; k++) {
                 numerator += firstDerivMatrix[category * kMatrixSize + k * kTransPaddedStateCount + state] *
@@ -2143,33 +2144,61 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipSt
         REALTYPE patternDenominator = 0.0;
 
         const int state = tipStates[pattern];
-        const int j = (state % kStateCount); // TODO (state % kStateCount) is not correct; should imply missing character
 
-        for (int category = 0; category < kCategoryCount; category++) {
+        if (state < kStateCount) {
 
-            const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+            for (int category = 0; category < kCategoryCount; category++) {
 
-            const REALTYPE weight = categoryWeights[category];
-            const int patternIndex = category * kPatternCount + pattern;
-            const int v = patternIndex * kPartialsPaddedStateCount;
+                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
 
-            REALTYPE denominator = preOrderPartial[patternIndex * kPartialsPaddedStateCount + j];
-            patternDenominator += denominator * weight;
+                const REALTYPE weight = categoryWeights[category];
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * kPartialsPaddedStateCount;
+
+                REALTYPE denominator = preOrderPartial[v + state];
+                patternDenominator += denominator * weight;
+
+                for (int k = 0; k < kStateCount; k++) {
+                    tmp[k * kStateCount + state] += preOrderPartial[v + k] * weight * scale;
+                }
+            }
 
             for (int k = 0; k < kStateCount; k++) {
-                tmp[k * kStateCount + j] += preOrderPartial[v + k] * weight * scale;
+                outCrossProducts[k * kStateCount + state] += tmp[k * kStateCount + state] / patternDenominator
+                        * gPatternWeights[pattern];
+            }
+
+        } else { // Missing character
+
+            for (int category = 0; category < kCategoryCount; category++) {
+
+                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+
+                const REALTYPE weight = categoryWeights[category];
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * kPartialsPaddedStateCount;
+
+                REALTYPE denominator = 0.0;
+                for (int k = 0; k < kStateCount; k++) {
+                    denominator += preOrderPartial[v + k];
+                }
+                patternDenominator += denominator * weight;
+
+                for (int k = 0; k < kStateCount; k++) {
+                    for (int j = 0; j < kStateCount; j++) {
+                        tmp[k * kStateCount + j] += preOrderPartial[v + k] * weight * scale;
+                    }
+                }
+            }
+
+            for (int k = 0; k < kStateCount; k++) {
+                for (int j = 0; j < kStateCount; j++) {
+                    outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
+                            * gPatternWeights[pattern];
+                }
             }
         }
-
-        for (int k = 0; k < kStateCount; k++) {
-            outCrossProducts[k * kStateCount + j]
-//            outCrossProducts[j * kStateCount + k]
-            += tmp[k * kStateCount + j] / patternDenominator
-                                                         * gPatternWeights[pattern];
-        }
     }
-    fprintf(stderr, "Die\n");
-    exit(-1);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2210,9 +2239,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
 
         for (int k = 0; k < kStateCount; k++) {
             for (int j = 0; j < kStateCount; j++) {
-                outCrossProducts[k * kStateCount + j]
-//                outCrossProducts[j * kStateCount + k]
-                += tmp[k * kStateCount + j] / patternDenominator
+                outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
                         * gPatternWeights[pattern];
             }
         }
