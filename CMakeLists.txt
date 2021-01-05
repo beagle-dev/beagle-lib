@@ -69,6 +69,38 @@ link_directories(
 # if failed, RUNTIME_LIB = NO_DEFAULT_PATH
 #FIND_LIBRARY(RUNTIME_LIB rt /usr/lib  /usr/local/lib NO_DEFAULT_PATH)
 
+if(APPLE)
+#  	execute_process(
+#		COMMAND uname -m
+#		RESULT_VARIABLE result
+#    	OUTPUT_VARIABLE BEAGLE_OSX_NATIVE_ARCHITECTURE
+#    	OUTPUT_STRIP_TRAILING_WHITESPACE#
+#	)
+
+	# Check if running under rosetta on arm64 hardware
+    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        execute_process(COMMAND sysctl -q hw.optional.arm64
+        	OUTPUT_VARIABLE _sysctl_stdout
+            ERROR_VARIABLE _sysctl_stderr
+            RESULT_VARIABLE _sysctl_result
+        )
+        if(_sysctl_result EQUAL 0 AND _sysctl_stdout MATCHES "hw.optional.arm64: 1")
+            set(CMAKE_HOST_SYSTEM_PROCESSOR "arm64")
+        endif()
+    endif()
+	set(BEAGLE_OSX_NATIVE_ARCHITECTURE ${CMAKE_HOST_SYSTEM_PROCESSOR})
+
+	if(BEAGLE_OSX_NATIVE_ARCHITECTURE STREQUAL "arm64")
+		set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+		message(STATUS "macOS universal (x86_64 / arm64) build")
+	else()
+		message(STATUS "macOS x86_64 build")
+	endif()
+
+	# Seems necessary from macOS 10.15
+	set(CMAKE_INSTALL_RPATH "/usr/local/lib")
+endif(APPLE)
+
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)

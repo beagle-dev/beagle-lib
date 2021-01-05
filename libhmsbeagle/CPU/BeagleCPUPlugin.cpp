@@ -17,7 +17,11 @@ BeagleCPUPlugin::BeagleCPUPlugin() :
 Plugin("CPU", "CPU")
 {
 	BeagleResource resource;
-        resource.name = (char*) "CPU";
+#ifdef __ARM64_ARCH_8__
+	    resource.name = (char*) "CPU (arm64)";
+#else
+        resource.name = (char*) "CPU (x86_64)";
+#endif
         resource.description = (char*) "";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                                          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |

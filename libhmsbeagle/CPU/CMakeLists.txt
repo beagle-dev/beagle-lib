@@ -25,6 +25,8 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu
 	SUFFIX ${BEAGLE_PLUGIN_SUFFIX}
     )
 
+if(NOT BEAGLE_OSX_NATIVE_ARCHITECTURE STREQUAL "arm64")
+
 add_library(hmsbeagle-cpu-sse SHARED
         BeagleCPU4StateSSEImpl.h
         BeagleCPU4StateSSEImpl.hpp
@@ -55,3 +57,5 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
     SOVERSION ${BEAGLE_PLUGIN_VERSION_EXTENDED}
 	SUFFIX ${BEAGLE_PLUGIN_SUFFIX}
     )
+
+endif()
