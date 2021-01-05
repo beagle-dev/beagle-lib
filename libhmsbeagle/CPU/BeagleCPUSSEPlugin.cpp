@@ -159,6 +159,9 @@ bool check_sse2()
 #endif // HAVE_CPUID.H
 }
 #else // For Mac OS X GNU C
+#if defined(__ARM64_ARCH_8__)
+bool check_sse2() { return 1; }
+#else
 bool check_sse2(){
      int op = 0x00000001, eax, ebx, ecx, edx;
       __asm__("cpuid"
@@ -166,6 +169,7 @@ bool check_sse2(){
         : "a" (op));
 	return edx & 0x04000000;
 }
+#endif
 #endif
 #endif
 

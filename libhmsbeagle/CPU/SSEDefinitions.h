@@ -33,10 +33,40 @@
 #define DLS_USE_SSE2
 
 #if defined(DLS_USE_SSE2)
-#	if !defined(DLS_MACOS)
-#		include <emmintrin.h>
-#	endif
-#	include <xmmintrin.h>
+#	if defined(__ARM64_ARCH_8__)
+#		include "libhmsbeagle/CPU/sse2neon.h"
+#       define _MM_SHUFFLE2(fp1,fp0) (((fp1) << 1) | (fp0))
+#		define VEC_SHUFFLE0(a,b)	_mm_shuffle_pd(a, b, _MM_SHUFFLE2(0,0)) // vreinterpretq_f64_m128d(a)
+#		define VEC_SHUFFLE1(a,b)	_mm_shuffle_pd(a, b, _MM_SHUFFLE2(1,1)) // vreinterpretq_f64_m128d(a)
+#       if __has_builtin(__builtin_shufflevector)
+#       	define _mm_shuffle_pd(a,b,imm)                                \
+				__extension__({                                           \
+		        float64x2_t _input1 = vreinterpretq_f64_m128(a);          \
+	    	    float64x2_t _input2 = vreinterpretq_f64_m128(b);          \
+		        float64x2_t _shuf = __builtin_shufflevector(              \
+	    	        _input1, _input2, (imm) & (0x1), ((imm) >> 1) & 0x1); \
+	        	vreinterpretq_m128_f32(_shuf);                            \
+    	    })
+#		else
+#			error "Need to implement NEON translation of _mm_shuffle_pd"
+#		endif
+
+		static inline __m128 _mm_div_pd(__m128 a, __m128 b) {
+		    return vreinterpretq_m128_f64(
+        		vdivq_f64(vreinterpretq_f64_m128(a), vreinterpretq_f64_m128(b)));
+		}
+
+		static inline void _mm_store_sd(double* a, __m128 b) {
+			const auto _b = vreinterpretq_f64_m128(b);
+			a[0] = _b[0];
+		}
+#   else
+#		if !defined(DLS_MACOS)
+#			include <emmintrin.h>
+#		endif
+#       include <pmmintrin.h>
+#		include <xmmintrin.h>
+#   endif
 #endif
 typedef double VecEl_t;
 
@@ -66,6 +96,8 @@ typedef double VecEl_t;
 #	define VEC_SET1(a)			_mm_set_sd((a))
 #	define VEC_SET(a, b)		_mm_set_pd((a), (b))
 #   define VEC_MOVE(a, b)		_mm_move_sd((a), (b))
+#	define VEC_SHUFFLE0(a, b)	_mm_shuffle_pd(a, b, _MM_SHUFFLE2(0,0))
+#	define VEC_SHUFFLE1(a, b)	_mm_shuffle_pd(a, b, _MM_SHUFFLE2(1,1))
 #else
 	typedef float RealType;
 	typedef __m128	V_Real;

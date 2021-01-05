@@ -38,7 +38,6 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
-#include <pmmintrin.h>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPU4StateSSEImpl.h"
@@ -56,19 +55,27 @@
 		V_Real tmp_##dest##01, tmp_##dest##23; \
 		tmp_##dest##01 = _mm_load_pd(&src[v + 0]); \
 		tmp_##dest##23 = _mm_load_pd(&src[v + 2]); \
-		dest##0 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(0,0)); \
-		dest##1 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(1,1)); \
-		dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
-		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
+		dest##0 = VEC_SHUFFLE0(tmp_##dest##01, tmp_##dest##01); \
+		dest##1 = VEC_SHUFFLE1(tmp_##dest##01, tmp_##dest##01); \
+		dest##2 = VEC_SHUFFLE0(tmp_##dest##23, tmp_##dest##23); \
+		dest##3 = VEC_SHUFFLE1(tmp_##dest##23, tmp_##dest##23);
+//  	dest##0 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(0,0)); \
+// 	 	dest##1 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(1,1)); \
+// 	 	dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
+// 		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
 
 #define SSE_SCHUR_PRODUCT_PARTIALS(dest, src, v, srcq) \
 		V_Real tmp_##dest##01, tmp_##dest##23; \
 		tmp_##dest##01 = VEC_MULT(_mm_load_pd(&src[v + 0]), srcq##01); \
 		tmp_##dest##23 = VEC_MULT(_mm_load_pd(&src[v + 2]), srcq##23); \
-		dest##0 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(0,0)); \
-		dest##1 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(1,1)); \
-		dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
-		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
+		dest##0 = VEC_SHUFFLE0(tmp_##dest##01, tmp_##dest##01); \
+		dest##1 = VEC_SHUFFLE1(tmp_##dest##01, tmp_##dest##01); \
+		dest##2 = VEC_SHUFFLE0(tmp_##dest##23, tmp_##dest##23); \
+		dest##3 = VEC_SHUFFLE1(tmp_##dest##23, tmp_##dest##23);
+// 		dest##0 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(0,0)); \
+// 		dest##1 = _mm_shuffle_pd(tmp_##dest##01, tmp_##dest##01, _MM_SHUFFLE2(1,1)); \
+// 		dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
+// 		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
 #endif
 
 /* Loads (transposed) finite-time transition matrices into SSE vectors */
@@ -122,7 +129,7 @@ inline const char* getBeagleCPU4StateSSEName<double>(){ return "CPU-4State-SSE-D
 
 template<>
 inline const char* getBeagleCPU4StateSSEName<float>(){ return "CPU-4State-SSE-Single"; };
-    
+
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
@@ -304,7 +311,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartials(doubl
     	SSE_PREFETCH_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
 
         for (int k = startPattern; k < endPattern; k++) {
-            
+
 #           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
             __builtin_prefetch (&partials_r[v+64]);
@@ -811,7 +818,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
             __builtin_prefetch (&partials_r[v+64]);
             //            __builtin_prefetch (destPvec+32,1,0);
 #           endif
-            
+
             // Prefetch scale factor
 //            const V_Real scaleFactor = VEC_LOAD_SCALAR(scaleFactors + k);
         	// Option below appears faster, why?
@@ -859,7 +866,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsFixedS
     }
 }
 
-    
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcPartialsPartialsAutoScaling(float* destP,
                                                          const float*  partials_q,
@@ -890,7 +897,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPartialsPartialsAutoSc
                                                                 matrices_r,
                                                                 activateScaling);
 }
-    
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::calcEdgeLogLikelihoods(const int parIndex,
                                                           const int childIndex,
@@ -1033,7 +1040,7 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogLikelihoods(cons
 
     if (*outSumLogLikelihood != *outSumLogLikelihood)
         returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        
+
     return returnCode;
 }
 
@@ -1213,7 +1220,7 @@ int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getPaddedPatternsModulus() {
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
 	// TODO Vectorize final log operations over patterns
 }
-    
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 int BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getPaddedPatternsModulus() {
 //	return 2;  // For double-precision, can operate on 2 patterns at a time
@@ -1230,7 +1237,7 @@ const char* BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getName() {
     return  getBeagleCPU4StateSSEName<double>();
 }
 
-    
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
