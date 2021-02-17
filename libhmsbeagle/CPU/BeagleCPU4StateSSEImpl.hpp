@@ -549,6 +549,35 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
     }
 }
 
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(const double *postOrderPartial,
+                                                                                const double *preOrderPartial,
+                                                                                const double *categoryRates,
+                                                                                const double *categoryWeights,
+                                                                                const double edgeLength,
+                                                                                double *outCrossProducts,
+                                                                                double *outSumSquaredDerivatives) {
+
+    return BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(postOrderPartial, preOrderPartial,
+                                                                                   categoryRates, categoryWeights,
+                                                                                   edgeLength, outCrossProducts,
+                                                                                   outSumSquaredDerivatives);
+}
+
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsStates(const int *tipStates,
+                                                                              const double *preOrderPartial,
+                                                                              const double *categoryRates,
+                                                                              const double *categoryWeights,
+                                                                              const double edgeLength,
+                                                                              double *outCrossProducts,
+                                                                              double *outSumSquaredDerivatives) {
+
+    return BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsStates(tipStates, preOrderPartial, categoryRates,
+                                                                                 categoryWeights, edgeLength, outCrossProducts,
+                                                                                 outSumSquaredDerivatives);
+}
+
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
         double* outDerivatives,

@@ -138,7 +138,7 @@ private:
                                                   const int* partitionIndices,
                                                   int partitionCount,
                                                   double* outSumLogLikelihoodByPartition);
-    
+
 };
     
 
@@ -244,6 +244,22 @@ private:
                                          const double* __restrict matrices2,
                                          int startPattern,
                                          int endPattern);
+
+	virtual void calcCrossProductsStates(const int* __restrict tipStates,
+										 const double* __restrict preOrderPartial,
+										 const double* __restrict categoryRates,
+										 const double* __restrict categoryWeights,
+										 const double edgeLength,
+										 double* __restrict outCrossProducts,
+										 double* __restrict outSumSquaredDerivatives);
+
+	virtual void calcCrossProductsPartials(const double* __restrict postOrderPartial,
+										   const double* __restrict preOrderPartial,
+										   const double* __restrict categoryRates,
+										   const double* __restrict categoryWeights,
+										   const double edgeLength,
+										   double* __restrict outCrossProducts,
+										   double* __restrict outSumSquaredDerivatives);
 
     virtual void calcEdgeLogDerivativesPartials(const double* __restrict postOrderPartial,
                                                 const double* __restrict preOrderPartial,

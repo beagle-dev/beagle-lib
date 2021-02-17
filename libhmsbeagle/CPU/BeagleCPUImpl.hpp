@@ -2163,9 +2163,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipSt
                 }
             }
 
+            const auto patternWeight = gPatternWeights[pattern] / patternDenominator;
             for (int k = 0; k < kStateCount; k++) {
-                outCrossProducts[k * kStateCount + state] += tmp[k * kStateCount + state] / patternDenominator
-                        * gPatternWeights[pattern];
+                outCrossProducts[k * kStateCount + state] += tmp[k * kStateCount + state] * patternWeight;
             }
 
         } else { // Missing character
@@ -2191,10 +2191,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipSt
                 }
             }
 
+            const auto patternWeight = gPatternWeights[pattern] / patternDenominator;
             for (int k = 0; k < kStateCount; k++) {
                 for (int j = 0; j < kStateCount; j++) {
-                    outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
-                            * gPatternWeights[pattern];
+                    outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] * patternWeight;
                 }
             }
         }
@@ -2237,10 +2237,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE
             }
         }
 
+        const auto patternWeight = gPatternWeights[pattern] / patternDenominator;
         for (int k = 0; k < kStateCount; k++) {
             for (int j = 0; j < kStateCount; j++) {
-                outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] / patternDenominator
-                        * gPatternWeights[pattern];
+                outCrossProducts[k * kStateCount + j] += tmp[k * kStateCount + j] * patternWeight;
             }
         }
     }

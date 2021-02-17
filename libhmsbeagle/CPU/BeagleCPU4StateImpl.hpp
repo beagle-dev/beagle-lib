@@ -41,6 +41,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <array>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
@@ -114,6 +115,12 @@
     p##qnum##1 = p##pnum##1 * sum##snum##1; \
     p##qnum##2 = p##pnum##2 * sum##snum##2; \
     p##qnum##3 = p##pnum##3 * sum##snum##3;
+
+#define INNER_PRODUCT(lhs, rhs) \
+    p##lhs##0 * p##rhs##0 +        \
+    p##lhs##1 * p##rhs##1 +        \
+    p##lhs##2 * p##rhs##2 +        \
+    p##lhs##3 * p##rhs##3
 
 //#define DO_INTEGRATION(num) \
 //    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
@@ -1085,6 +1092,177 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
     }
 }
 
+//#define OLD_CP_STATES
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int *tipStates,
+                                                                const REALTYPE *preOrderPartial,
+                                                                const double *categoryRates,
+                                                                const REALTYPE *categoryWeights,
+                                                                const double edgeLength,
+                                                                double *outCrossProducts,
+                                                                double *outSumSquaredDerivatives) {
+#ifdef OLD_CP_STATES
+    return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(tipStates, preOrderPartial, categoryRates,
+            categoryWeights, edgeLength, outCrossProducts, outSumSquaredDerivatives);
+#else
+    std::array<REALTYPE, 16> acrossPatterns;
+    acrossPatterns.fill((REALTYPE) 0);
+
+    std::array<REALTYPE, 16> withinPattern;
+
+    for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+        withinPattern.fill((REALTYPE) 0);
+        REALTYPE patternDenominator = 0.0;
+
+        const int state = tipStates[pattern];
+
+        if (state < kStateCount) {
+
+            for (int category = 0; category < kCategoryCount; category++) {
+
+                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+
+                const REALTYPE weight = categoryWeights[category];
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * 4;
+
+                REALTYPE denominator = preOrderPartial[v + state];
+                patternDenominator += denominator * weight;
+
+                PREFETCH_PARTIALS(pre, preOrderPartial, v);
+
+                withinPattern[0 * 4 + state] += ppre0 * weight * scale; // TODO Work with transpose(withinPattern)
+                withinPattern[1 * 4 + state] += ppre1 * weight * scale;
+                withinPattern[2 * 4 + state] += ppre2 * weight * scale;
+                withinPattern[3 * 4 + state] += ppre3 * weight * scale;
+            }
+
+            const REALTYPE patternWeight = gPatternWeights[pattern] / patternDenominator;
+            acrossPatterns[0 * 4 + state] += withinPattern[0 * 4 + state] * patternWeight;
+            acrossPatterns[1 * 4 + state] += withinPattern[1 * 4 + state] * patternWeight;
+            acrossPatterns[2 * 4 + state] += withinPattern[2 * 4 + state] * patternWeight;
+            acrossPatterns[3 * 4 + state] += withinPattern[3 * 4 + state] * patternWeight;
+
+        } else { // Missing character
+
+            for (int category = 0; category < kCategoryCount; category++) {
+
+                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+
+                const REALTYPE weight = categoryWeights[category];
+                const int patternIndex = category * kPatternCount + pattern;
+                const int v = patternIndex * 4;
+
+                REALTYPE denominator = 0.0;
+                for (int k = 0; k < 4; k++) {
+                    denominator += preOrderPartial[v + k];
+                }
+                patternDenominator += denominator * weight;
+
+                for (int k = 0; k < 4; k++) {
+                    for (int j = 0; j < 4; j++) {
+                        withinPattern[k * 4 + j] += preOrderPartial[v + k] * weight * scale;
+                    }
+                }
+            }
+
+            const REALTYPE patternWeight = gPatternWeights[pattern] / patternDenominator;
+            for (int k = 0; k < 16; k++) {
+                acrossPatterns[k] += withinPattern[k] * patternWeight;
+            }
+        }
+    }
+
+    for (int k = 0; k < 16; k++) {
+        outCrossProducts[k] += acrossPatterns[k]; // TODO transpose back on store
+    }
+#endif
+}
+
+//#define OLD_CP_PARTIALS
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(const REALTYPE *postOrderPartial,
+                                                                        const REALTYPE *preOrderPartial,
+                                                                        const double *categoryRates,
+                                                                        const REALTYPE *categoryWeights,
+                                                                        const double edgeLength,
+                                                                        double *outCrossProducts,
+                                                                        double *outSumSquaredDerivatives) {
+
+
+#ifdef OLD_CP_PARTIALS
+    return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsPartials(postOrderPartial, preOrderPartial,
+            categoryRates, categoryWeights, edgeLength, outCrossProducts, outSumSquaredDerivatives);
+#else
+
+    std::array<REALTYPE, 16> acrossPatterns;
+    acrossPatterns.fill((REALTYPE) 0.0);
+
+    std::array<REALTYPE, 16> withinPattern;
+
+    for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+        withinPattern.fill((REALTYPE) 0.0);
+
+        REALTYPE patternDenominator = 0.0;
+
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+            const REALTYPE weight = categoryWeights[category];
+            const int patternIndex = category * kPatternCount + pattern; // Bad memory access
+            const int v = patternIndex * 4;
+
+            PREFETCH_PARTIALS(pre, preOrderPartial, v);
+            PREFETCH_PARTIALS(post, postOrderPartial, v);
+
+            REALTYPE denominator = INNER_PRODUCT(pre, post);
+
+            patternDenominator += denominator * weight;
+
+            REALTYPE weightScale = weight * scale;
+
+            ppost0 *= weightScale;
+            ppost1 *= weightScale;
+            ppost2 *= weightScale;
+            ppost3 *= weightScale;
+
+            withinPattern[0 * 4 + 0] += ppre0 * ppost0;
+            withinPattern[0 * 4 + 1] += ppre0 * ppost1;
+            withinPattern[0 * 4 + 2] += ppre0 * ppost2;
+            withinPattern[0 * 4 + 3] += ppre0 * ppost3;
+
+            withinPattern[1 * 4 + 0] += ppre1 * ppost0;
+            withinPattern[1 * 4 + 1] += ppre1 * ppost1;
+            withinPattern[1 * 4 + 2] += ppre1 * ppost2;
+            withinPattern[1 * 4 + 3] += ppre1 * ppost3;
+
+            withinPattern[2 * 4 + 0] += ppre2 * ppost0;
+            withinPattern[2 * 4 + 1] += ppre2 * ppost1;
+            withinPattern[2 * 4 + 2] += ppre2 * ppost2;
+            withinPattern[2 * 4 + 3] += ppre2 * ppost3;
+
+            withinPattern[3 * 4 + 0] += ppre3 * ppost0;
+            withinPattern[3 * 4 + 1] += ppre3 * ppost1;
+            withinPattern[3 * 4 + 2] += ppre3 * ppost2;
+            withinPattern[3 * 4 + 3] += ppre3 * ppost3;
+        }
+
+        const auto patternWeight =  gPatternWeights[pattern] / patternDenominator;
+        for (int k = 0; k < 16; k++) {
+            acrossPatterns[k] += withinPattern[k] * patternWeight;
+        }
+    }
+
+    for (int k = 0; k < 16; k++) {
+        outCrossProducts[k] += acrossPatterns[k];
+    }
+#endif
+}
+
 BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcRootLogLikelihoodsByPartition(
                                                                     const int* bufferIndices,
@@ -1258,6 +1436,18 @@ BEAGLE_CPU_TEMPLATE
 const char* BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::getName() {
 	return getBeagleCPU4StateName<BEAGLE_CPU_FACTORY_GENERIC>();
 }
+
+//        template<typename REALTYPE, int T_PAD, int P_PAD>
+//        void BeagleCPU4StateImpl<REALTYPE, T_PAD, P_PAD>::calcCrossProductsPartials(const REALTYPE *postOrderPartial,
+//                                                                                    const REALTYPE *preOrderPartial,
+//                                                                                    const double *categoryRates,
+//                                                                                    const REALTYPE *categoryWeights,
+//                                                                                    const double edgeLength,
+//                                                                                    double *outCrossProducts,
+//                                                                                    double *outSumSquaredDerivatives) {
+//            BeagleCPUImpl::calcCrossProductsPartials(postOrderPartial, preOrderPartial, categoryRates, categoryWeights,
+//                                                     edgeLength, outCrossProducts, outSumSquaredDerivatives);
+//        }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BeagleCPUImplFactory public methods

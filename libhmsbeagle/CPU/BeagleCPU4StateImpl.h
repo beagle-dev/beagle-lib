@@ -141,6 +141,22 @@ public:
                                                double *outSumDerivatives,
                                                double *outSumSquaredDerivatives);
 
+    virtual void calcCrossProductsStates(const int *tipStates,
+                                         const REALTYPE *preOrderPartial,
+                                         const double *categoryRates,
+                                         const REALTYPE *categoryWeights,
+                                         const double edgeLength,
+                                         double *outCrossProducts,
+                                         double *outSumSquaredDerivatives);
+
+    virtual void calcCrossProductsPartials(const REALTYPE *postOrderPartial,
+                                           const REALTYPE *preOrderPartial,
+                                           const double *categoryRates,
+                                           const REALTYPE *categoryWeights,
+                                           const double edgeLength,
+                                           double *outCrossProducts,
+                                           double *outSumSquaredDerivatives);
+
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,

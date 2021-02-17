@@ -50,7 +50,6 @@
 #define BEAGLE_CPU_FACTORY_GENERIC	REALTYPE
 #define BEAGLE_CPU_FACTORY_TEMPLATE	template <typename REALTYPE>
 
-
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
 
