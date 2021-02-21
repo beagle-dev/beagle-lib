@@ -60,12 +60,20 @@
 			const auto _b = vreinterpretq_f64_m128(b);
 			a[0] = _b[0];
 		}
+
+        static inline __m128 _mm_dp_pd(__m128 lhs, __m128 rhs, const int) {
+            auto const product = vmulq_f64(vreinterpretq_f64_m128d(lhs),
+                                           vreinterpretq_f64_m128d(rhs));
+            auto const sum = product[0] + product[1]; // TODO Almost surely an more efficient way
+            return vreinterpretq_m128d_f64(vdupq_n_f64(sum));
+        }
 #   else
 #		if !defined(DLS_MACOS)
 #			include <emmintrin.h>
 #		endif
 #       include <pmmintrin.h>
 #		include <xmmintrin.h>
+#       include <smmintrin.h>
 #   endif
 #endif
 typedef double VecEl_t;
@@ -130,5 +138,45 @@ int CPUSupportsSSE() {
     //fprintf(stderr,"a = %d\nb = %d\nc = %d\nd = %d\n",a,b,c,d);
     return 1;
 }
+
+//inline XMVECTOR XMVector4Dot( FXMVECTOR V1, FXMVECTOR V2 )
+//{
+//#if defined(_XM_NO_INTRINSICS_)
+//
+//    XMVECTOR Result;
+//    Result.vector4_f32[0] =
+//    Result.vector4_f32[1] =
+//    Result.vector4_f32[2] =
+//    Result.vector4_f32[3] = V1.vector4_f32[0] * V2.vector4_f32[0] + V1.vector4_f32[1] * V2.vector4_f32[1] + V1.vector4_f32[2] * V2.vector4_f32[2] + V1.vector4_f32[3] * V2.vector4_f32[3];
+//    return Result;
+//
+//#elif defined(_M_ARM) || defined(_M_ARM64)
+//
+//    float32x4_t vTemp = vmulq_f32( V1, V2 );
+//    float32x2_t v1 = vget_low_f32( vTemp );
+//    float32x2_t v2 = vget_high_f32( vTemp );
+//    v1 = vpadd_f32( v1, v1 );
+//    v2 = vpadd_f32( v2, v2 );
+//    v1 = vadd_f32( v1, v2 );
+//    return vcombine_f32( v1, v1 );
+//
+//#elif defined(__AVX__) || defined(__AVX2__)
+//
+//    return _mm_dp_ps( V1, V2, 0xff );
+//
+//#elif defined(_M_IX86) || defined(_M_X64)
+//
+//    XMVECTOR vTemp2 = V2;
+//    XMVECTOR vTemp = _mm_mul_ps(V1,vTemp2);
+//    vTemp2 = _mm_shuffle_ps(vTemp2,vTemp,_MM_SHUFFLE(1,0,0,0));
+//    vTemp2 = _mm_add_ps(vTemp2,vTemp);
+//    vTemp = _mm_shuffle_ps(vTemp,vTemp2,_MM_SHUFFLE(0,3,0,0));
+//    vTemp = _mm_add_ps(vTemp,vTemp2);
+//    return _mm_shuffle_ps(vTemp,vTemp,_MM_SHUFFLE(2,2,2,2));
+//
+//#else
+//#error Unsupported platform
+//#endif
+//}
 
 #endif // __SSEDefinitions__

@@ -64,6 +64,13 @@
 // 	 	dest##2 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(0,0)); \
 // 		dest##3 = _mm_shuffle_pd(tmp_##dest##23, tmp_##dest##23, _MM_SHUFFLE2(1,1));
 
+#define SSE_PREFETCH_VECTORIZED_PARTIALS(dest, src, v) \
+        dest##01 = _mm_load_pd(&src[v + 0]); \
+        dest##23 = _mm_load_pd(&src[v + 2]);
+
+#define SSE_VECTORIZED_INNER_PRODUCT(lhs, rhs) \
+        VEC_ADD(_mm_dp_pd(lhs##01, rhs##01, 0xff), _mm_dp_pd(lhs##23, rhs##23, 0xff))
+
 #define SSE_SCHUR_PRODUCT_PARTIALS(dest, src, v, srcq) \
 		V_Real tmp_##dest##01, tmp_##dest##23; \
 		tmp_##dest##01 = VEC_MULT(_mm_load_pd(&src[v + 0]), srcq##01); \
@@ -557,11 +564,69 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(
                                                                                 const double edgeLength,
                                                                                 double *outCrossProducts,
                                                                                 double *outSumSquaredDerivatives) {
-
+#if 0
     return BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(postOrderPartial, preOrderPartial,
                                                                                    categoryRates, categoryWeights,
                                                                                    edgeLength, outCrossProducts,
                                                                                    outSumSquaredDerivatives);
+#else
+
+    std::array<V_Real, 8> vAcrossPatterns;
+    vAcrossPatterns.fill(V_Real());
+
+    std::array<V_Real, 8> vWithinPattern;
+
+    for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+        vWithinPattern.fill(V_Real());
+
+        V_Real patternDenominator = VEC_SETZERO();
+
+        for (int category = 0; category < kCategoryCount; category++) {
+
+            const V_Real scale = VEC_SPLAT(categoryRates[category] * edgeLength);
+            const V_Real weight = VEC_SPLAT(categoryWeights[category]);
+
+            const int patternIndex = category * kPatternCount + pattern; // Bad memory access
+            const int v = patternIndex * 4;
+
+            V_Real pre0, pre1, pre2, pre3;
+            SSE_PREFETCH_PARTIALS(pre, preOrderPartial, v);
+
+            V_Real post01, post23;
+            SSE_PREFETCH_VECTORIZED_PARTIALS(post, postOrderPartial, v);
+
+            V_Real denominator = SSE_VECTORIZED_INNER_PRODUCT(tmp_pre, post);
+            patternDenominator = VEC_MADD(denominator, weight, patternDenominator);
+
+            V_Real weightScale = VEC_MULT(weight, scale);
+            post01 = VEC_MULT(post01, weightScale);
+            post23 = VEC_MULT(post23, weightScale);
+
+            vWithinPattern[0 * 2 + 0] = VEC_MADD(pre0, post01, vWithinPattern[0 * 2 + 0]);
+            vWithinPattern[0 * 2 + 1] = VEC_MADD(pre0, post23, vWithinPattern[0 * 2 + 1]);
+
+            vWithinPattern[1 * 2 + 0] = VEC_MADD(pre1, post01, vWithinPattern[1 * 2 + 0]);
+            vWithinPattern[1 * 2 + 1] = VEC_MADD(pre1, post23, vWithinPattern[1 * 2 + 1]);
+
+            vWithinPattern[2 * 2 + 0] = VEC_MADD(pre2, post01, vWithinPattern[2 * 2 + 0]);
+            vWithinPattern[2 * 2 + 1] = VEC_MADD(pre2, post23, vWithinPattern[2 * 2 + 1]);
+
+            vWithinPattern[3 * 2 + 0] = VEC_MADD(pre3, post01, vWithinPattern[3 * 2 + 0]);
+            vWithinPattern[3 * 2 + 1] = VEC_MADD(pre3, post23, vWithinPattern[3 * 2 + 1]);
+        }
+
+        const V_Real patternWeight = VEC_DIV(VEC_SPLAT(gPatternWeights[pattern]), patternDenominator);
+        for (int k = 0; k < 8; k++) {
+            vAcrossPatterns[k] = VEC_MADD(vWithinPattern[k], patternWeight, vAcrossPatterns[k]);
+        }
+    }
+
+    for (int k = 0; k < 8; k++) {
+        VEC_STORE(&outCrossProducts[k * 2],
+                VEC_ADD(VEC_LOAD(&outCrossProducts[k * 2]), vAcrossPatterns[k]));
+    }
+#endif
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
