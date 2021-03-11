@@ -3648,7 +3648,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateCrossProducts(const int *postBuf
                                                               int count,
                                                               double *outSumDerivatives,
                                                               double *outSumSquaredDerivatives) {
-    int returnCode = BEAGLE_ERROR_GENERAL;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::calculateCrossProducts\n");
+#endif
+
+    int returnCode = calcCrossProducts(
+            postBufferIndices, preBufferIndices,
+            categoryRatesIndices, categoryWeightsIndices, edgeLengths, count, outSumDerivatives);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateCrossProducts\n");
+#endif
 
     return returnCode;
 }
@@ -4241,7 +4252,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getDerivatives(double* outSumFirstDerivat
     fprintf(stderr, "\tEntering BeagleGPUImpl::getDerivatives\n");
 #endif
 
-
     gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumFirstDeriv, sizeof(Real) * kSumSitesBlockCount);
 
     *outSumFirstDerivative = 0.0;
@@ -4354,13 +4364,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
 
     gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 3 * totalCount);
 
-    if (!kMultipleDerivativesInitialised) { // TODO Move into calling function
-        dMultipleDerivatives = gpu->AllocateMemory(
-                kPaddedPatternCount * kBufferCount * sizeof(Real)); // TODO Make much smaller
-        dMultipleDerivativeSum = gpu->AllocateMemory(
-                kBufferCount * sizeof(Real));
-        kMultipleDerivativesInitialised = true;
-    }
+//    if (!kMultipleDerivativesInitialised) { // TODO Move into calling function
+//        dMultipleDerivatives = gpu->AllocateMemory(
+//                kPaddedPatternCount * kBufferCount * sizeof(Real)); // TODO Make much smaller
+//        dMultipleDerivativeSum = gpu->AllocateMemory(
+//                kBufferCount * sizeof(Real));
+//        kMultipleDerivativesInitialised = true;
+//    }
+    initDerivatives(); // TODO Move into calling function
 
     if (statesTipsCount > 0) {
         kernels->PartialsStatesEdgeFirstDerivatives(
@@ -4429,6 +4440,124 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
             beagleMemCpy(outSumSquaredFirstDerivatives, hTmp.data() + length, totalCount);
         }
     }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::initDerivatives() {
+    if (!kMultipleDerivativesInitialised) {
+
+        dMultipleDerivatives = gpu->AllocateMemory(
+                std::max(kPaddedPatternCount * kBufferCount, // TODO Make much smaller
+                        kPaddedStateCount * kPaddedStateCount) * sizeof(Real));
+
+        dMultipleDerivativeSum = gpu->AllocateMemory(kBufferCount * sizeof(Real));
+
+        kMultipleDerivativesInitialised = true;
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIndices,
+                                                         const int *preBufferIndices,
+                                                         const int *categoryRateIndices,
+                                                         const int *categoryWeightIndices,
+                                                         const double* edgeLengths,
+                                                         int totalCount,
+                                                         double *outCrossProducts) {
+
+    int instructionOffset = 0;
+    int statesTipsCount = 0;
+
+    if (kCompactBufferCount > 0) {
+        for (int i = 0; i < totalCount; ++i) {
+            if (postBufferIndices[i] < kCompactBufferCount) {
+                hDerivativeQueue[instructionOffset++] = hStatesOffsets[postBufferIndices[i]];
+                hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
+                ++statesTipsCount;
+            }
+        }
+    }
+
+    for (int i = 0; i < totalCount; i++) {
+        if (postBufferIndices[i] >= kCompactBufferCount) {
+            hDerivativeQueue[instructionOffset++] = hPartialsOffsets[postBufferIndices[i]];
+            hDerivativeQueue[instructionOffset++] = hPartialsOffsets[preBufferIndices[i]];
+        }
+    }
+
+    gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 2 * totalCount);
+
+    initDerivatives(); // TODO Move into calling function
+
+    if (statesTipsCount > 0) {
+//        kernels->PartialsStatesEdgeFirstDerivatives(
+//                dMultipleDerivatives,
+//                dStatesOrigin,
+//                dPartialsOrigin,
+//                dMatrices[0],
+//                dDerivativeQueue,
+//                dWeights[0], // TODO Use categoryWeightsIndices
+//                0, statesTipsCount, kPaddedPatternCount, kCategoryCount, false);
+    }
+
+//    kernels->PartialsPartialsEdgeFirstDerivatives(
+//            dMultipleDerivatives,
+//            dPartialsOrigin,
+//            dMatrices[0],
+//            dDerivativeQueue,
+//            dWeights[0], // TODO Use categoryWeightsIndices
+//            statesTipsCount, (totalCount - statesTipsCount), kPaddedPatternCount, kCategoryCount, true);
+//
+//    std::vector<Real> hTmp(totalCount * kPaddedPatternCount); // TODO Use existing buffer
+//
+//    if (outFirstDerivatives != NULL) {
+//
+//        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedPatternCount * totalCount);
+//
+//        for (int i = 0; i < totalCount; ++i) {
+//            beagleMemCpy(outFirstDerivatives + i * kPatternCount,
+//                         hTmp.data() + i * kPaddedPatternCount,
+//                         kPatternCount);
+//        }
+//    }
+//
+//    if (outSumFirstDerivatives != NULL || outSumSquaredFirstDerivatives != NULL) {
+//
+//        int length = 0;
+//        if (outSumFirstDerivatives != NULL) {
+//            kernels->MultipleNodeSiteReduction(dMultipleDerivativeSum,
+//                                               dMultipleDerivatives,
+//                                               dPatternWeights,
+//                                               length,
+//                                               kPaddedPatternCount,
+//                                               totalCount);
+//            length += totalCount;
+//        }
+//
+//        if (outSumSquaredFirstDerivatives != NULL) {
+//            kernels->MultipleNodeSiteSquaredReduction(dMultipleDerivativeSum,
+//                                                      dMultipleDerivatives,
+//                                                      dPatternWeights,
+//                                                      length,
+//                                                      kPaddedPatternCount,
+//                                                      totalCount);
+//            length += totalCount;
+//        }
+//
+//        gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivativeSum, sizeof(Real) * length);
+//
+//        length = 0;
+//        if (outSumFirstDerivatives != NULL) {
+//            beagleMemCpy(outSumFirstDerivatives, hTmp.data(), totalCount);
+//            length += totalCount;
+//        }
+//
+//        if (outSumSquaredFirstDerivatives != NULL) {
+//            beagleMemCpy(outSumSquaredFirstDerivatives, hTmp.data() + length, totalCount);
+//        }
+//    }
 
     return BEAGLE_SUCCESS;
 }

@@ -407,3 +407,36 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 
 #endif
 }
+
+KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
+                                                        KW_GLOBAL_VAR int*  KW_RESTRICT states0,
+                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
+                                                        KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
+                                                        int skip,
+                                                        int totalPatterns, int categoryCount) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    todo(); // Not implemented
+#else // GPU implementation
+
+#endif
+}
+
+KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
+                                                          KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryRates,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+                                                          int skip,
+                                                          int totalPatterns,
+                                                          int totalNodes,
+                                                          int categoryCount) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    todo(); // Not implemented
+#else // GPU implementation
+
+#endif
+}

@@ -63,6 +63,8 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockFixedCheckScaling;
 	GPUFunction fPartialsPartialsEdgeFirstDerivatives;
 	GPUFunction fPartialsStatesEdgeFirstDerivatives;
+	GPUFunction fPartialsPartialsCrossProducts;
+	GPUFunction fPartialsStatesCrossProducts;
 	GPUFunction fMultipleNodeSiteReduction;
 	GPUFunction fMultipleNodeSiteSquaredReduction;
 	GPUFunction fPartialsPartialsGrowing;
@@ -342,6 +344,29 @@ public:
 											  unsigned int patternCount,
 											  unsigned int categoryCount,
 											  bool synchronize);
+
+	void PartialsStatesCrossProducts(GPUPtr out,
+									 GPUPtr states0,
+									 GPUPtr partials0,
+									 GPUPtr matrices0,
+									 GPUPtr weights,
+									 GPUPtr instructions,
+									 unsigned int instructionOffset,
+									 unsigned int nodeCount,
+									 unsigned int patternCount,
+									 unsigned int categoryCount,
+									 bool synchronize);
+
+	void PartialsPartialsCrossProducts(GPUPtr out,
+									   GPUPtr partials0,
+									   GPUPtr matrices0,
+									   GPUPtr weights,
+									   GPUPtr instructions,
+									   unsigned int instructionOffset,
+									   unsigned int nodeCount,
+									   unsigned int patternCount,
+									   unsigned int categoryCount,
+									   bool synchronize);
 
 	void MultipleNodeSiteReduction(GPUPtr outSiteValues,
 								   GPUPtr inSiteValues,

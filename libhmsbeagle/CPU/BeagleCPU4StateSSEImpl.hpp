@@ -466,7 +466,6 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartials(do
             destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
             destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
 
-
             destPvec[0] = destq_01;
             destPvec[1] = destq_23;
             destPvec += 2;
