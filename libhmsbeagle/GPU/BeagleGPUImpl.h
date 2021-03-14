@@ -148,7 +148,7 @@ private:
     
     bool kUsingMultiGrid;
     bool kDerivBuffersInitialised;
-	bool kMultipleDerivativesInitialised; // TODO Change to length (max node count used)
+	int kMultipleDerivativesLength; // TODO Change to length (max node count used)
 	bool kUsingAutoTranspose;
 
     int kNumPatternBlocks;
@@ -496,7 +496,7 @@ private:
 					  int count,
 					  int cumulativeScaleIndex);
 
-	void initDerivatives();
+	void initDerivatives(int replicates);
 
 	int calcEdgeFirstDerivatives(const int *postBufferIndices, const int *preBufferIndices, const int *firstDerivativeIndices,
 								 const int *categoryWeightsIndices, const int *scaleIndices, int count,

@@ -448,181 +448,230 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
-                                                        KW_GLOBAL_VAR int*  KW_RESTRICT states0,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                        KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
-                                                        int skip,
-                                                        int totalPatterns, int categoryCount) {
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    todo(); // Not implemented
-#else // GPU implementation
+                                                        const KW_GLOBAL_VAR int*  KW_RESTRICT states0,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT lengths0,
+                                                        const KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT inCategoryWeights,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT inPatternWeights,
+                                                        const int skip,
+                                                        const int totalPatterns,
+                                                        const int totalNodes,
+                                                        const int categoryCount,
+                                                        const int rateOffset,
+                                                        const int accumulate) {
+  #ifdef FW_OPENCL_CPU // CPU/MIC implementation
+      todo(); // Not implemented
+  #else // GPU implementation
+  
+      const int tx = KW_LOCAL_ID_0;
+      const int state = tx & 0x3;
+      const int pat = tx >> 2;
+  
+      const int patternBlockId = KW_GROUP_ID_0;
+      const int nodeId = KW_GROUP_ID_1;
+  
+      const int numPatternBlocks = KW_NUM_GROUPS_0;
+      const int numNodeBlocks = KW_NUM_GROUPS_1;
+  
+      KW_LOCAL_MEM REAL post[4 * 4];
+      KW_LOCAL_MEM REAL pre[4 * 4];
+      KW_LOCAL_MEM REAL denominator[4 * 4];
+  
+      KW_LOCAL_MEM REAL patternDenominator[16];       
+      KW_LOCAL_MEM REAL patternWeights[4];
+  
+      KW_LOCAL_MEM REAL categoryRates[16]; // TODO Assumes kCategoryCount <= 16 
+      KW_LOCAL_MEM REAL categoryWeights[16]; // TODO Should put these into constant memory anyway
+       
+      if (tx < categoryCount) {
+          categoryRates[tx] = lengths0[rateOffset + tx];
+          categoryWeights[tx] = inCategoryWeights[tx];
+      }
+  
+      KW_LOCAL_FENCE;
+  
+      // Fancy indexing to keep pattern work consecutive (may not help cache since jumping btw categories anyway)
+      // TODO Check if helpful
+      const int batchWorkItems = (totalPatterns + 4 - 1) / 4; // 4 patterns at a time
+      const int patternWorkSize = 4 * ((batchWorkItems + numPatternBlocks - 1) / numPatternBlocks);
+  
+      REAL acrossPatterns = 0;
+     
+      for (int node = nodeId;  // Just interleaved indexing
+           node < totalNodes; 
+           node += numNodeBlocks) {
+  
+          int instructionOffset = (skip + node) * 2;
+          unsigned int statesOffset = instructions[instructionOffset + 0];
+          unsigned int preOffset = instructions[instructionOffset + 1];
+  
+          const REAL edgeLength = lengths0[skip + node];   
+  
+          for (int pattern = patternBlockId * patternWorkSize; 
+               pattern < (patternBlockId + 1) * patternWorkSize; 
+               pattern += 4) {
+  
+              unsigned int patternOffset = pattern * 4;
+  
+              REAL txPatternDenominator = 0;
+  
+              REAL withinPattern0 = 0;
+              REAL withinPattern1 = 0;
+              REAL withinPattern2 = 0;
+              REAL withinPattern3 = 0;
+    
+            const KW_GLOBAL_VAR int* KW_RESTRICT postStates = states0 + statesOffset;
+ 
+            const int stateData = postStates[pattern + pat]; // patterns are already padded mod 4
+            post[tx] = (state == stateData) ? (REAL) 1.0 : (REAL) 0.0;
 
-    int tx = KW_LOCAL_ID_0;
-    int state = tx & 0x3;
-    int pat = tx >> 2;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + multBy4(patIdx) + pat;
-    int y = multBy16(KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx);
+              for (int c = 0; c < categoryCount; ++c) {
+  
+                  const KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials = partials0 + preOffset + patternOffset + 
+                        totalPatterns * PADDED_STATE_COUNT * c;
+  
+                  if (pattern < totalPatterns) {
+                      pre[tx] = prePartials[tx];  // Coalesced global memory read
+                  } else {
+                      pre[tx] = 0.0;                      
+                  }
+  
+                  const REAL scale =  edgeLength * categoryRates[c]; // TODO Better in constant memory?
+                  const REAL weight = categoryWeights[c]; // TODO Better in constant memory?
+  
+                  // Inner product
+                  denominator[tx] = pre[tx] * post[tx];
+                  if (tx < 8) {
+                      denominator[tx << 1] += denominator[tx << 1 | 0x1];
+                  }
+  
+                  KW_LOCAL_FENCE; // TODO necessary? in same warp
+  
+                  if (tx < 4) {
+                      denominator[tx << 2] += denominator[tx << 2 | 0x2];
+                  }
+  
+                  KW_LOCAL_FENCE; // TODO necessary? is same warp
+  
+                  txPatternDenominator += denominator[tx & 0xC] * weight;
+                  
+                //   post[tx] *= weight * scale;
+                  pre[tx] *= weight * scale;
+  
+                  KW_LOCAL_FENCE; // TODO Merge with fence above
+  
+                  withinPattern0 += post[4 * 0 | state] * pre[4 * 0 | pat];
+                  withinPattern1 += post[4 * 1 | state] * pre[4 * 1 | pat];
+                  withinPattern2 += post[4 * 2 | state] * pre[4 * 2 | pat];
+                  withinPattern3 += post[4 * 3 | state] * pre[4 * 3 | pat];
+              }
+  
+              patternDenominator[tx] = txPatternDenominator;
+  
+              if (tx < 4) {
+                  patternWeights[tx] = inPatternWeights[pattern + tx];
+              }            
+  
+              KW_LOCAL_FENCE;
+  
+              if (patternDenominator[4 * 0] > 0.0) {
+                  acrossPatterns += withinPattern0 * patternWeights[0] / patternDenominator[4 * 0];
+              }
+  
+              if (patternDenominator[4 * 1] > 0.0) {
+                  acrossPatterns += withinPattern1 * patternWeights[1] / patternDenominator[4 * 1];
+              }
+              
+              if (patternDenominator[4 * 2] > 0.0) {
+                  acrossPatterns += withinPattern2 * patternWeights[2] / patternDenominator[4 * 2];
+              }
+              
+              if (patternDenominator[4 * 3] > 0.0) {
+                  acrossPatterns += withinPattern3 * patternWeights[3] / patternDenominator[4 * 3];
+              } // TODO Vectorize
+          }
+      }
 
-    int node = KW_GROUP_ID_1;
-    int instructionOffset = (skip + node) * 3;
+      KW_LOCAL_FENCE;
+      
+      const int destination = (nodeId * numPatternBlocks + patternBlockId) * 16;
 
-    unsigned int states1Offset   = instructions[instructionOffset + 0];
-    unsigned int partials2Offset = instructions[instructionOffset + 1];
-    unsigned int matrices1Offset = instructions[instructionOffset + 2];
-
-    KW_LOCAL_MEM REAL sMatrix2[16];
-
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
-
-    /* TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount */\
-    KW_LOCAL_MEM REAL sWeights[MATRIX_BLOCK_SIZE];
-
-    for (int c = 0; c < categoryCount; c += KW_LOCAL_SIZE_0) {
-        int x = c + KW_LOCAL_ID_0;
-        if (x < categoryCount) {
-            sWeights[x] = weights[x];
-        }
-    }
-
-    KW_LOCAL_FENCE;
-
-    REAL numerator = 0;
-    REAL denominator = 0;
-
-    int lState1 = (pattern < totalPatterns) ?
-            states0[states1Offset + pattern] : PADDED_STATE_COUNT;
-
-    REAL lPartial1 = (lState1 >= PADDED_STATE_COUNT || state == lState1) ?
-            1 : 0;
-
-    REAL lPartial2;
-
-    for (int c = 0; c < categoryCount; ++c) {
-
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials0 + partials2Offset + totalPatterns * PADDED_STATE_COUNT * c;
-        KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices0 + matrices1Offset + PADDED_STATE_COUNT * PADDED_STATE_COUNT * c;
-
-        /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE length partials*/
-        if (pattern < totalPatterns) {
-            sPartials2[multBy16(patIdx) | tx] = lPartial2 = partials2[y | tx];
-        } else {
-            sPartials2[multBy16(patIdx) | tx] = lPartial2 = 0;
-        }
-
-        FMA(lPartial1, lPartial2 * sWeights[c], denominator);
-
-        if (patIdx == 0 ) {
-            sMatrix2[multBy4(state) | pat] = matrix2[tx]; // transposed
-        }
-
-        KW_LOCAL_FENCE;
-
-        REAL sum2;
-        int i = pat;
-        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
-
-        sum2 = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-
-        KW_LOCAL_FENCE; // TODO Is this necessary?
-
-        FMA(lPartial1, sum2 * sWeights[c], numerator);
-    }
-
-    sPartials1[patIdx * PATTERN_BLOCK_SIZE + tx] = numerator;
-    sPartials2[patIdx * PATTERN_BLOCK_SIZE + tx] = denominator;
-
-    KW_LOCAL_FENCE;
-
-    if (state < 2) {
-        sPartials1[patIdx * PATTERN_BLOCK_SIZE + tx] += sPartials1[patIdx * PATTERN_BLOCK_SIZE + tx + 2];
-        sPartials2[patIdx * PATTERN_BLOCK_SIZE + tx] += sPartials2[patIdx * PATTERN_BLOCK_SIZE + tx + 2];
-    }
-
-    KW_LOCAL_FENCE;
-
-    if (state < 1) {
-        sPartials1[patIdx * PATTERN_BLOCK_SIZE + tx] += sPartials1[patIdx * PATTERN_BLOCK_SIZE + tx + 1];
-        sPartials2[patIdx * PATTERN_BLOCK_SIZE + tx] += sPartials2[patIdx * PATTERN_BLOCK_SIZE + tx + 1];
-    }
-
-    KW_LOCAL_FENCE;
-
-    if (patIdx < PATTERN_BLOCK_SIZE / 4) { // Need the first PATTERN_BLOCK_SIZE * 4 threads
-        int offset = patIdx * PATTERN_BLOCK_SIZE  + tx;
-        int site = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4) + offset;
-        if (site < totalPatterns) {
-            int row = offset >> 2; // divide by 4
-            int col = offset & 0x3; // mod 4
-            REAL numerator = sPartials1[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0];
-            REAL denominator = sPartials2[row * PATTERN_BLOCK_SIZE + multBy4(col) + 0];
-            REAL ratio = 0.0;
-            if (denominator != 0.0) {
-                ratio = numerator / denominator;
-            }
-            out[totalPatterns * (skip + node) + site] = ratio; // TODO Check that these are all coalesced writes
-        }
-    }
+      if (accumulate) {
+          acrossPatterns += out[destination + tx];
+      }
+  
+    out[destination + tx] = acrossPatterns;
+    //   out[destination + tx] = post[tx];
+    // out[destination + tx] = patternDenominator[tx];
 #endif
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                          KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryRates,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-                                                          int skip,
-                                                          int totalPatterns,
-                                                          int totalNodes,
-                                                          int categoryCount) {
+                                                         const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                         const KW_GLOBAL_VAR REAL* KW_RESTRICT lengths0,
+                                                         const KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                         const KW_GLOBAL_VAR REAL* KW_RESTRICT inCategoryWeights,
+                                                         const KW_GLOBAL_VAR REAL* KW_RESTRICT inPatternWeights,
+                                                         const int skip,
+                                                         const int totalPatterns,
+                                                         const int totalNodes,
+                                                         const int categoryCount,
+                                                         const int rateOffset,
+                                                         const int accumulate) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
 
-    int tx = KW_LOCAL_ID_0;
-    int state = tx & 0x3;
-    int pat = tx >> 2;
+    const int tx = KW_LOCAL_ID_0;
+    const int state = tx & 0x3;
+    const int pat = tx >> 2;
+
+    const int patternBlockId = KW_GROUP_ID_0;
+    const int nodeId = KW_GROUP_ID_1;
+
+    const int numPatternBlocks = KW_NUM_GROUPS_0;
+    const int numNodeBlocks = KW_NUM_GROUPS_1;
 
     KW_LOCAL_MEM REAL post[4 * 4];
     KW_LOCAL_MEM REAL pre[4 * 4];
+    KW_LOCAL_MEM REAL denominator[4 * 4];
 
-    KW_LOCAL_MEM REAL tmpDenom[4 * 4];
-    KW_LOCAL_MEM REAL tmpOuter[4 * 4];
+    KW_LOCAL_MEM REAL patternDenominator[16];       
+    KW_LOCAL_MEM REAL patternWeights[4];
 
-    KW_LOCAL_MEM REAL patternDenominator[16];
+    KW_LOCAL_MEM REAL categoryRates[16]; // TODO Assumes kCategoryCount <= 16 
+    KW_LOCAL_MEM REAL categoryWeights[16]; // TODO Should put these into constant memory anyway
+     
+    if (tx < categoryCount) {
+        categoryRates[tx] = lengths0[rateOffset + tx];
+        categoryWeights[tx] = inCategoryWeights[tx];
+    }
 
-    KW_LOCAL_MEM REAL sPatternWeights[4];
+    KW_LOCAL_FENCE;
+
+    // Fancy indexing to keep pattern work consecutive (may not help cache since jumping btw categories anyway)
+    // TODO Check if helpful
+    const int batchWorkItems = (totalPatterns + 4 - 1) / 4; // 4 patterns at a time
+    const int patternWorkSize = 4 * ((batchWorkItems + numPatternBlocks - 1) / numPatternBlocks);
 
     REAL acrossPatterns = 0;
 
-    for (int node = 0; node < totalNodes; ++node) {
+    for (int node = nodeId;  // Just interleaved indexing
+         node < totalNodes; 
+         node += numNodeBlocks) {
 
         int instructionOffset = (skip + node) * 2;
         unsigned int preOffset = instructions[instructionOffset + 0];
         unsigned int postOffset = instructions[instructionOffset + 1];
 
-        const REAL edgeLength = 1; // TODO
+        const REAL edgeLength = lengths0[skip + node];   
 
-        // TODO Possibly load all category weights / rates into shared memory
+        for (int pattern = patternBlockId * patternWorkSize; 
+             pattern < (patternBlockId + 1) * patternWorkSize; 
+             pattern += 4) {
 
-
-
-        for (int pattern = 0; pattern < totalPatterns; pattern += 4) {
-
-            if (tx < 4) {
-                sPatternWeights[tx] = patternWeights[pattern + tx];
-            }
+            unsigned int patternOffset = pattern * 4;
 
             REAL txPatternDenominator = 0;
 
@@ -630,66 +679,84 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
             REAL withinPattern1 = 0;
             REAL withinPattern2 = 0;
             REAL withinPattern3 = 0;
-
+        
             for (int c = 0; c < categoryCount; ++c) {
 
-                // Load pre
-                // Load post
-                // Load categoryRate / categoryWeight
+                const KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials = partials0 + preOffset + patternOffset + totalPatterns * PADDED_STATE_COUNT * c;
+                const KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials = partials0 + postOffset + patternOffset + totalPatterns * PADDED_STATE_COUNT * c;
 
-                KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials = partials0 + preOffset + totalPatterns * PADDED_STATE_COUNT * c;
-                KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials = partials0 + postOffset + totalPatterns * PADDED_STATE_COUNT * c;
+                if (pattern < totalPatterns) {
+                    pre[tx] = prePartials[tx];  // Coalesced global memory read
+                    post[tx] = postPartials[tx]; // Coalesced global memory read
+                } else {
+                    pre[tx] = 0.0;
+                    post[tx] = 0.0;
+                }
 
-                pre[tx] = prePartials[tx];  // Coalesced global memory read
-                post[tx] = postPartials[tx]; // Coalesced global memory read
-
-                const REAL scale = categoryRates[c] * edgeLength; // TODO Better in constant memory?
+                const REAL scale =  edgeLength * categoryRates[c]; // TODO Better in constant memory?
                 const REAL weight = categoryWeights[c]; // TODO Better in constant memory?
 
                 // Inner product
-                tmpDenom[tx] = pre[tx] * post[tx];
+                denominator[tx] = pre[tx] * post[tx];
                 if (tx < 8) {
-                    tmpDenom[tx << 1] += tmpDenom[tx << 1 | 0x1];
+                    denominator[tx << 1] += denominator[tx << 1 | 0x1];
                 }
 
                 KW_LOCAL_FENCE; // TODO necessary? in same warp
 
                 if (tx < 4) {
-                    tmpDenom[tx << 2] += tmpDenom[tx << 2 | 0x2];
+                    denominator[tx << 2] += denominator[tx << 2 | 0x2];
                 }
 
                 KW_LOCAL_FENCE; // TODO necessary? is same warp
 
-                txPatternDenominator += tmpDenom[tx & 0xC] * weight;
-
-                const REAL weightScale = weight * scale;
-                post[tx] *= weightScale;
+                txPatternDenominator += denominator[tx & 0xC] * weight;
+                
+                post[tx] *= weight * scale;
 
                 KW_LOCAL_FENCE; // TODO Merge with fence above
 
-                withinPattern0 += pre[4 * 0 | pat] * post[4 * 0 | state];
-                withinPattern1 += pre[4 * 1 | pat] * post[4 * 1 | state];
-                withinPattern2 += pre[4 * 2 | pat] * post[4 * 2 | state];
-                withinPattern3 += pre[4 * 3 | pat] * post[4 * 3 | state];
+                withinPattern0 += pre[4 * 0 | state] * post[4 * 0 | pat];
+                withinPattern1 += pre[4 * 1 | state] * post[4 * 1 | pat];
+                withinPattern2 += pre[4 * 2 | state] * post[4 * 2 | pat];
+                withinPattern3 += pre[4 * 3 | state] * post[4 * 3 | pat];
             }
 
             patternDenominator[tx] = txPatternDenominator;
 
-            KW_LOCAL_FENCE; // TODO necessary? is same warp
+            if (tx < 4) {
+                patternWeights[tx] = inPatternWeights[pattern + tx];
+            }            
 
-            // TODO Increment outer products for pattern
+            KW_LOCAL_FENCE;
 
-            //const REAL patternWeight =  sPatternWeights[tx >> 2] / patternDenominator;
+            if (patternDenominator[4 * 0] > 0.0) {
+                acrossPatterns += withinPattern0 * patternWeights[0] / patternDenominator[4 * 0];
+            }
 
-            acrossPatterns +=
-                    withinPattern0 * patternWeights[0] / patternDenominator[4 * 0] +
-                    withinPattern1 * patternWeights[1] / patternDenominator[4 * 1] +
-                    withinPattern2 * patternWeights[2] / patternDenominator[4 * 2] +
-                    withinPattern3 * patternWeights[3] / patternDenominator[4 * 3]; // TODO Vectorize patternWeights[tx] / patternDenominator[tx] ahead of time?
+            if (patternDenominator[4 * 1] > 0.0) {
+                acrossPatterns += withinPattern1 * patternWeights[1] / patternDenominator[4 * 1];
+            }
+            
+            if (patternDenominator[4 * 2] > 0.0) {
+                acrossPatterns += withinPattern2 * patternWeights[2] / patternDenominator[4 * 2];
+            }
+            
+            if (patternDenominator[4 * 3] > 0.0) {
+                acrossPatterns += withinPattern3 * patternWeights[3] / patternDenominator[4 * 3];
+            } // TODO Vectorize
         }
     }
 
-    // TODO Store outer products to global memory
+    KW_LOCAL_FENCE;
 
+    const int destination = (nodeId * numPatternBlocks + patternBlockId) * 16;
+
+    if (accumulate) {
+        acrossPatterns += out[destination + tx];
+    }
+    
+    //out[destination + tx] = withinPattern0;
+     out[destination + tx] = acrossPatterns;
 #endif
 }

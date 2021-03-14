@@ -440,3 +440,4 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
 
 #endif
 }
+

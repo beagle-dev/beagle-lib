@@ -800,34 +800,42 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 
 void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
                                                  GPUPtr states0,
-                                                 GPUPtr partials0,
-                                                 GPUPtr matrices0,
-                                                 GPUPtr instructions,
-                                                 GPUPtr weights,
-                                                 unsigned int instructionOffset,
-                                                 unsigned int nodeCount,
-                                                 unsigned int patternCount,
-                                                 unsigned int categoryCount,
-                                                 bool synchronize) {
+                                                   GPUPtr partials,
+                                                   GPUPtr lengths,
+                                                   GPUPtr instructions,                                                  
+                                                   GPUPtr categoryWeights,
+                                                   GPUPtr patternWeights,
+                                                   unsigned int instructionOffset,
+                                                   unsigned int nodeCount,
+                                                   unsigned int rateOffset,
+                                                   unsigned int patternCount,
+                                                   unsigned int categoryCount,
+                                                   bool accumulate,
+                                                   unsigned int nodeBlocks,
+                                                   unsigned int patternBlocks) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesCrossProducts\n");
 #endif
 
-    unsigned int saved = bgDerivativeGrid.y;
-    bgDerivativeGrid.y = nodeCount;
+    Dim3Int block(16, 1, 1);
+    Dim3Int grid(patternBlocks, nodeBlocks, 1);
+
+//    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
+//    fprintf(stderr, "block = %d %d\n", block.x, block.y);
+//    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
 
     gpu->LaunchKernel(fPartialsStatesCrossProducts,
-                      bgDerivativeBlock, bgDerivativeGrid,
-                      6, 9,
-                      out, states0, partials0, matrices0, instructions, weights,
-                      instructionOffset, patternCount, categoryCount);
+                      block, grid,
+                      7, 13,
+                      out, states0, partials, lengths, instructions, 
+                      categoryWeights, patternWeights,
+                      instructionOffset, 
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
 
-    if (synchronize) {
-        gpu->SynchronizeDevice();
-    }
 
-    bgDerivativeGrid.y = saved;
+    gpu->SynchronizeDevice();
+    
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesCrossProducts\n");
@@ -835,38 +843,44 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
 }
 
 void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
-                                                   GPUPtr partials0,
-                                                   GPUPtr matrices0,
-                                                   GPUPtr instructions,
-                                                   GPUPtr weights,
+                                                   GPUPtr partials,
+                                                   GPUPtr lengths,
+                                                   GPUPtr instructions,                                                  
+                                                   GPUPtr categoryWeights,
+                                                   GPUPtr patternWeights,
                                                    unsigned int instructionOffset,
                                                    unsigned int nodeCount,
+                                                   unsigned int rateOffset,
                                                    unsigned int patternCount,
                                                    unsigned int categoryCount,
-                                                   bool synchronize) {
+                                                   bool accumulate,
+                                                   unsigned int nodeBlocks,
+                                                   unsigned int patternBlocks) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsCrossProducts\n");
 #endif
 
-    unsigned int saved = bgDerivativeGrid.y;
-    bgDerivativeGrid.y = nodeCount;
+    // unsigned int saved = bgDerivativeGrid.y;
+    // bgDerivativeGrid.y = nodeCount;
+
+    Dim3Int block(16, 1, 1);
+    Dim3Int grid(patternBlocks, nodeBlocks, 1);
 
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
-//    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
-//    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
+//    fprintf(stderr, "block = %d %d\n", block.x, block.y);
+//    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
+//    fprintf(stderr, "accumulate = %d\n", accumulate);
 
     gpu->LaunchKernel(fPartialsPartialsCrossProducts,
-                      bgDerivativeBlock, bgDerivativeGrid,
-                      5, 8,
-                      out, partials0, matrices0, instructions, weights,
-                      instructionOffset, patternCount, categoryCount);
-
-    if (synchronize) {
-        gpu->SynchronizeDevice();
-    }
-
-    bgDerivativeGrid.y = saved;
+                      block, grid,
+                      6, 12,
+                      out, partials, lengths, instructions, 
+                      categoryWeights, patternWeights,
+                      instructionOffset, 
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
+    
+    gpu->SynchronizeDevice();   
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsCrossProducts\n");
