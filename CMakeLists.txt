@@ -105,35 +105,7 @@ add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
 
-add_executable(hmctest
-        examples/hmctest/hmctest.cpp)
-
-add_executable(hmctest5
-		examples/hmctest/hmctest5.cpp)
-
-add_executable(hmcGaptest
-        examples/hmctest/hmcGapTest.cpp)
-
-#add_executable(tinytest
-#        examples/tinytest/tinytest.cpp)
-
-#add_executable(hmctestMedium
-#        examples/hmctest/hmctestMedium.cpp)
-
-#add_executable(genomictest
-#        examples/genomictest/genomictest.cpp
-#        examples/genomictest/linalg.cpp
-#        examples/genomictest/linalg.h
-#        )
-#
-#add_executable(complextest
-#        examples/complextest/complextest.cpp)
-
-target_link_libraries(hmctest hmsbeagle ${CMAKE_DL_LIBS})
-target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
-target_link_libraries(hmcGaptest hmsbeagle ${CMAKE_DL_LIBS})
-#target_link_libraries(genomictest beagle_lib)
-#target_link_libraries(tinytest hmsbeagle)
+add_subdirectory(examples)
 
 set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")
 set(CPACK_PACKAGE_MAJOR "${BEAGLE_VERSION_MAJOR}")
