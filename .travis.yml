@@ -54,9 +54,8 @@ after_failure:
 
 # Build steps
 script:
-  - ./autogen.sh
-#  - ./configure  --with-opencl=${AMDAPPSDKROOT}
-  - ./configure  --without-opencl
+  - mkdir build; cd build
+  - cmake ..
   - make
   - make check
 
