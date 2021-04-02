@@ -21,23 +21,27 @@ Support for BEAGLE is experimental or in development for the following packages:
 
 ### References
 
-A manuscript describes the BEAGLE API and library:  [http://sysbio.oxfordjournals.org/content/61/1/170](http://sysbio.oxfordjournals.org/content/61/1/170)
+A manuscript describes the BEAGLE API and library: [http://sysbio.oxfordjournals.org/content/61/1/170](http://sysbio.oxfordjournals.org/content/61/1/170)
 
 The paper describing the algorithms used for calculating likelihoods of sequences on trees using many core devices like graphics processing units (GPUs) is available from:  [http://tree.bio.ed.ac.uk/publications/390/](http://tree.bio.ed.ac.uk/publications/390/)
 
-### Binary installers
+### Current binary installers
 
-* [BEAGLE v3.1.0 for macOS](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.pkg)
+* [BEAGLE v4.0.0 for macOS universal](https://github.com/beagle-dev/beagle-lib/releases/download/v4.0.0/BEAGLE.v4.0.0.pkg)
+* [BEAGLE v4.0.0 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v4.0.0/BEAGLE.v4.0.0.msi)
+
+### Previous binary installers
+
+* [BEAGLE v3.1.0 for macOS with CUDA](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.pkg)
 * [BEAGLE v3.1.0 for Windows 64-bit](https://github.com/beagle-dev/beagle-lib/releases/download/v3.1.0/BEAGLE.v3.1.0.msi)
-
-- [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
-- [BEAGLE v2.1.0 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
+* [BEAGLE v2.1.2 for Mac OS X 10.6 and later](https://www.dropbox.com/s/11kgt2jlq3lzln3/BEAGLE-2.1.2.pkg)
+* [BEAGLE v2.1.0 for Windows XP and later](https://www.dropbox.com/s/61z48jvruzkwkku/BEAGLE-2.1.msi)
 
 ### Installation instructions
 
 * [Instructions for installing BEAGLE on macOS](https://github.com/beagle-dev/beagle-lib/wiki/MacInstallInstructions)
 * [Instructions for installing BEAGLE on Windows](https://github.com/beagle-dev/beagle-lib/wiki/WindowsInstallInstructions)
-* [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions) 
+* [Instructions for installing BEAGLE on Linux](https://github.com/beagle-dev/beagle-lib/wiki/LinuxInstallInstructions)
 
 ### Documentation
 
@@ -47,4 +51,4 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 
 ### Acknowledgements
 
-* This project is supported in part through the National Science Foundation grants IIS-1251151, DMS-1264153, DBI-1356562, DBI-1661443, & DEB-1354146; National Institutes of Health grants R01-HG006139, R01-AI107034, & U19-AI135995; Wellcome Trust grant 206298/Z/17/Z; and European Research Council grant 725422-ReservoirDOCS.
+* This project is supported in part through the National Science Foundation grants IIS-1251151, DMS-1264153, DBI-1356562, DBI-1661443 & DEB-1354146; National Institutes of Health grants R01-HG006139, R01-AI107034, U19-AI135995 & R01-AI153044; Wellcome Trust grant 206298/Z/17/Z; and European Research Council grant 725422-ReservoirDOCS.

@@ -21,20 +21,17 @@ Quick and dirty instructions on how to compile and install the BEAGLE library fr
 
       $ git clone --depth=1 https://github.com/beagle-dev/beagle-lib.git
       $ cd beagle-lib
-      $ ./autogen.sh
-      $ ./configure
+      $ mkdir build; cd build
+      $ cmake ..
       $ make
       $ sudo make install
 
 Remarks:
 
-When compiling in the MacOS Unix environment ("Terminal"), you need to install the autotools first. They are no
-longer shipped with Xcode. you need to obtain the following software packages: autoconf, automake, and libtool.
-The easiest way to install these is with the Homebrew package manager (http://brew.sh/). Open 'Terminal.app'
-and paste the installation command from the Homebrew website (you will find it at the top of the page, under
-Install Homebrew). Next enter the following to install the required packages:
+When compiling in the MacOS Unix environment ("Terminal"), you need to install the CMake build toolset.  We
+suggest using the 'brew' package installer:
 
-      $ brew install libtool autoconf automake
+      $ brew install cmake
 
 3. Contact information
 
