@@ -121,6 +121,8 @@ add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
 
+enable_testing()
+
 add_subdirectory(examples)
 
 set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")

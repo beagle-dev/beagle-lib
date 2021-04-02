@@ -28,6 +28,8 @@ target_link_libraries(hmctest
 	hmsbeagle-cpu
 	${CMAKE_DL_LIBS})
 
+add_test(hmctest hmctest)
+
 #target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(hmcGaptest hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
