@@ -9,6 +9,9 @@ set(BEAGLE_VERSION_PATCH "0")
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
 set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 
+
+set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
+
 # Old config.h settings
 
 add_definitions(
@@ -100,6 +103,19 @@ if(APPLE)
 	# Seems necessary from macOS 10.15
 	set(CMAKE_INSTALL_RPATH "/usr/local/lib")
 endif(APPLE)
+
+if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
+	include(CheckCXXCompilerFlag)
+	CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
+	if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+	else()
+		CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
+		if(COMPILER_OPT_ARCH_AVX_SUPPORTED)
+			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+		endif()
+	endif()
+endif()
 
 add_subdirectory(libhmsbeagle)
 
