@@ -1,5 +1,3 @@
-# Alright, this cmakelists.txt file is used to create beagle library
-
 if(WIN32)
 	add_definitions(-D_EXPORTING)
 	add_definitions(-DWIN32)
