@@ -9,8 +9,10 @@ set(BEAGLE_VERSION_PATCH "0")
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
 set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 
-
 set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
+
+option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
+option(BUILD_CUDA "Build beagle with cuda library" ON)
 
 # Old config.h settings
 
