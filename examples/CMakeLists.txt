@@ -18,7 +18,13 @@ add_executable(hmctest
 #        genomictest/linalg.cpp
 #        genomictest/linalg.h
 #        )
-#
+
+add_executable(synthetictest
+		synthetictest/synthetictest.cpp
+		synthetictest/linalg.cpp
+		synthetictest/linalg.h
+		)
+
 #add_executable(complextest
 #        complextest/complextest.cpp)
 
@@ -27,6 +33,12 @@ target_link_libraries(hmctest
 	hmsbeagle-cpu-sse
 	hmsbeagle-cpu
 	${CMAKE_DL_LIBS})
+
+target_link_libraries(synthetictest
+		hmsbeagle
+		hmsbeagle-cpu-sse
+		hmsbeagle-cpu
+		${CMAKE_DL_LIBS})
 
 add_test(hmctest hmctest)
 
