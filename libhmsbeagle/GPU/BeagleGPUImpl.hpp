@@ -754,7 +754,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kUsingMultiGrid = false;
 
 
-    if (kPaddedStateCount == 4 && (kDeviceType==BEAGLE_FLAG_PROCESSOR_CPU || kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX || kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) && !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
+    if (kPaddedStateCount == 4 && 
+           (kDeviceType == BEAGLE_FLAG_PROCESSOR_CPU ||
+#ifdef FW_OPENCL
+               kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
+#endif 
+               kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX || 
+               kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) && 
+           !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
         kUsingMultiGrid = true;
         allocateMultiGridBuffers();
 
