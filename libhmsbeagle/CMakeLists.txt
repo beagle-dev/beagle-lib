@@ -74,9 +74,9 @@ add_library(hmsbeagle SHARED
 
 add_subdirectory(CPU)
 add_subdirectory(GPU)
-if(NOT WIN32)
+if(BUILD_JNI)
     add_subdirectory(JNI)
-endif(NOT WIN32)
+endif(BUILD_JNI)
 
 install(TARGETS hmsbeagle
 	DESTINATION ${BEAGLE_INSTALL_DIR}

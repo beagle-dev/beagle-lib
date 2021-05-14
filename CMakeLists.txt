@@ -12,7 +12,8 @@ set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
-option(BUILD_CUDA "Build beagle with cuda library" ON)
+option(BUILD_CUDA "Build beagle with CUDA library" ON)
+option(BUILD_JNI "Build beagle with JNI library" ON)
 
 # Old config.h settings
 
@@ -50,11 +51,15 @@ endif(WIN32)
     endif(APPLE)
 #endif(NOT WIN32)
 
-find_package(JNI REQUIRED)
+find_package(JNI)
 if(JNI_FOUND)
     message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
     message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
     message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
+else(JNI_FOUND)
+	if(BUILD_JNI)
+		message (ERROR "No JNI includes and libraries found")
+	endif(BUILD_JNI)
 endif(JNI_FOUND)
 
 include_directories(
@@ -153,33 +158,31 @@ if(APPLE)
 
 	set(CPACK_PRODUCTBUILD_BACKGROUND_UTI "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
 
+	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
 
-get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
+	include(CPackComponent)
 
-include(CPackComponent)
+	cpack_add_component(main
+			DISPLAY_NAME "Main library"
+			DESCRIPTION "BEAGLE main library"
+			REQUIRED)
 
-  cpack_add_component(main
-  DISPLAY_NAME "Main library"
-  DESCRIPTION "BEAGLE main library"
-  REQUIRED)
+	cpack_add_component(cpu
+  			DISPLAY_NAME "CPU plugin"
+		  	DESCRIPTION "CPU plugin"
+  			REQUIRED)
 
-  cpack_add_component(cpu
-  DISPLAY_NAME "CPU plugin"
-  DESCRIPTION "CPU plugin"
-  REQUIRED)
+  	cpack_add_component(cpu_sse
+  			DISPLAY_NAME "CPU-SSE plugin"
+  			DESCRIPTION "CPU-SSE plugin")
 
-  cpack_add_component(cpu_sse
-  DISPLAY_NAME "CPU-SSE plugin"
-  DESCRIPTION "CPU-SSE plugin")
+  	cpack_add_component(cuda
+  			DISPLAY_NAME "CUDA plugin"
+  			DESCRIPTION "CUDA plugin")
 
-  cpack_add_component(cuda
-  DISPLAY_NAME "CUDA plugin"
-  DESCRIPTION "CUDA plugin")
-
-  cpack_add_component(opencl
-  DISPLAY_NAME "OpenCL plugin"
-  DESCRIPTION "OpenCL plugin")
-
+  	cpack_add_component(opencl
+  			DISPLAY_NAME "OpenCL plugin"
+  			DESCRIPTION "OpenCL plugin")
 endif(APPLE)
 
 include(CPack)
