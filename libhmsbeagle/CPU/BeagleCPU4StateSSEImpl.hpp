@@ -570,10 +570,10 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(
                                                                                    outSumSquaredDerivatives);
 #else
 
-    std::array<V_Real, 8> vAcrossPatterns;
+    alignas(16) std::array<V_Real, 8> vAcrossPatterns;
     vAcrossPatterns.fill(V_Real());
 
-    std::array<V_Real, 8> vWithinPattern;
+    alignas(16) std::array<V_Real, 8> vWithinPattern;
 
     for (int pattern = 0; pattern < kPatternCount; pattern++) {
 
