@@ -51,22 +51,25 @@ endif(WIN32)
     endif(APPLE)
 #endif(NOT WIN32)
 
+include_directories(
+        ${PROJECT_SOURCE_DIR}
+)
+
 find_package(JNI)
 if(JNI_FOUND)
     message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
     message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
     message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
+
+	include_directories(
+    	    $ENV{JAVA_HOME}/include
+	        ${JNI_INCLUDE_DIRS}
+	)
 else(JNI_FOUND)
 	if(BUILD_JNI)
-		message (ERROR "No JNI includes and libraries found")
+		message (FATAL_ERROR "No JNI includes and libraries found")
 	endif(BUILD_JNI)
 endif(JNI_FOUND)
-
-include_directories(
-        $ENV{JAVA_HOME}/include
-        ${PROJECT_SOURCE_DIR}
-        ${JNI_INCLUDE_DIRS}
-)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
