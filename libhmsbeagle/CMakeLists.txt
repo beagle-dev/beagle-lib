@@ -7,6 +7,7 @@ if(WIN32)
 
 	set(BEAGLE_PLUGIN_SUFFIX "64-${BEAGLE_PLUGIN_VERSION}.dll")
     set(BEAGLE_INSTALL_DIR ".")
+    set(BEAGLE_HEADER_DIR ".")
 
     set(BEAGLE_PLUGIN_SOURCE
     	plugin/WinSharedLibrary.cpp
@@ -20,6 +21,7 @@ if(WIN32)
 else(WIN32)
 	set(BEAGLE_PLUGIN_SUFFIX ".so")
     set(BEAGLE_INSTALL_DIR lib)
+    set(BEAGLE_HEADER_DIR include)
 
     set(BEAGLE_PLUGIN_SOURCE
         plugin/UnixSharedLibrary.cpp
@@ -72,6 +74,8 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_PLUGIN_SOURCE}
         )
 
+set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h")
+
 add_subdirectory(CPU)
 add_subdirectory(GPU)
 if(BUILD_JNI)
@@ -79,7 +83,8 @@ if(BUILD_JNI)
 endif(BUILD_JNI)
 
 install(TARGETS hmsbeagle
-	DESTINATION ${BEAGLE_INSTALL_DIR}
+	LIBRARY DESTINATION ${BEAGLE_INSTALL_DIR}
+	PUBLIC_HEADER DESTINATION ${BEAGLE_HEADER_DIR}
 	COMPONENT main
     )
 
