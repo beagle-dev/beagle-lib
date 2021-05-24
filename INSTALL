@@ -17,7 +17,7 @@ implementations that make use of optimized hardware such as graphics processing 
 
 2. Compilation instructions
 
-Quick and dirty instructions on how to compile and install the BEAGLE library from the git repository 'master':
+Quick and dirty instructions on how to compile and install the BEAGLE library from the git repository `master`:
 
       $ git clone --depth=1 https://github.com/beagle-dev/beagle-lib.git
       $ cd beagle-lib
@@ -28,8 +28,11 @@ Quick and dirty instructions on how to compile and install the BEAGLE library fr
 
 Remarks:
 
-When compiling in the MacOS Unix environment ("Terminal"), you need to install the CMake build toolset.  We
-suggest using the 'brew' package installer:
+* Command-lines `cmake -DBUILD_CUDA=OFF ..` and `cmake -DBUILD_OPENCL=OFF ..` turn off automatic building of
+  the CUDA and OpenCL sub-libraries, respectively.
+
+* When compiling in the MacOS Unix environment ("Terminal"), you need to install the CMake build toolset.  We
+  suggest using the 'brew' package installer:
 
       $ brew install cmake
 
