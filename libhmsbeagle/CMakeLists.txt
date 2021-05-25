@@ -21,7 +21,7 @@ if(WIN32)
 else(WIN32)
 	set(BEAGLE_PLUGIN_SUFFIX ".so")
     set(BEAGLE_INSTALL_DIR lib)
-    set(BEAGLE_HEADER_DIR include)
+    set(BEAGLE_HEADER_DIR include/libhmsbeagle-1/libhmsbeagle)
 
     set(BEAGLE_PLUGIN_SOURCE
         plugin/UnixSharedLibrary.cpp
@@ -74,7 +74,7 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_PLUGIN_SOURCE}
         )
 
-set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h")
+set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
 
 add_subdirectory(CPU)
 add_subdirectory(GPU)
