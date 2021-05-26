@@ -26,15 +26,27 @@ Quick and dirty instructions on how to compile and install the BEAGLE library fr
       $ make
       $ sudo make install
 
+To build the installer package, then execute:
+
+      $ cpack .
+
 Remarks:
 
-* Command-lines `cmake -DBUILD_CUDA=OFF ..` and `cmake -DBUILD_OPENCL=OFF ..` turn off automatic building of
-  the CUDA and OpenCL sub-libraries, respectively.
+* Command-lines `cmake -DBUILD_CUDA=OFF ..`,  `cmake -DBUILD_OPENCL=OFF ..` and `cmake -DBUILD_JNI=OFF`
+  turn off automatic building of the CUDA, OpenCL and Java JNI sub-libraries, respectively.
 
 * When compiling in the MacOS Unix environment ("Terminal"), you need to install the CMake build toolset.  We
   suggest using the 'brew' package installer:
 
       $ brew install cmake
+
+* Compiling and building the installer in a Windows environment requires VisualStudio 2019. From the
+  x64 Native Tools Command Prompt for VS 2019:
+
+      $ mkdir build; cd build
+      $ cmake ..
+      $ devenv BEAGLE.sln /build "Release"
+      $ cpack .
 
 3. Contact information
 

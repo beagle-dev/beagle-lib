@@ -1,8 +1,0 @@
-
-
-x64 Native Tools Command Prompt for VS 2019
-
-cd build
-cmake ..
-devenv BEAGLE.sln /build "Release"
-cpack .
