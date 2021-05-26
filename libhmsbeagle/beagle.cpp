@@ -62,7 +62,7 @@ typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> > RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
 
-#define BEAGLE_DEBUG_LOAD
+// #define BEAGLE_DEBUG_LOAD
 #define BEAGLE_PREORDER
 
 //#define BEAGLE_DEBUG_TIME

@@ -1,5 +1,3 @@
-# Alright, this cmakelists.txt file is used to create beagle library
-
 if(WIN32)
 	add_definitions(-D_EXPORTING)
 	add_definitions(-DWIN32)
@@ -9,6 +7,7 @@ if(WIN32)
 
 	set(BEAGLE_PLUGIN_SUFFIX "64-${BEAGLE_PLUGIN_VERSION}.dll")
     set(BEAGLE_INSTALL_DIR ".")
+    set(BEAGLE_HEADER_DIR ".")
 
     set(BEAGLE_PLUGIN_SOURCE
     	plugin/WinSharedLibrary.cpp
@@ -22,6 +21,7 @@ if(WIN32)
 else(WIN32)
 	set(BEAGLE_PLUGIN_SUFFIX ".so")
     set(BEAGLE_INSTALL_DIR lib)
+    set(BEAGLE_HEADER_DIR include/libhmsbeagle-1/libhmsbeagle)
 
     set(BEAGLE_PLUGIN_SOURCE
         plugin/UnixSharedLibrary.cpp
@@ -74,14 +74,17 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_PLUGIN_SOURCE}
         )
 
+set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
+
 add_subdirectory(CPU)
 add_subdirectory(GPU)
-if(NOT WIN32)
+if(BUILD_JNI)
     add_subdirectory(JNI)
-endif(NOT WIN32)
+endif(BUILD_JNI)
 
 install(TARGETS hmsbeagle
-	DESTINATION ${BEAGLE_INSTALL_DIR}
+	LIBRARY DESTINATION ${BEAGLE_INSTALL_DIR}
+	PUBLIC_HEADER DESTINATION ${BEAGLE_HEADER_DIR}
 	COMPONENT main
     )
 
