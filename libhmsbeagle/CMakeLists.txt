@@ -74,6 +74,12 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_PLUGIN_SOURCE}
         )
 
+if(NOT WIN32)
+	if(NOT APPLE)
+		target_link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
+	endif(NOT APPLE)
+endif(NOT WIN32)
+
 set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
 
 add_subdirectory(CPU)
