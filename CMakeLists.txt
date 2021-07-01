@@ -147,7 +147,7 @@ if(WIN32)
     set(CPACK_GENERATOR WIX)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "Common Files/libhmsbeagle")
     set(CPACK_WIX_UPGRADE_GUID "57FC5933-B420-4F10-97F3-B5DDCFF2AE13")
-    set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/COPYING.LESSER.rtf")
+    set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/LICENSE.rtf")
     set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/banner.jpg")
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
     set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml")
@@ -156,7 +156,7 @@ endif(WIN32)
 if(APPLE)
 	set(CPACK_GENERATOR productbuild)
 	set(CPACK_BUNDLE_NAME "${BEAGLE_PACKAGE_NAME}")
-	set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/COPYING.LESSER.rtf")
+	set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/LICENSE.rtf")
 	set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/project/beagle-macos/README.txt")
 
 	set(CPACK_PRODUCTBUILD_BACKGROUND_UTI "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
@@ -186,6 +186,8 @@ if(APPLE)
   	cpack_add_component(opencl
   			DISPLAY_NAME "OpenCL plugin"
   			DESCRIPTION "OpenCL plugin")
+
+	set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
 endif(APPLE)
 
 include(CPack)
