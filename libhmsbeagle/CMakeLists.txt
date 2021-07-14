@@ -76,6 +76,10 @@ add_library(hmsbeagle SHARED
 
 set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
 
+if(NOT WIN32 AND NOT APPLE)
+	target_link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
+endif(NOT WIN32 AND NOT APPLE)
+
 add_subdirectory(CPU)
 add_subdirectory(GPU)
 if(BUILD_JNI)
