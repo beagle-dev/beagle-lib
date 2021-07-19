@@ -111,7 +111,7 @@ if(APPLE)
 	endif()
 
 	# Seems necessary from macOS 10.15
-	set(CMAKE_INSTALL_RPATH "/usr/local/lib")
+	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
