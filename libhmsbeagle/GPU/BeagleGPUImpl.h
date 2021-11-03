@@ -142,6 +142,7 @@ private:
     
     GPUPtr* dPartials;
     GPUPtr* dMatrices;
+    GPUPtr dMatricesOrigin;
     
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;

@@ -136,7 +136,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         }
 
         // TODO: free subpointers
-        gpu->FreeMemory(dMatrices[0]);
+        gpu->FreeMemory(dMatrices[0]);    // TODO Should try: gpu->FreeMemory(dMatricesOrigin); instead of above
         gpu->FreeMemory(dEigenValues[0]); // TODO Here is where my Mac / Intel-GPU are throwing bad-exception
         gpu->FreeMemory(dEvec[0]);        // TODO Should be save and then release just d*Origin?
         gpu->FreeMemory(dIevc[0]);
@@ -582,7 +582,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
     kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    GPUPtr dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
     for (int i = 0; i < kMatrixCount; i++) {
         dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
     }
@@ -2815,15 +2815,17 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int
     if (kExtraMatrixCount < operationCount) {
 
         size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
-        GPUPtr dMatricesOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
+        GPUPtr dMatricesNewOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
 
-        gpu->MemcpyDeviceToDevice(dMatricesOrigin, dMatrices[0],
+        gpu->MemcpyDeviceToDevice(dMatricesNewOrigin, dMatricesOrigin,
                 (kMatrixCount + kExtraMatrixCount) * ptrIncrement);
 
-        gpu->FreeMemory(dMatrices[0]);
+        //gpu->FreeMemory(dMatrices[0]);
+        gpu->FreeMemory(dMatricesOrigin);
         free(dMatrices);
 
         dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * (kMatrixCount + operationCount));
+        dMatricesOrigin = dMatricesNewOrigin;
 
         for (int i = 0; i < kMatrixCount + operationCount; ++i) {
             dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement);
