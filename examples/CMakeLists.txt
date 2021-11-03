@@ -1,8 +1,8 @@
 add_executable(hmctest
         hmctest/hmctest.cpp)
 
-#add_executable(hmctest5
-#		hmctest/hmctest5.cpp)
+add_executable(hmctest5
+		hmctest/hmctest5.cpp)
 
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
@@ -29,6 +29,12 @@ add_executable(synthetictest
 #        complextest/complextest.cpp)
 
 target_link_libraries(hmctest
+	hmsbeagle
+	hmsbeagle-cpu-sse
+	hmsbeagle-cpu
+	${CMAKE_DL_LIBS})
+
+target_link_libraries(hmctest5
 	hmsbeagle
 	hmsbeagle-cpu-sse
 	hmsbeagle-cpu
