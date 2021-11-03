@@ -4550,8 +4550,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
         nodeBlocks, patternBlocks
     );
 
-    int replicates = nodeBlocks * patternBlocks;
-
     std::vector<Real> hTmp(kPaddedStateCount * kPaddedStateCount * replicates); // TODO Use existing buffer
     gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedStateCount * kPaddedStateCount * replicates);
 
@@ -4566,7 +4564,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                      hTmp.data() + i * kPaddedStateCount,
                      kStateCount);
     }
-    
+
     return BEAGLE_SUCCESS;
 }
 
