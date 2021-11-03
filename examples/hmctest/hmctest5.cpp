@@ -166,7 +166,7 @@ int main( int argc, const char* argv[] )
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
 
-    bool useTipStates = true;
+    bool useTipStates = false;
 
     bool autoTranspose = true;
 
@@ -652,6 +652,26 @@ int main( int argc, const char* argv[] )
         std::cout << "node " << i << ": " << sum << " ?= " << sumBuffer[i] << std::endl;
     }
 
+    std::cout << "Try cross-products function" << std::endl;
+
+    int genericIndices[] = { 0 };
+
+    std::vector<double> sumDerivatives(5 * 5);
+
+    beagleCalculateCrossProductDerivative(instance,
+                                          postBufferIndices, preBufferIndices,
+                                          genericIndices,
+                                          genericIndices,
+                                          edgeLengths,
+                                          4,
+                                          sumDerivatives.data(), nullptr);
+
+    for (int i = 0; i < 5; ++i) {
+        for (int j = 0; j < 5; ++j ) {
+            std::cout << " " << sumDerivatives[i * 5 + j];
+        }
+        std::cout << std::endl;
+    }
 
     free(patternWeights);
 	free(patternLogLik);

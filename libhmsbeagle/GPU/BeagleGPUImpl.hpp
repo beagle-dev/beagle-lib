@@ -4453,8 +4453,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
 BEAGLE_GPU_TEMPLATE
 void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::initDerivatives(int replicates) {
 
-    int minSize = std::max(kPaddedPatternCount * kBufferCount,
-            kPaddedPatternCount * kPaddedPatternCount * replicates);
+    int minSize = std::max(kPaddedStateCount * kPaddedStateCount * replicates,
+                           std::max(kPaddedPatternCount * kBufferCount,
+                                    kPaddedPatternCount * kPaddedPatternCount * replicates));
 
     if (kMultipleDerivativesLength < minSize) {
 
@@ -4519,7 +4520,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
 
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * lengthCount);
 
-    initDerivatives(nodeBlocks * patternBlocks);
+    const int replicates = nodeBlocks * patternBlocks;
+    initDerivatives(replicates);
 
     bool accumulate = false;
     if (statesTipsCount > 0) {
@@ -4564,8 +4566,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                      hTmp.data() + i * kPaddedStateCount,
                      kStateCount);
     }
-
-
+    
     return BEAGLE_SUCCESS;
 }
 

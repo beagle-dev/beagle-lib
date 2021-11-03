@@ -409,13 +409,19 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
-                                                        KW_GLOBAL_VAR int*  KW_RESTRICT states0,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                        KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
-                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
-                                                        int skip,
-                                                        int totalPatterns, int categoryCount) {
+                                                        const KW_GLOBAL_VAR int*  KW_RESTRICT states0,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT lengths0,
+                                                        const KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT inCategoryWeights,
+                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT inPatternWeights,
+                                                        const int skip,
+                                                        const int totalPatterns,
+                                                        const int totalNodes,
+                                                        const int categoryCount,
+                                                        const int rateOffset,
+                                                        const int accumulate) {
+
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
@@ -424,16 +430,18 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
 }
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                          KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryRates,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-                                                          KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-                                                          int skip,
-                                                          int totalPatterns,
-                                                          int totalNodes,
-                                                          int categoryCount) {
+                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT lengths0,
+                                                          const KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT inCategoryWeights,
+                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT inPatternWeights,
+                                                          const int skip,
+                                                          const int totalPatterns,
+                                                          const int totalNodes,
+                                                          const int categoryCount,
+                                                          const int rateOffset,
+                                                          const int accumulate) {
+
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
