@@ -4534,7 +4534,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                categoryWeights, dPatternWeights,              
                0, statesTipsCount, totalCount, 
                kPaddedPatternCount, kCategoryCount, accumulate,
-               nodeBlocks, patternBlocks);
+               nodeBlocks, patternBlocks, kStateCount);
 
         accumulate = true;        
     }

@@ -360,7 +360,8 @@ public:
                                                    unsigned int categoryCount,
                                                    bool synchronize,
                                                    unsigned int nodeBlocks,
-                                                   unsigned int patterBlocks);
+                                                   unsigned int patterBlocks,
+                                                   unsigned int missingState);
 
 	void PartialsPartialsCrossProducts(GPUPtr out,
                                                    GPUPtr partials,

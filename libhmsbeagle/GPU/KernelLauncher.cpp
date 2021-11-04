@@ -819,7 +819,8 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
                                                    unsigned int categoryCount,
                                                    bool accumulate,
                                                    unsigned int nodeBlocks,
-                                                   unsigned int patternBlocks) {
+                                                   unsigned int patternBlocks,
+                                                   unsigned int missingState) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesCrossProducts\n");
@@ -827,17 +828,17 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
 
     Dim3Int grid(patternBlocks, nodeBlocks, 1);
 
-    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
-    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
-    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
+//    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
+//    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
+//    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
 
     gpu->LaunchKernel(fPartialsStatesCrossProducts,
                       bgCrossProductBlock, grid,
-                      7, 13,
+                      7, 14,
                       out, states0, partials, lengths, instructions, 
                       categoryWeights, patternWeights,
                       instructionOffset, 
-                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate, missingState);
 
     gpu->SynchronizeDevice();
 
