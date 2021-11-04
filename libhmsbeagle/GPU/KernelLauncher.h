@@ -136,6 +136,7 @@ private:
     Dim3Int bgReorderPatternsGrid;
 	Dim3Int bgMultiNodeSumBlock;
 	Dim3Int bgMultiNodeSumGrid;
+	Dim3Int bgCrossProductBlock;
 
     
     unsigned int kPaddedStateCount;

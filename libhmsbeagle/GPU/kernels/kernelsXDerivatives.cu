@@ -445,7 +445,141 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
+    const int tx = KW_LOCAL_ID_0;
 
+    const int tx_i = KW_LOCAL_ID_0 >> 4;
+    const int tx_j = KW_LOCAL_ID_0 & 0xf;
+
+//    const int state = tx & 0x3;
+//    const int pat = tx >> 2;
+
+    const int patternBlockId = KW_GROUP_ID_0;
+    const int nodeId = KW_GROUP_ID_1;
+
+    const int numPatternBlocks = KW_NUM_GROUPS_0;
+    const int numNodeBlocks = KW_NUM_GROUPS_1;
+
+    KW_LOCAL_MEM REAL post[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL pre[PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL innerProduct[16 * 16];
+    KW_LOCAL_MEM REAL numerator[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL acrossPatterns[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL categoryRates[16]; // TODO Assumes kCategoryCount <= 16
+    KW_LOCAL_MEM REAL categoryWeights[16]; // TODO Should put these into constant memory anyway
+
+    if (tx < categoryCount) {
+        categoryRates[tx] = lengths0[rateOffset + tx];
+        categoryWeights[tx] = inCategoryWeights[tx];
+    }
+    
+    // Zero out numerators
+    for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+        for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+            acrossPatterns[i][j] = 0;
+        }
+    }
+
+    for (int node = nodeId;  // Just interleaved indexing
+         node < totalNodes;
+         node += numNodeBlocks) {
+
+        KW_LOCAL_FENCE; // TODO necessary?
+
+        int instructionOffset = (skip + node) * 2;
+        unsigned int preOffset = instructions[instructionOffset + 0];
+        unsigned int postOffset = instructions[instructionOffset + 1];
+
+        const REAL edgeLength = lengths0[skip + node];
+
+        for (int pattern = patternBlockId;
+             pattern < totalPatterns;
+             pattern += numPatternBlocks) {
+
+            KW_LOCAL_FENCE; // TODO necessary?
+
+            REAL patternDenominator = 0;
+
+            // Zero out numerators
+            for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+                for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+                    numerator[i][j] = 0;
+                }
+            }
+
+            for (int c = 0; c < categoryCount; ++c) {
+
+                const KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials  = partials0 + preOffset  + (pattern + totalPatterns * c) * PADDED_STATE_COUNT;
+                const KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials = partials0 + postOffset + (pattern + totalPatterns * c) * PADDED_STATE_COUNT;
+
+                if (tx < PADDED_STATE_COUNT) {
+                    pre[tx] = prePartials[tx];  // Coalesced global memory read
+                    post[tx] = postPartials[tx]; // Coalesced global memory read
+                    innerProduct[tx] = pre[tx] * post[tx];
+                } else {
+                    innerProduct[tx] = 0.0;
+                }
+
+                KW_LOCAL_FENCE;
+
+                const REAL scale =  edgeLength * categoryRates[c]; // TODO Better in constant memory?
+                const REAL weight = categoryWeights[c]; // TODO Better in constant memory?
+
+#ifdef IS_POWER_OF_TWO
+                // parallelized reduction *** only works for powers-of-2 ****
+                for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+                    if (tx < i) {
+#else
+                for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+                    if (tx < i && tx + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+                        innerProduct[tx] += innerProduct[tx + i];
+                    }
+                    KW_LOCAL_FENCE;
+                }
+
+                patternDenominator += innerProduct[0] * weight;
+
+                for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+                    for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+                        numerator[i][j] += post[i] * pre[j] * weight * scale;
+                    }
+                }
+            }
+
+            KW_LOCAL_FENCE; // TODO necessary?
+
+            for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+                for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+                    if (patternDenominator > 0.0) {
+                        acrossPatterns[i][j] += numerator[i][j] * inPatternWeights[pattern] / patternDenominator;
+                    }
+                }
+            }
+
+            KW_LOCAL_FENCE;
+        }
+    }
+
+    KW_LOCAL_FENCE;
+
+    const int destination = (nodeId * numPatternBlocks + patternBlockId) * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+
+    if (accumulate) {
+        for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+            for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+                acrossPatterns[i][j] += out[destination + i * PADDED_STATE_COUNT + j];
+            }
+        }
+    }
+
+    for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
+        for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
+            out[destination + i * PADDED_STATE_COUNT + j] = acrossPatterns[i][j];
+        }
+    }
 #endif
 }
 
