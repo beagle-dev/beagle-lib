@@ -140,10 +140,13 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     }
 
     // Set up block/grid for cross-product computation
-    if (kPaddedStateCount == 0) {
+    if (kPaddedStateCount == 4) {
         bgCrossProductBlock = Dim3Int(16,1,1);
+        bgCrossProductGrid = Dim3Int(1,1,1);
     } else {
         bgCrossProductBlock = Dim3Int(256, 1, 1);
+        const int array = kPaddedStateCount / 16;
+        bgCrossProductGrid = Dim3Int(1,1, array * array);
     }
 
     // Set up block/grid for derivative computation
@@ -826,7 +829,9 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesCrossProducts\n");
 #endif
 
-    Dim3Int grid(patternBlocks, nodeBlocks, 1);
+    Dim3Int grid = bgCrossProductGrid;  // Dim3Int(patternBlocks, nodeBlocks, 1);
+    grid.x = patternBlocks;
+    grid.y = nodeBlocks;
 
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
 //    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
@@ -866,20 +871,23 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsCrossProducts\n");
 #endif
 
-    Dim3Int grid(patternBlocks, nodeBlocks, 1);
+    Dim3Int grid = bgCrossProductGrid;  // Dim3Int(patternBlocks, nodeBlocks, 1);
+    grid.x = patternBlocks;
+    grid.y = nodeBlocks;
 
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
 //    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
-//    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
+//    fprintf(stderr, "grid  = %d %d %d\n", grid.x, grid.y, grid.z);
 //    fprintf(stderr, "accumulate = %d\n", accumulate);
 
     gpu->LaunchKernel(fPartialsPartialsCrossProducts,
                       bgCrossProductBlock, grid,
-                      6, 12,
+                      6, 13,
                       out, partials, lengths, instructions, 
                       categoryWeights, patternWeights,
                       instructionOffset,
-                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate,
+                      kPaddedStateCount);
     
     gpu->SynchronizeDevice();   
 

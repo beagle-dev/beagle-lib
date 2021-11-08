@@ -137,7 +137,7 @@ private:
 	Dim3Int bgMultiNodeSumBlock;
 	Dim3Int bgMultiNodeSumGrid;
 	Dim3Int bgCrossProductBlock;
-
+	Dim3Int bgCrossProductGrid;
     
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
