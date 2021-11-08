@@ -596,7 +596,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
     KW_LOCAL_MEM REAL post[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL pre[PADDED_STATE_COUNT];
 
-    KW_LOCAL_MEM REAL innerProduct[16 * 16];
+    KW_LOCAL_MEM REAL innerProduct[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL numerator[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
 
     KW_LOCAL_MEM REAL acrossPatterns[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
@@ -652,15 +652,25 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                     pre[tx] = prePartials[tx];  // Coalesced global memory read
                     post[tx] = postPartials[tx]; // Coalesced global memory read
                     innerProduct[tx] = pre[tx] * post[tx];
-                } else {
-                    innerProduct[tx] = 0.0;
                 }
+//                else {
+//                    innerProduct[tx] = 0.0;
+//                }
 
                 KW_LOCAL_FENCE;
 
                 const REAL scale =  edgeLength * categoryRates[c]; // TODO Better in constant memory?
                 const REAL weight = categoryWeights[c]; // TODO Better in constant memory?
 
+#if 1
+                if (tx == 0) {
+                    for (int i = 1; i < PADDED_STATE_COUNT; ++i) {
+                        innerProduct[0] += innerProduct[i];
+                    }
+                }
+
+                KW_LOCAL_FENCE;
+#else // debug
 #ifdef IS_POWER_OF_TWO
                 // parallelized reduction *** only works for powers-of-2 ****
                 for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
@@ -673,6 +683,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                     }
                     KW_LOCAL_FENCE;
                 }
+#endif // debug
 
                 patternDenominator += innerProduct[0] * weight;
 
