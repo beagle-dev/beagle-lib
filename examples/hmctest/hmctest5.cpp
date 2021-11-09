@@ -1,9 +1,9 @@
 /*
- *  tinyTest.c
+ *  hmctest.cpp
  *  BEAGLE
  *
- *  Created by Andrew Rambaut on 20/03/2009.
- *  Copyright 2009 __MyCompanyName__. All rights reserved.
+ *  Created by Marc A. Suchard.
+ *  Copyright 2021 BEAGLE. All rights reserved.
  *
  */
 #include <stdio.h>
