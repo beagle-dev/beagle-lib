@@ -4515,8 +4515,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
         hDistanceQueue[lengthCount++] = (Real) categoryRates[i];
     }
 
-    unsigned int nodeBlocks = 8; // TODO Determine relatively good values
-    unsigned int patternBlocks = 16; // TODO Determine relatively good value
+    unsigned int nodeBlocks = 16; // TODO Determine relatively good values
+    unsigned int patternBlocks = 32; // TODO Determine relatively good value
 
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * lengthCount);
 

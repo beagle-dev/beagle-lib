@@ -566,7 +566,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
 #endif
 }
 
-#if 1
+#if 1 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
                                                           const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
                                                           const KW_GLOBAL_VAR REAL* KW_RESTRICT lengths0,
@@ -629,7 +629,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
          node < totalNodes;
          node += numNodeBlocks) {
 
-        KW_LOCAL_FENCE; // TODO necessary?
+//        KW_LOCAL_FENCE; // TODO necessary?
 
         int instructionOffset = (skip + node) * 2;
         unsigned int preOffset = instructions[instructionOffset + 0];
@@ -641,7 +641,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
              pattern < totalPatterns;
              pattern += numPatternBlocks) {
 
-            KW_LOCAL_FENCE; // TODO necessary?
+//            KW_LOCAL_FENCE; // TODO necessary?
 
             REAL patternDenominator = 0;
 
@@ -692,7 +692,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                 numerator += post[i] * pre[j] * weight * scale;
             }
 
-            KW_LOCAL_FENCE; // TODO necessary?
+//            KW_LOCAL_FENCE; // TODO necessary?
 
 //            for (int i = tx_i; i < PADDED_STATE_COUNT; i += 16) {
 //                for (int j = tx_j; j < PADDED_STATE_COUNT; j += 16) {
@@ -705,11 +705,11 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                 acrossPatterns += numerator * inPatternWeights[pattern] / patternDenominator;
             }
 
-            KW_LOCAL_FENCE;
+//            KW_LOCAL_FENCE;
         }
     }
 
-    KW_LOCAL_FENCE;
+//    KW_LOCAL_FENCE;
 
     const int destination = (nodeId * numPatternBlocks + patternBlockId) * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
 
@@ -742,7 +742,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                                                           const int totalNodes,
                                                           const int categoryCount,
                                                           const int rateOffset,
-                                                          const int accumulate) {
+                                                          const int accumulate, const int unused) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
