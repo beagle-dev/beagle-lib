@@ -462,7 +462,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
          node < totalNodes;
          node += numNodeBlocks) {
 
-        KW_LOCAL_FENCE; // TODO necessary?
+//        KW_LOCAL_FENCE; // TODO necessary?
 
         const int instructionOffset = (skip + node) * 2;
         const int statesOffset = instructions[instructionOffset + 0];
@@ -474,7 +474,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
              pattern < totalPatterns;
              pattern += numPatternBlocks) {
 
-            KW_LOCAL_FENCE; // TODO necessary?
+//            KW_LOCAL_FENCE; // TODO necessary?
 
             REAL patternDenominator = (REAL) 0.0;
             REAL numerator = (REAL) 0.0;
@@ -517,17 +517,17 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
                 numerator += pre[i] * post[j] * weight * scale;
             }
 
-            KW_LOCAL_FENCE; // TODO necessary?
+//            KW_LOCAL_FENCE; // TODO necessary?
 
             if (patternDenominator > (REAL) 0.0) {
                 acrossPatterns += numerator * inPatternWeights[pattern] / patternDenominator;
             }
 
-            KW_LOCAL_FENCE;
+//            KW_LOCAL_FENCE;
         }
     }
 
-    KW_LOCAL_FENCE;
+//    KW_LOCAL_FENCE;
 
     const int destination = (nodeId * numPatternBlocks + patternBlockId) * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
 
