@@ -7,19 +7,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Andrew Rambaut
@@ -726,7 +716,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     const int distanceQueueLength = std::max(
         kMatrixCount * kCategoryCount * 2, // for transition matrices
         kMatrixCount + kCategoryCount); // for cross-products
-    
+
     dDistanceQueue = gpu->AllocateMemory(distanceQueueLength * sizeof(Real));
     hDistanceQueue = (Real*) gpu->MallocHost(distanceQueueLength *  sizeof(Real));
     checkHostMemory(hDistanceQueue);
@@ -754,13 +744,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kUsingMultiGrid = false;
 
 
-    if (kPaddedStateCount == 4 && 
+    if (kPaddedStateCount == 4 &&
            (kDeviceType == BEAGLE_FLAG_PROCESSOR_CPU ||
 #ifdef FW_OPENCL
                kDeviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
-#endif 
-               kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX || 
-               kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) && 
+#endif
+               kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX ||
+               kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) &&
            !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
         kUsingMultiGrid = true;
         allocateMultiGridBuffers();
@@ -2225,19 +2215,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::calculateEdgeDerivative\n");
 #endif
-    
+
     if (dOutFirstDeriv == (GPUPtr)NULL) {
         dOutFirstDeriv = gpu->AllocateMemory(kPaddedPatternCount * kBufferCount * 2 * sizeof(Real));
     }
 
     int returnCode = BEAGLE_ERROR_GENERAL;
-    
+
     returnCode = calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
                                           firstDerivativeIndices, &categoryWeightsIndex,
                                           cumulativeScaleIndices, count,
                                           outFirstDerivative, NULL, NULL);
     if (outDiagonalSecondDerivative != NULL) {
-        int diagonalSecondDerivativeReturnCode = 
+        int diagonalSecondDerivativeReturnCode =
                 calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
                         secondDerivativeIndices, &categoryWeightsIndex,
                         cumulativeScaleIndices, count,
@@ -3051,8 +3041,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
         gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
 
         kernels->AccumulateFactorsAutoScaling(dScalingFactors[0], dPtrQueue, dAccumulatedScalingFactors, count, kPaddedPatternCount, kScaleBufferSize);
-                
-    } else {        
+
+    } else {
         for(int n = 0; n < count; n++) {
             hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
         }
@@ -4500,13 +4490,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
     }
 
     gpu->MemcpyHostToDevice(dDerivativeQueue, hDerivativeQueue, sizeof(unsigned int) * 2 * totalCount);
-        
+
     const double* categoryRates = hCategoryRates[0]; // TODO parameterize index
     const GPUPtr categoryWeights = dWeights[0];
 
     int lengthCount = 0;
-    for (int i = 0; i < totalCount; i++) {        
-        hDistanceQueue[lengthCount++] = (Real) edgeLengths[i];                    
+    for (int i = 0; i < totalCount; i++) {
+        hDistanceQueue[lengthCount++] = (Real) edgeLengths[i];
     }
     for (int i = 0; i < kCategoryCount; i++) {
         hDistanceQueue[lengthCount++] = (Real) categoryRates[i];
@@ -4525,14 +4515,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                dMultipleDerivatives,
                dStatesOrigin,
                dPartialsOrigin,
-               dDistanceQueue,           
+               dDistanceQueue,
                dDerivativeQueue,
-               categoryWeights, dPatternWeights,              
-               0, statesTipsCount, totalCount, 
+               categoryWeights, dPatternWeights,
+               0, statesTipsCount, totalCount,
                kPaddedPatternCount, kCategoryCount, accumulate,
                nodeBlocks, patternBlocks);
 
-        accumulate = true;        
+        accumulate = true;
     }
 
     kernels->PartialsPartialsCrossProducts(
@@ -4558,7 +4548,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
     }
 
     for (int i = 0; i < kStateCount; ++i) {
-        beagleMemCpy(outCrossProducts + i * kStateCount, 
+        beagleMemCpy(outCrossProducts + i * kStateCount,
                      hTmp.data() + i * kPaddedStateCount,
                      kStateCount);
     }

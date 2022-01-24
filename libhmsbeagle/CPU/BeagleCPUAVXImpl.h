@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  */
@@ -79,7 +69,7 @@ protected:
 
 public:
     virtual const char* getName();
-    
+
     virtual const long getFlags();
 
 protected:
@@ -103,7 +93,7 @@ private:
                                       const float* __restrict matrices1,
                                       const float* __restrict partials2,
                                       const float* __restrict matrices2);
-    
+
     virtual void calcPartialsPartialsFixedScaling(float* __restrict destP,
                                       const float* __restrict partials1,
                                       const float* __restrict matrices1,
@@ -129,7 +119,7 @@ private:
 
 };
 
-    
+
 BEAGLE_CPU_AVX_TEMPLATE
 class BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE> : public BeagleCPUImpl<BEAGLE_CPU_AVX_DOUBLE> {
 
@@ -153,7 +143,7 @@ protected:
 
 public:
     virtual const char* getName();
-    
+
     virtual const long getFlags();
 
 protected:
@@ -177,7 +167,7 @@ private:
                                       const double* __restrict matrices1,
                                       const double* __restrict partials2,
                                       const double* __restrict matrices2);
-    
+
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                       const double* __restrict partials1,
                                       const double* __restrict matrices1,
@@ -201,7 +191,7 @@ private:
                                         double* outSumLogLikelihood);
 
 };
-    
+
 BEAGLE_CPU_FACTORY_TEMPLATE
 class BeagleCPUAVXImplFactory : public BeagleImplFactory {
 public:
@@ -215,7 +205,7 @@ public:
                                    int categoryCount,
                                    int scaleBufferCount,
                                    int resourceNumber,
-                                   int pluginResourceNumber,                                   
+                                   int pluginResourceNumber,
                                    long preferenceFlags,
                                    long requirementFlags,
                                    int* errorCode);

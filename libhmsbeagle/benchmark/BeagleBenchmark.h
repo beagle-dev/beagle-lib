@@ -6,20 +6,10 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
- * 
  * @author Daniel Ayres
  */
 
@@ -46,7 +36,7 @@
 
 #ifdef _WIN32
     //From January 1, 1601 (UTC). to January 1,1970
-    #define FACTOR 0x19db1ded53e8000 
+    #define FACTOR 0x19db1ded53e8000
 	#include <winsock.h>
 	#include <string>
 #else
@@ -56,11 +46,11 @@
 namespace beagle {
 namespace benchmark {
 
-int benchmarkResource(int resource, 
-                         int stateCount, 
-                         int ntaxa, 
-                         int nsites, 
-                         bool manualScaling, 
+int benchmarkResource(int resource,
+                         int stateCount,
+                         int ntaxa,
+                         int nsites,
+                         bool manualScaling,
                          int rateCategoryCount,
                          int nreps,
                          int compactTipCount,

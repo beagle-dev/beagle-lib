@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author David Swofford
@@ -302,9 +292,9 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartials(double* __res
 
 BEAGLE_CPU_SSE_TEMPLATE
 void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(double* __restrict destP,
-                                                                               const double* __restrict  partials1, 
-                                                                               const double*  __restrict  matrices1, 
-                                                                               const double*  __restrict  partials2, 
+                                                                               const double* __restrict  partials1,
+                                                                               const double*  __restrict  matrices1,
+                                                                               const double*  __restrict  partials2,
                                                                                const double* __restrict  matrices2,
                                                                                const double* __restrict scaleFactors,
                                                                                int startPattern,
@@ -358,7 +348,7 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsFixedScaling(d
     }
 }
 
-    
+
 BEAGLE_CPU_SSE_TEMPLATE
 void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsAutoScaling(double* destP,
                                                          const double*  partials_q,
@@ -389,7 +379,7 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsPartialsAutoScaling(do
 //                                                                matrices_r,
 //                                                                activateScaling);
 //}
-    
+
 BEAGLE_CPU_SSE_TEMPLATE
 int BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcEdgeLogLikelihoods(const int parIndex,
                                                            const int childIndex,
@@ -525,7 +515,7 @@ return BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::calcEdgeLogLikelihoods(
 //    for (int i = 0; i < kPatternCount; i++) {
 //        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
 //    }
-//    
+//
 //    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
 //        returnCode = BEAGLE_ERROR_FLOATING_POINT;
 //
@@ -536,7 +526,7 @@ BEAGLE_CPU_SSE_TEMPLATE
 int BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::getPaddedPatternsModulus() {
 	return 1;  // We currently do not vectorize across patterns
 }
-    
+
 BEAGLE_CPU_SSE_TEMPLATE
 const char* BeagleCPUSSEImpl<BEAGLE_CPU_SSE_FLOAT>::getName() {
 	return  getBeagleCPUSSEName<float>();
@@ -546,7 +536,7 @@ BEAGLE_CPU_SSE_TEMPLATE
 const char* BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::getName() {
     return  getBeagleCPUSSEName<double>();
 }
-    
+
 BEAGLE_CPU_SSE_TEMPLATE
 const long BeagleCPUSSEImpl<BEAGLE_CPU_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -587,17 +577,17 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
 
     if (!CPUSupportsSSE())
         return NULL;
-    
+
 	if (stateCount & 1) { // is odd
         BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>* impl =
         new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>();
-        
-        
+
+
         try {
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
-                                     categoryCount,scaleBufferCount, resourceNumber, 
-                                     pluginResourceNumber, 
+                                     categoryCount,scaleBufferCount, resourceNumber,
+                                     pluginResourceNumber,
                                      preferenceFlags, requirementFlags) == 0)
                 return impl;
         }
@@ -607,8 +597,8 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
             delete impl;
             throw;
         }
-        
-        delete impl;        
+
+        delete impl;
 	} else {
         BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>* impl =
                 new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>();
@@ -618,7 +608,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
                                      categoryCount,scaleBufferCount, resourceNumber,
-                                     pluginResourceNumber, 
+                                     pluginResourceNumber,
                                      preferenceFlags, requirementFlags) == 0)
                 return impl;
         }
@@ -631,7 +621,7 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
 
         delete impl;
     }
-    
+
     return NULL;
 }
 

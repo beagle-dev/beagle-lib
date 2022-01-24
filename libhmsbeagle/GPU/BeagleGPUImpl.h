@@ -5,21 +5,10 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * 
  * @brief GPU implementation header
  *
  * @author Marc Suchard
@@ -66,11 +55,11 @@ class BeagleGPUImpl : public BeagleImpl {
 private:
     GPUInterface* gpu;
     KernelLauncher* kernels;
-    
+
     int kInitialized;
-    
+
     long kFlags;
-    
+
     int kTipCount;
     int kPartialsBufferCount;
     int kCompactBufferCount;
@@ -79,17 +68,17 @@ private:
     int kEigenDecompCount;
     int kMatrixCount;
     int kCategoryCount;
- 
+
     int kTipPartialsBufferCount;
     int kInternalPartialsBufferCount;
     int kBufferCount;
     int kScaleBufferCount;
-    
+
     int kPaddedStateCount;
     int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
                                 //   * kPaddedStateCount is a multiple of 16
     int kSumSitesBlockCount;
-    
+
     int kPartialsSize;
     int kMatrixSize;
     int kEigenValuesSize;
@@ -99,53 +88,53 @@ private:
     int kLastTipPartialsBufferIndex;
 
     int kResultPaddedPatterns;
-    
+
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
     GPUPtr dPartialsTmp;
     GPUPtr dFirstDerivTmp;
     GPUPtr dSecondDerivTmp;
-    
+
     GPUPtr dSumLogLikelihood;
     GPUPtr dSumFirstDeriv;
     GPUPtr dSumSecondDeriv;
 
 	GPUPtr dMultipleDerivatives;
 	GPUPtr dMultipleDerivativeSum;
-    
-    GPUPtr dPatternWeights;    
-	
+
+    GPUPtr dPatternWeights;
+
     GPUPtr dBranchLengths;
-    
+
     GPUPtr dDistanceQueue;
-    
+
     GPUPtr dPtrQueue;
 
 	GPUPtr dDerivativeQueue;
-	
+
     GPUPtr dMaxScalingFactors;
     GPUPtr dIndexMaxScalingFactors;
-    
+
     GPUPtr dAccumulatedScalingFactors;
-    
+
     GPUPtr* dEigenValues;
     GPUPtr* dEvec;
     GPUPtr* dIevc;
-    
+
     GPUPtr* dWeights;
-    GPUPtr* dFrequencies; 
+    GPUPtr* dFrequencies;
 
     GPUPtr* dScalingFactors;
-    
+
     GPUPtr* dStates;
-    
+
     GPUPtr* dPartials;
     GPUPtr* dMatrices;
-    
+
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
-    
+
     bool kUsingMultiGrid;
     bool kDerivBuffersInitialised;
 	int kMultipleDerivativesLength; // TODO Change to length (max node count used)
@@ -201,32 +190,32 @@ private:
     unsigned int* hPtrQueue;
 
 	unsigned int* hDerivativeQueue;
-    
+
     double** hCategoryRates; // Can keep in double-precision
 
     Real* hPatternWeightsCache;
-        
+
     Real* hDistanceQueue;
-    
+
     Real* hWeightsCache;
     Real* hFrequenciesCache;
     Real* hLogLikelihoodsCache;
     Real* hPartialsCache;
     int* hStatesCache;
     Real* hMatrixCache;
-    
+
     int* hRescalingTrigger;
     GPUPtr dRescalingTrigger;
-    
+
     GPUPtr* dScalingFactorsMaster;
-    
+
     int* hStreamIndices;
 
-public:    
+public:
     BeagleGPUImpl();
-    
+
     virtual ~BeagleGPUImpl();
-    
+
     int createInstance(int tipCount,
                        int partialsBufferCount,
                        int compactBufferCount,
@@ -240,7 +229,7 @@ public:
                        int pluginResourceNumber,
                        long preferenceFlags,
                        long requirementFlags);
-    
+
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
     int setCPUThreadCount(int threadCount);
@@ -254,47 +243,47 @@ public:
     int setRootPrePartials(const int* bufferIndices,
                            const int* stateFrequenciesIndices,
                            int count);
-    
+
     int setPartials(int bufferIndex,
                     const double* inPartials);
-    
+
     int getPartials(int bufferIndex,
 				    int scaleIndex,
                     double* outPartials);
-        
+
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
-    
+
     int setStateFrequencies(int stateFrequenciesIndex,
-                            const double* inStateFrequencies);    
-    
+                            const double* inStateFrequencies);
+
     int setCategoryWeights(int categoryWeightsIndex,
                            const double* inCategoryWeights);
-    
+
     int setPatternWeights(const double* inPatternWeights);
 
     int setPatternPartitions(int partitionCount,
                              const int* inPatternPartitions);
-    
+
     int setCategoryRates(const double* inCategoryRates);
 
     int setCategoryRatesWithIndex(int categoryRatesIndex,
                                   const double* inCategoryRates);
-    
+
     int setTransitionMatrix(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue);
 
     int setDifferentialMatrix(int matrixIndex,
                               const double* inMatrix);
-    
+
     int setTransitionMatrices(const int* matrixIndices,
                               const double* inMatrices,
                               const double* paddedValues,
-                              int count);    
-    
+                              int count);
+
     int getTransitionMatrix(int matrixIndex,
                             double* outMatrix);
 
@@ -333,7 +322,7 @@ public:
                                                    const int* secondDerivativeIndices,
                                                    const double* edgeLengths,
                                                    int count);
-    
+
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
@@ -374,7 +363,7 @@ public:
 
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
-    
+
     int accumulateScaleFactors(const int* scalingIndices,
                                int count,
                                int cumulativeScalingIndex);
@@ -383,7 +372,7 @@ public:
                                           int count,
                                           int cumulativeScalingIndex,
                                           int partitionIndex);
-    
+
     int removeScaleFactors(const int* scalingIndices,
                            int count,
                            int cumulativeScalingIndex);
@@ -392,17 +381,17 @@ public:
                                       int count,
                                       int cumulativeScalingIndex,
                                       int partitionIndex);
-    
+
     int resetScaleFactors(int cumulativeScalingIndex);
 
     int resetScaleFactorsByPartition(int cumulativeScalingIndex, int partitionIndex);
-    
+
     int copyScaleFactors(int destScalingIndex,
                          int srcScalingIndex);
-                         
+
     int getScaleFactors(int srcScalingIndex,
-                        double* scaleFactors);                          
-    
+                        double* scaleFactors);
+
     int calculateRootLogLikelihoods(const int* bufferIndices,
                                     const int* categoryWeightsIndices,
                                     const int* stateFrequenciesIndices,
@@ -419,7 +408,7 @@ public:
                                                int count,
                                                double* outSumLogLikelihoodByPartition,
                                                double* outSumLogLikelihood);
-    
+
     int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                     const int* childBufferIndices,
                                     const int* probabilityIndices,
@@ -466,7 +455,7 @@ public:
                        double* outSumSecondDerivative);
 
     int getSiteLogLikelihoods(double* outLogLikelihoods);
-    
+
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 

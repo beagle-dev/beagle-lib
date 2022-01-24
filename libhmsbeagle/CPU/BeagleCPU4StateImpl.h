@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Andrew Rambaut
  * @author Marc Suchard
@@ -87,7 +77,7 @@ public:
                                     const REALTYPE* matrices2,
                                     int startPattern,
                                     int endPattern);
-    
+
     virtual void calcStatesPartials(REALTYPE* destP,
                                     const int* states1,
                                     const REALTYPE* matrices1,
@@ -95,7 +85,7 @@ public:
                                     const REALTYPE* matrices2,
                                     int startPattern,
                                     int endPattern);
-    
+
     virtual void calcPartialsPartials(REALTYPE* destP,
                                       const REALTYPE* partials1,
                                       const REALTYPE* matrices1,
@@ -170,14 +160,14 @@ public:
                                                   const int* partitionIndices,
                                                   int partitionCount,
                                                   double* outSumLogLikelihoodByPartition);
-    
+
     virtual int calcRootLogLikelihoodsMulti(const int* bufferIndices,
                                              const int* categoryWeightsIndices,
                                              const int* stateFrequenciesIndices,
                                              const int* scaleBufferIndices,
                                              int count,
-                                             double* outSumLogLikelihood);    
-        
+                                             double* outSumLogLikelihood);
+
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
@@ -195,7 +185,7 @@ public:
                                                   const int* partitionIndices,
                                                   int partitionCount,
                                                   double* outSumLogLikelihoodByPartition);
-    
+
     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
                                               const int *child0States,
                                               const REALTYPE *child0TransMat,
@@ -222,15 +212,15 @@ public:
                                                   const REALTYPE *scaleFactors,
                                                   int startPattern,
                                                   int endPattern);
-    
+
     virtual void calcPartialsPartialsAutoScaling(REALTYPE *destP,
                                                   const REALTYPE *child0Partials,
                                                   const REALTYPE *child0TransMat,
                                                   const REALTYPE *child1Partials,
                                                   const REALTYPE *child1TransMat,
                                                   int *activateScaling);
-    
-    
+
+
     inline int integrateOutStatesAndScale(const REALTYPE* integrationTmp,
                                            const int stateFrequenciesIndex,
                                            const int scalingFactorsIndex,
