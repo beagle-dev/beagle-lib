@@ -882,12 +882,11 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
 
     gpu->LaunchKernel(fPartialsPartialsCrossProducts,
                       bgCrossProductBlock, grid,
-                      6, 13,
+                      6, 12,
                       out, partials, lengths, instructions, 
                       categoryWeights, patternWeights,
                       instructionOffset,
-                      patternCount, nodeCount, categoryCount, rateOffset, accumulate,
-                      kPaddedStateCount);
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
     
     gpu->SynchronizeDevice();   
 
