@@ -47,6 +47,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/benchmark/BeagleBenchmark.h"
+#include "libhmsbeagle/benchmark/BenchmarkHelper.h"
 
 #include "libhmsbeagle/plugin/Plugin.h"
 #include "beagle.h"
@@ -64,26 +65,6 @@ typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
 
 // #define BEAGLE_DEBUG_LOAD
 #define BEAGLE_PREORDER
-
-//#define BEAGLE_DEBUG_TIME
-#ifdef BEAGLE_DEBUG_TIME
-#include <sys/time.h>
-double debugTimeTotal;
-double debugGetTime() {
-    struct timeval tim;
-    gettimeofday(&tim, NULL);
-    return (tim.tv_sec+(tim.tv_usec/1000000.0));
-}
-#define DEBUG_CREATE_TIME() debugTimeTotal=0; fprintf(stderr,"\n*** BEAGLE instance created ***\n");
-#define DEBUG_START_TIME() double debugInitialTime=debugGetTime();
-#define DEBUG_END_TIME() debugTimeTotal+=debugGetTime()-debugInitialTime;
-#define DEBUG_FINALIZE_TIME() fprintf(stderr,"\n*** Total time used by BEAGLE instance: %f seconds ***\n", debugTimeTotal);
-#else
-#define DEBUG_CREATE_TIME()
-#define DEBUG_START_TIME()
-#define DEBUG_END_TIME()
-#define DEBUG_FINALIZE_TIME()
-#endif
 
 // #define BEAGLE_DEBUG_FP_REDUCED_PRECISION
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
@@ -223,7 +204,7 @@ void beagle_library_initialize(void) {
 }
 
 void beagle_library_finalize(void) {
-  DEBUG_FINALIZE_TIME();
+//   DEBUG_FINALIZE_TIME();
     // FIXME: need to destroy each plugin
     // the following code segfaults
 /*  std::list<beagle::plugin::Plugin*>::iterator plugin_iter = plugins.begin();

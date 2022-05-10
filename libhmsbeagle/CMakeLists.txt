@@ -64,6 +64,7 @@ add_library(hmsbeagle SHARED
         benchmark/BeagleBenchmark.cpp
         benchmark/linalg.h
         benchmark/linalg.cpp
+        benchmark/BenchmarkHelper.h
 
         ${BEAGLE_INTEGRATED_JNI_SOURCE}
 

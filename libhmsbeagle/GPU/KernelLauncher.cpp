@@ -34,6 +34,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
+#include "libhmsbeagle/benchmark/BenchmarkHelper.h"
 
 /**************CODE***********/
 
@@ -52,6 +53,7 @@ KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
 }
 
 KernelLauncher::~KernelLauncher() {
+    DEBUG_FINALIZE_TIME();
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
@@ -748,7 +750,7 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
-
+DEBUG_START_TIME();
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
@@ -763,7 +765,7 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
     }
 
     bgDerivativeGrid.y = saved;
-
+DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
@@ -783,7 +785,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
 #endif
-
+DEBUG_START_TIME();
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
@@ -802,7 +804,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
     }
 
     bgDerivativeGrid.y = saved;
-
+DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
 #endif
@@ -969,14 +971,14 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesGrowing\n");
 #endif
-
+DEBUG_START_TIME();
     gpu->LaunchKernel(fPartialsStatesGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, states2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-
+DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
@@ -993,14 +995,14 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsGrowing\n");
 #endif
-
+DEBUG_START_TIME();
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-
+DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
 #endif
@@ -1095,7 +1097,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
             dScalingFactors[writeScalingIndex] = dScalingFactors[readScalingIndex];
         }
     }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
 #endif
@@ -1227,7 +1229,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     }
 
     bgPeelingGrid.x = tmpGridx;
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruningDynamicScaling\n");
 #endif
