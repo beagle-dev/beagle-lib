@@ -550,8 +550,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                                                           const int totalNodes,
                                                           const int categoryCount,
                                                           const int rateOffset,
-                                                          const int accumulate,
-                                                          const int missingState) {
+                                                          const int accumulate) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented

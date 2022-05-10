@@ -234,7 +234,9 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         AppleCPUImpl = true;
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
                deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU ||
-               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU) {
+               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU ||
+               deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU
+               ) {
         AMDImpl = true;
     }
 
@@ -1193,6 +1195,9 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
         else if (!strncmp("Intel", device_string, strlen("Intel")) &&
                  (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
             deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU;
+        else if (!strncmp("Apple", device_string, strlen("Apple")) &&
+                (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_GPU))
+            deviceCode = BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU;
     } else if (!strncmp("NVIDIA", platform_string, strlen("NVIDIA"))) {
         deviceCode = BEAGLE_OPENCL_DEVICE_NVIDA_GPU;
     }
