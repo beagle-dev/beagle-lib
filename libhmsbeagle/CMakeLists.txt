@@ -81,6 +81,10 @@ if(NOT WIN32)
 	endif(NOT APPLE)
 endif(NOT WIN32)
 
+if (BUILD_ACTION)
+	target_link_libraries(hmsbeagle Eigen3::Eigen)
+endif(BUILD_ACTION)
+
 set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
 
 add_subdirectory(CPU)

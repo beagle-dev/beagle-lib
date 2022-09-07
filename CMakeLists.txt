@@ -15,6 +15,7 @@ option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
+option(BUILD_ACTION "Build beagle with action-based calculations" ON)
 
 # Old config.h settings
 
@@ -96,6 +97,15 @@ if(BUILD_OPENMP)
 		message (FATAL_ERROR "No OpenMP Found")
 	endif(OpenMP_CXX_FOUND)
 endif(BUILD_OPENMP)
+
+if(BUILD_ACTION)
+	find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+	set(CMAKE_CXX_STANDARD 17)
+	if (NOT TARGET Eigen3::Eigen)
+		message(FATAL_ERROR "No Eigen3 Found")
+	endif (NOT TARGET Eigen3::Eigen)
+	add_definitions(-DBEAGLE_ACTION)
+endif(BUILD_ACTION)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
