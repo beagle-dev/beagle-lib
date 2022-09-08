@@ -55,3 +55,27 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+
+if(BUILD_ACTION)
+add_library(hmsbeagle-cpu-action SHARED
+		BeagleCPUImpl.h
+		BeagleCPUImpl.hpp
+		BeagleCPUActionPlugin.cpp
+		BeagleCPUActionPlugin.h
+		BeagleCPUActionImpl.h
+		Precision.h
+		BeagleCPUActionImpl.hpp)
+target_link_libraries(hmsbeagle-cpu-action Eigen3::Eigen)
+set(CMAKE_CXX_STANDARD 17)
+
+install(TARGETS hmsbeagle-cpu-action
+		DESTINATION ${BEAGLE_INSTALL_DIR}
+		COMPONENT cpu_action
+		)
+
+SET_TARGET_PROPERTIES(hmsbeagle-cpu-action
+		PROPERTIES
+		SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
+		SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
+		)
+endif(BUILD_ACTION)
