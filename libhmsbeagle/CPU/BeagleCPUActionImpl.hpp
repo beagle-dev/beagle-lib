@@ -45,6 +45,65 @@
 namespace beagle {
     namespace cpu {
 
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(int tipCount,
+                                                                    int partialsBufferCount,
+                                                                    int compactBufferCount,
+                                                                    int stateCount,
+                                                                    int patternCount,
+                                                                    int eigenDecompositionCount,
+                                                                    int matrixCount,
+                                                                    int categoryCount,
+                                                                    int scaleBufferCount,
+                                                                    int resourceNumber,
+                                                                    int pluginResourceNumber,
+                                                                    long preferenceFlags,
+                                                                    long requirementFlags) {
+            int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
+                                                                               stateCount, patternCount, 0,
+                                                                               matrixCount, categoryCount, scaleBufferCount,
+                                                                               resourceNumber, pluginResourceNumber,
+                                                                               preferenceFlags, requirementFlags);
+            gInstantaneousMatrices = (Eigen::SparseMatrix<double>*) malloc(sizeof(Eigen::SparseMatrix<double>) * eigenDecompositionCount);
+            gPartials = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>**) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) * kPartialsPaddedStateCount * kCategoryCount);
+            gTipStates = (Eigen::SparseMatrix<double>**) malloc(sizeof(Eigen::SparseMatrix<double>*) * kTipCount * kCategoryCount);
+
+            for (int i = 0; i < kBufferCount; i++) {
+                gPartials[i] = NULL;
+                gTipStates[i] = NULL;
+            }
+
+            for (int i = kTipCount; i < kBufferCount; i++) {
+                gPartials[i] = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>) * kPatternCount * kStateCount);
+                if (gPartials[i] == NULL)
+                    throw std::bad_alloc();
+            }
+            return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(int bufferIndex,
+                                                                       const double* inPartials) {
+            if (bufferIndex < 0 || bufferIndex >= kBufferCount)
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+            if (gPartials[bufferIndex] == NULL) {
+                gPartials[bufferIndex] = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>) * kPatternCount * kStateCount);
+                for (int i = 0; i < kCategoryCount; i++) {
+                    gPartials[bufferIndex][i] = new Eigen::Matrix<double, kPatternCount, kStateCount>;
+                }
+            }
+            int j = 0;
+            for (int i = 0; i < kCategoryCount; i++) {
+                for (int pattern = 0; pattern < kPatternCount; pattern++) {
+                    for (int state = 0; state < kStateCount; state++) {
+                        gPartials[bufferIndex][i](pattern, state) = inPartials[j];
+                        j++;
+                    }
+                }
+            }
+            return BEAGLE_SUCCESS;
+        }
+
         BEAGLE_CPU_FACTORY_TEMPLATE
         inline const char* getBeagleCPUActionName(){ return "CPU-Action-Unknown"; };
 
@@ -58,6 +117,24 @@ namespace beagle {
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTransitionMatrix(int matrixIndex,
                                 const double *inMatrix,
                                 double paddedValue) {
+            return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setEigenDecomposition(int eigenIndex,
+                                                                                 const double *inEigenVectors,
+                                                                                 const double *inInverseEigenVectors,
+                                                                                 const double *inEigenValues) {
+            return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::updateTransitionMatrices(int eigenIndex,
+                                                                                    const int* probabilityIndices,
+                                                                                    const int* firstDerivativeIndices,
+                                                                                    const int* secondDerivativeIndices,
+                                                                                    const double* edgeLengths,
+                                                                                    int count) {
             return BEAGLE_SUCCESS;
         }
 
@@ -105,29 +182,15 @@ namespace beagle {
 
         }
 
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        const char* BeagleCPUActionImpl<BEAGLE_CPU_ACTION_FLOAT>::getName() {
-            return  getBeagleCPUActionName<float>();
-        }
-
         BEAGLE_CPU_ACTION_TEMPLATE
         const char* BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getName() {
             return  getBeagleCPUActionName<double>();
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        const long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_FLOAT>::getFlags() {
-            return  BEAGLE_FLAG_COMPUTATION_SYNCH |
-                    BEAGLE_FLAG_PROCESSOR_CPU |
-                    BEAGLE_FLAG_PRECISION_SINGLE |
-                    BEAGLE_FLAG_VECTOR_SSE |
-                    BEAGLE_FLAG_FRAMEWORK_CPU;
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
         const long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
             return  BEAGLE_FLAG_COMPUTATION_SYNCH |
+                    BEAGLE_FLAG_COMPUTATION_ACTION |
                     BEAGLE_FLAG_PROCESSOR_CPU |
                     BEAGLE_FLAG_PRECISION_DOUBLE |
                     BEAGLE_FLAG_VECTOR_SSE |
@@ -187,11 +250,11 @@ namespace beagle {
 
         template <>
         const long BeagleCPUActionImplFactory<double>::getFlags() {
-            return BEAGLE_FLAG_COMPUTATION_SYNCH |
+            return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                    BEAGLE_FLAG_PROCESSOR_CPU |
-                   BEAGLE_FLAG_VECTOR_SSE |
+                   BEAGLE_FLAG_VECTOR_SSE | BEAGLE_FLAG_VECTOR_AVX | BEAGLE_FLAG_VECTOR_NONE |
                    BEAGLE_FLAG_PRECISION_DOUBLE |
                    BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                    BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
@@ -202,11 +265,11 @@ namespace beagle {
 
         template <>
         const long BeagleCPUActionImplFactory<float>::getFlags() {
-            return BEAGLE_FLAG_COMPUTATION_SYNCH |
+            return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                    BEAGLE_FLAG_PROCESSOR_CPU |
-                   BEAGLE_FLAG_VECTOR_SSE |
+                   BEAGLE_FLAG_VECTOR_SSE | BEAGLE_FLAG_VECTOR_AVX | BEAGLE_FLAG_VECTOR_NONE |
                    BEAGLE_FLAG_PRECISION_SINGLE |
                    BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                    BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
