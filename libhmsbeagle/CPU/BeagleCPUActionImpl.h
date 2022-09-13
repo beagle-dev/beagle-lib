@@ -44,6 +44,10 @@
 #define BEAGLE_CPU_ACTION_DOUBLE	double, T_PAD, P_PAD
 #define BEAGLE_CPU_ACTION_TEMPLATE	template <int T_PAD, int P_PAD>
 
+typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatrixXd;
+typedef Eigen::Map<MatrixXd> MapType;
+
+
 namespace beagle {
     namespace cpu {
 
@@ -66,17 +70,20 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kMatrixSize;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kPartialsPaddedStateCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kBufferCount;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kEigenDecompCount;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gPartials;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryWeights;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
-//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gPartials;
             Eigen::SparseMatrix<double>* gInstantaneousMatrices;
-            Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>** gPartials;
+            MapType*** gMappedPartials;
             Eigen::SparseMatrix<double>** gTipStates;
 
         public:
+            virtual ~BeagleCPUActionImpl();
+
             virtual const char* getName();
 
             virtual const long getFlags();
@@ -97,6 +104,9 @@ namespace beagle {
 
             virtual int setPartials(int bufferIndex,
                             const double* inPartials);
+
+            virtual int setTipPartials(int tipIndex,
+                                       const double* inPartials);
 //        protected:
 //            virtual int getPaddedPatternsModulus();
 

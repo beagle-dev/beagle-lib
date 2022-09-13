@@ -65,16 +65,16 @@ namespace beagle {
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
             gInstantaneousMatrices = (Eigen::SparseMatrix<double>*) malloc(sizeof(Eigen::SparseMatrix<double>) * eigenDecompositionCount);
-            gPartials = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>**) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) * kPartialsPaddedStateCount * kCategoryCount);
-            gTipStates = (Eigen::SparseMatrix<double>**) malloc(sizeof(Eigen::SparseMatrix<double>*) * kTipCount * kCategoryCount);
+            gMappedPartials = (MapType ***) malloc(sizeof(MapType **) * kBufferCount);
+//            gTipStates = (Eigen::SparseMatrix<double>**) malloc(sizeof(Eigen::SparseMatrix<double>*) * kTipCount * kCategoryCount);
 
             for (int i = 0; i < kBufferCount; i++) {
-                gPartials[i] = NULL;
-                gTipStates[i] = NULL;
+                gMappedPartials[i] = NULL;
+//                gTipStates[i] = NULL;
             }
 
             for (int i = kTipCount; i < kBufferCount; i++) {
-                gPartials[i] = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>) * kPatternCount * kStateCount);
+                gMappedPartials[i] = (MapType **) malloc(sizeof(MapType*) * kCategoryCount);
                 if (gPartials[i] == NULL)
                     throw std::bad_alloc();
             }
@@ -84,23 +84,59 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(int bufferIndex,
                                                                        const double* inPartials) {
-            if (bufferIndex < 0 || bufferIndex >= kBufferCount)
-                return BEAGLE_ERROR_OUT_OF_RANGE;
-            if (gPartials[bufferIndex] == NULL) {
-                gPartials[bufferIndex] = (Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>*) malloc(sizeof(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>) * kPatternCount * kStateCount);
-                for (int i = 0; i < kCategoryCount; i++) {
-                    gPartials[bufferIndex][i] = new Eigen::Matrix<double, kPatternCount, kStateCount>;
+            BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(bufferIndex, inPartials);
+            if (gMappedPartials[bufferIndex] == NULL) {
+                gMappedPartials[bufferIndex] = (MapType**) malloc(sizeof(MapType*) * kCategoryCount);
+                for (int category = 0; category < kCategoryCount; category++) {
+                    MapType mappedPartial(gPartials[bufferIndex] + category * kPaddedPatternCount * kStateCount, kPatternCount, kStateCount);
+                    gMappedPartials[bufferIndex][category] = &mappedPartial;
                 }
             }
-            int j = 0;
-            for (int i = 0; i < kCategoryCount; i++) {
-                for (int pattern = 0; pattern < kPatternCount; pattern++) {
-                    for (int state = 0; state < kStateCount; state++) {
-                        gPartials[bufferIndex][i](pattern, state) = inPartials[j];
-                        j++;
+            return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
+            for (unsigned int i = 0; i < kBufferCount; i++) {
+                if (gMappedPartials[i] != NULL) {
+                    for (unsigned int j = 0; j < kCategoryCount; j++) {
+                        free(gMappedPartials[i][j]);
                     }
+                    free(gMappedPartials[i]);
                 }
             }
+            free(gMappedPartials);
+
+            for (unsigned int i = 0; i < kEigenDecompCount; i++) {
+                if (&gInstantaneousMatrices[i] != NULL)  {
+                    free(&gInstantaneousMatrices[i]);
+                }
+            }
+            free(gInstantaneousMatrices);
+
+            for (unsigned int i = 0; i < kTipCount; i++) {
+                if (gTipStates[i] != NULL) {
+                    for (unsigned int j = 0; j < kCategoryCount; j++) {
+                        free(&gTipStates[i][j]);
+                    }
+                    free(gTipStates[i]);
+                }
+            }
+            free(gTipStates);
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(int tipIndex,
+                                                              const double* inPartials) {
+            BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(tipIndex, inPartials);
+            if (gMappedPartials[tipIndex] == NULL) {
+                gMappedPartials[tipIndex] = (MapType**) malloc(sizeof(MapType*) * kCategoryCount);
+                for (int category = 0; category < kCategoryCount; category++) {
+                    MapType mappedPartial(gPartials[tipIndex] + category * kPaddedPatternCount * kStateCount, kPatternCount, kStateCount);
+                    gMappedPartials[tipIndex][category] = &mappedPartial;
+                }
+            }
+
             return BEAGLE_SUCCESS;
         }
 
