@@ -60,17 +60,22 @@ namespace beagle {
                                                                     long preferenceFlags,
                                                                     long requirementFlags) {
             int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
-                                                                               stateCount, patternCount, 0,
+                                                                               stateCount, patternCount, eigenDecompositionCount,
                                                                                matrixCount, categoryCount, scaleBufferCount,
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
             gInstantaneousMatrices = (Eigen::SparseMatrix<double>*) malloc(sizeof(Eigen::SparseMatrix<double>) * eigenDecompositionCount);
             gMappedPartials = (MapType ***) malloc(sizeof(MapType **) * kBufferCount);
+            gMappedCategoryRates = (MapType**) malloc(sizeof(MapType *) * kEigenDecompCount);
 //            gTipStates = (Eigen::SparseMatrix<double>**) malloc(sizeof(Eigen::SparseMatrix<double>*) * kTipCount * kCategoryCount);
 
             for (int i = 0; i < kBufferCount; i++) {
                 gMappedPartials[i] = NULL;
 //                gTipStates[i] = NULL;
+            }
+
+            for (int i = 0; i < kEigenDecompCount; i++) {
+                gMappedCategoryRates[i] = NULL;
             }
 
             for (int i = kTipCount; i < kBufferCount; i++) {
@@ -88,7 +93,7 @@ namespace beagle {
             if (gMappedPartials[bufferIndex] == NULL) {
                 gMappedPartials[bufferIndex] = (MapType**) malloc(sizeof(MapType*) * kCategoryCount);
                 for (int category = 0; category < kCategoryCount; category++) {
-                    MapType mappedPartial(gPartials[bufferIndex] + category * kPaddedPatternCount * kStateCount, kPatternCount, kStateCount);
+                    MapType mappedPartial(gPartials[bufferIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
                     gMappedPartials[bufferIndex][category] = &mappedPartial;
                 }
             }
@@ -100,7 +105,8 @@ namespace beagle {
             for (unsigned int i = 0; i < kBufferCount; i++) {
                 if (gMappedPartials[i] != NULL) {
                     for (unsigned int j = 0; j < kCategoryCount; j++) {
-                        free(gMappedPartials[i][j]);
+                        if (gMappedPartials[i][j] != NULL)
+                            free(gMappedPartials[i][j]);
                     }
                     free(gMappedPartials[i]);
                 }
@@ -123,6 +129,13 @@ namespace beagle {
                 }
             }
             free(gTipStates);
+
+            for (unsigned int i = 0; i < kEigenDecompCount; i++) {
+                if (gMappedCategoryRates[i] != NULL) {
+                    free(gMappedCategoryRates[i]);
+                }
+            }
+            free(gMappedCategoryRates);
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
@@ -132,11 +145,36 @@ namespace beagle {
             if (gMappedPartials[tipIndex] == NULL) {
                 gMappedPartials[tipIndex] = (MapType**) malloc(sizeof(MapType*) * kCategoryCount);
                 for (int category = 0; category < kCategoryCount; category++) {
-                    MapType mappedPartial(gPartials[tipIndex] + category * kPaddedPatternCount * kStateCount, kPatternCount, kStateCount);
+                    MapType mappedPartial(gPartials[tipIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
                     gMappedPartials[tipIndex][category] = &mappedPartial;
+#ifdef BEAGLE_DEBUG_FLOW
+                    std::cout<<gMappedPartials[tipIndex][category]<<std::endl;
+                    std::cout<<*gMappedPartials[tipIndex][category]<<std::endl;
+#endif
                 }
             }
 
+            return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setCategoryRates(const double* inCategoryRates) {
+            BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setCategoryRates(inCategoryRates);
+            if (gMappedCategoryRates == NULL) {
+                gMappedCategoryRates = (MapType**) malloc(sizeof(MapType*) * kEigenDecompCount);
+            }
+            for (int i = 0; i < kEigenDecompCount; i++) {
+                if (gMappedCategoryRates[i] == NULL)
+                    gMappedCategoryRates[i] = (MapType*) malloc(sizeof(MapType));
+            }
+            for (int i = 0; i < kEigenDecompCount; i++) {
+                MapType mappedCategoryRates(gCategoryRates[i], kCategoryCount, 1);
+                gMappedCategoryRates[i] = &mappedCategoryRates;
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cout<< "gMappedCategory: " <<gMappedCategoryRates[i]<<std::endl;
+                std::cout<<*gMappedCategoryRates[i]<<std::endl;
+#endif
+            }
             return BEAGLE_SUCCESS;
         }
 

@@ -72,14 +72,15 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kBufferCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kEigenDecompCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gPartials;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryRates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
-//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryWeights;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
             Eigen::SparseMatrix<double>* gInstantaneousMatrices;
             MapType*** gMappedPartials;
             Eigen::SparseMatrix<double>** gTipStates;
+            MapType** gMappedCategoryRates;
 
         public:
             virtual ~BeagleCPUActionImpl();
@@ -104,6 +105,8 @@ namespace beagle {
 
             virtual int setPartials(int bufferIndex,
                             const double* inPartials);
+
+            virtual int setCategoryRates(const double* inCategoryRates);
 
             virtual int setTipPartials(int tipIndex,
                                        const double* inPartials);
