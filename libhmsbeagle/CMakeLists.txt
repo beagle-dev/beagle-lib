@@ -74,7 +74,9 @@ add_library(hmsbeagle SHARED
         ${BEAGLE_PLUGIN_SOURCE}
         )
 
-set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
+set_target_properties(hmsbeagle PROPERTIES
+                                PUBLIC_HEADER "beagle.h;platform.h"
+                                VERSION ${GENERIC_API_VERSION})
 
 if(NOT WIN32 AND NOT APPLE)
 	target_link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
