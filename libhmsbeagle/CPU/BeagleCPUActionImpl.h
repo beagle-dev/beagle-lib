@@ -80,7 +80,6 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
             SpMatrix** gScaledQs;
             MapType*** gMappedPartials;
-            MapType** gMappedCategoryRates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
@@ -158,7 +157,7 @@ namespace beagle {
             virtual int setPartials(int bufferIndex,
                             const double* inPartials);
 
-            virtual int setCategoryRates(const double* inCategoryRates);
+//            virtual int setCategoryRates(const double* inCategoryRates);
 
             virtual int setTipPartials(int tipIndex,
                                        const double* inPartials);
@@ -197,13 +196,13 @@ namespace beagle {
 
             void simpleAction(MapType** destP,
                               MapType** partials,
-                              SpMatrix * matrix);
+                              SpMatrix* matrix);
 
             void calcPartialsPartials(MapType** destP,
                                       MapType** partials1,
-                                      SpMatrix * matrices1,
+                                      SpMatrix* matrices1,
                                       MapType** partials2,
-                                      SpMatrix * matrices2);
+                                      SpMatrix* matrices2);
 
             void getStatistics(double A1Norm,
                                SpMatrix * matrix,
@@ -217,6 +216,11 @@ namespace beagle {
                              std::map<int, SpMatrix> &powerMatrices);
 
             double normP1(SpMatrix * matrix);
+
+            double normPInf(SpMatrix* matrix);
+            double normPInf(MapType * matrix);
+            double normPInf(MatrixXd * matrix);
+
 
         };
 
