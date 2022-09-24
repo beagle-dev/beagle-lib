@@ -224,12 +224,13 @@ namespace beagle {
             if (gInstantaneousMatrices[eigenIndex] == NULL) {
                 gInstantaneousMatrices[eigenIndex] = new SpMatrix[kCategoryCount];
                 for (int i = 0; i < kCategoryCount; i++) {
+//                    new (& gInstantaneousMatrices[eigenIndex][i]) SpMatrix (kStateCount, kStateCount);
                     SpMatrix matrix(kStateCount, kStateCount);
                     gInstantaneousMatrices[eigenIndex][i] = matrix;
                 }
             }
 
-            const int numNonZeros = (int) inInverseEigenVectors[0];
+            const int numNonZeros = (int) inInverseEigenVectors[0] / kCategoryCount;
             for (int category = 0; category < kCategoryCount; category++) {
                 std::vector<Triplet> tripletList;
                 for (int i = 0; i < numNonZeros; i++) {
@@ -273,14 +274,16 @@ namespace beagle {
                                                                               SpMatrix* matrices1,
                                                                               MapType* partials2,
                                                                               SpMatrix* matrices2) {
-            std::cout<<gMappedLeftPartialTmp[0]<<std::endl;
             memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+            std::cout<<"Initial Left partial: \n"<<gMappedLeftPartialTmp[0]<<std::endl;
+            std::cout<<"In partial: \n"<<partials1[0]<<"\nMatrix: \n"<<matrices1[0]<<std::endl;
             memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
             simpleAction(gMappedLeftPartialTmp, partials1, matrices1);
+            std::cout<<"Outpartial: \n"<<gMappedLeftPartialTmp[0]<<std::endl;
             simpleAction(gMappedRightPartialTmp, partials2, matrices2);
 
             for (int i = 0; i < kCategoryCount; i++) {
-                std::cout<< "left partial: " << gMappedLeftPartialTmp[i] << "\n right partial: " << gMappedRightPartialTmp[i]<< std::endl;
+//                std::cout<< "left partial: " << gMappedLeftPartialTmp[i] << "\n right partial: " << gMappedRightPartialTmp[i]<< std::endl;
                 destP[i] = gMappedLeftPartialTmp[i].cwiseProduct(gMappedRightPartialTmp[i]);
             }
 
@@ -294,7 +297,7 @@ namespace beagle {
                 SpMatrix thisMatrix = matrix[category];
                 const double tol = pow(2.0, -53.0);
                 const double t = 1.0;
-                const int nCol = kStateCount;
+                const int nCol = kPatternCount;
                 SpMatrix identity(kStateCount, kStateCount);
                 identity.setIdentity();
                 double mu = 0.0;
@@ -308,14 +311,14 @@ namespace beagle {
                 for (int i = 0; i < kStateCount; i++) {
                     mu += thisMatrix.coeff(i, i);
                 }
-                mu /= (double) nCol;
+                mu /= (double) kStateCount;
 
-                std::cout<<"matrix = "<<thisMatrix<<"\nmu = "<<mu<<std::endl;
+//                std::cout<<"matrix = "<<thisMatrix<<"\nmu = "<<mu<<std::endl;
 
 
                 SpMatrix A(thisMatrix.rows(), thisMatrix.cols());
 
-                A -= thisMatrix - mu * identity;
+                A = thisMatrix - mu * identity;
                 const double A1Norm = normP1(&A);
 
                 int m, s;
@@ -327,20 +330,18 @@ namespace beagle {
                 MatrixXd F(kStateCount, kPatternCount);
                 F = destP[category];
 
-                std::cout<<"F = "<<F<<"\n B = "<<destP[category]<<std::endl;
-
-
+//                std::cout<<"F = "<<F<<"\n B = "<<destP[category]<<std::endl;
                 const double eta = exp(t * mu / (double) s);
                 double c1, c2;
                 for (int i = 0; i < s; i++) {
-                    c1 = normPInf(&thisMatrix);
+                    c1 = normPInf(destP[category]);
                     for (int j = 1; j < m + 1; j++) {
-                        destP[category] = thisMatrix * destP[category];
+                        destP[category] = A * destP[category];
                         destP[category] *= t / ((double) s * j);
-                        std::cout<<"Pos 1, F = "<<F<<"\n B = "<<destP[category]<<std::endl;
+//                        std::cout<<"Pos 1, F = "<<F<<"\n B = "<<destP[category]<<std::endl;
                         c2 = normPInf(destP[category]);
                         F += destP[category];
-                        std::cout<<"Pos 2, F = "<<F<<"\n B = "<<destP[category]<<std::endl;
+//                        std::cout<<"Pos 2, F = "<<F<<"\n B = "<<destP[category]<<std::endl;
                         if (c1 + c2 <= tol * normPInf(&F)) {
                             break;
                         }
@@ -348,7 +349,7 @@ namespace beagle {
                     }
                     F *= eta;
                     destP[category] = F;
-                    std::cout<<"F = "<<F<<"\n B = "<<destP[category]<<std::endl;
+//                    std::cout<<"F = "<<F<<"\n B = "<<destP[category]<<std::endl;
                 }
             }
         }
