@@ -79,7 +79,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryRates;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
             SpMatrix** gScaledQs;
-            MapType*** gMappedPartials;
+            MapType** gMappedPartials;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
@@ -87,9 +87,9 @@ namespace beagle {
             double* gLeftPartialTmp;
             double* gRightPartialTmp;
             SpMatrix** gInstantaneousMatrices;
-            MapType** gMappedIntegrationTmp;
-            MapType** gMappedLeftPartialTmp;
-            MapType** gMappedRightPartialTmp;
+            MapType* gMappedIntegrationTmp;
+            MapType* gMappedLeftPartialTmp;
+            MapType* gMappedRightPartialTmp;
             const int mMax = 55;
             std::map<int, double> thetaConstants = {
                     //The first 30 values are from table A.3 of  Computing Matrix Functions.
@@ -185,23 +185,15 @@ namespace beagle {
                                                  const double* edgeLengths,
                                                  int count);
 
-            virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
-                                               const int childBufferIndex,
-                                               const int probabilityIndex,
-                                               const int categoryWeightsIndex,
-                                               const int stateFrequenciesIndex,
-                                               const int scalingFactorsIndex,
-                                               double* outSumLogLikelihood);
 
-
-            void simpleAction(MapType** destP,
-                              MapType** partials,
+            void simpleAction(MapType* destP,
+                              MapType* partials,
                               SpMatrix* matrix);
 
-            void calcPartialsPartials(MapType** destP,
-                                      MapType** partials1,
+            void calcPartialsPartials(MapType* destP,
+                                      MapType* partials1,
                                       SpMatrix* matrices1,
-                                      MapType** partials2,
+                                      MapType* partials2,
                                       SpMatrix* matrices2);
 
             void getStatistics(double A1Norm,
@@ -218,7 +210,7 @@ namespace beagle {
             double normP1(SpMatrix * matrix);
 
             double normPInf(SpMatrix* matrix);
-            double normPInf(MapType * matrix);
+            double normPInf(MapType matrix);
             double normPInf(MatrixXd * matrix);
 
 
