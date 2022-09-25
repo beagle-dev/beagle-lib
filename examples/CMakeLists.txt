@@ -4,6 +4,9 @@ add_executable(hmctest
 add_executable(hmctest5
 		hmctest/hmctest5.cpp)
 
+add_executable(actiontest
+		actiontest/actiontest.cpp)
+
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
 
