@@ -35,6 +35,7 @@ target_link_libraries(actiontest
 		hmsbeagle
 		hmsbeagle-cpu-sse
 		hmsbeagle-cpu
+		hmsbeagle-cpu-action
 		${CMAKE_DL_LIBS})
 
 target_link_libraries(hmctest
