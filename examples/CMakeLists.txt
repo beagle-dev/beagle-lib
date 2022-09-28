@@ -31,6 +31,12 @@ add_executable(synthetictest
 #add_executable(complextest
 #        complextest/complextest.cpp)
 
+target_link_libraries(actiontest
+		hmsbeagle
+		hmsbeagle-cpu-sse
+		hmsbeagle-cpu
+		${CMAKE_DL_LIBS})
+
 target_link_libraries(hmctest
 	hmsbeagle
 	hmsbeagle-cpu-sse
