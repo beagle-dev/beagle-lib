@@ -200,7 +200,7 @@ int main( int argc, const char* argv[] )
     }
 
 //    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
-    long requirementFlags = BEAGLE_FLAG_FRAMEWORK_CPU | BEAGLE_FLAG_VECTOR_NONE;
+    long requirementFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
     if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
