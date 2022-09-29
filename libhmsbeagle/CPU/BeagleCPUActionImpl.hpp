@@ -64,7 +64,7 @@ namespace beagle {
                                                                                matrixCount, categoryCount, scaleBufferCount,
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
-            gInstantaneousMatrices = new SpMatrix*[eigenDecompositionCount];
+            gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
             gScaledQs = new SpMatrix * [kBufferCount];
             gMappedPartials = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
             gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
@@ -86,7 +86,8 @@ namespace beagle {
 
 
             for (int i = 0; i < eigenDecompositionCount; i++) {
-                gInstantaneousMatrices[i] = NULL;
+                SpMatrix matrix(kStateCount, kStateCount);
+                gInstantaneousMatrices[i] = matrix;
             }
 
             for (int i = 0; i < kBufferCount; i++) {
@@ -220,23 +221,14 @@ namespace beagle {
                                                                                  const double *inEigenVectors,
                                                                                  const double *inInverseEigenVectors,
                                                                                  const double *inEigenValues) {
-            if (gInstantaneousMatrices[eigenIndex] == NULL) {
-                gInstantaneousMatrices[eigenIndex] = new SpMatrix[kCategoryCount];
-                for (int i = 0; i < kCategoryCount; i++) {
-//                    new (& gInstantaneousMatrices[eigenIndex][i]) SpMatrix (kStateCount, kStateCount);
-                    SpMatrix matrix(kStateCount, kStateCount);
-                    gInstantaneousMatrices[eigenIndex][i] = matrix;
-                }
-            }
 
-            const int numNonZeros = (int) inInverseEigenVectors[0] / kCategoryCount;
-            for (int category = 0; category < kCategoryCount; category++) {
-                std::vector<Triplet> tripletList;
-                for (int i = 0; i < numNonZeros; i++) {
-                    tripletList.push_back(Triplet((int) inEigenVectors[2 * i + 2 * category * numNonZeros], (int) inEigenVectors[2 * i + 1 + 2 * category * numNonZeros], inEigenValues[i + category * numNonZeros]));
-                }
-                gInstantaneousMatrices[eigenIndex][category].setFromTriplets(tripletList.begin(), tripletList.end());
+            const int numNonZeros = (int) inInverseEigenVectors[0];
+            std::vector<Triplet> tripletList;
+            for (int i = 0; i < numNonZeros; i++) {
+                tripletList.push_back(Triplet((int) inEigenVectors[2 * i], (int) inEigenVectors[2 * i + 1], inEigenValues[i]));
             }
+            gInstantaneousMatrices[eigenIndex].setZero();
+            gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
             return BEAGLE_SUCCESS;
         }
 
@@ -260,7 +252,7 @@ namespace beagle {
                 }
                 for (int category = 0; category < kCategoryCount; category++) {
                     const double categoryRate = gCategoryRates[eigenIndex][category];
-                    gScaledQs[nodeIndex][category] = gInstantaneousMatrices[eigenIndex][category] * (edgeLengths[i] * categoryRate);
+                    gScaledQs[nodeIndex][category] = gInstantaneousMatrices[eigenIndex] * (edgeLengths[i] * categoryRate);
                 }
             }
             return BEAGLE_SUCCESS;

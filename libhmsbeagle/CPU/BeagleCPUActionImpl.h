@@ -86,7 +86,7 @@ namespace beagle {
             double* gIntegrationTmp;
             double* gLeftPartialTmp;
             double* gRightPartialTmp;
-            SpMatrix** gInstantaneousMatrices;
+            SpMatrix* gInstantaneousMatrices;
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
             MapType* gMappedRightPartialTmp;
