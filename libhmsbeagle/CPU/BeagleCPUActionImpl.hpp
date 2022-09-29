@@ -251,7 +251,7 @@ namespace beagle {
                     }
                 }
                 for (int category = 0; category < kCategoryCount; category++) {
-                    const double categoryRate = gCategoryRates[eigenIndex][category];
+                    const double categoryRate = gCategoryRates[0][category];
                     gScaledQs[nodeIndex][category] = gInstantaneousMatrices[eigenIndex] * (edgeLengths[i] * categoryRate);
                 }
             }
