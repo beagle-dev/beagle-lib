@@ -436,16 +436,7 @@ namespace beagle {
 
         BEAGLE_CPU_ACTION_TEMPLATE
         double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::normP1(SpMatrix * matrix) {
-            double norm = 0;
-            double* colSums = new double[kStateCount];
-            for (int k=0; k < matrix->outerSize(); ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(*matrix, k); it; ++it) {
-                    colSums[it.col()] += abs(it.value());
-                    if (norm < colSums[it.col()])
-                        norm = colSums[it.col()];
-                }
-            }
-            return norm;
+            return (Eigen::RowVectorXd::Ones(matrix -> rows()) * matrix -> cwiseAbs()).maxCoeff();
         }
 
 
