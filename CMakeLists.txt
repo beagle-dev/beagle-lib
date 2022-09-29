@@ -105,7 +105,7 @@ if(BUILD_ACTION)
 		message(FATAL_ERROR "No Eigen3 Found")
 	endif (NOT TARGET Eigen3::Eigen)
 	add_definitions(-DBEAGLE_ACTION)
-	add_definitions(-DBEAGLE_DEBUG_FLOW)
+#	add_definitions(-DBEAGLE_DEBUG_FLOW)
 endif(BUILD_ACTION)
 
 link_directories(
