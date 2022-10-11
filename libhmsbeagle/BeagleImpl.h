@@ -54,8 +54,8 @@ public:
                                int scaleBufferCount,
                                int resourceNumber,
                                int pluginResourceNumber,
-                               long preferenceFlags,
-                               long requirementFlags) = 0;
+                               BeagleFlagsType preferenceFlags,
+                               BeagleFlagsType requirementFlags) = 0;
     
     virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
     
@@ -290,13 +290,13 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   BeagleFlagsType preferenceFlags,
+                                   BeagleFlagsType requirementFlags,
                                    int* errorCode) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual
     
-    virtual const long getFlags() = 0; // pure virtual
+    virtual const BeagleFlagsType getFlags() = 0; // pure virtual
 };
 
 } // end namespace beagle

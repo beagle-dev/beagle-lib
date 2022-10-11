@@ -1464,8 +1464,8 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(i
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             BeagleFlagsType preferenceFlags,
+                                             BeagleFlagsType requirementFlags,
                                              int* errorCode) {
 
     if (stateCount != 4) {
@@ -1500,8 +1500,8 @@ const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
+const BeagleFlagsType BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    BeagleFlagsType flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
                   BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                   BEAGLE_FLAG_PROCESSOR_CPU |

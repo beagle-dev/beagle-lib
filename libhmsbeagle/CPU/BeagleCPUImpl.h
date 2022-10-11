@@ -92,7 +92,7 @@ protected:
     bool kPatternsReordered;
     int kMinPatternCount;
 
-    long kFlags;
+    BeagleFlagsType kFlags;
 
     REALTYPE realtypeMin;
     int scalingExponentThreshold;
@@ -180,8 +180,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags);
+                       BeagleFlagsType preferenceFlags,
+                       BeagleFlagsType requirementFlags);
 
     // initialization of instance,  returnInfo can be null
     int getInstanceDetails(BeagleInstanceDetails* returnInfo);
@@ -459,7 +459,7 @@ public:
 
 	virtual const char* getName();
 
-	virtual const long getFlags();
+	virtual const BeagleFlagsType getFlags();
 
 protected:
     virtual int upPartials(bool byPartition,
@@ -808,12 +808,12 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   BeagleFlagsType preferenceFlags,
+                                   BeagleFlagsType requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual const BeagleFlagsType getFlags();
 };
 
 //typedef BeagleCPUImplGeneral<double> BeagleCPUImpl;

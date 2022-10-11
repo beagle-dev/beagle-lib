@@ -106,17 +106,17 @@ template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
+inline const BeagleFlagsType getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
 
 template<>
-inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline const BeagleFlagsType getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                       BEAGLE_FLAG_PROCESSOR_CPU |
                                                       BEAGLE_FLAG_PRECISION_DOUBLE |
                                                       BEAGLE_FLAG_VECTOR_NONE |
                                                       BEAGLE_FLAG_FRAMEWORK_CPU; };
 
 template<>
-inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline const BeagleFlagsType getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                      BEAGLE_FLAG_PROCESSOR_CPU |
                                                      BEAGLE_FLAG_PRECISION_SINGLE |
                                                      BEAGLE_FLAG_VECTOR_NONE |
@@ -252,8 +252,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int scaleBufferCount,
                                   int resourceNumber,
                                   int pluginResourceNumber,
-                                  long preferenceFlags,
-                                  long requirementFlags) {
+                                  BeagleFlagsType preferenceFlags,
+                                  BeagleFlagsType requirementFlags) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
 
@@ -505,7 +505,7 @@ const char* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_TEMPLATE
-const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
+const BeagleFlagsType BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
     return getBeagleCPUFlags<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
@@ -4851,8 +4851,8 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             BeagleFlagsType preferenceFlags,
+                                             BeagleFlagsType requirementFlags,
                                              int* errorCode) {
 
     BeagleImpl* impl = new BeagleCPUImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();
@@ -4889,8 +4889,8 @@ const char* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+const BeagleFlagsType BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    BeagleFlagsType flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
                  BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                  BEAGLE_FLAG_PROCESSOR_CPU |

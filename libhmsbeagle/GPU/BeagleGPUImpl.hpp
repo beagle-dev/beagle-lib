@@ -292,8 +292,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
                                   int scaleBufferCount,
                                   int globalResourceNumber,
                                   int pluginResourceNumber,
-                                  long preferenceFlags,
-                                  long requirementFlags) {
+                                  BeagleFlagsType preferenceFlags,
+                                  BeagleFlagsType requirementFlags) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
@@ -4596,8 +4596,8 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
                                               int scaleBufferCount,
                                               int resourceNumber,
                                               int pluginResourceNumber,
-                                              long preferenceFlags,
-                                              long requirementFlags,
+                                              BeagleFlagsType preferenceFlags,
+                                              BeagleFlagsType requirementFlags,
                                               int* errorCode) {
     BeagleImpl* impl = new BeagleGPUImpl<BEAGLE_GPU_GENERIC>();
     try {
@@ -4645,18 +4645,18 @@ const char* BeagleGPUImplFactory<float>::getName() {
 #endif
 
 template<>
-void modifyFlagsForPrecision(long *flags, double r) {
+void modifyFlagsForPrecision(BeagleFlagsType *flags, double r) {
     *flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
 }
 
 template<>
-void modifyFlagsForPrecision(long *flags, float r) {
+void modifyFlagsForPrecision(BeagleFlagsType *flags, float r) {
     *flags |= BEAGLE_FLAG_PRECISION_SINGLE;
 }
 
 BEAGLE_GPU_TEMPLATE
-const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
+const BeagleFlagsType BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+    BeagleFlagsType flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
           BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
           BEAGLE_FLAG_THREADING_NONE |
           BEAGLE_FLAG_VECTOR_NONE |
