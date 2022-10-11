@@ -312,7 +312,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kScaleBufferCount = scaleBufferCount;
 
     kExtraMatrixCount = 0;
-    kMatrixCount += 0; // TODO Is TRANSPOSE_AUTO then set this = 1;
 
     kPartitionCount = 1;
     kMaxPartitionCount = kPartitionCount;
@@ -500,6 +499,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     if (preferenceFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY || requirementFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY) {
         kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
+    }
+
+    kUsingAutoTranspose = (kPaddedStateCount > 4 &&
+                           kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO);
+
+    kUsingLowMemoryTranspose = (kPaddedStateCount > 4) && kUsingAutoTranspose &&
+                               kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
+
+    if (kUsingAutoTranspose) {
+        ++kMatrixCount;
     }
 
     Real r = 0;
@@ -799,12 +808,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
     }
-
-    kUsingAutoTranspose = (kPaddedStateCount > 4 &&
-            kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO);
-
-    kUsingLowMemoryTranspose = (kPaddedStateCount > 4) &&
-            kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
@@ -2881,9 +2884,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
         const int writeScalingIndex = operations[op * 7 + 1];
         const int readScalingIndex = operations[op * 7 + 2];
         const int child1Index = operations[op * 7 + 3];         // Parent
-        const int child1TransMatIndex = operations[op * 7 + 4];
+        int child1TransMatIndex = operations[op * 7 + 4];
         const int child2Index = operations[op * 7 + 5];         // Sibling
         const int child2TransMatIndex = operations[op * 7 + 6];
+
+        if (kUsingAutoTranspose && kUsingLowMemoryTranspose) {
+
+            std::vector<int> oldMatrix = { child1TransMatIndex };
+            std::vector<int> newMatrix = { kMatrixCount - 1 }; // Last element
+
+            transposeTransitionMatrices(oldMatrix.data(), newMatrix.data(), 1);
+
+            child1TransMatIndex = kMatrixCount - 1;
+        }
 
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
         GPUPtr matrices2 = dMatrices[child2TransMatIndex];
@@ -2894,11 +2907,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
-
-        if (kUsingAutoTranspose && kUsingLowMemoryTranspose) {
-            // TODO Single matrix transpose here
-        }
-
+        
         if (tipStates2 != 0) {
             kernels->PartialsStatesGrowing(partials1, tipStates2, partials3,
                                            matrices1, matrices2,

@@ -171,7 +171,7 @@ int main( int argc, const char* argv[] )
     bool useTipStates = true;
 
     bool autoTranspose = true;
-    bool lowMemory = false;
+    bool lowMemory = true;
 
     bool singlePrecision = true;
 
