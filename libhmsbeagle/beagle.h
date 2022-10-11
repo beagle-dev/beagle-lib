@@ -140,52 +140,52 @@ enum BeagleReturnCodes {
  * Each capability is a bit in a 'long'
  */
 enum BeagleFlags : long {
-    BEAGLE_FLAG_PRECISION_SINGLE          = 0x0000000000000000,    /**< Single precision computation */
-    BEAGLE_FLAG_PRECISION_DOUBLE          = 0x0000000000000001,    /**< Double precision computation */
+    BEAGLE_FLAG_PRECISION_SINGLE    = (unsigned long) 1 << 0,    /**< Single precision computation */
+    BEAGLE_FLAG_PRECISION_DOUBLE    = (unsigned long) 1 << 1,    /**< Double precision computation */
 
-    BEAGLE_FLAG_COMPUTATION_SYNCH         = 0x0000000000000002,    /**< Synchronous computation (blocking) */
-    BEAGLE_FLAG_COMPUTATION_ASYNCH        = 0x0000000000000004,    /**< Asynchronous computation (non-blocking) */
+    BEAGLE_FLAG_COMPUTATION_SYNCH   = (unsigned long) 1 << 2,    /**< Synchronous computation (blocking) */
+    BEAGLE_FLAG_COMPUTATION_ASYNCH  = (unsigned long) 1 << 3,    /**< Asynchronous computation (non-blocking) */
 
-    BEAGLE_FLAG_EIGEN_REAL                = 0x0000000000000008,    /**< Real eigenvalue computation */
-    BEAGLE_FLAG_EIGEN_COMPLEX             = 0x0000000000000010,    /**< Complex eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_REAL          = (unsigned long) 1 << 4,    /**< Real eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_COMPLEX       = (unsigned long) 1 << 5,    /**< Complex eigenvalue computation */
 
-    BEAGLE_FLAG_SCALING_MANUAL            = 0x0000000000000020,    /**< Manual scaling */
-    BEAGLE_FLAG_SCALING_AUTO              = 0x0000000000000040,    /**< Auto-scaling on (deprecated, may not work correctly) */
-    BEAGLE_FLAG_SCALING_ALWAYS            = 0x0000000000000080,    /**< Scale at every updatePartials (deprecated, may not work correctly) */
-    BEAGLE_FLAG_SCALING_DYNAMIC           = 0x0000000000000100,   /**< Manual scaling with dynamic checking (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_MANUAL      = (unsigned long) 1 << 6,    /**< Manual scaling */
+    BEAGLE_FLAG_SCALING_AUTO        = (unsigned long) 1 << 7,    /**< Auto-scaling on (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_ALWAYS      = (unsigned long) 1 << 8,    /**< Scale at every updatePartials (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_DYNAMIC     = (unsigned long) 1 << 25,   /**< Manual scaling with dynamic checking (deprecated, may not work correctly) */
 
-    BEAGLE_FLAG_SCALERS_RAW               = 0x0000000000000200,    /**< Save raw scalers */
-    BEAGLE_FLAG_SCALERS_LOG               = 0x0000000000000400,   /**< Save log scalers */
+    BEAGLE_FLAG_SCALERS_RAW         = (unsigned long) 1 << 9,    /**< Save raw scalers */
+    BEAGLE_FLAG_SCALERS_LOG         = (unsigned long) 1 << 10,   /**< Save log scalers */
 
-    BEAGLE_FLAG_INVEVEC_STANDARD          = 0x0000000000000800,   /**< Inverse eigen vectors passed to BEAGLE have not been transposed */
-    BEAGLE_FLAG_INVEVEC_TRANSPOSED        = 0x0000000000001000,   /**< Inverse eigen vectors passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_INVEVEC_STANDARD    = (unsigned long) 1 << 20,   /**< Inverse eigen vectors passed to BEAGLE have not been transposed */
+    BEAGLE_FLAG_INVEVEC_TRANSPOSED  = (unsigned long) 1 << 21,   /**< Inverse eigen vectors passed to BEAGLE have been transposed */
 
-    BEAGLE_FLAG_VECTOR_SSE                = 0x0000000000002000,   /**< SSE computation */
-    BEAGLE_FLAG_VECTOR_AVX                = 0x0000000000004000,   /**< AVX computation */
-    BEAGLE_FLAG_VECTOR_NONE               = 0x0000000000008000,   /**< No vector computation */
+    BEAGLE_FLAG_VECTOR_SSE          = (unsigned long) 1 << 11,   /**< SSE computation */
+    BEAGLE_FLAG_VECTOR_AVX          = (unsigned long) 1 << 24,   /**< AVX computation */
+    BEAGLE_FLAG_VECTOR_NONE         = (unsigned long) 1 << 12,   /**< No vector computation */
 
-    BEAGLE_FLAG_THREADING_CPP             = 0x0000000000010000,   /**< C++11 threading */
-    BEAGLE_FLAG_THREADING_OPENMP          = 0x0000000000020000,   /**< OpenMP threading */
-    BEAGLE_FLAG_THREADING_NONE            = 0x0000000000040000,   /**< No threading (default) */
+    BEAGLE_FLAG_THREADING_CPP       = (unsigned long) 1 << 30,   /**< C++11 threading */
+    BEAGLE_FLAG_THREADING_OPENMP    = (unsigned long) 1 << 13,   /**< OpenMP threading */
+    BEAGLE_FLAG_THREADING_NONE      = (unsigned long) 1 << 14,   /**< No threading (default) */
 
-    BEAGLE_FLAG_PROCESSOR_CPU             = 0x0000000000080000,   /**< Use CPU as main processor */
-    BEAGLE_FLAG_PROCESSOR_GPU             = 0x0000000000100000,   /**< Use GPU as main processor */
-    BEAGLE_FLAG_PROCESSOR_FPGA            = 0x0000000000200000,   /**< Use FPGA as main processor */
-    BEAGLE_FLAG_PROCESSOR_CELL            = 0x0000000000400000,   /**< Use Cell as main processor */
-    BEAGLE_FLAG_PROCESSOR_PHI             = 0x0000000000800000,   /**< Use Intel Phi as main processor */
-    BEAGLE_FLAG_PROCESSOR_OTHER           = 0x0000000001000000,   /**< Use other type of processor */
+    BEAGLE_FLAG_PROCESSOR_CPU       = (unsigned long) 1 << 15,   /**< Use CPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_GPU       = (unsigned long) 1 << 16,   /**< Use GPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_FPGA      = (unsigned long) 1 << 17,   /**< Use FPGA as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = (unsigned long) 1 << 18,   /**< Use Cell as main processor */
+    BEAGLE_FLAG_PROCESSOR_PHI       = (unsigned long) 1 << 19,   /**< Use Intel Phi as main processor */
+    BEAGLE_FLAG_PROCESSOR_OTHER     = (unsigned long) 1 << 26,   /**< Use other type of processor */
 
-    BEAGLE_FLAG_FRAMEWORK_CUDA            = 0x0000000002000000,   /**< Use CUDA implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_OPENCL          = 0x0000000004000000,   /**< Use OpenCL implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_CPU             = 0x0000000008000000,   /**< Use CPU implementation */
+    BEAGLE_FLAG_FRAMEWORK_CUDA      = (unsigned long) 1 << 22,   /**< Use CUDA implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_OPENCL    = (unsigned long) 1 << 23,   /**< Use OpenCL implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_CPU       = (unsigned long) 1 << 27,   /**< Use CPU implementation */
 
-    BEAGLE_FLAG_PARALLELOPS_STREAMS       = 0x0000000010000000,   /**< Operations in updatePartials may be assigned to separate device streams */
-    BEAGLE_FLAG_PARALLELOPS_GRID          = 0x0000000020000000,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    BEAGLE_FLAG_PARALLELOPS_STREAMS = (unsigned long) 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
+    BEAGLE_FLAG_PARALLELOPS_GRID    = (unsigned long) 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
 
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 0x0000000040000000,   /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 0x0000000080000000,   /**< Automatically transpose pre-order transition matrices */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = (unsigned long) 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = (unsigned long) 1 << 31, /**< Automatically transpose pre-order transition matrices */
 
-    BEAGLE_FLAG_COMPUTATION_ACTION        = 0x0000010000000000    /**< Action computation */
+    BEAGLE_FLAG_COMPUTATION_ACTION        = (unsigned long) 1 << 40    /**< Action computation */
 };
 
 
