@@ -185,7 +185,7 @@ enum BeagleFlags : long {
     BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 0x0000000040000000,   /**< Pre-order transition matrices passed to BEAGLE have been transposed */
     BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 0x0000000080000000,   /**< Automatically transpose pre-order transition matrices */
 
-    BEAGLE_FLAG_COMPUTATION_ACTION        = 0x0000000100000000    /**< Action computation */
+    BEAGLE_FLAG_COMPUTATION_ACTION        = 0x0000010000000000    /**< Action computation */
 };
 
 

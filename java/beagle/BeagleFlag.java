@@ -45,7 +45,7 @@ public enum BeagleFlag {
     PREORDER_TRANSPOSE_MANUAL(0x0000000040000000L, "Pre-order transition matrices passed to BEAGLE have been transposed"),
     PREORDER_TRANSPOSE_AUTO(0x0000000080000000L, "Automatically transpose pre-order transition matrices"),
 
-    BEAGLE_FLAG_COMPUTATION_ACTION(0x0000000100000000L, "Action computation");
+    BEAGLE_FLAG_COMPUTATION_ACTION(0x0000010000000000L, "Action computation");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
