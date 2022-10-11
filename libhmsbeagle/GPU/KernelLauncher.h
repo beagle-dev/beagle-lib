@@ -148,7 +148,7 @@ private:
     unsigned int kSlowReweighing;  
     unsigned int kMultiplyBlockSize;
     unsigned int kSumSitesBlockSize;
-    long kFlags;
+    BeagleFlagsType kFlags;
     bool kCPUImplementation;
     bool kAppleCPUImplementation;
 

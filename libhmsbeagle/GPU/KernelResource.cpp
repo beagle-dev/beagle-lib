@@ -30,7 +30,7 @@ KernelResource::KernelResource(
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
-        long inFlags
+        BeagleFlagsType inFlags
         ) {
     paddedStateCount = inPaddedStateCount;
     kernelCode = inKernelString;

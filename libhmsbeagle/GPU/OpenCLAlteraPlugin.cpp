@@ -40,7 +40,7 @@ Plugin("GPU-OpenCL-Altera", "GPU-OpenCL-Altera")
                                         BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
                                         BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
-                long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
+                BeagleFlagsType deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
                 
                 resource.supportFlags |= deviceTypeFlag;
 

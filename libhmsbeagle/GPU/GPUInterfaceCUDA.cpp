@@ -255,7 +255,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
 }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categoryCount, int paddedPatternCount, int unpaddedPatternCount, int tipCount,
-                             long flags) {
+                             BeagleFlagsType flags) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif
@@ -890,12 +890,12 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     free(hPtr);
 }
 
-long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
+BeagleFlagsType GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceTypeFlag\n");
 #endif
 
-    long deviceTypeFlag = BEAGLE_FLAG_PROCESSOR_GPU;
+    BeagleFlagsType deviceTypeFlag = BEAGLE_FLAG_PROCESSOR_GPU;
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::GetDeviceTypeFlag\n");

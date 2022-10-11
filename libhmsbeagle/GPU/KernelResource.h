@@ -26,6 +26,8 @@
 #ifndef KERNELRESOURCE_H_
 #define KERNELRESOURCE_H_
 
+#include "../beagle.h"
+
 class KernelResource {
 public:
     KernelResource();
@@ -41,7 +43,7 @@ public:
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
-        long inFlags
+        BeagleFlagsType inFlags
         );
     
     KernelResource(const KernelResource& krIn,
@@ -61,7 +63,7 @@ public:
     int smallestPowerOfTwo;
     int slowReweighing;
     int multiplyBlockSize;
-    long flags;
+    BeagleFlagsType flags;
     
     KernelResource* copy();
 };

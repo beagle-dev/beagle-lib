@@ -106,7 +106,7 @@ public:
                    int patternCount,
                    int unpaddedPatternCount,
                    int tipCount,
-                   long flags);
+                   BeagleFlagsType flags);
     
     void ResizeStreamCount(int newStreamCount);
 
@@ -192,7 +192,7 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
     
-    long GetDeviceTypeFlag(int deviceNumber);
+    BeagleFlagsType GetDeviceTypeFlag(int deviceNumber);
 
     BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
 
