@@ -120,9 +120,7 @@ namespace beagle {
             free(gIntegrationTmp);
             free(gLeftPartialTmp);
             free(gRightPartialTmp);
-            free(gInstantaneousMatrices);
             free(gScaledQs);
-
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
@@ -206,9 +204,14 @@ namespace beagle {
                     rescale = 0;
                 }
 
-                if (rescale == 0) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Updating partials for index: "<<destinationPartialIndex << std::endl;
+#endif
+
+//                if (rescale == 0) {
                     calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
-                }
+//                }
             }
 
 
@@ -223,12 +226,19 @@ namespace beagle {
                                                                                  const double *inEigenValues) {
 
             const int numNonZeros = (int) inInverseEigenVectors[0];
+//            gInstantaneousMatrices[eigenIndex].setZero();
             std::vector<Triplet> tripletList;
             for (int i = 0; i < numNonZeros; i++) {
                 tripletList.push_back(Triplet((int) inEigenVectors[2 * i], (int) inEigenVectors[2 * i + 1], inEigenValues[i]));
             }
-            gInstantaneousMatrices[eigenIndex].setZero();
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
+#ifdef BEAGLE_DEBUG_FLOW
+            std::cerr<<"In vlaues: \n";
+            for (int i = 0; i < numNonZeros; i++) {
+                std::cerr<< "("<<inEigenVectors[2 * i] << ", " << inEigenVectors[2 * i + 1] << ") = "<< inEigenValues[i]<< std::endl;
+            }
+            std::cerr<<"Instantaneous matrix " << std::endl << gInstantaneousMatrices[eigenIndex]<<std::endl;
+#endif
             return BEAGLE_SUCCESS;
         }
 
@@ -253,6 +263,11 @@ namespace beagle {
                 for (int category = 0; category < kCategoryCount; category++) {
                     const double categoryRate = gCategoryRates[0][category];
                     gScaledQs[nodeIndex][category] = gInstantaneousMatrices[eigenIndex] * (edgeLengths[i] * categoryRate);
+#ifdef BEAGLE_DEBUG_FLOW
+                    std::cerr<<"Transition matrix, rate category " << category << " rate multiplier: " << categoryRate
+                    << " edge length multiplier: " << edgeLengths[i] << std::endl << gScaledQs[nodeIndex][category]<<std::endl;
+                    std::cerr<<"  corresponding Q matrix " << std::endl << gInstantaneousMatrices[eigenIndex]<<std::endl;
+#endif
                 }
             }
             return BEAGLE_SUCCESS;
@@ -282,6 +297,11 @@ namespace beagle {
                                                                          SpMatrix* matrix) {
             for (int category = 0; category < kCategoryCount; category++) {
                 SpMatrix thisMatrix = matrix[category];
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Rate category "<<category<<std::endl;
+                std::cerr<<"In partial: \n"<<partials[category]<<std::endl;
+                std::cerr<<"Matrix: \n"<<thisMatrix<<std::endl;
+#endif
                 const double tol = pow(2.0, -53.0);
                 const double t = 1.0;
                 const int nCol = kPatternCount;
@@ -331,6 +351,9 @@ namespace beagle {
                     F *= eta;
                     destP[category] = F;
                 }
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Out partials: \n"<<destP[category]<<std::endl;
+#endif
             }
         }
 
@@ -365,9 +388,9 @@ namespace beagle {
                 } else {
                     std::map<int, double> d;
                     SpMatrix firstOrderMatrix = *matrix;
-                    std::map<int, SpMatrix> powerMatrices = {
-                            {1, firstOrderMatrix}
-                    };
+                    std::map<int, SpMatrix> powerMatrices;
+                    powerMatrices[1] = firstOrderMatrix;
+                    d[1] = normP1(&firstOrderMatrix);
                     for (int p = 2; p < pMax; p++) {
                         for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
                             it = thetaConstants.find(thisM);
@@ -411,7 +434,7 @@ namespace beagle {
             // equation 3.7 in Al-Mohy and Higham
             std::map<int, double>::iterator it;
             it = d.find(p);
-            if (it != d.end()) {
+            if (it == d.end()) {
                 const int highestPower = d.rbegin()->first;
                 if (highestPower < p) {
                     for (int i = highestPower; i < p; i++) {
