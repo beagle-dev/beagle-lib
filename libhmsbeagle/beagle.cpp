@@ -329,10 +329,10 @@ BeagleResourceList* beagleGetResourceList() {
     return rsrcList;
 }
 
-int scoreFlags(long flags1, long flags2) {
+int scoreFlags(BeagleFlagsType flags1, BeagleFlagsType flags2) {
     int score = 0;
     int trait = 1;
-    for(int bits=0; bits<32; bits++) {
+    for(int bits=0; bits<64; bits++) {
         if ( (flags1 & trait) &&
              (flags2 & trait) )
             score++;
@@ -343,8 +343,8 @@ int scoreFlags(long flags1, long flags2) {
 
 int filterResources(int* resourceList,
                     int resourceCount,
-                    long preferenceFlags,
-                    long requirementFlags,
+                    BeagleFlagsType preferenceFlags,
+                    BeagleFlagsType requirementFlags,
                     PairedList* possibleResources) {
 
     // First determine a list of possible resources
@@ -364,7 +364,7 @@ int filterResources(int* resourceList,
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
-            long resourceFlag = rsrcList->list[resource].supportFlags;
+            BeagleFlagsType resourceFlag = rsrcList->list[resource].supportFlags;
             if ( (resourceFlag & requirementFlags) < requirementFlags) {
                 if(it==possibleResources->begin()){
                     possibleResources->remove(*(it));
@@ -384,8 +384,8 @@ int filterResources(int* resourceList,
     return BEAGLE_SUCCESS;
 }
 
-int rankResourceImplementationPairs(long preferenceFlags,
-                                    long requirementFlags,
+int rankResourceImplementationPairs(BeagleFlagsType preferenceFlags,
+                                    BeagleFlagsType requirementFlags,
                                     PairedList* possibleResources,
                                     RsrcImplList* possibleResourceImplementations) {
 
@@ -396,8 +396,8 @@ int rankResourceImplementationPairs(long preferenceFlags,
     for(PairedList::iterator it = possibleResources->begin();
         it != possibleResources->end(); ++it) {
         int resource = (*it).second;
-        long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
-        long resourceSupportedFlags = rsrcList->list[resource].supportFlags;
+        BeagleFlagsType resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
+        BeagleFlagsType resourceSupportedFlags = rsrcList->list[resource].supportFlags;
         int resourceScore = (*it).first;
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
@@ -405,7 +405,7 @@ int rankResourceImplementationPairs(long preferenceFlags,
 
         for (std::list<beagle::BeagleImplFactory*>::iterator factory =
              implFactory->begin(); factory != implFactory->end(); factory++) {
-            long factoryFlags = (*factory)->getFlags();
+            BeagleFlagsType factoryFlags = (*factory)->getFlags();
 #ifdef BEAGLE_DEBUG_FLOW
             fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
 #endif
@@ -457,12 +457,12 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 int categoryCount,
                                                                 int* resourceList,
                                                                 int resourceCount,
-                                                                long preferenceFlags,
-                                                                long requirementFlags,
+                                                                BeagleFlagsType preferenceFlags,
+                                                                BeagleFlagsType requirementFlags,
                                                                 int eigenModelCount,
                                                                 int partitionCount,
                                                                 int calculateDerivatives,
-                                                                long benchmarkFlags) {
+                                                                BeagleFlagsType benchmarkFlags) {
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
     debugPatternCount = patternCount;
@@ -513,7 +513,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
 
     int resourceNumber;
     char* implName;
-    long benchedFlags;
+    BeagleFlagsType benchedFlags;
     double benchmarkResultCPU;
 
     bool instOnly = false;
@@ -631,8 +631,8 @@ int beagleCreateInstance(int tipCount,
                          int scaleBufferCount,
                          int* resourceList,
                          int resourceCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         BeagleFlagsType preferenceFlags,
+                         BeagleFlagsType requirementFlags,
                          BeagleInstanceDetails* returnInfo) {
     DEBUG_CREATE_TIME();
     try {

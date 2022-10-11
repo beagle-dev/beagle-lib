@@ -1459,7 +1459,7 @@ void setNewEigenModels(int modelCount,
     free(ivec);
 }
 
-void printFlags(long inFlags) {
+void printFlags(BeagleFlagsType inFlags) {
     if (inFlags & BEAGLE_FLAG_PRECISION_SINGLE   ) fprintf(stdout, " PRECISION_SINGLE"   );
     if (inFlags & BEAGLE_FLAG_PRECISION_DOUBLE   ) fprintf(stdout, " PRECISION_DOUBLE"   );
     if (inFlags & BEAGLE_FLAG_COMPUTATION_SYNCH  ) fprintf(stdout, " COMPUTATION_SYNCH"  );
@@ -1602,7 +1602,7 @@ void runBeagle(int resource,
         fprintf(stdout, "BEAGLE version %s\n", beagleGetVersion());
         fprintf(stdout, "%s\n", beagleGetCitation());
 
-        long benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_NONE;
+        BeagleFlagsType benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_NONE;
 
         if (manualScaling) {
             if (rescaleFrequency > 1)
@@ -1611,8 +1611,8 @@ void runBeagle(int resource,
                 benchmarkFlags = BEAGLE_BENCHFLAG_SCALING_ALWAYS;
         }
 
-        long preferenceFlags = (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0);
-        long requirementFlags =
+        BeagleFlagsType preferenceFlags = (enableThreads ? BEAGLE_FLAG_THREADING_CPP : 0);
+        BeagleFlagsType requirementFlags =
         (requireDoublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) |
 	  (disableVector ? BEAGLE_FLAG_VECTOR_NONE : 0);
 

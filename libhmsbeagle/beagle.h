@@ -259,11 +259,11 @@ typedef struct {
     int number;         /**< Resource number  */
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
-    long  supportFlags; /**< Bit-flags of supported capabilities on resource */
-    long  requiredFlags;/**< Bit-flags that identify resource type */
+    BeagleFlagsType  supportFlags; /**< Bit-flags of supported capabilities on resource */
+    BeagleFlagsType  requiredFlags;/**< Bit-flags that identify resource type */
     int   returnCode;   /**< Return code of for benchmark attempt (see BeagleReturnCodes) */
     char* implName;     /**< Name of implementation used to benchmark resource */
-    long  benchedFlags; /**< Bit-flags that characterize the activate
+    BeagleFlagsType  benchedFlags; /**< Bit-flags that characterize the activate
                          *   capabilities of the resource and implementation for this benchmark */
     double benchmarkResult; /**< Benchmark result in milliseconds */
     double performanceRatio; /**< Performance ratio relative to default CPU resource */
@@ -353,12 +353,12 @@ BEAGLE_DLLEXPORT BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList
                                                     int categoryCount,
                                                     int* resourceList,
                                                     int resourceCount,
-                                                    long preferenceFlags,
-                                                    long requirementFlags,
+                                                    BeagleFlagsType preferenceFlags,
+                                                    BeagleFlagsType requirementFlags,
                                                     int eigenModelCount,
                                                     int partitionCount,
                                                     int calculateDerivatives,
-                                                    long benchmarkFlags);
+                                                    BeagleFlagsType benchmarkFlags);
 
 /**
  * @brief Create a single instance
@@ -402,8 +402,8 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int scaleBufferCount,
                          int* resourceList,
                          int resourceCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         BeagleFlagsType preferenceFlags,
+                         BeagleFlagsType requirementFlags,
                          BeagleInstanceDetails* returnInfo);
 
 /**
