@@ -42,10 +42,10 @@ public enum BeagleFlag {
     PARALLELOPS_STREAMS(1 << 28, "Operations in updatePartials may be assigned to separate device streams"),
     PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)"),
 
-    PREORDER_TRANSPOSE_MANUAL((unsigned long) 1 << 30, "Pre-order transition matrices passed to BEAGLE have been transposed"),
-    PREORDER_TRANSPOSE_AUTO((unsigned long) 1 << 31, "Automatically transpose pre-order transition matrices"),
+    PREORDER_TRANSPOSE_MANUAL((long) 1 << 30, "Pre-order transition matrices passed to BEAGLE have been transposed"),
+    PREORDER_TRANSPOSE_AUTO((long) 1 << 31, "Automatically transpose pre-order transition matrices"),
 
-    BEAGLE_FLAG_COMPUTATION_ACTION((unsigned long) 1 << 40, "Action computation");
+    BEAGLE_FLAG_COMPUTATION_ACTION((long) 1 << 40, "Action computation");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;
