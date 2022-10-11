@@ -21,6 +21,7 @@
 #endif
 
 #include "libhmsbeagle/beagle.h"
+#include "../../libhmsbeagle/beagle.h"
 
 char *human = (char*)"GAGT";
 char *chimp = (char*)"GAGG";
@@ -131,6 +132,7 @@ void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   fprintf(stdout, " FRAMEWORK_OPENCL");
     if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL)    fprintf(stdout, " PREORDER_TRANSPOSE_MANUAL");
     if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO)      fprintf(stdout, " PREORDER_TRANSPOSE_AUTO");
+    if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY)      fprintf(stdout, " PREORDER_TRANSPOSE_LOW_MEMORY");
 }
 
 int main( int argc, const char* argv[] )
@@ -169,6 +171,7 @@ int main( int argc, const char* argv[] )
     bool useTipStates = true;
 
     bool autoTranspose = true;
+    bool lowMemory = false;
 
     bool singlePrecision = true;
 
@@ -199,10 +202,15 @@ int main( int argc, const char* argv[] )
     }
 
     long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
+
     if (autoTranspose) {
         requirementFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     } else {
         requirementFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL;
+    }
+
+    if (autoTranspose & lowMemory) {
+        requirementFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
     }
 
     // create an instance of the BEAGLE library

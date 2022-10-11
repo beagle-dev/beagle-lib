@@ -44,6 +44,7 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/Precision.h"
 #include "BeagleGPUImpl.h"
+#include "../beagle.h"
 
 namespace beagle {
 namespace gpu {
@@ -311,6 +312,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kScaleBufferCount = scaleBufferCount;
 
     kExtraMatrixCount = 0;
+    kMatrixCount += 0; // TODO Is TRANSPOSE_AUTO then set this = 1;
 
     kPartitionCount = 1;
     kMaxPartitionCount = kPartitionCount;
@@ -494,6 +496,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     } else {
         kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL;
+    }
+
+    if (preferenceFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY || requirementFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY) {
+        kFlags |= BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
     }
 
     Real r = 0;
@@ -796,6 +802,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     kUsingAutoTranspose = (kPaddedStateCount > 4 &&
             kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO);
+
+    kUsingLowMemoryTranspose = (kPaddedStateCount > 4) &&
+            kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY;
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving BeagleGPUImpl::createInstance\n");
@@ -2861,7 +2870,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
     const int* operations = inOperations;
     std::vector<int> newOperations;
 
-    if (kUsingAutoTranspose) {
+    if (kUsingAutoTranspose && !kUsingLowMemoryTranspose) {
         newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
         operations = newOperations.data();
     }
@@ -2885,6 +2894,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
+
+        if (kUsingAutoTranspose && kUsingLowMemoryTranspose) {
+            // TODO Single matrix transpose here
+        }
 
         if (tipStates2 != 0) {
             kernels->PartialsStatesGrowing(partials1, tipStates2, partials3,
@@ -4650,7 +4663,7 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
           BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
           BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
           BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-          BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+          BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO | BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY |
           BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS;
 
 #ifdef CUDA

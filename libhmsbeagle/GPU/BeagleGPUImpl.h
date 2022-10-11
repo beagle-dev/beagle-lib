@@ -151,6 +151,7 @@ private:
     bool kDerivBuffersInitialised;
 	int kMultipleDerivativesLength; // TODO Change to length (max node count used)
 	bool kUsingAutoTranspose;
+	bool kUsingLowMemoryTranspose;
 
     int kNumPatternBlocks;
     int kSitesPerBlock;

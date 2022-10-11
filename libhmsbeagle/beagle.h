@@ -140,7 +140,7 @@ enum BeagleReturnCodes {
  * Each capability is a bit in a 'long'
  */
 enum BeagleFlags {
-    BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< Single precision computation */
+    BEAGLE_FLAG_PRECISION_SINGLE    = (unsigned long) 1 << 0,    /**< Single precision computation */
     BEAGLE_FLAG_PRECISION_DOUBLE    = 1 << 1,    /**< Double precision computation */
     
     BEAGLE_FLAG_COMPUTATION_SYNCH   = 1 << 2,    /**< Synchronous computation (blocking) */
@@ -182,8 +182,9 @@ enum BeagleFlags {
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
 
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1 << 31 /**< Automatically transpose pre-order transition matrices */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL     = 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO       = 1 << 31, /**< Automatically transpose pre-order transition matrices */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_LOW_MEMORY = 1 << 32 /**< Use low-memory automatic matrix transpose */
 };
 
 
