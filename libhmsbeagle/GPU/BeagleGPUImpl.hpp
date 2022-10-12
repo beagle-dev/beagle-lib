@@ -2907,7 +2907,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 
         GPUPtr tipStates1 = dStates[child1Index];
         GPUPtr tipStates2 = dStates[child2Index];
-        
+
         if (tipStates2 != 0) {
             kernels->PartialsStatesGrowing(partials1, tipStates2, partials3,
                                            matrices1, matrices2,
