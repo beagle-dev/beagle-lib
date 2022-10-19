@@ -78,6 +78,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gPartials;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryRates;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
             SpMatrix** gScaledQs;
             MapType** gMappedPartials;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
@@ -90,6 +91,7 @@ namespace beagle {
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
             MapType* gMappedRightPartialTmp;
+            double* gRescaleTmp;
             const int mMax = 55;
             std::map<int, double> thetaConstants = {
                     //The first 30 values are from table A.3 of  Computing Matrix Functions.
@@ -169,6 +171,11 @@ namespace beagle {
 //            virtual int getPaddedPatternsModulus();
 
         private:
+            virtual void rescalePartials(MapType *destP,
+                                         double *scaleFactors,
+                                         double *cumulativeScaleFactors,
+                                         const int  fillWithOnes);
+
             virtual int setTransitionMatrix(int matrixIndex,
                                             const double *inMatrix,
                                             double paddedValue);
