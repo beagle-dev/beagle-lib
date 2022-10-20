@@ -292,6 +292,9 @@ void KernelLauncher::LoadKernels() {
     fPartialsPartialsGrowing = gpu->GetFunction(
             "kernelPartialsPartialsGrowing");
 
+    fPartialsPartialsGrowingTensorCores = gpu->GetFunction(
+            "kernelPartialsPartialsGrowingTensorCores");
+
     fPartialsStatesGrowing = gpu->GetFunction(
             "kernelPartialsStatesGrowing");
 
@@ -995,12 +998,23 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsGrowing\n");
 #endif
 DEBUG_START_TIME();
+#ifdef BEAGLE_TENSOR_CORES
+    fprintf(stderr, "\t\tEntering Kernel for tensor cores\n");
+    gpu->LaunchKernel(fPartialsPartialsGrowingTensorCores,
+                      bgPeelingBlock, bgPeelingGrid,
+                      5, 6,
+                      partials1, partials2, partials3, matrices1, matrices2,
+                      patternCount);
+    gpu->SynchronizeDevice();
+    fprintf(stderr, "\t\tLeaving Kernel for tensor cores\n");
+#else
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
+#endif
 DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");

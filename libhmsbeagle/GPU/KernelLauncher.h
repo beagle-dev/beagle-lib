@@ -68,6 +68,7 @@ private:
 	GPUFunction fMultipleNodeSiteReduction;
 	GPUFunction fMultipleNodeSiteSquaredReduction;
 	GPUFunction fPartialsPartialsGrowing;
+    GPUFunction fPartialsPartialsGrowingTensorCores;
 	GPUFunction fPartialsStatesGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
