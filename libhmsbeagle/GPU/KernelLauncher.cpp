@@ -308,7 +308,7 @@ void KernelLauncher::LoadKernels() {
             "kernelMultipleNodeSiteSquaredReduction");
 
 
-    fprintf(stderr, "A\n");
+    fprintf(stderr, "A low memory\n");
 
     fPartialsPartialsCrossProducts = gpu->GetFunction(
             "kernelPartialsPartialsCrossProducts");
