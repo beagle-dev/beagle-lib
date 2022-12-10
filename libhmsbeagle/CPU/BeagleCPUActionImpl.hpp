@@ -66,6 +66,7 @@ namespace beagle {
                                                                                preferenceFlags, requirementFlags);
             gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
             gScaledQs = new SpMatrix * [kBufferCount];
+            gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
             gMappedPartials = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
             gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
             gLeftPartialTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
@@ -267,6 +268,74 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::updatePrePartials(const int *operations,
+                                                                          int operationCount,
+                                                                          int cumulativeScalingIndex) {
+            double* cumulativeScaleBuffer = NULL;
+            if (cumulativeScalingIndex != BEAGLE_OP_NONE)
+                cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+
+            for (int op = 0; op < operationCount; op++) {
+                int numOps = BEAGLE_OP_COUNT;
+
+                // create a list of partial likelihood update operations
+                // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+                // destPartials point to the pre-order partials
+                // partials1 = pre-order partials of the parent node
+                // matrices1 = Ptr matrices of the current node (to the parent node)
+                // partials2 = post-order partials of the sibling node
+                // matrices2 = Ptr matrices of the sibling node (to the parent node)
+                const int destinationPartialIndex = operations[op * numOps];
+                const int writeScalingIndex = operations[op * numOps + 1];
+                const int readScalingIndex = operations[op * numOps + 2];
+                const int parentIndex = operations[op * numOps + 3];
+                const int substitutionMatrixIndex = operations[op * numOps + 4];
+                const int siblingIndex = operations[op * numOps + 5];
+                const int siblingSubstitutionMatrixIndex = operations[op * numOps + 6];
+
+                if (gMappedPartials[destinationPartialIndex] == NULL) {
+                    gMappedPartials[destinationPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
+                    for (int category = 0; category < kCategoryCount; category++) {
+                        new (& gMappedPartials[destinationPartialIndex][category]) MapType(gPartials[destinationPartialIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+                    }
+                }
+
+                MapType* destP = gMappedPartials[destinationPartialIndex];
+                MapType* partials1 = gMappedPartials[parentIndex];
+                SpMatrix* matrices1 = gScaledQs[substitutionMatrixIndex];
+                MapType* partials2 = gMappedPartials[siblingIndex];
+                SpMatrix* matrices2 = gScaledQs[siblingSubstitutionMatrixIndex];
+
+                int rescale = BEAGLE_OP_NONE;
+                double* scalingFactors = NULL;
+                if (writeScalingIndex >= 0) {
+                    rescale = 1;
+                    scalingFactors = gScaleBuffers[writeScalingIndex];
+                } else if (readScalingIndex >= 0) {
+                    rescale = 0;
+                    scalingFactors = gScaleBuffers[readScalingIndex];
+                } else {
+                    rescale = 0;
+                }
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Updating preorder partials for index: "<<destinationPartialIndex << std::endl;
+#endif
+
+                calcPrePartialsPartials(destP, partials1, matrices1, partials2, matrices2);
+                if (rescale == 1) {
+                    rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
+                }
+            }
+
+
+
+            return BEAGLE_SUCCESS;
+        }
+
+
+        BEAGLE_CPU_ACTION_TEMPLATE
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setEigenDecomposition(int eigenIndex,
                                                                                  const double *inEigenVectors,
                                                                                  const double *inInverseEigenVectors,
@@ -336,6 +405,25 @@ namespace beagle {
                 destP[i] = gMappedLeftPartialTmp[i].cwiseProduct(gMappedRightPartialTmp[i]);
             }
 
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials(MapType* destP,
+                                                                                 MapType* partials1,
+                                                                                 SpMatrix* matrices1,
+                                                                                 MapType* partials2,
+                                                                                 SpMatrix* matrices2) {
+            memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+//            memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+
+            simpleAction(gMappedLeftPartialTmp, partials2, matrices2);
+
+            for (int i = 0; i < kCategoryCount; i++) {
+                gMappedLeftPartialTmp[i] = gMappedLeftPartialTmp[i].cwiseProduct(partials1[i]);
+                gScaledQTransposeTmp[i] = matrices1[i].transpose();
+            }
+
+            simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE

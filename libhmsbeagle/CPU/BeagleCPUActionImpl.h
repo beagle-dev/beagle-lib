@@ -88,6 +88,7 @@ namespace beagle {
             double* gLeftPartialTmp;
             double* gRightPartialTmp;
             SpMatrix* gInstantaneousMatrices;
+            SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
             MapType* gMappedRightPartialTmp;
@@ -167,6 +168,10 @@ namespace beagle {
             virtual int updatePartials(const int *operations,
                                        int operationCount,
                                        int cumulativeScalingIndex);
+
+            virtual int updatePrePartials(const int *operations,
+                                       int operationCount,
+                                       int cumulativeScalingIndex);
 //        protected:
 //            virtual int getPaddedPatternsModulus();
 
@@ -202,6 +207,12 @@ namespace beagle {
                                       SpMatrix* matrices1,
                                       MapType* partials2,
                                       SpMatrix* matrices2);
+
+            void calcPrePartialsPartials(MapType *destP,
+                                         MapType *partials1,
+                                         SpMatrix *matrices1,
+                                         MapType *partials2,
+                                         SpMatrix *matrices2);
 
             void getStatistics(double A1Norm,
                                SpMatrix * matrix,
