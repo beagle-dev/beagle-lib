@@ -210,7 +210,7 @@ int main( int argc, const char* argv[] )
     // create an instance of the BEAGLE library
     int instance = beagleCreateInstance(
             3,				/**< Number of tip data elements (input) */
-            10,	            /**< Number of partials buffers to create (input) */
+            20,	            /**< Number of partials buffers to create (input) */
             useTipStates ? 3 : 0,		        /**< Number of compact state representation buffers to create (input) */
             stateCount,		/**< Number of states in the continuous-time Markov chain (input) */
             nPatterns,		/**< Number of site patterns to be handled by the instance (input) */
@@ -526,17 +526,6 @@ int main( int argc, const char* argv[] )
     }
     std::cout << std::endl;
 
-    beagleGetPartials(instance, 3, BEAGLE_OP_NONE, seeprePartials);
-    for(int s = 0; s < rateCategoryCount; s++){
-        std::cout<<"  rate category"<< s+1<< ": \n";
-        for(int k = 0; k<nPatterns; k++){
-            for(int j=0; j < stateCount; j++){
-                std::cout<<seeprePartials[s * nPatterns * stateCount + k * stateCount + j]<<", ";
-            }
-            std::cout<<std::endl;
-        }
-        std::cout<<std::endl;
-    }
 //    beagleSetRootPrePartials(instance, // TODO Remove from API -- not necessary?
 //                             (const int *) &rootPreIndex,               // bufferIndices
 //                             &stateFrequencyIndex,                  // stateFrequencies
@@ -545,11 +534,119 @@ int main( int argc, const char* argv[] )
 
     fprintf(stdout, "logL = %.5f (R = -18.04619478977292)\n\n", logL);
 
+    double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
+    int offset = 0;
+    for (int c = 0; c < rateCategoryCount; ++c) {
+        for (int p = 0; p < nPatterns; ++p) {
+            for (int s = 0; s < stateCount; ++s) {
+                seerootPartials[offset++] = freqs[s];
+            }
+        }
+    }
+    beagleSetPartials(instance, rootPreIndex, seerootPartials);
+    beagleGetPartials(instance, rootPreIndex, BEAGLE_OP_NONE, seeprePartials);
 
+    std::cout<<"Pre-order Partial for root \n";
+
+    l = 0;
+    for(int s = 0; s < rateCategoryCount; s++){
+        std::cout<<"  rate category"<< s+1<< ": \n";
+        for(int k = 0; k<nPatterns; k++){
+            for(int j=0; j < stateCount; j++){
+                std::cout<<seeprePartials[l++]<<", ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<std::endl;
+    }
 //    std::cout
+    // create a list of partial likelihood update operations
+    // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
+    // destPartials point to the pre-order partials
+    // partials1 = pre-order partials of the parent node
+    // matrices1 = Ptr matrices of the current node (to the parent node)
+    // partials2 = post-order partials of the sibling node
+    // matrices2 = Ptr matrices of the sibling node (to the parent node)
+    BeagleOperation pre_order_operations[4] = {
+            6, (scaling ? 3 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 3 + transpose, 2, 2,
+            7, (scaling ? 4 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 5, 2 + transpose, 3, 3,
+            8, (scaling ? 5 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 6, 1 + transpose, 0, 0,
+            9, (scaling ? 6 : BEAGLE_OP_NONE), BEAGLE_OP_NONE, 6, 0 + transpose, 1, 1,
+    };
+
+    // update the pre-order partials
+    beagleUpdatePrePartials(instance,
+                            pre_order_operations,
+                            4,
+                            BEAGLE_OP_NONE);
+    beagleGetPartials(instance, rootPreIndex, BEAGLE_OP_NONE, seeprePartials);
+
+    std::cout<<"Pre-order Partial for root \n";
+
+    l = 0;
+    for(int s = 0; s < rateCategoryCount; s++){
+        std::cout<<"  rate category"<< s+1<< ": \n";
+        for(int k = 0; k<nPatterns; k++){
+            for(int j=0; j < stateCount; j++){
+                std::cout<<seeprePartials[l++]<<", ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<std::endl;
+    }
+    int postBufferIndices[4] = {1, 0, 2, 3};
+    int preBufferIndices[4] = {8, 9, 7, 6};
+    int firstDervIndices[4] = {4, 4, 4, 4};
+    int secondDervIndices[4] = {5, 5, 5, 5};
+    int cumulativeScalingInices[4] = {6, 5, 4, 3};
+    int categoryRatesIndex = categoryWeightsIndex;
+
+    double* gradient = (double*) malloc(sizeof(double) * nPatterns * 4);
+
+    for(int i = 0; i < 5; i++){
+
+        int postBufferIndex = 4-i;
+        int preBufferIndex = 5+i;
+
+        beagleGetPartials(instance, preBufferIndex, BEAGLE_OP_NONE, seeprePartials);
+
+        std::cout<<"Pre-order Partial for node "<< 4-i << ": \n";
+
+        int l = 0;
+        for(int s = 0; s < rateCategoryCount; s++){
+            std::cout<<"  rate category"<< s+1<< ": \n";
+            for(int k = 0; k<nPatterns; k++){
+                for(int j=0; j < stateCount; j++){
+                    std::cout<<seeprePartials[l++]<<", ";
+                }
+                std::cout<<std::endl;
+            }
+            std::cout<<std::endl;
+        }
+    }
+
+    beagleSetDifferentialMatrix(instance, 4, scaledQ.data());
+    beagleSetDifferentialMatrix(instance, 5, scaledQ2.data());
 
 
+    std::vector<double> firstBuffer(nPatterns * 5 * 2); // Get both numerator and denominator
+    std::vector<double> sumBuffer(5);
+//    int cumulativeScalingIndices[4] = {BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
 
+    beagleCalculateEdgeDerivatives(instance,
+                                   postBufferIndices, preBufferIndices,
+                                   firstDervIndices,
+                                   &categoryWeightsIndex,
+                                   4,
+                                   firstBuffer.data(),
+                                   sumBuffer.data(),
+                                   NULL);
+
+    std::cout << "check gradients  :";
+    for (int i = 0; i < 4 * nPatterns; ++i) {
+        std::cout << " " << firstBuffer[i];
+    }
+    std::cout << std::endl;
 
 
 
