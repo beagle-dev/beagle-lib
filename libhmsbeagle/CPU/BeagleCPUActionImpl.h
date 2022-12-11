@@ -181,9 +181,6 @@ namespace beagle {
                                          double *cumulativeScaleFactors,
                                          const int  fillWithOnes);
 
-            virtual int setTransitionMatrix(int matrixIndex,
-                                            const double *inMatrix,
-                                            double paddedValue);
 
             virtual int setEigenDecomposition(int eigenIndex,
                                               const double *inEigenVectors,

@@ -197,12 +197,6 @@ namespace beagle {
 
         }
 
-        BEAGLE_CPU_ACTION_TEMPLATE
-        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTransitionMatrix(int matrixIndex,
-                                const double *inMatrix,
-                                double paddedValue) {
-            return BEAGLE_SUCCESS;
-        }
 
         BEAGLE_CPU_ACTION_TEMPLATE
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::updatePartials(const int *operations,
