@@ -16,6 +16,7 @@ set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
+option(BUILD_SSE "Build beagle with SSE library" ON)
 
 # Old config.h settings
 
