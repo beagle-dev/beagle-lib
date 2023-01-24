@@ -138,22 +138,26 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                     int endPattern) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
     DETERMINE_INDICES_4_GPU();
 
-    const int WMMA_M = 16;
-    const int WMMA_N = 16;
-    const int WMMA_K = 16;
+    const int WMMA_M = 8;
+    const int WMMA_N = 8;
+    const int WMMA_K = 4;
 
-    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, nvcuda::wmma::row_major> sMatrix2Frag;
-    nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, nvcuda::wmma::row_major> partials2Frag;
-    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> accFrag;
-    nvcuda::wmma::fill_fragment(sMatrix2Frag, 0.0f);
-    nvcuda::wmma::fill_fragment(partials2Frag, 0.0f);
-    nvcuda::wmma::fill_fragment(accFrag, 0.0f);
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag1;
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag2;
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::col_major> partialsFrag;
+    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, double> accFrag;
+    nvcuda::wmma::fill_fragment(sMatrixFrag1, 0.0);
+    nvcuda::wmma::fill_fragment(sMatrixFrag2, 0.0);
+    nvcuda::wmma::fill_fragment(partialsFrag, 0.0);
+    nvcuda::wmma::fill_fragment(partialsFrag, 0.0);
+    nvcuda::wmma::fill_fragment(accFrag, 0.0);
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
@@ -177,74 +181,45 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         sMatrix2[tx] = matrix2[tx];
     }
 
-    KW_LOCAL_MEM half tmpSMatrix2[16 * 16];
-
-    // Construct block diagonal matrix with 4 sMatrix2 using 16x16 threads
-    int col = (tx >> 2) * 4;
-    int col_upper = ((tx >> 2) * 4) + 4;
-    if (patIdx >= col && patIdx < col_upper){
-        tmpSMatrix2[tx * 16 + patIdx] = __float2half(sMatrix2[(tx % 4) * 4 + (patIdx % 4)]);
-    } else {
-        tmpSMatrix2[tx * 16 + patIdx] = 0;
+    // Load into matrices into fragments using warpSize threads (32)
+    if( patIdx < 2) {
+        nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrix1, 4);
+        nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrix2, 4);
     }
 
-    // Load into fragment
-    nvcuda::wmma::load_matrix_sync(sMatrix2Frag, tmpSMatrix2, WMMA_M);
+    KW_LOCAL_MEM REAL tmp1[WMMA_M * WMMA_N * 8];
+    KW_LOCAL_MEM REAL tmp2[WMMA_M * WMMA_N * 8];
+    int patWarp = (8 * patIdx/2) * 4; // 8 patterns per warp and 4 states per pattern
+    int tmpWarp = (8 * patIdx/2) * 8; // 64 values per wmma
 
-    KW_LOCAL_MEM half tmpPartials2[16 * 16];
+    // Load patterns into fragment
+    nvcuda::wmma::fill_fragment(accFrag, 0.0);
+    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials1 + patWarp, WMMA_K);
 
-    // Construct block diagonal matrix for 4 partials using 16x16 threads
-    col = (tx >> 2) * 4;
-    col_upper = ((tx >> 2) * 4) + 4;
-    if (patIdx >= col && patIdx < col_upper){
-        tmpPartials2[tx * 16 + patIdx] = __float2half(sPartials2[(tx >> 2) * 4 + (tx % 4)]);
-        // printf("DEBUG: %d,%d,%d,%d,%f\n", tx, patIdx, tx * 16 + patIdx, col, sPartials2[(tx >> 2) * 4 + (tx % 4)]);
-    } else {
-        tmpPartials2[tx * 16 + patIdx] = 0;
-        // printf("DEBUG: %d,%d,%d,%d,%f\n", tx, patIdx, tx * 16 + patIdx, col, 0);
-    }
+    // Multiply
+    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
+
+    nvcuda::wmma::store_matrix_sync(tmp1 + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
+
 
     // Load fragment
-    nvcuda::wmma::load_matrix_sync(partials2Frag, tmpPartials2, WMMA_K);
+    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials2 + patWarp, WMMA_K);
 
-    // Multiply matrices
-    nvcuda::wmma::mma_sync(accFrag, sMatrix2Frag, partials2Frag, accFrag);
+    // Multiply
+    nvcuda::wmma::fill_fragment(accFrag, 0.0);
+    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
 
-    KW_LOCAL_FENCE;
+    // Load into variable
+    nvcuda::wmma::store_matrix_sync(tmp2 + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
+    if (patIdx < 2)
+        nvcuda::wmma::store_matrix_sync(tmpAcc, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
 
-    KW_LOCAL_MEM REAL sProduct[PATTERN_BLOCK_SIZE * 4 * 4];
-    if (pattern < endPattern) { // Remove padded threads!
-        REAL sum2;
-        int i = pat;
-        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
+    // Half of element-wise multiplications are not required
+    tmp1[tx * 16 + patIdx] = tmp1[tx * 16 + patIdx] * tmp2[tx * 16 + patIdx];
+    tmp1[256 + tx * 16 + patIdx] = tmp1[256 + tx * 16 + patIdx] * tmp2[256 + tx * 16 + patIdx];
 
-        sum2 = sMatrix2[multBy4(i) | state] * sPartials2[patIdx16pat4 | i];
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
-
-        sProduct[multBy16(patIdx) | tx] = sPartials1[multBy16(patIdx) | tx] * sum2;
-    }
-
-    KW_LOCAL_FENCE;
-
-    if (pattern < endPattern) {
-        REAL sum1;
-        int i = pat;
-        int patIdx16pat4 = multBy16(patIdx) | (tx & 0xC);
-
-        sum1 = sMatrix1[multBy4(i) | state] * sProduct[patIdx16pat4 | i];
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
-        i = (i + 1) & 0x3;
-        FMA(   sMatrix1[multBy4(i) | state],  sProduct[patIdx16pat4 | i], sum1);
-
-        partials3[u] = sum1;
+    if (patIdx < endPattern && tx < 4) {
+        partials3[u] = tmp1[tx * 8 + patIdx];
     }
 #endif // FW_OPENCL_CPU
 }
