@@ -22,9 +22,13 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGTC";
-char *chimp = (char*)"GAGGC";
-char *gorilla = (char*)"AAAT-";
+//char *human = (char*)"GAGTC";
+//char *chimp = (char*)"GAGGC";
+//char *gorilla = (char*)"AAAT-";
+
+char *human = (char*)"G";
+char *chimp = (char*)"G";
+char *gorilla = (char*)"A";
 
 int* getStates(char *sequence, int repeats) {
 	int n = strlen(sequence);
@@ -148,7 +152,7 @@ int main( int argc, const char* argv[] )
 
     bool doJC = true;
 
-    bool singlePrecision = true;
+    bool singlePrecision = false;
     bool useSSE = false;
 
     // is nucleotides...
@@ -179,7 +183,7 @@ int main( int argc, const char* argv[] )
     //     }
     // }
     int *whichDevice = new int[1];
-    whichDevice[0] = 3;
+    whichDevice[0] = 1;
 
     BeagleInstanceDetails instDetails;
 
