@@ -194,32 +194,30 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     // Load patterns into fragment
     nvcuda::wmma::fill_fragment(accFrag, 0.0);
-    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials1 + patWarp, WMMA_K);
-
-    // Multiply
-    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
-
-    nvcuda::wmma::store_matrix_sync(tmp1 + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
-
-
-    // Load fragment
     nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials2 + patWarp, WMMA_K);
 
     // Multiply
-    nvcuda::wmma::fill_fragment(accFrag, 0.0);
     nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
 
-    // Load into variable
     nvcuda::wmma::store_matrix_sync(tmp2 + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
+
+    // Element-wise multiplication
+    sPartials1[4 * patIdx + tx] = sPartials1[4 * patIdx + tx] * (tmp2 + tmpWarp)[(4 * (patIdx/4)) + 4 * patIdx + tx];// TODO: Correct this
+
+    // Load fragment
+    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials1 + patWarp, WMMA_K);
+
+    // Multiply
+    nvcuda::wmma::fill_fragment(accFrag, 0.0);
+    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
+
+    // Load into variable
+    nvcuda::wmma::store_matrix_sync(tmp1 + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
     if (patIdx < 2)
         nvcuda::wmma::store_matrix_sync(tmpAcc, accFrag, WMMA_M, nvcuda::wmma::mem_row_major);
 
-    // Half of element-wise multiplications are not required
-    tmp1[tx * 16 + patIdx] = tmp1[tx * 16 + patIdx] * tmp2[tx * 16 + patIdx];
-    tmp1[256 + tx * 16 + patIdx] = tmp1[256 + tx * 16 + patIdx] * tmp2[256 + tx * 16 + patIdx];
-
     if (patIdx < endPattern && tx < 4) {
-        partials3[u] = tmp1[tx * 8 + patIdx];
+        partials3[u] = tmp1[tx * 8 + patIdx];// TODO: ADD blockDim
     }
 #endif // FW_OPENCL_CPU
 }

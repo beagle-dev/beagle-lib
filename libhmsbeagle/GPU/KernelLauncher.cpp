@@ -1010,40 +1010,41 @@ DEBUG_START_TIME();
     fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
     fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
     fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
-    double tmp[64] ={0};
+    double tmp[patternCount * 4 * 5] ={-1};
+    int npartials = patternCount * 4 * 5;
     fprintf(stderr, "\n\n\t\tPrinting partials1\n");
-    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * patternCount * 4);
-    for(int i = 0; i < patternCount * 4; i++) {
+    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
+    for(int i = 0; i < npartials; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting matrices1\n");
-    gpu->MemcpyDeviceToHost(&tmp, matrices1, sizeof(double) * patternCount * 4);
+    gpu->MemcpyDeviceToHost(&tmp, matrices1, sizeof(double) * 16);
     for(int i = 0; i < 16; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting partials2\n");
-    gpu->MemcpyDeviceToHost(&tmp, partials2, sizeof(double) * patternCount * 4);
-    for(int i = 0; i < patternCount * 4; i++) {
+    gpu->MemcpyDeviceToHost(&tmp, partials2, sizeof(double) * npartials);
+    for(int i = 0; i < npartials; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting matrices2\n");
-    gpu->MemcpyDeviceToHost(&tmp, matrices2, sizeof(double) * patternCount * 4);
+    gpu->MemcpyDeviceToHost(&tmp, matrices2, sizeof(double) * 16);
     for(int i = 0; i < 16; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
     gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 64);
-    for(int i = 0; i < 64; i++) {
+    for(int i = 0; i < 4; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting partials3\n");
-    gpu->MemcpyDeviceToHost(&tmp, partials3, sizeof(double) * patternCount * 4);
-    for(int i = 0; i < 16; i++) {
+    gpu->MemcpyDeviceToHost(&tmp, partials3, sizeof(double) * npartials);
+    for(int i = 0; i < npartials; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
