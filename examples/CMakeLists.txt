@@ -30,21 +30,29 @@ add_executable(synthetictest
 
 target_link_libraries(hmctest
 	hmsbeagle
-	hmsbeagle-cpu-sse
 	hmsbeagle-cpu
 	${CMAKE_DL_LIBS})
+
+if(BUILD_SSE)
+	target_link_libraries(hmctest hmsbeagle-cpu-sse)
+endif(BUILD_SSE)
 
 target_link_libraries(hmctest5
 	hmsbeagle
-	hmsbeagle-cpu-sse
 	hmsbeagle-cpu
 	${CMAKE_DL_LIBS})
+if(BUILD_SSE)
+	target_link_libraries(hmctest5 hmsbeagle-cpu-sse)
+endif(BUILD_SSE)
+
 
 target_link_libraries(synthetictest
 		hmsbeagle
-		hmsbeagle-cpu-sse
 		hmsbeagle-cpu
 		${CMAKE_DL_LIBS})
+if(BUILD_SSE)
+	target_link_libraries(synthetictest hmsbeagle-cpu-sse)
+endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
