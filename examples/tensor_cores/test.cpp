@@ -22,13 +22,13 @@
 
 #include "libhmsbeagle/beagle.h"
 
-//char *human = (char*)"GAGTC";
-//char *chimp = (char*)"GAGGC";
-//char *gorilla = (char*)"AAAT-";
+char *human = (char*)"GAGTC";
+char *chimp = (char*)"GAGGC";
+char *gorilla = (char*)"AAAT-";
 
-char *human = (char*)"G";
-char *chimp = (char*)"G";
-char *gorilla = (char*)"A";
+//char *human = (char*)"G";
+//char *chimp = (char*)"G";
+//char *gorilla = (char*)"A";
 
 int* getStates(char *sequence, int repeats) {
 	int n = strlen(sequence);

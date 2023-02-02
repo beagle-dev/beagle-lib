@@ -1010,7 +1010,7 @@ DEBUG_START_TIME();
     fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
     fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
     fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
-    double tmp[patternCount * 4 * 5] ={-1};
+    double tmp[320] ={-1};
     int npartials = patternCount * 4 * 5;
     fprintf(stderr, "\n\n\t\tPrinting partials1\n");
     gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
@@ -1037,8 +1037,8 @@ DEBUG_START_TIME();
         tmp[i] = 0;
     }
     fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
-    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 64);
-    for(int i = 0; i < 4; i++) {
+    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * npartials);
+    for(int i = 0; i < npartials; i++) {
         fprintf(stderr, " %f, ", tmp[i]);
         tmp[i] = 0;
     }
