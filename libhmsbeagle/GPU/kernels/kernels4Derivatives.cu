@@ -201,12 +201,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
     // Element-wise multiplication
-    if (tx < 4){
-        sPartials1[16 * patIdx + tx] = sPartials1[16 * patIdx + tx] * tmp[32 * patIdx + tx];
-        sPartials1[(16 * patIdx) + 4 + tx] = sPartials1[(16 * patIdx) + 4 + tx] * tmp[(32 * patIdx) + 8 + tx];
-        sPartials1[(16 * patIdx) + 8 + tx] = sPartials1[(16 * patIdx) + 8 + tx] * tmp[(32 * patIdx) + 16 + tx];
-        sPartials1[(16 * patIdx) + 12 + tx] = sPartials1[(16 * patIdx) + 12 + tx] * tmp[(32 * patIdx) + 24 + tx];
-    }
+    sPartials1[16 * patIdx + ((tx / 4) * 4) + (tx % 4)] = sPartials1[16 * patIdx + ((tx / 4) * 4) + (tx % 4)] * tmp[(32 * patIdx) + (8 * (tx / 4)) + (tx % 4)];
 
     KW_LOCAL_FENCE;
 
@@ -219,12 +214,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
-    if(patIdx < endPattern && tx < 4){
-        partials3[16 * patIdx + tx] = tmp[(32 * patIdx) + tx];
-        partials3[(16 * patIdx) + 4 + tx] = tmp[(32 * patIdx) + 8 + tx];
-        partials3[(16 * patIdx) + 8 + tx] = tmp[(32 * patIdx) + 16 + tx];
-        partials3[(16 * patIdx) + 12 + tx] = tmp[(32 * patIdx) + 24 + tx];
-    }
+    if(patIdx < endPattern)
+        partials3[16 * patIdx + 4 * (tx / 4) + (tx % 4)] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
+
 #endif // FW_OPENCL_CPU
 }
 
