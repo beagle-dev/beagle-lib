@@ -45,8 +45,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingMulti(KW_GLOBAL_VAR REAL* KW_
                                                          int gridStartOp,
                                                          int totalPatterns) {
 
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    todo(); // TODO
+#ifdef FW_OPENCL_CPU // CPU/MIC implementationt
+    todo(); // TODOg
 #else // GPU implementation
     DETERMINE_INDICES_4_MULTI_1_GPU();
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
@@ -180,11 +180,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     }
     KW_LOCAL_FENCE;
 
-    // Load into matrices into fragments using warpSize threads (32)
-    if( patIdx < 2) {
-        nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrix2, 4);
-        nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrix1, 4);
-    }
+    // Load into matrices into fragments. Note: all warps need to load sMatrix into fragments
+    nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrix2, 4);
+    nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrix1, 4);
 
     KW_LOCAL_MEM REAL tmp[WMMA_M * WMMA_N * 8];
     int patWarp, tmpWarp;
@@ -200,8 +198,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
+    tmpAcc[16 * patIdx + tx] = sPartials2[16 * patIdx + tx];
     // Element-wise multiplication
-    sPartials1[16 * patIdx + ((tx / 4) * 4) + (tx % 4)] = sPartials1[16 * patIdx + ((tx / 4) * 4) + (tx % 4)] * tmp[(32 * patIdx) + (8 * (tx / 4)) + (tx % 4)];
+    sPartials1[(16 * patIdx) + tx] = sPartials1[16 * patIdx + tx] * tmp[(32 * patIdx) + (8 * (tx / 4)) + (tx % 4)];
 
     KW_LOCAL_FENCE;
 
@@ -214,8 +213,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
-    if(patIdx < endPattern)
-        partials3[16 * patIdx + 4 * (tx / 4) + (tx % 4)] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
+    partials3[(KW_GROUP_ID_0 * 256) + (16 * patIdx) + tx] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
 
 #endif // FW_OPENCL_CPU
 }
