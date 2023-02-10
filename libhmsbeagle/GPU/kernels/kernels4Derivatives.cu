@@ -213,7 +213,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
-    partials3[(KW_GROUP_ID_0 * 256) + (16 * patIdx) + tx] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
+    partials3[u] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
 
 #endif // FW_OPENCL_CPU
 }
