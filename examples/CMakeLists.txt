@@ -4,8 +4,11 @@ add_executable(hmctest
 add_executable(hmctest5
 		hmctest/hmctest5.cpp)
 
-add_executable(tensorcores
-		tensor_cores/test.cpp)
+add_executable(tensorcores_4_state
+		tensor_cores/test_4_state.cpp)
+
+add_executable(tensorcores_X_state
+		tensor_cores/test_X_state.cpp)
 
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
