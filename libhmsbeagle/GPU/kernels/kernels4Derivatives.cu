@@ -1,7 +1,6 @@
 }
 
 #include <mma.h>
-#include <cuda_fp16.h>
 
 extern "C" {
 #define multBy4(x)  ((x) << 2)
@@ -184,7 +183,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrix2, 4);
     nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrix1, 4);
 
-    KW_LOCAL_MEM REAL tmp[WMMA_M * WMMA_N * 8];
+    KW_LOCAL_MEM REAL tmp[WMMA_M * WMMA_N * 8]; // TODO: Reuse memory
     int patWarp, tmpWarp;
     patWarp = 8 * 4 * (patIdx/2); // 8 patterns per warp and 4 states per pattern
     tmpWarp = 64 * (patIdx/2); // 64 values per wmma but half of rows are 0s
