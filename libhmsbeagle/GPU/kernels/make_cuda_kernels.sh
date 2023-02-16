@@ -10,7 +10,7 @@ echo "INCLUDE_DIRS=${INCLUDE_DIRS}"
 
 # For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
 
-STATE_COUNT_LIST='16 32 48 64 80 128 192 256'
+STATE_COUNT_LIST='32'
 
 srcdir="."
 
@@ -26,9 +26,9 @@ srcdir="."
 #	echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
 #	cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
 #	echo "\"" >> BeagleCUDA_kernels.h
-##
-##	HERE IS THE LOOP FOR GENERIC KERNELS
-##
+#
+#	HERE IS THE LOOP FOR GENERIC KERNELS
+#
 #	for s in $STATE_COUNT_LIST; do \
 #		echo "Making CUDA SP state count = $s" ; \
 #		${NVCC} -o BeagleCUDA_kernels.ptx --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s \
@@ -50,11 +50,11 @@ srcdir="."
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
-#	for s in $STATE_COUNT_LIST; do \
-#		echo "Making CUDA DP state count = $s" ; \
-#		${NVCC} -o BeagleCUDA_kernels.ptx --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
-#			$srcdir/kernelsX.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDA_kernels.h; exit; }; \
-#		echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
-#		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
-#		echo "\"" >> BeagleCUDA_kernels.h; \
-#	done
+	for s in $STATE_COUNT_LIST; do \
+		echo "Making CUDA DP state count = $s" ; \
+		${NVCC} -o BeagleCUDA_kernels.ptx --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
+			$srcdir/kernelsX.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDA_kernels.h; exit; }; \
+		echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
+		cat BeagleCUDA_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDA_kernels.h; \
+		echo "\"" >> BeagleCUDA_kernels.h; \
+	done

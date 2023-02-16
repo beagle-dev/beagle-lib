@@ -1,3 +1,8 @@
+}
+
+#include <mma.h>
+
+extern "C" {
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -78,6 +83,137 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 #endif
 }
+
+KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
+                                                    int totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    todo(); // TODO
+#else // GPU implementation
+    DETERMINE_INDICES_X_GPU();
+
+    const int WMMA_M = 8;
+    const int WMMA_N = 8;
+    const int WMMA_K = 4;
+
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag1;
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag2;
+    nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::col_major> partialsFrag;
+    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, double> accFrag;
+    nvcuda::wmma::fill_fragment(sMatrixFrag1, 0.0);
+    nvcuda::wmma::fill_fragment(sMatrixFrag2, 0.0);
+    nvcuda::wmma::fill_fragment(partialsFrag, 0.0);
+    nvcuda::wmma::fill_fragment(accFrag, 0.0);
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
+
+    /* Load values into shared memory */
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    // Temporary 1d arrays. TODO: Remove 2D arrays once tested!
+    KW_LOCAL_MEM REAL sPartials1Tmp[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2Tmp[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+
+    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
+    /* These are all coherent global memory reads; checked in Profiler */
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx][state] = partials1[y + state];
+        sPartials2[patIdx][state] = partials2[y + state];
+        sPartials1Tmp[state + patIdx * PADDED_STATE_COUNT] = partials1[y + state];
+        sPartials2Tmp[state + patIdx * PADDED_STATE_COUNT] = partials2[y + state];
+    } else {
+        sPartials1[patIdx][state] = 0;
+        sPartials2[patIdx][state] = 0;
+        sPartials1Tmp[state + patIdx * PADDED_STATE_COUNT] = 0;
+        sPartials2Tmp[state + patIdx * PADDED_STATE_COUNT] = 0;
+    }
+
+    int warpSize = 32; // TODO: Check if its better to get this from Cuda API
+    int warpX = state/warpSize;
+    int warpY = patIdx;
+    int partialsX, partialsY, sMatrixX, sMatrixY;
+
+    for(int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
+        sMatrixX = warpX * WMMA_M; // TODO: Check bookkeeping here.
+        sMatrixY = i;
+
+        partialsX = i;
+        partialsY = warpY * WMMA_N;
+
+        // Load patterns into fragment
+        if (sMatrixX < PADDED_STATE_COUNT && sMatrixY < PADDED_STATE_COUNT && partialsX < PADDED_STATE_COUNT && partialsY < PATTERN_BLOCK_SIZE){
+            nvcuda::wmma::load_matrix_sync(sMatrixFrag2, matrix2 + sMatrixX + sMatrixY * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+            nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials2Tmp + partialsX + partialsY * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+            nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
+        }
+    }
+
+//    tmpAcc[state + patIdx * PADDED_STATE_COUNT] = sPartials2Tmp[state + patIdx * PADDED_STATE_COUNT];
+    int tmpX = warpX * WMMA_M;
+    int tmpY = warpY * WMMA_N;
+
+    if(tmpX < PADDED_STATE_COUNT && tmpY < PADDED_STATE_COUNT){
+        nvcuda::wmma::store_matrix_sync(tmpAcc + tmpX + tmpY * PADDED_STATE_COUNT, accFrag, PADDED_STATE_COUNT, nvcuda::wmma::mem_col_major);
+    }
+
+    REAL sum2 = 0;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        /* load one row of matrices */
+        if (patIdx < BLOCK_PEELING_SIZE) {
+            /* These are all coherent global memory reads. */
+            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+            /* sMatrix now filled with starting in state and ending in i */
+            matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+        }
+
+        KW_LOCAL_FENCE;
+
+        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
+        }
+
+        KW_LOCAL_FENCE;
+    }
+    sPartials1[patIdx][state] *= sum2;
+
+    KW_LOCAL_FENCE; // TODO Remove?
+
+    REAL sum1 = 0;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        /* load one row of matrices */
+        if (patIdx < BLOCK_PEELING_SIZE) {
+            /* These are all coherent global memory reads. */
+            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+            /* sMatrix now filled with starting in state and ending in i */
+            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+        }
+
+        KW_LOCAL_FENCE;
+
+        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            FMA(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
+        }
+
+        KW_LOCAL_FENCE;
+    }
+
+    if (pattern < totalPatterns) {
+        partials3[u] = sum1;
+    }
+#endif
+}
+
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                   KW_GLOBAL_VAR int*  KW_RESTRICT states2,

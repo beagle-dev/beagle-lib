@@ -235,7 +235,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
     switch(paddedStateCount) {
         case   -4: LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4); break;
 //        case  -16: LOAD_KERNEL_INTO_RESOURCE( 16, DP,  16); break;
-//        case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32); break;
+        case  -32: LOAD_KERNEL_INTO_RESOURCE( 32, DP,  32); break;
 //        case  -48: LOAD_KERNEL_INTO_RESOURCE( 48, DP,  48); break;
 //        case  -64: LOAD_KERNEL_INTO_RESOURCE( 64, DP,  64); break;
 //        case  -80: LOAD_KERNEL_INTO_RESOURCE( 80, DP,  80); break;
