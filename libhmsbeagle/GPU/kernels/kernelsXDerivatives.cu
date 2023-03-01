@@ -142,6 +142,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     int warpIdx = warpState + warpPattern * (PADDED_STATE_COUNT/warpSize);
 
     int sMatrixRow, partialsCol;
+    // TODO: Fix these indices. Will fail for > 4 patterns
     sMatrixRow = (warpIdx * WMMA_M < PADDED_STATE_COUNT) ? (warpIdx * WMMA_M) : 0;
     partialsCol = (warpPattern * WMMA_N < PATTERN_BLOCK_SIZE) ? (warpPattern * WMMA_N) : 0;
 
@@ -174,8 +175,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
     }
 
-    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sumTmp[patIdx * (PADDED_STATE_COUNT % 8) + (state/8) * 64 + (state % 8)];
-    sPartials1[patIdx][state] *= sumTmp[patIdx * (PADDED_STATE_COUNT % 8) + (state/WMMA_M) * 64 + (state % WMMA_M)];
+    sPartials1[patIdx][state] *= sumTmp[patIdx * WMMA_M + (state/WMMA_M) * 64 + (state % WMMA_M)];
 
     KW_LOCAL_FENCE; // TODO Remove?
     nvcuda::wmma::fill_fragment(accFrag, 0.0);
@@ -208,9 +208,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     if(warpIdx * WMMA_M < PADDED_STATE_COUNT || warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) {
         nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
     }
+    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sumTmp[patIdx * (PADDED_STATE_COUNT % 8) + (state/8) * 64 + (state % 8)];
 
     if (pattern < totalPatterns) {
-        partials3[u] = sumTmp[patIdx * (PADDED_STATE_COUNT % 8) + (state/8) * 64 + (state % 8)];
+        partials3[u] = sumTmp[patIdx * WMMA_M + (state/8) * 64 + (state % 8)];
     }
 #endif
 }
