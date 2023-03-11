@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: hmsbeagle
+Description: A library to calculate phylogenetic likelihoods.
+Requires:
+Version: @BEAGLE_VERSION@
+Libs: -L"${libdir}" -lhmsbeagle
+Cflags: -I"${includedir}/libhmsbeagle-1"
