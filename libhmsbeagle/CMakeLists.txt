@@ -88,11 +88,42 @@ if(BUILD_JNI)
     add_subdirectory(JNI)
 endif(BUILD_JNI)
 
+set(PKG "hmsbeagle-${GENERIC_API_VERSION}")
+
 install(TARGETS hmsbeagle
+        EXPORT ${PKG}
 	LIBRARY DESTINATION ${BEAGLE_INSTALL_DIR}
 	PUBLIC_HEADER DESTINATION ${BEAGLE_HEADER_DIR}
 	COMPONENT main
+      )
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+    ${PKG}ConfigVersion.cmake
+    VERSION ${BEAGLE_VERSION}
+    COMPATIBILITY AnyNewerVersion
     )
+
+install(EXPORT ${PKG}
+        FILE ${PKG}Config.cmake
+        NAMESPACE ${PKG}-${BEAGLE_VERSION}::
+        DESTINATION lib/cmake/${PKG}
+      )
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/hmsbeagle-1ConfigVersion.cmake"
+        DESTINATION lib/cmake/${PKG}
+       )
+
+configure_file(
+  ${PKG}.pc.in
+  ${PKG}.pc
+  @ONLY
+)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PKG}.pc"
+        DESTINATION lib/pkg-config
+)
 
 if(WIN32)
     SET_TARGET_PROPERTIES(hmsbeagle
