@@ -420,6 +420,140 @@ namespace beagle {
             simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
         }
 
+        void SimpleAction::doAction(MapType* destP,
+                                    MapType* partials,
+                                    SpMatrix* matrix) {
+            for (int category = 0; category < kCategoryCount; category++) {
+                SpMatrix thisMatrix = matrix[category];
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Rate category "<<category<<std::endl;
+                std::cerr<<"In partial: \n"<<partials[category]<<std::endl;
+                std::cerr<<"Matrix: \n"<<thisMatrix<<std::endl;
+#endif
+                const double tol = pow(2.0, -53.0);
+                const double t = 1.0;
+                const int nCol = kPatternCount;
+                SpMatrix identity(kStateCount, kStateCount);
+                identity.setIdentity();
+                double mu = 0.0;
+
+                for (int i = 0; i < kStateCount; i++) {
+                    mu += thisMatrix.coeff(i, i);
+                }
+                mu /= (double) kStateCount;
+
+                SpMatrix A(thisMatrix.rows(), thisMatrix.cols());
+
+                A = thisMatrix - mu * identity;
+                const double A1Norm = normP1(&A);
+
+                int m, s;
+                getStatistics(A1Norm, &A, t, nCol, m, s);
+
+
+                destP[category] = partials[category];
+
+                MatrixXd F(kStateCount, kPatternCount);
+                F = destP[category];
+
+                const double eta = exp(t * mu / (double) s);
+                double c1, c2;
+                for (int i = 0; i < s; i++) {
+                    c1 = normPInf(destP[category]);
+                    for (int j = 1; j < m + 1; j++) {
+                        destP[category] = A * destP[category];
+                        destP[category] *= t / ((double) s * j);
+                        c2 = normPInf(destP[category]);
+                        F += destP[category];
+                        if (c1 + c2 <= tol * normPInf(&F)) {
+                            break;
+                        }
+                        c1 = c2;
+                    }
+                    F *= eta;
+                    destP[category] = F;
+                }
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cerr<<"Out partials: \n"<<destP[category]<<std::endl;
+#endif
+            }
+        }
+
+        double SimpleAction::normP1(SpMatrix *matrix) {
+            return (Eigen::RowVectorXd::Ones(matrix -> rows()) * matrix -> cwiseAbs()).maxCoeff();
+        }
+
+        void SimpleAction::getStatistics(double A1Norm, SpMatrix *matrix, double t, int nCol, int &m, int &s) {
+            if (t * A1Norm == 0.0) {
+                m = 0;
+                s = 1;
+            } else {
+                int bestM = INT_MAX;
+                int bestS = INT_MAX;
+
+                const double theta = thetaConstants[mMax];
+                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+                const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+                // using l = 1 as in equation 3.13
+
+                std::map<int, double>::iterator it;
+                if (conditionFragment313) {
+                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
+                        const int thisM = it->first;
+                        const double thisS = ceil(A1Norm/thetaConstants[thisM]);
+                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+                            bestS = (int) thisS;
+                            bestM = thisM;
+                        }
+                    }
+                    s = bestS;
+                } else {
+                    SpMatrix firstOrderMatrix = *matrix;
+                    powerMatrices[1] = firstOrderMatrix;
+                    d[1] = normP1(&firstOrderMatrix);
+                    for (int p = 2; p < pMax; p++) {
+                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+                            it = thetaConstants.find(thisM);
+                            if (it != thetaConstants.end()) {
+                                // equation 3.7 in Al-Mohy and Higham
+                                const double dValueP = getDValue(p);
+                                const double dValuePPlusOne = getDValue(p + 1);
+                                const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
+                                // part of equation 3.10
+                                const double thisS = ceil(alpha / thetaConstants[thisM]);
+                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+                                    bestS = (int) thisS;
+                                    bestM = thisM;
+                                }
+                            }
+                        }
+                    }
+                    s = bestS > 1 ? bestS : 1;
+                }
+                m = bestM;
+            }
+        }
+
+        double SimpleAction::getDValue(int p) {
+            std::map<int, double>::iterator it;
+            it = d.find(p);
+            if (it == d.end()) {
+                if (highestPower < p) {
+                    for (int i = highestPower; i < p; i++) {
+                        SpMatrix currentPowerMatrix = powerMatrices[i];
+                        SpMatrix nextPowerMatrix = currentPowerMatrix * powerMatrices[1];
+                        powerMatrices[i + 1] = nextPowerMatrix;
+                    }
+                }
+                SpMatrix powerPMatrix = powerMatrices[p];
+                d[p] = pow(normP1(&powerPMatrix), 1.0 / ((double) p));
+            }
+            return d[p];
+        }
+
+
         BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction(MapType* destP,
                                                                          MapType* partials,
