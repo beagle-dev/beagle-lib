@@ -479,6 +479,18 @@ namespace beagle {
             }
         }
 
+        double SimpleAction::normPInf(MapType matrix) {
+            return matrix.lpNorm<Eigen::Infinity>();
+        }
+
+        double SimpleAction::normPInf(SpMatrix* matrix) {
+            return ((*matrix).cwiseAbs() * Eigen::VectorXd::Ones(matrix->cols())).maxCoeff();
+        }
+
+        double SimpleAction::normPInf(MatrixXd * matrix) {
+            return matrix->lpNorm<Eigen::Infinity>();
+        }
+
         double SimpleAction::normP1(SpMatrix *matrix) {
             return (Eigen::RowVectorXd::Ones(matrix -> rows()) * matrix -> cwiseAbs()).maxCoeff();
         }

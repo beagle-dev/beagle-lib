@@ -252,6 +252,12 @@ private:
                        int &s);
     double getDValue(int p);
 
+    double normPInf(MapType matrix);
+
+    double normPInf(SpMatrix* matrix);
+
+    double normPInf(MatrixXd * matrix);
+
     std::map<int, SpMatrix> powerMatrices;
     int highestPower;
     std::map<int, double> d;
