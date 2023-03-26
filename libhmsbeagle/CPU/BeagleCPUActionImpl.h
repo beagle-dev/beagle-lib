@@ -50,9 +50,10 @@ typedef Eigen::SparseMatrix<double> SpMatrix;
 typedef Eigen::Triplet<double> Triplet;
 
 
+
 namespace beagle {
     namespace cpu {
-
+        class SimpleAction;
         BEAGLE_CPU_TEMPLATE
         class BeagleCPUActionImpl : public BeagleCPUImpl<BEAGLE_CPU_GENERIC> {
         };
@@ -88,6 +89,9 @@ namespace beagle {
             double* gLeftPartialTmp;
             double* gRightPartialTmp;
             SpMatrix* gInstantaneousMatrices;
+            int* gEigenMaps;
+            double* gEdgeMultipliers;
+            SimpleAction** gSimpleActions;
             SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
@@ -234,22 +238,26 @@ namespace beagle {
 class SimpleAction {
 
 public:
-    SimpleAction(int kCategoryCount, int kPatternCount, int kStateCount)
-        : kCategoryCount(kCategoryCount), kPatternCount(kPatternCount), kStateCount(kStateCount) {
-    };
 
-    void doAction(MapType* destP,
-                  MapType* partials,
-                  SpMatrix* matrix);
+    int createInstance(int categoryCount, int patternCount, int stateCount, SpMatrix *instantaneousMatrix,
+                       double *inEdgeMultipliers);
+
+    void doAction(MapType *destP, MapType *partials, SpMatrix *scaledQ, int edgeIndex);
+
+    void fireMatrixChanged();
 
 private:
     double normP1(SpMatrix * matrix);
+
     void getStatistics(double A1Norm,
                        SpMatrix * matrix,
                        double t,
                        int nCol,
                        int &m,
                        int &s);
+
+    void getStatistics2(double B1Norm, SpMatrix *matrix, double t, int nCol, int &m, int &s, double multiplier);
+
     double getDValue(int p);
 
     double normPInf(MapType matrix);
@@ -260,11 +268,17 @@ private:
 
     std::map<int, SpMatrix> powerMatrices;
     int highestPower;
+//    bool matrixChanged;
     std::map<int, double> d;
-    const int kCategoryCount;
-    const int kPatternCount;
-    const int kStateCount;
+    int kCategoryCount;
+    int kPatternCount;
+    int kStateCount;
+    SpMatrix* Q;
+    double* edgeMultipliers;
+    SpMatrix identity;
     const int mMax = 55;
+    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+    const double tol = pow(2.0, -53.0);
     std::map<int, double> thetaConstants = {
             //The first 30 values are from table A.3 of  Computing Matrix Functions.
             // For double precision, tol = 2^(-53)
@@ -329,22 +343,6 @@ public:
     virtual const char* getName();
     virtual const long getFlags();
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

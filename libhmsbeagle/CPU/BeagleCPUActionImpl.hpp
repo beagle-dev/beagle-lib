@@ -42,6 +42,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUActionImpl.h"
 
+class SimpleAction;
 namespace beagle {
     namespace cpu {
 
@@ -65,6 +66,17 @@ namespace beagle {
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
             gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
+            gEigenMaps = (int *) malloc(sizeof(int) * matrixCount);
+            gEdgeMultipliers = (double *) malloc(sizeof(double) * matrixCount * categoryCount);
+            gSimpleActions = (SimpleAction**) malloc(sizeof(SimpleAction *) * eigenDecompositionCount);
+            for (int eigen = 0; eigen < eigenDecompositionCount; eigen++) {
+                gSimpleActions[eigen] = (SimpleAction *) malloc(sizeof(SimpleAction));
+                SimpleAction* action = new SimpleAction();
+                action->createInstance(categoryCount, patternCount, stateCount, &gInstantaneousMatrices[eigen],
+                                       gEdgeMultipliers);
+//                SimpleAction action(categoryCount, patternCount, stateCount);
+                gSimpleActions[eigen] = action;
+            }
             gScaledQs = new SpMatrix * [kBufferCount];
             gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
             gMappedPartials = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
@@ -125,6 +137,8 @@ namespace beagle {
             free(gRightPartialTmp);
             free(gScaledQs);
             free(gRescaleTmp);
+            free(gEigenMaps);
+            free(gEdgeMultipliers);
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
@@ -250,7 +264,22 @@ namespace beagle {
                 std::cerr<<"Updating partials for index: "<<destinationPartialIndex << std::endl;
 #endif
 
-                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
+//                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
+
+
+                memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+                memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+
+                const int eigenIndex1 = gEigenMaps[firstChildSubstitutionMatrixIndex];
+                const int eigenIndex2 = gEigenMaps[secondChildSubstitutionMatrixIndex];
+
+                gSimpleActions[eigenIndex1]->doAction(gMappedLeftPartialTmp, partials1, matrices1, firstChildSubstitutionMatrixIndex);
+                gSimpleActions[eigenIndex2]->doAction(gMappedRightPartialTmp, partials2, matrices2, secondChildSubstitutionMatrixIndex);
+
+                for (int i = 0; i < kCategoryCount; i++) {
+                    destP[i] = gMappedLeftPartialTmp[i].cwiseProduct(gMappedRightPartialTmp[i]);
+                }
+
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
                 }
@@ -318,8 +347,27 @@ namespace beagle {
 #endif
 
                 calcPrePartialsPartials(destP, partials1, matrices1, partials2, matrices2);
+
+
+                memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
+
+                const int eigenIndex1 = gEigenMaps[substitutionMatrixIndex];
+                const int eigenIndex2 = gEigenMaps[siblingSubstitutionMatrixIndex];
+
+                 gSimpleActions[eigenIndex2]->doAction(gMappedLeftPartialTmp, partials2, matrices2, siblingSubstitutionMatrixIndex);
+
+
+                simpleAction(gMappedLeftPartialTmp, partials2, matrices2);
+
+                for (int i = 0; i < kCategoryCount; i++) {
+                    gMappedLeftPartialTmp[i] = gMappedLeftPartialTmp[i].cwiseProduct(partials1[i]);
+                    gScaledQTransposeTmp[i] = matrices1[i].transpose();
+                }
+
+                simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
+
                 if (rescale == 1) {
-                    rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
+                    rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
                 }
             }
 
@@ -342,6 +390,7 @@ namespace beagle {
                 tripletList.push_back(Triplet((int) inEigenVectors[2 * i], (int) inEigenVectors[2 * i + 1], inEigenValues[i]));
             }
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
+            gSimpleActions[eigenIndex]->fireMatrixChanged();
 #ifdef BEAGLE_DEBUG_FLOW
             std::cerr<<"In vlaues: \n";
             for (int i = 0; i < numNonZeros; i++) {
@@ -361,6 +410,7 @@ namespace beagle {
                                                                                     int count) {
             for (int i = 0; i < count; i++) {
                 const int nodeIndex = probabilityIndices[i];
+                gEigenMaps[i] = eigenIndex;
 
                 if (gScaledQs[nodeIndex] == NULL) {
                     gScaledQs[nodeIndex] = new SpMatrix[kCategoryCount];
@@ -372,6 +422,7 @@ namespace beagle {
                 }
                 for (int category = 0; category < kCategoryCount; category++) {
                     const double categoryRate = gCategoryRates[0][category];
+                    gEdgeMultipliers[i * kCategoryCount + category] = edgeLengths[i] * categoryRate;
                     gScaledQs[nodeIndex][category] = gInstantaneousMatrices[eigenIndex] * (edgeLengths[i] * categoryRate);
 #ifdef BEAGLE_DEBUG_FLOW
                     std::cerr<<"Transition matrix, rate category " << category << " rate multiplier: " << categoryRate
@@ -420,35 +471,86 @@ namespace beagle {
             simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
         }
 
-        void SimpleAction::doAction(MapType* destP,
-                                    MapType* partials,
-                                    SpMatrix* matrix) {
+        int
+        SimpleAction::createInstance(int categoryCount, int patternCount, int stateCount, SpMatrix *instantaneousMatrix,
+                                     double *inEdgeMultipliers) {
+//            : kCategoryCount(categoryCount), kPatternCount(patternCount), kStateCount(stateCount) {
+                for (int i = 1; i < pMax; i++) {
+                    SpMatrix matrix(kStateCount, kStateCount);
+                    powerMatrices[i] = matrix;
+                }
+                highestPower = 0;
+//                matrixChanged = true;
+                kCategoryCount = categoryCount;
+                kStateCount = stateCount;
+                kPatternCount = patternCount;
+                Q = instantaneousMatrix;
+                edgeMultipliers = inEdgeMultipliers;
+                identity = SpMatrix(kStateCount, kStateCount);
+                identity.setIdentity();
+
+                return BEAGLE_SUCCESS;
+        }
+
+        void SimpleAction::fireMatrixChanged() {
+//            matrixChanged = true;
+            highestPower = 0;
+        }
+
+        void SimpleAction::doAction(MapType *destP, MapType *partials, SpMatrix *scaledQ, int edgeIndex) {
+
             for (int category = 0; category < kCategoryCount; category++) {
-                SpMatrix thisMatrix = matrix[category];
+
+                const double edgeMultiplier = edgeMultipliers[kCategoryCount * edgeIndex + category];
+
+                //scaledQ = Q * multiplier * rate
+                SpMatrix thisMatrix = scaledQ[category];
 #ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"Rate category "<<category<<std::endl;
                 std::cerr<<"In partial: \n"<<partials[category]<<std::endl;
                 std::cerr<<"Matrix: \n"<<thisMatrix<<std::endl;
 #endif
-                const double tol = pow(2.0, -53.0);
                 const double t = 1.0;
                 const int nCol = kPatternCount;
-                SpMatrix identity(kStateCount, kStateCount);
-                identity.setIdentity();
-                double mu = 0.0;
 
-                for (int i = 0; i < kStateCount; i++) {
-                    mu += thisMatrix.coeff(i, i);
-                }
-                mu /= (double) kStateCount;
-
-                SpMatrix A(thisMatrix.rows(), thisMatrix.cols());
-
-                A = thisMatrix - mu * identity;
-                const double A1Norm = normP1(&A);
-
+//                double mu = 0.0;
+//
+//                for (int i = 0; i < kStateCount; i++) {
+//                    mu += thisMatrix.coeff(i, i);
+//                }
+//                mu /= (double) kStateCount;
                 int m, s;
-                getStatistics(A1Norm, &A, t, nCol, m, s);
+
+//                SpMatrix A(thisMatrix.rows(), thisMatrix.cols());
+//
+//                A = thisMatrix - mu * identity;
+//                const double A1Norm = normP1(&A);
+
+//                getStatistics(A1Norm, &A, t, nCol, m, s);
+//
+//#ifdef BEAGLE_DEBUG_FLOW
+//                std::cout<<" m = "<<m<<"  s = "<<s <<std::endl;
+//                std::cout<<"  A1Norm =" << A1Norm<< "  A ="<< std::endl<<A<<std::endl;
+//#endif
+
+                SpMatrix thatMatrix = Q[0];
+                double mu_B = 0.0;
+                for (int i = 0; i < kStateCount; i++) {
+                    mu_B += thatMatrix.coeff(i, i);
+                }
+                mu_B /= (double) kStateCount;
+                SpMatrix B(thisMatrix.rows(), thisMatrix.cols());
+                B = thatMatrix - mu_B * identity;
+                const double B1Norm = normP1(&B);
+
+                getStatistics2(B1Norm, &B, t, nCol, m, s, edgeMultiplier);
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+                std::cout<<" m = "<<m<<"  s = "<<s <<std::endl;
+                std::cout<<"  B1Norm =" << B1Norm<< "  B ="<< std::endl<<B<<std::endl;
+                std::cout<<"mu_B * multiplier = "<<mu_B * edgeMultiplier<< "  mu =" <<mu<<std::endl;
+#endif
 
 
                 destP[category] = partials[category];
@@ -456,13 +558,13 @@ namespace beagle {
                 MatrixXd F(kStateCount, kPatternCount);
                 F = destP[category];
 
-                const double eta = exp(t * mu / (double) s);
+                const double eta = exp(t * mu_B * edgeMultiplier / (double) s);
                 double c1, c2;
                 for (int i = 0; i < s; i++) {
                     c1 = normPInf(destP[category]);
                     for (int j = 1; j < m + 1; j++) {
-                        destP[category] = A * destP[category];
-                        destP[category] *= t / ((double) s * j);
+                        destP[category] = B * destP[category];
+                        destP[category] *= t / ((double) s * j) * edgeMultiplier;
                         c2 = normPInf(destP[category]);
                         F += destP[category];
                         if (c1 + c2 <= tol * normPInf(&F)) {
@@ -504,7 +606,7 @@ namespace beagle {
                 int bestS = INT_MAX;
 
                 const double theta = thetaConstants[mMax];
-                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+//                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
                 // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
 
                 const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
@@ -523,9 +625,12 @@ namespace beagle {
                     s = bestS;
                 } else {
                     SpMatrix firstOrderMatrix = *matrix;
-                    powerMatrices[1] = firstOrderMatrix;
-                    d[1] = normP1(&firstOrderMatrix);
-                    for (int p = 2; p < pMax; p++) {
+                    if (highestPower < 1) {
+                        powerMatrices[1] = firstOrderMatrix;
+                        d[1] = normP1(&firstOrderMatrix);
+                        highestPower = 1;
+                    }
+                    for (int p = 1 + highestPower; p < pMax; p++) {
                         for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
                             it = thetaConstants.find(thisM);
                             if (it != thetaConstants.end()) {
@@ -533,6 +638,63 @@ namespace beagle {
                                 const double dValueP = getDValue(p);
                                 const double dValuePPlusOne = getDValue(p + 1);
                                 const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
+                                // part of equation 3.10
+                                const double thisS = ceil(alpha / thetaConstants[thisM]);
+                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+                                    bestS = (int) thisS;
+                                    bestM = thisM;
+                                }
+                            }
+                        }
+                    }
+                    s = bestS > 1 ? bestS : 1;
+                }
+                m = bestM;
+            }
+        }
+
+        void SimpleAction::getStatistics2(double B1Norm, SpMatrix *matrix, double t, int nCol, int &m, int &s,
+                                          double multiplier) {
+            if (t * B1Norm == 0.0) {
+                m = 0;
+                s = 1;
+            } else {
+                int bestM = INT_MAX;
+                int bestS = INT_MAX;
+
+                const double theta = thetaConstants[mMax];
+//                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+                const bool conditionFragment313 = B1Norm * multiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+                // using l = 1 as in equation 3.13
+
+                std::map<int, double>::iterator it;
+                if (conditionFragment313) {
+                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
+                        const int thisM = it->first;
+                        const double thisS = ceil(B1Norm * multiplier / thetaConstants[thisM]);
+                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+                            bestS = (int) thisS;
+                            bestM = thisM;
+                        }
+                    }
+                    s = bestS;
+                } else {
+                    SpMatrix firstOrderMatrix = *matrix;
+                    if (highestPower < 1) {
+                        powerMatrices[1] = firstOrderMatrix;
+                        d[1] = normP1(&firstOrderMatrix);
+                        highestPower = 1;
+                    }
+                    for (int p = 1 + highestPower; p < pMax; p++) {
+                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+                            it = thetaConstants.find(thisM);
+                            if (it != thetaConstants.end()) {
+                                // equation 3.7 in Al-Mohy and Higham
+                                const double dValueP = getDValue(p);
+                                const double dValuePPlusOne = getDValue(p + 1);
+                                const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * multiplier;
                                 // part of equation 3.10
                                 const double thisS = ceil(alpha / thetaConstants[thisM]);
                                 if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
@@ -558,6 +720,7 @@ namespace beagle {
                         SpMatrix nextPowerMatrix = currentPowerMatrix * powerMatrices[1];
                         powerMatrices[i + 1] = nextPowerMatrix;
                     }
+                    highestPower = p;
                 }
                 SpMatrix powerPMatrix = powerMatrices[p];
                 d[p] = pow(normP1(&powerPMatrix), 1.0 / ((double) p));
