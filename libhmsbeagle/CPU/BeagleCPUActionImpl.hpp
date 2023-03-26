@@ -356,15 +356,12 @@ namespace beagle {
 
                  gSimpleActions[eigenIndex2]->doAction(gMappedLeftPartialTmp, partials2, matrices2, siblingSubstitutionMatrixIndex);
 
-
-                simpleAction(gMappedLeftPartialTmp, partials2, matrices2);
-
                 for (int i = 0; i < kCategoryCount; i++) {
                     gMappedLeftPartialTmp[i] = gMappedLeftPartialTmp[i].cwiseProduct(partials1[i]);
                     gScaledQTransposeTmp[i] = matrices1[i].transpose();
                 }
 
-                simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
+                gSimpleActions[eigenIndex1]->doAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp, substitutionMatrixIndex);
 
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
