@@ -113,9 +113,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
 
     /* Load values into shared memory */
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
@@ -136,84 +133,82 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         sPartials2[patIdx][state] = 0;
     }
 
+    if (pattern + 4 < totalPatterns) {
+        sPartials1[patIdx + 4][state] = partials1[128 + y + state];
+        sPartials2[patIdx + 4][state] = partials2[128 + y + state];
+    } else {
+        sPartials1[patIdx + 4][state] = 0;
+        sPartials2[patIdx + 4][state] = 0;
+    }
+
     int warpSize = 32; // TODO: Check if its better to get this from Cuda API
     int warpState = state/warpSize;
     int warpPattern = patIdx;
     int warpIdx = warpState + warpPattern * (PADDED_STATE_COUNT/warpSize);
 
     int sMatrixRow, partialsCol;
-    // TODO: Fix these indices. Will fail for > 4 patterns
     sMatrixRow = (warpIdx * WMMA_M < PADDED_STATE_COUNT) ? (warpIdx * WMMA_M) : 0;
     partialsCol = (warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) ? (warpIdx * WMMA_N) : 0;
 
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
         /* load one row of matrices */
-        if (patIdx < WMMA_K) {
-            /* These are all coherent global memory reads. */
-            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-            // Row-major 4 states
-            sMatrixTmp[state * WMMA_K + patIdx] = sMatrix2[patIdx][state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix2 += WMMA_K * PADDED_STATE_COUNT;
-        }
+        // Row-major 4 states
+        sMatrixTmp[state * WMMA_K + patIdx] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+        /* sMatrix now filled with starting in state and ending in i */
+        matrix2 += WMMA_K * PADDED_STATE_COUNT;
 
         if(state < WMMA_K) {
             // Column-major 4 states for PATTERN_BLOCKS_SIZE patterns
             sPartialsTmp[patIdx * WMMA_K + state] = sPartials2[patIdx][i + state];
+            sPartialsTmp[(patIdx + 4) * WMMA_K + state] = sPartials2[patIdx + 4][i + state];
         }
 
         KW_LOCAL_FENCE;
 
-        if(warpIdx * WMMA_M < PADDED_STATE_COUNT || warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) {
-            nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrixTmp + sMatrixRow * WMMA_K, WMMA_K);
-            nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_K, WMMA_K);
-            nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
-        }
+        nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrixTmp + sMatrixRow * WMMA_K, WMMA_K);
+        nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_K, WMMA_K);
+        nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
     }
 
-    if(warpIdx * WMMA_M < PADDED_STATE_COUNT || warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) {
-        nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
-    }
+    nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
     KW_LOCAL_FENCE; // Wait till all warps are finished
 
     sPartials1[patIdx][state] *= sumTmp[patIdx * WMMA_M + (state/WMMA_M) * 64 + (state % WMMA_M)];
+    sPartials1[patIdx + 4][state] *= sumTmp[(patIdx + 4) * WMMA_M + (state/WMMA_M) * 64 + (state % WMMA_M)];
 
     nvcuda::wmma::fill_fragment(accFrag, 0.0);
 
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
         /* load one row of matrices */
-        if (patIdx < WMMA_K) {
-            /* These are all coherent global memory reads. */
-            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-            // Row-major 4 states
-            sMatrixTmp[state * WMMA_K + patIdx] = sMatrix1[patIdx][state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix1 += WMMA_K * PADDED_STATE_COUNT;
-        }
+        // Row-major 4 states
+        sMatrixTmp[state * WMMA_K + patIdx] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+        /* sMatrix now filled with starting in state and ending in i */
+        matrix1 += WMMA_K * PADDED_STATE_COUNT;
 
         if(state < WMMA_K) {
             // Column-major 4 states for PATTERN_BLOCKS_SIZE patterns
             sPartialsTmp[patIdx * WMMA_K + state] = sPartials1[patIdx][i + state];
+            sPartialsTmp[(patIdx + 4) * WMMA_K + state] = sPartials1[patIdx + 4][i + state];
         }
 
         KW_LOCAL_FENCE;
 
-        if(warpIdx * WMMA_M < PADDED_STATE_COUNT || warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) {
-            nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrixTmp + sMatrixRow * WMMA_K, WMMA_K);
-            nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_K, WMMA_K);
-            nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
-        }
+        nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrixTmp + sMatrixRow * WMMA_K, WMMA_K);
+        nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_K, WMMA_K);
+        nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
     }
 
-    if(warpIdx * WMMA_M < PADDED_STATE_COUNT || warpIdx * WMMA_N < PATTERN_BLOCK_SIZE) {
-        nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
-    }
+    nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
 
     KW_LOCAL_FENCE; // Wait till all warps are finished
 
     if (pattern < totalPatterns) {
-        partials3[u] = sumTmp[patIdx * WMMA_M + (state/8) * 64 + (state % 8)];
+        partials3[u] = sumTmp[(patIdx) * WMMA_M + (state/8) * 64 + (state % 8)];
+    }
+
+    if(pattern + 4 < totalPatterns) {
+        partials3[128 + u] = sumTmp[ (patIdx + 4) * WMMA_M + (state/8) * 64 + (state % 8)];
     }
 #endif
 }

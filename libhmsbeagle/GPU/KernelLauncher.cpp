@@ -1000,17 +1000,19 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 DEBUG_START_TIME();
 #ifdef BEAGLE_TENSOR_CORES
     fprintf(stderr, "\t\tEntering Kernel for tensor cores\n");
-    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+    GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
+    bgPeelingBlock.y = 32/8;
     gpu->LaunchKernel(fPartialsPartialsGrowingTensorCores,
                       bgPeelingBlock, bgPeelingGrid,
                       6, 7,
                       partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
                       patternCount);
     gpu->SynchronizeDevice();
-    fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
-    fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
-    fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
-    double tmp[256] ={-1};
+    bgPeelingBlock.y = 8; // Set it back to 8 for other kernels
+//    fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
+//    fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
+//    fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
+//    double tmp[1024] ={-1};
 //    int npartials = patternCount * 4 * 5;
 //    fprintf(stderr, "\n\n\t\tPrinting partials1\n");
 //    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
@@ -1036,12 +1038,12 @@ DEBUG_START_TIME();
 //        fprintf(stderr, " %f, ", tmp[i]);
 //        tmp[i] = 0;
 //    }
-    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
-    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
-    for(int i = 0; i < 256; i++) {
-        fprintf(stderr, " %f, ", tmp[i]);
-        tmp[i] = 0;
-    }
+//    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+//    for(int i = 0; i < 256; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
 //    fprintf(stderr, "\n\n\t\tPrinting partials3\n");
 //    gpu->MemcpyDeviceToHost(&tmp, partials3, sizeof(double) * npartials);
 //    for(int i = 0; i < npartials; i++) {
