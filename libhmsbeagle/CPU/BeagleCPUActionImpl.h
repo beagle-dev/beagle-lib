@@ -91,7 +91,11 @@ namespace beagle {
             SpMatrix* gInstantaneousMatrices;
             int* gEigenMaps;
             double* gEdgeMultipliers;
-            SimpleAction** gSimpleActions;
+            std::map<int, SpMatrix>* powerMatrices;
+            std::map<int, double>* ds;
+            int* gHighestPowers;
+            SpMatrix identity;
+//            SimpleAction** gSimpleActions;
             SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
@@ -198,6 +202,9 @@ namespace beagle {
                                                  const double* edgeLengths,
                                                  int count);
 
+            void simpleAction2(MapType *destP, MapType *partials, SpMatrix *matrix,
+                               int edgeIndex);
+
 
             void simpleAction(MapType* destP,
                               MapType* partials,
@@ -208,6 +215,11 @@ namespace beagle {
                                       SpMatrix* matrices1,
                                       MapType* partials2,
                                       SpMatrix* matrices2);
+
+            void calcPartialsPartials2(MapType *destP, MapType *partials1,
+                                       SpMatrix *matrices1, MapType *partials2,
+                                       SpMatrix *matrices2, int edgeIndex1,
+                                       int edgeIndex2);
 
             void calcPrePartialsPartials(MapType *destP,
                                          MapType *partials1,
@@ -222,9 +234,15 @@ namespace beagle {
                                int &m,
                                int &s);
 
+            void getStatistics2(double B1Norm, SpMatrix *matrix, double t, int nCol,
+                                int &m, int &s, double edgeMultiplier,
+                                int eigenIndex);
+
             double getDValue(int p,
                              std::map<int, double> &d,
                              std::map<int, SpMatrix> &powerMatrices);
+
+            double getDValue2(int p, int eigenIndex);
 
             double normP1(SpMatrix * matrix);
 
@@ -245,6 +263,10 @@ public:
     void doAction(MapType *destP, MapType *partials, SpMatrix *scaledQ, int edgeIndex);
 
     void fireMatrixChanged();
+
+    void setInstantaneousMatrix(std::vector<Triplet> triplets);
+
+    SpMatrix getQMatrix();
 
 private:
     double normP1(SpMatrix * matrix);
