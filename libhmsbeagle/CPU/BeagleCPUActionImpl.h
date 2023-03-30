@@ -89,6 +89,9 @@ namespace beagle {
             double* gLeftPartialTmp;
             double* gRightPartialTmp;
             SpMatrix* gInstantaneousMatrices;
+            SpMatrix* gBs;
+            double* gMuBs;
+            double* gB1Norms;
             int* gEigenMaps;
             double* gEdgeMultipliers;
             std::map<int, SpMatrix>* powerMatrices;
@@ -202,8 +205,8 @@ namespace beagle {
                                                  const double* edgeLengths,
                                                  int count);
 
-            void simpleAction2(MapType *destP, MapType *partials, SpMatrix *matrix,
-                               int edgeIndex);
+            void simpleAction2(MapType *destP, MapType *partials, int edgeIndex,
+                               bool transpose);
 
 
             void simpleAction(MapType* destP,
@@ -217,8 +220,7 @@ namespace beagle {
                                       SpMatrix* matrices2);
 
             void calcPartialsPartials2(MapType *destP, MapType *partials1,
-                                       SpMatrix *matrices1, MapType *partials2,
-                                       SpMatrix *matrices2, int edgeIndex1,
+                                       MapType *partials2, int edgeIndex1,
                                        int edgeIndex2);
 
             void calcPrePartialsPartials(MapType *destP,
@@ -227,6 +229,10 @@ namespace beagle {
                                          MapType *partials2,
                                          SpMatrix *matrices2);
 
+            void calcPrePartialsPartials2(MapType *destP, MapType *partials1,
+                                          MapType *partials2, int edgeIndex1,
+                                          int edgeIndex2);
+
             void getStatistics(double A1Norm,
                                SpMatrix * matrix,
                                double t,
@@ -234,8 +240,7 @@ namespace beagle {
                                int &m,
                                int &s);
 
-            void getStatistics2(double B1Norm, SpMatrix *matrix, double t, int nCol,
-                                int &m, int &s, double edgeMultiplier,
+            void getStatistics2(double t, int nCol, int &m, int &s, double edgeMultiplier,
                                 int eigenIndex);
 
             double getDValue(int p,
