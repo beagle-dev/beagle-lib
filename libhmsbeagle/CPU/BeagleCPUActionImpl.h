@@ -80,7 +80,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryRates;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
-            SpMatrix** gScaledQs;
+//            SpMatrix** gScaledQs;
             MapType** gMappedPartials;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
@@ -98,7 +98,6 @@ namespace beagle {
             std::map<int, double>* ds;
             int* gHighestPowers;
             SpMatrix identity;
-//            SimpleAction** gSimpleActions;
             SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
             MapType* gMappedLeftPartialTmp;
@@ -258,96 +257,6 @@ namespace beagle {
 
         };
 
-class SimpleAction {
-
-public:
-
-    int createInstance(int categoryCount, int patternCount, int stateCount, SpMatrix *instantaneousMatrix,
-                       double *inEdgeMultipliers);
-
-    void doAction(MapType *destP, MapType *partials, SpMatrix *scaledQ, int edgeIndex);
-
-    void fireMatrixChanged();
-
-    void setInstantaneousMatrix(std::vector<Triplet> triplets);
-
-    SpMatrix getQMatrix();
-
-private:
-    double normP1(SpMatrix * matrix);
-
-    void getStatistics(double A1Norm,
-                       SpMatrix * matrix,
-                       double t,
-                       int nCol,
-                       int &m,
-                       int &s);
-
-    void getStatistics2(double B1Norm, SpMatrix *matrix, double t, int nCol, int &m, int &s, double multiplier);
-
-    double getDValue(int p);
-
-    double normPInf(MapType matrix);
-
-    double normPInf(SpMatrix* matrix);
-
-    double normPInf(MatrixXd * matrix);
-
-    std::map<int, SpMatrix> powerMatrices;
-    int highestPower;
-//    bool matrixChanged;
-    std::map<int, double> d;
-    int kCategoryCount;
-    int kPatternCount;
-    int kStateCount;
-    SpMatrix* Q;
-    double* edgeMultipliers;
-    SpMatrix identity;
-    const int mMax = 55;
-    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
-    const double tol = pow(2.0, -53.0);
-    std::map<int, double> thetaConstants = {
-            //The first 30 values are from table A.3 of  Computing Matrix Functions.
-            // For double precision, tol = 2^(-53)
-            // TODO: maybe calculate this
-            {1, 2.29E-16},
-            {2, 2.58E-8},
-            {3, 1.39E-5},
-            {4, 3.40E-4},
-            {5, 2.40E-3},
-            {6, 9.07E-3},
-            {7, 2.38E-2},
-            {8, 5.00E-2},
-            {9, 8.96E-2},
-            {10, 1.44E-1},
-            {11, 2.14E-1},
-            {12, 3.00E-1},
-            {13, 4.00E-1},
-            {14, 5.14E-1},
-            {15, 6.41E-1},
-            {16, 7.81E-1},
-            {17, 9.31E-1},
-            {18, 1.09},
-            {19, 1.26},
-            {20, 1.44},
-            {21, 1.62},
-            {22, 1.82},
-            {23, 2.01},
-            {24, 2.22},
-            {25, 2.43},
-            {26, 2.64},
-            {27, 2.86},
-            {28, 3.08},
-            {29, 3.31},
-            {30, 3.54},
-            //The rest are from table 3.1 of Computing the Action of the Matrix Exponential.
-            {35, 4.7},
-            {40, 6.0},
-            {45, 7.2},
-            {50, 8.5},
-            {55, 9.9},
-    };
-};
 
 BEAGLE_CPU_FACTORY_TEMPLATE
 class BeagleCPUActionImplFactory : public BeagleImplFactory {
