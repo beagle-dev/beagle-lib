@@ -1001,7 +1001,9 @@ DEBUG_START_TIME();
 #ifdef BEAGLE_TENSOR_CORES
     fprintf(stderr, "\t\tEntering Kernel for tensor cores\n");
     GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
-    bgPeelingBlock.y = 32/8;
+    bgPeelingBlock.y = 8; // Each grid now processes PATTERN_BLOCK_SIZE * 2 patterns with same number of threads
+    int tmpGridX = bgPeelingGrid.x;
+    bgPeelingGrid.x = (bgPeelingGrid.x/2) + 1;
     gpu->LaunchKernel(fPartialsPartialsGrowingTensorCores,
                       bgPeelingBlock, bgPeelingGrid,
                       6, 7,
@@ -1009,6 +1011,7 @@ DEBUG_START_TIME();
                       patternCount);
     gpu->SynchronizeDevice();
     bgPeelingBlock.y = 8; // Set it back to 8 for other kernels
+    bgPeelingGrid.x = tmpGridX;
 //    fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
 //    fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
 //    fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
@@ -1039,8 +1042,8 @@ DEBUG_START_TIME();
 //        tmp[i] = 0;
 //    }
 //    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
-//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
-//    for(int i = 0; i < 256; i++) {
+//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 512);
+//    for(int i = 0; i < 512; i++) {
 //        fprintf(stderr, " %f, ", tmp[i]);
 //        tmp[i] = 0;
 //    }
