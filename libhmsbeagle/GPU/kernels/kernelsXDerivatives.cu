@@ -130,7 +130,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     // Tmp arrays before loading into fragment
     KW_LOCAL_MEM REAL sMatrixTmp[WMMA_K * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrixTranspose[WMMA_K * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartialsTmp[NEW_PATTERN_BLOCK_SIZE * WMMA_K];
     KW_LOCAL_MEM REAL sumTmp[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
 
@@ -167,8 +166,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         /* load one row of matrices */
         // Row-major 4 states
         if(patIdx < WMMA_K) {
-            sMatrixTranspose[patIdx * PADDED_STATE_COUNT + state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-            sMatrixTmp[state * WMMA_K + patIdx] = sMatrixTranspose[patIdx * PADDED_STATE_COUNT + state];
+            sMatrixTmp[state * WMMA_K + patIdx] = matrix2[patIdx * PADDED_STATE_COUNT + state];
             /* sMatrix now filled with starting in state and ending in i */
             matrix2 += WMMA_K * PADDED_STATE_COUNT;
         }
@@ -192,8 +190,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     KW_LOCAL_FENCE; // Wait till all warps are finished
 
-//    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sumTmp[patIdx * PADDED_STATE_COUNT + state];
-//    tmpAcc[MEM_OFFSET + patIdx * PADDED_STATE_COUNT + state] = sumTmp[MEM_OFFSET + patIdx * PADDED_STATE_COUNT + state];
     // TODO: Generalize 128 with (NEW_PATTERN_BLOCK_SIZE/WMMA_M) * 64
     sPartials1[patIdx][state] *= sumTmp[patIdx * WMMA_M + (state/WMMA_M) * 128 + (state % WMMA_M)];
     sPartials1[patIdx + PATTERN_SPAN][state] *= sumTmp[(patIdx + PATTERN_SPAN) * WMMA_M + (state/WMMA_M) * 128 + (state % WMMA_M)];
