@@ -130,6 +130,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
 
     // Tmp arrays before loading into fragment
     KW_LOCAL_MEM REAL sMatrixTmp[WMMA_K * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrixTranspose[WMMA_K * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartialsTmp[NEW_PATTERN_BLOCK_SIZE * WMMA_K];
     KW_LOCAL_MEM REAL sumTmp[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
 
@@ -166,7 +167,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         /* load one row of matrices */
         // Row-major 4 states
         if(patIdx < WMMA_K) {
-            sMatrixTmp[state * WMMA_K + patIdx] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+            sMatrixTranspose[patIdx * PADDED_STATE_COUNT + state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+            sMatrixTmp[state * WMMA_K + patIdx] = sMatrixTranspose[patIdx * PADDED_STATE_COUNT + state];
             /* sMatrix now filled with starting in state and ending in i */
             matrix2 += WMMA_K * PADDED_STATE_COUNT;
         }
@@ -182,6 +184,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrixTmp + sMatrixRow * WMMA_M * WMMA_K, WMMA_K);
         nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_N * WMMA_K, WMMA_K);
         nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
+
+        KW_LOCAL_FENCE;
     }
 
     nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
@@ -216,6 +220,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
         nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrixTmp + sMatrixRow * WMMA_M * WMMA_K, WMMA_K);
         nvcuda::wmma::load_matrix_sync(partialsFrag, sPartialsTmp + partialsCol * WMMA_N * WMMA_K, WMMA_K);
         nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
+
+        KW_LOCAL_FENCE;
     }
 
     nvcuda::wmma::store_matrix_sync(sumTmp + warpIdx * 64, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
