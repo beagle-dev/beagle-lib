@@ -55,6 +55,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockCoherentMulti;
     GPUFunction fPartialsPartialsByPatternBlockCoherentPartition;
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
+    GPUFunction fPartialsPartialsByPatternBlockCoherentTensorCores;
     GPUFunction fPartialsPartialsByPatternBlockFixedScalingMulti;
     GPUFunction fPartialsPartialsByPatternBlockFixedScalingPartition;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
