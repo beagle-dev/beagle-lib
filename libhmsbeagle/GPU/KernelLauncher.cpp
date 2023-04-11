@@ -285,16 +285,11 @@ void KernelLauncher::LoadKernels() {
     fMultipleNodeSiteSquaredReduction = gpu->GetFunction(
             "kernelMultipleNodeSiteSquaredReduction");
 
-
-    fprintf(stderr, "A\n");
-
     fPartialsPartialsCrossProducts = gpu->GetFunction(
             "kernelPartialsPartialsCrossProducts");
 
     fPartialsStatesCrossProducts = gpu->GetFunction(
             "kernelPartialsStatesCrossProducts");
-
-    fprintf(stderr, "B\n");
 
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
