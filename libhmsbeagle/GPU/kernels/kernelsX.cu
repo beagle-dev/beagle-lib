@@ -483,17 +483,16 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 //    if (pattern < totalPatterns)
 //        partials3[u] = sum1 * sum2;
     DETERMINE_INDICES_X_GPU();
+    int patternBlock = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE);
+
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
     /* Load values into shared memory */
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT]
-    // TODO: Remove sPartials*Tmp and read from GM within loop
-    KW_LOCAL_MEM REAL sPartials1Tmp[PATTERN_BLOCK_SIZE * 4];
-    KW_LOCAL_MEM REAL sPartials2Tmp[PATTERN_BLOCK_SIZE * 4];
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4];
     KW_LOCAL_MEM REAL sMatrix1[4 * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
     const int WMMA_M = 8;
     const int WMMA_N = 8;
@@ -529,24 +528,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     resRow = warpIdx % (PADDED_STATE_COUNT/WMMA_M);
     resCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
 
-    if (pattern < totalPatterns) {
-        sPartials1[patIdx * PADDED_STATE_COUNT + state] = partials1[y + state];
-        sPartials2[patIdx * PADDED_STATE_COUNT + state] = partials2[y + state];
-    } else {
-        sPartials1[patIdx * PADDED_STATE_COUNT + state] = 0;
-        sPartials2[patIdx * PADDED_STATE_COUNT + state] = 0;
-    }
-
-    if (pattern + PATTERN_SPAN < totalPatterns) {
-        sPartials1[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] = partials1[MEM_OFFSET + y + state];
-        sPartials2[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] = partials2[MEM_OFFSET + y + state];
-    } else {
-        sPartials1[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] = 0;
-        sPartials2[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] = 0;
-    }
-
-    KW_LOCAL_FENCE;
-
     int lane = state % 32;
     int partialsOffset = warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N);
 
@@ -554,12 +535,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
         sMatrixCol = i;
         partialsRow = i;
+        // TODO: Check if this should be warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N)
         partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
 
         sMatrix1[patIdx * PADDED_STATE_COUNT + state] = matrix1[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (lane/8) * PADDED_STATE_COUNT + (lane % 8)];
         if(warpIdx < PATTERN_BLOCK_SIZE/WMMA_N) {
-            sPartials1Tmp[patIdx * PADDED_STATE_COUNT + state] = sPartials1[partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
-            sPartials2Tmp[patIdx * PADDED_STATE_COUNT + state] = sPartials2[partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
+            if(pattern < totalPatterns) {
+                sPartials1[patIdx * PADDED_STATE_COUNT + state] = partials1[y + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
+                sPartials2[patIdx * PADDED_STATE_COUNT + state] = partials2[y + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
+            } else {
+                sPartials1[patIdx * PADDED_STATE_COUNT + state] = 0;
+                sPartials2[patIdx * PADDED_STATE_COUNT + state] = 0;
+            }
         }
 
         sMatrix2[patIdx * PADDED_STATE_COUNT + state] = matrix2[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (lane/8) * PADDED_STATE_COUNT + (lane % 8)];
@@ -569,13 +556,11 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 
         //TODO: Test mma.sync here to check if it does better with bank conflicts.
         nvcuda::wmma::load_matrix_sync(sMatrix1Frag, sMatrix1 + warpIdx * WMMA_K * WMMA_M, WMMA_M);
-        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1Tmp + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
-//        nvcuda::wmma::load_matrix_sync(sMatrix1Frag, matrix1 + sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
-//        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1 + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1 + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
         nvcuda::wmma::mma_sync(acc1Frag, sMatrix1Frag, partials1Frag, acc1Frag);
 
         nvcuda::wmma::load_matrix_sync(sMatrix2Frag, sMatrix2 + warpIdx * WMMA_K * WMMA_M, WMMA_M);
-        nvcuda::wmma::load_matrix_sync(partials2Frag, sPartials2Tmp + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
+        nvcuda::wmma::load_matrix_sync(partials2Frag, sPartials2 + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
         nvcuda::wmma::mma_sync(acc2Frag, sMatrix2Frag, partials2Frag, acc2Frag);
 
         KW_LOCAL_FENCE;
