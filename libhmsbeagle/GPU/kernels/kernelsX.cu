@@ -487,7 +487,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
     /* Load values into shared memory */
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT]
+    // TODO: Remove sPartials*Tmp and read from GM within loop
+    KW_LOCAL_MEM REAL sPartials1Tmp[PATTERN_BLOCK_SIZE * 4];
+    KW_LOCAL_MEM REAL sPartials2Tmp[PATTERN_BLOCK_SIZE * 4];
+    KW_LOCAL_MEM REAL sMatrix1[4 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
     int y = deltaPartialsByState + deltaPartialsByMatrix;
 
     const int WMMA_M = 8;
@@ -542,32 +547,52 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 
     KW_LOCAL_FENCE;
 
+    int lane = state % 32;
+    int partialsOffset = warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N);
+
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
         sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
         sMatrixCol = i;
         partialsRow = i;
         partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
 
-        nvcuda::wmma::load_matrix_sync(sMatrix1Frag, matrix1 + sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
-        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1 + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+        sMatrix1[patIdx * PADDED_STATE_COUNT + state] = matrix1[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (lane/8) * PADDED_STATE_COUNT + (lane % 8)];
+        if(warpIdx < PATTERN_BLOCK_SIZE/WMMA_N) {
+            sPartials1Tmp[patIdx * PADDED_STATE_COUNT + state] = sPartials1[partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
+            sPartials2Tmp[patIdx * PADDED_STATE_COUNT + state] = sPartials2[partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (lane/4) * PADDED_STATE_COUNT + (lane % 4)];
+        }
+
+        sMatrix2[patIdx * PADDED_STATE_COUNT + state] = matrix2[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (lane/8) * PADDED_STATE_COUNT + (lane % 8)];
+
+        // TODO: Check if loading into registers with ldmatrix does better
+        KW_LOCAL_FENCE;
+
+        //TODO: Test mma.sync here to check if it does better with bank conflicts.
+        nvcuda::wmma::load_matrix_sync(sMatrix1Frag, sMatrix1 + warpIdx * WMMA_K * WMMA_M, WMMA_M);
+        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1Tmp + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
+//        nvcuda::wmma::load_matrix_sync(sMatrix1Frag, matrix1 + sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+//        nvcuda::wmma::load_matrix_sync(partials1Frag, sPartials1 + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
         nvcuda::wmma::mma_sync(acc1Frag, sMatrix1Frag, partials1Frag, acc1Frag);
 
-        nvcuda::wmma::load_matrix_sync(sMatrix2Frag, matrix2 + sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
-        nvcuda::wmma::load_matrix_sync(partials2Frag, sPartials2 + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT, PADDED_STATE_COUNT);
+        nvcuda::wmma::load_matrix_sync(sMatrix2Frag, sMatrix2 + warpIdx * WMMA_K * WMMA_M, WMMA_M);
+        nvcuda::wmma::load_matrix_sync(partials2Frag, sPartials2Tmp + partialsOffset * WMMA_N * WMMA_K, WMMA_K);
         nvcuda::wmma::mma_sync(acc2Frag, sMatrix2Frag, partials2Frag, acc2Frag);
 
         KW_LOCAL_FENCE;
     }
 
-    nvcuda::wmma::store_matrix_sync(sum1Tmp + resRow * WMMA_M + resCol * WMMA_M * PADDED_STATE_COUNT , acc1Frag, PADDED_STATE_COUNT, nvcuda::wmma::mem_col_major);
-    nvcuda::wmma::store_matrix_sync(sum2Tmp + resRow * WMMA_M + resCol * WMMA_M * PADDED_STATE_COUNT , acc2Frag, PADDED_STATE_COUNT, nvcuda::wmma::mem_col_major);
+    nvcuda::wmma::store_matrix_sync(sum1Tmp + warpIdx * 64, acc1Frag, WMMA_M, nvcuda::wmma::mem_col_major);
+    nvcuda::wmma::store_matrix_sync(sum2Tmp + warpIdx * 64, acc2Frag, WMMA_M, nvcuda::wmma::mem_col_major);
     KW_LOCAL_FENCE;
 
+    double sum = sum1Tmp[patIdx * WMMA_M + (state/8) * 64 + (state % 8)] * sum2Tmp[patIdx * WMMA_M + (state/8) * 64 + (state % 8)];
+    double sum2 = sum1Tmp[(4 + patIdx) * WMMA_M + (state/8) * 64 + (state % 8)] * sum2Tmp[(4 + patIdx) * WMMA_M + (state/8) * 64 + (state % 8)];
+
     if (pattern < totalPatterns)
-        partials3[u] = sum1Tmp[patIdx * PADDED_STATE_COUNT + state] * sum2Tmp[patIdx * PADDED_STATE_COUNT + state];
+        partials3[u] = sum;
 
     if (pattern + PATTERN_SPAN < totalPatterns)
-        partials3[MEM_OFFSET + u] = sum1Tmp[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] * sum2Tmp[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state];
+        partials3[MEM_OFFSET + u] = sum2;
 #endif // FW_OPENCL_CPU
 }
 
