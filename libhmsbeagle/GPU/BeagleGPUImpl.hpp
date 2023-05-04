@@ -2333,7 +2333,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::upPartials\n");
 #endif
-
+#ifdef BEAGLE_TENSOR_CORES
+    std::vector<int> newOperations;
+    fprintf(stderr, "\t\tTransposing matrices\n");
+    newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+    operations = newOperations.data();
+    fprintf(stderr, "\t\tDone transposing matrices\n");
+    gpu->SynchronizeDevice();
+#endif
     GPUPtr cumulativeScalingBuffer = 0;
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = dScalingFactors[cumulativeScalingIndex];
@@ -2861,11 +2868,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
     const int* operations = inOperations;
     std::vector<int> newOperations;
 
+//#ifdef BEAGLE_TENSOR_CORES
+//    fprintf(stderr, "\t\tTransposing matrices\n");
+//    newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+//    operations = newOperations.data();
+//    fprintf(stderr, "\t\tDone transposing matrices\n");
+//#else
     if (kUsingAutoTranspose) {
         newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
         operations = newOperations.data();
     }
-
+//#endif
     // Below is the old serial version of upPartials (as a far starting point)
     for (int op = 0; op < operationCount; op++) {
         const int parIndex = operations[op * 7];                // Self
@@ -2892,6 +2905,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
                                            kPaddedPatternCount, kCategoryCount,
                                            sizeof(Real));
         } else {
+//#ifdef BEAGLE_TENSOR_CORES
+//            GPUPtr newMatrices(operationCount);
+//            transposeTransitionMatrices(matrices1, newMatrices, operationCount);
+//#endif
             kernels->PartialsPartialsGrowing(partials1, partials2, partials3,
                                              matrices1, matrices2,
                                              kPaddedPatternCount, kCategoryCount,
