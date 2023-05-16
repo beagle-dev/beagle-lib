@@ -60,7 +60,7 @@ namespace beagle {
                                                                     int pluginResourceNumber,
                                                                     long preferenceFlags,
                                                                     long requirementFlags) {
-            int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
+            int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, 2 * partialsBufferCount, compactBufferCount,
                                                                                stateCount, patternCount, eigenDecompositionCount,
                                                                                matrixCount, categoryCount, scaleBufferCount,
                                                                                resourceNumber, pluginResourceNumber,
@@ -88,21 +88,12 @@ namespace beagle {
             identity.setIdentity();
             gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
             gMappedPartials = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
+            gMappedPartialCache = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
             gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
-            gLeftPartialTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
-            gRightPartialTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
 
             gMappedIntegrationTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
             for (int category = 0; category < kCategoryCount; category++) {
                 new (& gMappedIntegrationTmp[category]) MapType(gIntegrationTmp + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
-            }
-            gMappedLeftPartialTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-            for (int category = 0; category < kCategoryCount; category++) {
-                new (& gMappedLeftPartialTmp[category]) MapType(gLeftPartialTmp + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
-           }
-            gMappedRightPartialTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-            for (int category = 0; category < kCategoryCount; category++) {
-                new (& gMappedRightPartialTmp[category]) MapType(gRightPartialTmp + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
             }
 
             gRescaleTmp = (double *) malloc(sizeof(double) * kPatternCount);
@@ -119,6 +110,7 @@ namespace beagle {
 
             for (int i = 0; i < kBufferCount; i++) {
                 gMappedPartials[i] = NULL;
+                gMappedPartialCache[i] = NULL;
             }
 
             return BEAGLE_SUCCESS;
@@ -140,11 +132,10 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
             free(gMappedPartials);
+            free(gMappedPartialCache);
             free(gMuBs);
             free(gB1Norms);
             free(gIntegrationTmp);
-            free(gLeftPartialTmp);
-            free(gRightPartialTmp);
 //            free(gScaledQs);
             free(gRescaleTmp);
             free(gEigenMaps);
@@ -248,11 +239,27 @@ namespace beagle {
                     }
                 }
 
+                if (gMappedPartialCache[firstChildPartialIndex] == NULL) {
+                    gMappedPartialCache[firstChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
+                    for (int category = 0; category < kCategoryCount; category++) {
+                        new (& gMappedPartialCache[firstChildPartialIndex][category]) MapType(gPartials[firstChildPartialIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+                    }
+                }
+
+                if (gMappedPartialCache[secondChildPartialIndex] == NULL) {
+                    gMappedPartialCache[secondChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
+                    for (int category = 0; category < kCategoryCount; category++) {
+                        new (& gMappedPartialCache[secondChildPartialIndex][category]) MapType(gPartials[secondChildPartialIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+                    }
+                }
+
                 MapType* destP = gMappedPartials[destinationPartialIndex];
                 MapType* partials1 = gMappedPartials[firstChildPartialIndex];
 //                SpMatrix* matrices1 = gScaledQs[firstChildSubstitutionMatrixIndex];
                 MapType* partials2 = gMappedPartials[secondChildPartialIndex];
 //                SpMatrix* matrices2 = gScaledQs[secondChildSubstitutionMatrixIndex];
+                MapType* partialCache1 = gMappedPartialCache[firstChildPartialIndex];
+                MapType* partialCache2 = gMappedPartialCache[secondChildPartialIndex];
 
 
 
@@ -276,7 +283,7 @@ namespace beagle {
 
 //                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
                 calcPartialsPartials2(destP, partials1, partials2, firstChildSubstitutionMatrixIndex,
-                                      secondChildSubstitutionMatrixIndex);
+                                      secondChildSubstitutionMatrixIndex, partialCache1, partialCache2);
 
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
@@ -326,6 +333,7 @@ namespace beagle {
 //                SpMatrix* matrices1 = gScaledQs[substitutionMatrixIndex];
                 MapType* partials2 = gMappedPartials[siblingIndex];
 //                SpMatrix* matrices2 = gScaledQs[siblingSubstitutionMatrixIndex];
+                MapType* partialCache2 = gMappedPartialCache[siblingIndex];
 
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
@@ -346,7 +354,7 @@ namespace beagle {
 
 //                calcPrePartialsPartials(destP, partials1, matrices1, partials2, matrices2);
                 calcPrePartialsPartials2(destP, partials1, partials2, substitutionMatrixIndex,
-                                         siblingSubstitutionMatrixIndex);
+                                         siblingSubstitutionMatrixIndex, partialCache2);
 
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
@@ -432,70 +440,33 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials(MapType* destP,
-                                                                              MapType* partials1,
-                                                                              SpMatrix* matrices1,
-                                                                              MapType* partials2,
-                                                                              SpMatrix* matrices2) {
-            memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-            memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-            simpleAction(gMappedLeftPartialTmp, partials1, matrices1);
-            simpleAction(gMappedRightPartialTmp, partials2, matrices2);
-
-            for (int i = 0; i < kCategoryCount; i++) {
-                destP[i] = gMappedLeftPartialTmp[i].cwiseProduct(gMappedRightPartialTmp[i]);
-            }
-
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(MapType *destP, MapType *partials1,
                                                                                   MapType *partials2, int edgeIndex1,
-                                                                                  int edgeIndex2) {
-            memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-            memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-            simpleAction2(gMappedLeftPartialTmp, partials1, edgeIndex1, false);
-            simpleAction2(gMappedRightPartialTmp, partials2, edgeIndex2, false);
+                                                                                  int edgeIndex2,
+                                                                                  MapType *partialCache1,
+                                                                                  MapType *partialCache2) {
+            simpleAction2(partialCache1, partials1, edgeIndex1, false);
+            simpleAction2(partialCache2, partials2, edgeIndex2, false);
 
             for (int i = 0; i < kCategoryCount; i++) {
-                destP[i] = gMappedLeftPartialTmp[i].cwiseProduct(gMappedRightPartialTmp[i]);
+                destP[i] = partialCache1[i].cwiseProduct(partialCache2[i]);
             }
 
         }
 
-        BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials(MapType* destP,
-                                                                                 MapType* partials1,
-                                                                                 SpMatrix* matrices1,
-                                                                                 MapType* partials2,
-                                                                                 SpMatrix* matrices2) {
-            memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-//            memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-
-            simpleAction(gMappedLeftPartialTmp, partials2, matrices2);
-
-            for (int i = 0; i < kCategoryCount; i++) {
-                gMappedLeftPartialTmp[i] = gMappedLeftPartialTmp[i].cwiseProduct(partials1[i]);
-                gScaledQTransposeTmp[i] = matrices1[i].transpose();
-            }
-
-            simpleAction(destP, gMappedLeftPartialTmp, gScaledQTransposeTmp);
-        }
 
         BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials2(MapType *destP, MapType *partials1,
                                                                                      MapType *partials2, int edgeIndex1,
-                                                                                     int edgeIndex2) {
-            memset(gLeftPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-//            memset(gRightPartialTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
-
-            simpleAction2(gMappedLeftPartialTmp, partials2, edgeIndex2, false);
+                                                                                     int edgeIndex2,
+                                                                                     MapType *partialCache2) {
+            memset(gIntegrationTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
 
             for (int i = 0; i < kCategoryCount; i++) {
-                gMappedLeftPartialTmp[i] = gMappedLeftPartialTmp[i].cwiseProduct(partials1[i]);
+                gMappedIntegrationTmp[i] = partialCache2[i].cwiseProduct(partials1[i]);
             }
 
-            simpleAction2(destP, gMappedLeftPartialTmp, edgeIndex1, true);
+            simpleAction2(destP, gMappedIntegrationTmp, edgeIndex1, true);
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE

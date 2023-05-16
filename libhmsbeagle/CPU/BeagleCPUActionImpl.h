@@ -82,12 +82,13 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
 //            SpMatrix** gScaledQs;
             MapType** gMappedPartials;
+            MapType** gMappedPartialCache;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
             double* gIntegrationTmp;
-            double* gLeftPartialTmp;
-            double* gRightPartialTmp;
+//            double* gLeftPartialTmp;
+//            double* gRightPartialTmp;
             SpMatrix* gInstantaneousMatrices;
             SpMatrix* gBs;
             double* gMuBs;
@@ -100,8 +101,8 @@ namespace beagle {
             SpMatrix identity;
             SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
-            MapType* gMappedLeftPartialTmp;
-            MapType* gMappedRightPartialTmp;
+//            MapType* gMappedLeftPartialTmp;
+//            MapType* gMappedRightPartialTmp;
             double* gRescaleTmp;
             const int mMax = 55;
             std::map<int, double> thetaConstants = {
@@ -220,7 +221,8 @@ namespace beagle {
 
             void calcPartialsPartials2(MapType *destP, MapType *partials1,
                                        MapType *partials2, int edgeIndex1,
-                                       int edgeIndex2);
+                                       int edgeIndex2, MapType *partialCache1,
+                                       MapType *partialCache2);
 
             void calcPrePartialsPartials(MapType *destP,
                                          MapType *partials1,
@@ -230,7 +232,7 @@ namespace beagle {
 
             void calcPrePartialsPartials2(MapType *destP, MapType *partials1,
                                           MapType *partials2, int edgeIndex1,
-                                          int edgeIndex2);
+                                          int edgeIndex2, MapType *partialCache2);
 
             void getStatistics(double A1Norm,
                                SpMatrix * matrix,
