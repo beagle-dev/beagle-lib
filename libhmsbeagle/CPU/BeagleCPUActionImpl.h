@@ -81,6 +81,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
 //            SpMatrix** gScaledQs;
+            int kPartialsBufferCount;
             MapType** gMappedPartials;
             MapType** gMappedPartialCache;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;

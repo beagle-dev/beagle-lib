@@ -65,6 +65,7 @@ namespace beagle {
                                                                                matrixCount, categoryCount, scaleBufferCount,
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
+            kPartialsBufferCount = partialsBufferCount;
             gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
             gBs = new SpMatrix[eigenDecompositionCount];
             gMuBs = (double *) malloc(sizeof(double) * eigenDecompositionCount);
@@ -242,14 +243,14 @@ namespace beagle {
                 if (gMappedPartialCache[firstChildPartialIndex] == NULL) {
                     gMappedPartialCache[firstChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
                     for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartialCache[firstChildPartialIndex][category]) MapType(gPartials[firstChildPartialIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+                        new (& gMappedPartialCache[firstChildPartialIndex][category]) MapType(gPartials[firstChildPartialIndex + kPartialsBufferCount] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
                     }
                 }
 
                 if (gMappedPartialCache[secondChildPartialIndex] == NULL) {
                     gMappedPartialCache[secondChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
                     for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartialCache[secondChildPartialIndex][category]) MapType(gPartials[secondChildPartialIndex] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+                        new (& gMappedPartialCache[secondChildPartialIndex][category]) MapType(gPartials[secondChildPartialIndex + kPartialsBufferCount] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
                     }
                 }
 
