@@ -1062,12 +1062,6 @@ DEBUG_START_TIME();
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-    double tmp[64];
-    fprintf(stderr, "\t\tPrinting partials3\n");
-    gpu->MemcpyDeviceToHost(&tmp, partials3, sizeof(double) * 64);
-    for(int i = 0; i < 64; i++)
-        fprintf(stderr, " %f ", tmp[i]);
-    fprintf(stderr, "\n\n");
 #endif
 DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1257,21 +1251,37 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 #ifdef BEAGLE_TENSOR_CORES
             fprintf(stderr, "\n\t\tEntering PartialsPartialsNoScale on tensor cores\n");
             bgPeelingBlock.y = 4;
+            GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherentTensorCores,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
-                                        5, 6,
-                                        partials1, partials2, partials3, matrices1, matrices2,
+                                        6, 7,
+                                        partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
                                         patternCount);
             bgPeelingBlock.y = 8;
+            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+            double tmp[1024] = {-1};
+            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+            for(int i = 0; i < 256; i++) {
+                fprintf(stderr, " %f, ", tmp[i]);
+                tmp[i] = 0;
+            }
             fprintf(stderr, "\n\t\tLeaving PartialsPartialsNoScale on tensor cores\n");
 #else
+            GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
-                                        5, 6,
-                                        partials1, partials2, partials3, matrices1, matrices2,
+                                        6, 7,
+                                        partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
                                         patternCount);
+            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+            double tmp[1024] = {-1};
+            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+            for(int i = 0; i < 256; i++) {
+                fprintf(stderr, " %f, ", tmp[i]);
+                tmp[i] = 0;
+            }
 #endif
         }
 

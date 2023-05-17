@@ -2334,12 +2334,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     fprintf(stderr, "\tEntering BeagleGPUImpl::upPartials\n");
 #endif
 #ifdef BEAGLE_TENSOR_CORES
-    std::vector<int> newOperations;
-    fprintf(stderr, "\t\tTransposing matrices\n");
-    newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
-    operations = newOperations.data();
-    fprintf(stderr, "\t\tDone transposing matrices\n");
-    gpu->SynchronizeDevice();
+//    std::vector<int> newOperations;
+//    fprintf(stderr, "\t\tTransposing matrices\n");u
+//    newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+//    operations = newOperations.data();
+//    fprintf(stderr, "\t\tDone transposing matrices\n");
+//    gpu->SynchronizeDevice();
 #endif
     GPUPtr cumulativeScalingBuffer = 0;
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)

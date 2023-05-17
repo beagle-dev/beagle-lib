@@ -454,6 +454,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_X_CPU();
@@ -462,6 +463,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
     SUM_PARTIALS_PARTIALS_X_GPU();
+//    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sum1;
     if (pattern < totalPatterns)
         partials3[u] = sum1 * sum2;
 #endif // FW_OPENCL_CPU
@@ -521,7 +523,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     int col_a = laneid % 4;
     int row_b = laneid >> 2;
     int col_b = laneid % 4;
-    double a1, b1, a2,b2, res11, res12, res21, res22;
+//   TODO: Declare right before usage
+    double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
 
     int partialsOffset = warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N);
 
@@ -532,8 +535,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         // TODO: Check if this should be warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N)
         partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
 
-        sMatrix1[patIdx * PADDED_STATE_COUNT + state] = matrix1[sMatrixRow * PADDED_STATE_COUNT * WMMA_M + sMatrixCol + (laneid / 4) * PADDED_STATE_COUNT + (laneid % 4)];
-        sMatrix2[patIdx * PADDED_STATE_COUNT + state] = matrix2[sMatrixRow * PADDED_STATE_COUNT * WMMA_M + sMatrixCol + (laneid / 4) * PADDED_STATE_COUNT + (laneid % 4)];
+        // TODO: Resolve known memory bank conflicts by transposing transition matrices
+        sMatrix1[patIdx * PADDED_STATE_COUNT + state] = matrix1[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (laneid / 4) + (laneid % 4) * PADDED_STATE_COUNT];
+        sMatrix2[patIdx * PADDED_STATE_COUNT + state] = matrix2[sMatrixRow * WMMA_M + sMatrixCol * PADDED_STATE_COUNT + (laneid / 4) + (laneid % 4) * PADDED_STATE_COUNT];
 
         if(warpIdx < PATTERN_BLOCK_SIZE/WMMA_N) {
             if(pattern < totalPatterns) {
@@ -545,6 +549,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
             }
         }
         KW_LOCAL_FENCE;
+
+//        if(i==8 && warpIdx < PATTERN_BLOCK_SIZE/WMMA_N) {
+//            tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sPartials1[patIdx * PADDED_STATE_COUNT + state];
+//        }
 
         a1 = (sMatrix1 + warpIdx * WMMA_K * WMMA_M)[row_a * 4 + col_a];
         b1 = (sPartials1 + partialsOffset * WMMA_N * WMMA_K)[row_b * 4 + col_b];
@@ -563,22 +571,15 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         KW_LOCAL_FENCE;
     }
 
-    // TODO: Test the indexing here.
-    // TODO: Write to GM to remove ShM bank conflicts.
-    sum1Tmp[patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8 ] = res11;
-    sum1Tmp[PADDED_STATE_COUNT + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res21;
+    u = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
-    sum2Tmp[patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8 ] = res21;
-    sum2Tmp[PADDED_STATE_COUNT + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res22;
+    // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
+    if (patternBlock + ((state * 2) % 8) < totalPatterns)
+        partials3[u + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res11 * res21;
 
-    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = sum1Tmp[patIdx * PADDED_STATE_COUNT + state];
-    tmpAcc[MEM_OFFSET + patIdx * PADDED_STATE_COUNT + state] = sum1Tmp[MEM_OFFSET + patIdx * PADDED_STATE_COUNT + state];
+    if (patternBlock + ((state * 2) % 8) + 1 < totalPatterns)
+        partials3[u + PADDED_STATE_COUNT + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res12 * res22;
 
-    if (pattern < totalPatterns)
-        partials3[u] = sum1Tmp[patIdx * PADDED_STATE_COUNT + state] * sum2Tmp[patIdx * PADDED_STATE_COUNT + state];
-
-    if (pattern + PATTERN_SPAN < totalPatterns)
-        partials3[MEM_OFFSET + u] = sum1Tmp[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state] * sum2Tmp[(patIdx + PATTERN_SPAN) * PADDED_STATE_COUNT + state];
 #endif // FW_OPENCL_CPU
 }
 
