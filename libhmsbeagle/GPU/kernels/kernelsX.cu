@@ -521,9 +521,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     // (int(X/8): Splits 32 values into groups of 8.
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
-#define GET_SMEM_ROW_SMATRIX(X) (X / WMMA_M)
-#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_M) * ((Y & 1) * -2 + 1)) & 0x03) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
-#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_M + (X % WMMA_M))
+#define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
+#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & 0x07) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
+#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
 
     // Indices to permute ShM for partials
