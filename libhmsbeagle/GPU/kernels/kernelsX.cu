@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * <http://www.gnu.org/licenses/>.te
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -491,12 +491,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
     /* Load values into shared memory */
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4];
     KW_LOCAL_MEM REAL sMatrix1[4 * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
-
-    KW_LOCAL_MEM REAL partialsTmp[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
 
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
@@ -512,16 +510,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     int warpIdx = warpState + warpPattern * (PADDED_STATE_COUNT/warpSize);
 
     int sMatrixRow, partialsCol, sMatrixCol, partialsRow;
-    int resRow, resCol;
 
-    resRow = warpIdx % (PADDED_STATE_COUNT/WMMA_M);
-    resCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
-
-    int laneid = state % 32;
-    int row_a = laneid >> 2;
-    int col_a = laneid % 4;
-    int row_b = laneid >> 2;
-    int col_b = laneid % 4;
 //   TODO: Declare right before usage
     double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
 
@@ -549,16 +538,20 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
     if(pattern < totalPatterns) {
-        partialsTmp[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
+        sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[y + patIdx * PADDED_STATE_COUNT + state];
     } else {
-        partialsTmp[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+        sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
     }
 
     int pattern_span = patIdx + 4;
     if(pattern + 4 < totalPatterns) {
-        partialsTmp[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
+        sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2[y + (pattern_span) * PADDED_STATE_COUNT + state];
     } else {
-        partialsTmp[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+        sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
 
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
@@ -571,36 +564,25 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         sMatrix1[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix1[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
         sMatrix2[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
 
-        if(warpIdx < PATTERN_BLOCK_SIZE/WMMA_N) {
-            if(pattern < totalPatterns) {
-                sPartials1[patIdx * PADDED_STATE_COUNT + state] = partials1[y + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (laneid/4) * PADDED_STATE_COUNT + (laneid % 4)];
-                sPartials2[patIdx * PADDED_STATE_COUNT + state] = partials2[y + partialsRow + partialsCol * WMMA_N * PADDED_STATE_COUNT + (laneid/4) * PADDED_STATE_COUNT + (laneid % 4)];
-            } else {
-                sPartials1[patIdx * PADDED_STATE_COUNT + state] = 0;
-                sPartials2[patIdx * PADDED_STATE_COUNT + state] = 0;
-            }
-        }
         KW_LOCAL_FENCE;
 
-        int reg_row = (warpIdx * WMMA_M) + (state / 4);
-        int reg_col = state % 4;
-        a1 = sMatrix1[GET_SMEM_OFFSET_SMATRIX(reg_row, reg_col)];
-        b1 = (sPartials1 + partialsOffset * WMMA_N * WMMA_K)[row_b * 4 + col_b];
+        // reg_row* and reg_col* are according to memory layout in ShM
+        int reg_row = state % 4;
+        int reg_col = (warpIdx * WMMA_M) + (state / 4);
 
-        // TODO: Fix reading in partials here.
-        if(i == 0) {
-            int reg_row_partials = state / 4;
-            int reg_col_partials = state % 4;
+        // TODO: More book keeping if PATTERN_BLOCK_SIZE > WMMA_M
+        int reg_row_partials = state / 4;
+        int reg_col_partials = partialsRow + state % 4;
 
-            tmpAcc[patIdx * PADDED_STATE_COUNT + state] = reg_col_partials;
-        }
+        a1 = sMatrix1[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+        b1 = sPartials1[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
 
         asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
             : "=d"(res11), "=d"(res12)
             : "d"(a1), "d"(b1), "d"(res11), "d"(res12));
 
-        a2 = sMatrix2[GET_SMEM_OFFSET_SMATRIX(reg_row, reg_col)];
-        b2 = (sPartials2 + partialsOffset * WMMA_N * WMMA_K)[row_b * 4 + col_b];
+        a2 = sMatrix2[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+        b2 = sPartials2[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
 
         asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
             : "=d"(res21), "=d"(res22)
