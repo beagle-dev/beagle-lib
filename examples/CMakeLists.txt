@@ -27,10 +27,14 @@ add_executable(synthetictest
 
 #add_executable(complextest
 #        complextest/complextest.cpp)
+if(BEAGLE_BENCHMARK)
+	list(APPEND BENCHMARK_LIBS nvidia-ml) # Needed for nvml.h
+endif()
 
 target_link_libraries(hmctest
 	hmsbeagle
 	hmsbeagle-cpu
+	${BENCHMARK_LIBS}
 	${CMAKE_DL_LIBS})
 
 if(BUILD_SSE)
@@ -40,6 +44,7 @@ endif(BUILD_SSE)
 target_link_libraries(hmctest5
 	hmsbeagle
 	hmsbeagle-cpu
+	${BENCHMARK_LIBS}
 	${CMAKE_DL_LIBS})
 if(BUILD_SSE)
 	target_link_libraries(hmctest5 hmsbeagle-cpu-sse)
@@ -49,6 +54,7 @@ endif(BUILD_SSE)
 target_link_libraries(synthetictest
 		hmsbeagle
 		hmsbeagle-cpu
+		${BENCHMARK_LIBS}
 		${CMAKE_DL_LIBS})
 if(BUILD_SSE)
 	target_link_libraries(synthetictest hmsbeagle-cpu-sse)
