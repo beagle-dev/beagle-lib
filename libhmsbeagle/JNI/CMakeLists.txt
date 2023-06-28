@@ -6,7 +6,12 @@ add_library(hmsbeagle-jni SHARED
         beagle_BeagleJNIWrapper.h
         )
 
-target_link_libraries(hmsbeagle-jni hmsbeagle)
+
+if(BEAGLE_BENCHMARK)
+    target_link_libraries(hmsbeagle-jni hmsbeagle nvidia-ml)
+else()
+    target_link_libraries(hmsbeagle-jni hmsbeagle)
+endif()
 
 if(APPLE)
     set_target_properties(hmsbeagle-jni PROPERTIES PREFIX "lib" SUFFIX ".jnilib")

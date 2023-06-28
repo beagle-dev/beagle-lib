@@ -3039,7 +3039,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 //
 
 #ifdef BEAGLE_DEBUG_SYNCH
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
     return BEAGLE_SUCCESS;
 }

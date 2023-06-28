@@ -15,13 +15,14 @@ option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
+option(BUILD_SSE "Build beagle with SSE" ON)
 
 # Old config.h settings
 
 OPTION(BEAGLE_BENCHMARK "Print runtimes" OFF)
 OPTION(BEAGLE_DEBUG_FLOW "Print flow" OFF)
 OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
-OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
+OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
 OPTION(BEAGLE_TENSOR_CORES "Compile with support for tensor cores" OFF)
 
 IF(BEAGLE_BENCHMARK)
@@ -39,6 +40,10 @@ ENDIF(BEAGLE_DEBUG_VALUES)
 IF(BEAGLE_TENSOR_CORES)
 	ADD_DEFINITIONS(-DBEAGLE_TENSOR_CORES)
 ENDIF(BEAGLE_TENSOR_CORES)
+
+IF(BEAGLE_DEBUG_SYNCH)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
+ENDIF(BEAGLE_DEBUG_SYNCH)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"
