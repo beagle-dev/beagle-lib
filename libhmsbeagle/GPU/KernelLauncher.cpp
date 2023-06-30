@@ -53,7 +53,6 @@ KernelLauncher::KernelLauncher(GPUInterface* inGpu) {
 }
 
 KernelLauncher::~KernelLauncher() {
-    DEBUG_FINALIZE_TIME();
 }
 
 void KernelLauncher::SetupKernelBlocksAndGrids() {
@@ -756,7 +755,6 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
-DEBUG_START_TIME();
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
@@ -771,7 +769,6 @@ DEBUG_START_TIME();
     }
 
     bgDerivativeGrid.y = saved;
-DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
@@ -791,7 +788,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
 #endif
-DEBUG_START_TIME();
+
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
@@ -810,7 +807,7 @@ DEBUG_START_TIME();
     }
 
     bgDerivativeGrid.y = saved;
-DEBUG_END_TIME();
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsEdgeFirstDerivatives\n");
 #endif
@@ -976,14 +973,14 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesGrowing\n");
 #endif
-DEBUG_START_TIME();
+
     gpu->LaunchKernel(fPartialsStatesGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, states2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-DEBUG_END_TIME();
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
@@ -1000,7 +997,7 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsGrowing\n");
 #endif
-DEBUG_START_TIME();
+
 #ifdef BEAGLE_TENSOR_CORES
     fprintf(stderr, "\t\tEntering PartialsPartialsGrowing on tensor cores\n");
     GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
@@ -1063,7 +1060,6 @@ DEBUG_START_TIME();
                       patternCount);
     gpu->SynchronizeDevice();
 #endif
-DEBUG_END_TIME();
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
 #endif
