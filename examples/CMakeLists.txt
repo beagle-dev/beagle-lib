@@ -10,6 +10,9 @@ add_executable(tensorcores_4_state
 add_executable(tensorcores_X_state
 		tensor_cores/test_X_state.cpp)
 
+add_executable(tensorcores_X_state_postOrder
+		tensor_cores/test_X_state_postOrder.cpp)
+
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
 

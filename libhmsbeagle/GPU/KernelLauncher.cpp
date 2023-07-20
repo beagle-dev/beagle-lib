@@ -1255,13 +1255,13 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                         partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
                                         patternCount);
             bgPeelingBlock.y = 8;
-            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
-            double tmp[1024] = {-1};
-            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
-            for(int i = 0; i < 256; i++) {
-                fprintf(stderr, " %f, ", tmp[i]);
-                tmp[i] = 0;
-            }
+//            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//            double tmp[1024] = {-1};
+//            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+//            for(int i = 0; i < 256; i++) {
+//                fprintf(stderr, " %f, ", tmp[i]);
+//                tmp[i] = 0;
+//            }
             fprintf(stderr, "\n\t\tLeaving PartialsPartialsNoScale on tensor cores\n");
 #else
             GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));

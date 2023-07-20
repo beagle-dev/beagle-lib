@@ -7,7 +7,7 @@
  * BEAGLE is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as
  * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
+ * the License, or (at your option) any later version.k
  *
  * BEAGLE is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -558,7 +558,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
         sMatrixCol = i;
         partialsRow = i;
-        // TODO: Check if this should be warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N)
         partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
 
         sMatrix1[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix1[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
