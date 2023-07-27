@@ -522,7 +522,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
 #define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
-#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & 0x07) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
+#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
 #define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
 
@@ -531,8 +531,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     // (int(X/8): Splits 32 values into groups of 4.
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
-#define GET_SMEM_ROW_PARTIALS(X) (X / WMMA_K)
-#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & 0x07) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
+#define GET_SMEM_ROW_PARTIALS(X) ((X / WMMA_K) & 0x07)
+#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
 
@@ -554,6 +554,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
 
+//    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
+
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
         sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
         sMatrixCol = i;
@@ -566,11 +568,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
         KW_LOCAL_FENCE;
 
         // reg_row* and reg_col* are according to memory layout in ShM
+        int laneid = state % 32;
+
         int reg_row = state % 4;
-        int reg_col = (warpIdx * WMMA_M) + (state / 4);
+        int reg_col = (warpIdx * WMMA_M) + (laneid / 4);
 
         // TODO: More book keeping if PATTERN_BLOCK_SIZE > WMMA_M
-        int reg_row_partials = state / 4;
+        int reg_row_partials = laneid / 4;
         int reg_col_partials = partialsRow + state % 4;
 
         a1 = sMatrix1[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
@@ -594,10 +598,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 
     // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
     if (patternBlock + ((state * 2) % 8) < totalPatterns)
-        partials3[u + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res11 * res21;
+        partials3[u + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res11 * res21;
+
+    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = u + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8;
 
     if (patternBlock + ((state * 2) % 8) + 1 < totalPatterns)
-        partials3[u + PADDED_STATE_COUNT + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res12 * res22;
+        partials3[u + PADDED_STATE_COUNT + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res12 * res22;
 
 #endif // FW_OPENCL_CPU
 }
