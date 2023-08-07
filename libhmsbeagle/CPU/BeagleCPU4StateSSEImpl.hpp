@@ -113,6 +113,12 @@
 		dest_vu_m1[i][1].x[1] = m1[3]; \
 		dest_vu_m2[i][1].x[0] = m2[2*OFFSET]; \
 		dest_vu_m2[i][1].x[1] = m2[3*OFFSET]; \
+	} \
+    for (int i = 4; i < OFFSET; i++, m2++) { \
+		dest_vu_m2[i][0].x[0] = m2[0*OFFSET]; \
+		dest_vu_m2[i][0].x[1] = m2[1*OFFSET]; \
+		dest_vu_m2[i][1].x[0] = m2[2*OFFSET]; \
+		dest_vu_m2[i][1].x[1] = m2[3*OFFSET]; \
 	}
 
 #define SSE_PREFETCH_MATRIX(src_m1, dest_vu_m1) \
