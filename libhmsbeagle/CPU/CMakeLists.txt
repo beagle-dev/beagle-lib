@@ -25,6 +25,7 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 
+if(BUILD_SSE)
 add_library(hmsbeagle-cpu-sse SHARED
         BeagleCPU4StateSSEImpl.h
         BeagleCPU4StateSSEImpl.hpp
@@ -55,3 +56,4 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+endif(BUILD_SSE)

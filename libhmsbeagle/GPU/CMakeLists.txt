@@ -1,8 +1,8 @@
 
 find_package(OpenCL)
 if(BUILD_OPENCL)
-    set(OpenCL_INCLUDE_DIRS /opt/rocm/opencl/include)
-    set(OpenCL_LIBRARIES /opt/rocm/opencl/lib/libOpenCL.so)
+#    set(OpenCL_INCLUDE_DIRS /opt/rocm/opencl/include)
+#    set(OpenCL_LIBRARIES /opt/rocm/opencl/lib/libOpenCL.so)
     if(OpenCL_FOUND OR (OpenCL_INCLUDE_DIRS AND OpenCL_LIBRARIES))
         message(STATUS "OpenCL Includes: ${OpenCL_INCLUDE_DIRS}")
         message(STATUS "OpenCL Libraries: ${OpenCL_LIBRARIES}")
