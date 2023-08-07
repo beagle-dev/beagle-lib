@@ -104,7 +104,7 @@
 #define SSE_PREFETCH_PRE_MATRICES(src_m1, src_m2, dest_vu_m1, dest_vu_m2) \
 	const double *m1 = (src_m1); \
 	const double *m2 = (src_m2); \
-	for (int i = 0; i < OFFSET; i++, m1+=OFFSET, m2++) { \
+	for (int i = 0; i < 4; i++, m1+=OFFSET, m2++) { \
 		dest_vu_m1[i][0].x[0] = m1[0]; \
 		dest_vu_m1[i][0].x[1] = m1[1]; \
 		dest_vu_m2[i][0].x[0] = m2[0*OFFSET]; \
