@@ -17,7 +17,6 @@ double debugGetTime() {
 #include <vector>
 #include <iostream>
 #include <map>
-#include <nvml.h>
 
 std::map<std::string,std::pair<std::chrono::duration<double>, int>> benchmarkDuration;
 
