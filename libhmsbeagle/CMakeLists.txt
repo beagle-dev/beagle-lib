@@ -82,7 +82,7 @@ if(NOT WIN32)
 endif(NOT WIN32)
 
 
-if(BEAGLE_BENCHMARK)
+if(BEAGLE_BENCHMARK_ENERGY)
 	find_library(NVIDIA_ML_LIBRARY
 			NAMES nvidia-ml
 			PATHS /usr/lib/x86_64-linux-gnu
