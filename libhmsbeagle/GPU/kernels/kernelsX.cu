@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.te
+ * <http://www.gnu.org/licenses/>.
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -599,8 +599,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
     // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
     if (patternBlock + ((state * 2) % 8) < totalPatterns)
         partials3[u + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res11 * res21;
-
-    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = u + patIdx * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8;
 
     if (patternBlock + ((state * 2) % 8) + 1 < totalPatterns)
         partials3[u + PADDED_STATE_COUNT + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res12 * res22;

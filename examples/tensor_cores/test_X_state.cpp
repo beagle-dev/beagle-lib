@@ -29,9 +29,9 @@ char aminoAcids[] = {'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K',
 double** rate = new double*[20];
 
 
-char *human = (char*)"E";
-char *chimp = (char*)"G";
-char *gorilla = (char*)"R";
+char *human = (char*)"EG";
+char *chimp = (char*)"GR";
+char *gorilla = (char*)"RE";
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTA";
