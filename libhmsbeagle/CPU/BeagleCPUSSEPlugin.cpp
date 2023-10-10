@@ -116,6 +116,8 @@ bool check_sse2()
   if (edx & bit_SSE2)
 	return true;
   return false;
+#elif defined(__aarch64__)
+  return false;
 #else // HAVE_CPUID.H
 	// Determine if cpuid supported:
     unsigned int res;
