@@ -1039,7 +1039,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
                             sizeof(cl_uint), &mpCount, NULL));
 
     char mpCountStr[12];
-    sprintf(mpCountStr, "%d", mpCount);
+    snprintf(mpCountStr, 12, "%d", mpCount);
     strcat(deviceName, " (");
     strcat(deviceName, mpCountStr);
     (mpCount==1?strcat(deviceName, " compute unit)"):strcat(deviceName, " compute units)"));
@@ -1086,7 +1086,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     SAFE_CL(clGetDeviceInfo(tmpOpenClDevice, CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(unsigned int), &mpCount, NULL));
 
-    sprintf(deviceDescription,
+    snprintf(deviceDescription, 128,
             "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of compute units: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
 
