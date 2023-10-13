@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  */
@@ -109,7 +99,7 @@ inline const char* getBeagleCPU4StateAVXName<double>(){ return "CPU-4State-AVX-D
 
 template<>
 inline const char* getBeagleCPU4StateAVXName<float>(){ return "CPU-4State-AVX-Single"; };
-    
+
 /*
  * Calculates partial likelihoods at a node when both children have states.
  */
@@ -349,7 +339,7 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartials(doubl
 //    	fprintf(stderr,"APM\n");
 
         for (int k = 0; k < kPatternCount; k++) {
-            
+
 #           if 1 && !defined(_WIN32)
             __builtin_prefetch (&partials_q[v+64]);
             __builtin_prefetch (&partials_r[v+64]);
@@ -462,7 +452,7 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartialsFixedS
             __builtin_prefetch (&partials_r[v+64]);
             //            __builtin_prefetch (destPvec+32,1,0);
 #           endif
-            
+
             // Prefetch scale factor
 //            const V_Real scaleFactor = VEC_LOAD_SCALAR(scaleFactors + k);
         	// Option below appears faster, why?
@@ -507,7 +497,7 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartialsFixedS
     }
 }
 
-    
+
 BEAGLE_CPU_4_AVX_TEMPLATE
 void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_FLOAT>::calcPartialsPartialsAutoScaling(float* destP,
                                                          const float*  partials_q,
@@ -538,7 +528,7 @@ void BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcPartialsPartialsAutoSc
                                                                 matrices_r,
                                                                 activateScaling);
 }
-    
+
 BEAGLE_CPU_4_AVX_TEMPLATE
 int BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_FLOAT>::calcEdgeLogLikelihoods(const int parIndex,
                                                           const int childIndex,
@@ -677,7 +667,7 @@ int BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::calcEdgeLogLikelihoods(cons
 
     if (*outSumLogLikelihood != *outSumLogLikelihood)
         returnCode = BEAGLE_ERROR_FLOATING_POINT;
-        
+
     return returnCode;
 }
 
@@ -688,7 +678,7 @@ int BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_FLOAT>::getPaddedPatternsModulus() {
 //	return 4;  // For single-precision, can operate on 4 patterns at a time
 	// TODO Vectorize final log operations over patterns
 }
-    
+
 BEAGLE_CPU_4_AVX_TEMPLATE
 int BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::getPaddedPatternsModulus() {
 //	return 2;  // For double-precision, can operate on 2 patterns at a time
@@ -705,7 +695,7 @@ const char* BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_DOUBLE>::getName() {
     return  getBeagleCPU4StateAVXName<double>();
 }
 
-    
+
 BEAGLE_CPU_4_AVX_TEMPLATE
 const long BeagleCPU4StateAVXImpl<BEAGLE_CPU_4_AVX_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -740,7 +730,7 @@ BeagleImpl* BeagleCPU4StateAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
-                                             int pluginResourceNumber,                                             
+                                             int pluginResourceNumber,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
@@ -791,7 +781,7 @@ const long BeagleCPU4StateAVXImplFactory<double>::getFlags() {
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL|
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-           BEAGLE_FLAG_FRAMEWORK_CPU;           
+           BEAGLE_FLAG_FRAMEWORK_CPU;
 }
 
 template <>
@@ -805,7 +795,7 @@ const long BeagleCPU4StateAVXImplFactory<float>::getFlags() {
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-           BEAGLE_FLAG_FRAMEWORK_CPU;           
+           BEAGLE_FLAG_FRAMEWORK_CPU;
 }
 
 

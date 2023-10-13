@@ -6,20 +6,10 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
- * 
  * @author Aaron Darling
  */
 
@@ -29,9 +19,9 @@
 #ifdef _WIN32
 // needed to export library symbols
 #ifdef _EXPORTING
-#define BEAGLE_DLLEXPORT __declspec(dllexport) 
+#define BEAGLE_DLLEXPORT __declspec(dllexport)
 #else
-#define BEAGLE_DLLEXPORT __declspec(dllimport) 
+#define BEAGLE_DLLEXPORT __declspec(dllimport)
 #endif
 /*
 // automatically include the appropriate beagle library

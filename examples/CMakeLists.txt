@@ -33,6 +33,7 @@ endif()
 
 target_link_libraries(hmctest
 	hmsbeagle
+#	hmsbeagle-cpu-sse
 	hmsbeagle-cpu
 	${BENCHMARK_LIBS}
 	${CMAKE_DL_LIBS})
@@ -53,11 +54,20 @@ endif(BUILD_SSE)
 
 target_link_libraries(synthetictest
 		hmsbeagle
+#		hmsbeagle-cpu-sse
 		hmsbeagle-cpu
 		${BENCHMARK_LIBS}
 		${CMAKE_DL_LIBS})
 if(BUILD_SSE)
 	target_link_libraries(synthetictest hmsbeagle-cpu-sse)
+endif(BUILD_SSE)
+
+if(BUILD_SSE)
+	target_link_libraries(hmctest
+		hmsbeagle-cpu-sse)
+		
+	target_link_libraries(synthetictest
+		hmsbeagle-cpu-sse)		
 endif(BUILD_SSE)
 
 add_test(hmctest hmctest)

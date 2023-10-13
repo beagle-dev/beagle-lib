@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  */
@@ -344,7 +334,7 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartialsFixedScaling(
 //    }
 }
 
-    
+
 BEAGLE_CPU_AVX_TEMPLATE
 void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartialsAutoScaling(double* destP,
                                                          const double*  partials_q,
@@ -375,7 +365,7 @@ void BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcPartialsPartialsAutoScaling(do
 //                                                                matrices_r,
 //                                                                activateScaling);
 //}
-    
+
 BEAGLE_CPU_AVX_TEMPLATE
 int BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::calcEdgeLogLikelihoods(const int parIndex,
                                                            const int childIndex,
@@ -511,7 +501,7 @@ return BeagleCPUImpl<BEAGLE_CPU_AVX_DOUBLE>::calcEdgeLogLikelihoods(
 //    for (int i = 0; i < kPatternCount; i++) {
 //        *outSumLogLikelihood += outLogLikelihoodsTmp[i] * gPatternWeights[i];
 //    }
-//    
+//
 //    if (!(*outSumLogLikelihood - *outSumLogLikelihood == 0.0))
 //        returnCode = BEAGLE_ERROR_FLOATING_POINT;
 //
@@ -522,7 +512,7 @@ BEAGLE_CPU_AVX_TEMPLATE
 int BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::getPaddedPatternsModulus() {
 	return 1;  // We currently do not vectorize across patterns
 }
-    
+
 BEAGLE_CPU_AVX_TEMPLATE
 const char* BeagleCPUAVXImpl<BEAGLE_CPU_AVX_FLOAT>::getName() {
 	return  getBeagleCPUAVXName<float>();
@@ -532,7 +522,7 @@ BEAGLE_CPU_AVX_TEMPLATE
 const char* BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::getName() {
     return  getBeagleCPUAVXName<double>();
 }
-    
+
 BEAGLE_CPU_AVX_TEMPLATE
 const long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -566,19 +556,19 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
-                                             int pluginResourceNumber,                                             
+                                             int pluginResourceNumber,
                                              long preferenceFlags,
                                              long requirementFlags,
                                              int* errorCode) {
 
     if (!CPUSupportsAVX())
         return NULL;
-    
+
 	if (stateCount & 1) { // is odd
         BeagleCPUAVXImpl<REALTYPE, T_PAD_AVX_ODD, P_PAD_AVX_ODD>* impl =
         new BeagleCPUAVXImpl<REALTYPE, T_PAD_AVX_ODD, P_PAD_AVX_ODD>();
-        
-        
+
+
         try {
             if (impl->createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                      patternCount, eigenBufferCount, matrixBufferCount,
@@ -591,8 +581,8 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
             delete impl;
             throw;
         }
-        
-        delete impl;        
+
+        delete impl;
 	} else {
         BeagleCPUAVXImpl<REALTYPE, T_PAD_AVX_EVEN, P_PAD_AVX_EVEN>* impl =
                 new BeagleCPUAVXImpl<REALTYPE, T_PAD_AVX_EVEN, P_PAD_AVX_EVEN>();
@@ -613,7 +603,7 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
 
         delete impl;
     }
-    
+
     return NULL;
 }
 
@@ -634,7 +624,7 @@ const long BeagleCPUAVXImplFactory<double>::getFlags() {
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
            BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-           BEAGLE_FLAG_FRAMEWORK_CPU;           
+           BEAGLE_FLAG_FRAMEWORK_CPU;
 }
 
 template <>
@@ -649,7 +639,7 @@ const long BeagleCPUAVXImplFactory<float>::getFlags() {
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
            BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-           BEAGLE_FLAG_FRAMEWORK_CPU;           
+           BEAGLE_FLAG_FRAMEWORK_CPU;
 }
 
 // Code to save:
