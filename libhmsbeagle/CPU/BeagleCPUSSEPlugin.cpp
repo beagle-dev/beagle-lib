@@ -24,7 +24,7 @@ BeagleCPUSSEPlugin::BeagleCPUSSEPlugin() :
 Plugin("CPU-SSE", "CPU-SSE")
 {
 	BeagleResource resource;
-#ifdef __ARM64_ARCH_8__
+#ifdef __aarch64__
 	    resource.name = (char*) "CPU (arm64)";
 #else
         resource.name = (char*) "CPU (x86_64)";
@@ -116,6 +116,8 @@ bool check_sse2()
   if (edx & bit_SSE2)
 	return true;
   return false;
+#elif defined(__aarch64__)
+  return false;
 #else // HAVE_CPUID.H
 	// Determine if cpuid supported:
     unsigned int res;
@@ -158,8 +160,8 @@ bool check_sse2()
     return result[3] & 0x04000000;
 #endif // HAVE_CPUID.H
 }
-#else // For Mac OS X GNU C
-#if defined(__ARM64_ARCH_8__)
+#else
+#if defined(__aarch64__)
 bool check_sse2() { return 1; }
 #else
 bool check_sse2(){
