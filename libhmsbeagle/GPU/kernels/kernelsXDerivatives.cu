@@ -89,7 +89,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
+//                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO

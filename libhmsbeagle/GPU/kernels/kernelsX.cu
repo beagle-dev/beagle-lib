@@ -7,7 +7,7 @@
  * BEAGLE is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as
  * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.k
+ * the License, or (at your option) any later version.
  *
  * BEAGLE is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,7 +15,7 @@
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
+ * License along with BEAGLE.  If not, seek
  * <http://www.gnu.org/licenses/>.
  *
  * @author Marc Suchard
@@ -474,7 +474,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
+//                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                     int totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_X_CPU();
@@ -485,23 +485,25 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 //    SUM_PARTIALS_PARTIALS_X_GPU();
 //    if (pattern < totalPatterns)
 //        partials3[u] = sum1 * sum2;
+// TODO: Change constant 8 patterns for all state counts
+    const int NEW_PATTERN_BLOCK_SIZE = 8;
     DETERMINE_INDICES_X_GPU();
-    int patternBlock = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE);
+    int patternBlock = __umul24(KW_GROUP_ID_0,NEW_PATTERN_BLOCK_SIZE);
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
     /* Load values into shared memory */
     KW_LOCAL_MEM REAL sMatrix1[4 * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
-    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
 
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
     const int WMMA_M = 8;
     const int WMMA_N = 8;
     const int WMMA_K = 4;
-    const int PATTERN_SPAN = PATTERN_BLOCK_SIZE/2;
+    const int PATTERN_SPAN = NEW_PATTERN_BLOCK_SIZE/2;
     const int MEM_OFFSET = PATTERN_SPAN * PADDED_STATE_COUNT;
 
     int warpSize = 32; // TODO: Check if its better to get this from Cuda API
@@ -514,7 +516,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleTensorCores(KW_GLOBAL_VAR REA
 //   TODO: Declare right before usage
     double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
 
-    int partialsOffset = warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N);
+    int partialsOffset = warpIdx % (NEW_PATTERN_BLOCK_SIZE / WMMA_N);
 
     // Indices to permute ShM for sMatrix
     // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
