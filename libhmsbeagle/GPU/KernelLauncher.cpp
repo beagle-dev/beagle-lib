@@ -984,7 +984,7 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 #endif
 
 #ifdef BEAGLE_TENSOR_CORES
-    fprintf(stderr, "\t\tEntering PartialsPartialsGrowing on tensor cores\n");
+//    fprintf(stderr, "\t\tEntering PartialsPartialsGrowing on tensor cores\n");
 //    GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
     int tmpPeelingBlocky = bgPeelingBlock.y;
     bgPeelingBlock.y = 4;
@@ -1037,7 +1037,7 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //        tmp[i] = 0;
 //    }
 
-    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
+//    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
 #else
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
