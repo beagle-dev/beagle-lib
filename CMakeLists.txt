@@ -4,10 +4,16 @@ project(BEAGLE)
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
 set(BEAGLE_VERSION_MINOR "0")
-set(BEAGLE_VERSION_PATCH "1")
+set(BEAGLE_VERSION_PATCH "2")
+
+set(GENERIC_API_VERSION "1")
+
 
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
 set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
+
+message(STATUS "BEAGLE_VERSION = ${BEAGLE_VERSION}")
+message(STATUS "BEAGLE_PLUGIN_VERSION = ${BEAGLE_PLUGIN_VERSION}")
 
 set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 
@@ -15,7 +21,7 @@ option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
-option(BUILD_SSE "Build beagle with SSE" ON)
+option(BUILD_SSE "Build beagle with SSE library" ON)
 
 # Old config.h settings
 
@@ -153,7 +159,7 @@ if(APPLE)
 	endif()
 
 	# Seems necessary from macOS 10.15
-	SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)

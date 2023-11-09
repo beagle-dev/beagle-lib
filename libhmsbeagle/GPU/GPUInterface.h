@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Dat Huynh
@@ -82,7 +72,7 @@ private:
     CUevent cudaEvent;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
-    cl_device_id openClDeviceId;             // compute device id 
+    cl_device_id openClDeviceId;             // compute device id
     cl_context openClContext;                // compute context
     cl_command_queue* openClCommandQueues;   // compute command queue
     cl_event* openClEvents;                  // compute events
@@ -93,30 +83,30 @@ private:
 
 public:
     GPUInterface();
-    
+
     ~GPUInterface();
-    
+
     int Initialize();
 
     int GetDeviceCount();
 
-    void SetDevice(int deviceNumber, 
-                   int paddedStateCount, 
-                   int categoryCount, 
+    void SetDevice(int deviceNumber,
+                   int paddedStateCount,
+                   int categoryCount,
                    int patternCount,
                    int unpaddedPatternCount,
                    int tipCount,
                    long flags);
-    
+
     void ResizeStreamCount(int newStreamCount);
 
     void SynchronizeHost();
     void SynchronizeDevice();
     void SynchronizeDeviceWithIndex(int streamRecordIndex,
                                     int streamWaitIndex);
-    
+
     GPUFunction GetFunction(const char* functionName);
-    
+
     void LaunchKernel(GPUFunction deviceFunction,
                                Dim3Int block,
                                Dim3Int grid,
@@ -134,13 +124,13 @@ public:
                                ...); // parameters
 
     void* MallocHost(size_t memSize);
-    
+
     void* CallocHost(size_t size, size_t length);
-    
+
     void* AllocatePinnedHostMemory(size_t memSize,
                                    bool writeCombined,
                                    bool mapped);
-    
+
 #ifdef FW_OPENCL
     void* MapMemory(GPUPtr dPtr,
                     size_t memSize);
@@ -150,7 +140,7 @@ public:
 #endif
 
     GPUPtr AllocateMemory(size_t memSize);
-    
+
     GPUPtr AllocateRealMemory(size_t length);
 
     GPUPtr AllocateIntMemory(size_t length);
@@ -158,7 +148,7 @@ public:
     GPUPtr CreateSubPointer(GPUPtr dPtr, size_t offset, size_t size);
 
     size_t AlignMemOffset(size_t offset);
-    
+
     void MemsetShort(GPUPtr dest,
                      unsigned short val,
                      size_t count);
@@ -170,28 +160,28 @@ public:
     void MemcpyDeviceToHost(void* dest,
                             const GPUPtr src,
                             size_t memSize);
-    
+
     void MemcpyDeviceToDevice(GPUPtr dest,
                               GPUPtr src,
                               size_t memSize);
 
     void FreeHostMemory(void* hPtr);
-    
+
     void FreePinnedHostMemory(void* hPtr);
-    
+
     void FreeMemory(GPUPtr dPtr);
 
     GPUPtr GetDeviceHostPointer(void* hPtr);
-    
+
     size_t GetAvailableMemory();
-    
+
     void GetDeviceName(int deviceNumber,
                        char* deviceName,
                        int nameLength);
-    
+
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
-    
+
     long GetDeviceTypeFlag(int deviceNumber);
 
     BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
@@ -202,11 +192,11 @@ public:
     void PrintfDeviceVector(GPUPtr dPtr, int length, Real r) {
     	PrintfDeviceVector(dPtr,length,-1, 0, r);
     }
-    
+
     template<typename Real>
     void PrintfDeviceVector(GPUPtr dPtr,
                             int length, double checkValue, Real r);
-    
+
     template<typename Real>
     void PrintfDeviceVector(GPUPtr dPtr,
                             int length,
@@ -245,7 +235,7 @@ public:
 
     void PrintfDeviceInt(GPUPtr dPtr,
                    int length);
-        
+
     KernelResource* kernelResource;
 
 #ifdef BEAGLE_DEBUG_OPENCL_CORES
@@ -253,11 +243,11 @@ public:
 
     void ReleaseDevice(int deviceNumber);
 #endif
-    
+
 protected:
 	void InitializeKernelResource(int paddedStateCount,
                                   bool doublePrecision);
-    
+
     std::map<int, int>* resourceMap;
 
     bool supportDoublePrecision;

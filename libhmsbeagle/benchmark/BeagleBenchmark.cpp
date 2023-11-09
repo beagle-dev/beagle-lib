@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Daniel Ayres
  * Based on synthetictest.cpp by Daniel Ayres, Aaron Darling.
@@ -33,7 +23,7 @@ namespace benchmark {
     int gettimeofday(struct timeval *tp,void * tz) {
         FILETIME f;
         ULARGE_INTEGER ifreq;
-        LONGLONG res; 
+        LONGLONG res;
         GetSystemTimeAsFileTime(&f);
         ifreq.HighPart = f.dwHighDateTime;
         ifreq.LowPart = f.dwLowDateTime;
@@ -70,7 +60,7 @@ void gt_srand(unsigned int *seed, unsigned int newSeed)
 
 double* getRandomTipPartials( int nsites, int stateCount, unsigned int *seed )
 {
-    double *partials = (double*) calloc(sizeof(double), nsites * stateCount); 
+    double *partials = (double*) calloc(sizeof(double), nsites * stateCount);
     for( int i=0; i<nsites*stateCount; i+=stateCount )
     {
         int s = gt_rand(seed)%stateCount;
@@ -81,7 +71,7 @@ double* getRandomTipPartials( int nsites, int stateCount, unsigned int *seed )
 
 int* getRandomTipStates( int nsites, int stateCount, unsigned int *seed )
 {
-    int *states = (int*) calloc(sizeof(int), nsites); 
+    int *states = (int*) calloc(sizeof(int), nsites);
     for( int i=0; i<nsites; i++ )
     {
         int s = gt_rand(seed)%stateCount;
@@ -118,11 +108,11 @@ int* getRandomTipStates( int nsites, int stateCount, unsigned int *seed )
 //     if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   fprintf(stdout, " FRAMEWORK_OPENCL");
 // }
 
-int benchmarkResource(int resource, 
-                         int stateCount, 
-                         int ntaxa, 
-                         int nsites, 
-                         bool manualScaling, 
+int benchmarkResource(int resource,
+                         int stateCount,
+                         int ntaxa,
+                         int nsites,
+                         bool manualScaling,
                          int rateCategoryCount,
                          int nreps,
                          int compactTipCount,
@@ -145,9 +135,9 @@ int benchmarkResource(int resource,
     int scaleCount = ((manualScaling) ? ntaxa : 0);
 
     int modelCount = eigenCount * partitionCount;
-    
+
     BeagleInstanceDetails instDetails;
-    
+
     // create an instance of the BEAGLE library
     int instance = beagleCreateInstance(
                 ntaxa,            /**< Number of tip data elements (input) */
@@ -167,8 +157,8 @@ int benchmarkResource(int resource,
 
     if (instance < 0) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
-    } 
-        
+    }
+
     *resourceNumber = instDetails.resourceNumber;
     *benchedFlags = instDetails.flags;
     *implName = instDetails.implName;
@@ -179,11 +169,11 @@ int benchmarkResource(int resource,
 
     // fprintf(stdout, "Using resource %d:\n", *resourceNumber);
     // fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
-    // fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);    
+    // fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
     // fprintf(stdout, "\tFlags:");
     // printFlags(instDetails.flags);
     // fprintf(stdout, "\n\n");
-        
+
     // set the sequences for each tip using partial likelihood arrays
     unsigned int seed;
     gt_srand(&seed, 1);   // fix the random seed...
@@ -196,7 +186,7 @@ int benchmarkResource(int resource,
         } else {
             int* tmpStates = getRandomTipStates(nsites, stateCount, &seed);
             beagleSetTipStates(instance, i, tmpStates);
-            free(tmpStates);                
+            free(tmpStates);
         }
     }
 
@@ -205,11 +195,11 @@ int benchmarkResource(int resource,
 #else
     double rates[rateCategoryCount];
 #endif
-    
+
     for (int i = 0; i < rateCategoryCount; i++) {
         rates[i] = gt_rand(&seed) / (double) GT_RAND_MAX;
     }
-    
+
     if (partitionCount > 1) {
         for (int i=0; i < partitionCount; i++) {
             beagleSetCategoryRatesWithIndex(instance, i, &rates[0]);
@@ -218,20 +208,20 @@ int benchmarkResource(int resource,
         beagleSetCategoryRates(instance, &rates[0]);
     }
 
-    
+
     double* patternWeights = (double*) malloc(sizeof(double) * nsites);
-    
+
     for (int i = 0; i < nsites; i++) {
         patternWeights[i] = gt_rand(&seed) / (double) GT_RAND_MAX;
-    }    
+    }
 
     beagleSetPatternWeights(instance, patternWeights);
-    
+
     int* patternPartitions;
     double* partitionLogLs;
     double* partitionD1;
     double* partitionD2;
-    
+
     if (partitionCount > 1) {
         partitionLogLs = (double*) malloc(sizeof(double) * partitionCount);
         partitionD1 = (double*) malloc(sizeof(double) * partitionCount);
@@ -243,7 +233,7 @@ int benchmarkResource(int resource,
             if (sitePartition > partitionCount - 1)
                 sitePartition = partitionCount - 1;
             patternPartitions[i] = sitePartition;
-        }    
+        }
     }
 
 
@@ -253,7 +243,7 @@ int benchmarkResource(int resource,
 #else
     double freqs[stateCount];
 #endif
-    
+
     // create an array containing site category weights
 #ifdef _WIN32
     std::vector<double> weights(rateCategoryCount);
@@ -264,19 +254,19 @@ int benchmarkResource(int resource,
     for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
         for (int i = 0; i < rateCategoryCount; i++) {
             weights[i] = gt_rand(&seed) / (double) GT_RAND_MAX;
-        } 
-    
+        }
+
         beagleSetCategoryWeights(instance, eigenIndex, &weights[0]);
     }
-    
+
     double* eval;
     eval = (double*)malloc(sizeof(double)*stateCount);
     double* evec = (double*)malloc(sizeof(double)*stateCount*stateCount);
     double* ivec = (double*)malloc(sizeof(double)*stateCount*stateCount);
-    
+
     for (int eigenIndex=0; eigenIndex < modelCount; eigenIndex++) {
         if ((stateCount & (stateCount-1)) == 0) {
-            
+
             for (int i=0; i<stateCount; i++) {
                 freqs[i] = 1.0 / stateCount;
             }
@@ -284,11 +274,11 @@ int benchmarkResource(int resource,
             // an eigen decomposition for the general state-space JC69 model
             // If stateCount = 2^n is a power-of-two, then Sylvester matrix H_n describes
             // the eigendecomposition of the infinitesimal rate matrix
-             
+
             double* Hn = evec;
-            Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0; 
+            Hn[0*stateCount+0] = 1.0; Hn[0*stateCount+1] =  1.0;
             Hn[1*stateCount+0] = 1.0; Hn[1*stateCount+1] = -1.0; // H_1
-         
+
             for (int k=2; k < stateCount; k <<= 1) {
                 // H_n = H_1 (Kronecker product) H_{n-1}
                 for (int i=0; i<k; i++) {
@@ -297,35 +287,35 @@ int benchmarkResource(int resource,
                         Hn[i    *stateCount + j + k] =  Hijold;
                         Hn[(i+k)*stateCount + j    ] =  Hijold;
                         Hn[(i+k)*stateCount + j + k] = -Hijold;
-                        
+
                         Hn[j    *stateCount + i + k] = Hn[i    *stateCount + j + k];
                         Hn[(j+k)*stateCount + i    ] = Hn[(i+k)*stateCount + j    ];
-                        Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];                                
+                        Hn[(j+k)*stateCount + i + k] = Hn[(i+k)*stateCount + j + k];
                     }
-                }        
+                }
             }
-            
-            // Since evec is Hadamard, ivec = (evec)^t / stateCount;    
+
+            // Since evec is Hadamard, ivec = (evec)^t / stateCount;
             for (int i=0; i<stateCount; i++) {
                 for (int j=i; j<stateCount; j++) {
                     ivec[i*stateCount+j] = evec[j*stateCount+i] / stateCount;
                     ivec[j*stateCount+i] = ivec[i*stateCount+j]; // Symmetric
                 }
             }
-           
+
             eval[0] = 0.0;
             for (int i=1; i<stateCount; i++) {
                 eval[i] = -stateCount / (stateCount - 1.0);
             }
-       
+
         } else {
             for (int i=0; i<stateCount; i++) {
                 freqs[i] = gt_rand(&seed) / (double) GT_RAND_MAX;
             }
-        
-            double** qmat=New2DArray<double>(stateCount, stateCount);    
+
+            double** qmat=New2DArray<double>(stateCount, stateCount);
             double* relNucRates = new double[(stateCount * stateCount - stateCount) / 2];
-            
+
             int rnum=0;
             for(int i=0;i<stateCount;i++){
                 for(int j=i+1;j<stateCount;j++){
@@ -344,29 +334,29 @@ int benchmarkResource(int resource,
                     if(x!=y) sum+=qmat[x][y];
                         }
                 qmat[x][x]=-sum;
-            } 
-            
+            }
+
             double* eigvalsimag=new double[stateCount];
             double** eigvecs=New2DArray<double>(stateCount, stateCount);//eigenvecs
             double** teigvecs=New2DArray<double>(stateCount, stateCount);//temp eigenvecs
-            double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs    
+            double** inveigvecs=New2DArray<double>(stateCount, stateCount);//inv eigenvecs
             int* iwork=new int[stateCount];
             double* work=new double[stateCount];
-            
+
             EigenRealGeneral(stateCount, qmat, eval, eigvalsimag, eigvecs, iwork, work);
             memcpy(*teigvecs, *eigvecs, stateCount*stateCount*sizeof(double));
             InvertMatrix(teigvecs, stateCount, work, iwork, inveigvecs);
-            
+
             for(int x=0;x<stateCount;x++){
                 for(int y=0;y<stateCount;y++){
                     evec[x * stateCount + y] = eigvecs[x][y];
                     ivec[x * stateCount + y] = inveigvecs[x][y];
                 }
-            } 
-            
+            }
+
             Delete2DArray(qmat);
             delete[] relNucRates;
-            
+
             delete[] eigvalsimag;
             Delete2DArray(eigvecs);
             Delete2DArray(teigvecs);
@@ -374,18 +364,18 @@ int benchmarkResource(int resource,
             delete[] iwork;
             delete[] work;
         }
-            
+
         beagleSetStateFrequencies(instance, eigenIndex, &freqs[0]);
-        
+
         // set the Eigen decomposition
         beagleSetEigenDecomposition(instance, eigenIndex, &evec[0], &ivec[0], &eval[0]);
     }
-    
+
     free(eval);
     free(evec);
     free(ivec);
 
-    
+
     // a list of indices and edge lengths
     int* edgeIndices = new int[edgeCount*modelCount];
     int* edgeIndicesD1 = new int[edgeCount*modelCount];
@@ -399,7 +389,7 @@ int benchmarkResource(int resource,
     for(int i=0; i<edgeCount; i++) {
         edgeLengths[i]=gt_rand(&seed) / (double) GT_RAND_MAX;
     }
-    
+
     // create a list of partial likelihood update operations
     // the order is [dest, destScaling, source1, matrix1, source2, matrix2]
     int operationCount = internalCount*modelCount;
@@ -440,7 +430,7 @@ int benchmarkResource(int resource,
 
         scalingFactorsIndices[i] = i;
 
-    }   
+    }
 
     int* rootIndices = new int[eigenCount * partitionCount];
     int* lastTipIndices = new int[eigenCount * partitionCount];
@@ -450,7 +440,7 @@ int benchmarkResource(int resource,
     int* stateFrequencyIndices = new int[eigenCount * partitionCount];
     int* cumulativeScalingFactorIndices = new int[eigenCount * partitionCount];
     int* partitionIndices = new int[partitionCount];
-    
+
     for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
         int pOffset = partitionCount*eigenIndex;
 
@@ -470,11 +460,11 @@ int benchmarkResource(int resource,
     // start timing!
     struct timeval time0, time5;
     double bestTimeTotal;
-    
+
     double logL = 0.0;
     double deriv1 = 0.0;
     double deriv2 = 0.0;
-    
+
     double previousLogL = 0.0;
     double previousDeriv1 = 0.0;
     double previousDeriv2 = 0.0;
@@ -498,10 +488,10 @@ int benchmarkResource(int resource,
                 operations[beagleOpCount*j+2] = (((manualScaling && (i % rescaleFrequency))) ? sIndex : BEAGLE_OP_NONE);
             }
         }
-        
+
         gettimeofday(&time0,NULL);
 
-        if (partitionCount > 1 && i==0) { 
+        if (partitionCount > 1 && i==0) {
             if (beagleSetPatternPartitions(instance, partitionCount, patternPartitions) != BEAGLE_SUCCESS) {
                 return BEAGLE_ERROR_GENERAL;
             }
@@ -545,19 +535,19 @@ int benchmarkResource(int resource,
             }
 
         int scalingFactorsCount = internalCount;
-                
+
         for (int eigenIndex=0; eigenIndex < eigenCount; eigenIndex++) {
             if (manualScaling && !(i % rescaleFrequency)) {
                 beagleResetScaleFactors(instance,
                                         cumulativeScalingFactorIndices[eigenIndex]);
-                
+
                 beagleAccumulateScaleFactors(instance,
                                        &scalingFactorsIndices[eigenIndex*internalCount],
                                        scalingFactorsCount,
                                        cumulativeScalingFactorIndices[eigenIndex]);
-            } 
+            }
         }
-        
+
         // calculate the site likelihoods at the root node
         if (!unrooted) {
             if (partitionCount > 1) {
@@ -602,7 +592,7 @@ int benchmarkResource(int resource,
                                                   (calcderivs ? &deriv1 : NULL),
                                                   (calcderivs ? partitionD2 : NULL),
                                                   (calcderivs ? &deriv2 : NULL));
-            } else {            
+            } else {
                 beagleCalculateEdgeLogLikelihoods(instance,               // instance
                                                   rootIndices,// bufferIndices
                                                   lastTipIndices,
@@ -621,12 +611,12 @@ int benchmarkResource(int resource,
         }
         // end timing!
         gettimeofday(&time5,NULL);
-    
+
         if (i == 0 || getTimeDiff(time0, time5) < bestTimeTotal) {
             bestTimeTotal = getTimeDiff(time0, time5);
-        }                
+        }
     }
-    
+
     // fprintf(stdout, "logL = %.5f \n", logL);
     // fprintf(stdout, "time = %.5f \n\n", getTimeDiff(time0, time5));
 

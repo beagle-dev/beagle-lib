@@ -6,20 +6,10 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
- * 
  * @author Andrew Rambaut
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -42,23 +32,23 @@ class BeagleImpl
 {
 public:
     virtual ~BeagleImpl(){}
-    
+
     virtual int createInstance(int tipCount,
                                int partialsBufferCount,
                                int compactBufferCount,
                                int stateCount,
                                int patternCount,
                                int eigenBufferCount,
-                               int matrixBufferCount,                               
+                               int matrixBufferCount,
                                int categoryCount,
                                int scaleBufferCount,
                                int resourceNumber,
                                int pluginResourceNumber,
                                long preferenceFlags,
                                long requirementFlags) = 0;
-    
+
     virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
-    
+
     virtual int setCPUThreadCount(int threadCount) = 0;
 
     virtual int setTipStates(int tipIndex,
@@ -66,7 +56,7 @@ public:
 
     virtual int setTipPartials(int tipIndex,
                                const double* inPartials) = 0;
-    
+
     virtual int setPartials(int bufferIndex,
                             const double* inPartials) = 0;
 
@@ -77,28 +67,28 @@ public:
     virtual int getPartials(int bufferIndex,
 							int scaleIndex,
                             double* outPartials) = 0;
-    
+
     virtual int setEigenDecomposition(int eigenIndex,
                                       const double* inEigenVectors,
                                       const double* inInverseEigenVectors,
                                       const double* inEigenValues) = 0;
-    
+
     virtual int setStateFrequencies(int stateFrequenciesIndex,
-                                  const double* inStateFrequencies) = 0;    
-    
+                                  const double* inStateFrequencies) = 0;
+
     virtual int setCategoryWeights(int categoryWeightsIndex,
                                  const double* inCategoryWeights) = 0;
-    
+
     virtual int setPatternWeights(const double* inPatternWeights) = 0;
 
     virtual int setPatternPartitions(int partitionCount,
                                      const int* inPatternPartitions) = 0;
-    
+
     virtual int setCategoryRates(const double* inCategoryRates) = 0;
 
     virtual int setCategoryRatesWithIndex(int categoryRatesIndex,
                                           const double* inCategoryRates) = 0;
-    
+
     virtual int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix,
                                     double paddedValue) = 0;
@@ -109,8 +99,8 @@ public:
     virtual int setTransitionMatrices(const int* matrixIndices,
                                       const double* inMatrices,
                                       const double* paddedValues,
-                                      int count) = 0;    
-    
+                                      int count) = 0;
+
     virtual int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) = 0;
 
@@ -149,7 +139,7 @@ public:
                                                            const int* secondDerivativeIndices,
                                                            const double* edgeLengths,
                                                            int count) = 0;
-    
+
     virtual int updatePartials(const int* operations,
                                int operationCount,
                                int cumulativeScalingIndex) = 0;
@@ -166,7 +156,7 @@ public:
 
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
-    
+
     virtual int accumulateScaleFactors(const int* scalingIndices,
 									   int count,
 									   int cumulativeScalingIndex) = 0;
@@ -175,7 +165,7 @@ public:
                                                   int count,
                                                   int cumulativeScaleIndex,
                                                   int partitionIndex) = 0;
-    
+
     virtual int removeScaleFactors(const int* scalingIndices,
                                      int count,
                                      int cumulativeScalingIndex) = 0;
@@ -184,18 +174,18 @@ public:
                                                   int count,
                                                   int cumulativeScaleIndex,
                                                   int partitionIndex) = 0;
-    
-    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0; 
+
+    virtual int resetScaleFactors(int cumulativeScalingIndex) = 0;
 
     virtual int resetScaleFactorsByPartition(int cumulativeScaleIndex,
-                                             int partitionIndex) = 0; 
-    
+                                             int partitionIndex) = 0;
+
     virtual int copyScaleFactors(int destScalingIndex,
-                                 int srcScalingIndex) = 0; 
-                                 
+                                 int srcScalingIndex) = 0;
+
     virtual int getScaleFactors(int srcScalingIndex,
-                                 double* scaleFactors) = 0; 
-                                     
+                                 double* scaleFactors) = 0;
+
     virtual int calculateRootLogLikelihoods(const int* bufferIndices,
                                             const int* categoryWeightsIndices,
                                             const int* stateFrequenciesIndices,
@@ -263,14 +253,14 @@ public:
                                                        double* outSumFirstDerivative,
                                                        double* outSumSecondDerivativeByPartition,
                                                        double* outSumSecondDerivative) = 0;
-    
+
     virtual int getLogLikelihood(double* outSumLogLikelihood) = 0;
 
     virtual int getDerivatives(double* outSumFirstDerivative,
                                double* outSumSecondDerivative) = 0;
 
     virtual int getSiteLogLikelihoods(double* outLogLikelihoods) = 0;
-    
+
     virtual int getSiteDerivatives(double* outFirstDerivatives,
                                    double* outSecondDerivatives) = 0;
 //protected:
@@ -293,9 +283,9 @@ public:
                                    long preferenceFlags,
                                    long requirementFlags,
                                    int* errorCode) = 0; // pure virtual
-    
+
     virtual const char* getName() = 0; // pure virtual
-    
+
     virtual const long getFlags() = 0; // pure virtual
 };
 

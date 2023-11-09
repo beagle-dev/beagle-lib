@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -81,10 +71,10 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     kMatrixBlockSize = gpu->kernelResource->matrixBlockSize;
     kSumSitesBlockSize = SUM_SITES_BLOCK_SIZE;
     kFlags = gpu->kernelResource->flags;
-    
+
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
-    bgTransitionProbabilitiesGrid = Dim3Int(kPaddedStateCount/kMultiplyBlockSize, 
+    bgTransitionProbabilitiesGrid = Dim3Int(kPaddedStateCount/kMultiplyBlockSize,
                                             kPaddedStateCount/kMultiplyBlockSize);
     if(kPaddedStateCount % kMultiplyBlockSize != 0) {
         bgTransitionProbabilitiesGrid.x += 1;
@@ -118,7 +108,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         if (!kCPUImplementation && (kPatternCount % kPatternBlockSize != 0)) {
             bgPeelingGrid.x += 1;
         }
-    } 
+    }
 
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
@@ -187,8 +177,8 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgAccumulateGrid  = Dim3Int(kPatternCount / kPatternBlockSize);
 
     if (kPatternCount % kPatternBlockSize != 0)
-        bgAccumulateGrid.x += 1;        
-    
+        bgAccumulateGrid.x += 1;
+
     // Set up block/grid for scaling partials
     if (kCPUImplementation) {
         bgScaleBlock = Dim3Int(kPatternBlockSize);
@@ -196,28 +186,28 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     } else {
         if (kSlowReweighing) {
             bgScaleBlock = Dim3Int(kPaddedStateCount);
-            bgScaleGrid  = Dim3Int(kPatternCount);        
+            bgScaleGrid  = Dim3Int(kPatternCount);
         } else {
             if (kPaddedStateCount == 4) {
                 bgScaleBlock = Dim3Int(16, kMatrixBlockSize);
                 bgScaleGrid  = Dim3Int(kPatternCount / 4, kCategoryCount/kMatrixBlockSize);
                 if (kPatternCount % 4 != 0) {
-                    bgScaleGrid.x += 1; // 
+                    bgScaleGrid.x += 1; //
                     fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
                     exit(-1);
-                }                
-            } else { 
+                }
+            } else {
                 bgScaleBlock = Dim3Int(kPaddedStateCount, kMatrixBlockSize);
                 bgScaleGrid  = Dim3Int(kPatternCount, kCategoryCount/kMatrixBlockSize);
             }
             if (kCategoryCount % kMatrixBlockSize != 0)
                 bgScaleGrid.y += 1;
-            if (bgScaleGrid.y > 1) { 
+            if (bgScaleGrid.y > 1) {
                 fprintf(stderr, "Not yet implemented! Try slow reweighing.\n");
                 exit(-1);
-            }        
+            }
         }
-    }    
+    }
 
     // Set up block for site likelihood accumulation
     if (kCPUImplementation) {
@@ -244,7 +234,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgReorderPatternsBlock = Dim3Int(REORDER_BLOCK_SIZE_CPU);
     } else {
         bgReorderPatternsBlock = Dim3Int(kPaddedStateCount, REORDER_BLOCK_SIZE);
-    }    
+    }
     bgReorderPatternsGrid = Dim3Int((kUnpaddedPatternCount + REORDER_BLOCK_SIZE - 1) / REORDER_BLOCK_SIZE, kCategoryCount);
 
 }
@@ -270,9 +260,9 @@ void KernelLauncher::LoadKernels() {
     }
 
     fMatrixMulADBFirstDeriv = gpu->GetFunction("kernelMatrixMulADBFirstDeriv");
-    
+
     fMatrixMulADBSecondDeriv = gpu->GetFunction("kernelMatrixMulADBSecondDeriv");
-    
+
 	if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADBComplex");
 	} else {
@@ -287,7 +277,7 @@ void KernelLauncher::LoadKernels() {
 
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
             "kernelPartialsPartialsFixedScale");
-    
+
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
                 "kernelPartialsPartialsAutoScale");
 
@@ -312,26 +302,21 @@ void KernelLauncher::LoadKernels() {
     fMultipleNodeSiteSquaredReduction = gpu->GetFunction(
             "kernelMultipleNodeSiteSquaredReduction");
 
-
-    fprintf(stderr, "A\n");
-
     fPartialsPartialsCrossProducts = gpu->GetFunction(
             "kernelPartialsPartialsCrossProducts");
 
     fPartialsStatesCrossProducts = gpu->GetFunction(
             "kernelPartialsStatesCrossProducts");
 
-    fprintf(stderr, "B\n");
-
     if (kPaddedStateCount == 4) { // TODO Temporary hack until kernels are written
     fPartialsPartialsByPatternBlockCheckScaling = gpu->GetFunction(
             "kernelPartialsPartialsCheckScale");
 
-   
+
     fPartialsPartialsByPatternBlockFixedCheckScaling = gpu->GetFunction(
            "kernelPartialsPartialsFixedCheckScale");
     }
-    
+
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
             "kernelStatesPartialsNoScale");
 
@@ -357,16 +342,16 @@ void KernelLauncher::LoadKernels() {
 
     fStatesPartialsEdgeLikelihoodsSecondDeriv = gpu->GetFunction(
             "kernelStatesPartialsEdgeLikelihoodsSecondDeriv");
-    
+
     fIntegrateLikelihoodsDynamicScalingSecondDeriv = gpu->GetFunction(
             "kernelIntegrateLikelihoodsFixedScaleSecondDeriv");
-    
+
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         fIntegrateLikelihoodsDynamicScaling = gpu->GetFunction("kernelIntegrateLikelihoodsAutoScaling");
     } else {
         fIntegrateLikelihoodsDynamicScaling = gpu->GetFunction("kernelIntegrateLikelihoodsFixedScale");
     }
-        
+
     if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
         fAccumulateFactorsDynamicScaling = gpu->GetFunction("kernelAccumulateFactorsScalersLog");
         fRemoveFactorsDynamicScaling = gpu->GetFunction("kernelRemoveFactorsScalersLog");
@@ -399,10 +384,10 @@ void KernelLauncher::LoadKernels() {
             fPartialsDynamicScaling = gpu->GetFunction(
                     "kernelPartialsDynamicScalingSlow");
             fPartialsDynamicScalingAccumulate = gpu->GetFunction(
-                    "kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel 
+                    "kernelPartialsDynamicScalingAccumulate"); // TODO Write kernel
         }
     }
-    
+
     if (kPaddedStateCount == 4) { // TODO Temporary
     fPartialsDynamicScalingAccumulateDifference = gpu->GetFunction(
            "kernelPartialsDynamicScalingAccumulateDifference");
@@ -410,15 +395,15 @@ void KernelLauncher::LoadKernels() {
     fPartialsDynamicScalingAccumulateReciprocal = gpu->GetFunction(
            "kernelPartialsDynamicScalingAccumulateReciprocal");
     }
-    
+
     fIntegrateLikelihoods = gpu->GetFunction("kernelIntegrateLikelihoods");
-    
+
     fIntegrateLikelihoodsSecondDeriv = gpu->GetFunction("kernelIntegrateLikelihoodsSecondDeriv");
-	
+
     fIntegrateLikelihoodsMulti = gpu->GetFunction("kernelIntegrateLikelihoodsMulti");
-	
+
 	fIntegrateLikelihoodsFixedScaleMulti = gpu->GetFunction("kernelIntegrateLikelihoodsFixedScaleMulti");
-    
+
     fSumSites1 = gpu->GetFunction("kernelSumSites1");
     fSumSites2 = gpu->GetFunction("kernelSumSites2");
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
@@ -426,12 +411,12 @@ void KernelLauncher::LoadKernels() {
     fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");
 
     // partitioning and multi-op kernels
-    if (kPaddedStateCount == 4) { 
+    if (kPaddedStateCount == 4) {
         fPartialsPartialsByPatternBlockCoherentMulti = gpu->GetFunction(
                 "kernelPartialsPartialsNoScaleMulti");
 
         fPartialsPartialsByPatternBlockCoherentPartition = gpu->GetFunction(
-                "kernelPartialsPartialsNoScalePartition");    
+                "kernelPartialsPartialsNoScalePartition");
 
         fPartialsPartialsByPatternBlockFixedScalingMulti = gpu->GetFunction(
                 "kernelPartialsPartialsFixedScaleMulti");
@@ -512,9 +497,9 @@ void KernelLauncher::LoadKernels() {
                         "kernelPartialsDynamicScalingAccumulateByPartition");
             }
         }
-        
+
         fIntegrateLikelihoodsPartition = gpu->GetFunction("kernelIntegrateLikelihoodsPartition");
-        
+
         fSumSites1Partition = gpu->GetFunction("kernelSumSites1Partition");
     }
 #endif // !FW_OPENCL_TESTING
@@ -557,7 +542,7 @@ void KernelLauncher::ReorderPatterns(GPUPtr dPartials,
                       dPartials, dStates, dStatesSort, dTipOffsets, dTipTypes,
                       dPatternsNewOrder, dPatternWeights, dPatternWeightsSort,
                       patternCount, paddedPatternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReorderPatterns\n");
 #endif
@@ -630,7 +615,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquareMulti(GPUPtr dMatrices,
 
     bgTransitionProbabilitiesGrid.x *= totalMatrix;
 
-    // Transposed (interchanged Ievc and Evec)    
+    // Transposed (interchanged Ievc and Evec)
     int parameterCountV = 6;
     int totalParameterCount = 9;
     gpu->LaunchKernel(fMatrixMulADBMulti,
@@ -641,7 +626,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquareMulti(GPUPtr dMatrices,
                       totalMatrix);
 
     bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareMulti\n");
 #endif
@@ -660,7 +645,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
 
    bgTransitionProbabilitiesGrid.x *= totalMatrix;
 
-    // Transposed (interchanged Ievc and Evec)    
+    // Transposed (interchanged Ievc and Evec)
     int parameterCountV = 6;
     int totalParameterCount = 9;
     gpu->LaunchKernel(fMatrixMulADB,
@@ -672,7 +657,7 @@ void KernelLauncher::GetTransitionProbabilitiesSquare(GPUPtr dMatrices,
 
     bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
 
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquare\n");
 #endif
@@ -688,10 +673,10 @@ void KernelLauncher::GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dMatrices
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquareFirstDeriv\n");
 #endif
-    
+
     bgTransitionProbabilitiesGrid.x *= totalMatrix;
-    
-    // Transposed (interchanged Ievc and Evec)    
+
+    // Transposed (interchanged Ievc and Evec)
     int parameterCountV = 6;
     int totalParameterCount = 9;
     gpu->LaunchKernel(fMatrixMulADBFirstDeriv,
@@ -700,10 +685,10 @@ void KernelLauncher::GetTransitionProbabilitiesSquareFirstDeriv(GPUPtr dMatrices
                                dMatrices, dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
                                kPaddedStateCount, kPaddedStateCount,
                                totalMatrix);
-    
+
     bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
-    
-    
+
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareFirstDeriv\n");
 #endif
@@ -719,10 +704,10 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
 #endif
-    
+
     bgTransitionProbabilitiesGrid.x *= totalMatrix;
-    
-    // Transposed (interchanged Ievc and Evec)    
+
+    // Transposed (interchanged Ievc and Evec)
     int parameterCountV = 6;
     int totalParameterCount = 9;
     gpu->LaunchKernel(fMatrixMulADBSecondDeriv,
@@ -731,10 +716,10 @@ void KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrice
                                dMatrices, dPtrQueue, dIevc, dEigenValues, dEvec, distanceQueue,
                                kPaddedStateCount, kPaddedStateCount,
                                totalMatrix);
-    
+
     bgTransitionProbabilitiesGrid.x /= totalMatrix; // Reset value
-    
-    
+
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::GetTransitionProbabilitiesSquareSecondDeriv\n");
 #endif
@@ -817,7 +802,7 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
                                                  GPUPtr states0,
                                                    GPUPtr partials,
                                                    GPUPtr lengths,
-                                                   GPUPtr instructions,                                                  
+                                                   GPUPtr instructions,
                                                    GPUPtr categoryWeights,
                                                    GPUPtr patternWeights,
                                                    unsigned int instructionOffset,
@@ -860,7 +845,7 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
 void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
                                                    GPUPtr partials,
                                                    GPUPtr lengths,
-                                                   GPUPtr instructions,                                                  
+                                                   GPUPtr instructions,
                                                    GPUPtr categoryWeights,
                                                    GPUPtr patternWeights,
                                                    unsigned int instructionOffset,
@@ -888,12 +873,12 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
     gpu->LaunchKernel(fPartialsPartialsCrossProducts,
                       bgCrossProductBlock, grid,
                       6, 12,
-                      out, partials, lengths, instructions, 
+                      out, partials, lengths, instructions,
                       categoryWeights, patternWeights,
                       instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate);
-    
-    gpu->SynchronizeDevice();   
+
+    gpu->SynchronizeDevice();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsCrossProducts\n");
@@ -1094,7 +1079,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           bgPeelingBlock, bgPeelingGrid,
                           6, 7,
                           partials1, partials2, partials3, matrices1, matrices2, dRescalingTrigger,
-                          patternCount);            
+                          patternCount);
 
         gpu->SynchronizeDevice();
 //        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
@@ -1106,13 +1091,13 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                 dScalingFactors[writeScalingIndex] = gpu->AllocateMemory(patternCount * sizeReal);
                 dScalingFactorsMaster[writeScalingIndex] = dScalingFactors[writeScalingIndex];
             }
-            
+
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
                 gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal *patternCount);
                 gpu->SynchronizeDevice();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
-            
+
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateReciprocal,
                               bgScaleBlock, bgScaleGrid,
                               3, 4,
@@ -1121,31 +1106,31 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
         }
     } else {
         *hRescalingTrigger = 0;
-        // Compute partials with known rescalings        
+        // Compute partials with known rescalings
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockFixedCheckScaling,
                           bgPeelingBlock, bgPeelingGrid,
                           7, 8,
                           partials1, partials2, partials3, matrices1, matrices2,
                           dScalingFactors[readScalingIndex], dRescalingTrigger,
-                          patternCount);        
-        
+                          patternCount);
+
         gpu->SynchronizeDevice();
 //        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
                 dScalingFactors[writeScalingIndex] = dScalingFactorsMaster[writeScalingIndex];
-            
+
             if (dScalingFactors[writeScalingIndex] == 0) {
                 dScalingFactors[writeScalingIndex] = gpu->AllocateRealMemory(patternCount);
                 dScalingFactorsMaster[writeScalingIndex] = dScalingFactors[writeScalingIndex];
             }
-            
+
             if (dScalingFactors[cumulativeScalingIndex] != dScalingFactorsMaster[cumulativeScalingIndex]) {
                 gpu->MemcpyDeviceToDevice(dScalingFactorsMaster[cumulativeScalingIndex], dScalingFactors[cumulativeScalingIndex], sizeReal * patternCount);
                 gpu->SynchronizeDevice();
                 dScalingFactors[cumulativeScalingIndex] = dScalingFactorsMaster[cumulativeScalingIndex];
             }
-            
+
             gpu->LaunchKernel(fPartialsDynamicScalingAccumulateDifference,
                               bgScaleBlock, bgScaleGrid,
                               4, 5,
@@ -1159,7 +1144,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruningDynamicCheckScaling\n");
 #endif
-    
+
 }
 
 void KernelLauncher::PartialsPartialsPruningMulti(GPUPtr partials,
@@ -1240,7 +1225,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
         fprintf(stderr, "\t\tLeaving fPartialsPartialsByPatternBlockAutoScaling\n");
 #endif
     } else if (doRescaling != 0) {
-        // Compute partials without any rescaling    
+        // Compute partials without any rescaling
 
         if (endPattern != 0) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1297,7 +1282,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                                 startPattern, endPattern);
             }
         }
-        
+
     } else {
         // Compute partials with known rescalings
         if (endPattern != 0) {
@@ -1336,7 +1321,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsPruningDynamicScaling\n");
 #endif
-    
+
 }
 
 
@@ -1367,7 +1352,7 @@ void KernelLauncher::StatesPartialsPruningMulti(GPUPtr states,
                           bgPeelingBlock, bgPeelingGrid,
                           5, 7,
                           states, partials, matrices, scalingFactors, ptrOffsets,
-                          gridStartOp, patternCount);        
+                          gridStartOp, patternCount);
     }
 
     bgPeelingGrid.x = tmpGridx;
@@ -1421,7 +1406,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         int tmpGridx = bgPeelingGrid.x;
         bgPeelingGrid.x = (launchPatternCount + blockPatternCount - 1) / blockPatternCount;
     }
-           
+
     if (doRescaling != 0)    {
         // Compute partials without any rescaling
         if (endPattern != 0) {
@@ -1440,7 +1425,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                         states1, partials2, partials3, matrices1, matrices2,
                                         patternCount);
         }
-        
+
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
             if (endPattern == 0 ) {
@@ -1464,7 +1449,7 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
             }
         }
 
-    } else {        
+    } else {
 
         // Compute partials with known rescalings
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SP
@@ -1518,11 +1503,11 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
         bgPeelingGrid.x  = gridX;
     }
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tLeaving  KernelLauncher::StatesPartialsPruningDynamicScaling\n");
 #endif
-    
+
 }
 
 void KernelLauncher::StatesStatesPruningMulti(GPUPtr states,
@@ -1554,7 +1539,7 @@ void KernelLauncher::StatesStatesPruningMulti(GPUPtr states,
                           states, partials, matrices, scalingFactors, ptrOffsets,
                           gridStartOp, patternCount);
     }
-    
+
     bgPeelingGrid.x = tmpGridx;
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1608,7 +1593,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
     }
 
     if (doRescaling != 0)    {
-        
+
         // Compute partials without any rescaling
         if (endPattern != 0) {
             gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockCoherentPartition,
@@ -1626,7 +1611,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                         patternCount);
         }
 
-        // Rescale partials and save scaling factors     
+        // Rescale partials and save scaling factors
         if (doRescaling > 0) {
             if (endPattern == 0 ) {
                 KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
@@ -1648,9 +1633,9 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                                 , streamIndex, -1, startPattern, endPattern);
             }
         }
-        
+
     } else {
-        
+
         // Compute partials with known rescalings
 #ifdef BEAGLE_FILL_4_STATE_SCALAR_SS
         if (kPaddedStateCount == 4) {
@@ -1702,7 +1687,7 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
         bgPeelingGrid.x  = gridX;
     }
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesStatesPruningDynamicScaling\n");
 #endif
@@ -1718,12 +1703,12 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsDynamicScaling\n");
 #endif
-    
+
     gpu->LaunchKernel(fIntegrateLikelihoodsDynamicScaling,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                5, 7,
                                dResult, dRootPartials, dWeights, dFrequencies, dRootScalingFactors,
-                               categoryCount,patternCount);    
+                               categoryCount,patternCount);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsDynamicScaling\n");
 #endif
@@ -1743,7 +1728,7 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScalingPartition(GPUPtr dResult,
 #endif
 
     Dim3Int bgLikelihoodPartitionGrid = Dim3Int(gridSize);
-    
+
     gpu->LaunchKernel(fIntegrateLikelihoodsDynamicScalingPartition,
                       bgLikelihoodBlock, bgLikelihoodPartitionGrid,
                       6, 8,
@@ -1769,14 +1754,14 @@ void KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResul
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv\n");
 #endif
-    
+
     gpu->LaunchKernel(fIntegrateLikelihoodsDynamicScalingSecondDeriv,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                9, 11,
                                dResult, dFirstDerivResult, dSecondDerivResult,
                                dRootPartials, dRootFirstDeriv, dRootSecondDeriv,
                                dWeights, dFrequencies, dRootScalingFactors,
-                               categoryCount, patternCount);    
+                               categoryCount, patternCount);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsDynamicScalingSecondDeriv\n");
 #endif
@@ -1845,7 +1830,7 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartials
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
-    
+
     gpu->LaunchKernel(fPartialsPartialsEdgeLikelihoodsSecondDeriv,
                                bgPeelingBlock, bgPeelingGrid,
                                8, 9,
@@ -1853,11 +1838,11 @@ void KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartials
                                dParentPartials, dChildParials,
                                dTransMatrix, dFirstDerivMatrix, dSecondDerivMatrix,
                                patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::PartialsPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
-    
+
 }
 
 void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
@@ -1869,7 +1854,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::StatesPartialsEdgeLikelihoods\n");
 #endif
-    
+
 #ifdef FW_OPENCL
     // fix for Apple CPU OpenCL limitations
     size_t blockX = bgPeelingBlock.x;
@@ -1887,7 +1872,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                bgPeelingBlock, bgPeelingGrid,
                                4, 5,
                                dPartialsTmp, dParentPartials, dChildStates, dTransMatrix,
-                               patternCount);  
+                               patternCount);
 
 #ifdef FW_OPENCL
     // restore values if used fix for Apple CPU OpenCL limitations
@@ -1896,11 +1881,11 @@ void KernelLauncher::StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
         bgPeelingGrid.x  = gridX;
     }
 #endif
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoods\n");
 #endif
-    
+
 }
 
 void KernelLauncher::StatesPartialsEdgeLikelihoodsByPartition(GPUPtr dPartialsTmp,
@@ -1957,7 +1942,7 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
         AppleCPUImplementation = true;
     }
 #endif
-    
+
     gpu->LaunchKernel(fStatesPartialsEdgeLikelihoodsSecondDeriv,
                                bgPeelingBlock, bgPeelingGrid,
                                8, 9,
@@ -1965,11 +1950,11 @@ void KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTm
                                dParentPartials, dChildStates,
                                dTransMatrix, dFirstDerivMatrix, dSecondDerivMatrix,
                                patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesPartialsEdgeLikelihoodsSecondDeriv\n");
 #endif
-    
+
 #ifdef FW_OPENCL
     // restore values if used fix for Apple CPU OpenCL limitations
     if (AppleCPUImplementation) {
@@ -1988,7 +1973,7 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsDynamicScaling\n");
 #endif
-    
+
     int parameterCountV = 3;
     int totalParameterCount = 5;
     gpu->LaunchKernel(fAccumulateFactorsDynamicScaling,
@@ -1996,11 +1981,11 @@ void KernelLauncher::AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
                                parameterCountV, totalParameterCount,
                                dScalingFactors, dNodePtrQueue, dRootScalingFactors,
                                nodeCount, patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::AccumulateFactorsDynamicScaling\n");
 #endif
-    
+
 }
 
 
@@ -2018,8 +2003,8 @@ void KernelLauncher::AccumulateFactorsDynamicScalingByPartition(GPUPtr dScalingF
     Dim3Int bgAccumulatePartitionGrid  = Dim3Int(partitionPatternCount / kPatternBlockSize);
 
     if (partitionPatternCount % kPatternBlockSize != 0)
-        bgAccumulatePartitionGrid.x += 1;   
-    
+        bgAccumulatePartitionGrid.x += 1;
+
     int parameterCountV = 3;
     int totalParameterCount = 6;
     gpu->LaunchKernel(fAccumulateFactorsDynamicScalingByPartition,
@@ -2027,11 +2012,11 @@ void KernelLauncher::AccumulateFactorsDynamicScalingByPartition(GPUPtr dScalingF
                       parameterCountV, totalParameterCount,
                       dScalingFactors, dNodePtrQueue, dRootScalingFactors,
                       nodeCount, startPattern, endPattern);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::AccumulateFactorsDynamicScalingByPartition\n");
 #endif
-    
+
 }
 
 void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
@@ -2043,7 +2028,7 @@ void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif
-    
+
     int parameterCountV = 3;
     int totalParameterCount = 6;
     gpu->LaunchKernel(fAccumulateFactorsAutoScaling,
@@ -2055,7 +2040,7 @@ void KernelLauncher::AccumulateFactorsAutoScaling(GPUPtr dScalingFactors,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::AccumulateFactorsAutoScaling\n");
 #endif
-    
+
 }
 
 
@@ -2066,8 +2051,8 @@ void KernelLauncher::RemoveFactorsDynamicScaling(GPUPtr dScalingFactors,
                                                      unsigned int patternCount) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::RemoveFactorsDynamicScaling\n");
-#endif    
-       
+#endif
+
     int parameterCountV = 3;
     int totalParameterCount = 5;
     gpu->LaunchKernel(fRemoveFactorsDynamicScaling,
@@ -2078,7 +2063,7 @@ void KernelLauncher::RemoveFactorsDynamicScaling(GPUPtr dScalingFactors,
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::RemoveFactorsDynamicScaling\n");
-#endif        
+#endif
 
 }
 
@@ -2090,13 +2075,13 @@ void KernelLauncher::RemoveFactorsDynamicScalingByPartition(GPUPtr dScalingFacto
                                                             int endPattern) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::RemoveFactorsDynamicScalingByPartition\n");
-#endif    
-       
+#endif
+
     int partitionPatternCount = endPattern - startPattern;
     Dim3Int bgAccumulatePartitionGrid  = Dim3Int(partitionPatternCount / kPatternBlockSize);
 
     if (partitionPatternCount % kPatternBlockSize != 0)
-        bgAccumulatePartitionGrid.x += 1;   
+        bgAccumulatePartitionGrid.x += 1;
 
     int parameterCountV = 3;
     int totalParameterCount = 6;
@@ -2108,7 +2093,7 @@ void KernelLauncher::RemoveFactorsDynamicScalingByPartition(GPUPtr dScalingFacto
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::RemoveFactorsDynamicScalingByPartition\n");
-#endif        
+#endif
 
 }
 
@@ -2117,13 +2102,13 @@ void KernelLauncher::ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactor
                                                            int endPattern) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ResetFactorsDynamicScalingByPartition\n");
-#endif    
-       
+#endif
+
     int partitionPatternCount = endPattern - startPattern;
     Dim3Int bgAccumulatePartitionGrid  = Dim3Int(partitionPatternCount / kPatternBlockSize);
 
     if (partitionPatternCount % kPatternBlockSize != 0)
-        bgAccumulatePartitionGrid.x += 1;   
+        bgAccumulatePartitionGrid.x += 1;
 
     int parameterCountV = 1;
     int totalParameterCount = 3;
@@ -2135,23 +2120,23 @@ void KernelLauncher::ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactor
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ResetFactorsDynamicScalingByPartition\n");
-#endif        
+#endif
 
 }
 
 void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr scalingFactors,
-                                     GPUPtr cumulativeScaling, 
+                                     GPUPtr cumulativeScaling,
                                      unsigned int patternCount,
                                      unsigned int categoryCount,
                                      unsigned int fillWithOnes,
                                      int streamIndex,
                                      int waitIndex) {
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::RescalePartials\n");
-#endif    
-    
+#endif
+
     // TODO: remove fillWithOnes and leave it up to client?
 // printf("RESCALE ON STREAM %d\n",streamIndex );
     // Rescale partials and save scaling factors
@@ -2173,17 +2158,17 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
         	exit(0);
         }
     }
-        
+
     // TODO: Totally incoherent for kPaddedStateCount == 4
-        
+
     if (cumulativeScaling != 0) {
-        
-        if (kSlowReweighing) {        
+
+        if (kSlowReweighing) {
             fprintf(stderr,"Simultaneous slow reweighing and accumulation is not yet implemented.\n");
             exit(-1);
-            // TODO: add support for accumulate scaling as you rescale for SLOW_REWEIGHING                
+            // TODO: add support for accumulate scaling as you rescale for SLOW_REWEIGHING
         }
-        
+
         int parameterCountV = 3;
         int totalParameterCount = 4;
         gpu->LaunchKernelConcurrent(fPartialsDynamicScalingAccumulate,
@@ -2202,7 +2187,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
                                    partials3, scalingFactors,
                                    categoryCount);
     }
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::RescalePartials\n");
 #endif
@@ -2210,7 +2195,7 @@ void KernelLauncher::RescalePartials(GPUPtr partials3,
 
 void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
                                                 GPUPtr scalingFactors,
-                                                GPUPtr cumulativeScaling, 
+                                                GPUPtr cumulativeScaling,
                                                 unsigned int patternCount,
                                                 unsigned int categoryCount,
                                                 unsigned int fillWithOnes,
@@ -2218,11 +2203,11 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
                                                 int waitIndex,
                                                 int startPattern,
                                                 int endPattern) {
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::RescalePartialsByPartition\n");
-#endif    
-    
+#endif
+
     int partitionPatternCount = endPattern - startPattern;
 
     Dim3Int bgScalePartitionGrid = bgScaleGrid;
@@ -2230,7 +2215,7 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
     if (kCPUImplementation) {
         bgScalePartitionGrid.x  = partitionPatternCount/kPatternBlockSize;
         if (partitionPatternCount % kPatternBlockSize != 0)
-            bgScalePartitionGrid.x += 1;   
+            bgScalePartitionGrid.x += 1;
     } else {
         if (kSlowReweighing) {
             fprintf(stderr,"Slow reweighing and partitioning not yet implemented\n");
@@ -2239,16 +2224,16 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
             if (kPaddedStateCount == 4) {
                 bgScalePartitionGrid.x  = partitionPatternCount / 4;
                 if (partitionPatternCount % 4 != 0) {
-                    bgScalePartitionGrid.x += 1; // 
+                    bgScalePartitionGrid.x += 1; //
                     // fprintf(stderr,"PATTERNS SHOULD BE PADDED! Inform Marc, please.\n");
                     // exit(-1);
-                }                
-            } else { 
+                }
+            } else {
                 fprintf(stderr,"Partitioning and state count != 4 not implemented\n");
                 exit(-1);
             }
         }
-    }    
+    }
 
 // printf("p %d, s %2d, e %2d, bgScaleGrid.x %2d, bgScalePartitionGrid.x %2d\n", partials3, startPattern, endPattern, bgScaleGrid.x, bgScalePartitionGrid.x );
 
@@ -2258,8 +2243,8 @@ void KernelLauncher::RescalePartialsByPartition(GPUPtr partials3,
             exit(0);
         }
     }
-        
-    // TODO: Totally incoherent for kPaddedStateCount == 4        
+
+    // TODO: Totally incoherent for kPaddedStateCount == 4
     if (cumulativeScaling != 0) {
         int parameterCountV = 3;
         int totalParameterCount = 7;
@@ -2294,7 +2279,7 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::IntegrateLikelihoods\n");
 #endif
-   
+
     int parameterCountV = 4;
     int totalParameterCount = 6;
     gpu->LaunchKernel(fIntegrateLikelihoods,
@@ -2302,11 +2287,11 @@ void KernelLauncher::IntegrateLikelihoods(GPUPtr dResult,
                                parameterCountV, totalParameterCount,
                                dResult, dRootPartials, dWeights, dFrequencies,
                                categoryCount, patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoods\n");
 #endif
-    
+
 }
 
 void KernelLauncher::IntegrateLikelihoodsPartition(GPUPtr dResult,
@@ -2322,7 +2307,7 @@ void KernelLauncher::IntegrateLikelihoodsPartition(GPUPtr dResult,
 #endif
 
     Dim3Int bgLikelihoodPartitionGrid = Dim3Int(gridSize);
-   
+
     int parameterCountV = 5;
     int totalParameterCount = 7;
     gpu->LaunchKernel(fIntegrateLikelihoodsPartition,
@@ -2330,11 +2315,11 @@ void KernelLauncher::IntegrateLikelihoodsPartition(GPUPtr dResult,
                       parameterCountV, totalParameterCount,
                       dResult, dRootPartials, dWeights, dFrequencies, dPtrOffsets,
                       categoryCount, patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsPartition\n");
 #endif
-    
+
 }
 
 
@@ -2351,7 +2336,7 @@ void KernelLauncher::IntegrateLikelihoodsSecondDeriv(GPUPtr dResult,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::IntegrateLikelihoodsSecondDeriv\n");
 #endif
-    
+
     int parameterCountV = 8;
     int totalParameterCount = 10;
     gpu->LaunchKernel(fIntegrateLikelihoodsSecondDeriv,
@@ -2361,11 +2346,11 @@ void KernelLauncher::IntegrateLikelihoodsSecondDeriv(GPUPtr dResult,
                                dRootPartials, dRootFirstDeriv, dRootSecondDeriv,
                                dWeights, dFrequencies,
                                categoryCount, patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsSecondDeriv\n");
 #endif
-    
+
 }
 
 
@@ -2379,7 +2364,7 @@ void KernelLauncher::IntegrateLikelihoodsMulti(GPUPtr dResult,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\tEntering KernelLauncher::IntegrateLikelihoodsNoLog\n");
 #endif
-	
+
     int parameterCountV = 4;
     int totalParameterCount = 7;
     gpu->LaunchKernel(fIntegrateLikelihoodsMulti,
@@ -2387,11 +2372,11 @@ void KernelLauncher::IntegrateLikelihoodsMulti(GPUPtr dResult,
                                parameterCountV, totalParameterCount,
                                dResult, dRootPartials, dWeights, dFrequencies,
                                categoryCount, patternCount, takeLog);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsNoLog\n");
 #endif
-    
+
 }
 
 void KernelLauncher::IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
@@ -2409,13 +2394,13 @@ void KernelLauncher::IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::IntegrateLikelihoodsFixedScaleMulti\n");
 #endif
-    
+
     gpu->LaunchKernel(fIntegrateLikelihoodsFixedScaleMulti,
                                bgLikelihoodBlock, bgLikelihoodGrid,
                                8, 12,
                                dResult, dRootPartials, dWeights, dFrequencies, dScalingFactors, dPtrQueue,
 							   dMaxScalingFactors, dIndexMaxScalingFactors,
-                               categoryCount, patternCount, subsetCount, subsetIndex);    
+                               categoryCount, patternCount, subsetCount, subsetIndex);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::IntegrateLikelihoodsFixedScaleMulti\n");
 #endif
@@ -2436,11 +2421,11 @@ void KernelLauncher::SumSites1(GPUPtr dArray1,
                       parameterCountV, totalParameterCount,
                       dArray1, dSum1, dPatternWeights,
                       patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites1\n");
 #endif
-    
+
 }
 
 void KernelLauncher::SumSites1Partition(GPUPtr dArray1,
@@ -2462,11 +2447,11 @@ void KernelLauncher::SumSites1Partition(GPUPtr dArray1,
                       parameterCountV, totalParameterCount,
                       dArray1, dSum1, dPatternWeights,
                       startPattern, endPattern);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites1Partition\n");
 #endif
-    
+
 }
 
 void KernelLauncher::SumSites2(GPUPtr dArray1,
@@ -2486,11 +2471,11 @@ void KernelLauncher::SumSites2(GPUPtr dArray1,
                       parameterCountV, totalParameterCount,
                       dArray1, dSum1, dArray2, dSum2, dPatternWeights,
                       patternCount);
-    
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites2\n");
 #endif
-    
+
 }
 
 void KernelLauncher::SumSites3(GPUPtr dArray1,
@@ -2504,19 +2489,19 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::SumSites3\n");
 #endif
-    
+
     int parameterCountV = 7;
     int totalParameterCount = 8;
     gpu->LaunchKernel(fSumSites3,
                       bgSumSitesBlock, bgSumSitesGrid,
                       parameterCountV, totalParameterCount,
                       dArray1, dSum1, dArray2, dSum2, dArray3, dSum3, dPatternWeights,
-                      patternCount);        
-    
+                      patternCount);
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites3\n");
 #endif
-    
+
 }
 
 }; // namespace
