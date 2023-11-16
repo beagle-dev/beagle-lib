@@ -148,20 +148,23 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     const int WMMA_N = 8;
     const int WMMA_K = 4;
 
-    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag1;
-    nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::row_major> sMatrixFrag2;
-    nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, double, nvcuda::wmma::col_major> partialsFrag;
-    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, double> accFrag;
-    nvcuda::wmma::fill_fragment(sMatrixFrag1, 0.0);
-    nvcuda::wmma::fill_fragment(sMatrixFrag2, 0.0);
-    nvcuda::wmma::fill_fragment(partialsFrag, 0.0);
-    nvcuda::wmma::fill_fragment(accFrag, 0.0);
-
     int y = deltaPartialsByState + deltaPartialsByMatrix;
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+// Indices to permute ShM for partialss
+// X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
+// (int(X/8): Splits 32 values into groups of 4.
+// ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
+// & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
+#define GET_SMEM_ROW_PARTIALS(X) ((X / WMMA_K) & 0x07)
+#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
+#define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
+#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+
     /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/
     if (pattern < endPattern) {
+        // Read in permuted for partials1
         sPartials1[multBy16(patIdx) | tx] = partials1[y | tx]; /*All coalesced memory*/
         sPartials2[multBy16(patIdx) | tx] = partials2[y | tx];
     } else {
@@ -179,40 +182,63 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     }
     KW_LOCAL_FENCE;
 
-    // Load into matrices into fragments. Note: all warps need to load sMatrix into fragments
-    nvcuda::wmma::load_matrix_sync(sMatrixFrag2, sMatrix2, 4);
-    nvcuda::wmma::load_matrix_sync(sMatrixFrag1, sMatrix1, 4);
+    double a2 = 0, b2 = 0, res22 = 0, res21 = 0, a1 = 0, b1 = 0, res11 = 0, res12 = 0;
 
-    KW_LOCAL_MEM REAL tmp[WMMA_M * WMMA_N * 8]; // TODO: Reuse memory
-    int patWarp, tmpWarp;
-    patWarp = 8 * 4 * (patIdx/2); // 8 patterns per warp and 4 states per pattern
-    tmpWarp = 64 * (patIdx/2); // 64 values per wmma but half of rows are 0s
+    int warpSize = 32;
+    int warpState = tx / warpSize;
+    int warpPattern = patIdx;
+    int warpIdx = warpState + warpPattern * 0.5; // blockDim.x is half a warp
 
-    // Load patterns into fragment
-    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials2 + patWarp, WMMA_K);
+    int reg_row = tx % 4;
+    int reg_col = tx / 4;
+    int reg_row_partials = tx % 16;
+    int reg_col_partials = (patIdx % 2);
 
-    // Multiply
-    nvcuda::wmma::fill_fragment(accFrag, 0.0);
-    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag2, partialsFrag, accFrag);
+    if (patIdx % 2 == 0) {
+        a2 = sMatrix2[reg_col * 4 + reg_row];
+    } else {
+        a2 = 0;
+    }
 
-    nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
+    b2 = sPartials2[warpIdx * 32 + reg_col_partials * 16 + reg_row_partials];
 
-    tmpAcc[16 * patIdx + tx] = sPartials2[16 * patIdx + tx];
-    // Element-wise multiplication
-    sPartials1[(16 * patIdx) + tx] = sPartials1[16 * patIdx + tx] * tmp[(32 * patIdx) + (8 * (tx / 4)) + (tx % 4)];
+    asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+            : "=d"(res21), "=d"(res22)
+            : "d"(a2), "d"(b2), "d"(res21), "d"(res22));
 
-    KW_LOCAL_FENCE;
+    int laneId = tx + (patIdx % 2) * 16;
 
-    // Load patterns into fragment
-    nvcuda::wmma::load_matrix_sync(partialsFrag, sPartials1 + patWarp, WMMA_K);
+    // TODO: Permute ShM to avoid bank conflicts.
+    if(laneId < 16) { // Ignore lower half of matrices. We only need 4 x 8
+        int partials1Index = (patIdx/2) * 32 + ((laneId * 2) % 8) * 4 + (laneId * 2) / WMMA_N;
+        sPartials1[partials1Index] = sPartials1[partials1Index] * res21;
+        sPartials1[partials1Index + 4] = sPartials1[partials1Index + 4] * res22;
+    }
 
-    // Multiply
-    nvcuda::wmma::fill_fragment(accFrag, 0.0);
-    nvcuda::wmma::mma_sync(accFrag, sMatrixFrag1, partialsFrag, accFrag);
+    if (patIdx % 2 == 0) {
+        a1 = sMatrix1[reg_col * 4 + reg_row];
+    } else {
+        a1 = 0;
+    }
 
-    nvcuda::wmma::store_matrix_sync(tmp + tmpWarp, accFrag, WMMA_M, nvcuda::wmma::mem_col_major);
+    b1 = sPartials1[warpIdx * 32 + reg_col_partials * 16 + reg_row_partials];
 
-    partials3[u] = tmp[(32 * patIdx) + 8 * (tx / 4) + (tx % 4)];
+    asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+            : "=d"(res11), "=d"(res12)
+            : "d"(a1), "d"(b1), "d"(res11), "d"(res12));
+
+    int patternBlock = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE * 4);
+    u = patternBlock * 4 + deltaPartialsByMatrix;
+
+    if(laneId < 16) {
+        if(patternBlock + patIdx * 4 + ((laneId * 2) % 8) < endPattern){
+            partials3[u + (patIdx/2) * 32 + ((laneId * 2) % 8) * 4 + (laneId * 2) / WMMA_N] = res11;
+        }
+
+        if(patternBlock + patIdx * 4 + ((laneId * 2) % 8) + 1 < endPattern)
+            partials3[u + 4 + (patIdx/2) * 32 + ((laneId * 2) % 8) * 4 + (laneId * 2) / WMMA_N] = res12;
+
+    }
 
 #endif // FW_OPENCL_CPU
 }

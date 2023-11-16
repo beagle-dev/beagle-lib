@@ -390,6 +390,7 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetFunction\n");
+    fprintf(stderr,"\t\t\t\tFunction name: %s\n", functionName);
 #endif
 
     GPUFunction cudaFunction;
