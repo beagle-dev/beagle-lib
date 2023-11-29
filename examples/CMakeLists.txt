@@ -7,6 +7,9 @@ add_executable(hmctest5
 add_executable(tensorcores_4_state
 		tensor_cores/test_4_state.cpp)
 
+add_executable(tensorcores_4_state_postOrder
+		tensor_cores/test_4_state_postOrder.cpp)
+
 add_executable(tensorcores_X_state
 		tensor_cores/test_X_state.cpp)
 
