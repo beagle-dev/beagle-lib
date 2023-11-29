@@ -989,13 +989,13 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
     fprintf(stderr, "\t\tEntering PartialsPartialsGrowing on tensor cores\n");
     fprintf(stderr, "\t\t\tBlock size %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y);
 #endif
-    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+//    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
 //    int tmpPeelingBlocky = bgPeelingBlock.y;
 //    bgPeelingBlock.y = 4;// TODO: Setup new block sizes for tensor core kernels
     gpu->LaunchKernel(fPartialsPartialsGrowingTensorCores,
                       bgPeelingBlock, bgPeelingGrid,
-                      6, 7,
-                      partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
+                      5, 6,
+                      partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
 //    bgPeelingBlock.y = tmpPeelingBlocky;
@@ -1250,7 +1250,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 //            fprintf(stderr, "\n\t\tEntering PartialsPartialsNoScale on tensor cores doRescaling = %d\n", doRescaling);
 //            int tmpPeelingBlocky = bgPeelingBlock.y;
 //            bgPeelingBlock.y = 4; // TODO: Setup new block sizes for tensor core kernels
-//            GPUPtr tmpAcc = gpu->AllocateMemory(1024 * sizeof(double));
+//            GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherentTensorCores,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
@@ -1259,7 +1259,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                         patternCount);
 //            bgPeelingBlock.y = tmpPeelingBlocky;
 //            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
-//            double tmp[1024] = {-1};
+//            double tmp[256] = {-1};
 //            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
 //            for(int i = 0; i < 256; i++) {
 //                fprintf(stderr, " %f, ", tmp[i]);

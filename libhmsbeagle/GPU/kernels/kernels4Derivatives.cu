@@ -137,7 +137,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                     int endPattern) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
@@ -177,7 +176,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTensorCores(KW_GLOBAL_VAR REA
     KW_LOCAL_MEM REAL sMatrix1[16]; /*Load values into shared memory*/
     KW_LOCAL_MEM REAL sMatrix2[16];
     if (patIdx == 0 ) {
-        sMatrix1[tx] = matrix1[tx]; /* Should write transpose into sMatrix1 */
+        /* Write transpose of both matrices since M is loaded row-wise */
+        sMatrix1[tx] = matrix1[tx];
         sMatrix2[multBy4(state) | pat] = matrix2[tx];
     }
     KW_LOCAL_FENCE;
