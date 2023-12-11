@@ -1413,7 +1413,8 @@ typedef struct {
                                                                 
 BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
                                                const BastaOperation* operations,
-                                               int operationCount);                                    
+                                               int operationCount,
+                                               int populationSizeIndex);                                    
 
 BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
                                                const BastaOperation* operations,

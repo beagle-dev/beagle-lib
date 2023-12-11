@@ -446,7 +446,8 @@ public:
                            double* outSecondDerivatives);
                            
 	int updateBastaPartials(const int* operations,
-  							int operationCount);                             
+  							int operationCount,
+  							int populationSizesIndex);                             
                            
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,

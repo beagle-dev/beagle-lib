@@ -266,7 +266,8 @@ public:
                                    
                                    
 	virtual int updateBastaPartials(const int* operations,
-	     							int operationCount) = 0;                                   
+	     							int operationCount,
+	     							int populationSizesIndex) = 0;                                   
                                    
 	virtual int accumulateBastaPartials(const int* operations,
 	     				  			    int operationCount,

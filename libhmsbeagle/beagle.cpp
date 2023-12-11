@@ -1865,7 +1865,8 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
 
 int beagleUpdateBastaPartials(const int instance,
                               const BastaOperation* operations,
-                              int operationCount) {
+                              int operationCount,
+                              int populationSizesIndex) {
 	DEBUG_START_TIME();
 	
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -1873,7 +1874,7 @@ int beagleUpdateBastaPartials(const int instance,
 		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 	}
 	
-	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, operationCount);
+	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, operationCount, populationSizesIndex);
 	
 	DEBUG_END_TIME();                              
 	return returnValue;

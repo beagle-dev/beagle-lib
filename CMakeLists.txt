@@ -20,6 +20,7 @@ option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_SSE "Build beagle with SSE library" ON)
+option(BUILD_BASTA "Build beagle with mbasta library" OFF)
 
 # Old config.h settings
 

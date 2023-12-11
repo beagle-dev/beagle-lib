@@ -15,7 +15,7 @@ package beagle;
 
 public class BeagleJNIImpl implements Beagle {
 
-    private int instance = -1;
+    protected int instance = -1;
     private InstanceDetails details = new InstanceDetails();
 
     public BeagleJNIImpl(int tipCount,

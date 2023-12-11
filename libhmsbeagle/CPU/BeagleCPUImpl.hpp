@@ -1330,7 +1330,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations,
-  														   int count) {
+  														   int count,
+  														   int populationSizesIndex) {
 	int returnCode = BEAGLE_ERROR_GENERAL;
 	  														   
   	fprintf(stderr, "BeagleCPUImpl::updateBastaPartials\n");			   
