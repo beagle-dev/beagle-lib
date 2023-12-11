@@ -1863,3 +1863,38 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
+int beagleUpdateBastaPartials(const int instance,
+                              const BastaOperation* operations,
+                              int operationCount) {
+	DEBUG_START_TIME();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, operationCount);
+	
+	DEBUG_END_TIME();                              
+	return returnValue;
+}
+
+int beagleAccumulateBastaPartials(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* segments,
+                                  int segmentCount) {
+	DEBUG_START_TIME();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
+															  segments, segmentCount);
+	
+	DEBUG_END_TIME();                              
+	return returnValue;                                  
+                                  
+}

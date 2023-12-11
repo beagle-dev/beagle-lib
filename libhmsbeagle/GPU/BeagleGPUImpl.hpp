@@ -2200,6 +2200,45 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations,
+  														   int count) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
+#endif  														   
+  														   
+	int returnCode = BEAGLE_ERROR_GENERAL;
+	  														   
+  	fprintf(stderr, "BeagleGPUImpl::updateBastaPartials\n");			   
+  		
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartials\n");
+#endif  		
+  														   
+	return returnCode;  														   
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operations,
+	     				  									   int operationCount,
+							  	     				  		   const int* segments,
+	     				  									   int segmentCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
+#endif 
+
+	int returnCode = BEAGLE_ERROR_GENERAL;
+	  														   
+  	fprintf(stderr, "BeagleGPUImpl::accumulateBastaPartials\n");			   
+  				
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials\n");
+#endif  		
+  				  				  														   
+	return returnCode;  		     				  									   
+}
+
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBufferIndices,
                                                                const int *preBufferIndices,
                                                                const int rootBufferIndex,

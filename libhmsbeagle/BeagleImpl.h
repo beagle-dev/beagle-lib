@@ -263,6 +263,16 @@ public:
 
     virtual int getSiteDerivatives(double* outFirstDerivatives,
                                    double* outSecondDerivatives) = 0;
+                                   
+                                   
+	virtual int updateBastaPartials(const int* operations,
+	     							int operationCount) = 0;                                   
+                                   
+	virtual int accumulateBastaPartials(const int* operations,
+	     				  			    int operationCount,
+	     				  			    const int* segments,
+	     				  			    int segmentCount) = 0;  
+                                   
 //protected:
     int resourceNumber;
 };

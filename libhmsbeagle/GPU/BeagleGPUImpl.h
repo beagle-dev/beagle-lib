@@ -458,7 +458,15 @@ public:
 
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
+                           
+	int updateBastaPartials(const int* operations,
+  							int operationCount);                           
 
+	int accumulateBastaPartials(const int* operations,
+	     				  		int operationCount,
+	     				  		const int* segments,
+	     				  		int segmentCount);
+	     				  		                           
 private:
 
     char* getInstanceName();

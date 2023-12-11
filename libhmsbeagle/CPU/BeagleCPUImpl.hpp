@@ -1328,6 +1328,28 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
     return returnCode;
 }
 
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations,
+  														   int count) {
+	int returnCode = BEAGLE_ERROR_GENERAL;
+	  														   
+  	fprintf(stderr, "BeagleCPUImpl::updateBastaPartials\n");			   
+  														   
+	return returnCode;  														   
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operations,
+	     				  									   int operationCount,
+							  	     				  		   const int* segments,
+	     				  									   int segmentCount) {
+	int returnCode = BEAGLE_ERROR_GENERAL;
+	  														   
+  	fprintf(stderr, "BeagleCPUImpl::accumulateBastaPartials\n");			   
+  														   
+	return returnCode;  		     				  									   
+}
+
 //BEAGLE_CPU_TEMPLATE
 //int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivative(const int *postBufferIndices,
 //                                                               const int *preBufferIndices,

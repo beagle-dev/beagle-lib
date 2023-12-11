@@ -1,7 +1,7 @@
 /**
  * @file beagle.h
  *
- * Copyright 2009-2013 Phylogenetic Likelihood Working Group
+ * Copyright 2009-2024 Phylogenetic Likelihood Working Group
  *
  * This file is part of BEAGLE.
  *
@@ -1397,6 +1397,31 @@ BEAGLE_DLLEXPORT int beagleGetSiteLogLikelihoods(int instance,
 BEAGLE_DLLEXPORT int beagleGetSiteDerivatives(int instance,
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
+                                    
+// START OF BASTA                                    
+                                    
+typedef struct {
+    int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+    int child1Partials;         /**< index of first child partials buffer */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+    int child2Partials;         /**< index of second child partials buffer */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int accumulation1Partials;
+    int accumulation2Partials2;
+    int intervalNumber;
+} BastaOperation;                                    
+                                                                
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount);                                    
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount,
+                                               const int* segments,
+                                               int segmentCount); 
+
+// END OF BASTA
 
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (closing brace)
