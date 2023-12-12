@@ -64,6 +64,7 @@ add_library(hmsbeagle SHARED
         benchmark/BeagleBenchmark.cpp
         benchmark/linalg.h
         benchmark/linalg.cpp
+        benchmark/BenchmarkHelper.h
 
         ${BEAGLE_INTEGRATED_JNI_SOURCE}
 
@@ -73,6 +74,35 @@ add_library(hmsbeagle SHARED
         plugin/SharedLibrary.h
         ${BEAGLE_PLUGIN_SOURCE}
         )
+
+if(NOT WIN32)
+	if(NOT APPLE)
+		target_link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
+	endif(NOT APPLE)
+endif(NOT WIN32)
+
+
+if(BEAGLE_BENCHMARK_ENERGY)
+	find_library(NVIDIA_ML_LIBRARY
+			NAMES nvidia-ml
+			PATHS /usr/lib/x86_64-linux-gnu
+			)
+	target_link_libraries(hmsbeagle nvidia-ml)
+
+	if(NOT NVIDIA_ML_LIBRARY)
+		message(FATAL_ERROR "Nvidia ML library not found")
+	else()
+		message(STATUS "Nvidia ML library found at ${NVIDIA_ML_LIBRARY}")
+	endif()
+
+
+	find_package(CUDA)
+	if(CUDA_FOUND AND BUILD_CUDA)
+		message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
+		target_include_directories(hmsbeagle PRIVATE ${CUDA_INCLUDE_DIRS})
+	endif(CUDA_FOUND AND BUILD_CUDA)
+
+endif()
 
 set_target_properties(hmsbeagle PROPERTIES
                                 PUBLIC_HEADER "beagle.h;platform.h"

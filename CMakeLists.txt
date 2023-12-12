@@ -4,9 +4,10 @@ project(BEAGLE)
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
 set(BEAGLE_VERSION_MINOR "0")
-set(BEAGLE_VERSION_PATCH "1")
+set(BEAGLE_VERSION_PATCH "2")
 
 set(GENERIC_API_VERSION "1")
+
 
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
 set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
@@ -19,10 +20,37 @@ set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
+option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
 option(BUILD_SSE "Build beagle with SSE library" ON)
 option(BUILD_BASTA "Build beagle with mbasta library" OFF)
 
 # Old config.h settings
+
+OPTION(BEAGLE_BENCHMARK "Print runtimes" OFF)
+OPTION(BEAGLE_DEBUG_FLOW "Print flow" OFF)
+OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
+OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
+OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
+
+IF(BEAGLE_BENCHMARK)
+    ADD_DEFINITIONS(-DBEAGLE_BENCHMARK)
+ENDIF(BEAGLE_BENCHMARK)
+
+IF(BEAGLE_BENCHMARK_ENERGY)
+	ADD_DEFINITIONS(-DBEAGLE_BENCHMARK_ENERGY)
+ENDIF(BEAGLE_BENCHMARK_ENERGY)
+
+IF(BEAGLE_DEBUG_FLOW)
+    ADD_DEFINITIONS(-DBEAGLE_DEBUG_FLOW)
+ENDIF(BEAGLE_DEBUG_FLOW)
+
+IF(BEAGLE_DEBUG_VALUES)
+    ADD_DEFINITIONS(-DBEAGLE_DEBUG_VALUES)
+ENDIF(BEAGLE_DEBUG_VALUES)
+
+IF(BEAGLE_DEBUG_SYNCH)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
+ENDIF(BEAGLE_DEBUG_SYNCH)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"
@@ -77,6 +105,15 @@ else(JNI_FOUND)
 		message (FATAL_ERROR "No JNI includes and libraries found")
 	endif(BUILD_JNI)
 endif(JNI_FOUND)
+
+if(BUILD_OPENMP)
+	find_package(OpenMP)
+	if(OpenMP_CXX_FOUND)
+		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
+	else(OpenMP_CXX_FOUND)
+		message (FATAL_ERROR "No OpenMP Found")
+	endif(OpenMP_CXX_FOUND)
+endif(BUILD_OPENMP)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle

@@ -126,7 +126,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         }
 
         // TODO: free subpointers
-        gpu->FreeMemory(dMatrices[0]);
+        gpu->FreeMemory(dMatrices[0]);    // TODO Should try: gpu->FreeMemory(dMatricesOrigin); instead of above
         gpu->FreeMemory(dEigenValues[0]); // TODO Here is where my Mac / Intel-GPU are throwing bad-exception
         gpu->FreeMemory(dEvec[0]);        // TODO Should be save and then release just d*Origin?
         gpu->FreeMemory(dIevc[0]);
@@ -572,7 +572,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
     kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    GPUPtr dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
     for (int i = 0; i < kMatrixCount; i++) {
         dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
     }
@@ -2845,15 +2845,17 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int
     if (kExtraMatrixCount < operationCount) {
 
         size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
-        GPUPtr dMatricesOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
+        GPUPtr dMatricesNewOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
 
-        gpu->MemcpyDeviceToDevice(dMatricesOrigin, dMatrices[0],
+        gpu->MemcpyDeviceToDevice(dMatricesNewOrigin, dMatricesOrigin,
                 (kMatrixCount + kExtraMatrixCount) * ptrIncrement);
 
-        gpu->FreeMemory(dMatrices[0]);
+        //gpu->FreeMemory(dMatrices[0]);
+        gpu->FreeMemory(dMatricesOrigin);
         free(dMatrices);
 
         dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * (kMatrixCount + operationCount));
+        dMatricesOrigin = dMatricesNewOrigin;
 
         for (int i = 0; i < kMatrixCount + operationCount; ++i) {
             dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement);
@@ -3050,7 +3052,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
 //
 
 #ifdef BEAGLE_DEBUG_SYNCH
-    gpu->Synchronize();
+    gpu->SynchronizeHost();
 #endif
     return BEAGLE_SUCCESS;
 }
@@ -4481,8 +4483,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
 BEAGLE_GPU_TEMPLATE
 void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::initDerivatives(int replicates) {
 
-    int minSize = std::max(kPaddedPatternCount * kBufferCount,
-            kPaddedPatternCount * kPaddedPatternCount * replicates);
+    int minSize = std::max(kPaddedStateCount * kPaddedStateCount * replicates,
+                           std::max(kPaddedPatternCount * kBufferCount,
+                                    kPaddedPatternCount * kPaddedPatternCount * replicates));
 
     if (kMultipleDerivativesLength < minSize) {
 
@@ -4542,12 +4545,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
         hDistanceQueue[lengthCount++] = (Real) categoryRates[i];
     }
 
-    unsigned int nodeBlocks = 8; // TODO Determine relatively good values
-    unsigned int patternBlocks = 16; // TODO Determine relatively good value
+    unsigned int nodeBlocks = 16; // TODO Determine relatively good values
+    unsigned int patternBlocks = 32; // TODO Determine relatively good value
 
     gpu->MemcpyHostToDevice(dDistanceQueue, hDistanceQueue, sizeof(Real) * lengthCount);
 
-    initDerivatives(nodeBlocks * patternBlocks);
+    const int replicates = nodeBlocks * patternBlocks;
+    initDerivatives(replicates);
 
     bool accumulate = false;
     if (statesTipsCount > 0) {
@@ -4560,7 +4564,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                categoryWeights, dPatternWeights,
                0, statesTipsCount, totalCount,
                kPaddedPatternCount, kCategoryCount, accumulate,
-               nodeBlocks, patternBlocks);
+               nodeBlocks, patternBlocks, kStateCount);
 
         accumulate = true;
     }
@@ -4576,8 +4580,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
         nodeBlocks, patternBlocks
     );
 
-    int replicates = nodeBlocks * patternBlocks;
-
     std::vector<Real> hTmp(kPaddedStateCount * kPaddedStateCount * replicates); // TODO Use existing buffer
     gpu->MemcpyDeviceToHost(hTmp.data(), dMultipleDerivatives, sizeof(Real) * kPaddedStateCount * kPaddedStateCount * replicates);
 
@@ -4592,7 +4594,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                      hTmp.data() + i * kPaddedStateCount,
                      kStateCount);
     }
-
 
     return BEAGLE_SUCCESS;
 }
