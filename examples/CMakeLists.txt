@@ -16,6 +16,9 @@ add_executable(tensorcores_X_state
 add_executable(tensorcores_X_state_postOrder
 		tensor_cores/test_X_state_postOrder.cpp)
 
+add_executable(test_plugin
+		tensor_cores/test_plugin.cpp)
+
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
 

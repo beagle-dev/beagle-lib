@@ -14,5 +14,10 @@ find_package(CUDA)
 if(CUDA_FOUND AND BUILD_CUDA)
     message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
     add_subdirectory("CMake_CUDA")
-endif(CUDA_FOUND AND BUILD_CUDA)
+endif()
+
+if(CUDA_FOUND AND BUILD_CUDA AND BEAGLE_TENSOR_CORES)
+    message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
+    add_subdirectory("CMake_TensorCores")
+endif()
                                     

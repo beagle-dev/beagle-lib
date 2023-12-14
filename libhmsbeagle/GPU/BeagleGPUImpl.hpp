@@ -38,7 +38,9 @@
 namespace beagle {
 namespace gpu {
 
-#ifdef CUDA
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+    namespace tensorCores {
+#elif defined(CUDA)
     namespace cuda {
 #else
     namespace opencl {

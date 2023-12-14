@@ -34,7 +34,7 @@
 #define BEAGLE_GPU_TEMPLATE template <typename Real>
 
 #ifdef CUDA
-	using namespace cuda_device;
+    using namespace cuda_device;
 #else
 	using namespace opencl_device;
 #endif
@@ -43,9 +43,13 @@ namespace beagle {
 namespace gpu {
 
 #ifdef CUDA
-	namespace cuda {
+#ifdef CUDA_TENSOR_CORES
+        namespace tensorCores {
 #else
-	namespace opencl {
+        namespace cuda {
+#endif
+#else
+        namespace opencl {
 #endif
 
 BEAGLE_GPU_TEMPLATE

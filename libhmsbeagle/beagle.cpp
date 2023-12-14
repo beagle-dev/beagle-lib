@@ -152,6 +152,18 @@ void beagleLoadPlugins(void) {
 
     try{
 #ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-tensor-cores" << std::endl;
+#endif
+        beagle::plugin::Plugin* tensorCoresPlug = pm.findPlugin("hmsbeagle-tensor-cores");
+        plugins->push_back(tensorCoresPlug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-tensor-cores: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-opencl" << std::endl;
 #endif
         beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl");
