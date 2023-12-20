@@ -28,10 +28,12 @@
 
 /**************CODE***********/
 
-#ifdef CUDA
-namespace cuda_device {
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+    namespace tensor_cores_device {
+#elif defined(CUDA)
+    namespace cuda_device {
 #else
-namespace opencl_device {
+    namespace opencl_device {
 #endif
 
 REAL* ones = NULL; // TODO: Memory leak, need to free at some point.

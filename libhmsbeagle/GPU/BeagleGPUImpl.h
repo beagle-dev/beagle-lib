@@ -33,10 +33,13 @@
 #define BEAGLE_GPU_GENERIC	Real
 #define BEAGLE_GPU_TEMPLATE template <typename Real>
 
-#ifdef CUDA
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+    using namespace tensor_cores_device;
+//    using namespace  cuda_device;
+#elif defined(CUDA)
     using namespace cuda_device;
 #else
-	using namespace opencl_device;
+    using namespace opencl_device;
 #endif
 
 namespace beagle {

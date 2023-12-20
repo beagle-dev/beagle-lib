@@ -28,7 +28,19 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 
-#ifdef CUDA
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+    #include <cuda.h>
+#   ifdef BEAGLE_XCODE
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
+#   else
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#   endif
+    typedef CUdeviceptr GPUPtr;
+    typedef CUfunction GPUFunction;
+
+    namespace tensor_cores_device {
+//    namespace cuda_device {
+#elif defined(CUDA)
     #include <cuda.h>
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"

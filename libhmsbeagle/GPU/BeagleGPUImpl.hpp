@@ -4601,7 +4601,17 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
     return NULL;
 }
 
-#ifdef CUDA
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+template<>
+const char* BeagleGPUImplFactory<double>::getName() {
+    return "GPU-DP-TENSOR-CORES";
+}
+
+template<>
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "GPU-SP-TENSOR-CORES";
+}
+#elif CUDA
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
     return "GPU-DP-CUDA";
