@@ -19,18 +19,18 @@ else(WIN32)
     set(NVCC "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
     set(NVCCFLAGS "-O3 -Wno-deprecated-gpu-targets -ccbin ${CMAKE_CXX_COMPILER} -m64 -D_POSIX_C_SOURCE -std=c++11 -arch=sm_80 -lineinfo")
     set(NVCC_INC "-I${CMAKE_SOURCE_DIR}")
-     set(CMD_NAME make_tensor_cores_kernels.sh)
+     set(CMD_NAME make_cuda_kernels.sh)
 endif(WIN32)
 
 add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTensorCores_kernels.h
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME} ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
         DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsX.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
         COMMENT "Building CUDA kernels"
         VERBATIM)
 
-add_custom_target(TensorCoresKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTensorCores_kernels.h)
+add_custom_target(TensorCoresKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h)
 
 add_library(hmsbeagle-tensor-cores SHARED
         ../BeagleGPUImpl.h
@@ -38,7 +38,7 @@ add_library(hmsbeagle-tensor-cores SHARED
         ../GPUImplDefs.h
         ../GPUImplHelper.cpp
         ../GPUImplHelper.h
-        ../GPUInterfaceTensorCores.cpp
+        ../GPUInterfaceCUDA.cpp
         ../KernelLauncher.cpp
         ../KernelLauncher.h
         ../KernelResource.cpp
