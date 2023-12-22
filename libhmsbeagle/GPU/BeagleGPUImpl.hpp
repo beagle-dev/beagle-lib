@@ -38,9 +38,7 @@
 namespace beagle {
 namespace gpu {
 
-#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
-    namespace tensorCores {
-#elif defined(CUDA)
+#ifdef CUDA
     namespace cuda {
 #else
     namespace opencl {
@@ -4601,7 +4599,9 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
     return NULL;
 }
 
-#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
+#ifdef CUDA
+
+#ifdef CUDA_TENSOR_CORES
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
     return "GPU-DP-TENSOR-CORES";
@@ -4611,16 +4611,19 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "GPU-SP-TENSOR-CORES";
 }
-#elif CUDA
-template<>
-const char* BeagleGPUImplFactory<double>::getName() {
-    return "GPU-DP-CUDA";
-}
 
-template<>
-const char* BeagleGPUImplFactory<float>::getName() {
-    return "GPU-SP-CUDA";
-}
+#else
+            template<>
+            const char* BeagleGPUImplFactory<double>::getName() {
+                return "GPU-DP-CUDA";
+            }
+
+            template<>
+            const char* BeagleGPUImplFactory<float>::getName() {
+                return "GPU-SP-CUDA";
+            }
+
+#endif
 #elif defined(FW_OPENCL)
 template<>
 const char* BeagleGPUImplFactory<double>::getName() {
