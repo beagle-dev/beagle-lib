@@ -46,11 +46,7 @@ namespace beagle {
 namespace gpu {
 
 #ifdef CUDA
-#ifdef CUDA_TENSOR_CORES
-        namespace tensorCores {
-#else
         namespace cuda {
-#endif
 #else
         namespace opencl {
 #endif

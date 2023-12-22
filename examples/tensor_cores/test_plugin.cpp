@@ -127,7 +127,7 @@ int main( int argc, const char* argv[] )
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
 
-//    requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+    requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(

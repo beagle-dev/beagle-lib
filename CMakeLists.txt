@@ -3,7 +3,9 @@ project(BEAGLE)
 
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
-set(BEAGLE_VERSION_MINOR "0")
+# Note: Temporatily edited major or minor version to check if right plugin is loaded
+# TODO: Revert minor version to 0
+set(BEAGLE_VERSION_MINOR "1")
 set(BEAGLE_VERSION_PATCH "2")
 
 set(GENERIC_API_VERSION "1")
@@ -55,6 +57,10 @@ ENDIF(BEAGLE_TENSOR_CORES)
 IF(BEAGLE_DEBUG_SYNCH)
 	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
 ENDIF(BEAGLE_DEBUG_SYNCH)
+
+IF(BEAGLE_DEBUG_LOAD)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_LOAD)
+ENDIF(BEAGLE_DEBUG_LOAD)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"

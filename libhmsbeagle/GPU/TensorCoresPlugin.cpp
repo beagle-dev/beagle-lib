@@ -60,7 +60,7 @@ Plugin("GPU-TENSOR-CORES", "GPU-TENSOR-CORES")
 	// list with compatible factories
 //	if(beagleResources.size() > 0) {
     if (anyGPUSupportsCUDA) {
-    	using namespace tensorCores;
+    	using namespace cuda;
         if (anyGPUSupportsDP) {
             // TODO Uncomment when working
             beagleFactories.push_back(new BeagleGPUImplFactory<double>());
