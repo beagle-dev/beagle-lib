@@ -24,9 +24,7 @@
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 
-#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
-    namespace tensor_cores_device {
-#elif defined(CUDA)
+#ifdef CUDA
     namespace cuda_device {
 #else
     namespace opencl_device {
