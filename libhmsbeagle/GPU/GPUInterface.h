@@ -33,7 +33,11 @@
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
 #   else
-        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#ifdef CUDA_TENSOR_CORES
+    #include "libhmsbeagle/GPU/kernels/BeagleTensorCore_kernels.h"
+#else
+    #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#endif
 #   endif
     typedef CUdeviceptr GPUPtr;
     typedef CUfunction GPUFunction;
