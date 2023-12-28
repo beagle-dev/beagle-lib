@@ -45,7 +45,7 @@ private:
     GPUFunction fPartialsPartialsByPatternBlockCoherentMulti;
     GPUFunction fPartialsPartialsByPatternBlockCoherentPartition;
     GPUFunction fPartialsPartialsByPatternBlockCoherent;
-    GPUFunction fPartialsPartialsByPatternBlockCoherentTensorCores;
+//    GPUFunction fPartialsPartialsByPatternBlockCoherentTensorCores;
     GPUFunction fPartialsPartialsByPatternBlockFixedScalingMulti;
     GPUFunction fPartialsPartialsByPatternBlockFixedScalingPartition;
     GPUFunction fPartialsPartialsByPatternBlockFixedScaling;
@@ -59,7 +59,7 @@ private:
 	GPUFunction fMultipleNodeSiteReduction;
 	GPUFunction fMultipleNodeSiteSquaredReduction;
 	GPUFunction fPartialsPartialsGrowing;
-    GPUFunction fPartialsPartialsGrowingTensorCores;
+//    GPUFunction fPartialsPartialsGrowingTensorCores;
 	GPUFunction fPartialsStatesGrowing;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
