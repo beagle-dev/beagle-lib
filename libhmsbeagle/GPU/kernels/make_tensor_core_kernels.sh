@@ -42,7 +42,7 @@ srcdir="."
 # Compile double-precision kernels
 #
 # 	Compile 4-state model
-	${NVCC} -o BeagleTensorCore_kernels.ptx --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
+	${NVCC} -o BeagleTensorCore_kernels.ptx --default-stream per-thread -ptx -DCUDA -DCUDA_TENSOR_CORES -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
 		$srcdir/kernels4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleTensorCore_kernels.h; exit; }; \
 	echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$/\\n\\/' >> BeagleTensorCore_kernels.h; \
 	cat BeagleTensorCore_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleTensorCore_kernels.h; \
@@ -52,7 +52,7 @@ srcdir="."
 #
 	for s in $STATE_COUNT_LIST; do \
 		echo "Making CUDA Tensor Core DP state count = $s" ; \
-		${NVCC} -o BeagleTensorCore_kernels.ptx --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
+		${NVCC} -o BeagleTensorCore_kernels.ptx --default-stream per-thread -ptx -DCUDA -DCUDA_TENSOR_CORES -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
 			$srcdir/kernelsX.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleTensorCore_kernels.h; exit; }; \
 		echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> BeagleTensorCore_kernels.h; \
 		cat BeagleTensorCore_kernels.ptx | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleTensorCore_kernels.h; \
