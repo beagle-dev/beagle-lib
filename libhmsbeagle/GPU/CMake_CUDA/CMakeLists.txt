@@ -26,7 +26,7 @@ add_custom_command(
         OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleCUDA_kernels.h
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME} ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsX.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
+        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4CudaCore.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernels4DerivativesCudaCore.cu" "../kernels/kernelsX.cu" "../kernels/kernelsXCudaCore.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsXDerivativesCudaCore.cu" "../kernels/kernelsAll.cu"
         COMMENT "Building CUDA kernels"
         VERBATIM)
 
