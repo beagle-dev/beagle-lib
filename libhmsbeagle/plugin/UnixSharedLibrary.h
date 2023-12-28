@@ -54,7 +54,7 @@ UnixSharedLibrary::UnixSharedLibrary(const char* name)
     libname += ".0.0";
 #endif
 
-    m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_GLOBAL);
+    m_handle = dlopen(libname.c_str(),RTLD_NOW|RTLD_LOCAL);
     if (m_handle == 0)
     {
     const char* s = dlerror();

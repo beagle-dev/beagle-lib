@@ -72,6 +72,7 @@ int main( int argc, const char* argv[] )
 
     bool singlePrecision = false;
     bool useSSE = false;
+    bool useTensorCores = true;
 
     // is nucleotides...
     int stateCount = 4;
@@ -121,13 +122,13 @@ int main( int argc, const char* argv[] )
     }
 
     long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
-    if (useSSE) {
+    if(useGpu && useTensorCores) {
+        requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+    } else if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
-
-    requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(

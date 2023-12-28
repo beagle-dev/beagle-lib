@@ -54,7 +54,7 @@ target_link_libraries(hmsbeagle-tensor-cores cuda ${CUDA_LIBRARIES})
 
 install(TARGETS hmsbeagle-tensor-cores
     DESTINATION ${BEAGLE_INSTALL_DIR}
-    COMPONENT cuda
+    COMPONENT cuda_tensor_cores
     )
 
 SET_TARGET_PROPERTIES(hmsbeagle-tensor-cores

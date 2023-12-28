@@ -237,6 +237,10 @@ if(APPLE)
   			DISPLAY_NAME "CUDA plugin"
   			DESCRIPTION "CUDA plugin")
 
+	cpack_add_component(cuda_tensor_cores
+			DISPLAY_NAME "Tensor Cores plugin"
+			DESCRIPTION "Tensor Cores plugin")
+
   	cpack_add_component(opencl
   			DISPLAY_NAME "OpenCL plugin"
   			DESCRIPTION "OpenCL plugin")

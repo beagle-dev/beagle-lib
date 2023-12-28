@@ -50,7 +50,7 @@ Plugin("GPU-TENSOR-CORES", "GPU-TENSOR-CORES")
                 	anyGPUSupportsDP = true;
                 }
                 
-                resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA;
+                resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA | BEAGLE_FLAG_VECTOR_TENSOR;
                 
                 beagleResources.push_back(resource);
             }
