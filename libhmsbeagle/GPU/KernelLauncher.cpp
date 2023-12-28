@@ -1044,12 +1044,19 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
 //#endif
 //#else
+#ifdef BEAGLE_TENSOR_CORES
+    int tmpPeelingBlocky = bgPeelingBlock.y;
+    bgPeelingBlock.y = 4;// TODO: Setup new block sizes for tensor core kernels
+#endif
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
+#ifdef BEAGLE_TENSOR_CORES
+    bgPeelingBlock.y = tmpPeelingBlocky;
+#endif
 //#endif
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
@@ -1267,12 +1274,19 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 //            }
 //            fprintf(stderr, "\n\t\tLeaving PartialsPartialsNoScale on tensor cores\n");
 //#else
+#ifdef BEAGLE_TENSOR_CORES
+            int tmpPeelingBlocky = bgPeelingBlock.y;
+            bgPeelingBlock.y = 4;// TODO: Setup new block sizes for tensor core kernels
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 6,
                                         partials1, partials2, partials3, matrices1, matrices2,
                                         patternCount);
+#ifdef BEAGLE_TENSOR_CORES
+            bgPeelingBlock.y = tmpPeelingBlocky;
+#endif
 //#endif
         }
 
