@@ -1938,7 +1938,7 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
                                   const int categoryWeightsIndex, const int categoryRatesIndex,
                                   const int stateFrequenciesIndex, const int *cumulativeScaleIndices, int count,
                                   double *outFirstDerivative, double *outDiagonalSecondDerivative) {
-    fprintf(stderr, "Depricated");
+    fprintf(stderr, "Function beagleCalculateEdgeDerivative is deprecated.\n");
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
@@ -1946,6 +1946,7 @@ int beagleAllocateBastaBuffers(const int instance,
                                const int bufferCount,
                                const int bufferLength) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL) {
@@ -1955,6 +1956,8 @@ int beagleAllocateBastaBuffers(const int instance,
     int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength);
 
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
     return returnValue;
 }
 
@@ -1963,6 +1966,7 @@ int beagleGetBastaBuffer(const int instance,
                          const int bufferIndex,
                          double* out) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL) {
@@ -1971,6 +1975,8 @@ int beagleGetBastaBuffer(const int instance,
 
     int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
     return returnValue;
 }
 
@@ -1982,6 +1988,7 @@ int beagleUpdateBastaPartials(const int instance,
                               int populationSizesIndex,
                               int coalescentIndex) {
 	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 	
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
 	if (beagleInstance == NULL) {
@@ -1991,7 +1998,9 @@ int beagleUpdateBastaPartials(const int instance,
 	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, 
 		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
 	
-	DEBUG_END_TIME();                              
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
 	return returnValue;
 }
 
@@ -2005,6 +2014,7 @@ int beagleAccumulateBastaPartials(const int instance,
                                   int coalescentIndex,
                                   double* out) {
 	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 	
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
 	if (beagleInstance == NULL) {
@@ -2016,7 +2026,9 @@ int beagleAccumulateBastaPartials(const int instance,
                                                               populationSizesIndex, coalescentIndex,
                                                               out);
 	
-	DEBUG_END_TIME();                              
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
 	return returnValue;                                  
                                   
 }
