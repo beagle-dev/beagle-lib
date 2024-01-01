@@ -9,19 +9,35 @@ extern "C" {
 #endif
 /*
  * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    allocateCoalescentBuffers
+ * Signature: (III)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentBuffers
+  (JNIEnv *, jobject, jint, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    getBastaBuffer
+ * Signature: (II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getBastaBuffer
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
  * Method:    updateBastaPartials
- * Signature: (I[III)I
+ * Signature: (I[II[IIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials
-  (JNIEnv *, jobject, jint, jintArray, jint, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
 
 /*
  * Class:     beagle_basta_BastaJNIWrapper
  * Method:    accumulateBastaPartials
- * Signature: (I[II[II)I
+ * Signature: (I[II[III[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
-  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
 
 #ifdef __cplusplus
 }

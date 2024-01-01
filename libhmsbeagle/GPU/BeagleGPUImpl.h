@@ -462,12 +462,25 @@ public:
                            
 	int updateBastaPartials(const int* operations,
   							int operationCount,
-  							int populationSizesIndex);                           
+  							const int* intervals,
+  							int intervalCount,
+                            int populationSizesIndex,
+                            int coalescentIndex);
 
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,
 	     				  		const int* segments,
-	     				  		int segmentCount);
+	     				  		int segmentCount,
+                                const double* intervalLengths,
+                                const int populationSizesIndex,
+                                int coalescentIndex,
+                                double* out);
+
+    int allocateBastaBuffers(int bufferCount,
+                             int bufferLength);
+
+    int getBastaBuffer(int bufferIndex,
+                       double* out);
 	     				  		                           
 private:
 

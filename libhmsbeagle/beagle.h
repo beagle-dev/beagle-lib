@@ -201,6 +201,7 @@ enum BeagleBenchmarkFlags {
 enum BeagleOpCodes {
     BEAGLE_OP_COUNT              = 7, /**< Total number of integers per beagleUpdatePartials operation */
     BEAGLE_PARTITION_OP_COUNT    = 9, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
+    BEAGLE_BASTA_OP_COUNT        = 8,
     BEAGLE_OP_NONE               = -1 /**< Specify no use for indexed buffer */
 };
 
@@ -1414,13 +1415,28 @@ typedef struct {
 BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
                                                const BastaOperation* operations,
                                                int operationCount,
-                                               int populationSizeIndex);                                    
+                                               const int* intervalStarts,
+                                               int intervalCount,
+                                               int populationSizeIndex,
+                                               int coalescentIndex);
 
 BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
-                                               const BastaOperation* operations,
-                                               int operationCount,
-                                               const int* segments,
-                                               int segmentCount); 
+                                                   const BastaOperation* operations,
+                                                   int operationCount,
+                                                   const int* intervalStarts,
+                                                   int intervalCount,
+                                                   const double* intervalLengths,
+                                                   const int populationSizesIndex,
+                                                   int coalescentIndex,
+                                                   double* out);
+
+BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
+                                                const int bufferCount,
+                                                const int bufferLength);
+
+BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
+                                          const int bufferIndex,
+                                          double* out);
 
 // END OF BASTA
 

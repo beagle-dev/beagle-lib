@@ -1942,10 +1942,45 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
+int beagleAllocateBastaBuffers(const int instance,
+                               const int bufferCount,
+                               const int bufferLength) {
+    DEBUG_START_TIME();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength);
+
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
+
+int beagleGetBastaBuffer(const int instance,
+                         const int bufferIndex,
+                         double* out) {
+    DEBUG_START_TIME();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleUpdateBastaPartials(const int instance,
                               const BastaOperation* operations,
                               int operationCount,
-                              int populationSizesIndex) {
+                              const int* intervals,
+                              int intervalCount,
+                              int populationSizesIndex,
+                              int coalescentIndex) {
 	DEBUG_START_TIME();
 	
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -1953,7 +1988,8 @@ int beagleUpdateBastaPartials(const int instance,
 		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 	}
 	
-	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, operationCount, populationSizesIndex);
+	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
 	
 	DEBUG_END_TIME();                              
 	return returnValue;
@@ -1962,8 +1998,12 @@ int beagleUpdateBastaPartials(const int instance,
 int beagleAccumulateBastaPartials(const int instance,
                                   const BastaOperation* operations,
                                   int operationCount,
-                                  const int* segments,
-                                  int segmentCount) {
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
 	DEBUG_START_TIME();
 	
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -1972,7 +2012,9 @@ int beagleAccumulateBastaPartials(const int instance,
 	}
 	
 	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
-															  segments, segmentCount);
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
 	
 	DEBUG_END_TIME();                              
 	return returnValue;                                  

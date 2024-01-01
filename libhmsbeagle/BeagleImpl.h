@@ -263,16 +263,28 @@ public:
 
     virtual int getSiteDerivatives(double* outFirstDerivatives,
                                    double* outSecondDerivatives) = 0;
-                                   
-                                   
+
 	virtual int updateBastaPartials(const int* operations,
 	     							int operationCount,
-	     							int populationSizesIndex) = 0;                                   
+	     							const int* intervals,
+	     							int intervalCount,
+                                    int populationSizesIndex,
+                                    int coalescentIndex) = 0;
                                    
 	virtual int accumulateBastaPartials(const int* operations,
 	     				  			    int operationCount,
 	     				  			    const int* segments,
-	     				  			    int segmentCount) = 0;  
+	     				  			    int segmentCount,
+                                        const double* intervalLengths,
+                                        const int populationSizesIndex,
+                                        int coalescentIndex,
+                                        double* out) = 0;
+
+    virtual int allocateBastaBuffers(int bufferCount,
+                                     int bufferLength) = 0;
+
+    virtual int getBastaBuffer(int bufferIndex,
+                               double* out) = 0;
                                    
 //protected:
     int resourceNumber;

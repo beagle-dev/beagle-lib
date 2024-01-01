@@ -2200,9 +2200,46 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
+                                     int bufferLength) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaBuffers\n");
+#endif
+
+    int returnCode = BEAGLE_ERROR_GENERAL;
+
+    fprintf(stderr, "BeagleGPUImpl::allocateBastaBuffers\n");
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::allocateBastaBuffers\n");
+#endif
+
+    return returnCode;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaBuffer(int bufferIndex,
+                                                      double* out) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::getBastaBuffer\n");
+#endif
+
+    fprintf(stderr, "BeagleGPUImpl::getBastaBuffer\n");
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::getBastaBuffer\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations,
-  														   int count,
-  														   int populationSizesIndex) {
+  														   const int count,
+  														   const int* intervals,
+  														   const int intervalCount,
+                                                           const int populationSizesIndex,
+                                                           const int coalescentIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
 #endif  														   
@@ -2221,8 +2258,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operations,
 	     				  									   int operationCount,
-							  	     				  		   const int* segments,
-	     				  									   int segmentCount) {
+							  	     				  		   const int* intervalStarts,
+	     				  									   int intervalStartsCount,
+                                                               const double* intervalLengths,
+                                                               const int populationSizesIndex,
+                                                               int coalescentIndex,
+                                                               double* out) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
 #endif 

@@ -133,6 +133,11 @@ protected:
     REALTYPE* ones;
     REALTYPE* zeros;
 
+    std::vector<REALTYPE> gBastaBuffers;
+    std::vector<REALTYPE> gCoalescentBuffers;
+    int kCoalescentBufferLength;
+    int kCoalescentBufferCount;
+
     struct threadData
     {
         std::thread t; // The thread object
@@ -447,12 +452,37 @@ public:
                            
 	int updateBastaPartials(const int* operations,
   							int operationCount,
-  							int populationSizesIndex);                             
+  							const int* intervals,
+  							int intervalCount,
+                            int populationSizesIndex,
+                            int coalescentIndex);
                            
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,
 	     				  		const int* segments,
-	     				  		int segmentCount);
+	     				  		int segmentCount,
+                                const double* intervalLengths,
+                                const int populationSizesIndex,
+                                int coalescentIndex,
+                                double* out);
+
+    int allocateBastaBuffers(int bufferCount,
+                             int bufferLength);
+
+    int getBastaBuffer(int bufferIndex,
+                       double* out);
+
+    void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
+                              REALTYPE* g, REALTYPE* h,
+                              int startBuffer1, int startBuffer2,
+                              int endBuffer1, int endBuffer2,
+                              int interval);
+
+    REALTYPE reduceAcrossIntervals(REALTYPE* e, REALTYPE* f, // TODO move to protected
+                                   REALTYPE* g, REALTYPE* h,
+                                   int interval, REALTYPE length,
+                                   const REALTYPE* sizes,
+                                   const REALTYPE* coalescent);
 
     int block(void);
 
