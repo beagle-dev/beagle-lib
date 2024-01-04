@@ -1,6 +1,8 @@
 }
 
+#ifdef CUDA_TENSOR_CORES
 #include <mma.h>
+#endif
 
 extern "C" {
 #define multBy4(x)  ((x) << 2)

@@ -1,6 +1,8 @@
 }
 
+#ifdef CUDA_TENSOR_CORES
 #include <mma.h>
+#endif
 
 extern "C" {
 KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
