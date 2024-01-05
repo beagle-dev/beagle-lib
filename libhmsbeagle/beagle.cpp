@@ -1974,6 +1974,7 @@ int beagleGetBastaBuffer(const int instance,
     }
 
     int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
+
     DEBUG_END_TIME();
     DEBUG_END_ENERGY();
 

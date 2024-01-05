@@ -134,11 +134,16 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     free(gTransitionMatrices);
 
     for(unsigned int i=0; i<kBufferCount; i++) {
+#ifndef BEAGLE_CACHE_FRIENDLY
         if (gPartials[i] != NULL)
             free(gPartials[i]);
+#endif
         if (gTipStates[i] != NULL)
             free(gTipStates[i]);
     }
+#ifdef BEAGLE_CACHE_FRIENDLY
+    free(gPartialsCache);
+#endif
     free(gPartials);
     free(gTipStates);
 
@@ -366,8 +371,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         gTipStates[i] = NULL;
     }
 
+#ifdef BEAGLE_CACHE_FRIENDLY
+    gPartialsCache = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize * (kBufferCount - kTipCount));
+#endif
+
     for (int i = kTipCount; i < kBufferCount; i++) {
+#ifdef BEAGLE_CACHE_FRIENDLY
+        gPartials[i] = gPartialsCache + (i - kTipCount) * kPartialsSize;
+#else
         gPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+#endif
         if (gPartials[i] == NULL)
             throw std::bad_alloc();
     }
@@ -1377,6 +1390,228 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaBuffer(int bufferIndex,
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials(const int* operations,
+                                                                 const int begin,
+                                                                 const int end,
+                                                                 const REALTYPE* sizes,
+                                                                 REALTYPE* coalescent) {
+    for (int op = begin; op < end; ++op) {
+
+        const int numOps = BEAGLE_BASTA_OP_COUNT;
+
+        const int destinationPartialIndex = operations[op * numOps];
+        const int child1PartialIndex = operations[op * numOps + 1];
+        const int child1TransMatIndex = operations[op * numOps + 2];
+        const int child2PartialIndex = operations[op * numOps + 3];
+        const int child2TransMatIndex = operations[op * numOps + 4];
+        const int accumulation1PartialIndex = operations[op * numOps + 5];
+        const int accumulation2PartialIndex = operations[op * numOps + 6];
+        const int intervalNumber = operations[op * numOps + 7];
+
+        const int matrixIncr = kStateCount + T_PAD;
+        const int stateCountModFour = (kStateCount / 4) * 4;
+
+        REALTYPE *destPartial = gPartials[destinationPartialIndex];
+
+        // child 1
+        const REALTYPE *partial1 = gPartials[child1PartialIndex];
+        const REALTYPE *matrix1 = gTransitionMatrices[child1TransMatIndex];
+
+        for (int i = 0; i < kStateCount; i++) {
+            const REALTYPE *matrices1Ptr = matrix1 + i * matrixIncr;
+            REALTYPE sum1A = 0.0;
+            REALTYPE sum1B = 0.0;
+
+            int j = 0;
+            for (; j < stateCountModFour; j += 4) {
+                sum1A += matrices1Ptr[j + 0] * partial1[j + 0];
+                sum1B += matrices1Ptr[j + 1] * partial1[j + 1];
+                sum1A += matrices1Ptr[j + 2] * partial1[j + 2];
+                sum1B += matrices1Ptr[j + 3] * partial1[j + 3];
+            }
+
+            for (; j < kStateCount; j++) {
+                sum1A += matrices1Ptr[j] * partial1[j];
+            }
+
+            destPartial[i] = sum1A + sum1B;
+        }
+
+        if (child2PartialIndex >= 0) {
+
+            // child 2
+            const REALTYPE *partial2 = gPartials[child2PartialIndex];
+            const REALTYPE *matrix2 = gTransitionMatrices[child2TransMatIndex];
+
+            REALTYPE *accumulation1 = gPartials[accumulation1PartialIndex];
+            REALTYPE *accumulation2 = gPartials[accumulation2PartialIndex];
+
+            REALTYPE prob = REALTYPE(0);
+
+            for (int i = 0; i < kStateCount; i++) {
+                const REALTYPE *matrices2Ptr = matrix2 + i * matrixIncr;
+                REALTYPE sum2A = 0.0;
+                REALTYPE sum2B = 0.0;
+
+                int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    sum2A += matrices2Ptr[j + 0] * partial2[j + 0];
+                    sum2B += matrices2Ptr[j + 1] * partial2[j + 1];
+                    sum2A += matrices2Ptr[j + 2] * partial2[j + 2];
+                    sum2B += matrices2Ptr[j + 3] * partial2[j + 3];
+                }
+
+                for (; j < kStateCount; j++) {
+                    sum2A += matrices2Ptr[j] * partial2[j];
+                }
+
+                REALTYPE child1 = destPartial[i];
+                REALTYPE child2 = sum2A + sum2B;
+                REALTYPE parent = child1 * child2 / sizes[i];
+
+                accumulation1[i] = child1;
+                accumulation2[i] = child2;
+                destPartial[i] = parent;
+
+                prob += parent;
+            }
+
+            for (int i = 0; i < kStateCount; i++) {
+                destPartial[i] /= prob;
+            }
+
+            coalescent[intervalNumber] = prob;
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials2(const int* operations,
+                                                                 const int op,
+                                                                 const REALTYPE* sizes,
+                                                                 REALTYPE* coalescent) {
+    const int numOps = BEAGLE_BASTA_OP_COUNT;
+
+    const int destinationPartialIndex = operations[op * numOps];
+    const int child1PartialIndex = operations[op * numOps + 1];
+    const int child1TransMatIndex = operations[op * numOps + 2];
+    const int child2PartialIndex = operations[op * numOps + 3];
+    const int child2TransMatIndex = operations[op * numOps + 4];
+    const int accumulation1PartialIndex = operations[op * numOps + 5];
+    const int accumulation2PartialIndex = operations[op * numOps + 6];
+    const int intervalNumber = operations[op * numOps + 7];
+
+    const int matrixIncr = kStateCount + T_PAD;
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+    REALTYPE *destPartial = gPartials[destinationPartialIndex];
+
+    // child 1
+    const REALTYPE *partial1 = gPartials[child1PartialIndex];
+    const REALTYPE *matrix1 = gTransitionMatrices[child1TransMatIndex];
+
+    for (int i = 0; i < kStateCount; i++) {
+        const REALTYPE *matrices1Ptr = matrix1 + i * matrixIncr;
+        REALTYPE sum1A = 0.0;
+        REALTYPE sum1B = 0.0;
+
+        int j = 0;
+        for (; j < stateCountModFour; j += 4) {
+            sum1A += matrices1Ptr[j + 0] * partial1[j + 0];
+            sum1B += matrices1Ptr[j + 1] * partial1[j + 1];
+            sum1A += matrices1Ptr[j + 2] * partial1[j + 2];
+            sum1B += matrices1Ptr[j + 3] * partial1[j + 3];
+        }
+
+        for (; j < kStateCount; j++) {
+            sum1A += matrices1Ptr[j] * partial1[j];
+        }
+
+        destPartial[i] = sum1A + sum1B;
+    }
+
+    if (child2PartialIndex >= 0) {
+
+        // child 2
+        const REALTYPE *partial2 = gPartials[child2PartialIndex];
+        const REALTYPE *matrix2 = gTransitionMatrices[child2TransMatIndex];
+
+        REALTYPE *accumulation1 = gPartials[accumulation1PartialIndex];
+        REALTYPE *accumulation2 = gPartials[accumulation2PartialIndex];
+
+        REALTYPE prob = REALTYPE(0);
+
+        for (int i = 0; i < kStateCount; i++) {
+            const REALTYPE *matrices2Ptr = matrix2 + i * matrixIncr;
+            REALTYPE sum2A = 0.0;
+            REALTYPE sum2B = 0.0;
+
+            int j = 0;
+            for (; j < stateCountModFour; j += 4) {
+                sum2A += matrices2Ptr[j + 0] * partial2[j + 0];
+                sum2B += matrices2Ptr[j + 1] * partial2[j + 1];
+                sum2A += matrices2Ptr[j + 2] * partial2[j + 2];
+                sum2B += matrices2Ptr[j + 3] * partial2[j + 3];
+            }
+
+            for (; j < kStateCount; j++) {
+                sum2A += matrices2Ptr[j] * partial2[j];
+            }
+
+            REALTYPE child1 = destPartial[i];
+            REALTYPE child2 = sum2A + sum2B;
+            REALTYPE parent = child1 * child2 / sizes[i];
+
+            accumulation1[i] = child1;
+            accumulation2[i] = child2;
+            destPartial[i] = parent;
+
+            prob += parent;
+        }
+
+        for (int i = 0; i < kStateCount; i++) {
+            destPartial[i] /= prob;
+        }
+
+        coalescent[intervalNumber] = prob;
+    }
+}
+
+template <typename Integer, typename Function>
+inline void for_each(Integer begin, Integer end, Function function, int global_num_threads) {
+    std::vector<std::thread> threads;
+    threads.reserve(global_num_threads);
+
+    // Calculate the chunk size for each thread
+    size_t chunk_size = (end - begin) / global_num_threads;
+    size_t remainder = (end - begin) % global_num_threads;
+
+    // Perform the operation in parallel using threads
+    for (size_t i = 0; i < global_num_threads; ++i) {
+        Integer thread_begin = begin + i * chunk_size;
+        Integer thread_end = thread_begin + chunk_size;
+        if (i == global_num_threads - 1) {
+            // Include the remainder in the last thread
+            thread_end += remainder;
+        }
+
+        threads.emplace_back([thread_begin, thread_end, &function] {
+//                threads.emplace_back([&] {
+                    function(thread_begin, thread_end);
+//            for (int j = thread_begin; j < thread_end; ++j) {
+//                function(j);
+//            }
+        });
+    }
+
+    // Wait for all threads to finish
+    for (auto &thread : threads) {
+        thread.join();
+    }
+}
+
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations,
   														   const int count,
   														   const int* intervals,
@@ -1387,97 +1622,35 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations
 
     REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
-  	
-  	for (int op = 0; op < count; ++op) {
-  		
-  		const int numOps = BEAGLE_BASTA_OP_COUNT;
-  	
-	  	const int destinationPartialIndex = operations[op * numOps];
-	  	const int child1PartialIndex = operations[op * numOps + 1];
-	  	const int child1TransMatIndex = operations[op * numOps + 2];
-	  	const int child2PartialIndex = operations[op * numOps + 3];
-	  	const int child2TransMatIndex = operations[op * numOps + 4];  	
-	  	const int accumulation1PartialIndex = operations[op * numOps + 5];
-  		const int accumulation2PartialIndex = operations[op * numOps + 6];
-	  	const int intervalNumber = operations[op * numOps + 7];
-  	  	
-	 	const int matrixIncr = kStateCount + T_PAD;
-		const int stateCountModFour = (kStateCount / 4) * 4;
-		
-		REALTYPE* destPartial = gPartials[destinationPartialIndex];
-								  	  	  	  	
-		// child 1		  	  	  	  	
-  	  	const REALTYPE* partial1 = gPartials[child1PartialIndex];
-  	  	const REALTYPE* matrix1 = gTransitionMatrices[child1TransMatIndex];
-  	  			
-		for (int i = 0; i < kStateCount; i++) {
-			const REALTYPE* matrices1Ptr = matrix1 + i * matrixIncr;					
-			REALTYPE sum1A = 0.0;
-			REALTYPE sum1B = 0.0;
-			
-			int j = 0;
-			for (; j < stateCountModFour; j += 4) {
-				sum1A += matrices1Ptr[j + 0] * partial1[j + 0];
-				sum1B += matrices1Ptr[j + 1] * partial1[j + 1];
-				sum1A += matrices1Ptr[j + 2] * partial1[j + 2];
-				sum1B += matrices1Ptr[j + 3] * partial1[j + 3];
-			}
 
-			for (; j < kStateCount; j++) {
-				sum1A += matrices1Ptr[j] * partial1[j];
-			}
+    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
-			destPartial[i] = sum1A + sum1B;
-		}		
-		
-  	  	if (child2PartialIndex >= 0) {  	  	
-  	  	
-  	  		// child 2
-  	  		const REALTYPE* partial2 = gPartials[child2PartialIndex];	
-	  	  	const REALTYPE* matrix2 = gTransitionMatrices[child2TransMatIndex];	 	  	  	
-	  	  	const REALTYPE* sizes = gStateFrequencies[populationSizesIndex]; 
-	  	  	
-	  	  	REALTYPE* accumulation1 = gPartials[accumulation1PartialIndex];
-	  	  	REALTYPE* accumulation2 = gPartials[accumulation2PartialIndex];
+    bool THREADING = true;
+    int CUT_POINT = 1280000;
+    int nThreads = 2;
 
-	  	  	REALTYPE prob = REALTYPE(0);
-	  	  	
-			for (int i = 0; i < kStateCount; i++) {					
-				const REALTYPE* matrices2Ptr = matrix2 + i * matrixIncr;
-				REALTYPE sum2A = 0.0;
-				REALTYPE sum2B = 0.0;
-				
-				int j = 0;
-				for (; j < stateCountModFour; j += 4) {					
-					sum2A += matrices2Ptr[j + 0] * partial2[j + 0];						
-					sum2B += matrices2Ptr[j + 1] * partial2[j + 1];						
-					sum2A += matrices2Ptr[j + 2] * partial2[j + 2];						
-					sum2B += matrices2Ptr[j + 3] * partial2[j + 3];
-				}
+    if (THREADING) {
 
-				for (; j < kStateCount; j++) {						
-					sum2A += matrices2Ptr[j] * partial2[j];
-				}
-				
-				REALTYPE child1 = destPartial[i];
-				REALTYPE child2 = sum2A + sum2B;				
-				REALTYPE parent = child1 * child2 / sizes[i];
-				
-				accumulation1[i] = child1;
-				accumulation2[i] = child2;								
-				destPartial[i] = parent;
-			
-				prob += parent;	
-			}
-			
-			for (int i = 0; i < kStateCount; i++) {
-				destPartial[i] /= prob;
-			}
+        for (int i = 0; i < intervalCount - 1; ++i) {
 
-            coalescent[intervalNumber] = prob;
-  	  	}  	
-  	}
-  	  			     														
+            const int begin = intervals[i];
+            const int end = intervals[i + 1];
+
+            if (end - begin > CUT_POINT) {
+                for_each(begin, end, [&](const int threadBegin, const int threadEnd) {
+                    updateInnerBastaPartials(operations, threadBegin, threadEnd, sizes, coalescent);
+                }, nThreads);
+//                for_each(begin, end, [&](const int j) {
+//                    updateInnerBastaPartials2(operations, j, sizes, coalescent);
+//                }, nThreads);
+            } else {
+                updateInnerBastaPartials(operations, begin, end, sizes, coalescent);
+            }
+        }
+    } else {
+        updateInnerBastaPartials(operations, 0, count, sizes, coalescent);
+    }
+
 	return returnCode;  														   
 }
 

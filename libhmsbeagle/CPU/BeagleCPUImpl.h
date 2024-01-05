@@ -34,6 +34,8 @@
 #include <mutex>
 #include <functional>
 
+//#define BEAGLE_CACHE_FRIENDLY
+
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
 
@@ -105,6 +107,10 @@ protected:
     REALTYPE** gPartials;
     int** gTipStates;
     REALTYPE** gScaleBuffers;
+
+#ifdef BEAGLE_CACHE_FRIENDLY
+    REALTYPE* gPartialsCache;
+#endif
 
     signed short** gAutoScaleBuffers;
 
@@ -199,7 +205,7 @@ public:
 
     // set the pre-order partials for root node
     //
-    // bufferIndices the indices of root nodes (may countain multiple)
+    // bufferIndices the indices of root nodes (may contain multiple)
     // stateFrequenciesIndices the indices of state frequencies at root
     // count number of root nodes
     int setRootPrePartials(const int* bufferIndices,
@@ -804,6 +810,17 @@ protected:
     void* mallocAligned(size_t size);
 
     void threadWaiting(threadData* tData);
+
+    void updateInnerBastaPartials(const int* operations, // TODO make protected
+                                  const int begin,
+                                  const int end,
+                                  const REALTYPE* sizes,
+                                  REALTYPE* coalescent);
+
+    void updateInnerBastaPartials2(const int* operations, // TODO make protected
+                                  const int op,
+                                  const REALTYPE* sizes,
+                                  REALTYPE* coalescent);
 
 private:
 
