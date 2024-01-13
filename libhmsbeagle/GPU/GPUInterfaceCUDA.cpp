@@ -33,11 +33,17 @@
 
 #include <cmath>
 
+#ifdef CUDA_TENSOR_CORES
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec) TENSOR_CORE_PATTERN_BLOCK_SIZE_##prec##_##state
+#else
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec)  PATTERN_BLOCK_SIZE_##prec##_##state
+#endif
+
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
             (char*) KERNELS_STRING_##prec##_##state, \
-            PATTERN_BLOCK_SIZE_##prec##_##state, \
+            LOAD_PATTERN_BLOCK_SIZE(state, prec), \
             MATRIX_BLOCK_SIZE_##prec##_##state, \
             BLOCK_PEELING_SIZE_##prec##_##state, \
             SLOW_REWEIGHING_##prec##_##state, \

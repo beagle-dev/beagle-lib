@@ -254,6 +254,10 @@ enum BeagleDeviceImplementationCodes {
 #define SMALLEST_POWER_OF_TWO_SP_256     256
 #define SLOW_REWEIGHING_SP_256           1
 
+// TENSOR CORE DEFINITIONS
+
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE  4
+
 // DOUBLE PRECISION definitions   TODO None of these have been checked
 
 // PADDED_STATE_COUNT == 4
@@ -265,6 +269,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_4             1
 #define SMALLEST_POWER_OF_TWO_DP_4       4
 #define SLOW_REWEIGHING_DP_4             0
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_4   PATTERN_BLOCK_SIZE_DP_4
 
 // PADDED_STATE_COUNT == 16
 #define PATTERN_BLOCK_SIZE_DP_16         8
@@ -273,6 +278,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_16            1
 #define SMALLEST_POWER_OF_TWO_DP_16      16
 #define SLOW_REWEIGHING_DP_16            0
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_16   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 32
 #define PATTERN_BLOCK_SIZE_DP_32         8
@@ -281,6 +287,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_32            1
 #define SMALLEST_POWER_OF_TWO_DP_32      32
 #define SLOW_REWEIGHING_DP_32            0
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_32   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_DP_48         8
@@ -292,6 +299,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_48            0
 #define SMALLEST_POWER_OF_TWO_DP_48      64
 #define SLOW_REWEIGHING_DP_48            0
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_48   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_DP_64         8
@@ -303,6 +311,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_64            1
 #define SMALLEST_POWER_OF_TWO_DP_64      64
 #define SLOW_REWEIGHING_DP_64            0
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_64   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_DP_80         8
@@ -314,6 +323,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_80            0
 #define SMALLEST_POWER_OF_TWO_DP_80      128
 #define SLOW_REWEIGHING_DP_80            1
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_80   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_DP_128        4
@@ -325,6 +335,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_128           1
 #define SMALLEST_POWER_OF_TWO_DP_128     128
 #define SLOW_REWEIGHING_DP_128           1
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_128   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_DP_192        2
@@ -336,6 +347,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_192           0
 #define SMALLEST_POWER_OF_TWO_DP_192     256
 #define SLOW_REWEIGHING_DP_192           1
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_192   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 // PADDED_STATE_COUNT == 256
 #define PATTERN_BLOCK_SIZE_DP_256        2
@@ -347,6 +359,7 @@ enum BeagleDeviceImplementationCodes {
 #define IS_POWER_OF_TWO_DP_256           1
 #define SMALLEST_POWER_OF_TWO_DP_256     256
 #define SLOW_REWEIGHING_DP_256           1
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_256   TENSOR_CORE_PATTERN_BLOCK_SIZE
 
 #ifdef STATE_COUNT
 #if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192 || STATE_COUNT == 256)
