@@ -1044,12 +1044,27 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
 //#endif
 //#else
+    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
-                      5, 6,
-                      partials1, partials2, partials3, matrices1, matrices2,
+                      6, 7,
+                      partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
                       patternCount);
     gpu->SynchronizeDevice();
+//    double tmp[256] ={-1};
+//    int npartials = 256;
+//    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials1\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
 //#endif
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");

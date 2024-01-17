@@ -22,14 +22,14 @@
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGTC";
-char *chimp = (char*)"GAGGC";
-char *gorilla = (char*)"AAAT-";
+//char *human = (char*)"GAGTC";
+//char *chimp = (char*)"GAGGC";
+//char *gorilla = (char*)"AAAT-";
 
 
-//char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTA";
-//char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTA";
-//char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTA";
+char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTA";
+char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTA";
+char *gorilla = (char*)"AGAAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGAGGTTTAAACCCCCTTA";
 
 //char *human = (char*)"GAGAAATATGTCTGATAAAAGAGTTACTTTGATAGAGTAAATAATAGGAGCTTAAACCCCCTTATTTCTACTAGGACTATGAGAATCGAACCCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATA";
 //char *chimp = (char*)"GGGAAATATGTCTGATAAAAGAATTACTTTGATAGAGTAAATAATAGGAGTTCAAATCCCCTTATTTCTACTAGGACTATAAGAATCGAACTCATCCCTGAGAATCCAAAATTCTCCGTGCCACCTATCACACCCCATCCTAAGTAAGGTCAGCTAAATAAGCTATCGGGCCCATA";
@@ -163,6 +163,7 @@ int main( int argc, const char* argv[] )
 
     bool singlePrecision = false;
     bool useSSE = false;
+    bool useTensorCores = true;
 
     // is nucleotides...
     int stateCount = 4;
@@ -211,7 +212,16 @@ int main( int argc, const char* argv[] )
     }
 
     long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
-    if (useSSE) {
+//    if (useSSE) {
+//        requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
+//    } else {
+//        requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
+//    }
+
+    if(useGpu && useTensorCores) {
+        requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+        requirementFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
+    } else if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
