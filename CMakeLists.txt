@@ -149,6 +149,12 @@ if(APPLE)
 
 	# Seems necessary from macOS 10.15
 	SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+elseif(UNIX)
+        # This tells libhmsbeagle.so to search the same directory to find plugins.
+        SET(CMAKE_INSTALL_RPATH "\$ORIGIN")
+        # $ORIGIN/{CPU,GPU,JNI} is so that libhmsbeagle.so can find the plugins in their build location.
+        # $ORIGIN/../libhmsbeagle is so that examples/* can find libhmsbeagle.so
+	SET(CMAKE_BUILD_RPATH "\$ORIGIN;\$ORIGIN/CPU;\$ORIGIN/GPU;\$ORIGIN/JNI;\$ORIGIN/../libhmsbeagle")
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
