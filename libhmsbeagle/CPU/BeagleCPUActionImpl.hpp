@@ -538,7 +538,7 @@ namespace beagle {
             }
 
 	    int bestM = INT_MAX;
-	    int bestS = INT_MAX;
+	    double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
 
 	    const double theta = thetaConstants[mMax];
 	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
@@ -550,11 +550,11 @@ namespace beagle {
 		for (auto& [thisM, thetaM]: thetaConstants) {
 		    const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
 		    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-			bestS = (int) thisS;
+			bestS = thisS;
 			bestM = thisM;
 		    }
 		}
-		s = bestS;
+		s = (int) std::min<double>(bestS, INT_MAX);
 	    } else {
 		if (gHighestPowers[eigenIndex] < 1) {
 		    SpMatrix currentMatrix = gBs[eigenIndex];
@@ -573,15 +573,19 @@ namespace beagle {
 			    // part of equation 3.10
 			    const double thisS = ceil(alpha / thetaConstants[thisM]);
 			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-				bestS = (int) thisS;
+				bestS = thisS;
 				bestM = thisM;
 			    }
 			}
 		    }
 		}
+		bestS = std::min<double>(bestS, INT_MAX);
 		s = bestS > 1 ? bestS : 1;
 	    }
 	    m = bestM;
+
+	    assert(s >= 0);
+	    assert(m >= 0);
         }
 
 
