@@ -34,6 +34,11 @@
 #include <vector>
 #include <iostream>
 
+#ifdef BEAGLE_DEBUG_FLOW
+#include <bitset>
+#endif
+
+
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/benchmark/BeagleBenchmark.h"
@@ -423,6 +428,14 @@ int rankResourceImplementationPairs(long preferenceFlags,
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tPossible implementation: %s (%d)\n",
                         (*factory)->getName(),totalScore);
+                std::bitset<64> tmpFlag(factoryFlags);
+                fprintf(stderr, "Factory flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(preferenceFlags);
+                fprintf(stderr, "Preference flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(resourceRequiredFlags);
+                fprintf(stderr, "Resource required flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(resourceSupportedFlags);
+                fprintf(stderr, "Resource supported flags: %s \n", tmpFlag.to_string().c_str());
 #endif
 
                 possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));

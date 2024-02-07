@@ -13,6 +13,7 @@
 #include <libhmsbeagle/BeagleImpl.h>
 #include <cmath>
 #include <vector>
+#include <bitset>
 
 //#define JC
 
@@ -21,6 +22,11 @@
 #endif
 
 #include "libhmsbeagle/beagle.h"
+
+void printBitFlag(long flags, const char* stem = "") {
+    std::bitset<64> x(flags);
+    fprintf(stdout, "\n\n %s: %s \n\n", stem, x.to_string().c_str());
+}
 
 void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
@@ -61,6 +67,7 @@ int main( int argc, const char* argv[] )
         fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
         fprintf(stdout, "\t\tFlags:");
         printFlags(rList->list[i].supportFlags);
+        printBitFlag(rList->list[i].supportFlags, "Resource support flags: ");
         fprintf(stdout, "\n");
     }
     fprintf(stdout, "\n");
@@ -120,15 +127,26 @@ int main( int argc, const char* argv[] )
     } else {
         preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     }
+    preferenceFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
 
     long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
     if(useGpu && useTensorCores) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+        requirementFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
     } else if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
+
+    long testFlag = 1 << 31;
+    printBitFlag(testFlag, "testFlag1: ");
+
+    testFlag = 1L << 31;
+    printBitFlag(testFlag, "testFlag2: ");
+
+    printBitFlag(requirementFlags, "requirementFlags");
+    printBitFlag(preferenceFlags, "preferenceFlags");
 
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
