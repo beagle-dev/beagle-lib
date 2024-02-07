@@ -531,6 +531,11 @@ namespace beagle {
 	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
 								      double edgeMultiplier,
 								      int eigenIndex) {
+	    assert( t >= 0 );
+	    assert( nCol >= 0);
+	    assert( edgeMultiplier >= 0 );
+	    assert( eigenIndex >= 0);
+
             if (t * gB1Norms[eigenIndex] == 0.0)
 		return {0, 1};
 
@@ -551,14 +556,6 @@ namespace beagle {
 			bestM = thisM;
 		    }
 		}
-
-		int m = bestM;
-		int s = (int) std::min<double>(bestS, INT_MAX);
-
-		assert(m >= 0);
-		assert(s >= 0);
-
-		return {m,s};
 	    } else {
 		if (gHighestPowers[eigenIndex] < 1) {
 		    SpMatrix currentMatrix = gBs[eigenIndex];
@@ -583,15 +580,16 @@ namespace beagle {
 			}
 		    }
 		}
-		bestS = std::min<double>(bestS, INT_MAX);
-		int m = bestM;
-		int s = bestS > 1 ? bestS : 1;
-
-		assert(m >= 0);
-		assert(s >= 0);
-
-		return {m,s};
+		bestS = std::max(bestS, 1.0);
 	    }
+
+	    int m = bestM;
+	    int s = (int) std::min<double>(bestS, INT_MAX);
+
+	    assert(m >= 0);
+	    assert(s >= 0);
+
+	    return {m,s};
         }
 
 
