@@ -482,11 +482,10 @@ namespace beagle {
                 const double tol = pow(2.0, -53.0);
                 const double t = 1.0;
                 const int nCol = kPatternCount;
-                int m, s;
 
                 const double edgeMultiplier = gEdgeMultipliers[edgeIndex * kCategoryCount + category];
 
-                getStatistics2(t, nCol, m, s, edgeMultiplier, gEigenMaps[edgeIndex]);
+                auto [m,s] = getStatistics2(t, nCol, edgeMultiplier, gEigenMaps[edgeIndex]);
 
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -528,14 +527,12 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol, int &m, int &s,
-                                                                           double edgeMultiplier,
-                                                                           int eigenIndex) {
-            if (t * gB1Norms[eigenIndex] == 0.0) {
-                m = 0;
-                s = 1;
-		return;
-            }
+        std::tuple<int,int>
+	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
+								      double edgeMultiplier,
+								      int eigenIndex) {
+            if (t * gB1Norms[eigenIndex] == 0.0)
+		return {0, 1};
 
 	    int bestM = INT_MAX;
 	    double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
@@ -554,7 +551,14 @@ namespace beagle {
 			bestM = thisM;
 		    }
 		}
-		s = (int) std::min<double>(bestS, INT_MAX);
+
+		int m = bestM;
+		int s = (int) std::min<double>(bestS, INT_MAX);
+
+		assert(m >= 0);
+		assert(s >= 0);
+
+		return {m,s};
 	    } else {
 		if (gHighestPowers[eigenIndex] < 1) {
 		    SpMatrix currentMatrix = gBs[eigenIndex];
@@ -580,12 +584,14 @@ namespace beagle {
 		    }
 		}
 		bestS = std::min<double>(bestS, INT_MAX);
-		s = bestS > 1 ? bestS : 1;
-	    }
-	    m = bestM;
+		int m = bestM;
+		int s = bestS > 1 ? bestS : 1;
 
-	    assert(s >= 0);
-	    assert(m >= 0);
+		assert(m >= 0);
+		assert(s >= 0);
+
+		return {m,s};
+	    }
         }
 
 
