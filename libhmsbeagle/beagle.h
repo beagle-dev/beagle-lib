@@ -152,7 +152,7 @@ enum BeagleFlags {
 
     BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
     BEAGLE_FLAG_VECTOR_AVX          = 1 << 24,   /**< AVX computation */
-    BEAGLE_FLAG_VECTOR_TENSOR       = 1LL << 32,   /**< Tensor cores */
+    BEAGLE_FLAG_VECTOR_TENSOR       = 1L << 32,   /**< Tensor cores */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
 
     BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
@@ -174,7 +174,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
 
     BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1 << 31 /**< Automatically transpose pre-order transition matrices */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1L << 31 /**< Automatically transpose pre-order transition matrices */
 };
 
 
