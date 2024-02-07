@@ -627,8 +627,7 @@ namespace beagle {
                 A = thisMatrix - mu * identity;
                 const double A1Norm = normP1(&A);
 
-                int m, s;
-                getStatistics(A1Norm, &A, t, nCol, m, s);
+                auto [m,s] = getStatistics(A1Norm, &A, t, nCol);
 
 #ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<" m = "<<m<<"  s = "<<s <<std::endl;
@@ -665,59 +664,65 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics(double A1Norm, SpMatrix * matrix, double t, int nCol, int &m, int &s) {
-            if (t * A1Norm == 0.0) {
-                m = 0;
-                s = 1;
-            } else {
-                int bestM = INT_MAX;
-                int bestS = INT_MAX;
+        std::tuple<int,int> BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics(double A1Norm, SpMatrix * matrix, double t, int nCol) {
+	    assert( t >= 0 );
+	    assert( A1Norm >= 0.0 );
+	    assert( nCol >= 0 );
 
-                const double theta = thetaConstants[mMax];
-                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
-                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+            if (t * A1Norm == 0.0)
+                return {0,1};
 
-                const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
-                // using l = 1 as in equation 3.13
+	    int bestM = INT_MAX;
+	    double bestS = INT_MAX;
 
-                std::map<int, double>::iterator it;
-                if (conditionFragment313) {
-                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
-                        const int thisM = it->first;
-                        const double thisS = ceil(A1Norm/thetaConstants[thisM]);
-                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                            bestS = (int) thisS;
-                            bestM = thisM;
-                        }
-                    }
-                    s = bestS;
-                } else {
-                    std::map<int, double> d;
-                    SpMatrix firstOrderMatrix = *matrix;
-                    std::map<int, SpMatrix> powerMatrices;
-                    powerMatrices[1] = firstOrderMatrix;
-                    d[1] = normP1(&firstOrderMatrix);
-                    for (int p = 2; p < pMax; p++) {
-                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
-                            it = thetaConstants.find(thisM);
-                            if (it != thetaConstants.end()) {
-                                // equation 3.7 in Al-Mohy and Higham
-                                const double dValueP = getDValue(p, d, powerMatrices);
-                                const double dValuePPlusOne = getDValue(p + 1, d, powerMatrices);
-                                const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
-                                // part of equation 3.10
-                                const double thisS = ceil(alpha / thetaConstants[thisM]);
-                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                                    bestS = (int) thisS;
-                                    bestM = thisM;
-                                }
-                            }
-                        }
-                    }
-                    s = bestS > 1 ? bestS : 1;
-                }
-                m = bestM;
-            }
+	    const double theta = thetaConstants[mMax];
+	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+	    const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+	    // using l = 1 as in equation 3.13
+
+	    if (conditionFragment313) {
+		for (auto& [thisM, thetaM]: thetaConstants) {
+		    const double thisS = ceil(A1Norm/thetaM);
+		    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+			bestS = thisS;
+			bestM = thisM;
+		    }
+		}
+	    } else {
+		std::map<int, double> d;
+		SpMatrix firstOrderMatrix = *matrix;
+		std::map<int, SpMatrix> powerMatrices;
+		powerMatrices[1] = firstOrderMatrix;
+		d[1] = normP1(&firstOrderMatrix);
+		for (int p = 2; p < pMax; p++) {
+		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+			auto it = thetaConstants.find(thisM);
+			if (it != thetaConstants.end()) {
+			    // equation 3.7 in Al-Mohy and Higham
+			    const double dValueP = getDValue(p, d, powerMatrices);
+			    const double dValuePPlusOne = getDValue(p + 1, d, powerMatrices);
+			    const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
+			    // part of equation 3.10
+			    const double thisS = ceil(alpha / thetaConstants[thisM]);
+			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+				bestS = (int) thisS;
+				bestM = thisM;
+			    }
+			}
+		    }
+		}
+		bestS = std::max(bestS, 1.0);
+	    }
+
+	    int m = bestM;
+	    int s = (int) std::min<double>(bestS, INT_MAX);
+
+	    assert(m >= 0);
+	    assert(s >= 0);
+
+	    return {m,s};
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE

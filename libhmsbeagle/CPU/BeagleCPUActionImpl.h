@@ -235,12 +235,11 @@ namespace beagle {
                                           MapType *partials2, int edgeIndex1,
                                           int edgeIndex2, MapType *partialCache2);
 
-            void getStatistics(double A1Norm,
-                               SpMatrix * matrix,
-                               double t,
-                               int nCol,
-                               int &m,
-                               int &s);
+	    // Return (m,s)
+	    std::tuple<int,int> getStatistics(double A1Norm,
+					      SpMatrix * matrix,
+					      double t,
+					      int nCol);
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
