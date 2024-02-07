@@ -544,11 +544,9 @@ namespace beagle {
 
                 const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
                 // using l = 1 as in equation 3.13
-                std::map<int, double>::iterator it;
                 if (conditionFragment313) {
-                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
-                        const int thisM = it->first;
-                        const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaConstants[thisM]);
+                    for (auto& [thisM, thetaM]: thetaConstants) {
+                        const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
                         if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
                             bestS = (int) thisS;
                             bestM = thisM;
@@ -564,7 +562,7 @@ namespace beagle {
                     }
                     for (int p = 2; p < pMax; p++) {
                         for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
-                            it = thetaConstants.find(thisM);
+                            auto it = thetaConstants.find(thisM);
                             if (it != thetaConstants.end()) {
                                 // equation 3.7 in Al-Mohy and Higham
                                 const double dValueP = getDValue2(p, eigenIndex);
