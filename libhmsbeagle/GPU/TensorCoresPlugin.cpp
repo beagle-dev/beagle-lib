@@ -65,7 +65,7 @@ Plugin("GPU-TENSOR-CORES", "GPU-TENSOR-CORES")
             // TODO Uncomment when working
             beagleFactories.push_back(new BeagleGPUImplFactory<double>());
         }
-        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
+//        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
 	}
 }
 
