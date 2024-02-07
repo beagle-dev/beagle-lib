@@ -242,8 +242,9 @@ namespace beagle {
                                int &m,
                                int &s);
 
-            void getStatistics2(double t, int nCol, int &m, int &s, double edgeMultiplier,
-                                int eigenIndex);
+	    // Return (m,s)
+	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
+					       int eigenIndex);
 
             double getDValue(int p,
                              std::map<int, double> &d,
