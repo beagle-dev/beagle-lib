@@ -534,53 +534,54 @@ namespace beagle {
             if (t * gB1Norms[eigenIndex] == 0.0) {
                 m = 0;
                 s = 1;
-            } else {
-                int bestM = INT_MAX;
-                int bestS = INT_MAX;
-
-                const double theta = thetaConstants[mMax];
-                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
-                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
-
-                const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
-                // using l = 1 as in equation 3.13
-                if (conditionFragment313) {
-                    for (auto& [thisM, thetaM]: thetaConstants) {
-                        const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
-                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                            bestS = (int) thisS;
-                            bestM = thisM;
-                        }
-                    }
-                    s = bestS;
-                } else {
-                    if (gHighestPowers[eigenIndex] < 1) {
-                        SpMatrix currentMatrix = gBs[eigenIndex];
-                        powerMatrices[eigenIndex][1] = currentMatrix;
-                        ds[eigenIndex][1] = normP1(&currentMatrix);
-                        gHighestPowers[eigenIndex] = 1;
-                    }
-                    for (int p = 2; p < pMax; p++) {
-                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
-                            auto it = thetaConstants.find(thisM);
-                            if (it != thetaConstants.end()) {
-                                // equation 3.7 in Al-Mohy and Higham
-                                const double dValueP = getDValue2(p, eigenIndex);
-                                const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
-                                const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * edgeMultiplier;
-                                // part of equation 3.10
-                                const double thisS = ceil(alpha / thetaConstants[thisM]);
-                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                                    bestS = (int) thisS;
-                                    bestM = thisM;
-                                }
-                            }
-                        }
-                    }
-                    s = bestS > 1 ? bestS : 1;
-                }
-                m = bestM;
+		return;
             }
+
+	    int bestM = INT_MAX;
+	    int bestS = INT_MAX;
+
+	    const double theta = thetaConstants[mMax];
+	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+	    const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+	    // using l = 1 as in equation 3.13
+	    if (conditionFragment313) {
+		for (auto& [thisM, thetaM]: thetaConstants) {
+		    const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
+		    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+			bestS = (int) thisS;
+			bestM = thisM;
+		    }
+		}
+		s = bestS;
+	    } else {
+		if (gHighestPowers[eigenIndex] < 1) {
+		    SpMatrix currentMatrix = gBs[eigenIndex];
+		    powerMatrices[eigenIndex][1] = currentMatrix;
+		    ds[eigenIndex][1] = normP1(&currentMatrix);
+		    gHighestPowers[eigenIndex] = 1;
+		}
+		for (int p = 2; p < pMax; p++) {
+		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+			auto it = thetaConstants.find(thisM);
+			if (it != thetaConstants.end()) {
+			    // equation 3.7 in Al-Mohy and Higham
+			    const double dValueP = getDValue2(p, eigenIndex);
+			    const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
+			    const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * edgeMultiplier;
+			    // part of equation 3.10
+			    const double thisS = ceil(alpha / thetaConstants[thisM]);
+			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+				bestS = (int) thisS;
+				bestM = thisM;
+			    }
+			}
+		    }
+		}
+		s = bestS > 1 ? bestS : 1;
+	    }
+	    m = bestM;
         }
 
 
