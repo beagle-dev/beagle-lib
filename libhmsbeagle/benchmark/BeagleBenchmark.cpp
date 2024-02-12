@@ -227,10 +227,10 @@ int benchmarkResource(int resource,
 
     beagleSetPatternWeights(instance, patternWeights);
     
-    int* patternPartitions;
-    double* partitionLogLs;
-    double* partitionD1;
-    double* partitionD2;
+    int* patternPartitions = NULL;
+    double* partitionLogLs = NULL;
+    double* partitionD1 = NULL;
+    double* partitionD2 = NULL;
     
     if (partitionCount > 1) {
         partitionLogLs = (double*) malloc(sizeof(double) * partitionCount);
