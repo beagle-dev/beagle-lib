@@ -80,7 +80,7 @@ WinSharedLibrary::~WinSharedLibrary()
 void* WinSharedLibrary::findSymbol(const char* name)
     throw (SharedLibraryException)
 {
-    void* sym = GetProcAddress(m_handle,name);
+    void* sym = (void*)GetProcAddress(m_handle,name);
     if (sym == 0)
     {
     char buffer[255];
