@@ -797,7 +797,7 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        const long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
+        long long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
             return  BEAGLE_FLAG_COMPUTATION_SYNCH |
                     BEAGLE_FLAG_COMPUTATION_ACTION |
                     BEAGLE_FLAG_PROCESSOR_CPU |
@@ -858,7 +858,7 @@ namespace beagle {
         }
 
         template <>
-        const long BeagleCPUActionImplFactory<double>::getFlags() {
+        long long BeagleCPUActionImplFactory<double>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
@@ -873,7 +873,7 @@ namespace beagle {
         }
 
         template <>
-        const long BeagleCPUActionImplFactory<float>::getFlags() {
+        long long BeagleCPUActionImplFactory<float>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |

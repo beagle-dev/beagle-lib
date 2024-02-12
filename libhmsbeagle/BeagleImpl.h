@@ -296,7 +296,7 @@ public:
     
     virtual const char* getName() = 0; // pure virtual
     
-    virtual const long getFlags() = 0; // pure virtual
+    virtual long long getFlags() = 0; // pure virtual
 };
 
 } // end namespace beagle

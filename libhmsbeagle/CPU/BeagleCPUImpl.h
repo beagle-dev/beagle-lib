@@ -459,7 +459,7 @@ public:
 
 	virtual const char* getName();
 
-	virtual const long getFlags();
+	virtual long long getFlags();
 
 protected:
     virtual int upPartials(bool byPartition,
@@ -813,7 +813,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 //typedef BeagleCPUImplGeneral<double> BeagleCPUImpl;

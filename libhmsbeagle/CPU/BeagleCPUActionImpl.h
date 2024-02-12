@@ -153,7 +153,7 @@ namespace beagle {
 
             virtual const char* getName();
 
-            virtual const long getFlags();
+            virtual long long getFlags();
 
             virtual int createInstance(int tipCount,
                                        int partialsBufferCount,
@@ -280,7 +280,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 

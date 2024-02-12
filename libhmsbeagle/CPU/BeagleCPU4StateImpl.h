@@ -276,7 +276,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 }	// namespace cpu

@@ -69,7 +69,7 @@ private:
     
     int kInitialized;
     
-    long kFlags;
+    long long kFlags;
     
     int kTipCount;
     int kPartialsBufferCount;
@@ -533,11 +533,11 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 template <typename Real>
-void modifyFlagsForPrecision(long* flags, Real r);
+void modifyFlagsForPrecision(long long* flags, Real r);
 
 } // namspace device
 }	// namespace gpu

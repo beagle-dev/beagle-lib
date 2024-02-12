@@ -106,17 +106,17 @@ template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
+inline long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
 
 template<>
-inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                       BEAGLE_FLAG_PROCESSOR_CPU |
                                                       BEAGLE_FLAG_PRECISION_DOUBLE |
                                                       BEAGLE_FLAG_VECTOR_NONE |
                                                       BEAGLE_FLAG_FRAMEWORK_CPU; };
 
 template<>
-inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                      BEAGLE_FLAG_PROCESSOR_CPU |
                                                      BEAGLE_FLAG_PRECISION_SINGLE |
                                                      BEAGLE_FLAG_VECTOR_NONE |
@@ -505,7 +505,7 @@ const char* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_TEMPLATE
-const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
+long long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
     return getBeagleCPUFlags<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
@@ -4889,17 +4889,17 @@ const char* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
-                 BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
-                 BEAGLE_FLAG_PROCESSOR_CPU |
-                 BEAGLE_FLAG_VECTOR_NONE |
-                 BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                 BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-                 BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-                 BEAGLE_FLAG_FRAMEWORK_CPU;
+long long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                      BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
+	              BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
+                      BEAGLE_FLAG_PROCESSOR_CPU |
+                      BEAGLE_FLAG_VECTOR_NONE |
+                      BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                      BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                      BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                      BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+                      BEAGLE_FLAG_FRAMEWORK_CPU;
     if (DOUBLE_PRECISION)
         flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else
