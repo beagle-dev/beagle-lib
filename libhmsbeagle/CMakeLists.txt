@@ -1,6 +1,5 @@
 if(WIN32)
 	add_definitions(-D_EXPORTING)
-	add_definitions(-DWIN32)
 	add_definitions(-D_CONSOLE)
 #	add_definitions(-DPACKAGE_VERSION="${BEAGLE_VERSION}")
 #	add_definitions(-DPLUGIN_VERSION="${BEAGLE_PLUGIN_VERSION}")
