@@ -1,0 +1,184 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+    - "*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        name: [ubuntu-gcc-10,
+               ubuntu-gcc-11-debugoptimized,
+               ubuntu-gcc-11,
+               ubuntu-gcc-12,
+               ubuntu-clang-15,
+               macos-xcode-14-intel,
+               macos-xcode-14-arm,
+               windows
+               ]
+
+        include:
+          - name: ubuntu-gcc-10
+            os: ubuntu-20.04
+            compiler: gcc
+            version: "10"
+            buildtype: "release"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-11-debugoptimized
+            os: ubuntu-22.04
+            compiler: gcc
+            version: "11"
+            buildtype: "debugoptimized"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-11
+            os: ubuntu-22.04
+            compiler: gcc
+            version: "11"
+            buildtype: "release"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-12
+            os: ubuntu-22.04
+            compiler: gcc
+            version: "12"
+            buildtype: "release"
+            arch: "linux64"
+
+          - name: ubuntu-clang-15
+            os: ubuntu-22.04
+            compiler: clang
+            version: "15"
+            buildtype: "release"
+            arch: "linux64"
+
+          - name: macos-xcode-14-intel
+            os: macos-12
+            compiler: xcode
+            version: "14"
+            buildtype: "release"
+            arch: "mac-intel64"
+
+          - name: macos-xcode-14-arm
+            os: macos-14
+            compiler: xcode
+            version: "14"
+            buildtype: "release"
+            arch: "mac-arm64"
+
+          - name: windows
+            os: ubuntu-22.04
+            compiler: mingw
+            version: "N/A"
+            buildtype: "release"
+            arch: "win64"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.12.0
+
+    - name: Install (Linux)
+      if: runner.os == 'Linux' && matrix.name != 'windows'
+      run: |
+        sudo apt-get install -y cmake ninja-build ccache pkg-config
+        sudo apt-get install -y openjdk-17-jdk libeigen3-dev
+
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
+          # For newer GCCs, maybe.
+          # sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa
+          # sudo apt-get update
+
+          sudo apt-get install -y g++-${{ matrix.version }}
+          echo "CC=ccache gcc-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CXX=ccache g++-${{ matrix.version }}" >> $GITHUB_ENV
+        else
+          sudo apt-get install -y clang-${{ matrix.version }}
+          echo "CC=ccache clang-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CXX=ccache clang++-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=-DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+        fi
+
+    - name: Install (Linux -> Windows [cross])
+      if: matrix.name == 'windows'
+      run: |
+        # For mingw/gcc-12.
+        cat /etc/apt/sources.list
+        sudo sed -i 's/jammy/lunar/g' /etc/apt/sources.list
+
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build ccache pkg-config
+        sudo apt-get install -y dos2unix g++-mingw-w64 mingw-w64-tools wine64 zstd
+
+        echo "CMAKE_ARGS=-DBUILD_ACTION=OFF -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
+
+    - name: Select XCode version (macOS)
+      if: runner.os == 'macOS'
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.version }}
+
+    - name: Install (macOS)
+      if: runner.os == 'macOS'
+      run: |
+          brew install cmake ninja pkg-config ccache coreutils eigen openjdk
+          echo "CC=ccache clang" >> $GITHUB_ENV
+          echo "CXX=ccache clang++" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=-DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+
+    # Caches for different branches are isolated, so we don't need to put the branch name into the key.
+    # The total size for all caches in a repository is 5Gb.
+
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      run: |
+        ccache --set-config=cache_dir=$HOME/.ccache
+
+        if [ "${{ runner.os }}" = "Linux" ]; then
+          stamp=$(date '+%s')
+        else
+          stamp=$(gdate '+%s')
+        fi
+        echo "${stamp}"
+        echo "timestamp=${stamp}" >> $GITHUB_OUTPUT
+
+    - name: ccache cache files
+#      uses: actions/cache@v2
+      uses: pat-s/always-upload-cache@v3.0.11
+      with:
+         path: ~/.ccache
+         key: ${{ matrix.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+         restore-keys: |
+           ${{ matrix.name }}-ccache-
+
+    - name: Configure
+      run: |
+        if [ "${{ matrix.cxxflags }}" != "" ] ; then
+          CPPARGS="$CPPARGS ${{ matrix.cxxflags }}"
+        fi
+        mkdir build
+        cd build
+        cmake .. -G Ninja -DCMAKE_INSTALL_PREFIX=$HOME/local ${CMAKE_ARGS}
+
+    - name: Build
+      run: |
+        ccache -p
+        ccache -s
+        ninja -C build install -j4
+        ccache -s
+
+    - name: Test
+      if: matrix.name != 'windows'
+      run: |
+        cd build
+        ./examples/synthetictest
+        ./examples/hmctest
+        ./examples/actiontest
