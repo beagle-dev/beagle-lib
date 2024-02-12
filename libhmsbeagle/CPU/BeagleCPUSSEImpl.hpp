@@ -588,9 +588,9 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
     if (!CPUSupportsSSE())
         return NULL;
     
-	if (stateCount & 1) { // is odd
+    if (stateCount & 1) { // is odd
         BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>* impl =
-        new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>();
+	    new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_ODD, P_PAD_SSE_ODD>();
         
         
         try {
@@ -609,9 +609,9 @@ BeagleImpl* BeagleCPUSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
         }
         
         delete impl;        
-	} else {
+    } else {
         BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>* impl =
-                new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>();
+	    new BeagleCPUSSEImpl<REALTYPE, T_PAD_SSE_EVEN, P_PAD_SSE_EVEN>();
 
 
         try {
