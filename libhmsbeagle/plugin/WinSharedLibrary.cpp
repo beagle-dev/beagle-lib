@@ -17,7 +17,6 @@ namespace beagle {
 namespace plugin {
 
 SharedLibrary* SharedLibrary::openSharedLibrary(const char* name)
-    throw (SharedLibraryException)
 {
     return new WinSharedLibrary(name);
 }
