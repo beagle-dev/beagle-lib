@@ -469,7 +469,7 @@ int benchmarkResource(int resource,
 
     // start timing!
     struct timeval time0, time5;
-    double bestTimeTotal;
+    double bestTimeTotal = -1;
     
     double logL = 0.0;
     double deriv1 = 0.0;
