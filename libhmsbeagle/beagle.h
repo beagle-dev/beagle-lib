@@ -349,8 +349,8 @@ BEAGLE_DLLEXPORT BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList
                                                     int categoryCount,
                                                     int* resourceList,
                                                     int resourceCount,
-                                                    long preferenceFlags,
-                                                    long requirementFlags,
+                                                    long long preferenceFlags,
+                                                    long long requirementFlags,
                                                     int eigenModelCount,
                                                     int partitionCount,
                                                     int calculateDerivatives,
@@ -398,8 +398,8 @@ BEAGLE_DLLEXPORT int beagleCreateInstance(int tipCount,
                          int scaleBufferCount,
                          int* resourceList,
                          int resourceCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         long long preferenceFlags,
+                         long long requirementFlags,
                          BeagleInstanceDetails* returnInfo);
 
 /**

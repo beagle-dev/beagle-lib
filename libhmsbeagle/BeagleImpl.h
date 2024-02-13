@@ -54,8 +54,8 @@ public:
                                int scaleBufferCount,
                                int resourceNumber,
                                int pluginResourceNumber,
-                               long preferenceFlags,
-                               long requirementFlags) = 0;
+                               long long preferenceFlags,
+                               long long requirementFlags) = 0;
     
     virtual int getInstanceDetails(BeagleInstanceDetails* returnInfo) = 0;
     
@@ -290,8 +290,8 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode) = 0; // pure virtual
     
     virtual const char* getName() = 0; // pure virtual

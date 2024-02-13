@@ -291,8 +291,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
                                   int scaleBufferCount,
                                   int globalResourceNumber,
                                   int pluginResourceNumber,
-                                  long preferenceFlags,
-                                  long requirementFlags) {
+                                  long long preferenceFlags,
+                                  long long requirementFlags) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::createInstance\n");
@@ -4583,8 +4583,8 @@ BeagleImpl*  BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::createImpl(int tipCount,
                                               int scaleBufferCount,
                                               int resourceNumber,
                                               int pluginResourceNumber,
-                                              long preferenceFlags,
-                                              long requirementFlags,
+                                              long long preferenceFlags,
+                                              long long requirementFlags,
                                               int* errorCode) {
     BeagleImpl* impl = new BeagleGPUImpl<BEAGLE_GPU_GENERIC>();
     try {

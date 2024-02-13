@@ -58,8 +58,8 @@ namespace beagle {
                                                                     int scaleBufferCount,
                                                                     int resourceNumber,
                                                                     int pluginResourceNumber,
-                                                                    long preferenceFlags,
-                                                                    long requirementFlags) {
+								    long long preferenceFlags,
+                                                                    long long requirementFlags) {
             int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, 2 * partialsBufferCount, compactBufferCount,
                                                                                stateCount, patternCount, eigenDecompositionCount,
                                                                                matrixCount, categoryCount, scaleBufferCount,
@@ -821,8 +821,8 @@ namespace beagle {
                                                                                        int scaleBufferCount,
                                                                                        int resourceNumber,
                                                                                        int pluginResourceNumber,
-                                                                                       long preferenceFlags,
-                                                                                       long requirementFlags,
+                                                                                       long long preferenceFlags,
+                                                                                       long long requirementFlags,
                                                                                        int* errorCode) {
 
             BeagleImpl* impl = new BeagleCPUActionImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();

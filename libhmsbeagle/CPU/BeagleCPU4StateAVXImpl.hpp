@@ -741,8 +741,8 @@ BeagleImpl* BeagleCPU4StateAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,                                             
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             long long preferenceFlags,
+                                             long long requirementFlags,
                                              int* errorCode) {
 
     if (stateCount != 4) {

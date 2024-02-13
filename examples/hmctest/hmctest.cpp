@@ -106,7 +106,7 @@ double* getPartials(char *sequence, int repeats) {
 	return partials;
 }
 
-void printFlags(long inFlags) {
+void printFlags(long long inFlags) {
     if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      fprintf(stdout, " PROCESSOR_GPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     fprintf(stdout, " PROCESSOR_FPGA");
@@ -131,6 +131,7 @@ void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CPU)      fprintf(stdout, " FRAMEWORK_CPU");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     fprintf(stdout, " FRAMEWORK_CUDA");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   fprintf(stdout, " FRAMEWORK_OPENCL");
+    if (inFlags & BEAGLE_FLAG_COMPUTATION_ACTION) fprintf(stdout, " COMPUTATION_ACTION");
 }
 
 int main( int argc, const char* argv[] )
@@ -186,7 +187,7 @@ int main( int argc, const char* argv[] )
 
     BeagleInstanceDetails instDetails;
 
-    long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;
+    long long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;
 
     if (useGpu) {
         preferenceFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
@@ -200,7 +201,7 @@ int main( int argc, const char* argv[] )
         preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     }
 
-    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
+    long long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
     if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
