@@ -341,8 +341,8 @@ BeagleResourceList* beagleGetResourceList() {
 
 int scoreFlags(long flags1, long flags2) {
     int score = 0;
-    int trait = 1;
-    for(int bits=0; bits<32; bits++) {
+    long trait = 1;
+    for(int bits=0; bits<64; bits++) {
         if ( (flags1 & trait) &&
              (flags2 & trait) )
             score++;
@@ -436,6 +436,8 @@ int rankResourceImplementationPairs(long preferenceFlags,
                 fprintf(stderr, "Resource required flags: %s \n", tmpFlag.to_string().c_str());
                 tmpFlag = std::bitset<64>(resourceSupportedFlags);
                 fprintf(stderr, "Resource supported flags: %s \n", tmpFlag.to_string().c_str());
+                fprintf(stderr, "Resource score: %d \n", resourceScore);
+                fprintf(stderr, "Implementation score: %d \n", implementationScore);
 #endif
 
                 possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));

@@ -127,23 +127,17 @@ int main( int argc, const char* argv[] )
     } else {
         preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     }
-    preferenceFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+//    preferenceFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
 
     long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
     if(useGpu && useTensorCores) {
-        requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+//        requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
         requirementFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
     } else if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
-
-    long testFlag = 1 << 31;
-    printBitFlag(testFlag, "testFlag1: ");
-
-    testFlag = 1L << 31;
-    printBitFlag(testFlag, "testFlag2: ");
 
     printBitFlag(requirementFlags, "requirementFlags");
     printBitFlag(preferenceFlags, "preferenceFlags");
