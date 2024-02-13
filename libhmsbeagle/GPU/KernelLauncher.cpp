@@ -1044,11 +1044,11 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
 //#endif
 //#else
-    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+//    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
-                      6, 7,
-                      partials1, partials2, partials3, matrices1, matrices2, tmpAcc,
+                      5, 6,
+                      partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
 //    double tmp[256] ={-1};
@@ -1061,6 +1061,12 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //    }
 //    fprintf(stderr, "\n\n\t\tPrinting partials1\n");
 //    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials2\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials2, sizeof(double) * npartials);
 //    for(int i = 0; i < npartials; i++) {
 //        fprintf(stderr, " %f, ", tmp[i]);
 //        tmp[i] = 0;
