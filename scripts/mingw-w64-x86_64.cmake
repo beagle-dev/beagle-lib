@@ -10,9 +10,9 @@ set(CMAKE_SYSTEM_NAME Windows)
 set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
 
 # cross compilers to use for C, C++ and Fortran
-set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc-posix)
-set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}-g++-posix)
-set(CMAKE_Fortran_COMPILER ${TOOLCHAIN_PREFIX}-gfortran)
+set(CMAKE_C_COMPILER ccache ${TOOLCHAIN_PREFIX}-gcc-posix)
+set(CMAKE_CXX_COMPILER ccache ${TOOLCHAIN_PREFIX}-g++-posix)
+set(CMAKE_Fortran_COMPILER ccache ${TOOLCHAIN_PREFIX}-gfortran)
 set(CMAKE_RC_COMPILER ${TOOLCHAIN_PREFIX}-windres)
 
 # target environment on the build host system
