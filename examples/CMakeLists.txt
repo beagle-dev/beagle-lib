@@ -4,8 +4,19 @@ add_executable(hmctest
 add_executable(hmctest5
 		hmctest/hmctest5.cpp)
 
-add_executable(actiontest
-		actiontest/actiontest.cpp)
+if(BUILD_ACTION)
+
+  add_executable(actiontest actiontest/actiontest.cpp)
+
+  target_link_libraries(
+    actiontest
+    hmsbeagle
+    hmsbeagle-cpu-sse
+    hmsbeagle-cpu
+    hmsbeagle-cpu-action
+    ${CMAKE_DL_LIBS})
+
+endif()
 
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
@@ -30,13 +41,6 @@ add_executable(synthetictest
 
 #add_executable(complextest
 #        complextest/complextest.cpp)
-
-target_link_libraries(actiontest
-		hmsbeagle
-		hmsbeagle-cpu-sse
-		hmsbeagle-cpu
-		hmsbeagle-cpu-action
-		${CMAKE_DL_LIBS})
 
 target_link_libraries(hmctest
 	hmsbeagle
