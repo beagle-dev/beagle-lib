@@ -829,6 +829,13 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateMultiGridBuffers() {
 }
 
 #ifdef CUDA
+
+#ifdef CUDA_TENSOR_CORES
+template<>
+char* BeagleGPUImpl<double>::getInstanceName() {
+    return (char*) "CUDA-Double-Tensor-Core";
+}
+#else
 template<>
 char* BeagleGPUImpl<double>::getInstanceName() {
     return (char*) "CUDA-Double";
@@ -838,6 +845,8 @@ template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
     return (char*) "CUDA-Single";
 }
+
+#endif
 #elif defined(FW_OPENCL)
 template<>
 char* BeagleGPUImpl<double>::getInstanceName() {
