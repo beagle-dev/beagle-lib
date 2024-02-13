@@ -37,7 +37,9 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int dec
     	throw std::bad_alloc();
 
     for (int i = 0; i < kEigenDecompCount; i++) {
-    	gCMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount * kStateCount);
+	// Note: avoid overflowing to negative values on Linux when kStateCount = 3721
+	size_t mem = ((size_t)kStateCount) * kStateCount * kStateCount;
+    	gCMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * mem);
     	if (gCMatrices[i] == NULL)
     		throw std::bad_alloc();
 
