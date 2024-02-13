@@ -13,7 +13,6 @@ jobs:
     strategy:
       matrix:
         name: [ubuntu-gcc-10,
-               ubuntu-gcc-11-debugoptimized,
                ubuntu-gcc-11,
                ubuntu-gcc-12,
                ubuntu-clang-15,
@@ -28,13 +27,6 @@ jobs:
             compiler: gcc
             version: "10"
             buildtype: "release"
-            arch: "linux64"
-
-          - name: ubuntu-gcc-11-debugoptimized
-            os: ubuntu-22.04
-            compiler: gcc
-            version: "11"
-            buildtype: "debugoptimized"
             arch: "linux64"
 
           - name: ubuntu-gcc-11
