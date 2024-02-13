@@ -335,7 +335,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_THREADING_NONE;
 
-    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
+    if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ACTION)
+	gEigenDecomposition = nullptr;
+    else if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
         gEigenDecomposition = new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
                 kStateCount,kCategoryCount,kFlags);
     else
