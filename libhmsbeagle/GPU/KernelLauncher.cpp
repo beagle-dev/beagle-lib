@@ -1045,12 +1045,23 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 //#endif
 //#else
 //    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
+#ifdef CUDA_TENSOR_CORES
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = tmpBgPeelingBlocky;
+    }
+#endif
 //    double tmp[256] ={-1};
 //    int npartials = 256;
 //    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
@@ -1288,12 +1299,23 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 //            }
 //            fprintf(stderr, "\n\t\tLeaving PartialsPartialsNoScale on tensor cores\n");
 //#else
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 6,
                                         partials1, partials2, partials3, matrices1, matrices2,
                                         patternCount);
+#ifdef CUDA_TENSOR_CORES
+            if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+                bgPeelingBlock.y = tmpBgPeelingBlocky;
+            }
+#endif
 //#endif
         }
 
