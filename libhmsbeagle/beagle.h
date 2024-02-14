@@ -152,7 +152,7 @@ enum BeagleFlags {
 
     BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
     BEAGLE_FLAG_VECTOR_AVX          = 1 << 24,   /**< AVX computation */
-    BEAGLE_FLAG_VECTOR_TENSOR       = 1L << 32,   /**< Tensor cores */
+    BEAGLE_FLAG_VECTOR_TENSOR       = 1L << 33,   /**< Tensor cores */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
 
     BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
