@@ -180,8 +180,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags);
+                       long long preferenceFlags,
+                       long long requirementFlags);
 
     // initialization of instance,  returnInfo can be null
     int getInstanceDetails(BeagleInstanceDetails* returnInfo);
@@ -459,7 +459,7 @@ public:
 
 	virtual const char* getName();
 
-	virtual const long getFlags();
+	virtual long long getFlags();
 
 protected:
     virtual int upPartials(bool byPartition,
@@ -808,12 +808,12 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 //typedef BeagleCPUImplGeneral<double> BeagleCPUImpl;

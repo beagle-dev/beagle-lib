@@ -58,8 +58,8 @@ namespace beagle {
                                                                     int scaleBufferCount,
                                                                     int resourceNumber,
                                                                     int pluginResourceNumber,
-                                                                    long preferenceFlags,
-                                                                    long requirementFlags) {
+								    long long preferenceFlags,
+                                                                    long long requirementFlags) {
             int parentCode = BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::createInstance(tipCount, 2 * partialsBufferCount, compactBufferCount,
                                                                                stateCount, patternCount, eigenDecompositionCount,
                                                                                matrixCount, categoryCount, scaleBufferCount,
@@ -482,11 +482,10 @@ namespace beagle {
                 const double tol = pow(2.0, -53.0);
                 const double t = 1.0;
                 const int nCol = kPatternCount;
-                int m, s;
 
                 const double edgeMultiplier = gEdgeMultipliers[edgeIndex * kCategoryCount + category];
 
-                getStatistics2(t, nCol, m, s, edgeMultiplier, gEigenMaps[edgeIndex]);
+                auto [m,s] = getStatistics2(t, nCol, edgeMultiplier, gEigenMaps[edgeIndex]);
 
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -528,61 +527,69 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol, int &m, int &s,
-                                                                           double edgeMultiplier,
-                                                                           int eigenIndex) {
-            if (t * gB1Norms[eigenIndex] == 0.0) {
-                m = 0;
-                s = 1;
-            } else {
-                int bestM = INT_MAX;
-                int bestS = INT_MAX;
+        std::tuple<int,int>
+	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
+								      double edgeMultiplier,
+								      int eigenIndex) {
+	    assert( t >= 0 );
+	    assert( nCol >= 0);
+	    assert( edgeMultiplier >= 0 );
+	    assert( eigenIndex >= 0);
 
-                const double theta = thetaConstants[mMax];
-                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
-                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+            if (t * gB1Norms[eigenIndex] == 0.0)
+		return {0, 1};
 
-                const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
-                // using l = 1 as in equation 3.13
-                std::map<int, double>::iterator it;
-                if (conditionFragment313) {
-                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
-                        const int thisM = it->first;
-                        const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaConstants[thisM]);
-                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                            bestS = (int) thisS;
-                            bestM = thisM;
-                        }
-                    }
-                    s = bestS;
-                } else {
-                    if (gHighestPowers[eigenIndex] < 1) {
-                        SpMatrix currentMatrix = gBs[eigenIndex];
-                        powerMatrices[eigenIndex][1] = currentMatrix;
-                        ds[eigenIndex][1] = normP1(&currentMatrix);
-                        gHighestPowers[eigenIndex] = 1;
-                    }
-                    for (int p = 2; p < pMax; p++) {
-                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
-                            it = thetaConstants.find(thisM);
-                            if (it != thetaConstants.end()) {
-                                // equation 3.7 in Al-Mohy and Higham
-                                const double dValueP = getDValue2(p, eigenIndex);
-                                const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
-                                const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * edgeMultiplier;
-                                // part of equation 3.10
-                                const double thisS = ceil(alpha / thetaConstants[thisM]);
-                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                                    bestS = (int) thisS;
-                                    bestM = thisM;
-                                }
-                            }
-                        }
-                    }
-                    s = bestS > 1 ? bestS : 1;
-                }
-                m = bestM;
-            }
+	    int bestM = INT_MAX;
+	    double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
+
+	    const double theta = thetaConstants[mMax];
+	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+	    const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+	    // using l = 1 as in equation 3.13
+	    if (conditionFragment313) {
+		for (auto& [thisM, thetaM]: thetaConstants) {
+		    const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
+		    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+			bestS = thisS;
+			bestM = thisM;
+		    }
+		}
+	    } else {
+		if (gHighestPowers[eigenIndex] < 1) {
+		    SpMatrix currentMatrix = gBs[eigenIndex];
+		    powerMatrices[eigenIndex][1] = currentMatrix;
+		    ds[eigenIndex][1] = normP1(&currentMatrix);
+		    gHighestPowers[eigenIndex] = 1;
+		}
+		for (int p = 2; p < pMax; p++) {
+		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+			auto it = thetaConstants.find(thisM);
+			if (it != thetaConstants.end()) {
+			    // equation 3.7 in Al-Mohy and Higham
+			    const double dValueP = getDValue2(p, eigenIndex);
+			    const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
+			    const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * edgeMultiplier;
+			    // part of equation 3.10
+			    const double thisS = ceil(alpha / thetaConstants[thisM]);
+			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+				bestS = thisS;
+				bestM = thisM;
+			    }
+			}
+		    }
+		}
+		bestS = std::max(bestS, 1.0);
+	    }
+
+	    int m = bestM;
+	    int s = (int) std::min<double>(bestS, INT_MAX);
+
+	    assert(m >= 0);
+	    assert(s >= 0);
+
+	    return {m,s};
         }
 
 
@@ -620,8 +627,7 @@ namespace beagle {
                 A = thisMatrix - mu * identity;
                 const double A1Norm = normP1(&A);
 
-                int m, s;
-                getStatistics(A1Norm, &A, t, nCol, m, s);
+                auto [m,s] = getStatistics(A1Norm, &A, t, nCol);
 
 #ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<" m = "<<m<<"  s = "<<s <<std::endl;
@@ -658,59 +664,65 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics(double A1Norm, SpMatrix * matrix, double t, int nCol, int &m, int &s) {
-            if (t * A1Norm == 0.0) {
-                m = 0;
-                s = 1;
-            } else {
-                int bestM = INT_MAX;
-                int bestS = INT_MAX;
+        std::tuple<int,int> BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics(double A1Norm, SpMatrix * matrix, double t, int nCol) {
+	    assert( t >= 0 );
+	    assert( A1Norm >= 0.0 );
+	    assert( nCol >= 0 );
 
-                const double theta = thetaConstants[mMax];
-                const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
-                // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+            if (t * A1Norm == 0.0)
+                return {0,1};
 
-                const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
-                // using l = 1 as in equation 3.13
+	    int bestM = INT_MAX;
+	    double bestS = INT_MAX;
 
-                std::map<int, double>::iterator it;
-                if (conditionFragment313) {
-                    for (it = thetaConstants.begin(); it != thetaConstants.end(); it++) {
-                        const int thisM = it->first;
-                        const double thisS = ceil(A1Norm/thetaConstants[thisM]);
-                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                            bestS = (int) thisS;
-                            bestM = thisM;
-                        }
-                    }
-                    s = bestS;
-                } else {
-                    std::map<int, double> d;
-                    SpMatrix firstOrderMatrix = *matrix;
-                    std::map<int, SpMatrix> powerMatrices;
-                    powerMatrices[1] = firstOrderMatrix;
-                    d[1] = normP1(&firstOrderMatrix);
-                    for (int p = 2; p < pMax; p++) {
-                        for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
-                            it = thetaConstants.find(thisM);
-                            if (it != thetaConstants.end()) {
-                                // equation 3.7 in Al-Mohy and Higham
-                                const double dValueP = getDValue(p, d, powerMatrices);
-                                const double dValuePPlusOne = getDValue(p + 1, d, powerMatrices);
-                                const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
-                                // part of equation 3.10
-                                const double thisS = ceil(alpha / thetaConstants[thisM]);
-                                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
-                                    bestS = (int) thisS;
-                                    bestM = thisM;
-                                }
-                            }
-                        }
-                    }
-                    s = bestS > 1 ? bestS : 1;
-                }
-                m = bestM;
-            }
+	    const double theta = thetaConstants[mMax];
+	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
+
+	    const bool conditionFragment313 = A1Norm <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
+	    // using l = 1 as in equation 3.13
+
+	    if (conditionFragment313) {
+		for (auto& [thisM, thetaM]: thetaConstants) {
+		    const double thisS = ceil(A1Norm/thetaM);
+		    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+			bestS = thisS;
+			bestM = thisM;
+		    }
+		}
+	    } else {
+		std::map<int, double> d;
+		SpMatrix firstOrderMatrix = *matrix;
+		std::map<int, SpMatrix> powerMatrices;
+		powerMatrices[1] = firstOrderMatrix;
+		d[1] = normP1(&firstOrderMatrix);
+		for (int p = 2; p < pMax; p++) {
+		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
+			auto it = thetaConstants.find(thisM);
+			if (it != thetaConstants.end()) {
+			    // equation 3.7 in Al-Mohy and Higham
+			    const double dValueP = getDValue(p, d, powerMatrices);
+			    const double dValuePPlusOne = getDValue(p + 1, d, powerMatrices);
+			    const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
+			    // part of equation 3.10
+			    const double thisS = ceil(alpha / thetaConstants[thisM]);
+			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
+				bestS = (int) thisS;
+				bestM = thisM;
+			    }
+			}
+		    }
+		}
+		bestS = std::max(bestS, 1.0);
+	    }
+
+	    int m = bestM;
+	    int s = (int) std::min<double>(bestS, INT_MAX);
+
+	    assert(m >= 0);
+	    assert(s >= 0);
+
+	    return {m,s};
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
@@ -785,7 +797,7 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        const long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
+        long long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
             return  BEAGLE_FLAG_COMPUTATION_SYNCH |
                     BEAGLE_FLAG_COMPUTATION_ACTION |
                     BEAGLE_FLAG_PROCESSOR_CPU |
@@ -809,8 +821,8 @@ namespace beagle {
                                                                                        int scaleBufferCount,
                                                                                        int resourceNumber,
                                                                                        int pluginResourceNumber,
-                                                                                       long preferenceFlags,
-                                                                                       long requirementFlags,
+                                                                                       long long preferenceFlags,
+                                                                                       long long requirementFlags,
                                                                                        int* errorCode) {
 
             BeagleImpl* impl = new BeagleCPUActionImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();
@@ -846,7 +858,7 @@ namespace beagle {
         }
 
         template <>
-        const long BeagleCPUActionImplFactory<double>::getFlags() {
+        long long BeagleCPUActionImplFactory<double>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
@@ -861,7 +873,7 @@ namespace beagle {
         }
 
         template <>
-        const long BeagleCPUActionImplFactory<float>::getFlags() {
+        long long BeagleCPUActionImplFactory<float>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |

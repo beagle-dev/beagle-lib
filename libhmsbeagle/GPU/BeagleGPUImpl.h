@@ -69,7 +69,7 @@ private:
     
     int kInitialized;
     
-    long kFlags;
+    long long kFlags;
     
     int kTipCount;
     int kPartialsBufferCount;
@@ -239,8 +239,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags);
+                       long long preferenceFlags,
+                       long long requirementFlags);
     
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
@@ -528,16 +528,16 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual long long getFlags();
 };
 
 template <typename Real>
-void modifyFlagsForPrecision(long* flags, Real r);
+void modifyFlagsForPrecision(long long* flags, Real r);
 
 } // namspace device
 }	// namespace gpu

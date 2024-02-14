@@ -185,7 +185,7 @@ int main( int argc, const char* argv[] )
 
     BeagleInstanceDetails instDetails;
 
-    long preferenceFlags = (long) BEAGLE_FLAG_COMPUTATION_ACTION;
+    long long preferenceFlags = BEAGLE_FLAG_COMPUTATION_ACTION;
 
     if (useGpu) {
         preferenceFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
@@ -200,7 +200,7 @@ int main( int argc, const char* argv[] )
     }
 
 //    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
-    long requirementFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
+    long long requirementFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
     if (useSSE) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
     } else {

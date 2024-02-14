@@ -348,8 +348,8 @@ int scoreFlags(long flags1, long flags2) {
 
 int filterResources(int* resourceList,
                     int resourceCount,
-                    long preferenceFlags,
-                    long requirementFlags,
+                    long long preferenceFlags,
+                    long long requirementFlags,
                     PairedList* possibleResources) {
 
     // First determine a list of possible resources
@@ -389,8 +389,8 @@ int filterResources(int* resourceList,
     return BEAGLE_SUCCESS;
 }
 
-int rankResourceImplementationPairs(long preferenceFlags,
-                                    long requirementFlags,
+int rankResourceImplementationPairs(long long preferenceFlags,
+                                    long long requirementFlags,
                                     PairedList* possibleResources,
                                     RsrcImplList* possibleResourceImplementations) {
 
@@ -462,8 +462,8 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 int categoryCount,
                                                                 int* resourceList,
                                                                 int resourceCount,
-                                                                long preferenceFlags,
-                                                                long requirementFlags,
+                                                                long long preferenceFlags,
+                                                                long long requirementFlags,
                                                                 int eigenModelCount,
                                                                 int partitionCount,
                                                                 int calculateDerivatives,
@@ -636,8 +636,8 @@ int beagleCreateInstance(int tipCount,
                          int scaleBufferCount,
                          int* resourceList,
                          int resourceCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         long long preferenceFlags,
+                         long long requirementFlags,
                          BeagleInstanceDetails* returnInfo) {
     DEBUG_CREATE_TIME();
     try {

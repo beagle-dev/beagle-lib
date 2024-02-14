@@ -106,17 +106,17 @@ template<>
 inline const char* getBeagleCPUName<float>(){ return "CPU-Single"; };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-inline const long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
+inline long getBeagleCPUFlags(){ return BEAGLE_FLAG_COMPUTATION_SYNCH; };
 
 template<>
-inline const long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline long getBeagleCPUFlags<double>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                       BEAGLE_FLAG_PROCESSOR_CPU |
                                                       BEAGLE_FLAG_PRECISION_DOUBLE |
                                                       BEAGLE_FLAG_VECTOR_NONE |
                                                       BEAGLE_FLAG_FRAMEWORK_CPU; };
 
 template<>
-inline const long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
+inline long getBeagleCPUFlags<float>(){ return BEAGLE_FLAG_COMPUTATION_SYNCH |
                                                      BEAGLE_FLAG_PROCESSOR_CPU |
                                                      BEAGLE_FLAG_PRECISION_SINGLE |
                                                      BEAGLE_FLAG_VECTOR_NONE |
@@ -252,8 +252,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int scaleBufferCount,
                                   int resourceNumber,
                                   int pluginResourceNumber,
-                                  long preferenceFlags,
-                                  long requirementFlags) {
+                                  long long preferenceFlags,
+				  long long requirementFlags) {
     if (DEBUGGING_OUTPUT)
         std::cerr << "in BeagleCPUImpl::initialize\n" ;
 
@@ -335,7 +335,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_THREADING_NONE;
 
-    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
+    if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ACTION)
+	gEigenDecomposition = nullptr;
+    else if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
         gEigenDecomposition = new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
                 kStateCount,kCategoryCount,kFlags);
     else
@@ -505,7 +507,7 @@ const char* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_TEMPLATE
-const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
+long long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
     return getBeagleCPUFlags<BEAGLE_CPU_FACTORY_GENERIC>();
 }
 
@@ -4783,7 +4785,7 @@ BEAGLE_CPU_TEMPLATE
 void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
     void *ptr = (void *) NULL;
 
-#if defined (__APPLE__) || defined(WIN32)
+#if defined (__APPLE__) || defined(_WIN32)
     /*
      presumably malloc on OS X always returns
      a 16-byte aligned pointer
@@ -4851,8 +4853,8 @@ BeagleImpl* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int tip
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             long long preferenceFlags,
+                                             long long requirementFlags,
                                              int* errorCode) {
 
     BeagleImpl* impl = new BeagleCPUImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();
@@ -4889,17 +4891,17 @@ const char* BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
-                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
-                 BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
-                 BEAGLE_FLAG_PROCESSOR_CPU |
-                 BEAGLE_FLAG_VECTOR_NONE |
-                 BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                 BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-                 BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-                 BEAGLE_FLAG_FRAMEWORK_CPU;
+long long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+                      BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
+	              BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
+                      BEAGLE_FLAG_PROCESSOR_CPU |
+                      BEAGLE_FLAG_VECTOR_NONE |
+                      BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                      BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                      BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                      BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+                      BEAGLE_FLAG_FRAMEWORK_CPU;
     if (DOUBLE_PRECISION)
         flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else

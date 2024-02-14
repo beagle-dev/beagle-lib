@@ -1464,8 +1464,8 @@ BeagleImpl* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(i
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             long long preferenceFlags,
+                                             long long requirementFlags,
                                              int* errorCode) {
 
     if (stateCount != 4) {
@@ -1500,17 +1500,17 @@ const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
-                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-                  BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
-                  BEAGLE_FLAG_PROCESSOR_CPU |
-                  BEAGLE_FLAG_VECTOR_NONE |
-                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                  BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-                  BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-                  BEAGLE_FLAG_FRAMEWORK_CPU;
+long long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    long long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
+                       BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                       BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
+                       BEAGLE_FLAG_PROCESSOR_CPU |
+                       BEAGLE_FLAG_VECTOR_NONE |
+                       BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                       BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                       BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                       BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+                       BEAGLE_FLAG_FRAMEWORK_CPU;
     
     if (DOUBLE_PRECISION)
     	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;

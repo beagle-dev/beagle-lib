@@ -46,21 +46,31 @@ add_definitions(
 	)
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-#SET(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
+if(NOT DEFINED CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 ## flags for standard library
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
-if(WIN32)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot /MT")
-else(WIN32)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread")
-	#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -pthread")
-	#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-endif(WIN32)
+if (MSVC)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
+else ()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+endif ()
+
+if (NOT ${CMAKE_BUILD_TYPE} MATCHES Debug)
+        if(MSVC)
+	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot")
+        else()
+	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+        	#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+	        #set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+        endif()
+endif()
 
 #if(NOT WIN32)
 #    add_definitions(-DHAVE_CONFIG_H)
@@ -149,6 +159,12 @@ if(APPLE)
 
 	# Seems necessary from macOS 10.15
 	SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+elseif(UNIX)
+        # This tells libhmsbeagle.so to search the same directory to find plugins.
+        SET(CMAKE_INSTALL_RPATH "\$ORIGIN")
+        # $ORIGIN/{CPU,GPU,JNI} is so that libhmsbeagle.so can find the plugins in their build location.
+        # $ORIGIN/../libhmsbeagle is so that examples/* can find libhmsbeagle.so
+	SET(CMAKE_BUILD_RPATH "\$ORIGIN:\$ORIGIN/CPU:\$ORIGIN/GPU:\$ORIGIN/JNI:\$ORIGIN/../libhmsbeagle")
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)

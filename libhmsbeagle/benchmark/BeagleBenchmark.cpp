@@ -131,8 +131,8 @@ int benchmarkResource(int resource,
                          bool calcderivs,
                          int eigenCount,
                          int partitionCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         long long preferenceFlags,
+                         long long requirementFlags,
                          int* resourceNumber,
                          char** implName,
                          long* benchedFlags,
@@ -227,10 +227,10 @@ int benchmarkResource(int resource,
 
     beagleSetPatternWeights(instance, patternWeights);
     
-    int* patternPartitions;
-    double* partitionLogLs;
-    double* partitionD1;
-    double* partitionD2;
+    int* patternPartitions = NULL;
+    double* partitionLogLs = NULL;
+    double* partitionD1 = NULL;
+    double* partitionD2 = NULL;
     
     if (partitionCount > 1) {
         partitionLogLs = (double*) malloc(sizeof(double) * partitionCount);
@@ -469,7 +469,7 @@ int benchmarkResource(int resource,
 
     // start timing!
     struct timeval time0, time5;
-    double bestTimeTotal;
+    double bestTimeTotal = -1;
     
     double logL = 0.0;
     double deriv1 = 0.0;
