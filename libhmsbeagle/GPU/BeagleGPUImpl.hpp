@@ -871,6 +871,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
 #ifdef CUDA
         kFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;
         kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
+#ifdef CUDA_TENSOR_CORES
+        kFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
+#endif
 #elif defined(FW_OPENCL)
         kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
 #endif
