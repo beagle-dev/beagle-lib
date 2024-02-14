@@ -62,7 +62,8 @@ else ()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 endif ()
 
-if (NOT ${CMAKE_BUILD_TYPE} MATCHES Debug)
+
+if (NOT "${CMAKE_BUILD_TYPE}" MATCHES Debug)
         if(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot")
         else()
