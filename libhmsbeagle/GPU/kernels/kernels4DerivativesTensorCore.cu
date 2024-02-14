@@ -21,7 +21,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
 
     const int warpSize = 32;
-    const int permuteXSize = 64;
+    const int permuteXSize = 32;
     const int totalWarps = (PATTERN_BLOCK_SIZE * 4 * 4)/permuteXSize;
     const int contiguousX = 4;
     const int totalBankGroups = permuteXSize/contiguousX;
