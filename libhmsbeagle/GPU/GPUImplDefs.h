@@ -256,7 +256,7 @@ enum BeagleDeviceImplementationCodes {
 
 // TENSOR CORE DEFINITIONS
 
-#define TENSOR_CORE_PATTERN_BLOCK_SIZE  4
+#define TENSOR_CORE_PATTERN_BLOCK_SIZE  8
 
 // DOUBLE PRECISION definitions   TODO None of these have been checked
 
