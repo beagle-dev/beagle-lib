@@ -181,6 +181,13 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 	endif()
 endif()
 
+
+include(CheckIncludeFileCXX)
+check_include_file_cxx("cpuid.h" HAVE_CPUID_H)
+if (HAVE_CPUID_H)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_CPUID_H")
+endif()
+
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
