@@ -81,6 +81,7 @@ jobs:
     - name: Install (Linux)
       if: runner.os == 'Linux' && matrix.name != 'windows'
       run: |
+        sudo apt-get update
         sudo apt-get install -y cmake ninja-build ccache pkg-config
         sudo apt-get install -y openjdk-17-jdk libeigen3-dev ocl-icd-opencl-dev
 
