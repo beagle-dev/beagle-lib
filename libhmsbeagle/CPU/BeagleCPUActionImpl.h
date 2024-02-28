@@ -177,14 +177,15 @@ namespace beagle {
             virtual int setTipPartials(int tipIndex,
                                        const double* inPartials);
 
-            virtual int updatePartials(const int *operations,
-                                       int operationCount,
-                                       int cumulativeScalingIndex);
-
             virtual int updatePrePartials(const int *operations,
                                        int operationCount,
                                        int cumulativeScalingIndex);
-//        protected:
+        protected:
+            virtual int upPartials(bool byPartition,
+				   const int *operations,
+				   int operationCount,
+				   int cumulativeScalingIndex);
+
 //            virtual int getPaddedPatternsModulus();
 
         private:
