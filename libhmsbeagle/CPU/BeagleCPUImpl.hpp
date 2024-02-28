@@ -1458,8 +1458,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoPartitionPartialsOperations(const in
             for (int k=0; k<numOps; k++) {
                 partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + k] = operations[i*numOps + k];
             }
-                partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps    ] = j;
-                partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps + 1] = cumulativeScaleIndex;
+	    partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps    ] = j;
+	    partitionOperations[i*kPartitionCount*numOpsP + j*numOpsP + numOps + 1] = cumulativeScaleIndex;
         }
     }
 }
