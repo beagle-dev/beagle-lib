@@ -186,6 +186,11 @@ namespace beagle {
 				   int operationCount,
 				   int cumulativeScalingIndex);
 
+
+	    inline MapType partialsMap(int index, int category);
+
+	    inline MapType partialsCacheMap(int index, int category);
+
 //            virtual int getPaddedPatternsModulus();
 
         private:
