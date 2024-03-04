@@ -167,13 +167,7 @@ namespace beagle {
                                        long long preferenceFlags,
                                        long long requirementFlags);
 
-            virtual int setPartials(int bufferIndex,
-                            const double* inPartials);
-
 //            virtual int setCategoryRates(const double* inCategoryRates);
-
-            virtual int setTipPartials(int tipIndex,
-                                       const double* inPartials);
 
             virtual int updatePrePartials(const int *operations,
                                        int operationCount,

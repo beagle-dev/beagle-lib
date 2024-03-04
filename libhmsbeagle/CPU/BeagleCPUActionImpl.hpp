@@ -123,14 +123,6 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(int bufferIndex,
-                                                                       const double* inPartials) {
-            BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(bufferIndex, inPartials);
-
-            return BEAGLE_SUCCESS;
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
             free(gMuBs);
             free(gB1Norms);
@@ -140,15 +132,6 @@ namespace beagle {
             free(gEigenMaps);
             free(gEdgeMultipliers);
         }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(int tipIndex,
-                                                              const double* inPartials) {
-            BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(tipIndex, inPartials);
-
-            return BEAGLE_SUCCESS;
-        }
-
 
         BEAGLE_CPU_FACTORY_TEMPLATE
         inline const char* getBeagleCPUActionName(){ return "CPU-Action-Unknown"; };
