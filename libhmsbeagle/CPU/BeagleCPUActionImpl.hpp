@@ -297,15 +297,6 @@ namespace beagle {
                 }
 
                 MapType* destP = gMappedPartials[destinationPartialIndex];
-                MapType* partials1 = gMappedPartials[firstChildPartialIndex];
-//                SpMatrix* matrices1 = gScaledQs[firstChildSubstitutionMatrixIndex];
-                MapType* partials2 = gMappedPartials[secondChildPartialIndex];
-//                SpMatrix* matrices2 = gScaledQs[secondChildSubstitutionMatrixIndex];
-                MapType* partialCache1 = gMappedPartialCache[firstChildPartialIndex];
-                MapType* partialCache2 = gMappedPartialCache[secondChildPartialIndex];
-
-
-
 
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
@@ -327,15 +318,12 @@ namespace beagle {
 //                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
                 calcPartialsPartials2(destinationPartialIndex,
 				      firstChildPartialIndex, secondChildPartialIndex,
-				      firstChildSubstitutionMatrixIndex,secondChildSubstitutionMatrixIndex,
-				      partialCache1, partialCache2);
+				      firstChildSubstitutionMatrixIndex,secondChildSubstitutionMatrixIndex);
 
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
                 }
             }
-
-
 
             return BEAGLE_SUCCESS;
         }
@@ -487,19 +475,18 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(int destPIndex,
 										  int partials1Index, int partials2Index,
-										  int edgeIndex1, int edgeIndex2,
-                                                                                  MapType *partialCache1,
-                                                                                  MapType *partialCache2) {
-	    // The partialCache1&2 are just temporary, right?
+										  int edgeIndex1, int edgeIndex2) {
             for (int category = 0; category < kCategoryCount; category++)
 	    {
 		auto partials1 = partialsMap(partials1Index, category);
-		simpleAction2(partialCache1, &partials1, edgeIndex1, category, false);
+		auto partials1Cache = partialsCacheMap(partials1Index, category);
+		simpleAction2(partials1Cache, partials1, edgeIndex1, category, false);
 
 		auto partials2 = partialsMap(partials2Index, category);
-		simpleAction2(partialCache2, &partials2, edgeIndex2, category, false);
+		auto partials2Cache = partialsCacheMap(partials2Index, category);
+		simpleAction2(partials2Cache, partials2, edgeIndex2, category, false);
 
-                partialsMap(destPIndex, category) = partialCache1[category].cwiseProduct(partialCache2[category]);
+                partialsMap(destPIndex, category) = partials1Cache.cwiseProduct(partials2Cache);
             }
         }
 
@@ -513,17 +500,17 @@ namespace beagle {
 
             for (int i = 0; i < kCategoryCount; i++) {
                 gMappedIntegrationTmp[i] = partialCache2[i].cwiseProduct(partials1[i]);
-		simpleAction2(destP, gMappedIntegrationTmp, edgeIndex1, i, true);
+		simpleAction2(destP[i], gMappedIntegrationTmp[i], edgeIndex1, i, true);
             }
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
         void
-        BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction2(MapType *destP, MapType *partials, int edgeIndex,
+        BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction2(MapType& destP, MapType& partials, int edgeIndex,
                                                                      int category, bool transpose) {
 #ifdef BEAGLE_DEBUG_FLOW
             std::cerr<<"New impl 2\nRate category "<<category<<std::endl;
-	    std::cerr<<"In partial: \n"<<partials[category]<<std::endl;
+	    std::cerr<<"In partial: \n"<<partials<<std::endl;
 #endif
 	    const double tol = pow(2.0, -53.0);
 	    const double t = 1.0;
@@ -538,36 +525,36 @@ namespace beagle {
 	    std::cerr<<" m = "<<m<<"  s = "<<s <<std::endl;
 #endif
 
-	    destP[category] = partials[category];
+	    destP = partials;
 	    SpMatrix A = gBs[gEigenMaps[edgeIndex]] * edgeMultiplier;
 	    if (transpose) {
 		A = A.transpose();
 	    }
 
 	    MatrixXd F(kStateCount, kPatternCount);
-	    F = destP[category];
+	    F = destP;
 
 	    const double eta = exp(t * gMuBs[gEigenMaps[edgeIndex]] * edgeMultiplier / (double) s);
 
 	    for (int i = 0; i < s; i++) {
-		double c1 = normPInf(destP[category]);
+		double c1 = normPInf(destP);
 		for (int j = 1; j < m + 1; j++) {
-		    destP[category] = A * destP[category];
-		    destP[category] *= t / ((double) s * j);
-		    double c2 = normPInf(destP[category]);
-		    F += destP[category];
+		    destP = A * destP;
+		    destP *= t / ((double) s * j);
+		    double c2 = normPInf(destP);
+		    F += destP;
 		    if (c1 + c2 <= tol * normPInf(&F)) {
 			break;
 		    }
 		    c1 = c2;
 		}
 		F *= eta;
-		destP[category] = F;
+		destP = F;
 	    }
 
 
 #ifdef BEAGLE_DEBUG_FLOW
-	    std::cerr<<"Out partials: \n"<<destP[category]<<std::endl;
+	    std::cerr<<"Out partials: \n"<<destP<<std::endl;
 #endif
         }
 

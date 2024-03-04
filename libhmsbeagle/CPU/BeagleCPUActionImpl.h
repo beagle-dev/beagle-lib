@@ -212,7 +212,7 @@ namespace beagle {
                                                  const double* edgeLengths,
                                                  int count);
 
-            void simpleAction2(MapType *destP, MapType *partials, int edgeIndex,
+            void simpleAction2(MapType& destP, MapType& partials, int edgeIndex,
                                int category, bool transpose);
 
 
@@ -226,10 +226,9 @@ namespace beagle {
                                       MapType* partials2,
                                       SpMatrix* matrices2);
 
-            void calcPartialsPartials2(int destPIndex, int partials1Index,
-                                       int partials2Index, int edgeIndex1,
-                                       int edgeIndex2, MapType *partialCache1,
-                                       MapType *partialCache2);
+            void calcPartialsPartials2(int destPIndex,
+				       int partials1Index, int partials2Index,
+				       int edgeIndex1, int edgeIndex2);
 
             void calcPrePartialsPartials(MapType *destP,
                                          MapType *partials1,
