@@ -359,13 +359,6 @@ namespace beagle {
                     }
                 }
 
-                MapType* destP = gMappedPartials[destinationPartialIndex];
-                MapType* partials1 = gMappedPartials[parentIndex];
-//                SpMatrix* matrices1 = gScaledQs[substitutionMatrixIndex];
-                MapType* partials2 = gMappedPartials[siblingIndex];
-//                SpMatrix* matrices2 = gScaledQs[siblingSubstitutionMatrixIndex];
-                MapType* partialCache2 = gMappedPartialCache[siblingIndex];
-
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
                 if (writeScalingIndex >= 0) {
