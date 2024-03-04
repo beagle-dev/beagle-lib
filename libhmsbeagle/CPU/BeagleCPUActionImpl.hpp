@@ -47,15 +47,31 @@ namespace beagle {
     namespace cpu {
 
         BEAGLE_CPU_ACTION_TEMPLATE
+	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsMap(int index, int category, int startPattern, int endPattern)
+	{
+	    double* start = gPartials[index] + category*kPaddedPatternCount*kStateCount;
+	    start += startPattern*kStateCount;
+	    return MapType(start, kStateCount, endPattern - startPattern);
+	}
+
+        BEAGLE_CPU_ACTION_TEMPLATE
 	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsMap(int index, int category)
 	{
-	    return MapType(gPartials[index] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+	    return partialsMap(index, category, 0, kPatternCount);
+	}
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsCacheMap(int index, int category, int startPattern, int endPattern)
+	{
+	    double* start = gPartials[index + kPartialsCacheOffset] + category*kPaddedPatternCount*kStateCount;
+	    start += startPattern*kStateCount;
+	    return MapType(start, kStateCount, endPattern - startPattern);
 	}
 
         BEAGLE_CPU_ACTION_TEMPLATE
 	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsCacheMap(int index, int category)
 	{
-	    return MapType(gPartials[index + kPartialsCacheOffset] + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
+	    return partialsCacheMap(index, category, 0, kPatternCount);
 	}
 
         BEAGLE_CPU_ACTION_TEMPLATE
