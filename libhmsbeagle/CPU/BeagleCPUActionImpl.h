@@ -208,7 +208,7 @@ namespace beagle {
                                                  int count);
 
             void simpleAction2(MapType *destP, MapType *partials, int edgeIndex,
-                               bool transpose);
+                               int category, bool transpose);
 
 
             void simpleAction(MapType* destP,
