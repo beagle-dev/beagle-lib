@@ -100,8 +100,6 @@ namespace beagle {
             identity = SpMatrix(kStateCount, kStateCount);
             identity.setIdentity();
             gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
-            gMappedPartials = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
-            gMappedPartialCache = (MapType **) malloc(sizeof(MapType *) * kBufferCount);
             gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
 
             gMappedIntegrationTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
@@ -121,11 +119,6 @@ namespace beagle {
 //                gScaledQs[i] = NULL;
 //            }
 
-            for (int i = 0; i < kBufferCount; i++) {
-                gMappedPartials[i] = NULL;
-                gMappedPartialCache[i] = NULL;
-            }
-
             return BEAGLE_SUCCESS;
         }
 
@@ -133,19 +126,12 @@ namespace beagle {
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(int bufferIndex,
                                                                        const double* inPartials) {
             BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setPartials(bufferIndex, inPartials);
-            if (gMappedPartials[bufferIndex] == NULL) {
-                gMappedPartials[bufferIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                for (int category = 0; category < kCategoryCount; category++) {
-                    new (& gMappedPartials[bufferIndex][category]) MapType(partialsMap(bufferIndex, category));
-                }
-            }
+
             return BEAGLE_SUCCESS;
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
-            free(gMappedPartials);
-            free(gMappedPartialCache);
             free(gMuBs);
             free(gB1Norms);
             free(gIntegrationTmp);
@@ -159,15 +145,6 @@ namespace beagle {
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(int tipIndex,
                                                               const double* inPartials) {
             BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipPartials(tipIndex, inPartials);
-            if (gMappedPartials[tipIndex] == NULL) {
-                gMappedPartials[tipIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                for (int category = 0; category < kCategoryCount; category++) {
-                    new (& gMappedPartials[tipIndex][category]) MapType(partialsMap(tipIndex, category));
-#ifdef BEAGLE_DEBUG_FLOW
-                    std::cout<<gMappedPartials[tipIndex][category]<<std::endl;
-#endif
-                }
-            }
 
             return BEAGLE_SUCCESS;
         }
@@ -275,27 +252,6 @@ namespace beagle {
 		    endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
 		}
 
-                if (gMappedPartials[destinationPartialIndex] == NULL) {
-                    gMappedPartials[destinationPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                    for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartials[destinationPartialIndex][category]) MapType(partialsMap(destinationPartialIndex, category));
-                    }
-                }
-
-                if (gMappedPartialCache[firstChildPartialIndex] == NULL) {
-                    gMappedPartialCache[firstChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                    for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartialCache[firstChildPartialIndex][category]) MapType(partialsCacheMap(firstChildPartialIndex, category));
-                    }
-                }
-
-                if (gMappedPartialCache[secondChildPartialIndex] == NULL) {
-                    gMappedPartialCache[secondChildPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                    for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartialCache[secondChildPartialIndex][category]) MapType(partialsCacheMap(secondChildPartialIndex, category));
-                    }
-                }
-
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
                 if (writeScalingIndex >= 0) {
@@ -351,13 +307,6 @@ namespace beagle {
                 const int substitutionMatrixIndex = operations[op * numOps + 4];
                 const int siblingIndex = operations[op * numOps + 5];
                 const int siblingSubstitutionMatrixIndex = operations[op * numOps + 6];
-
-                if (gMappedPartials[destinationPartialIndex] == NULL) {
-                    gMappedPartials[destinationPartialIndex] = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
-                    for (int category = 0; category < kCategoryCount; category++) {
-                        new (& gMappedPartials[destinationPartialIndex][category]) MapType(partialsMap(destinationPartialIndex, category));
-                    }
-                }
 
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
