@@ -531,13 +531,13 @@ namespace beagle {
 	    F = destP[category];
 
 	    const double eta = exp(t * gMuBs[gEigenMaps[edgeIndex]] * edgeMultiplier / (double) s);
-	    double c1, c2;
+
 	    for (int i = 0; i < s; i++) {
-		c1 = normPInf(destP[category]);
+		double c1 = normPInf(destP[category]);
 		for (int j = 1; j < m + 1; j++) {
 		    destP[category] = A * destP[category];
 		    destP[category] *= t / ((double) s * j);
-		    c2 = normPInf(destP[category]);
+		    double c2 = normPInf(destP[category]);
 		    F += destP[category];
 		    if (c1 + c2 <= tol * normPInf(&F)) {
 			break;
