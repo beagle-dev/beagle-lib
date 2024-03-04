@@ -384,8 +384,10 @@ namespace beagle {
 #endif
 
 //                calcPrePartialsPartials(destP, partials1, matrices1, partials2, matrices2);
-                calcPrePartialsPartials2(destP, partials1, partials2, substitutionMatrixIndex,
-                                         siblingSubstitutionMatrixIndex, partialCache2);
+                calcPrePartialsPartials2(destinationPartialIndex,
+					 parentIndex, siblingIndex,
+					 substitutionMatrixIndex,
+                                         siblingSubstitutionMatrixIndex);
 
                 if (rescale == 1) {
                     rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
@@ -490,15 +492,18 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials2(MapType *destP, MapType *partials1,
-                                                                                     MapType *partials2, int edgeIndex1,
-                                                                                     int edgeIndex2,
-                                                                                     MapType *partialCache2) {
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials2(int destPIndex,
+										     int partials1Index, int partials2Index,
+                                                                                     int edgeIndex1, int edgeIndex2) {
             memset(gIntegrationTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
 
-            for (int i = 0; i < kCategoryCount; i++) {
-                gMappedIntegrationTmp[i] = partialCache2[i].cwiseProduct(partials1[i]);
-		simpleAction2(destP[i], gMappedIntegrationTmp[i], edgeIndex1, i, true);
+            for (int category = 0; category < kCategoryCount; category++) {
+		auto partialCache2 = partialsCacheMap(partials2Index, category);
+		auto partials1     = partialsMap(partials1Index, category);
+		auto destP         = partialsMap(destPIndex, category);
+
+                gMappedIntegrationTmp[category] = partialCache2.cwiseProduct(partials1);
+		simpleAction2(destP, gMappedIntegrationTmp[category], edgeIndex1, category, true);
             }
         }
 

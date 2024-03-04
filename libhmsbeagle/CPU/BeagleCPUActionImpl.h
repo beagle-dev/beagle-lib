@@ -236,9 +236,9 @@ namespace beagle {
                                          MapType *partials2,
                                          SpMatrix *matrices2);
 
-            void calcPrePartialsPartials2(MapType *destP, MapType *partials1,
-                                          MapType *partials2, int edgeIndex1,
-                                          int edgeIndex2, MapType *partialCache2);
+            void calcPrePartialsPartials2(int destPIndex,
+					  int partials1Index, int partials2Index,
+                                          int edgeIndex1, int edgeIndex2);
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics(double A1Norm,
