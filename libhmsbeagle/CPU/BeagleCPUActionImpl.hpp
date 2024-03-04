@@ -325,7 +325,7 @@ namespace beagle {
 #endif
 
 //                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
-                calcPartialsPartials2(destP, partials1, partials2, firstChildSubstitutionMatrixIndex,
+                calcPartialsPartials2(destinationPartialIndex, partials1, partials2, firstChildSubstitutionMatrixIndex,
                                       secondChildSubstitutionMatrixIndex, partialCache1, partialCache2);
 
                 if (rescale == 1) {
@@ -483,7 +483,7 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(MapType *destP, MapType *partials1,
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(int destPIndex, MapType *partials1,
                                                                                   MapType *partials2, int edgeIndex1,
                                                                                   int edgeIndex2,
                                                                                   MapType *partialCache1,
@@ -494,7 +494,7 @@ namespace beagle {
 		simpleAction2(partialCache1, partials1, edgeIndex1, category, false);
 		simpleAction2(partialCache2, partials2, edgeIndex2, category, false);
 
-                destP[category] = partialCache1[category].cwiseProduct(partialCache2[category]);
+                partialsMap(destPIndex, category) = partialCache1[category].cwiseProduct(partialCache2[category]);
             }
         }
 
