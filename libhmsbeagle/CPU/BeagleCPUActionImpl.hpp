@@ -325,8 +325,10 @@ namespace beagle {
 #endif
 
 //                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
-                calcPartialsPartials2(destinationPartialIndex, partials1, partials2, firstChildSubstitutionMatrixIndex,
-                                      secondChildSubstitutionMatrixIndex, partialCache1, partialCache2);
+                calcPartialsPartials2(destinationPartialIndex,
+				      firstChildPartialIndex, secondChildPartialIndex,
+				      firstChildSubstitutionMatrixIndex,secondChildSubstitutionMatrixIndex,
+				      partialCache1, partialCache2);
 
                 if (rescale == 1) {
                     rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
@@ -483,16 +485,19 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(int destPIndex, MapType *partials1,
-                                                                                  MapType *partials2, int edgeIndex1,
-                                                                                  int edgeIndex2,
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(int destPIndex,
+										  int partials1Index, int partials2Index,
+										  int edgeIndex1, int edgeIndex2,
                                                                                   MapType *partialCache1,
                                                                                   MapType *partialCache2) {
 	    // The partialCache1&2 are just temporary, right?
             for (int category = 0; category < kCategoryCount; category++)
 	    {
-		simpleAction2(partialCache1, partials1, edgeIndex1, category, false);
-		simpleAction2(partialCache2, partials2, edgeIndex2, category, false);
+		auto partials1 = partialsMap(partials1Index, category);
+		simpleAction2(partialCache1, &partials1, edgeIndex1, category, false);
+
+		auto partials2 = partialsMap(partials2Index, category);
+		simpleAction2(partialCache2, &partials2, edgeIndex2, category, false);
 
                 partialsMap(destPIndex, category) = partialCache1[category].cwiseProduct(partialCache2[category]);
             }

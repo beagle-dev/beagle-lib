@@ -226,8 +226,8 @@ namespace beagle {
                                       MapType* partials2,
                                       SpMatrix* matrices2);
 
-            void calcPartialsPartials2(int destPIndex, MapType *partials1,
-                                       MapType *partials2, int edgeIndex1,
+            void calcPartialsPartials2(int destPIndex, int partials1Index,
+                                       int partials2Index, int edgeIndex1,
                                        int edgeIndex2, MapType *partialCache1,
                                        MapType *partialCache2);
 
