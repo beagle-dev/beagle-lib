@@ -194,7 +194,7 @@ namespace beagle {
 //            virtual int getPaddedPatternsModulus();
 
         private:
-            virtual void rescalePartials(MapType *destP,
+            virtual void rescalePartials(int destPIndex,
                                          double *scaleFactors,
                                          double *cumulativeScaleFactors,
                                          const int  fillWithOnes);

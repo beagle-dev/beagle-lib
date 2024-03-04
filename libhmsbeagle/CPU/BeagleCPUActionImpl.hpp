@@ -183,13 +183,13 @@ namespace beagle {
         inline const char* getBeagleCPUActionName<float>(){ return "CPU-Action-Single"; };
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::rescalePartials(MapType *destP,
-                             double *scaleFactors,
-                             double *cumulativeScaleFactors,
-                             const int fillWithOnes) {
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::rescalePartials(int destPIndex,
+									    double *scaleFactors,
+									    double *cumulativeScaleFactors,
+									    const int fillWithOnes) {
             memset(gRescaleTmp, 0, kPatternCount * sizeof(double));
             for (int category = 0; category < kCategoryCount; category++) {
-                Eigen::VectorXd colMax = destP[category].colwise().maxCoeff();
+                Eigen::VectorXd colMax = partialsMap(destPIndex,category).colwise().maxCoeff();
                 for (int pattern = 0; pattern < kPatternCount; pattern++) {
                     if (gRescaleTmp[pattern] < colMax(pattern)) {
                         gRescaleTmp[pattern] = colMax(pattern);
@@ -204,7 +204,7 @@ namespace beagle {
             MapType gRescaleTmpMap(gRescaleTmp, 1, kPatternCount);
 
             for (int category = 0; category < kCategoryCount; category++) {
-                destP[category] *= gRescaleTmpMap.asDiagonal();
+                partialsMap(destPIndex,category) *= gRescaleTmpMap.asDiagonal();
             }
 
             for (int pattern = 0; pattern < kPatternCount; pattern++) {
@@ -296,8 +296,6 @@ namespace beagle {
                     }
                 }
 
-                MapType* destP = gMappedPartials[destinationPartialIndex];
-
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
                 if (writeScalingIndex >= 0) {
@@ -321,7 +319,7 @@ namespace beagle {
 				      firstChildSubstitutionMatrixIndex,secondChildSubstitutionMatrixIndex);
 
                 if (rescale == 1) {
-                    rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, 0);
+                    rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, 0);
                 }
             }
 
@@ -390,7 +388,7 @@ namespace beagle {
                                          siblingSubstitutionMatrixIndex, partialCache2);
 
                 if (rescale == 1) {
-                    rescalePartials(destP, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
+                    rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
                 }
             }
 
