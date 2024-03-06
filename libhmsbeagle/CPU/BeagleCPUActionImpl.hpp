@@ -507,7 +507,7 @@ namespace beagle {
 #endif
 	    const double tol = pow(2.0, -53.0);
 	    const double t = 1.0;
-	    const int nCol = kPatternCount;
+	    const int nCol = (int)destP.cols();
 
 	    const double edgeMultiplier = gEdgeMultipliers[edgeIndex * kCategoryCount + category];
 
@@ -524,7 +524,7 @@ namespace beagle {
 		A = A.transpose();
 	    }
 
-	    MatrixXd F(kStateCount, kPatternCount);
+	    MatrixXd F(kStateCount, nCol);
 	    F = destP;
 
 	    const double eta = exp(t * gMuBs[gEigenMaps[edgeIndex]] * edgeMultiplier / (double) s);
