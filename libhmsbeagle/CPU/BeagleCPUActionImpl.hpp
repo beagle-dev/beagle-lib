@@ -249,6 +249,10 @@ namespace beagle {
 		if (byPartition) {
 		    startPattern = this->gPatternPartitionsStartPatterns[currentPartition];
 		    endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
+
+		    assert(startPattern >= 0 and startPattern <= kPatternCount);
+		    assert(endPattern >= 0 and endPattern <= kPatternCount);
+		    assert(startPattern <= endPattern);
 		}
 
                 int rescale = BEAGLE_OP_NONE;
@@ -273,7 +277,9 @@ namespace beagle {
 				      firstChildPartialIndex,
 				      firstChildSubstitutionMatrixIndex,
 				      secondChildPartialIndex,
-				      secondChildSubstitutionMatrixIndex);
+				      secondChildSubstitutionMatrixIndex,
+				      startPattern,
+				      endPattern);
 
                 if (rescale == 1) {
                     rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, 0);
@@ -326,6 +332,10 @@ namespace beagle {
 		if (byPartition) {
 		    startPattern = this->gPatternPartitionsStartPatterns[currentPartition];
 		    endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
+
+		    assert(startPattern >= 0 and startPattern <= kPatternCount);
+		    assert(endPattern >= 0 and endPattern <= kPatternCount);
+		    assert(startPattern <= endPattern);
 		}
 
                 int rescale = BEAGLE_OP_NONE;
@@ -350,7 +360,9 @@ namespace beagle {
 					 parentIndex,
 					 substitutionMatrixIndex,
 					 siblingIndex,
-                                         siblingSubstitutionMatrixIndex);
+                                         siblingSubstitutionMatrixIndex,
+					 startPattern,
+					 endPattern);
 
                 if (rescale == 1) {
                     rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
@@ -448,7 +460,9 @@ namespace beagle {
 										  int partials1Index,
 										  int edgeIndex1,
 										  int partials2Index,
-										  int edgeIndex2) {
+										  int edgeIndex2,
+										  int startPattern,
+										  int endPattern) {
             for (int category = 0; category < kCategoryCount; category++)
 	    {
 		auto partials1 = partialsMap(partials1Index, category);
@@ -469,7 +483,9 @@ namespace beagle {
 										     int partials1Index,
                                                                                      int edgeIndex1,
 										     int partials2Index,
-										     int edgeIndex2) {
+										     int edgeIndex2,
+										     int startPattern,
+										     int endPattern) {
             memset(gIntegrationTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
 
             for (int category = 0; category < kCategoryCount; category++) {

@@ -221,13 +221,17 @@ namespace beagle {
 				       int partials1Index,
 				       int edgeIndex1,
 				       int partials2Index,
-				       int edgeIndex2);
+				       int edgeIndex2,
+				       int startPattern,
+				       int endPattern);
 
             void calcPrePartialsPartials2(int destPIndex,
 					  int partials1Index,
                                           int edgeIndex1,
 					  int partials2Index,
-					  int edgeIndex2);
+					  int edgeIndex2,
+					  int startPattern,
+					  int endPattern);
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics(double A1Norm,
