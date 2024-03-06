@@ -463,15 +463,16 @@ namespace beagle {
 										  int endPattern) {
             for (int category = 0; category < kCategoryCount; category++)
 	    {
-		auto partials1 = partialsMap(partials1Index, category);
-		auto partials1Cache = partialsCacheMap(partials1Index, category);
+		auto partials1 = partialsMap(partials1Index, category, startPattern, endPattern);
+		auto partials1Cache = partialsCacheMap(partials1Index, category, startPattern, endPattern);
 		simpleAction2(partials1Cache, partials1, edgeIndex1, category, false);
 
-		auto partials2 = partialsMap(partials2Index, category);
-		auto partials2Cache = partialsCacheMap(partials2Index, category);
+		auto partials2 = partialsMap(partials2Index, category, startPattern, endPattern);
+		auto partials2Cache = partialsCacheMap(partials2Index, category, startPattern, endPattern);
 		simpleAction2(partials2Cache, partials2, edgeIndex2, category, false);
 
-                partialsMap(destPIndex, category) = partials1Cache.cwiseProduct(partials2Cache);
+		auto destP = partialsMap(destPIndex, category, startPattern, endPattern);
+                destP = partials1Cache.cwiseProduct(partials2Cache);
             }
         }
 
@@ -487,9 +488,9 @@ namespace beagle {
             memset(gIntegrationTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
 
             for (int category = 0; category < kCategoryCount; category++) {
-		auto partialCache2 = partialsCacheMap(partials2Index, category);
-		auto partials1     = partialsMap(partials1Index, category);
-		auto destP         = partialsMap(destPIndex, category);
+		auto partialCache2 = partialsCacheMap(partials2Index, category, startPattern, endPattern);
+		auto partials1     = partialsMap(partials1Index, category, startPattern, endPattern);
+		auto destP         = partialsMap(destPIndex, category, startPattern, endPattern);
 
                 gMappedIntegrationTmp[category] = partialCache2.cwiseProduct(partials1);
 		simpleAction2(destP, gMappedIntegrationTmp[category], edgeIndex1, category, true);
