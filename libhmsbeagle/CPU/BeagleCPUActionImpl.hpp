@@ -207,8 +207,6 @@ namespace beagle {
 								      const int *operations,
 								      int operationCount,
 								      int cumulativeScaleIndex) {
-	    if (byPartition) return BEAGLE_ERROR_NO_IMPLEMENTATION;
-
 	    double* cumulativeScaleBuffer = NULL;
             if (cumulativeScaleIndex != BEAGLE_OP_NONE)
                 cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
