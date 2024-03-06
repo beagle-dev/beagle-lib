@@ -169,14 +169,16 @@ namespace beagle {
 
 //            virtual int setCategoryRates(const double* inCategoryRates);
 
-            virtual int updatePrePartials(const int *operations,
-                                       int operationCount,
-                                       int cumulativeScalingIndex);
         protected:
             virtual int upPartials(bool byPartition,
 				   const int *operations,
 				   int operationCount,
 				   int cumulativeScalingIndex);
+
+            virtual int upPrePartials(bool byPartition,
+				      const int *operations,
+				      int operationCount,
+				      int cumulativeScalingIndex);
 
 	    inline MapType partialsMap(int index, int category, int startPattern, int endPattern);
 

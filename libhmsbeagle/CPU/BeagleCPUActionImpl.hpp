@@ -284,12 +284,13 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::updatePrePartials(const int *operations,
-                                                                          int operationCount,
-                                                                          int cumulativeScalingIndex) {
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::upPrePartials(bool byPartition,
+									 const int *operations,
+									 int operationCount,
+									 int cumulativeScaleIndex) {
             double* cumulativeScaleBuffer = NULL;
-            if (cumulativeScalingIndex != BEAGLE_OP_NONE)
-                cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
+            if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+                cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
 
             for (int op = 0; op < operationCount; op++) {
                 int numOps = BEAGLE_OP_COUNT;
@@ -308,6 +309,24 @@ namespace beagle {
                 const int substitutionMatrixIndex = operations[op * numOps + 4];
                 const int siblingIndex = operations[op * numOps + 5];
                 const int siblingSubstitutionMatrixIndex = operations[op * numOps + 6];
+		int currentPartition = 0;
+		if (byPartition) {
+		    currentPartition = operations[op * numOps + 7];
+		    cumulativeScaleIndex = operations[op * numOps + 8];
+//                    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+//                        cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
+//                    else
+//                        cumulativeScaleBuffer = NULL;
+		}
+
+		double *destPartials = gPartials[destinationPartialIndex];
+
+		int startPattern = 0;
+		int endPattern = kPatternCount;
+		if (byPartition) {
+		    startPattern = this->gPatternPartitionsStartPatterns[currentPartition];
+		    endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
+		}
 
                 int rescale = BEAGLE_OP_NONE;
                 double* scalingFactors = NULL;
@@ -336,9 +355,17 @@ namespace beagle {
                 if (rescale == 1) {
                     rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
                 }
+
+		if (DEBUGGING_OUTPUT) {
+		    if (scalingFactors != NULL && rescale == 0) {
+			for (int i = 0; i < kPatternCount; i++)
+			    fprintf(stderr, "old scaleFactor[%d] = %.5f\n", i, scalingFactors[i]);
+		    }
+		    fprintf(stderr, "Result partials:\n");
+		    for (int i = 0; i < this->kPartialsSize; i++)
+			fprintf(stderr, "destP[%d] = %.5f\n", i, destPartials[i]);
+		}
             }
-
-
 
             return BEAGLE_SUCCESS;
         }
