@@ -551,6 +551,82 @@ namespace beagle {
 #endif
         }
 
+	double factorial(int n)
+	{
+	    double f = 1;
+	    for(int i=2;i<=n;i++)
+		f *= double(i);
+	    return f;
+	}
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        void
+        BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
+                                                                     int category, bool transpose) {
+#ifdef BEAGLE_DEBUG_FLOW
+            std::cerr<<"New impl 2\nRate category "<<category<<std::endl;
+	    std::cerr<<"In partial: \n"<<partials<<std::endl;
+#endif
+	    const double tol = pow(2.0, -53.0);
+	    int m = 2;
+	    constexpr int M = 55;
+
+	    const double edgeMultiplier = gEdgeMultipliers[edgeIndex * kCategoryCount + category];
+
+	    SpMatrix A = gInstantaneousMatrices[gEigenMaps[edgeIndex]] * edgeMultiplier;
+	    if (transpose) {
+		A = A.transpose();
+	    }
+
+	    MatrixXd v = partials;
+// BEGIN
+	    std::vector<MatrixXd> V(M);
+	    V[1] = A*v; // L1
+	    for(int k=2;k<=m+1;k++) // L2
+		V[k] = A*V[k-1]; // L3
+	    // L4
+	    int s = ceil(pow(V[m+1].maxCoeff() / factorial(m+1) / tol, 1.0/(m+1))); // L5
+	    int p = m * s; // L6
+	    int f = 0; // L7
+	    while (f == 0 and m < M) { // L8
+		m = m + 1; // L9
+		V[m+1] = A*V[m]; // L10
+		int s1 = ceil(pow(V[m+1].maxCoeff()/factorial(m+1) / tol,1.0/(m+1))); //L11
+		int p1 = m*s1; // L12
+		if (p1 <= p) // L13
+		{
+		    p = p1; // L14
+		    s = s1; // L15
+		}
+		else
+		{
+		    m = m-1; // L17
+		    f = 1; // L18
+		} //L19
+	    } // L20
+#ifdef BEAGLE_DEBUG_FLOW
+	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
+#endif
+	    MatrixXd w = v; // L 21
+	    for(int k=1;k<=m;k++) { // L22
+		w += V[k]/pow(s,k)/factorial(k); // L23
+	    } //L24
+	    A /= s;  // L25
+	    for(int i=2;i<=s;i++) { // L26
+		v = w; // L27
+		for(int k=1;k<=m;k++) { // L28
+		    v = A*v; // L29
+		    w += v/factorial(k); // L30
+		} // L31
+	    } // L32
+// END
+	    destP = w;
+
+#ifdef BEAGLE_DEBUG_FLOW
+	    std::cerr<<"Out partials: \n"<<destP<<std::endl;
+#endif
+        }
+
         BEAGLE_CPU_ACTION_TEMPLATE
         std::tuple<int,int>
 	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
