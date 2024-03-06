@@ -216,12 +216,16 @@ namespace beagle {
                               SpMatrix* matrix);
 
             void calcPartialsPartials2(int destPIndex,
-				       int partials1Index, int partials2Index,
-				       int edgeIndex1, int edgeIndex2);
+				       int partials1Index,
+				       int edgeIndex1,
+				       int partials2Index,
+				       int edgeIndex2);
 
             void calcPrePartialsPartials2(int destPIndex,
-					  int partials1Index, int partials2Index,
-                                          int edgeIndex1, int edgeIndex2);
+					  int partials1Index,
+                                          int edgeIndex1,
+					  int partials2Index,
+					  int edgeIndex2);
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics(double A1Norm,

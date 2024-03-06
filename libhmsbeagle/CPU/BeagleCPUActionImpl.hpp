@@ -270,8 +270,10 @@ namespace beagle {
 
 //                calcPartialsPartials(destP, partials1, matrices1, partials2, matrices2);
                 calcPartialsPartials2(destinationPartialIndex,
-				      firstChildPartialIndex, secondChildPartialIndex,
-				      firstChildSubstitutionMatrixIndex,secondChildSubstitutionMatrixIndex);
+				      firstChildPartialIndex,
+				      firstChildSubstitutionMatrixIndex,
+				      secondChildPartialIndex,
+				      secondChildSubstitutionMatrixIndex);
 
                 if (rescale == 1) {
                     rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, 0);
@@ -326,8 +328,9 @@ namespace beagle {
 
 //                calcPrePartialsPartials(destP, partials1, matrices1, partials2, matrices2);
                 calcPrePartialsPartials2(destinationPartialIndex,
-					 parentIndex, siblingIndex,
+					 parentIndex,
 					 substitutionMatrixIndex,
+					 siblingIndex,
                                          siblingSubstitutionMatrixIndex);
 
                 if (rescale == 1) {
@@ -415,8 +418,10 @@ namespace beagle {
 
         BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPartialsPartials2(int destPIndex,
-										  int partials1Index, int partials2Index,
-										  int edgeIndex1, int edgeIndex2) {
+										  int partials1Index,
+										  int edgeIndex1,
+										  int partials2Index,
+										  int edgeIndex2) {
             for (int category = 0; category < kCategoryCount; category++)
 	    {
 		auto partials1 = partialsMap(partials1Index, category);
@@ -434,8 +439,10 @@ namespace beagle {
 
         BEAGLE_CPU_ACTION_TEMPLATE
         void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::calcPrePartialsPartials2(int destPIndex,
-										     int partials1Index, int partials2Index,
-                                                                                     int edgeIndex1, int edgeIndex2) {
+										     int partials1Index,
+                                                                                     int edgeIndex1,
+										     int partials2Index,
+										     int edgeIndex2) {
             memset(gIntegrationTmp, 0, (kPatternCount * kStateCount * kCategoryCount)*sizeof(double));
 
             for (int category = 0; category < kCategoryCount; category++) {
