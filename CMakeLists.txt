@@ -61,21 +61,21 @@ include_directories(
         ${PROJECT_SOURCE_DIR}
 )
 
-find_package(JNI)
-if(JNI_FOUND)
-    message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
-    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
-    message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
+if(BUILD_JNI)
+	find_package(JNI)
+	if(JNI_FOUND)
+    	message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
+	    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+    	message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
 
-	include_directories(
-    	    $ENV{JAVA_HOME}/include
-	        ${JNI_INCLUDE_DIRS}
-	)
-else(JNI_FOUND)
-	if(BUILD_JNI)
-		message (FATAL_ERROR "No JNI includes and libraries found")
-	endif(BUILD_JNI)
-endif(JNI_FOUND)
+		include_directories(
+    		    $ENV{JAVA_HOME}/include
+	    	    ${JNI_INCLUDE_DIRS}
+		)
+	else(JNI_FOUND)	
+		message (FATAL_ERROR "No JNI includes and libraries found")	
+	endif(JNI_FOUND)
+endif(BUILD_JNI)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
