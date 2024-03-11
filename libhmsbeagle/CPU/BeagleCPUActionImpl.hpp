@@ -576,7 +576,7 @@ namespace beagle {
 
 	    const double edgeMultiplier = gEdgeMultipliers[edgeIndex * kCategoryCount + category];
 
-	    SpMatrix A = gInstantaneousMatrices[gEigenMaps[edgeIndex]] * edgeMultiplier;
+	    SpMatrix A = gBs[gEigenMaps[edgeIndex]] * edgeMultiplier;
 	    if (transpose) {
 		A = A.transpose();
 	    }
@@ -610,7 +610,7 @@ namespace beagle {
 #ifdef BEAGLE_DEBUG_FLOW
 	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
 #endif
-// #endif
+	    const double eta = exp(gMuBs[gEigenMaps[edgeIndex]] * edgeMultiplier / (double) s);
 
 	    // This loop can't be rolled into the loop above because
 	    // we don't know the value of 's' until we get here.
@@ -618,6 +618,7 @@ namespace beagle {
 	    for(int k=1;k<=m;k++) { // L22
 		w += V[k]/pow(s,k); // L23
 	    } //L24
+	    w *= eta;
 	    for(int i=2;i<=s;i++) { // L26
 		v = w; // L27
 		for(int k=1;k<=m;k++) { // L28
@@ -625,6 +626,7 @@ namespace beagle {
 		    v /= (double(s) * k);
 		    w += v; // L30
 		} // L31
+		w *= eta;
 	    } // L32
 // END
 	    destP = w;
