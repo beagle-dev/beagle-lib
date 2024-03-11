@@ -515,7 +515,7 @@ namespace beagle {
 
 
 #ifdef BEAGLE_DEBUG_FLOW
-	    std::cerr<<" m = "<<m<<"  s = "<<s <<std::endl;
+	    std::cerr<<"simpleAction2: m = "<<m<<"  s = "<<s <<std::endl;
 #endif
 
 	    destP = partials;
