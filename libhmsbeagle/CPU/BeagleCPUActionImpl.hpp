@@ -584,7 +584,7 @@ namespace beagle {
 
 	    MatrixXd v = partials;
 // BEGIN
-	    std::vector<MatrixXd> V(M);
+	    std::vector<MatrixXd> V(M+2);
 	    V[1] = A*v; // L1
 	    for(int k=2;k<=m+1;k++) // L2
 		V[k] = A*V[k-1] / k; // L3
