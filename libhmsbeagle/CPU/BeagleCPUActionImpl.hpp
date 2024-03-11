@@ -618,7 +618,8 @@ namespace beagle {
 	    for(int i=2;i<=s;i++) { // L26
 		v = w; // L27
 		for(int k=1;k<=m;k++) { // L28
-		    v = A*v / (double(s) * k);
+		    v = A*v;
+		    v /= (double(s) * k);
 		    w += v; // L30
 		} // L31
 	    } // L32
