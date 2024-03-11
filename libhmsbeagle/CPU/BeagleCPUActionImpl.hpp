@@ -570,6 +570,7 @@ namespace beagle {
             std::cerr<<"New impl 2\nRate category "<<category<<std::endl;
 	    std::cerr<<"In partial: \n"<<partials<<std::endl;
 #endif
+	    // This is on the column-wise maximum of the L1-norm of || Exp<m,s>(Q*t)*v - Exp(Q*t)*v ||.
 	    const double tol = pow(2.0, -53.0);
 	    int m = 2;
 	    constexpr int M = 55;
