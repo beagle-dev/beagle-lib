@@ -570,7 +570,8 @@ namespace beagle {
 		A = A.transpose();
 	    }
 
-	    MatrixXd v = partials;
+	    MatrixXd w = partials; // L 21
+	    MatrixXd v = w;
 // BEGIN
 	    std::vector<MatrixXd> V(M);
 	    V[1] = A*v; // L1
@@ -601,7 +602,6 @@ namespace beagle {
 	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
 #endif
 
-	    MatrixXd w = v; // L 21
 	    for(int k=1;k<=m;k++) { // L22
 		w += V[k]/pow(s,k); // L23
 	    } //L24
