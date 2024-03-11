@@ -591,8 +591,7 @@ namespace beagle {
 	    // L4
 	    int s = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
 	    int p = m * s; // L6
-	    int f = 0; // L7
-	    while (f == 0 and m < M) { // L8
+	    while (m < M) { // L8
 		m = m + 1; // L9
 		V[m+1] = A*V[m] / (m+1); // L10
 		int s1 = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); //L11
@@ -605,7 +604,7 @@ namespace beagle {
 		else
 		{
 		    m = m-1; // L17
-		    f = 1; // L18
+		    break;
 		} //L19
 	    } // L20
 
