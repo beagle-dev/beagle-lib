@@ -590,26 +590,34 @@ namespace beagle {
 		V[k] = A*V[k-1] / k; // L3
 	    // L4
 	    double S = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
+	    if (S < 1)
+	    {
+		// Handle the case where Qt - mu*I = 0
+		S = 1;
+	    }
+	    else
+	    {
+		double P = m * S; // L6
+		while (m < M) { // L8
+		    m = m + 1; // L9
+		    V[m+1] = A*V[m] / (m+1); // L10
+		    double S1 = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); //L11
+		    assert( S1 >= 1 );
+		    double P1 = m*S1; // L12
+		    if (P1 <= P) // L13
+		    {
+			P = P1; // L14
+			S = S1; // L15
+		    }
+		    else
+		    {
+			m = m-1; // L17
+			break;
+		    } //L19
+		} // L20
+	    }
 	    assert( S >= 1 );
-	    double P = m * S; // L6
-	    while (m < M) { // L8
-		m = m + 1; // L9
-		V[m+1] = A*V[m] / (m+1); // L10
-		double S1 = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); //L11
-		assert( S1 >= 1 );
-		double P1 = m*S1; // L12
-		if (P1 <= P) // L13
-		{
-		    P = P1; // L14
-		    S = S1; // L15
-		}
-		else
-		{
-		    m = m-1; // L17
-		    break;
-		} //L19
-	    } // L20
-	    assert( S >= 1 );
+	    assert( S <= INT_MAX );
 
 	    int s = int(S);
 
