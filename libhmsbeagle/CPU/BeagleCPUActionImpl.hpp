@@ -596,9 +596,11 @@ namespace beagle {
 		    f = 1; // L18
 		} //L19
 	    } // L20
+
 #ifdef BEAGLE_DEBUG_FLOW
 	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
 #endif
+
 	    MatrixXd w = v; // L 21
 	    for(int k=1;k<=m;k++) { // L22
 		w += V[k]/pow(s,k); // L23
