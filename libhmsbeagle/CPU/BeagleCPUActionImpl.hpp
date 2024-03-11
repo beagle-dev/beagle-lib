@@ -589,17 +589,19 @@ namespace beagle {
 	    for(int k=2;k<=m+1;k++) // L2
 		V[k] = A*V[k-1] / k; // L3
 	    // L4
-	    int s = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
-	    int p = m * s; // L6
+	    double S = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
+	    assert( S >= 1 );
+	    double P = m * S; // L6
 	    while (m < M) { // L8
 		m = m + 1; // L9
 		V[m+1] = A*V[m] / (m+1); // L10
-		int s1 = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); //L11
-		int p1 = m*s1; // L12
-		if (p1 <= p) // L13
+		double S1 = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); //L11
+		assert( S1 >= 1 );
+		double P1 = m*S1; // L12
+		if (P1 <= P) // L13
 		{
-		    p = p1; // L14
-		    s = s1; // L15
+		    P = P1; // L14
+		    S = S1; // L15
 		}
 		else
 		{
@@ -607,6 +609,9 @@ namespace beagle {
 		    break;
 		} //L19
 	    } // L20
+	    assert( S >= 1 );
+
+	    int s = int(S);
 
 #ifdef BEAGLE_DEBUG_FLOW
 	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
