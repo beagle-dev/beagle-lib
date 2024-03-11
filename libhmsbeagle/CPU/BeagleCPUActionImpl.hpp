@@ -581,8 +581,7 @@ namespace beagle {
 		A = A.transpose();
 	    }
 
-	    MatrixXd w = partials; // L 21
-	    MatrixXd v = w;
+	    MatrixXd v = partials;
 // BEGIN
 	    std::vector<MatrixXd> V(M);
 	    V[1] = A*v; // L1
@@ -611,7 +610,11 @@ namespace beagle {
 #ifdef BEAGLE_DEBUG_FLOW
 	    std::cerr<<"simpleAction3: m = "<<m<<"  s = "<<s <<std::endl;
 #endif
+// #endif
 
+	    // This loop can't be rolled into the loop above because
+	    // we don't know the value of 's' until we get here.
+	    MatrixXd w = partials; // L21
 	    for(int k=1;k<=m;k++) { // L22
 		w += V[k]/pow(s,k); // L23
 	    } //L24
