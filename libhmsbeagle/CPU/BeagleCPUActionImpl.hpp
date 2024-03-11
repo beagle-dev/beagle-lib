@@ -611,12 +611,11 @@ namespace beagle {
 	    for(int k=1;k<=m;k++) { // L22
 		w += V[k]/pow(s,k)/factorial(k); // L23
 	    } //L24
-	    A /= s;  // L25
 	    for(int i=2;i<=s;i++) { // L26
 		v = w; // L27
 		for(int k=1;k<=m;k++) { // L28
-		    v = A*v; // L29
-		    w += v/factorial(k); // L30
+		    v = A*v / (double(s) * k);
+		    w += v; // L30
 		} // L31
 	    } // L32
 // END
