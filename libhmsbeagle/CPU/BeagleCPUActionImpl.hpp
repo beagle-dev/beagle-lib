@@ -590,9 +590,10 @@ namespace beagle {
 		V[k] = A*V[k-1] / k; // L3
 	    // L4
 	    double S = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
-	    if (S < 1)
+	    if (not (S >= 1))
 	    {
 		// Handle the case where Qt - mu*I = 0
+		// Handle the case where normP1( ) is NaN.
 		S = 1;
 	    }
 	    else
