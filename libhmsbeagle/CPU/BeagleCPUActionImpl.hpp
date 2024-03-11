@@ -551,14 +551,6 @@ namespace beagle {
 #endif
         }
 
-	double factorial(int n)
-	{
-	    double f = 1;
-	    for(int i=2;i<=n;i++)
-		f *= double(i);
-	    return f;
-	}
-
         BEAGLE_CPU_ACTION_TEMPLATE
         void
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
@@ -583,15 +575,15 @@ namespace beagle {
 	    std::vector<MatrixXd> V(M);
 	    V[1] = A*v; // L1
 	    for(int k=2;k<=m+1;k++) // L2
-		V[k] = A*V[k-1]; // L3
+		V[k] = A*V[k-1] / k; // L3
 	    // L4
-	    int s = ceil(pow(V[m+1].maxCoeff() / factorial(m+1) / tol, 1.0/(m+1))); // L5
+	    int s = ceil(pow(V[m+1].maxCoeff() / tol, 1.0/(m+1))); // L5
 	    int p = m * s; // L6
 	    int f = 0; // L7
 	    while (f == 0 and m < M) { // L8
 		m = m + 1; // L9
-		V[m+1] = A*V[m]; // L10
-		int s1 = ceil(pow(V[m+1].maxCoeff()/factorial(m+1) / tol,1.0/(m+1))); //L11
+		V[m+1] = A*V[m] / (m+1); // L10
+		int s1 = ceil(pow(V[m+1].maxCoeff() / tol,1.0/(m+1))); //L11
 		int p1 = m*s1; // L12
 		if (p1 <= p) // L13
 		{
@@ -609,7 +601,7 @@ namespace beagle {
 #endif
 	    MatrixXd w = v; // L 21
 	    for(int k=1;k<=m;k++) { // L22
-		w += V[k]/pow(s,k)/factorial(k); // L23
+		w += V[k]/pow(s,k); // L23
 	    } //L24
 	    for(int i=2;i<=s;i++) { // L26
 		v = w; // L27
