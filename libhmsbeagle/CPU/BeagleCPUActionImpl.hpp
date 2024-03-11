@@ -42,6 +42,17 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUActionImpl.h"
 
+template <typename T>
+double normP1(const T& matrix) {
+    return (Eigen::RowVectorXd::Ones(matrix.rows()) * matrix.cwiseAbs()).maxCoeff();
+}
+
+template <typename T>
+double normPInf(const T& matrix) {
+    return matrix.template lpNorm<Eigen::Infinity>();
+}
+
+
 class SimpleAction;
 namespace beagle {
     namespace cpu {
@@ -403,7 +414,7 @@ namespace beagle {
             mu_B /= (double) kStateCount;
             gMuBs[eigenIndex] = mu_B;
             gBs[eigenIndex] = gInstantaneousMatrices[eigenIndex] - mu_B * identity;
-            gB1Norms[eigenIndex] = normP1(&gBs[eigenIndex]);
+            gB1Norms[eigenIndex] = normP1(gBs[eigenIndex]);
 
 //            gSimpleActions[eigenIndex]->setInstantaneousMatrix(tripletList);
 //            gSimpleActions[eigenIndex]->fireMatrixChanged();
@@ -536,7 +547,7 @@ namespace beagle {
 		    destP *= t / ((double) s * j);
 		    double c2 = normPInf(destP);
 		    F += destP;
-		    if (c1 + c2 <= tol * normPInf(&F)) {
+		    if (c1 + c2 <= tol * normPInf(F)) {
 			break;
 		    }
 		    c1 = c2;
@@ -654,7 +665,7 @@ namespace beagle {
 		if (gHighestPowers[eigenIndex] < 1) {
 		    SpMatrix currentMatrix = gBs[eigenIndex];
 		    powerMatrices[eigenIndex][1] = currentMatrix;
-		    ds[eigenIndex][1] = normP1(&currentMatrix);
+		    ds[eigenIndex][1] = normP1(currentMatrix);
 		    gHighestPowers[eigenIndex] = 1;
 		}
 		for (int p = 2; p < pMax; p++) {
@@ -719,7 +730,7 @@ namespace beagle {
                 SpMatrix A(thisMatrix.rows(), thisMatrix.cols());
 
                 A = thisMatrix - mu * identity;
-                const double A1Norm = normP1(&A);
+                const double A1Norm = normP1(A);
 
                 auto [m,s] = getStatistics(A1Norm, &A, t, nCol);
 
@@ -742,7 +753,7 @@ namespace beagle {
                         destP[category] *= t / ((double) s * j);
                         c2 = normPInf(destP[category]);
                         F += destP[category];
-                        if (c1 + c2 <= tol * normPInf(&F)) {
+                        if (c1 + c2 <= tol * normPInf(F)) {
                             break;
                         }
                         c1 = c2;
@@ -789,7 +800,7 @@ namespace beagle {
 		SpMatrix firstOrderMatrix = *matrix;
 		std::map<int, SpMatrix> powerMatrices;
 		powerMatrices[1] = firstOrderMatrix;
-		d[1] = normP1(&firstOrderMatrix);
+		d[1] = normP1(firstOrderMatrix);
 		for (int p = 2; p < pMax; p++) {
 		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
 			auto it = thetaConstants.find(thisM);
@@ -820,21 +831,6 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::normPInf(SpMatrix* matrix) {
-            return ((*matrix).cwiseAbs() * Eigen::VectorXd::Ones(matrix->cols())).maxCoeff();
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::normPInf(MapType matrix) {
-            return matrix.lpNorm<Eigen::Infinity>();
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::normPInf(MatrixXd* matrix) {
-            return matrix->lpNorm<Eigen::Infinity>();
-        }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
         double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue(int p, std::map<int, double> &d, std::map<int, SpMatrix> &powerMatrices) {
             // equation 3.7 in Al-Mohy and Higham
             std::map<int, double>::iterator it;
@@ -849,7 +845,7 @@ namespace beagle {
                     }
                 }
                 SpMatrix powerPMatrix = powerMatrices[p];
-                d[p] = pow(normP1(&powerPMatrix), 1.0 / ((double) p));
+                d[p] = pow(normP1(powerPMatrix), 1.0 / ((double) p));
             }
             return d[p];
         }
@@ -865,25 +861,19 @@ namespace beagle {
                     for (int i = gHighestPowers[eigenIndex]; i < (cachedHighestPower > p ? p : cachedHighestPower); i++) {
                         powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
                         gHighestPowers[eigenIndex] = i + 1;
-                        ds[eigenIndex][i + 1] = pow(normP1(&powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
+                        ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
                     }
 
                     for (int i = gHighestPowers[eigenIndex]; i < p; i++) {
                         SpMatrix nextPowerMatrix = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
                         powerMatrices[eigenIndex][i + 1] = nextPowerMatrix;
-                        ds[eigenIndex][i + 1] = pow(normP1(&powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
+                        ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
                     }
                     gHighestPowers[eigenIndex] = p;
                 }
             }
             return ds[eigenIndex][p];
         }
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::normP1(SpMatrix * matrix) {
-            return (Eigen::RowVectorXd::Ones(matrix -> rows()) * matrix -> cwiseAbs()).maxCoeff();
-        }
-
 
         BEAGLE_CPU_ACTION_TEMPLATE
         const char* BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getName() {

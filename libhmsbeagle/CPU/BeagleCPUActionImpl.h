@@ -251,13 +251,6 @@ namespace beagle {
 
             double getDValue2(int p, int eigenIndex);
 
-            double normP1(SpMatrix * matrix);
-
-            double normPInf(SpMatrix* matrix);
-            double normPInf(MapType matrix);
-            double normPInf(MatrixXd * matrix);
-
-
         };
 
 
