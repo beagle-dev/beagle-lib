@@ -102,7 +102,6 @@ namespace beagle {
             MapType* gMappedIntegrationTmp;
 //            MapType* gMappedLeftPartialTmp;
 //            MapType* gMappedRightPartialTmp;
-            double* gRescaleTmp;
             const int mMax = 55;
             std::map<int, double> thetaConstants = {
                     //The first 30 values are from table A.3 of  Computing Matrix Functions.
@@ -191,12 +190,6 @@ namespace beagle {
 //            virtual int getPaddedPatternsModulus();
 
         private:
-            virtual void rescalePartials(int destPIndex,
-                                         double *scaleFactors,
-                                         double *cumulativeScaleFactors,
-                                         const int  fillWithOnes);
-
-
             virtual int setEigenDecomposition(int eigenIndex,
                                               const double *inEigenVectors,
                                               const double *inInverseEigenVectors,

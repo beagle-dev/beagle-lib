@@ -134,9 +134,6 @@ namespace beagle {
                 new (& gMappedIntegrationTmp[category]) MapType(gIntegrationTmp + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
             }
 
-            gRescaleTmp = (double *) malloc(sizeof(double) * kPatternCount);
-
-
             for (int i = 0; i < eigenDecompositionCount; i++) {
                 SpMatrix matrix(kStateCount, kStateCount);
                 gInstantaneousMatrices[i] = matrix;
@@ -155,7 +152,6 @@ namespace beagle {
             free(gB1Norms);
             free(gIntegrationTmp);
 //            free(gScaledQs);
-            free(gRescaleTmp);
             free(gEigenMaps);
             free(gEdgeMultipliers);
         }
@@ -168,49 +164,6 @@ namespace beagle {
 
         template<>
         inline const char* getBeagleCPUActionName<float>(){ return "CPU-Action-Single"; };
-
-        BEAGLE_CPU_ACTION_TEMPLATE
-        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::rescalePartials(int destPIndex,
-									    double *scaleFactors,
-									    double *cumulativeScaleFactors,
-									    const int fillWithOnes) {
-            memset(gRescaleTmp, 0, kPatternCount * sizeof(double));
-            for (int category = 0; category < kCategoryCount; category++) {
-                Eigen::VectorXd colMax = partialsMap(destPIndex,category).colwise().maxCoeff();
-                for (int pattern = 0; pattern < kPatternCount; pattern++) {
-                    if (gRescaleTmp[pattern] < colMax(pattern)) {
-                        gRescaleTmp[pattern] = colMax(pattern);
-                    }
-                }
-            }
-
-            for (int pattern = 0; pattern < kPatternCount; pattern++) {
-                gRescaleTmp[pattern] = gRescaleTmp[pattern] == 0 ? 1.0 : 1.0 / gRescaleTmp[pattern];
-            }
-
-            MapType gRescaleTmpMap(gRescaleTmp, 1, kPatternCount);
-
-            for (int category = 0; category < kCategoryCount; category++) {
-                partialsMap(destPIndex,category) *= gRescaleTmpMap.asDiagonal();
-            }
-
-            for (int pattern = 0; pattern < kPatternCount; pattern++) {
-                if (kFlags & BEAGLE_FLAG_SCALERS_LOG) {
-                    const double logInverseMax = log(gRescaleTmp[pattern]);
-                    scaleFactors[pattern] = -logInverseMax;
-                    if (cumulativeScaleFactors != NULL) {
-                        cumulativeScaleFactors[pattern] -= logInverseMax;
-                    }
-                } else {
-                    scaleFactors[pattern] = 1.0 / gRescaleTmp[pattern];
-                    if (cumulativeScaleFactors != NULL) {
-                        cumulativeScaleFactors[pattern] -= log(gRescaleTmp[pattern]);
-                    }
-                }
-            }
-
-
-        }
 
 
 	BEAGLE_CPU_ACTION_TEMPLATE
@@ -291,7 +244,12 @@ namespace beagle {
 				      endPattern);
 
                 if (rescale == 1) {
-                    rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, 0);
+		    double* destPartials = gPartials[destinationPartialIndex];
+		    if (byPartition) {
+			this->rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
+		    } else {
+			this->rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+		    }
                 }
             }
 
@@ -374,7 +332,12 @@ namespace beagle {
 					 endPattern);
 
                 if (rescale == 1) {
-                    rescalePartials(destinationPartialIndex, scalingFactors, cumulativeScaleBuffer, substitutionMatrixIndex);
+		    double* destPartials = gPartials[destinationPartialIndex];
+		    if (byPartition) {
+			this->rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
+		    } else {
+			this->rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+		    }
                 }
 
 		if (DEBUGGING_OUTPUT) {
