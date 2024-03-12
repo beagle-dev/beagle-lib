@@ -148,8 +148,7 @@ int main( int argc, const char* argv[] )
     }
     fprintf(stdout, "\n");
 
-//    bool scaling = true;
-    bool scaling = false; // disable scaling for now
+    bool scaling = true;
 
     bool doJC = true;
 
