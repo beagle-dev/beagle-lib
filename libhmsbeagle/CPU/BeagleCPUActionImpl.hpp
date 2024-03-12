@@ -439,11 +439,11 @@ namespace beagle {
 	    {
 		auto partials1 = partialsMap(partials1Index, category, startPattern, endPattern);
 		auto partials1Cache = partialsCacheMap(partials1Index, category, startPattern, endPattern);
-		simpleAction2(partials1Cache, partials1, edgeIndex1, category, false);
+		simpleAction3(partials1Cache, partials1, edgeIndex1, category, false);
 
 		auto partials2 = partialsMap(partials2Index, category, startPattern, endPattern);
 		auto partials2Cache = partialsCacheMap(partials2Index, category, startPattern, endPattern);
-		simpleAction2(partials2Cache, partials2, edgeIndex2, category, false);
+		simpleAction3(partials2Cache, partials2, edgeIndex2, category, false);
 
 		auto destP = partialsMap(destPIndex, category, startPattern, endPattern);
                 destP = partials1Cache.cwiseProduct(partials2Cache);
@@ -467,7 +467,7 @@ namespace beagle {
 		auto destP         = partialsMap(destPIndex, category, startPattern, endPattern);
 
                 gMappedIntegrationTmp[category] = partialCache2.cwiseProduct(partials1);
-		simpleAction2(destP, gMappedIntegrationTmp[category], edgeIndex1, category, true);
+		simpleAction3(destP, gMappedIntegrationTmp[category], edgeIndex1, category, true);
             }
         }
 
