@@ -658,7 +658,7 @@ namespace beagle {
 			    // equation 3.7 in Al-Mohy and Higham
 			    const double dValueP = getDValue2(p, eigenIndex);
 			    const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
-			    const double alpha = (dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne) * edgeMultiplier;
+			    const double alpha = std::max(dValueP, dValuePPlusOne) * edgeMultiplier;
 			    // part of equation 3.10
 			    const double thisS = ceil(alpha / thetaConstants[thisM]);
 			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
@@ -791,7 +791,7 @@ namespace beagle {
 			    // equation 3.7 in Al-Mohy and Higham
 			    const double dValueP = getDValue(p, d, powerMatrices);
 			    const double dValuePPlusOne = getDValue(p + 1, d, powerMatrices);
-			    const double alpha = dValueP > dValuePPlusOne ? dValueP : dValuePPlusOne;
+			    const double alpha = std::max(dValueP, dValuePPlusOne);
 			    // part of equation 3.10
 			    const double thisS = ceil(alpha / thetaConstants[thisM]);
 			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
@@ -841,7 +841,7 @@ namespace beagle {
             if (it == ds[eigenIndex].end()) {
                 const int cachedHighestPower = ds[eigenIndex].rbegin()->first;
                 if (gHighestPowers[eigenIndex] < p) {
-                    for (int i = gHighestPowers[eigenIndex]; i < (cachedHighestPower > p ? p : cachedHighestPower); i++) {
+                    for (int i = gHighestPowers[eigenIndex]; i < std::min(cachedHighestPower, p); i++) {
                         powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
                         gHighestPowers[eigenIndex] = i + 1;
                         ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
