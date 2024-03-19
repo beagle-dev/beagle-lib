@@ -313,12 +313,16 @@ namespace beagle {
                                                                                resourceNumber, pluginResourceNumber,
                                                                                preferenceFlags, requirementFlags);
             kPartialsCacheOffset = partialsBufferCount + compactBufferCount;
-            gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
-            gBs = new SpMatrix[eigenDecompositionCount];
+
+            gInstantaneousMatrices.resize(eigenDecompositionCount);
+            gBs.resize(eigenDecompositionCount);
             gMuBs.resize(eigenDecompositionCount);
-            gB1Norms = (double *) malloc(sizeof(double) * eigenDecompositionCount);
-            gEigenMaps = (int *) malloc(sizeof(int) * kBufferCount);
-            gEdgeMultipliers = (double *) malloc(sizeof(double) * kBufferCount * categoryCount);
+            gB1Norms.resize(eigenDecompositionCount);
+            powerMatrices.resize(eigenDecompositionCount);
+            ds.resize(eigenDecompositionCount);
+
+            gEigenMaps.resize(kBufferCount);
+            gEdgeMultipliers.resize(kBufferCount * categoryCount);
 //            gSimpleActions = (SimpleAction**) malloc(sizeof(SimpleAction *) * eigenDecompositionCount);
 //            for (int eigen = 0; eigen < eigenDecompositionCount; eigen++) {
 //                gSimpleActions[eigen] = (SimpleAction *) malloc(sizeof(SimpleAction));
@@ -328,12 +332,10 @@ namespace beagle {
 ////                SimpleAction action(categoryCount, patternCount, stateCount);
 //                gSimpleActions[eigen] = action;
 //            }
-            powerMatrices = new std::vector<SpMatrix>[eigenDecompositionCount];
-            ds = new std::vector<double>[eigenDecompositionCount];
 //            gScaledQs = new SpMatrix * [kBufferCount];
             identity = SpMatrix(kStateCount, kStateCount);
             identity.setIdentity();
-            gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
+
             gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
 
             gMappedIntegrationTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
@@ -355,11 +357,7 @@ namespace beagle {
 
         BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
-            free(gB1Norms);
             free(gIntegrationTmp);
-//            free(gScaledQs);
-            free(gEigenMaps);
-            free(gEdgeMultipliers);
         }
 
         BEAGLE_CPU_FACTORY_TEMPLATE
