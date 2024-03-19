@@ -207,10 +207,6 @@ namespace beagle {
             void simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
                                int category, bool transpose);
 
-            void simpleAction(MapType* destP,
-                              MapType* partials,
-                              SpMatrix* matrix);
-
             void calcPartialsPartials2(int destPIndex,
 				       int partials1Index,
 				       int edgeIndex1,
@@ -228,18 +224,8 @@ namespace beagle {
 					  int endPattern);
 
 	    // Return (m,s)
-	    std::tuple<int,int> getStatistics(double A1Norm,
-					      SpMatrix * matrix,
-					      double t,
-					      int nCol);
-
-	    // Return (m,s)
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
 					       int eigenIndex);
-
-            double getDValue(int p,
-                             std::map<int, double> &d,
-                             std::map<int, SpMatrix> &powerMatrices);
 
             double getDValue2(int p, int eigenIndex);
 
