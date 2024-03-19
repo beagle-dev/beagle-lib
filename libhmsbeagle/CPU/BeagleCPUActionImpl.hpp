@@ -123,7 +123,6 @@ namespace beagle {
             powerMatrices = new std::map<int, SpMatrix>[eigenDecompositionCount];
             ds = new std::map<int, double>[eigenDecompositionCount];
 //            gScaledQs = new SpMatrix * [kBufferCount];
-            gHighestPowers = (int *) malloc(sizeof(int) * eigenDecompositionCount);
             identity = SpMatrix(kStateCount, kStateCount);
             identity.setIdentity();
             gScaledQTransposeTmp = new SpMatrix[kCategoryCount];
@@ -368,8 +367,8 @@ namespace beagle {
                 tripletList.push_back(Triplet((int) inEigenVectors[2 * i], (int) inEigenVectors[2 * i + 1], inEigenValues[i]));
             }
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
-            gHighestPowers[eigenIndex] = 0;
             ds[eigenIndex].clear();
+            ds[eigenIndex][0] = 1;
             powerMatrices[eigenIndex].clear();
 
             double mu_B = 0.0;
@@ -647,12 +646,6 @@ namespace beagle {
 		    }
 		}
 	    } else {
-		if (gHighestPowers[eigenIndex] < 1) {
-		    SpMatrix currentMatrix = gBs[eigenIndex];
-		    powerMatrices[eigenIndex][1] = currentMatrix;
-		    ds[eigenIndex][1] = normP1(currentMatrix);
-		    gHighestPowers[eigenIndex] = 1;
-		}
 		for (int p = 2; p < pMax; p++) {
 		    for (int thisM = p * (p - 1) - 1; thisM < mMax + 1; thisM++) {
 			auto it = thetaConstants.find(thisM);
@@ -836,16 +829,26 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex) {
+        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex)
+        {
             // equation 3.7 in Al-Mohy and Higham
+            assert(not ds[eigenIndex].empty());
 
             const int cachedHighestPower = ds[eigenIndex].rbegin()->first;
-            assert(cachedHighestPower == gHighestPowers[eigenIndex]);
-            for (int i = cachedHighestPower; i < p; i++) {
-                powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
-                ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
+            for (int i = cachedHighestPower; i < p; i++)
+            {
+                if (i == 0)
+                {
+                    powerMatrices[eigenIndex][1] = gBs[eigenIndex];
+                    ds[eigenIndex][1] = normP1(powerMatrices[eigenIndex][1]);
+                }
+                else
+                {
+                    assert(p > 1);
+                    powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
+                    ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
+                }
             }
-            gHighestPowers[eigenIndex] = std::max(p, gHighestPowers[eigenIndex]);
 
             return ds[eigenIndex][p];
         }
