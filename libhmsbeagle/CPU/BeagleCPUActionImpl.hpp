@@ -129,15 +129,31 @@ double normest1(const SpMatrix& A, int p, int t=2)
     // 2. Create the initial vectors X to act on.
     //    The first one is all 1, and the rest have blocks of -1.
     //    Officially we should use random numbers to determine the sign for columns after the first.
-    MatrixXd X = MatrixXd::Ones(n, t);
-    int start = 0;
-    for(int i=1;i<t;i++)
+    MatrixXd X(n,t);
+    if (t >= n or t == -1)
     {
-	int end   = i*n/t+1;
-	for(int j=start;j<end;j++)
-	    X(j,i) *= -1.0;
+	X = MatrixXd::Zero(n, t);
+	for(int i=0;i<n;i++)
+	    X(i,i) = 1.0;
+	MatrixXd Y = A*X;
+	for(int i=1;i<p;i++)
+	    Y = A*Y;
+	auto [norm,j] = ArgNormP1(Y);
+	std::cerr<<"norm = "<<norm<<"\n";
+	return norm;
+    }
+    else
+    {
+	X = MatrixXd::Ones(n, t);
+	int start = 0;
+	for(int i=1;i<t;i++)
+	{
+	    int end   = i*n/t+1;
+	    for(int j=start;j<end;j++)
+		X(j,i) *= -1.0;
 
-	start = end;
+	    start = end;
+	}
     }
     // The columns should have a 1-norm of 1.
     X /= n;
