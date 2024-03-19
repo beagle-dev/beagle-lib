@@ -368,7 +368,6 @@ namespace beagle {
             }
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
             ds[eigenIndex].clear();
-            ds[eigenIndex][0] = 1;
             powerMatrices[eigenIndex].clear();
 
             double mu_B = 0.0;
@@ -681,13 +680,19 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex)
         {
-            // equation 3.7 in Al-Mohy and Higham
-            assert(not ds[eigenIndex].empty());
+	    assert(p >= 0);
 
-            const int cachedHighestPower = ds[eigenIndex].rbegin()->first;
-            for (int i = cachedHighestPower+1; i <= p; i++)
+            // equation 3.7 in Al-Mohy and Higham
+
+            const int start = ds[eigenIndex].empty() ? 0 : ds[eigenIndex].rbegin()->first + 1;
+            for (int i = start; i <= p; i++)
             {
-                if (i == 1)
+                if (i == 0)
+                {
+                    powerMatrices[eigenIndex][0] = SpMatrix();
+                    ds[eigenIndex][0] = 1.0;
+                }
+                else if (i == 1)
                 {
                     powerMatrices[eigenIndex][1] = gBs[eigenIndex];
                     ds[eigenIndex][1] = normP1(powerMatrices[eigenIndex][1]);
