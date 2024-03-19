@@ -663,14 +663,16 @@ namespace beagle {
 			}
 		    }
 		}
-		bestS = std::max(bestS, 1.0);
 	    }
+	    bestS = std::max(std::min<double>(bestS, INT_MAX), 1.0);
+	    assert( bestS >= 1 );
+	    assert( bestS <= INT_MAX );
 
 	    int m = bestM;
-	    int s = (int) std::min<double>(bestS, INT_MAX);
+	    int s = (int) bestS;
 
 	    assert(m >= 0);
-	    assert(s >= 0);
+	    assert(s >= 1);
 
 	    return {m,s};
         }
