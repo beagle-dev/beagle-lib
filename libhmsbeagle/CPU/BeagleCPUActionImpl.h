@@ -94,8 +94,8 @@ namespace beagle {
             double* gB1Norms;
             int* gEigenMaps;
             double* gEdgeMultipliers;
-            std::map<int, SpMatrix>* powerMatrices;
-            std::map<int, double>* ds;
+            std::vector<SpMatrix>* powerMatrices;
+            std::vector<double>* ds;
             SpMatrix identity;
             SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;

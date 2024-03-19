@@ -120,8 +120,8 @@ namespace beagle {
 ////                SimpleAction action(categoryCount, patternCount, stateCount);
 //                gSimpleActions[eigen] = action;
 //            }
-            powerMatrices = new std::map<int, SpMatrix>[eigenDecompositionCount];
-            ds = new std::map<int, double>[eigenDecompositionCount];
+            powerMatrices = new std::vector<SpMatrix>[eigenDecompositionCount];
+            ds = new std::vector<double>[eigenDecompositionCount];
 //            gScaledQs = new SpMatrix * [kBufferCount];
             identity = SpMatrix(kStateCount, kStateCount);
             identity.setIdentity();
@@ -684,9 +684,13 @@ namespace beagle {
 
             // equation 3.7 in Al-Mohy and Higham
 
-            const int start = ds[eigenIndex].empty() ? 0 : ds[eigenIndex].rbegin()->first + 1;
+            const int start = ds[eigenIndex].size();
+
             for (int i = start; i <= p; i++)
             {
+		powerMatrices[eigenIndex].push_back({});
+		ds[eigenIndex].push_back(-1);
+
                 if (i == 0)
                 {
                     powerMatrices[eigenIndex][0] = SpMatrix();
