@@ -123,18 +123,16 @@ double normest1(const SpMatrix& A, int p, int t=2)
     // A is (n,n);
     int n = A.cols();
     t = std::min(n,t);
+    if (t < 0) t = n;
     if (p == 1 and (n <= 4 or t == n))
 	return normP1(A);
 
-    // 2. Create the initial vectors X to act on.
-    //    The first one is all 1, and the rest have blocks of -1.
-    //    Officially we should use random numbers to determine the sign for columns after the first.
     MatrixXd X(n,t);
-    if (t >= n or t == -1)
+
+    // If p > 1 but t is n, then compute the exact answer.
+    if (t == n)
     {
-	X = MatrixXd::Zero(n, t);
-	for(int i=0;i<n;i++)
-	    X(i,i) = 1.0;
+	X = MatrixXd::Identity(n, n);
 	MatrixXd Y = A*X;
 	for(int i=1;i<p;i++)
 	    Y = A*Y;
@@ -142,18 +140,18 @@ double normest1(const SpMatrix& A, int p, int t=2)
 	std::cerr<<"norm = "<<norm<<"\n";
 	return norm;
     }
-    else
-    {
-	X = MatrixXd::Ones(n, t);
-	int start = 0;
-	for(int i=1;i<t;i++)
-	{
-	    int end   = i*n/t+1;
-	    for(int j=start;j<end;j++)
-		X(j,i) *= -1.0;
 
-	    start = end;
-	}
+    //    The first column is all 1s, and the rest have blocks of -1.
+    //      Officially we should use random numbers to determine where the -1s are.
+    X = MatrixXd::Ones(n, t);
+    int start = 0;
+    for(int i=1;i<t;i++)
+    {
+	int end   = i*n/t+1;
+	for(int j=start;j<end;j++)
+	    X(j,i) *= -1.0;
+
+	start = end;
     }
     // The columns should have a 1-norm of 1.
     X /= n;
