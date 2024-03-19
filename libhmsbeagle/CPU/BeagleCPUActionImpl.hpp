@@ -685,9 +685,9 @@ namespace beagle {
             assert(not ds[eigenIndex].empty());
 
             const int cachedHighestPower = ds[eigenIndex].rbegin()->first;
-            for (int i = cachedHighestPower; i < p; i++)
+            for (int i = cachedHighestPower+1; i <= p; i++)
             {
-                if (i == 0)
+                if (i == 1)
                 {
                     powerMatrices[eigenIndex][1] = gBs[eigenIndex];
                     ds[eigenIndex][1] = normP1(powerMatrices[eigenIndex][1]);
@@ -695,8 +695,8 @@ namespace beagle {
                 else
                 {
                     assert(p > 1);
-                    powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
-                    ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
+                    powerMatrices[eigenIndex][i] = powerMatrices[eigenIndex][i - 1] * powerMatrices[eigenIndex][1];
+                    ds[eigenIndex][i] = pow(normP1(powerMatrices[eigenIndex][i]), 1.0 / ((double) i));
                 }
             }
 
