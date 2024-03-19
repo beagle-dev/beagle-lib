@@ -315,7 +315,7 @@ namespace beagle {
             kPartialsCacheOffset = partialsBufferCount + compactBufferCount;
             gInstantaneousMatrices = new SpMatrix[eigenDecompositionCount];
             gBs = new SpMatrix[eigenDecompositionCount];
-            gMuBs = (double *) malloc(sizeof(double) * eigenDecompositionCount);
+            gMuBs.resize(eigenDecompositionCount);
             gB1Norms = (double *) malloc(sizeof(double) * eigenDecompositionCount);
             gEigenMaps = (int *) malloc(sizeof(int) * kBufferCount);
             gEdgeMultipliers = (double *) malloc(sizeof(double) * kBufferCount * categoryCount);
@@ -355,7 +355,6 @@ namespace beagle {
 
         BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
-            free(gMuBs);
             free(gB1Norms);
             free(gIntegrationTmp);
 //            free(gScaledQs);
