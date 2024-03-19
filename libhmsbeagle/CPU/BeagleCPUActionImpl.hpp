@@ -370,6 +370,7 @@ namespace beagle {
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
             gHighestPowers[eigenIndex] = 0;
             ds[eigenIndex].clear();
+            powerMatrices[eigenIndex].clear();
 
             double mu_B = 0.0;
             for (int i = 0; i < kStateCount; i++) {
