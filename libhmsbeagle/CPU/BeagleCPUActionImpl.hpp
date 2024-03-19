@@ -315,6 +315,8 @@ namespace beagle {
             kPartialsCacheOffset = partialsBufferCount + compactBufferCount;
 
             gInstantaneousMatrices.resize(eigenDecompositionCount);
+            for (int i = 0; i < eigenDecompositionCount; i++)
+                gInstantaneousMatrices[i] = SpMatrix(kStateCount, kStateCount);
             gBs.resize(eigenDecompositionCount);
             gMuBs.resize(eigenDecompositionCount);
             gB1Norms.resize(eigenDecompositionCount);
@@ -336,28 +338,20 @@ namespace beagle {
             identity = SpMatrix(kStateCount, kStateCount);
             identity.setIdentity();
 
-            gIntegrationTmp = (double *) malloc(sizeof(double) * kStateCount * kPaddedPatternCount * kCategoryCount);
+            gIntegrationTmp = new double[kStateCount * kPaddedPatternCount * kCategoryCount];
 
+	    // TODO Eliminate this with an inline member function!
             gMappedIntegrationTmp = (MapType*) malloc(sizeof(MapType) * kCategoryCount);
             for (int category = 0; category < kCategoryCount; category++) {
                 new (& gMappedIntegrationTmp[category]) MapType(gIntegrationTmp + category * kPaddedPatternCount * kStateCount, kStateCount, kPatternCount);
             }
-
-            for (int i = 0; i < eigenDecompositionCount; i++) {
-                SpMatrix matrix(kStateCount, kStateCount);
-                gInstantaneousMatrices[i] = matrix;
-            }
-
-//            for (int i = 0; i < kBufferCount; i++) {
-//                gScaledQs[i] = NULL;
-//            }
 
             return BEAGLE_SUCCESS;
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::~BeagleCPUActionImpl() {
-            free(gIntegrationTmp);
+            delete[] gIntegrationTmp;
         }
 
         BEAGLE_CPU_FACTORY_TEMPLATE
