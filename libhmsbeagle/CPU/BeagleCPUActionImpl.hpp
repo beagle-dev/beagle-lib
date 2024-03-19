@@ -42,14 +42,206 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUActionImpl.h"
 
+using std::vector;
+using std::tuple;
+
 template <typename T>
 double normP1(const T& matrix) {
     return (Eigen::RowVectorXd::Ones(matrix.rows()) * matrix.cwiseAbs()).maxCoeff();
 }
 
 template <typename T>
+tuple<double,int> ArgNormP1(const T& matrix)
+{
+    int x=-1;
+    double v = matrix.colwise().template lpNorm<1>().maxCoeff(&x);
+    return {v,x};
+}
+
+template <typename T>
 double normPInf(const T& matrix) {
     return matrix.template lpNorm<Eigen::Infinity>();
+}
+
+bool parallel_to_some(const MatrixXd& S1, const MatrixXd& S2, int i)
+{
+    // Check if column i of S1 is parallel to some column of S2.
+    assert(S1.rows() == S2.rows());
+    assert(S1.cols() == S2.cols());
+
+    int n = S1.rows();
+
+    for(int j=0;j<S2.cols();j++)
+    {
+	double x = S1.col(i).adjoint() * S2.col(j);
+	if (x == n)
+	    return true;
+    }
+    return false;
+}
+
+double all_parallel_to_some(const MatrixXd& S1, const MatrixXd& S2)
+{
+    assert(S1.rows() == S2.rows());
+    assert(S1.cols() == S2.cols());
+
+    for(int i=0;i<S1.cols();i++)
+	if (not parallel_to_some(S1,S2,i))
+	    return false;
+
+    return true;
+}
+
+bool all(const vector<bool>& v, const vector<int>& idx)
+{
+    for(int i: idx)
+	if (not v[i])
+	    return false;
+
+    return true;
+}
+
+bool all(const vector<bool>& v, const vector<int>& idx, int n)
+{
+    for(int i=0;i<n;i++)
+	if (not v[idx[i]])
+	    return false;
+
+    return true;
+}
+
+
+// https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
+double normest1(const SpMatrix& A, int p, int t=2)
+{
+    assert(A.rows() == A.cols());
+    assert(p >= 1);
+
+    if (p == 0) return 1.0;
+
+
+    // A is (n,n);
+    int n = A.cols();
+    t = std::min(n,t);
+    if (p == 1 and (n <= 4 or t == n))
+	return normP1(A);
+
+    // 2. Create the initial vectors X to act on.
+    //    The first one is all 1, and the rest have blocks of -1.
+    //    Officially we should use random numbers to determine the sign for columns after the first.
+    MatrixXd X = MatrixXd::Ones(n, t);
+    int start = 0;
+    for(int i=1;i<t;i++)
+    {
+	int end   = i*n/t+1;
+	for(int j=start;j<end;j++)
+	    X(j,i) *= -1.0;
+
+	start = end;
+    }
+    // The columns should have a 1-norm of 1.
+    X /= n;
+
+    // 3.
+    int itmax = 5;
+    std::vector<bool> idx_hist(n,0);
+    std::vector<int> idx(n,0);
+    int idx_best = 0;
+    double nest_old = 0;
+    double nestestold = 0;
+    MatrixXd S = MatrixXd::Ones(n,t); // The paper and algorithm have (n,t)?
+    MatrixXd Sold = MatrixXd::Ones(n,t);
+    int iter[2] = {0,0};
+    bool converged = false;
+    MatrixXd Y(n,t);
+    while(not converged and iter[0] < itmax)
+    {
+	iter[0]++;
+	Y = A*X; // Y is (r,n) * (N,t) = (r,t)
+	for(int i=1;i<p;i++)
+	    Y = A*Y;
+	iter[1]++;
+	auto [nest,j] = ArgNormP1(Y);
+
+	if (nest > nest_old or iter[0] == 2)
+	{
+	    idx_best = idx[j];
+	    auto w = Y.col(j); // there is an error in Algorithm 2.4
+	}
+
+        // (1) of Algorithm 2.4
+	if (nest <= nest_old and iter[0] >= 2)
+	    return nest_old;
+
+	nest_old = nest;
+	Sold = S;
+
+	// S = sign(Y), 0.0 -> 1.0
+	for(int i=0;i<n;i++)
+	    for(int j=0;j<t;j++)
+		S(i,j) = (Y(i,j) >= 0)? 1.0: -1.0;
+	bool possible_break = false;
+
+	// (2)
+	if (all_parallel_to_some(S, Sold))
+	{
+	    possible_break = true;
+	    converged = true;
+	}
+	else if (t > 1)
+	{
+	    // Ensure that no column of S is parallel to another column of S or to a column of Sold by replacing columns of Sby rand{−1,1}.
+	}
+
+	if (possible_break) continue;
+
+	// (3)
+	auto Z = A.transpose() * S;
+	iter[1]++;
+	Eigen::VectorXd h = Z.rowwise().lpNorm<Eigen::Infinity>();
+	for(int i=0;i<n;i++)
+	    idx[i] = i;
+
+	// (4) of Algorithm 2.4
+	if (iter[0] >=2 and h.maxCoeff() == h[idx_best])
+	    break;
+
+	std::sort(idx.begin(), idx.end(), [&](int i,int j) {return h[i] > h[j];});
+
+	// reorder idx correspondingly
+	if (t > 1)
+	{
+	    if (all(idx_hist, idx, t))
+		break;
+
+	    // checking if we've seen idx[i], saving it to idx[k] if not.
+	    int k=0;
+	    for(int i=0;i<idx.size();i++)
+	    {
+		if (not idx_hist[idx[i]])
+		{
+		    idx[k] = idx[i];
+		    k++;
+		}
+	    }
+	    idx.resize( std::min(k,t) );
+
+	    // if idx(1:t) is contained in idx_hist, break
+	    // replace idx(1:t) by the first t idxices in idx(1:n) that are not in idx_hist
+	}
+	int tmax = std::min<int>(t, idx.size());
+
+	X = MatrixXd::Zero(n, tmax);
+	for(int j=0; j < tmax; j++)
+	    X(idx[j], j) = 1; // X(:,j) = e(idx[j])
+
+	for(int i: idx)
+	    idx_hist[i] = true;
+    }
+
+    // v = e[idx_best]
+
+    return nest_old;
 }
 
 
