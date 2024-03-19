@@ -840,21 +840,15 @@ namespace beagle {
             it = ds[eigenIndex].find(p);
             if (it == ds[eigenIndex].end()) {
                 const int cachedHighestPower = ds[eigenIndex].rbegin()->first;
-                if (gHighestPowers[eigenIndex] < p) {
-                    for (int i = gHighestPowers[eigenIndex]; i < std::min(cachedHighestPower, p); i++) {
+		assert(cachedHighestPower == gHighestPowers[eigenIndex]);
+                if (cachedHighestPower < p) {
+                    for (int i = cachedHighestPower; i < p; i++) {
                         powerMatrices[eigenIndex][i + 1] = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
-                        gHighestPowers[eigenIndex] = i + 1;
                         ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
                     }
-
-                    for (int i = gHighestPowers[eigenIndex]; i < p; i++) {
-                        SpMatrix nextPowerMatrix = powerMatrices[eigenIndex][i] * powerMatrices[eigenIndex][1];
-                        powerMatrices[eigenIndex][i + 1] = nextPowerMatrix;
-                        ds[eigenIndex][i + 1] = pow(normP1(powerMatrices[eigenIndex][i + 1]), 1.0 / ((double) i + 1));
-                    }
-                    gHighestPowers[eigenIndex] = p;
+		    gHighestPowers[eigenIndex] = p;
                 }
-            }
+	    }
             return ds[eigenIndex][p];
         }
 
