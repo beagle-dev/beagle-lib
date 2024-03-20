@@ -37,6 +37,7 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <random>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
@@ -110,6 +111,12 @@ bool all(const vector<bool>& v, const vector<int>& idx, int n)
     return true;
 }
 
+std::independent_bits_engine<std::mt19937_64,1,unsigned short> engine;
+
+bool random_bool()
+{
+    return engine();
+}
 
 // https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
 double normest1(const SpMatrix& A, int p, int t=2)
@@ -147,11 +154,9 @@ double normest1(const SpMatrix& A, int p, int t=2)
     int start = 0;
     for(int i=1;i<t;i++)
     {
-	int end   = i*n/t+1;
-	for(int j=start;j<end;j++)
-	    X(j,i) *= -1.0;
-
-	start = end;
+	for(int j=0;j<n;j++)
+	    if (random_bool())
+		X(j,i) *= -1;
     }
     // The columns should have a 1-norm of 1.
     X /= n;
