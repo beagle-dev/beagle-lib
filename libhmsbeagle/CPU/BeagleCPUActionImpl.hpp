@@ -122,10 +122,10 @@ bool random_bool()
 double normest1(const SpMatrix& A, int p, int t=2)
 {
     assert(A.rows() == A.cols());
-    assert(p >= 1);
+    assert(p >= 0);
+    assert(t != 0); // negative means t = n
 
     if (p == 0) return 1.0;
-
 
     // A is (n,n);
     int n = A.cols();
@@ -144,7 +144,6 @@ double normest1(const SpMatrix& A, int p, int t=2)
 	for(int i=1;i<p;i++)
 	    Y = A*Y;
 	auto [norm,j] = ArgNormP1(Y);
-	std::cerr<<"norm = "<<norm<<"\n";
 	return norm;
     }
 
@@ -196,9 +195,8 @@ double normest1(const SpMatrix& A, int p, int t=2)
 	Sold = S;
 
 	// S = sign(Y), 0.0 -> 1.0
-	for(int i=0;i<n;i++)
-	    for(int j=0;j<t;j++)
-		S(i,j) = (Y(i,j) >= 0)? 1.0: -1.0;
+	S = Y.unaryExpr([](const double& x) {return (x>=0) ? 1.0 : -1.0 ;});
+
 	bool possible_break = false;
 
 	// (2)
