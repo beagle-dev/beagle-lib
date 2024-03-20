@@ -45,6 +45,7 @@
 
 using std::vector;
 using std::tuple;
+using Eigen::MatrixXi;
 
 template <typename T>
 double normP1(const T& matrix) {
@@ -64,53 +65,6 @@ double normPInf(const T& matrix) {
     return matrix.template lpNorm<Eigen::Infinity>();
 }
 
-bool parallel_to_some(const MatrixXd& S1, const MatrixXd& S2, int i)
-{
-    // Check if column i of S1 is parallel to some column of S2.
-    assert(S1.rows() == S2.rows());
-    assert(S1.cols() == S2.cols());
-
-    int n = S1.rows();
-
-    for(int j=0;j<S2.cols();j++)
-    {
-	double x = S1.col(i).adjoint() * S2.col(j);
-	if (x == n)
-	    return true;
-    }
-    return false;
-}
-
-double all_parallel_to_some(const MatrixXd& S1, const MatrixXd& S2)
-{
-    assert(S1.rows() == S2.rows());
-    assert(S1.cols() == S2.cols());
-
-    for(int i=0;i<S1.cols();i++)
-	if (not parallel_to_some(S1,S2,i))
-	    return false;
-
-    return true;
-}
-
-bool all(const vector<bool>& v, const vector<int>& idx)
-{
-    for(int i: idx)
-	if (not v[i])
-	    return false;
-
-    return true;
-}
-
-bool all(const vector<bool>& v, const vector<int>& idx, int n)
-{
-    for(int i=0;i<n;i++)
-	if (not v[idx[i]])
-	    return false;
-
-    return true;
-}
-
 std::independent_bits_engine<std::mt19937_64,1,unsigned short> engine;
 
 bool random_bool()
@@ -118,147 +72,149 @@ bool random_bool()
     return engine();
 }
 
-// https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
+double random_plus_minus_1_func(double x)
+{
+    if (random_bool())
+	return 1;
+    else
+	return -1;
+}
+
+// See OneNormEst in https://eprints.maths.manchester.ac.uk/2195/1/thesis-main.pdf
+// See also https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
 double normest1(const SpMatrix& A, int p, int t=2)
 {
-    assert(A.rows() == A.cols());
     assert(p >= 0);
     assert(t != 0); // negative means t = n
 
     if (p == 0) return 1.0;
 
     // A is (n,n);
+    assert(A.rows() == A.cols());
     int n = A.cols();
+
+    // Handle t too large
     t = std::min(n,t);
+
+    // Interpret negative t as t == n
     if (t < 0) t = n;
+
+    // Defer to normP1 if p=1 and n is small or we want an exact answer.
     if (p == 1 and (n <= 4 or t == n))
 	return normP1(A);
 
-    MatrixXd X(n,t);
-
-    // If p > 1 but t is n, then compute the exact answer.
-    if (t == n)
-    {
-	X = MatrixXd::Identity(n, n);
-	MatrixXd Y = A*X;
-	for(int i=1;i<p;i++)
-	    Y = A*Y;
-	auto [norm,j] = ArgNormP1(Y);
-	return norm;
-    }
-
     //    The first column is all 1s, and the rest have blocks of -1.
     //      Officially we should use random numbers to determine where the -1s are.
-    X = MatrixXd::Ones(n, t);
-    int start = 0;
-    for(int i=1;i<t;i++)
-    {
-	for(int j=0;j<n;j++)
-	    if (random_bool())
-		X(j,i) *= -1;
-    }
-    // The columns should have a 1-norm of 1.
-    X /= n;
+    MatrixXd X(n,t);
+    X = X.unaryExpr( &random_plus_minus_1_func );
+    X.col(0).setOnes();
+    X /= n;   // The columns should have a 1-norm of 1.
 
     // 3.
-    int itmax = 5;
+    constexpr int itmax = 5;
     std::vector<bool> idx_hist(n,0);
-    std::vector<int> idx(n,0);
-    int idx_best = 0;
-    double nest_old = 0;
-    double nestestold = 0;
+    std::vector<int> indices(n,0);
+    std::optional<int> idx_best;
+    double est_old = 0;
     MatrixXd S = MatrixXd::Ones(n,t); // The paper and algorithm have (n,t)?
-    MatrixXd Sold = MatrixXd::Ones(n,t);
-    int iter[2] = {0,0};
-    bool converged = false;
+    MatrixXd S_old = MatrixXd::Ones(n,t);
+    MatrixXi prodS(t,t);
     MatrixXd Y(n,t);
-    while(not converged and iter[0] < itmax)
+    MatrixXd Z(n,t);
+    Eigen::VectorXd h(n);
+
+    for(int k=0; k<itmax; k++)
     {
-	iter[0]++;
-	Y = A*X; // Y is (r,n) * (N,t) = (r,t)
+	Y = A*X; // Y is (n,n) * (n,t) = (n,t)
 	for(int i=1;i<p;i++)
 	    Y = A*Y;
-	iter[1]++;
-	auto [nest,j] = ArgNormP1(Y);
 
-	if (nest > nest_old or iter[0] == 2)
-	{
-	    idx_best = idx[j];
-	    auto w = Y.col(j); // there is an error in Algorithm 2.4
-	}
+	auto [est, j] = ArgNormP1(Y);
+
+	if (est > est_old or not idx_best)
+	    idx_best = j;
+	assert(idx_best < n);
 
         // (1) of Algorithm 2.4
-	if (nest <= nest_old and iter[0] >= 2)
-	    return nest_old;
+	if (est < est_old and k >= 1)
+	    return est_old;
 
-	nest_old = nest;
-	Sold = S;
+	est_old = est;
+	S_old = S;
 
 	// S = sign(Y), 0.0 -> 1.0
 	S = Y.unaryExpr([](const double& x) {return (x>=0) ? 1.0 : -1.0 ;});
 
-	bool possible_break = false;
+	prodS = (S_old.transpose() * S).matrix().cast<int>() ;
 
-	// (2)
-	if (all_parallel_to_some(S, Sold))
+	// (2) If each columns in S is parallel to SOME column of S_old
+	if (prodS.colwise().maxCoeff().sum() == n * t)
 	{
-	    possible_break = true;
-	    converged = true;
-	}
-	else if (t > 1)
-	{
-	    // Ensure that no column of S is parallel to another column of S or to a column of Sold by replacing columns of Sby rand{−1,1}.
+	    // converged = true
+	    return est;
 	}
 
-	if (possible_break) continue;
+	// If S(j) is parallel to S_old(i), replace S(j) with random column
+	for(int i=0;i<t;i++)
+	    for(int j=0;j<t;j++)
+		if (prodS(i,j) == n)
+		    S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+
+	// If S(j) is parallel to S(i) for i<j, replace S(j) with random column
+	prodS = (S.transpose() * S).matrix().cast<int>() ;
+	for(int i=0;i<t;i++)
+	    for(int j=i+1;j<t;j++)
+		if (prodS(i,j) == n)
+		    S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
 
 	// (3)
-	auto Z = A.transpose() * S;
-	iter[1]++;
-	Eigen::VectorXd h = Z.rowwise().lpNorm<Eigen::Infinity>();
-	for(int i=0;i<n;i++)
-	    idx[i] = i;
+	Z = A.transpose() * S; // (t,n) * (n,t) -> (t,t)
+
+	h = Z.cwiseAbs().rowwise().maxCoeff();
 
 	// (4) of Algorithm 2.4
-	if (iter[0] >=2 and h.maxCoeff() == h[idx_best])
-	    break;
+	if (k >= 1 and h.maxCoeff() == h[idx_best])
+	    return est;
 
-	std::sort(idx.begin(), idx.end(), [&](int i,int j) {return h[i] > h[j];});
+	indices.resize(n);
+	for(int i=0;i<n;i++)
+	    indices[i] = i;
 
-	// reorder idx correspondingly
-	if (t > 1)
+	// reorder idx so that the highest values of h[indices[i]] come first.
+	std::sort(indices.begin(), indices.end(), [&](int i,int j) {return h[i] > h[j];});
+
+	int n_found = 0;
+	for(int i=0;i<t;i++)
+	    if (idx_hist[indices[i]])
+		n_found++;
+
+	if (n_found == t)
+	    return est;
+
+	// find the first t indices that are not in idx_hist
+	int l=0;
+	for(int i=0;i<indices.size() and l < t;i++)
 	{
-	    if (all(idx_hist, idx, t))
-		break;
-
-	    // checking if we've seen idx[i], saving it to idx[k] if not.
-	    int k=0;
-	    for(int i=0;i<idx.size();i++)
+	    if (not idx_hist[indices[i]])
 	    {
-		if (not idx_hist[idx[i]])
-		{
-		    idx[k] = idx[i];
-		    k++;
-		}
+		indices[l] = indices[i];
+		l++;
 	    }
-	    idx.resize( std::min(k,t) );
-
-	    // if idx(1:t) is contained in idx_hist, break
-	    // replace idx(1:t) by the first t idxices in idx(1:n) that are not in idx_hist
 	}
-	int tmax = std::min<int>(t, idx.size());
+	indices.resize( std::min(l,t) );
+	assert(not indices.empty());
+
+	int tmax = std::min<int>(t, indices.size());
 
 	X = MatrixXd::Zero(n, tmax);
 	for(int j=0; j < tmax; j++)
-	    X(idx[j], j) = 1; // X(:,j) = e(idx[j])
+	    X(indices[j], j) = 1; // X(:,j) = e(indices[j])
 
-	for(int i: idx)
+	for(int i: indices)
 	    idx_hist[i] = true;
     }
 
-    // v = e[idx_best]
-
-    return nest_old;
+    return est_old;
 }
 
 
