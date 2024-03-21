@@ -114,7 +114,7 @@ double normest1(const SpMatrix& A, int p, int t=2)
     constexpr int itmax = 5;
     std::vector<bool> idx_hist(n,0);
     std::vector<int> indices(n,0);
-    std::optional<int> idx_best;
+    int idx_best = -1;
     double est_old = 0;
     MatrixXd S = MatrixXd::Ones(n,t); // The paper and algorithm have (n,t)?
     MatrixXd S_old = MatrixXd::Ones(n,t);
@@ -131,7 +131,7 @@ double normest1(const SpMatrix& A, int p, int t=2)
 
 	auto [est, j] = ArgNormP1(Y);
 
-	if (est > est_old or not idx_best)
+	if (est > est_old or k == 1)
 	    idx_best = j;
 	assert(idx_best < n);
 
