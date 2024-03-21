@@ -82,7 +82,7 @@ double random_plus_minus_1_func(double x)
 
 // See OneNormEst in https://eprints.maths.manchester.ac.uk/2195/1/thesis-main.pdf
 // See also https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
-double normest1(const SpMatrix& A, int p, int t=2)
+double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 {
     assert(p >= 0);
     assert(t != 0); // negative means t = n
@@ -111,7 +111,6 @@ double normest1(const SpMatrix& A, int p, int t=2)
     X /= n;   // The columns should have a 1-norm of 1.
 
     // 3.
-    constexpr int itmax = 5;
     std::vector<bool> idx_hist(n,0);
     std::vector<int> indices(n,0);
     int idx_best = -1;
