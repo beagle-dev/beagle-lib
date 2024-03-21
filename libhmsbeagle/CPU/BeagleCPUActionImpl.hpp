@@ -104,7 +104,6 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	return normP1(A);
 
     //    The first column is all 1s, and the rest have blocks of -1.
-    //      Officially we should use random numbers to determine where the -1s are.
     MatrixXd X(n,t);
     X = X.unaryExpr( &random_plus_minus_1_func );
     X.col(0).setOnes();
