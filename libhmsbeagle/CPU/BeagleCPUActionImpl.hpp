@@ -148,7 +148,7 @@ double normest1(const SpMatrix& A, int p, int t=2)
 	prodS = (S_old.transpose() * S).matrix().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
-	if (prodS.colwise().maxCoeff().sum() == n * t)
+	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 1)
 	{
 	    // converged = true
 	    return est;
