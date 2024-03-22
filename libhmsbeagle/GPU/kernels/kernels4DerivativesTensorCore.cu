@@ -39,7 +39,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
 // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
 #define GET_SMEM_ROW_PARTIALS(X, Y) ( (X / contiguousX) + ((Y/4) * 4))
-#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/contiguousX) * ((Y & 1) * -2 + 1)) & (4 - 1) )
+#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/contiguousX) * (0 - (Y & 1) | 1)) & (4 - 1) )
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * contiguousX + (X % contiguousX))
 #define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * 16 + GET_SMEM_COL_PARTIALS(X, Y))
 
