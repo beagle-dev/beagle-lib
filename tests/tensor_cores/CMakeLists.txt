@@ -7,11 +7,8 @@ link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
 )
 
-set(NVCC "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
-set(NVCCFLAGS "-lineinfo") # TODO: Make -lineinfo a flag
-
 set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
-set(CMAKE_CUDA_ARCHITECTURES "native")
+set(CMAKE_CUDA_ARCHITECTURES 80) #TODO: Make this generalizable? 
 enable_language("CUDA")
 
 set(STATE_SIZES 16 32 64)
