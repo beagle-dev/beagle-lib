@@ -189,6 +189,11 @@ enable_testing()
 
 add_subdirectory(examples)
 
+IF(BEAGLE_DEBUG_KERNELS)
+	add_subdirectory(tests/tensor_cores)
+ENDIF(BEAGLE_DEBUG_KERNELS)
+
+
 set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")
 set(CPACK_PACKAGE_MAJOR "${BEAGLE_VERSION_MAJOR}")
 set(CPACK_PACKAGE_MINOR "${BEAGLE_VERSION_MINOR}")
