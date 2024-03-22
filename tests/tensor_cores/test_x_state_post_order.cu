@@ -84,7 +84,7 @@ int main() {
     std::cerr << "Memcpy partials2 " << err << std::endl;
 
     void *params[] = {
-            &partials1, &partials2, &partials3, &matrices1, &matrices2, &tmpAcc, &totalPatterns
+            &partials1, &partials2, &partials3, &matrices1, &matrices2, &totalPatterns
     };
 
     res = cuLaunchKernel(cudaFunction, 1, 1, 1, STATE_SIZE, 4, 1, 0, NULL, params, NULL);
