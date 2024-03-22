@@ -118,9 +118,9 @@ int main() {
         std::cerr << std::endl << std::endl;
 
     if(pass == 0) {
-        std::cerr << "PASS: Test for post-order kernel for state size " << STATE_SIZE << std::endl;
+        std::cerr << "PASS: Test for pre-order kernel for state size " << STATE_SIZE << std::endl;
     } else {
-        std::cerr << "FAIL: Test for post-order kernel for state size " << STATE_SIZE << std::endl;
+        std::cerr << "FAIL: Test for pre-order kernel for state size " << STATE_SIZE << std::endl;
     }
     cuModuleUnload(cudaModule);
 
