@@ -39,7 +39,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     int warpSize = 32; // TODO: Check if its better to get this from Cuda API
     int warpState = state/warpSize;
     int warpPattern = patIdx;
-    int warpIdx = warpState + warpPattern * (PADDED_STATE_COUNT/warpSize);
+    float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
+    int warpIdx = warpState + warpPattern * warpsPerPattern;
+    int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
+//    tmpAcc[state + patIdx * PADDED_STATE_COUNT] = warpIdx;
 
     int sMatrixRow, partialsCol, sMatrixCol, partialsRow;
 
@@ -63,10 +66,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     // (int(X/8): Splits 32 values into groups of 4.
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
-#define GET_SMEM_ROW_PARTIALS(X) ((X / WMMA_K) & 0x07)
+#define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
 #define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * ((Y & 1) * -2 + 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
-#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
     if(pattern < totalPatterns) {
@@ -86,8 +89,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
 
-//    tmpAcc[patIdx * PADDED_STATE_COUNT + state] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
-
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
         sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
         sMatrixCol = i;
@@ -100,8 +101,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
         KW_LOCAL_FENCE;
 
         // reg_row* and reg_col* are according to memory layout in ShM
-        int laneid = state % 32;
-
         int reg_row = state % 4;
         int reg_col = (warpIdx * WMMA_M) + (laneid / 4);
 
@@ -128,12 +127,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 
     u = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
-    // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
-    if (patternBlock + ((state * 2) % 8) < totalPatterns)
-        partials3[u + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res11 * res21;
+    int statesPerWarp = (PADDED_STATE_COUNT >= warpSize) ? state : laneid;
 
-    if (patternBlock + ((state * 2) % 8) + 1 < totalPatterns)
-        partials3[u + PADDED_STATE_COUNT + patIdx * (PADDED_STATE_COUNT/warpSize) * WMMA_M + ((state * 2) % 8) * PADDED_STATE_COUNT + (state * 2)/8] = res12 * res22;
+    // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
+    if (patternBlock + ((laneid * 2) % 8) < totalPatterns)
+        partials3[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11 * res21;
+
+    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
+        partials3[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12 * res22;
 
 #endif // FW_OPENCL_CPU
 }
