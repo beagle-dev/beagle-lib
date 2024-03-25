@@ -114,7 +114,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
     X /= n;
 
     // 3.
-    std::vector<bool> idx_hist(n,0);
+    std::vector<bool> ind_hist(n,0);
     std::vector<int> indices(n,0);
     int ind_best = -1;
     double est_old = 0;
@@ -206,17 +206,17 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	int n_found = 0;
 	for(int i=0;i<t;i++)
-	    if (idx_hist[indices[i]])
+	    if (ind_hist[indices[i]])
 		n_found++;
 
 	if (n_found == t)
 	    return est;
 
-	// find the first t indices that are not in idx_hist
+	// find the first t indices that are not in ind_hist
 	int l=0;
 	for(int i=0;i<indices.size() and l < t;i++)
 	{
-	    if (not idx_hist[indices[i]])
+	    if (not ind_hist[indices[i]])
 	    {
 		indices[l] = indices[i];
 		l++;
@@ -232,7 +232,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	    X(indices[j], j) = 1; // X(:,j) = e(indices[j])
 
 	for(int i: indices)
-	    idx_hist[i] = true;
+	    ind_hist[i] = true;
 
 	S_old = S;
     }
