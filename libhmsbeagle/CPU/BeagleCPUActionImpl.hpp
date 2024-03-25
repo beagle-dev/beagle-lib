@@ -116,9 +116,9 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
     // 3.
     std::vector<bool> idx_hist(n,0);
     std::vector<int> indices(n,0);
-    int idx_best = -1;
+    int ind_best = -1;
     double est_old = 0;
-    MatrixXd S = MatrixXd::Ones(n,t); // The paper and algorithm have (n,t)?
+    MatrixXd S = MatrixXd::Ones(n,t);
     MatrixXd S_old = MatrixXd::Ones(n,t);
     MatrixXi prodS(t,t);
     MatrixXd Y(n,t);
@@ -127,6 +127,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
     for(int k=1; k<=itmax; k++)
     {
+	// std::cerr<<"iter "<<k<<"\n";
 	Y = A*X; // Y is (n,n) * (n,t) = (n,t)
 	for(int i=1;i<p;i++)
 	    Y = A*Y;
@@ -134,49 +135,67 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	auto [est, j] = ArgNormP1(Y);
 
 	if (est > est_old or k == 2)
-	    idx_best = j;
-	assert(idx_best < n);
+	{
+	    ind_best = indices[j];
+	    // w = Y.col(ind_best);
+	}
+	assert(ind_best < n);
 
         // (1) of Algorithm 2.4
 	if (est < est_old and k >= 2)
 	    return est_old;
 
 	est_old = est;
-	S_old = S;
 
 	// S = sign(Y), 0.0 -> 1.0
 	S = Y.unaryExpr([](const double& x) {return (x>=0) ? 1.0 : -1.0 ;});
 
+	// prodS is (t,t)
 	prodS = (S_old.transpose() * S).matrix().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
-	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 2)
+	if (prodS.cwiseAbs().colwise().maxCoeff().sum() == n * t and k >= 2)
 	{
+	    // std::cerr<<"  All columns of S parallel to S_old\n";
 	    // converged = true
 	    return est;
 	}
 
-	// If S(j) is parallel to S_old(i), replace S(j) with random column
-	for(int i=0;i<t;i++)
-	    for(int j=0;j<t;j++)
-		if (prodS(i,j) == n)
-		    S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+        if (t > 1)
+        {
+            // If S(j) is parallel to S_old(i), replace S(j) with random column
+            for(int j=0;j<t;j++)
+            {
+                for(int i=0;i<t;i++)
+                    if (prodS(i,j) == n or prodS(i,j) == -n)
+                    {
+                        // std::cerr<<"  S.col("<<j<<") parallel to S_old.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
+                        S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+                        break;
+                    }
+            }
 
-	// If S(j) is parallel to S(i) for i<j, replace S(j) with random column
-	prodS = (S.transpose() * S).matrix().cast<int>() ;
-	for(int i=0;i<t;i++)
-	    for(int j=i+1;j<t;j++)
-		if (prodS(i,j) == n)
-		    S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+            // If S(j) is parallel to S(i) for i<j, replace S(j) with random column
+            prodS = (S.transpose() * S).matrix().cast<int>() ;
+            for(int i=0;i<t;i++)
+                for(int j=i+1;j<t;j++)
+                    if (prodS(i,j) == n or prodS(i,j) == -n)
+                    {
+                        S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+                    }
+        }
 
-	// (3)
+        // (3) of Algorithm 2.4
 	Z = A.transpose() * S; // (t,n) * (n,t) -> (t,t)
 
 	h = Z.cwiseAbs().rowwise().maxCoeff();
 
 	// (4) of Algorithm 2.4
-	if (k >= 2 and h.maxCoeff() == h[idx_best])
+	if (k >= 2 and h.maxCoeff() == h[ind_best])
+	{
+	    // std::cerr<<"  The best column All columns of S parallel to S_old\n";
 	    return est;
+	}
 
 	indices.resize(n);
 	for(int i=0;i<n;i++)
@@ -214,6 +233,8 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	for(int i: indices)
 	    idx_hist[i] = true;
+
+	S_old = S;
     }
 
     return est_old;
