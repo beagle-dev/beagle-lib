@@ -104,11 +104,14 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
     if (p == 1 and (n <= 4 or t == n))
 	return normP1(A);
 
-    //    The first column is all 1s, and the rest have blocks of -1.
+    // (0) Choose starting matrix X that is (n,t) with columns of unit 1-norm.
     MatrixXd X(n,t);
-    X = X.unaryExpr( &random_plus_minus_1_func );
+    // We choose the first column to be all 1s.
     X.col(0).setOnes();
-    X /= n;   // The columns should have a 1-norm of 1.
+    // The other columns have randomly chosen {-1,+1} entries.
+    X = X.unaryExpr( &random_plus_minus_1_func );
+    // Divide by n so that the norm of each column is 1.
+    X /= n;
 
     // 3.
     std::vector<bool> idx_hist(n,0);
