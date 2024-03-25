@@ -86,6 +86,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 {
     assert(p >= 0);
     assert(t != 0); // negative means t = n
+    assert(itmax >= 1);
 
     if (p == 0) return 1.0;
 
