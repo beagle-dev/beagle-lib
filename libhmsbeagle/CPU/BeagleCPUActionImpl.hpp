@@ -122,7 +122,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
     MatrixXd Z(n,t);
     Eigen::VectorXd h(n);
 
-    for(int k=0; k<itmax; k++)
+    for(int k=1; k<=itmax; k++)
     {
 	Y = A*X; // Y is (n,n) * (n,t) = (n,t)
 	for(int i=1;i<p;i++)
@@ -130,12 +130,12 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	auto [est, j] = ArgNormP1(Y);
 
-	if (est > est_old or k == 1)
+	if (est > est_old or k == 2)
 	    idx_best = j;
 	assert(idx_best < n);
 
         // (1) of Algorithm 2.4
-	if (est < est_old and k >= 1)
+	if (est < est_old and k >= 2)
 	    return est_old;
 
 	est_old = est;
@@ -147,7 +147,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	prodS = (S_old.transpose() * S).matrix().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
-	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 1)
+	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 2)
 	{
 	    // converged = true
 	    return est;
@@ -172,7 +172,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	h = Z.cwiseAbs().rowwise().maxCoeff();
 
 	// (4) of Algorithm 2.4
-	if (k >= 1 and h.maxCoeff() == h[idx_best])
+	if (k >= 2 and h.maxCoeff() == h[idx_best])
 	    return est;
 
 	indices.resize(n);
