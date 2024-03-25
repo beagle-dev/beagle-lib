@@ -143,7 +143,10 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
         // (1) of Algorithm 2.4
 	if (est < est_old and k >= 2)
+	{
+	    // std::cerr<<"  The new estimate ("<<est<<") is smaller than the old estimate ("<<est_old<<")\n";
 	    return est_old;
+	}
 
 	est_old = est;
 
@@ -181,6 +184,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
                 for(int j=i+1;j<t;j++)
                     if (prodS(i,j) == n or prodS(i,j) == -n)
                     {
+                        // std::cerr<<"  S.col("<<j<<") parallel to S.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
                         S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
                     }
         }
@@ -193,7 +197,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	// (4) of Algorithm 2.4
 	if (k >= 2 and h.maxCoeff() == h[ind_best])
 	{
-	    // std::cerr<<"  The best column All columns of S parallel to S_old\n";
+	    // std::cerr<<"  The best column ("<<ind_best<<") is not new\n";
 	    return est;
 	}
 
@@ -210,7 +214,10 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 		n_found++;
 
 	if (n_found == t)
+	{
+	    // std::cerr<<"  All columns were found in the column history.\n";
 	    return est;
+	}
 
 	// find the first t indices that are not in ind_hist
 	int l=0;
