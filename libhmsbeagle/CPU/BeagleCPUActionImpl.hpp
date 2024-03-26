@@ -158,7 +158,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	S = Y.unaryExpr([](const double& x) {return (x>=0) ? 1.0 : -1.0 ;});
 
 	// prodS is (t,t)
-	prodS = (S_old.transpose() * S).matrix().cast<int>() ;
+	prodS = (S_old.transpose() * S).matrix().cwiseAbs().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
 	if (prodS.cwiseAbs().colwise().maxCoeff().sum() == n * t and k >= 2)
@@ -174,9 +174,9 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
             for(int j=0;j<S.cols();j++)
             {
                 for(int i=0;i<S_old.cols();i++)
-                    if (prodS(i,j) == n or prodS(i,j) == -n)
+                    if (prodS(i,j) == n)
                     {
-                        // std::cerr<<"  S.col("<<j<<") parallel to S_old.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
+                        // std::cerr<<"  S.col("<<j<<") parallel to S_old.col("<<i<<")\n";
                         S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
                         break;
                     }
@@ -186,9 +186,9 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
             prodS = (S.transpose() * S).matrix().cast<int>() ;
             for(int i=0;i<S.cols();i++)
                 for(int j=i+1;j<S.cols();j++)
-                    if (prodS(i,j) == n or prodS(i,j) == -n)
+                    if (prodS(i,j) == n)
                     {
-                        // std::cerr<<"  S.col("<<j<<") parallel to S.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
+                        // std::cerr<<"  S.col("<<j<<") parallel to S.col("<<i<<")\n";
                         S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
 			break;
                     }
