@@ -167,9 +167,9 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
         if (t > 1)
         {
             // If S(j) is parallel to S_old(i), replace S(j) with random column
-            for(int j=0;j<t;j++)
+            for(int j=0;j<S.cols();j++)
             {
-                for(int i=0;i<t;i++)
+                for(int i=0;i<S_old.cols();i++)
                     if (prodS(i,j) == n or prodS(i,j) == -n)
                     {
                         // std::cerr<<"  S.col("<<j<<") parallel to S_old.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
@@ -180,8 +180,8 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
             // If S(j) is parallel to S(i) for i<j, replace S(j) with random column
             prodS = (S.transpose() * S).matrix().cast<int>() ;
-            for(int i=0;i<t;i++)
-                for(int j=i+1;j<t;j++)
+            for(int i=0;i<S.cols();i++)
+                for(int j=i+1;j<S.cols();j++)
                     if (prodS(i,j) == n or prodS(i,j) == -n)
                     {
                         // std::cerr<<"  S.col("<<j<<") parallel to S.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
@@ -208,6 +208,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	// reorder idx so that the highest values of h[indices[i]] come first.
 	std::sort(indices.begin(), indices.end(), [&](int i,int j) {return h[i] > h[j];});
 
+	// (5) of Algorithm 2.4
 	int n_found = 0;
 	for(int i=0;i<t;i++)
 	    if (ind_hist[indices[i]])
