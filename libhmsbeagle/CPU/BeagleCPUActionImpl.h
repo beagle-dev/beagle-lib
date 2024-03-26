@@ -225,7 +225,7 @@ namespace beagle {
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
 					       int eigenIndex);
 
-            double getDValue2(int p, int eigenIndex);
+            double getDValue2(int p, int eigenIndex) const;
 
             double getPMax() const;
         };

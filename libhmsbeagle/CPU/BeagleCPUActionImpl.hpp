@@ -565,7 +565,6 @@ namespace beagle {
                 tripletList.push_back(Triplet((int) inEigenVectors[2 * i], (int) inEigenVectors[2 * i + 1], inEigenValues[i]));
             }
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
-            ds[eigenIndex].clear();
 
             double mu_B = 0.0;
             for (int i = 0; i < kStateCount; i++) {
@@ -575,6 +574,18 @@ namespace beagle {
             gMuBs[eigenIndex] = mu_B;
             gBs[eigenIndex] = gInstantaneousMatrices[eigenIndex] - mu_B * identity;
             gB1Norms[eigenIndex] = normP1(gBs[eigenIndex]);
+
+            ds[eigenIndex].clear();
+
+	    int pMax = getPMax();
+	    for(int p=0;p <= pMax+1; p++)
+	    {
+		int t = 5;
+		double approx_norm = normest1( gBs[eigenIndex], p, t);
+
+		// equation 3.7 in Al-Mohy and Higham
+		ds[eigenIndex].push_back( pow( approx_norm, 1.0/double(p) ) );
+	    }
 
 //            gSimpleActions[eigenIndex]->setInstantaneousMatrix(tripletList);
 //            gSimpleActions[eigenIndex]->fireMatrixChanged();
@@ -881,21 +892,9 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex)
+        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex) const
         {
-	    assert(p >= 0);
-
-            // equation 3.7 in Al-Mohy and Higham
-
-            const int start = ds[eigenIndex].size();
-
-            for (int i = start; i <= p; i++)
-            {
-		int t = 5;
-		double approx_norm = normest1( gBs[eigenIndex], i, t);
-
-		ds[eigenIndex].push_back( pow( approx_norm, 1.0/double(i) ) );
-	    }
+	    assert(p >= 0 and p < ds[eigenIndex].size());
 
             return ds[eigenIndex][p];
         }
