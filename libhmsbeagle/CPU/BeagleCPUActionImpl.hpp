@@ -320,7 +320,6 @@ namespace beagle {
             gBs.resize(eigenDecompositionCount);
             gMuBs.resize(eigenDecompositionCount);
             gB1Norms.resize(eigenDecompositionCount);
-            powerMatrices.resize(eigenDecompositionCount);
             ds.resize(eigenDecompositionCount);
 
             gEigenMaps.resize(kBufferCount);
@@ -567,7 +566,6 @@ namespace beagle {
             }
             gInstantaneousMatrices[eigenIndex].setFromTriplets(tripletList.begin(), tripletList.end());
             ds[eigenIndex].clear();
-            powerMatrices[eigenIndex].clear();
 
             double mu_B = 0.0;
             for (int i = 0; i < kStateCount; i++) {
@@ -887,26 +885,11 @@ namespace beagle {
 
             for (int i = start; i <= p; i++)
             {
-		powerMatrices[eigenIndex].push_back({});
-		ds[eigenIndex].push_back(-1);
+		int t = 5;
+		double approx_norm = normest1( gBs[eigenIndex], i, t);
 
-                if (i == 0)
-                {
-                    powerMatrices[eigenIndex][0] = SpMatrix();
-                    ds[eigenIndex][0] = 1.0;
-                }
-                else if (i == 1)
-                {
-                    powerMatrices[eigenIndex][1] = gBs[eigenIndex];
-                    ds[eigenIndex][1] = normP1(powerMatrices[eigenIndex][1]);
-                }
-                else
-                {
-                    assert(p > 1);
-                    powerMatrices[eigenIndex][i] = powerMatrices[eigenIndex][i - 1] * powerMatrices[eigenIndex][1];
-                    ds[eigenIndex][i] = pow(normP1(powerMatrices[eigenIndex][i]), 1.0 / ((double) i));
-                }
-            }
+		ds[eigenIndex].push_back( pow( approx_norm, 1.0/double(i) ) );
+	    }
 
             return ds[eigenIndex][p];
         }
