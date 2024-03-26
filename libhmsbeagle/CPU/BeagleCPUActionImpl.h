@@ -227,6 +227,7 @@ namespace beagle {
 
             double getDValue2(int p, int eigenIndex);
 
+            double getPMax() const;
         };
 
 

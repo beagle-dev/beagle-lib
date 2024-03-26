@@ -812,6 +812,12 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
+	double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getPMax() const
+	{
+	    return floor(0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax));
+	}
+
+        BEAGLE_CPU_ACTION_TEMPLATE
         std::tuple<int,int>
 	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
 								      double edgeMultiplier,
@@ -828,7 +834,7 @@ namespace beagle {
 	    double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
 
 	    const double theta = thetaConstants[mMax];
-	    const double pMax = floor((0.5 + 0.5 * sqrt(5.0 + 4.0 * mMax)));
+	    const double pMax = getPMax();
 	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
 
 	    const bool conditionFragment313 = gB1Norms[eigenIndex] * edgeMultiplier <= 2.0 * theta / ((double) nCol * mMax) * pMax * (pMax + 3);
