@@ -82,6 +82,7 @@ double random_plus_minus_1_func(double x)
 
 // See OneNormEst in https://eprints.maths.manchester.ac.uk/2195/1/thesis-main.pdf
 // See also https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
+// See dlacn1.f
 double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 {
     assert(p >= 0);
@@ -164,7 +165,6 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 2)
 	{
 	    // std::cerr<<"  All columns of S parallel to S_old\n";
-	    // converged = true
 	    return est;
 	}
 
