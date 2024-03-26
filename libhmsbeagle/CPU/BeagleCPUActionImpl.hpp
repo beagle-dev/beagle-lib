@@ -136,6 +136,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	if (est > est_old or k == 2)
 	{
+	    // Note that j is in [0,t-1], but indices[j] is in [0,n-1].
 	    ind_best = indices[j];
 	    // w = Y.col(ind_best);
 	}
@@ -202,7 +203,13 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	if (k >= 2 and h.maxCoeff() == h[ind_best])
 	{
 	    // std::cerr<<"  The best column ("<<ind_best<<") is not new\n";
-	    return est;
+
+	    // According to Algorithm 2.4, we should exit here.
+
+	    // However, continuing until we find a different reason to exit 
+	    // seems to providegreater accuracy.
+
+	    // return est;
 	}
 
 	indices.resize(n);
