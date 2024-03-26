@@ -151,6 +151,8 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	est_old = est;
 
+	assert(est >= est_old);
+
 	// S = sign(Y), 0.0 -> 1.0
 	S = Y.unaryExpr([](const double& x) {return (x>=0) ? 1.0 : -1.0 ;});
 
@@ -218,6 +220,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	if (n_found == t)
 	{
+	    assert(k >= 2);
 	    // std::cerr<<"  All columns were found in the column history.\n";
 	    return est;
 	}
