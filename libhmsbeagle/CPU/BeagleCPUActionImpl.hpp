@@ -161,7 +161,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	prodS = (S_old.transpose() * S).matrix().cwiseAbs().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
-	if (prodS.cwiseAbs().colwise().maxCoeff().sum() == n * t and k >= 2)
+	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 2)
 	{
 	    // std::cerr<<"  All columns of S parallel to S_old\n";
 	    // converged = true
