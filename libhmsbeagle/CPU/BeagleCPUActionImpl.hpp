@@ -186,6 +186,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
                     {
                         // std::cerr<<"  S.col("<<j<<") parallel to S.col("<<i<<")    prodS(i,j) = "<<prodS(i,j)<<"\n";
                         S.col(j) = S.col(j).unaryExpr( &random_plus_minus_1_func );
+			break;
                     }
         }
 
