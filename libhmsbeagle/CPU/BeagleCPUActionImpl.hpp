@@ -139,6 +139,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	    ind_best = indices[j];
 	    // w = Y.col(ind_best);
 	}
+	// std::cerr<<"  est = "<<est<<"  (est_old = "<<est_old<<")\n";
 	assert(ind_best < n);
 
         // (1) of Algorithm 2.4
