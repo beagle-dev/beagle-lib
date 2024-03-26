@@ -682,7 +682,7 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         void
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction2(MapType& destP, MapType& partials, int edgeIndex,
-                                                                     int category, bool transpose) {
+                                                                     int category, bool transpose) const {
 #ifdef BEAGLE_DEBUG_FLOW
             std::cerr<<"New impl 2\nRate category "<<category<<std::endl;
 	    std::cerr<<"In partial: \n"<<partials<<std::endl;
@@ -736,7 +736,7 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
         void
         BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
-                                                                     int category, bool transpose) {
+                                                                     int category, bool transpose) const {
 #ifdef BEAGLE_DEBUG_FLOW
             std::cerr<<"New impl 2\nRate category "<<category<<std::endl;
 	    std::cerr<<"In partial: \n"<<partials<<std::endl;
@@ -832,7 +832,7 @@ namespace beagle {
         std::tuple<int,int>
 	BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getStatistics2(double t, int nCol,
 								      double edgeMultiplier,
-								      int eigenIndex) {
+								      int eigenIndex) const {
 	    assert( t >= 0 );
 	    assert( nCol >= 0);
 	    assert( edgeMultiplier >= 0 );
@@ -844,7 +844,7 @@ namespace beagle {
 	    int bestM = INT_MAX;
 	    double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
 
-	    const double theta = thetaConstants[mMax];
+	    const double theta = thetaConstants.at(mMax);
 	    const double pMax = getPMax();
 	    // pMax is the largest positive integer such that p*(p-1) <= mMax + 1
 
@@ -864,11 +864,11 @@ namespace beagle {
 			auto it = thetaConstants.find(thisM);
 			if (it != thetaConstants.end()) {
 			    // equation 3.7 in Al-Mohy and Higham
-			    const double dValueP = getDValue2(p, eigenIndex);
-			    const double dValuePPlusOne = getDValue2(p + 1, eigenIndex);
+			    const double dValueP = getDValue(p, eigenIndex);
+			    const double dValuePPlusOne = getDValue(p + 1, eigenIndex);
 			    const double alpha = std::max(dValueP, dValuePPlusOne) * edgeMultiplier;
 			    // part of equation 3.10
-			    const double thisS = ceil(alpha / thetaConstants[thisM]);
+			    const double thisS = ceil(alpha / thetaConstants.at(thisM));
 			    if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
 				bestS = thisS;
 				bestM = thisM;
@@ -892,7 +892,7 @@ namespace beagle {
 
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue2(int p, int eigenIndex) const
+        double BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getDValue(int p, int eigenIndex) const
         {
 	    assert(p >= 0 and p < ds[eigenIndex].size());
 

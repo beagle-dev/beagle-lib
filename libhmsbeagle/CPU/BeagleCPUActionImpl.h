@@ -200,10 +200,10 @@ namespace beagle {
                                                  int count);
 
             void simpleAction2(MapType& destP, MapType& partials, int edgeIndex,
-                               int category, bool transpose);
+                               int category, bool transpose) const;
 
             void simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
-                               int category, bool transpose);
+                               int category, bool transpose) const;
 
             void calcPartialsPartials2(int destPIndex,
 				       int partials1Index,
@@ -223,9 +223,9 @@ namespace beagle {
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
-					       int eigenIndex);
+					       int eigenIndex) const;
 
-            double getDValue2(int p, int eigenIndex) const;
+            double getDValue(int p, int eigenIndex) const;
 
             double getPMax() const;
         };
