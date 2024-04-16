@@ -21,9 +21,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
     int patternBlock = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE);
 
-    const int WMMA_M = 8;
-    const int WMMA_N = 8;
-    const int WMMA_K = 4;
+#define WMMA_M  8
+#define WMMA_N  8
+#define WMMA_K  4
     const int PATTERN_SPAN = NEW_PATTERN_BLOCK_SIZE/2;
     const int MEM_OFFSET = PATTERN_SPAN * PADDED_STATE_COUNT;
 
@@ -50,6 +50,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 #define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
 #define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
+//#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
 
     // Indices to permute ShM for partials
     // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
@@ -60,6 +61,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 #define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+//#define GET_SMEM_OFFSET_PARTIALS(X,Y) X + Y * PADDED_STATE_COUNT
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
@@ -162,5 +164,228 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 
     if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
         partials3[u + PADDED_STATE_COUNT + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12;
+#endif
+}
+
+KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
+                                                                 KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
+//                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
+                                                                 int skip,
+                                                                 int totalPatterns, int categoryCount) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    todo(); // TODO
+#else // GPU implementation
+
+#define NEW_BLOCK_PEELING_SIZE PATTERN_BLOCK_SIZE
+
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int pattern = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + patIdx;
+
+    int node = KW_GROUP_ID_1 + skip;
+    int instructionOffset = node * 3;
+
+    unsigned int partials1Offset = instructions[instructionOffset + 0];
+    unsigned int partials2Offset = instructions[instructionOffset + 1];
+    unsigned int matrices1Offset = instructions[instructionOffset + 2];
+
+//    KW_LOCAL_MEM REAL sMatrix2[NEW_BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2Permuted[WMMA_K * PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+//    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2Permuted[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sum2Matrix[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+
+    /* TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount */\
+    KW_LOCAL_MEM REAL sWeights[MATRIX_BLOCK_SIZE];
+
+    for (int c = 0; c < categoryCount; c += KW_LOCAL_SIZE_0) {
+        int x = c + KW_LOCAL_ID_0;
+        if (x < categoryCount) {
+            sWeights[x] = weights[x];
+        }
+    }
+
+    KW_LOCAL_FENCE;
+
+    REAL numerator1 = 0;
+    REAL numerator2 = 0;
+    REAL denominator1 = 0;
+    REAL denominator2 = 0;
+
+    REAL lPartial11;
+    REAL lPartial12;
+    REAL lPartial21;
+    REAL lPartial22;
+
+    for (int c = 0; c < categoryCount; ++c) {
+
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials0 + partials1Offset + totalPatterns * PADDED_STATE_COUNT * c;
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials0 + partials2Offset + totalPatterns * PADDED_STATE_COUNT * c;
+        KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices0 + matrices1Offset + PADDED_STATE_COUNT * PADDED_STATE_COUNT * c;
+
+        /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
+        /* These are all coherent global memory reads; checked in Profiler */
+        if (pattern<totalPatterns) {
+            sPartials1[patIdx * PADDED_STATE_COUNT + state] = lPartial11 = partials1[pattern * PADDED_STATE_COUNT + state];
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = lPartial21 = partials2[pattern * PADDED_STATE_COUNT + state];
+        } else {
+            sPartials1[patIdx * PADDED_STATE_COUNT + state] = lPartial11 = 0;
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = lPartial21 = 0;
+        }
+
+        int patternSpan = patIdx + 4;
+        if (pattern + 4 < totalPatterns) {
+            sPartials1[patternSpan * PADDED_STATE_COUNT + state] = lPartial12 = partials1[(pattern + 4) * PADDED_STATE_COUNT + state];
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patternSpan)] = lPartial22 = partials2[(pattern + 4) * PADDED_STATE_COUNT + state];
+        } else {
+            sPartials1[patternSpan * PADDED_STATE_COUNT + state] = lPartial12 = 0;
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patternSpan)] = lPartial22 = 0;
+        }
+
+        FMA(lPartial11, lPartial21 * sWeights[c], denominator1);
+        FMA(lPartial12, lPartial22 * sWeights[c], denominator2);
+
+//        REAL sum2 = 0;
+//        for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
+//            /* load one row of matrices */
+//            if (patIdx < NEW_BLOCK_PEELING_SIZE) {
+//                /* These are all coherent global memory reads. */
+//                sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+//                /* sMatrix now filled with starting in state and ending in i */
+//                matrix2 += NEW_BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+//            }
+//            KW_LOCAL_FENCE;
+//
+//            // TODO 2nd check is unncessary for stateCount >= 16
+//            for (int j = 0; (j < NEW_BLOCK_PEELING_SIZE) && (i + j < PADDED_STATE_COUNT); j++) {
+//                FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
+//            }
+//            KW_LOCAL_FENCE;
+//        }
+
+        int warpSize = 32; // TODO: Check if its better to get this from Cuda API
+        int warpState = state/warpSize;
+        int warpPattern = patIdx;
+        float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
+        int warpIdx = warpState + warpPattern * warpsPerPattern;
+        int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
+
+        int sMatrixRow, partialsCol, sMatrixCol, partialsRow;
+        //   TODO: Declare right before usage
+        double a1, b1, a2,b2, res11 = 0, res12 = 0;
+
+//        if(patIdx < 4) {
+            for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
+                sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
+                sMatrixCol = i;
+                partialsRow = i;
+                partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
+
+                sMatrix2Permuted[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
+                KW_LOCAL_FENCE;
+
+
+                // reg_row* and reg_col* are according to memory layout in ShM
+                int reg_row = state % 4;
+                int reg_col = (warpIdx * WMMA_M) + (laneid / 4);
+
+                // TODO: More book keeping if PATTERN_BLOCK_SIZE > WMMA_M
+                int reg_row_partials = laneid / 4;
+                int reg_col_partials = partialsRow + state % 4;
+
+                a1 = sMatrix2Permuted[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+                b1 = sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
+
+                asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+                    : "=d"(res11), "=d"(res12)
+                    : "d"(a1), "d"(b1), "d"(res11), "d"(res12));
+
+                KW_LOCAL_FENCE;
+
+            }
+            int statesPerWarp = (PADDED_STATE_COUNT >= warpSize) ? state : laneid;
+            // Map results of MMA operation (8x8) to permuted shared memory for elementwise multiplication of partials
+            int partials2Index = WMMA_M * (int) (patIdx * warpsPerPattern) + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8;
+            int partials2State = partials2Index % PADDED_STATE_COUNT;
+            int partials2PatIdx = partials2Index / PADDED_STATE_COUNT;
+            int partials2PatIdxPlusOne = partials2PatIdx + 1;
+
+            sum2Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx)] = res11;
+            sum2Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdxPlusOne)] = res12;
+
+//        }
+
+        KW_LOCAL_FENCE;
+
+        FMA(lPartial11, sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] * sWeights[c], numerator1);
+        FMA(lPartial12, sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, patternSpan)] * sWeights[c], numerator2);
+
+//        partials1 += totalPatterns * PADDED_STATE_COUNT;
+//        partials2 += totalPatterns * PADDED_STATE_COUNT;
+    }
+
+    sPartials1[patIdx * PADDED_STATE_COUNT + state] = numerator1;
+    sPartials1[(patIdx + 4) * PADDED_STATE_COUNT + state] = numerator2;
+
+    sPartials2Permuted[patIdx * PADDED_STATE_COUNT + state] = denominator1;
+    sPartials2Permuted[(patIdx + 4) * PADDED_STATE_COUNT + state] = denominator2;
+
+    KW_LOCAL_FENCE;
+
+#ifdef IS_POWER_OF_TWO
+    // parallelized reduction *** only works for powers-of-2 ****
+    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        if (state < i) {
+#else
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+            sPartials1[patIdx * PADDED_STATE_COUNT + state] += sPartials1[patIdx * PADDED_STATE_COUNT + state + i];
+            sPartials2Permuted[patIdx * PADDED_STATE_COUNT + state] += sPartials2Permuted[patIdx *  PADDED_STATE_COUNT + state + i];
+            sPartials1[(patIdx + 4) * PADDED_STATE_COUNT + state] += sPartials1[(patIdx + 4) * PADDED_STATE_COUNT + state + i];
+            sPartials2Permuted[(patIdx + 4) * PADDED_STATE_COUNT + state] += sPartials2Permuted[(patIdx + 4) *  PADDED_STATE_COUNT + state + i];
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    // TODO Test this coalesced write code out
+    int tx = KW_LOCAL_ID_0;
+    if (tx < PATTERN_BLOCK_SIZE && patIdx == 0) { // Use first PATTERN_BLOCK_SIZE threads to write
+        int site = KW_GROUP_ID_0 * NEW_BLOCK_PEELING_SIZE + tx;
+        if (site < totalPatterns) {
+            REAL numerator = sPartials1[tx * PADDED_STATE_COUNT + 0];
+            REAL denominator = sPartials2Permuted[tx* PADDED_STATE_COUNT + 0];
+
+            REAL ratio = 0.0;
+            if (denominator != 0.0) {
+                ratio = numerator / denominator;
+            }
+            out[totalPatterns * node + site] = ratio;
+//            tmpAcc[(KW_GROUP_ID_0 * 8 + patIdx) * PADDED_STATE_COUNT + state] = ratio;
+        }
+//        if (site + 4 < totalPatterns) {
+//            REAL numerator = sPartials1[(tx + 4) * PADDED_STATE_COUNT + 0];
+//            REAL denominator = sPartials2Permuted[(tx + 4)* PADDED_STATE_COUNT + 0];
+//            REAL ratio = 0.0;
+//            if (denominator != 0.0) {
+//                ratio = numerator / denominator;
+//            }
+//            out[totalPatterns * node + (site + 4)] = ratio;
+//        }
+    }
+
+//    if (pattern < totalPatterns) {
+//        if (state == 0) {
+//            out[totalPatterns * node + pattern] = sPartials1[patIdx][0] / sPartials2[patIdx][0]; // pre;
+////            out[totalPatterns * node + pattern] = sPartials1[patIdx][0];  // Write numerator
+////            out[totalPatterns * (KW_NUM_GROUPS_1 + node) + pattern] = sPartials2[patIdx][0]; // Write denomiator
+//        }
+//    }
+
 #endif
 }
