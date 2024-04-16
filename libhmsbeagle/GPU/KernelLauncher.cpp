@@ -777,6 +777,13 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgDerivativeBlocky = bgDerivativeBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = 4;
+    }
+#endif
+
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
 //    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
 //    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
@@ -786,6 +793,12 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
                       5, 8,
                       out, partials0, matrices0, instructions, weights,
                       instructionOffset, patternCount, categoryCount);
+
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = tmpBgDerivativeBlocky;
+    }
+#endif
 
     if (synchronize) {
         gpu->SynchronizeDevice();

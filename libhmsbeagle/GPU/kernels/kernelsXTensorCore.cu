@@ -60,6 +60,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1) ) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
 #define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
+//#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
 
     // Indices to permute ShM for partials
     // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
@@ -70,6 +71,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+//#define GET_SMEM_OFFSET_PARTIALS(X,Y) X + Y * PADDED_STATE_COUNT
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
     if(pattern < totalPatterns) {
