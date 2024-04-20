@@ -77,7 +77,7 @@ int main() {
             &partials1,  &partials3, &matrices1, &totalPatterns
     };
 
-    res = cuLaunchKernel(cudaFunction, 1, 1, 1, STATE_SIZE, 4, 1, 0, NULL, params, NULL);
+    res = cuLaunchKernel(cudaFunction, 1, 1, 1, STATE_SIZE, 8, 1, 0, NULL, params, NULL);
 
     cudaDeviceSynchronize();
 
