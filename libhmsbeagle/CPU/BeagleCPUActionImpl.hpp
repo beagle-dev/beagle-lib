@@ -80,7 +80,10 @@ double random_plus_minus_1_func(double x)
 	return -1;
 }
 
+// Algorithm 2.4 from Higham and Tisseur (2000), A BLOCK ALGORITHM FOR MATRIX 1-NORM ESTIMATION,
+//    WITH AN APPLICATION TO 1-NORM PSEUDOSPECTRA.
 // See OneNormEst in https://eprints.maths.manchester.ac.uk/2195/1/thesis-main.pdf
+//    This seems to have a bug where it checks if columns in S are parallel to EVERY column of S_old.
 // See also https://github.com/gnu-octave/octave/blob/default/scripts/linear-algebra/normest1.m
 // See dlacn1.f
 double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
@@ -732,6 +735,13 @@ namespace beagle {
 	    std::cerr<<"Out partials: \n"<<destP<<std::endl;
 #endif
         }
+
+	// Algorithm 2 from Ibáñez et al (2021) Two Taylor Algorithms for
+	//     Computing the Action of the Matrix Exponential on a Vector
+	// The initial loop over the Vs cannot be merged with the computation of w because we don't know s yet.
+	// Storing all the Vs makes this algorithm takes more memory than the Al Mohy algorithm.
+	// This algorithm produces higher values of 's' than the Al Mohy algorithm.
+	// It controls the forward error, whereas the Al Mohy algorithm minimizes the backward error.
 
         BEAGLE_CPU_ACTION_TEMPLATE
         void
