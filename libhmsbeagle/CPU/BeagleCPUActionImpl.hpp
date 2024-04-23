@@ -271,7 +271,9 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
 	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsMap(int index, int category, int startPattern, int endPattern)
 	{
-	    double* start = gPartials[index] + category*kPaddedPatternCount*kStateCount;
+	    double* start = gPartials[index];
+	    assert(start);
+	    start += category*kPaddedPatternCount*kStateCount;
 	    start += startPattern*kStateCount;
 	    return MapType(start, kStateCount, endPattern - startPattern);
 	}
@@ -285,7 +287,9 @@ namespace beagle {
         BEAGLE_CPU_ACTION_TEMPLATE
 	MapType BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::partialsCacheMap(int index, int category, int startPattern, int endPattern)
 	{
-	    double* start = gPartials[index + kPartialsCacheOffset] + category*kPaddedPatternCount*kStateCount;
+	    double* start = gPartials[index + kPartialsCacheOffset];
+	    assert(start);
+	    start += category*kPaddedPatternCount*kStateCount;
 	    start += startPattern*kStateCount;
 	    return MapType(start, kStateCount, endPattern - startPattern);
 	}
@@ -552,6 +556,20 @@ namespace beagle {
             }
 
             return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::setTipStates(int tipIndex, const int* inStates)
+        {
+            std::cerr<<"\nBEAGLE: When using action-based likelihood computations, setTipStates( ) is not allowed.\n";
+            std::cerr<<"        Use setTipPartials( ) instead.\n\n";
+
+            // There does not appear to be a simple method of throwing C++ exceptions into Java through the JNI.
+            // However, throwing this exception makes Java print a stack trace that shows where the setTipStates( )
+            //   call is coming from.
+            throw std::runtime_error("This message will not be seen");
+
+            std::abort();
         }
 
 

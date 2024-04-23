@@ -165,6 +165,8 @@ namespace beagle {
 
 //            virtual int setCategoryRates(const double* inCategoryRates);
 
+            int setTipStates(int tipIndex, const int* inStates);
+
         protected:
             virtual int upPartials(bool byPartition,
 				   const int *operations,
