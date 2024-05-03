@@ -125,6 +125,7 @@ void printFlags(long inFlags) {
     if (inFlags & BEAGLE_FLAG_VECTOR_SSE)         fprintf(stdout, " VECTOR_SSE");
     if (inFlags & BEAGLE_FLAG_VECTOR_AVX)         fprintf(stdout, " VECTOR_AVX");
     if (inFlags & BEAGLE_FLAG_THREADING_NONE)     fprintf(stdout, " THREADING_NONE");
+    if (inFlags & BEAGLE_FLAG_THREADING_CPP)      fprintf(stdout, " THREADING_CPP");
     if (inFlags & BEAGLE_FLAG_THREADING_OPENMP)   fprintf(stdout, " THREADING_OPENMP");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CPU)      fprintf(stdout, " FRAMEWORK_CPU");
     if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     fprintf(stdout, " FRAMEWORK_CUDA");
@@ -147,8 +148,7 @@ int main( int argc, const char* argv[] )
     }
     fprintf(stdout, "\n");
 
-//    bool scaling = true;
-    bool scaling = false; // disable scaling for now
+    bool scaling = true;
 
     bool doJC = true;
 
@@ -170,6 +170,19 @@ int main( int argc, const char* argv[] )
     int scaleCount = (scaling ? 7 : 0);
 
     bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
+
+    bool useThreading = false;
+    for(int i=1;i<argc;i++)
+	if (!strcmp(argv[i],"--threading"))
+	    useThreading = true;
+
+    for(int i=1;i<argc;i++)
+	if (!strcmp(argv[i],"--help"))
+	{
+	    std::cerr<<"Flag: --gpu\n";
+	    std::cerr<<"Flag: --threading\n";
+	    std::exit(1);
+	}
 
     bool useTipStates = false;
 
@@ -206,6 +219,9 @@ int main( int argc, const char* argv[] )
     } else {
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
+
+    if (useThreading)
+	preferenceFlags |= BEAGLE_FLAG_THREADING_CPP;
 
     // create an instance of the BEAGLE library
     int instance = beagleCreateInstance(

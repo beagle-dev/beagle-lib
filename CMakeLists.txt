@@ -62,7 +62,8 @@ else ()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 endif ()
 
-if (NOT ${CMAKE_BUILD_TYPE} MATCHES Debug)
+
+if (NOT "${CMAKE_BUILD_TYPE}" MATCHES Debug)
         if(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot")
         else()
@@ -109,11 +110,22 @@ if(BUILD_OPENMP)
 endif(BUILD_OPENMP)
 
 if(BUILD_ACTION)
-	find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+        include(FetchContent)
+        set(EIGEN_VERSION 3.4)
+        find_package(Eigen3 ${EIGEN_VERSION} QUIET)
+        if(NOT EIGEN3_FOUND)
+                message("   Eigen3: library not found - downloading.")
+                set(BUILD_TESTING OFF CACHE INTERNAL "")
+                FetchContent_Declare(eigen
+                        GIT_REPOSITORY  https://gitlab.com/libeigen/eigen.git
+                        GIT_TAG         ${EIGEN_VERSION}
+                        GIT_SHALLOW     ON)
+                FetchContent_MakeAvailable(eigen)
+                unset(BUILD_TESTING CACHE)
+                message("   Eigen3: downloaded.")
+        endif()
+
 	set(CMAKE_CXX_STANDARD 17)
-	if (NOT TARGET Eigen3::Eigen)
-		message(FATAL_ERROR "No Eigen3 Found")
-	endif (NOT TARGET Eigen3::Eigen)
 	add_definitions(-DBEAGLE_ACTION)
 #	add_definitions(-DBEAGLE_DEBUG_FLOW)
 endif(BUILD_ACTION)
@@ -178,6 +190,13 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
 		endif()
 	endif()
+endif()
+
+
+include(CheckIncludeFileCXX)
+check_include_file_cxx("cpuid.h" HAVE_CPUID_H)
+if (HAVE_CPUID_H)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_CPUID_H")
 endif()
 
 add_subdirectory(libhmsbeagle)

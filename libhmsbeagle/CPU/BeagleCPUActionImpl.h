@@ -82,29 +82,23 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
 //            SpMatrix** gScaledQs;
             int kPartialsCacheOffset;
-            MapType** gMappedPartials;
-            MapType** gMappedPartialCache;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
             double* gIntegrationTmp;
 //            double* gLeftPartialTmp;
 //            double* gRightPartialTmp;
-            SpMatrix* gInstantaneousMatrices;
-            SpMatrix* gBs;
-            double* gMuBs;
-            double* gB1Norms;
-            int* gEigenMaps;
-            double* gEdgeMultipliers;
-            std::map<int, SpMatrix>* powerMatrices;
-            std::map<int, double>* ds;
-            int* gHighestPowers;
+	    std::vector<SpMatrix> gInstantaneousMatrices;
+	    std::vector<SpMatrix> gBs;
+            std::vector<double> gMuBs;
+	    std::vector<double> gB1Norms;
+	    std::vector<int> gEigenMaps;
+	    std::vector<double> gEdgeMultipliers;
+	    std::vector<std::vector<double>> ds;
             SpMatrix identity;
-            SpMatrix* gScaledQTransposeTmp;
             MapType* gMappedIntegrationTmp;
 //            MapType* gMappedLeftPartialTmp;
 //            MapType* gMappedRightPartialTmp;
-            double* gRescaleTmp;
             const int mMax = 55;
             std::map<int, double> thetaConstants = {
                     //The first 30 values are from table A.3 of  Computing Matrix Functions.
@@ -169,31 +163,32 @@ namespace beagle {
                                        long long preferenceFlags,
                                        long long requirementFlags);
 
-            virtual int setPartials(int bufferIndex,
-                            const double* inPartials);
-
 //            virtual int setCategoryRates(const double* inCategoryRates);
 
-            virtual int setTipPartials(int tipIndex,
-                                       const double* inPartials);
+            int setTipStates(int tipIndex, const int* inStates);
 
-            virtual int updatePartials(const int *operations,
-                                       int operationCount,
-                                       int cumulativeScalingIndex);
+        protected:
+            virtual int upPartials(bool byPartition,
+				   const int *operations,
+				   int operationCount,
+				   int cumulativeScalingIndex);
 
-            virtual int updatePrePartials(const int *operations,
-                                       int operationCount,
-                                       int cumulativeScalingIndex);
-//        protected:
+            virtual int upPrePartials(bool byPartition,
+				      const int *operations,
+				      int operationCount,
+				      int cumulativeScalingIndex);
+
+	    inline MapType partialsMap(int index, int category, int startPattern, int endPattern);
+
+	    inline MapType partialsMap(int index, int category);
+
+	    inline MapType partialsCacheMap(int index, int category, int startPattern, int endPattern);
+
+	    inline MapType partialsCacheMap(int index, int category);
+
 //            virtual int getPaddedPatternsModulus();
 
         private:
-            virtual void rescalePartials(MapType *destP,
-                                         double *scaleFactors,
-                                         double *cumulativeScaleFactors,
-                                         const int  fillWithOnes);
-
-
             virtual int setEigenDecomposition(int eigenIndex,
                                               const double *inEigenVectors,
                                               const double *inInverseEigenVectors,
@@ -206,58 +201,35 @@ namespace beagle {
                                                  const double* edgeLengths,
                                                  int count);
 
-            void simpleAction2(MapType *destP, MapType *partials, int edgeIndex,
-                               bool transpose);
+            void simpleAction2(MapType& destP, MapType& partials, int edgeIndex,
+                               int category, bool transpose) const;
 
+            void simpleAction3(MapType& destP, MapType& partials, int edgeIndex,
+                               int category, bool transpose) const;
 
-            void simpleAction(MapType* destP,
-                              MapType* partials,
-                              SpMatrix* matrix);
+            void calcPartialsPartials2(int destPIndex,
+				       int partials1Index,
+				       int edgeIndex1,
+				       int partials2Index,
+				       int edgeIndex2,
+				       int startPattern,
+				       int endPattern);
 
-            void calcPartialsPartials(MapType* destP,
-                                      MapType* partials1,
-                                      SpMatrix* matrices1,
-                                      MapType* partials2,
-                                      SpMatrix* matrices2);
-
-            void calcPartialsPartials2(MapType *destP, MapType *partials1,
-                                       MapType *partials2, int edgeIndex1,
-                                       int edgeIndex2, MapType *partialCache1,
-                                       MapType *partialCache2);
-
-            void calcPrePartialsPartials(MapType *destP,
-                                         MapType *partials1,
-                                         SpMatrix *matrices1,
-                                         MapType *partials2,
-                                         SpMatrix *matrices2);
-
-            void calcPrePartialsPartials2(MapType *destP, MapType *partials1,
-                                          MapType *partials2, int edgeIndex1,
-                                          int edgeIndex2, MapType *partialCache2);
-
-	    // Return (m,s)
-	    std::tuple<int,int> getStatistics(double A1Norm,
-					      SpMatrix * matrix,
-					      double t,
-					      int nCol);
+            void calcPrePartialsPartials2(int destPIndex,
+					  int partials1Index,
+                                          int edgeIndex1,
+					  int partials2Index,
+					  int edgeIndex2,
+					  int startPattern,
+					  int endPattern);
 
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
-					       int eigenIndex);
+					       int eigenIndex) const;
 
-            double getDValue(int p,
-                             std::map<int, double> &d,
-                             std::map<int, SpMatrix> &powerMatrices);
+            double getDValue(int p, int eigenIndex) const;
 
-            double getDValue2(int p, int eigenIndex);
-
-            double normP1(SpMatrix * matrix);
-
-            double normPInf(SpMatrix* matrix);
-            double normPInf(MapType matrix);
-            double normPInf(MatrixXd * matrix);
-
-
+            double getPMax() const;
         };
 
 
