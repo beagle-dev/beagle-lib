@@ -1973,6 +1973,164 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
         rootScaling[index] = total;
 }
 
+
+/*
+ * BASTA kernels
+ */
+
+// TODO: More appropriate kernel name
+KW_GLOBAL_KERNEL void kernelInnerBastaPartials(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                    int totalPatterns) {
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
+    int matrix = KW_GROUP_ID_1;
+    int patternCount = totalPatterns;
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
+    /* Load values into shared memory */
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
+    /* These are all coherent global memory reads; checked in Profiler */
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx][state] = partials1[y + state];
+    } else {
+        sPartials1[patIdx][state] = 0;
+    }
+    REAL sum1 = 0;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        /* load one row of matrices */
+        if (patIdx < BLOCK_PEELING_SIZE) {
+            /* These are all coherent global memory reads. */
+            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+            /* sMatrix now filled with starting in state and ending in i */
+            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+        }
+        KW_LOCAL_FENCE;
+        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            FMA(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    if (pattern < totalPatterns)
+        partials3[u] = sum1;
+}
+
+// TODO: More appropriate kernel name
+KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+													int intervalNumber,
+                                                    int totalPatterns,
+                                                    int child2Index) {
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
+    int matrix = KW_GROUP_ID_1;
+    int patternCount = totalPatterns;
+    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
+    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
+    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
+    /* Load values into shared memory */
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+
+    int y = deltaPartialsByState + deltaPartialsByMatrix;
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx][state] = partials1[y + state];
+    } else {
+        sPartials1[patIdx][state] = 0;
+    }
+    REAL sum1 = 0;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        /* load one row of matrices */
+        if (patIdx < BLOCK_PEELING_SIZE) {
+            /* These are all coherent global memory reads. */
+            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+            /* sMatrix now filled with starting in state and ending in i */
+            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+        }
+        KW_LOCAL_FENCE;
+        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            FMA(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    if (pattern < totalPatterns)
+        partials3[u] = sum1;
+    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
+    /* These are all coherent global memory reads; checked in Profiler */
+    if (child2Index >= 0) {
+        KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
+        KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+        if (pattern < totalPatterns) {
+            sPartials2[patIdx][state] = partials2[y + state];
+        } else {
+            sPartials2[patIdx][state] = 0;
+        }
+        REAL sum2 = 0;
+        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+            /* load one row of matrices */
+            if (patIdx < BLOCK_PEELING_SIZE) {
+                /* These are all coherent global memory reads. */
+                sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+                /* sMatrix now filled with starting in state and ending in i */
+                matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            }
+
+            KW_LOCAL_FENCE;
+            for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+                FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
+            }
+            KW_LOCAL_FENCE;
+        }
+
+	    if (pattern < totalPatterns) {
+		    accumulation1[u] = sum1;
+		    accumulation2[u] = sum2;
+            partials3[u] = sum1 * sum2 / sizes[state];
+	        sPartials3[patIdx][state] = partials3[y + state];
+
+#ifdef IS_POWER_OF_TWO
+	        // parallelized reduction *** only works for powers-of-2 ****
+	        for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+	            if (state < i) {
+#else
+	        for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+	            if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+	                sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
+	            }
+	            KW_LOCAL_FENCE;
+	        }
+	        coalescent[intervalNumber] = sPartials3[patIdx][0];
+		    partials3[u] = partials3[u] / coalescent[intervalNumber];
+	   }
+	}
+}
+
 #ifdef CUDA
 } // extern "C"
 #endif //CUDA

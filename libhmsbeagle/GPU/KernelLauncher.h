@@ -106,6 +106,8 @@ private:
     GPUFunction fSumSites2;
     GPUFunction fSumSites3;
 
+	GPUFunction fInnerBastaPartialsCoalescent;
+
     GPUFunction fReorderPatterns;
 
     Dim3Int bgTransitionProbabilitiesBlock;
@@ -604,6 +606,9 @@ public:
                   GPUPtr dSum3,
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
+
+    void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
+    GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
 
     void SetupKernelBlocksAndGrids();
 

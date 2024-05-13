@@ -401,6 +401,9 @@ void KernelLauncher::LoadKernels() {
     fSumSites2 = gpu->GetFunction("kernelSumSites2");
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
+    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
+
+
     fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");
 
     // partitioning and multi-op kernels
@@ -2395,6 +2398,38 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
 #endif
 
 }
+
+
+void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials1,
+                          GPUPtr partials2,
+                          GPUPtr partials3,
+                          GPUPtr matrices1,
+                          GPUPtr matrices2,
+                          GPUPtr accumulation1,
+                          GPUPtr accumulation2,
+                          const GPUPtr sizes,
+                          GPUPtr coalescent,
+                          unsigned int intervalNUmber,
+                          unsigned int patternCount,
+                          unsigned int child2Index) {
+#ifdef BEAGLE_DEBUG_FLOW
+fprintf(stderr, "\t\tEntering KernelLauncher::SumSites3\n");
+#endif
+
+    int parameterCountV = 9;
+    int totalParameterCount = 12;
+    gpu->LaunchKernel(fInnerBastaPartialsCoalescent,
+                      bgPeelingBlock, bgPeelingGrid,
+                      parameterCountV, totalParameterCount,
+                      partials1, partials2, partials3, matrices1, matrices2, accumulation1, accumulation2, sizes, coalescent,
+                      intervalNUmber, patternCount, child2Index);
+
+#ifdef BEAGLE_DEBUG_FLOW
+fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites3\n");
+#endif
+
+}
+
 
 }; // namespace
 

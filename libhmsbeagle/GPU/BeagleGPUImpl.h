@@ -212,6 +212,11 @@ private:
 
     int* hStreamIndices;
 
+	GPUPtr gBastaBuffers;
+	GPUPtr gCoalescentBuffers;
+	int kCoalescentBufferLength;
+	int kCoalescentBufferCount;
+
 public:
     BeagleGPUImpl();
 
@@ -308,6 +313,10 @@ public:
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
+    
+    // int updateTransitionMatricesGrad(const int* probabilityIndices,
+    //                                  const double* edgeLengths,
+    //                                  int count);
 
     int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
@@ -459,13 +468,22 @@ public:
 
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
-                           
+
+    int updateInnerBastaPartials(const int * operations, int i, int count, GPUPtr gpu, GPUPtr coalescent);
+
 	int updateBastaPartials(const int* operations,
-  							int operationCount,
-  							const int* intervals,
-  							int intervalCount,
+                            int operationCount,
+                            const int* intervals,
+                            int intervalCount,
                             int populationSizesIndex,
                             int coalescentIndex);
+
+    // int updateBastaPartialsGrad(const int* operations,
+  		// 					int operationCount,
+  		// 					const int* intervals,
+  		// 					int intervalCount,
+    //                         int populationSizesIndex,
+    //                         int coalescentIndex);
 
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,
@@ -475,6 +493,15 @@ public:
                                 const int populationSizesIndex,
                                 int coalescentIndex,
                                 double* out);
+    
+    // int accumulateBastaPartialsGrad(const int *operations,
+    //                                 const int operationCount,
+    //                                 const int *intervalStarts,
+    //                                 const int intervalStartsCount,
+    //                                 const double *intervalLengths,
+    //                                 const int populationSizesIndex,
+    //                                 const int coalescentIndex,
+    //                                 double *out);
 
     int allocateBastaBuffers(int bufferCount,
                              int bufferLength);
