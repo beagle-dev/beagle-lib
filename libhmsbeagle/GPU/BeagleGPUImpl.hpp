@@ -2278,7 +2278,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
 #endif  														   
   														   
-    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    GPUPtr coalescent = (GPUPtr) NULL;
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, 0);
 
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
@@ -2375,7 +2375,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 #endif 
 
 
-    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    GPUPtr coalescent = (GPUPtr) NULL;
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
     gpu->MemcpyHostToDevice(dBastaE, zeroes, sizeof(Real) * kPaddedStateCount * kCoalescentBufferLength);
