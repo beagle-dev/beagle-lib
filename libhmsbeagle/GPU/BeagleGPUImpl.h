@@ -212,8 +212,14 @@ private:
 
     int* hStreamIndices;
 
-	GPUPtr gBastaBuffers;
-	GPUPtr gCoalescentBuffers;
+	GPUPtr dBastaBuffers;
+	GPUPtr dBastaE;
+	GPUPtr dBastaF;
+	GPUPtr dBastaG;
+	GPUPtr dBastaH;
+	GPUPtr dBastaLogL;
+	GPUPtr dBastaDistance;
+	GPUPtr dCoalescentBuffers;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 

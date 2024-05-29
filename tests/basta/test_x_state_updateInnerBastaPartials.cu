@@ -71,14 +71,15 @@ int main() {
 
 
 
-    double *partials1, *partials2, *partials3, *matrices1, *matrices2, *accumulation1, *accumulation2, *sizes, *coalescent, *tmpAcc;
+    double *partials1, *partials2, *partials3, *matrices1, *matrices2, *accumulation1, *accumulation2, *sizes, *coalescent;
     int totalPatterns = NPATTERNS;
     int intervalNumber = 1;
+    int child2Index = 1;
 
     double *resHost = (double*) malloc(sizeof(double) * STATE_SIZE * NPATTERNS);
     double *accumHost1 = (double*) malloc(sizeof(double) * STATE_SIZE * NPATTERNS);
     double *accumHost2 = (double*) malloc(sizeof(double) * STATE_SIZE * NPATTERNS);
-    float *coal = static_cast<float *>(malloc(sizeof(double) * intervalNumber));
+    double *coal = (double*) malloc(sizeof(double) * intervalNumber);
 
     cuMemAlloc((CUdeviceptr*)&partials1, sizeof(double) * STATE_SIZE * NPATTERNS);
     cuMemAlloc((CUdeviceptr*)&partials2, sizeof(double) * STATE_SIZE * NPATTERNS);
@@ -86,9 +87,8 @@ int main() {
     cuMemAlloc((CUdeviceptr*)&accumulation1, sizeof(double) * STATE_SIZE * NPATTERNS);
     cuMemAlloc((CUdeviceptr*)&accumulation2, sizeof(double) * STATE_SIZE * NPATTERNS);
     cuMemAlloc((CUdeviceptr*)&sizes, sizeof(double) * STATE_SIZE * NPATTERNS);
-    cuMemAlloc((CUdeviceptr*)&coalescent, sizeof(float) * intervalNumber);
+    cuMemAlloc((CUdeviceptr*)&coalescent, sizeof(double) * intervalNumber);
     cuMemAlloc((CUdeviceptr*)&partials3, sizeof(double) * STATE_SIZE * NPATTERNS);
-    cuMemAlloc((CUdeviceptr*)&tmpAcc, sizeof(double) * 1);
 
     cuMemAlloc((CUdeviceptr*)&matrices1, sizeof(double) * STATE_SIZE * STATE_SIZE);
     cuMemAlloc((CUdeviceptr*)&matrices2, sizeof(double) * STATE_SIZE * STATE_SIZE);
@@ -98,12 +98,12 @@ int main() {
     cudaMemcpy(partials1, GET_VAR_NAME(partials1Host), sizeof(double) * STATE_SIZE * NPATTERNS, cudaMemcpyHostToDevice);
     cudaMemcpy(partials2, GET_VAR_NAME(partials2Host), sizeof(double) * STATE_SIZE * NPATTERNS, cudaMemcpyHostToDevice);
     cudaMemcpy(sizes, GET_VAR_NAME(sizes), sizeof(double) * STATE_SIZE * NPATTERNS, cudaMemcpyHostToDevice);
-    cudaMemcpy(coalescent, GET_VAR_NAME(coalescent), sizeof(float) * intervalNumber, cudaMemcpyHostToDevice);
+    cudaMemcpy(coalescent, GET_VAR_NAME(coalescent), sizeof(double) * intervalNumber, cudaMemcpyHostToDevice);
     void *params[] = {
-            &partials1,  &partials2, &partials3, &matrices1, &matrices2, &accumulation1, &accumulation2, &sizes, &coalescent, &intervalNumber, &totalPatterns
+            &partials1,  &partials2, &partials3, &matrices1, &matrices2, &accumulation1, &accumulation2, &sizes, &coalescent, &intervalNumber, &totalPatterns, &child2Index
     };
 
-    res = cuLaunchKernel(cudaFunction, 1, 1, 1, STATE_SIZE, 8, 1, 0, NULL, params, NULL);
+    res = cuLaunchKernel(cudaFunction, 1, 1, 1, STATE_SIZE, 1, 1, 0, NULL, params, NULL);
 
     cudaDeviceSynchronize();
 
@@ -122,7 +122,7 @@ int main() {
     err = cudaMemcpy(accumHost2, accumulation2, NPATTERNS * STATE_SIZE * sizeof(double), cudaMemcpyDeviceToHost);
     std::cerr << "Memcpy accum2 " << err << std::endl;
 
-    err = cudaMemcpy(coal, coalescent, intervalNumber * sizeof(float), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(coal, coalescent, intervalNumber * sizeof(double), cudaMemcpyDeviceToHost);
     std::cerr << "Memcpy coal " << err << std::endl;
 
     double tolerance=1E-5;

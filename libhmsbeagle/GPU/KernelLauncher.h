@@ -107,6 +107,8 @@ private:
     GPUFunction fSumSites3;
 
 	GPUFunction fInnerBastaPartialsCoalescent;
+	GPUFunction fReduceWithinInterval;
+	GPUFunction fReduceAcrossInterval;
 
     GPUFunction fReorderPatterns;
 
@@ -130,6 +132,13 @@ private:
 	Dim3Int bgMultiNodeSumGrid;
 	Dim3Int bgCrossProductBlock;
 	Dim3Int bgCrossProductGrid;
+	Dim3Int bgBastaPeelingBlock;
+	Dim3Int bgBastaPeelingGrid;
+	Dim3Int bgBastaReductionBlock;
+	Dim3Int bgBastaReductionGrid;
+	Dim3Int bgBastaSumBlock;
+	Dim3Int bgBastaSumGrid;
+
 
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -609,6 +618,11 @@ public:
 
     void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
     GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
+
+    void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
+                              GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex);
+
+    void reduceAcrossIntervals(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber);
 
     void SetupKernelBlocksAndGrids();
 

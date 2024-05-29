@@ -236,7 +236,19 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     }
     bgReorderPatternsGrid = Dim3Int((kUnpaddedPatternCount + REORDER_BLOCK_SIZE - 1) / REORDER_BLOCK_SIZE, kCategoryCount);
 
+    //Set up block for basta partials
+
+    bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, 1);
+    bgBastaPeelingGrid = Dim3Int(1,1);
+
+    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 4);
+    bgBastaReductionGrid = Dim3Int(1,1);
+
+    bgBastaSumBlock = Dim3Int(kPaddedStateCount, 64);
+    bgBastaSumGrid = Dim3Int(1,1);
 }
+
+
 
 void KernelLauncher::LoadKernels() {
 
@@ -402,6 +414,8 @@ void KernelLauncher::LoadKernels() {
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
     fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
+    fReduceWithinInterval = gpu->GetFunction("kernelBastaReduceWithinInterval");
+    fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
 
 
     fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");
@@ -2413,23 +2427,74 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials1,
                           unsigned int patternCount,
                           unsigned int child2Index) {
 #ifdef BEAGLE_DEBUG_FLOW
-fprintf(stderr, "\t\tEntering KernelLauncher::SumSites3\n");
+fprintf(stderr, "\t\tEntering KernelLauncher::InnerBastaPartialsCoalescent\n");
 #endif
 
     int parameterCountV = 9;
     int totalParameterCount = 12;
     gpu->LaunchKernel(fInnerBastaPartialsCoalescent,
-                      bgPeelingBlock, bgPeelingGrid,
+                      bgBastaPeelingBlock, bgBastaPeelingGrid,
                       parameterCountV, totalParameterCount,
                       partials1, partials2, partials3, matrices1, matrices2, accumulation1, accumulation2, sizes, coalescent,
                       intervalNUmber, patternCount, child2Index);
 
 #ifdef BEAGLE_DEBUG_FLOW
-fprintf(stderr, "\t\tLeaving  KernelLauncher::SumSites3\n");
+fprintf(stderr, "\t\tLeaving  KernelLauncher::InnerBastaPartialsCoalescent\n");
 #endif
 
 }
 
+void KernelLauncher::reduceWithinInterval(GPUPtr e,
+                              GPUPtr f,
+                              GPUPtr g,
+                              GPUPtr h,
+                              GPUPtr startPartials1,
+                              GPUPtr startPartials2,
+                              GPUPtr endPartials1,
+                              GPUPtr endPartials2,
+                              unsigned int intervalNUmber,
+                              unsigned int child2PartialIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
+#endif
+
+    int parameterCountV = 8;
+    int totalParameterCount = 10;
+    gpu->LaunchKernel(fReduceWithinInterval,
+                      bgBastaReductionBlock, bgBastaReductionGrid,
+                      parameterCountV, totalParameterCount,
+                      e, f, g, h, startPartials1, startPartials2, endPartials1, endPartials2, intervalNUmber, child2PartialIndex);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
+#endif
+
+}
+
+
+void KernelLauncher::reduceAcrossIntervals(GPUPtr e,
+                              GPUPtr f,
+                              GPUPtr g,
+                              GPUPtr h,
+                              GPUPtr distance,
+                              GPUPtr dLogL,
+                              const GPUPtr sizes,
+                              GPUPtr coalescent,
+                              unsigned int intervalNumber) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
+#endif
+    int parameterCountV = 8;
+    int totalParameterCount = 9;
+    gpu->LaunchKernel(fReduceAcrossInterval,
+                      bgBastaSumBlock, bgBastaSumGrid,
+                      parameterCountV, totalParameterCount,
+                      e, f, g, h, distance, dLogL, sizes, coalescent, intervalNumber);
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
+#endif
+
+}
 
 }; // namespace
 

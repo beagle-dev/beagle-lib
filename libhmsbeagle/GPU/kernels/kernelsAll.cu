@@ -17,6 +17,7 @@
     #include <stdlib.h>
     #include <string.h>
     #include <stdio.h>
+    #include <math.h>
     extern "C" {
 #elif defined(FW_OPENCL)
     #ifdef DOUBLE_PRECISION
@@ -1978,53 +1979,6 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
  * BASTA kernels
  */
 
-// TODO: More appropriate kernel name
-KW_GLOBAL_KERNEL void kernelInnerBastaPartials(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
-                                                    int totalPatterns) {
-    int state = KW_LOCAL_ID_0;
-    int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
-    int matrix = KW_GROUP_ID_1;
-    int patternCount = totalPatterns;
-    int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
-    int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;
-    int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-    int u = state + deltaPartialsByState + deltaPartialsByMatrix;
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
-    /* Load values into shared memory */
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    int y = deltaPartialsByState + deltaPartialsByMatrix;
-    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
-    /* These are all coherent global memory reads; checked in Profiler */
-    if (pattern < totalPatterns) {
-        sPartials1[patIdx][state] = partials1[y + state];
-    } else {
-        sPartials1[patIdx][state] = 0;
-    }
-    REAL sum1 = 0;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE) {
-            /* These are all coherent global memory reads. */
-            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-        }
-        KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-            FMA(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
-        }
-        KW_LOCAL_FENCE;
-    }
-
-    if (pattern < totalPatterns)
-        partials3[u] = sum1;
-}
-
-// TODO: More appropriate kernel name
 KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -2037,6 +1991,10 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 													int intervalNumber,
                                                     int totalPatterns,
                                                     int child2Index) {
+
+    #define PATTERN_BLOCK_SIZE_B 1
+    #define BLOCK_PEELING_SIZE_B 1
+
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
     int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
@@ -2048,9 +2006,9 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     /* Load values into shared memory */
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
 
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
 
 
     int y = deltaPartialsByState + deltaPartialsByMatrix;
@@ -2060,17 +2018,17 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         sPartials1[patIdx][state] = 0;
     }
     REAL sum1 = 0;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
         /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE) {
+        if (patIdx < BLOCK_PEELING_SIZE_B) {
             /* These are all coherent global memory reads. */
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
             /* sMatrix now filled with starting in state and ending in i */
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            matrix1 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
         }
         KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-            FMA(sMatrix1[j][state],  sPartials1[patIdx][i + j], sum1);
+        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
+            FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
         }
         KW_LOCAL_FENCE;
     }
@@ -2081,27 +2039,29 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     /* These are all coherent global memory reads; checked in Profiler */
     if (child2Index >= 0) {
         KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
-        KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
 
         if (pattern < totalPatterns) {
             sPartials2[patIdx][state] = partials2[y + state];
+            popSizes[state] = sizes[state];
         } else {
             sPartials2[patIdx][state] = 0;
         }
         REAL sum2 = 0;
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
             /* load one row of matrices */
-            if (patIdx < BLOCK_PEELING_SIZE) {
+            if (patIdx < BLOCK_PEELING_SIZE_B) {
                 /* These are all coherent global memory reads. */
                 sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
                 /* sMatrix now filled with starting in state and ending in i */
-                matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+                matrix2 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
             }
 
             KW_LOCAL_FENCE;
-            for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
                 FMA(sMatrix2[j][state],  sPartials2[patIdx][i + j], sum2);
             }
             KW_LOCAL_FENCE;
@@ -2110,7 +2070,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	    if (pattern < totalPatterns) {
 		    accumulation1[u] = sum1;
 		    accumulation2[u] = sum2;
-            partials3[u] = sum1 * sum2 / sizes[state];
+            partials3[u] = sum1 * sum2 / popSizes[state];
 	        sPartials3[patIdx][state] = partials3[y + state];
 
 #ifdef IS_POWER_OF_TWO
@@ -2119,17 +2079,122 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	            if (state < i) {
 #else
 	        for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-	            if (state < i && state + i < PADDED_STATE_COUNT ) {
+	            if (state < i && state + i < PADDED_STATE_COUNT) {
 #endif // IS_POWER_OF_TWO
 	                sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
 	            }
 	            KW_LOCAL_FENCE;
 	        }
-	        coalescent[intervalNumber] = sPartials3[patIdx][0];
-		    partials3[u] = partials3[u] / coalescent[intervalNumber];
+			REAL denominator = sPartials3[patIdx][0];
+		    partials3[u] = partials3[u] / denominator;
+			coalescent[intervalNumber] = denominator;
 	   }
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* e,
+                                                    KW_GLOBAL_VAR REAL*  f,
+                                                    KW_GLOBAL_VAR REAL*  g,
+                                                    KW_GLOBAL_VAR REAL*  h,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT startPartials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT startPartials2,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT endPartials1,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT endPartials2,
+													int intervalNumber,
+                                                    int child2PartialIndex) {
+
+    #define SUM_SITES_BLOCK_SIZE_B 64
+	#define SUM_PARTIAL_BLOCK_SIZE_B 4
+    int state = KW_LOCAL_ID_0;
+    int u = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE_B;
+    int y = intervalNumber * PADDED_STATE_COUNT;
+	KW_LOCAL_MEM REAL sPartials1[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+
+    if (state < PADDED_STATE_COUNT) {
+		sPartials1[0][state] = startPartials1[u];
+		sPartials1[1][state] = startPartials1[u] * startPartials1[u];
+		sPartials1[2][state] = endPartials1[u];
+		sPartials1[3][state] = endPartials1[u] * endPartials1[u];
+    } else {
+        sPartials1[0][state] = 0;
+		sPartials1[1][state] = 0;
+		sPartials1[2][state] = 0;
+		sPartials1[3][state] = 0;
+    }
+	e[y + state] += sPartials1[0][state];
+	f[y + state] += sPartials1[1][state];
+	g[y + state] += sPartials1[2][state];
+	h[y + state] += sPartials1[3][state];
+
+	KW_LOCAL_MEM REAL sPartials2[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    if (child2PartialIndex >= 0) {
+    	if (state < PADDED_STATE_COUNT) {
+			sPartials2[0][state] = startPartials2[u];
+			sPartials2[1][state] = startPartials2[u] * startPartials2[u];
+			sPartials2[2][state] = endPartials2[u];
+			sPartials2[3][state] = endPartials2[u] * endPartials2[u];
+    	} else {
+        	sPartials2[0][state] = 0;
+			sPartials2[1][state] = 0;
+			sPartials2[2][state] = 0;
+			sPartials2[3][state] = 0;
+    	}
+	e[y + state] += sPartials2[0][state];
+	f[y + state] += sPartials2[1][state];
+	g[y + state] += sPartials2[2][state];
+	h[y + state] += sPartials2[3][state];
+
 	}
 }
+
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT e,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT f,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT g,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT h,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT distance,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+                                            KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+                                            int intervalNumber) {
+
+#define SUM_SITES_BLOCK_SIZE_B2 1
+            int state = KW_LOCAL_ID_0;
+            int u = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE_B2;
+            int y = intervalNumber * PADDED_STATE_COUNT;
+
+            KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT];
+
+            if (state < PADDED_STATE_COUNT) {
+                sPartials1[state] = (e[y + u] * e[y + u] - f[y + u] +
+                                     g[y + u] * g[y + u] - h[y + u]) / sizes[u];
+            }
+            KW_LOCAL_FENCE;
+
+#ifdef IS_POWER_OF_TWO
+            // parallelized reduction *** only works for powers-of-2 ****
+            for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+                if (state < i) {
+#else
+            for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+                if (state < i && state + i < PADDED_STATE_COUNT ) {
+#endif // IS_POWER_OF_TWO
+                    sPartials1[state] += sPartials1[state + i];
+                }
+                KW_LOCAL_FENCE;
+            }
+
+
+            if (state == 0) {
+                REAL temp = -distance[intervalNumber] * sPartials1[0] / 4;
+                REAL prob = coalescent[intervalNumber];
+                if (prob != 0) {
+                    temp += logf(prob);
+                }
+                dLogL[0] += temp;
+            }
+
+}
+
 
 #ifdef CUDA
 } // extern "C"
