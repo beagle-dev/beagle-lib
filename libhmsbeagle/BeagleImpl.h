@@ -124,6 +124,10 @@ public:
                                          const int* secondDerivativeIndices,
                                          const double* edgeLengths,
                                          int count) = 0;
+    
+    virtual int updateTransitionMatricesGrad(const int* probabilityIndices,
+                                             const double* edgeLengths,
+                                             int count) = 0;
 
     virtual int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                          const int* probabilityIndices,
@@ -270,8 +274,23 @@ public:
 	     							int intervalCount,
                                     int populationSizesIndex,
                                     int coalescentIndex) = 0;
+    
+    virtual int updateBastaPartialsGrad(const int* operations,
+	     							int operationCount,
+	     							const int* intervals,
+	     							int intervalCount,
+                                    int populationSizesIndex,
+                                    int coalescentIndex) = 0;
                                    
 	virtual int accumulateBastaPartials(const int* operations,
+	     				  			    int operationCount,
+	     				  			    const int* segments,
+	     				  			    int segmentCount,
+                                        const double* intervalLengths,
+                                        const int populationSizesIndex,
+                                        int coalescentIndex,
+                                        double* out) = 0;
+    virtual int accumulateBastaPartialsGrad(const int* operations,
 	     				  			    int operationCount,
 	     				  			    const int* segments,
 	     				  			    int segmentCount,

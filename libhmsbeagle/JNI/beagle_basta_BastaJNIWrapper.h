@@ -39,6 +39,15 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
   (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
 
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateTransitionMatricesGrad
+  (JNIEnv *, jobject, jint, jintArray, jdoubleArray, jint);
+  
 #ifdef __cplusplus
 }
 #endif

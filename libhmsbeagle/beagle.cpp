@@ -1182,6 +1182,21 @@ int beagleUpdateTransitionMatrices(int instance,
 //    }
 }
 
+int beagleUpdateTransitionMatricesGrad(int instance,
+                                       const int* probabilityIndices,
+                                       const double* edgeLengths,
+                                       int count) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updateTransitionMatricesGrad(probabilityIndices, edgeLengths, count);
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+    return returnValue;
+}
+
 int beagleUpdateTransitionMatricesWithModelCategories(int instance,
                              int* eigenIndices,
                              const int* probabilityIndices,
@@ -2005,6 +2020,30 @@ int beagleUpdateBastaPartials(const int instance,
 	return returnValue;
 }
 
+int beagleUpdateBastaPartialsGrad(const int instance,
+                                const BastaOperation* operations,
+                                int operationCount,
+                                const int* intervals,
+                                int intervalCount,
+                                int populationSizesIndex,
+                                int coalescentIndex) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartialsGrad((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;
+}
+
 int beagleAccumulateBastaPartials(const int instance,
                                   const BastaOperation* operations,
                                   int operationCount,
@@ -2023,6 +2062,35 @@ int beagleAccumulateBastaPartials(const int instance,
 	}
 	
 	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;                                  
+                                  
+}
+
+int beagleAccumulateBastaPartialsGrad(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
 															  intervalStarts, intervalCount, intervalLengths,
                                                               populationSizesIndex, coalescentIndex,
                                                               out);

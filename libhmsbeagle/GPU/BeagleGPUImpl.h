@@ -320,9 +320,9 @@ public:
                                  const double* edgeLengths,
                                  int count);
     
-    // int updateTransitionMatricesGrad(const int* probabilityIndices,
-    //                                  const double* edgeLengths,
-    //                                  int count);
+     int updateTransitionMatricesGrad(const int* probabilityIndices,
+                                      const double* edgeLengths,
+                                      int count);
 
     int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
@@ -484,12 +484,12 @@ public:
                             int populationSizesIndex,
                             int coalescentIndex);
 
-    // int updateBastaPartialsGrad(const int* operations,
-  		// 					int operationCount,
-  		// 					const int* intervals,
-  		// 					int intervalCount,
-    //                         int populationSizesIndex,
-    //                         int coalescentIndex);
+     int updateBastaPartialsGrad(const int* operations,
+  		 					int operationCount,
+  		 					const int* intervals,
+  		 					int intervalCount,
+                             int populationSizesIndex,
+                             int coalescentIndex);
 
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,
@@ -500,14 +500,14 @@ public:
                                 int coalescentIndex,
                                 double* out);
     
-    // int accumulateBastaPartialsGrad(const int *operations,
-    //                                 const int operationCount,
-    //                                 const int *intervalStarts,
-    //                                 const int intervalStartsCount,
-    //                                 const double *intervalLengths,
-    //                                 const int populationSizesIndex,
-    //                                 const int coalescentIndex,
-    //                                 double *out);
+     int accumulateBastaPartialsGrad(const int *operations,
+                                     const int operationCount,
+                                     const int *intervalStarts,
+                                     const int intervalStartsCount,
+                                     const double *intervalLengths,
+                                     const int populationSizesIndex,
+                                     const int coalescentIndex,
+                                     double *out);
 
     int allocateBastaBuffers(int bufferCount,
                              int bufferLength);

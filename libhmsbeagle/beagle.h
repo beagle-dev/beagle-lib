@@ -721,6 +721,12 @@ BEAGLE_DLLEXPORT int beagleTransposeTransitionMatrices(int instance,
  *
  * @return error code
  */
+
+BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesGrad(int instance,
+                                   const int* probabilityIndices,
+                                   const double* edgeLengths,
+                                   int count);
+
 BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int eigenIndex,
                                    const int* probabilityIndices,
@@ -1420,7 +1426,25 @@ BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
                                                int populationSizeIndex,
                                                int coalescentIndex);
 
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartialsGrad(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount,
+                                               const int* intervalStarts,
+                                               int intervalCount,
+                                               int populationSizeIndex,
+                                               int coalescentIndex);
+
 BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
+                                                   const BastaOperation* operations,
+                                                   int operationCount,
+                                                   const int* intervalStarts,
+                                                   int intervalCount,
+                                                   const double* intervalLengths,
+                                                   const int populationSizesIndex,
+                                                   int coalescentIndex,
+                                                   double* out);
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    const BastaOperation* operations,
                                                    int operationCount,
                                                    const int* intervalStarts,
