@@ -9,10 +9,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     todo(); // TODO
 #else // GPU implementation
 //    DETERMINE_INDICES_X_GPU();
-    const int NEW_PATTERN_BLOCK_SIZE = PATTERN_BLOCK_SIZE;
+    const int NEW_PATTERN_BLOCK_SIZE = 8;
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0,NEW_PATTERN_BLOCK_SIZE) + patIdx;
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
     int matrix = KW_GROUP_ID_1;
     int patternCount = totalPatterns;
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;
@@ -39,28 +39,28 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 //   TODO: Declare right before usage
     double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
 
-    int partialsOffset = warpIdx % (PATTERN_BLOCK_SIZE / WMMA_N);
+    int partialsOffset = warpIdx % (NEW_PATTERN_BLOCK_SIZE / WMMA_N);
 
-    // Indices to permute ShM for sMatrix
-    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
-    // (int(X/8): Splits 32 values into groups of 8.
-    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
-    // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
-#define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
-#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
-#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
-#define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
-//#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
-
-    // Indices to permute ShM for partials
-    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
-    // (int(X/8): Splits 32 values into groups of 4.
-    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
-    // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
-#define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
-#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
-#define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
-#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+//    // Indices to permute ShM for sMatrix
+//    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
+//    // (int(X/8): Splits 32 values into groups of 8.
+//    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
+//    // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
+//#define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
+//#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
+//#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
+//#define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
+////#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
+//
+//    // Indices to permute ShM for partials
+//    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
+//    // (int(X/8): Splits 32 values into groups of 4.
+//    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
+//    // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
+//#define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
+//#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
+//#define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
+//#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
 //#define GET_SMEM_OFFSET_PARTIALS(X,Y) X + Y * PADDED_STATE_COUNT
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
@@ -69,8 +69,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     /* Load values into shared memory */
     KW_LOCAL_MEM REAL sMatrix1[4 * PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
-    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
 
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
@@ -178,7 +178,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
-
+    const int NEW_PATTERN_BLOCK_SIZE = 8;
 #define NEW_BLOCK_PEELING_SIZE PATTERN_BLOCK_SIZE
 
     int state = KW_LOCAL_ID_0;
@@ -195,10 +195,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 //    KW_LOCAL_MEM REAL sMatrix2[NEW_BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2Permuted[WMMA_K * PADDED_STATE_COUNT];
 
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[NEW_PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
 //    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2Permuted[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sum2Matrix[PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2Permuted[NEW_PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sum2Matrix[NEW_PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT];
 
     /* TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount */\
     KW_LOCAL_MEM REAL sWeights[MATRIX_BLOCK_SIZE];

@@ -18,7 +18,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 // TODO: Change constant 8 patterns for all state counts
     const int NEW_PATTERN_BLOCK_SIZE = 8;
     DETERMINE_INDICES_X_GPU();
-    int patternBlock = __umul24(KW_GROUP_ID_0,NEW_PATTERN_BLOCK_SIZE);
+    int patternBlock = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE);
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
@@ -51,13 +51,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 
     int partialsOffset = warpIdx % (NEW_PATTERN_BLOCK_SIZE / WMMA_N);
 
+#define MODULUS_NON_NEGATIVE(A,B) (A % B + B) % B
     // Indices to permute ShM for sMatrix
     // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
     // (int(X/8): Splits 32 values into groups of 8.
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
 #define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
-#define GET_BANK_GROUP_SMATRIX(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1) ) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
+#define GET_BANK_GROUP_SMATRIX(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
 #define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
 //#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
@@ -68,27 +69,31 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
     // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
 #define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
-#define GET_BANK_GROUP_PARTIALS(X,Y) ((Y + (X/WMMA_K) * (0 - (Y & 1) | 1)) & ((PADDED_STATE_COUNT/WMMA_K) - 1)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
+#define GET_BANK_GROUP_PARTIALS(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
 #define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
 #define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
 //#define GET_SMEM_OFFSET_PARTIALS(X,Y) X + Y * PADDED_STATE_COUNT
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
-    if(pattern < totalPatterns) {
+    if(pattern < totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[y + patIdx * PADDED_STATE_COUNT + state];
+//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
     } else {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
     }
 
     int pattern_span = patIdx + 4;
-    if(pattern + 4 < totalPatterns) {
+    if(pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2[y + (pattern_span) * PADDED_STATE_COUNT + state];
+//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
     } else {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
 
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
@@ -99,6 +104,9 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 
         sMatrix1[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix1[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
         sMatrix2[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
+
+//        if (i == 0)
+//            tmpAcc[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = state + patIdx * PADDED_STATE_COUNT;
 
         KW_LOCAL_FENCE;
 
@@ -132,11 +140,17 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     int statesPerWarp = (PADDED_STATE_COUNT >= warpSize) ? state : laneid;
 
     // TODO: ((state * 2) % 8) is 'pattern' within thread-block. Create better variables for readability
-    if (patternBlock + ((laneid * 2) % 8) < totalPatterns)
+    if (patternBlock + ((laneid * 2) % 8) < totalPatterns && ((laneid * 2) % 8) < PATTERN_BLOCK_SIZE)
         partials3[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11 * res21;
 
-    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
+//    if (patternBlock + ((laneid * 2) % 8) < totalPatterns)
+//        tmpAcc[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11;
+
+    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns && ((laneid * 2) % 8) + 1 < PATTERN_BLOCK_SIZE)
         partials3[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12 * res22;
+
+//     if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
+//        tmpAcc[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12;
 
 #endif // FW_OPENCL_CPU
 }
