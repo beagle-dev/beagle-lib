@@ -75,7 +75,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
-    if(pattern < totalPatterns) {
+    if(pattern < totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[y + patIdx * PADDED_STATE_COUNT + state];
     } else {
@@ -84,7 +84,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 
     int pattern_span = patIdx + 4;
-    if(pattern + 4 < totalPatterns) {
+    if(pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2[y + (pattern_span) * PADDED_STATE_COUNT + state];
     } else {
@@ -159,10 +159,10 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
 
     u = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
-    if (patternBlock + ((laneid * 2) % 8) < totalPatterns)
+    if (patternBlock + ((laneid * 2) % 8) < totalPatterns && ((laneid * 2) % 8) < PATTERN_BLOCK_SIZE)
         partials3[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11;
 
-    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
+    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns && ((laneid * 2) % 8) + 1 < PATTERN_BLOCK_SIZE)
         partials3[u + PADDED_STATE_COUNT + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12;
 #endif
 }
@@ -230,7 +230,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
 
         /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
         /* These are all coherent global memory reads; checked in Profiler */
-        if (pattern<totalPatterns) {
+        if (pattern<totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
             sPartials1[patIdx * PADDED_STATE_COUNT + state] = lPartial11 = partials1[pattern * PADDED_STATE_COUNT + state];
             sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = lPartial21 = partials2[pattern * PADDED_STATE_COUNT + state];
         } else {
@@ -239,7 +239,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         }
 
         int patternSpan = patIdx + 4;
-        if (pattern + 4 < totalPatterns) {
+        if (pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
             sPartials1[patternSpan * PADDED_STATE_COUNT + state] = lPartial12 = partials1[(pattern + 4) * PADDED_STATE_COUNT + state];
             sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patternSpan)] = lPartial22 = partials2[(pattern + 4) * PADDED_STATE_COUNT + state];
         } else {

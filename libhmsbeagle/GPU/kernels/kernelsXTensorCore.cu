@@ -78,22 +78,18 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     if(pattern < totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[y + patIdx * PADDED_STATE_COUNT + state];
-//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[y + patIdx * PADDED_STATE_COUNT + state];
     } else {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
-//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
     }
 
     int pattern_span = patIdx + 4;
     if(pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2[y + (pattern_span) * PADDED_STATE_COUNT + state];
-//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
     } else {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
         sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
-//        tmpAcc[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
 
     for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
@@ -104,9 +100,6 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 
         sMatrix1[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix1[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
         sMatrix2[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
-
-//        if (i == 0)
-//            tmpAcc[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = state + patIdx * PADDED_STATE_COUNT;
 
         KW_LOCAL_FENCE;
 
@@ -143,15 +136,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
     if (patternBlock + ((laneid * 2) % 8) < totalPatterns && ((laneid * 2) % 8) < PATTERN_BLOCK_SIZE)
         partials3[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11 * res21;
 
-//    if (patternBlock + ((laneid * 2) % 8) < totalPatterns)
-//        tmpAcc[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11;
-
     if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns && ((laneid * 2) % 8) + 1 < PATTERN_BLOCK_SIZE)
         partials3[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12 * res22;
-
-//     if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns)
-//        tmpAcc[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12;
-
 #endif // FW_OPENCL_CPU
 }
 
