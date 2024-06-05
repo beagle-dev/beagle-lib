@@ -98,7 +98,7 @@ jobs:
           sudo apt-get install -y clang-${{ matrix.version }}
           echo "CC=ccache clang-${{ matrix.version }}" >> $GITHUB_ENV
           echo "CXX=ccache clang++-${{ matrix.version }}" >> $GITHUB_ENV
-          echo "CMAKE_ARGS='-DBUILD_OPENCL=OFF -DBUILD_OPENMP=OFF'" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=-DBUILD_OPENMP=OFF" >> $GITHUB_ENV
         fi
 
     - name: Install (Linux -> Windows [cross])
