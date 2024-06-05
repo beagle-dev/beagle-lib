@@ -83,7 +83,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build ccache pkg-config
-        sudo apt-get install -y openjdk-17-jdk libeigen3-dev ocl-icd-opencl-dev
+        sudo apt-get install -y openjdk-17-jdk libeigen3-dev
 
         if [ "${{ matrix.compiler }}" = "gcc" ]; then
           # For newer GCCs, maybe.
@@ -93,7 +93,6 @@ jobs:
           sudo apt-get install -y g++-${{ matrix.version }}
           echo "CC=ccache gcc-${{ matrix.version }}" >> $GITHUB_ENV
           echo "CXX=ccache g++-${{ matrix.version }}" >> $GITHUB_ENV
-          echo "CMAKE_ARGS=-DBUILD_OPENCL=OFF" >> $GITHUB_ENV
         else
           sudo apt-get install -y clang-${{ matrix.version }}
           echo "CC=ccache clang-${{ matrix.version }}" >> $GITHUB_ENV
