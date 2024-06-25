@@ -219,9 +219,11 @@ private:
 	GPUPtr dBastaH;
 	GPUPtr dBastaLogL;
 	GPUPtr dBastaDistance;
+	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
+	int kBastaIntervalBlockCount;
 
 public:
     BeagleGPUImpl();
@@ -475,7 +477,7 @@ public:
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 
-    int updateInnerBastaPartials(const int * operations, int i, int count, GPUPtr gpu, GPUPtr coalescent);
+    int updateInnerBastaPartials(const int * operations, const int * intervals, int i, int begin, int end, GPUPtr sizes, GPUPtr coalescent);
 
 	int updateBastaPartials(const int* operations,
                             int operationCount,

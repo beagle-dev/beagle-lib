@@ -616,12 +616,15 @@ public:
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
 
-    void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
-    GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
+    // void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
+    // GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
 
-    void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
-                              GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex);
+	void InnerBastaPartialsCoalescent(GPUPtr partials, GPUPtr matrices,
+GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int start, unsigned int numOps, unsigned int patternCount);
+    // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
+    //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
 
+	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, unsigned int numOps, unsigned int intervalNumber,unsigned int start, unsigned int end);
     void reduceAcrossIntervals(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber);
 
     void SetupKernelBlocksAndGrids();
