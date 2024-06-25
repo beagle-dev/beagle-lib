@@ -241,7 +241,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, 32);
     bgBastaPeelingGrid = Dim3Int(1,1);
 
-    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 32);
+    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 64);
     bgBastaReductionGrid = Dim3Int(1);
 
     bgBastaSumBlock = Dim3Int(128);
@@ -2471,26 +2471,26 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 //
 // }
 
-void KernelLauncher::reduceWithinInterval(GPUPtr operations,
-                          GPUPtr partials,
-                          GPUPtr e,
-                          GPUPtr f,
-                          GPUPtr g,
-                          GPUPtr h,
-                          unsigned int numOps,
-                          unsigned int intervalNumber,
-                          unsigned int start,
-                          unsigned int end) {
+    void KernelLauncher::reduceWithinInterval(GPUPtr operations,
+                              GPUPtr partials,
+                              GPUPtr e,
+                              GPUPtr f,
+                              GPUPtr g,
+                              GPUPtr h,
+                              GPUPtr intervals,
+                              unsigned int numOps,
+                              unsigned int start,
+                              unsigned int end) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
 #endif
 
-    int parameterCountV = 6;
+    int parameterCountV = 7;
     int totalParameterCount = 10;
     gpu->LaunchKernel(fReduceWithinInterval,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      operations, partials, e, f, g, h, numOps, intervalNumber, start, end);
+                      operations, partials, e, f, g, h, intervals, numOps, start, end);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
