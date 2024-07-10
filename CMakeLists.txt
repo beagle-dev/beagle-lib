@@ -235,3 +235,13 @@ if(APPLE)
 endif(APPLE)
 
 include(CPack)
+
+if(APPLE)
+#         <exec executable="codesign">
+#             <arg value="-s"/>
+#             <arg value="${AppleSigner}"/>
+#             <arg value="-v"/>
+#             <arg value="${release_dir}/${BEAST_package_name} v${version}.dmg"/>
+#         </exec>
+# codesign -s "Marc Suchard (LC992Z5R7E)" -v release/BEAST\ X\ v10.5.0.dmg 
+endif(APPLE)
