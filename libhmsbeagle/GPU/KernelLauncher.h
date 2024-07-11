@@ -109,7 +109,8 @@ private:
 	GPUFunction fInnerBastaPartialsCoalescent;
 	GPUFunction fReduceWithinInterval;
 	GPUFunction fReduceAcrossInterval;
-
+	GPUFunction fPreProcessBastaFlags;
+	GPUFunction fAccumulateCarryOut;
     GPUFunction fReorderPatterns;
 
     Dim3Int bgTransitionProbabilitiesBlock;
@@ -136,6 +137,8 @@ private:
 	Dim3Int bgBastaPeelingGrid;
 	Dim3Int bgBastaReductionBlock;
 	Dim3Int bgBastaReductionGrid;
+	Dim3Int bgBastaPreBlock;
+	Dim3Int bgBastaPreGrid;
 	Dim3Int bgBastaSumBlock;
 	Dim3Int bgBastaSumGrid;
 
@@ -626,7 +629,8 @@ GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber,
 
 	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr eRes, GPUPtr fRes, GPUPtr gRes, GPUPtr hRes, GPUPtr intervals, GPUPtr flags, unsigned int numOps, unsigned int start, unsigned int end);
     void reduceAcrossIntervals(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber);
-
+	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
+	void accumulateCarryOut(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr eRes, GPUPtr fRes, GPUPtr gRes, GPUPtr hRes, GPUPtr keys, unsigned int numBlocks);
     void SetupKernelBlocksAndGrids();
 
 protected:

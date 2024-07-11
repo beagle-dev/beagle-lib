@@ -2168,6 +2168,86 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	//}
 //}
 
+
+KW_GLOBAL_KERNEL void kernelPreProcessBastaFlags(KW_GLOBAL_VAR REAL* KW_RESTRICT intervals,
+                                                                    KW_GLOBAL_VAR REAL* flags,
+                                                                    KW_GLOBAL_VAR REAL* blockEnds,
+                                                                    int operationCount,
+                                                                    int numBlocks) {
+#define SUM_PARTIAL_BLOCK_SIZE_B 32
+        int opIdx = KW_LOCAL_ID_0;
+        int opBlock = KW_GROUP_ID_0;
+        int opNumber = KW_LOCAL_ID_0 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
+        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
+
+        if (opNumber < operationCount) {
+            if (opNumber == 0 || intervals[opNumber] != intervals[opNumber - 1]) {
+                flags[opNumber] = 1;
+            } else {
+                flags[opNumber] = 0;
+            }
+        }
+
+        KW_LOCAL_FENCE;
+
+        if (opBlock < numBlocks && opIdx == 0) {
+            int start_index = opBlock * blockSize;
+            int end_index = min(start_index + blockSize - 1, operationCount - 1);
+            blockEnds[opBlock] = intervals[end_index];
+        }
+}
+
+
+KW_GLOBAL_KERNEL void kernelAccumulateCarryOut(KW_GLOBAL_VAR REAL* e,
+                                                            KW_GLOBAL_VAR REAL* f,
+                                                            KW_GLOBAL_VAR REAL* g,
+                                                            KW_GLOBAL_VAR REAL* h,
+                                                            KW_GLOBAL_VAR REAL* eRes,
+                                                            KW_GLOBAL_VAR REAL* fRes,
+                                                            KW_GLOBAL_VAR REAL* gRes,
+                                                            KW_GLOBAL_VAR REAL* hRes,
+                                                            KW_GLOBAL_VAR REAL* keys,
+                                                            int numBlocks) {
+#define SUM_INTERVAL_BLOCK_SIZE 32
+            int tid = KW_LOCAL_ID_0;
+            int group = KW_GROUP_ID_0;
+            int state = tid % PADDED_STATE_COUNT;
+            int blockIdx = tid / PADDED_STATE_COUNT;
+            int blockNumber = group * SUM_INTERVAL_BLOCK_SIZE + blockIdx;
+            int u = state + blockNumber * PADDED_STATE_COUNT;
+
+            KW_LOCAL_MEM REAL sResE[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
+            KW_LOCAL_MEM REAL sResF[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
+            KW_LOCAL_MEM REAL sResG[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
+            KW_LOCAL_MEM REAL sResH[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
+            KW_LOCAL_MEM REAL sSegmentEnds[SUM_INTERVAL_BLOCK_SIZE];
+            if (blockNumber < numBlocks && (state < PADDED_STATE_COUNT)) {
+                sSegmentEnds[blockIdx] = keys[blockNumber];
+                sResE[tid] = eRes[u];
+                sResF[tid] = fRes[u];
+                sResG[tid] = gRes[u];
+                sResH[tid] = hRes[u];
+            } else {
+                sSegmentEnds[blockIdx] = -1;
+                sResE[tid] = 0;
+                sResF[tid] = 0;
+                sResG[tid] = 0;
+                sResH[tid] = 0;
+            }
+
+            KW_LOCAL_FENCE;
+
+            if (blockNumber < numBlocks && (state < PADDED_STATE_COUNT)) {
+                int blockInterval = sSegmentEnds[blockIdx];
+                atomicAdd(&e[blockInterval * PADDED_STATE_COUNT + state], sResE[tid]);
+                atomicAdd(&f[blockInterval * PADDED_STATE_COUNT + state], sResF[tid]);
+                atomicAdd(&g[blockInterval * PADDED_STATE_COUNT + state], sResG[tid]);
+                atomicAdd(&h[blockInterval * PADDED_STATE_COUNT + state], sResH[tid]);
+            }
+            KW_LOCAL_FENCE;
+}
+
+
 KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                             KW_GLOBAL_VAR REAL* e,
@@ -2215,8 +2295,6 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
             sPartialsF[opIdx][state] = startPartials1[state] * startPartials1[state];
             sPartialsG[opIdx][state] = endPartials1[state];
             sPartialsH[opIdx][state] = endPartials1[state] * endPartials1[state];
-
-
         } else {
             sPartialsE[opIdx][state] = 0;
             sPartialsF[opIdx][state] = 0;
@@ -2284,7 +2362,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
                 h[y + state] = sPartialsH[opIdx][state];
             }
        }
-
+              
         if (opNumber < opCount && state < PADDED_STATE_COUNT) {
             int op = opNumber + start;
             int child2PartialIndex = operations[op * numOps + 3];
