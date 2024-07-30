@@ -2265,7 +2265,6 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
                                                             int end) {
 
 #define SUM_PARTIAL_BLOCK_SIZE_B 32
-#define SUM_PARTIAL_GRID_SIZE_B 1
 
         int state = KW_LOCAL_ID_0;
         int opIdx = KW_LOCAL_ID_1;
@@ -2310,6 +2309,22 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
         int intervalNumber = sSegmentKeys[opIdx];
         int y = intervalNumber * PADDED_STATE_COUNT;
         int u = opBlock * PADDED_STATE_COUNT;
+
+        if (opNumber < opCount && state < PADDED_STATE_COUNT) {
+            int op = opNumber + start;
+            int child2PartialIndex = operations[op * numOps + 3];
+            int accumulation2PartialIndex = operations[op * numOps + 6];
+            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
+            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
+
+            if (child2PartialIndex >= 0) {
+                e[y + state] = startPartials2[state];
+                f[y + state] = startPartials2[state] * startPartials2[state];
+                g[y + state] = endPartials2[state];
+                h[y + state] = endPartials2[state] * endPartials2[state];
+            }
+        }
+
         for (int stride = 1; stride < blockSize; stride *= 2) {
             int k = (opIdx + 1) * 2 * stride - 1;
             if (k < blockSize) {
@@ -2355,28 +2370,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
         }
 
         if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1] && (opIdx < blockSize - 1) && (opNumber < opCount -1)) {
-            if (y >= 0) {
-                e[y + state] = sPartialsE[opIdx][state];
-                f[y + state] = sPartialsF[opIdx][state];
-                g[y + state] = sPartialsG[opIdx][state];
-                h[y + state] = sPartialsH[opIdx][state];
-            }
+            e[y + state] += sPartialsE[opIdx][state];
+            f[y + state] += sPartialsF[opIdx][state];
+            g[y + state] += sPartialsG[opIdx][state];
+            h[y + state] += sPartialsH[opIdx][state];
        }
-              
-        if (opNumber < opCount && state < PADDED_STATE_COUNT) {
-            int op = opNumber + start;
-            int child2PartialIndex = operations[op * numOps + 3];
-            int accumulation2PartialIndex = operations[op * numOps + 6];
-            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
-
-            if (child2PartialIndex >= 0) {
-                e[y + state] += startPartials2[state];
-                f[y + state] += startPartials2[state] * startPartials2[state];
-                g[y + state] += endPartials2[state];
-                h[y + state] += endPartials2[state] * endPartials2[state];
-            }
-        }
 }
 
 KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT e,
