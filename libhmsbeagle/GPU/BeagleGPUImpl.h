@@ -214,7 +214,6 @@ private:
 
 	GPUPtr dBastaBuffers;
 	GPUPtr dBastaE;
-	GPUPtr dBlockSegmentKeysEnd;
 	GPUPtr dBastaF;
 	GPUPtr dBastaG;
 	GPUPtr dBastaH;
