@@ -624,7 +624,7 @@ GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber,
     // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
     //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
 
-	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr eRes, GPUPtr fRes, GPUPtr gRes, GPUPtr hRes, GPUPtr intervals, GPUPtr flags, unsigned int numOps, unsigned int start, unsigned int end);
+	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr flags, unsigned int numOps, unsigned int start, unsigned int end);
     void reduceAcrossIntervals(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber);
 
     void SetupKernelBlocksAndGrids();

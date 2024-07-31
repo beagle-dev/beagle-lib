@@ -242,7 +242,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     bgBastaPeelingGrid = Dim3Int(1,1);
 
     bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 32);
-    bgBastaReductionGrid = Dim3Int(110, 1);
+    bgBastaReductionGrid = Dim3Int(295, 1);
 
     bgBastaSumBlock = Dim3Int(128);
     bgBastaSumGrid = Dim3Int(32);
@@ -2471,31 +2471,26 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 //
 // }
 
-    void KernelLauncher::reduceWithinInterval(GPUPtr operations,
-                              GPUPtr partials,
-                              GPUPtr e,
-                              GPUPtr f,
-                              GPUPtr g,
-                              GPUPtr h,
-                              GPUPtr eRes,
-                              GPUPtr fRes,
-                              GPUPtr gRes,
-                              GPUPtr hRes,
-                              GPUPtr intervals,
-                              GPUPtr flags,
-                              unsigned int numOps,
-                              unsigned int start,
-                              unsigned int end) {
+void KernelLauncher::reduceWithinInterval(GPUPtr operations,
+                          GPUPtr partials,
+                          GPUPtr e,
+                          GPUPtr f,
+                          GPUPtr g,
+                          GPUPtr h,
+                          GPUPtr flags,
+                          unsigned int numOps,
+                          unsigned int start,
+                          unsigned int end) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
 #endif
 
-    int parameterCountV = 12;
-    int totalParameterCount = 15;
+    int parameterCountV = 7;
+    int totalParameterCount = 10;
     gpu->LaunchKernel(fReduceWithinInterval,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      operations, partials, e, f, g, h, eRes, fRes, gRes, hRes, intervals, flags, numOps, start, end);
+                      operations, partials, e, f, g, h, flags, numOps, start, end);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
