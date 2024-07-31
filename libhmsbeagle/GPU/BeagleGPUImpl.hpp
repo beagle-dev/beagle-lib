@@ -2298,8 +2298,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
 #endif  														   
   														   
-    // GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-     GPUPtr coalescent = (GPUPtr) NULL;
+    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+     // GPUPtr coalescent = (GPUPtr) NULL;
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, 0);
 
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
@@ -2459,30 +2459,36 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 #endif 
 
 
-     //GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-    GPUPtr coalescent = (GPUPtr) NULL;
+    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    // GPUPtr coalescent = (GPUPtr) NULL;
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     const int numOps = BEAGLE_BASTA_OP_COUNT;
     const int blockSize = 32;
-    // Real* hBastaOperationQueue = (Real*) gpu->CallocHost(sizeof(Real), operationCount * numOps);
+
     Real* hBastaInterval = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
+    Real* hBastaFlags = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
+    int numBlocks = (operationCount + blockSize - 1) / blockSize;
+    Real* hBlockSegmentKeysEnd = (Real*) gpu->CallocHost(sizeof(Real), numBlocks);
+
     for (int i = 0; i < operationCount; ++i) {
         hBastaInterval[i] = (Real) operations[i * numOps + 7];
-        // fprintf(stderr, "interval end  is: %1.2e\n", hBastaInterval[i]);
+        if (i == 0 || hBastaInterval[i] != hBastaInterval[i - 1]) {
+            hBastaFlags[i] = 1;
+        } else {
+            hBastaFlags[i] = 0;
+        }
+
+        int block = i / blockSize;
+        if (i == operationCount - 1 || (i + 1) % blockSize == 0) {
+            hBlockSegmentKeysEnd[block] = hBastaInterval[i];
+        }
     }
 
-    gpu->MemcpyHostToDevice(dBastaInterval, hBastaInterval, sizeof(Real) * operationCount);
-
-    int numBlocks = (operationCount + blockSize - 1) / blockSize;
-    // fprintf(stderr, "The BLOCK count is: %d\n", numBlocks);
     dBlockSegmentKeysEnd = gpu->AllocateMemory(numBlocks * sizeof(Real));
+    gpu->MemcpyHostToDevice(dBastaInterval, hBastaInterval, sizeof(Real) * operationCount);
+    gpu->MemcpyHostToDevice(dBastaFlags, hBastaFlags, sizeof(Real) * operationCount);
+    gpu->MemcpyHostToDevice(dBlockSegmentKeysEnd, hBlockSegmentKeysEnd, sizeof(Real) * numBlocks);
 
-    kernels->preProcessBastaFlags(dBastaInterval, dBastaFlags, dBlockSegmentKeysEnd, operationCount,
-                              numBlocks);
-
-    Real r = 0;
-    // gpu->PrintfDeviceVector(dBastaFlags, operationCount, r);
-    // gpu->PrintfDeviceVector(dBlockSegmentKeysEnd, numBlocks, r);
     dBastaE = gpu->AllocateMemory(kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
     dBastaF = gpu->AllocateMemory(kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
     dBastaG = gpu->AllocateMemory(kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
@@ -2608,6 +2614,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     gpu->FreeHostMemory(hBastaInterval);
     gpu->FreeHostMemory(hBastaLogL);
     gpu->FreeHostMemory(hBastaDistance);
+    gpu->FreeHostMemory(hBastaFlags);
+    gpu->FreeHostMemory(hBlockSegmentKeysEnd);
+
   				
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials\n");
