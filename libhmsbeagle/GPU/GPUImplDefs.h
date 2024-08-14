@@ -336,7 +336,7 @@ enum BeagleDeviceImplementationCodes {
 #define TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_128   8
 
 // PADDED_STATE_COUNT == 192
-#define PATTERN_BLOCK_SIZE_DP_192        2 // TODO: Changing this to 2 results in errors for Tensor Core kernels too
+#define PATTERN_BLOCK_SIZE_DP_192        2
 #define PATTERN_BLOCK_SIZE_DP_192_AMDGPU 1
 #define MATRIX_BLOCK_SIZE_DP_192         8
 #define MATRIX_BLOCK_SIZE_DP_192_AMDGPU  1
