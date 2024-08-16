@@ -2488,8 +2488,8 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
 #endif
 
-    int parameterCountV = 5;
-    int totalParameterCount = 9;
+    int parameterCountV = 4;
+    int totalParameterCount = 8;
     gpu->LaunchKernel(fReduceWithinInterval,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,

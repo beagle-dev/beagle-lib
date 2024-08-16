@@ -2242,7 +2242,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     dBastaLogL = gpu->AllocateMemory(kBastaIntervalBlockCount * sizeof(Real));
     dBastaDistance = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
     dBastaInterval = gpu->AllocateMemory(kBufferCount * sizeof(Real));
-    dBastaFlags = gpu->AllocateMemory(kBufferCount * sizeof(Real));
 
     // gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
 
