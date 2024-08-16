@@ -248,7 +248,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     bgBastaPreGrid = Dim3Int(110);
 
     bgBastaSumBlock = Dim3Int(128);
-    bgBastaSumGrid = Dim3Int(32);
+    bgBastaSumGrid = Dim3Int(400);
 }
 
 
@@ -2478,25 +2478,22 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 
     void KernelLauncher::reduceWithinInterval(GPUPtr operations,
                               GPUPtr partials,
-                              GPUPtr e,
-                              GPUPtr f,
-                              GPUPtr g,
-                              GPUPtr h,
+                              GPUPtr dBastaBlockResMemory,
                               GPUPtr intervals,
-                              GPUPtr flags,
                               unsigned int numOps,
                               unsigned int start,
-                              unsigned int end) {
+                              unsigned int end,
+                              unsigned int numSubinterval) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
 #endif
 
-    int parameterCountV = 8;
-    int totalParameterCount = 11;
+    int parameterCountV = 5;
+    int totalParameterCount = 9;
     gpu->LaunchKernel(fReduceWithinInterval,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      operations, partials, e, f, g, h, intervals, flags, numOps, start, end);
+                      operations, partials, dBastaBlockResMemory, intervals, numOps, start, end, numSubinterval);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
@@ -2553,24 +2550,22 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 
 }
 
-void KernelLauncher::reduceAcrossIntervals(GPUPtr e,
-                              GPUPtr f,
-                              GPUPtr g,
-                              GPUPtr h,
+void KernelLauncher::reduceAcrossIntervals(GPUPtr dBastaMemory,
                               GPUPtr distance,
                               GPUPtr dLogL,
                               const GPUPtr sizes,
                               GPUPtr coalescent,
-                              unsigned int intervalNumber) {
+                              unsigned int intervalNumber,
+                              unsigned int kCoalescentBufferLength) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
 #endif
-    int parameterCountV = 8;
-    int totalParameterCount = 9;
+    int parameterCountV = 5;
+    int totalParameterCount = 7;
     gpu->LaunchKernel(fReduceAcrossInterval,
                       bgBastaSumBlock, bgBastaSumGrid,
                       parameterCountV, totalParameterCount,
-                      e, f, g, h, distance, dLogL, sizes, coalescent, intervalNumber);
+                      dBastaMemory, distance, dLogL, sizes, coalescent, intervalNumber, kCoalescentBufferLength);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
 #endif

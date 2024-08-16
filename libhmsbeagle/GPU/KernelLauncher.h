@@ -627,8 +627,8 @@ GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber,
     // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
     //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
 
-	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr intervals, GPUPtr flags, unsigned int numOps, unsigned int start, unsigned int end);
-    void reduceAcrossIntervals(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber);
+	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
+    void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
 	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
 	void accumulateCarryOut(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr eRes, GPUPtr fRes, GPUPtr gRes, GPUPtr hRes, GPUPtr keys, unsigned int numBlocks);
     void SetupKernelBlocksAndGrids();

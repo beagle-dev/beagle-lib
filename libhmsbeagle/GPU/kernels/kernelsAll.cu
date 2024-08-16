@@ -2261,15 +2261,12 @@ KW_GLOBAL_KERNEL void kernelAccumulateCarryOut(KW_GLOBAL_VAR REAL* e,
 
 KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                            KW_GLOBAL_VAR REAL* e,
-                                                            KW_GLOBAL_VAR REAL* f,
-                                                            KW_GLOBAL_VAR REAL* g,
-                                                            KW_GLOBAL_VAR REAL* h,
+                                                            KW_GLOBAL_VAR REAL* dBastaBlockResMemory,
                                                             KW_GLOBAL_VAR REAL* intervals,
-                                                            KW_GLOBAL_VAR REAL* flags,
                                                             int numOps,
                                                             int start,
-                                                            int end) {
+                                                            int end,
+                                                            int numSubinterval) {
 
 #define SUM_PARTIAL_BLOCK_SIZE_B 4
 
@@ -2281,6 +2278,13 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
         // int opCountLast = opCount % SUM_PARTIAL_BLOCK_SIZE_B;
         // int blockSize = (SUM_PARTIAL_BLOCK_SIZE_B > opCountLast) ? opCountLast : SUM_PARTIAL_BLOCK_SIZE_B;
         int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
+
+	    KW_GLOBAL_VAR REAL* e = dBastaBlockResMemory;
+	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * numSubinterval;
+	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * numSubinterval;
+	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * numSubinterval;
+	    KW_GLOBAL_VAR REAL* flags = intervals + end;
+
         KW_LOCAL_MEM REAL sPartialsE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
         KW_LOCAL_MEM REAL sPartialsF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
         KW_LOCAL_MEM REAL sPartialsG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
@@ -2383,15 +2387,13 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RES
        }
 }
 
-KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT e,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT f,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT g,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT h,
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT distance,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
-													int intervalStartsCount) {
+													int intervalStartsCount,
+													int kCoalescentBufferLength) {
 
 #define SUM_INTERVAL_BLOCK_SIZE 4
 
@@ -2402,6 +2404,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
         int intervalIdx = tid / PADDED_STATE_COUNT;
         int intervalNumber = __umul24(KW_GROUP_ID_0, SUM_INTERVAL_BLOCK_SIZE) + intervalIdx;
         int u = state + intervalNumber * PADDED_STATE_COUNT;
+
+	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
 
         KW_LOCAL_MEM REAL sPartials1[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
         KW_LOCAL_MEM REAL sPartials2[SUM_INTERVAL_BLOCK_SIZE];

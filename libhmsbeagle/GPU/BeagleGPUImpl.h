@@ -213,21 +213,16 @@ private:
     int* hStreamIndices;
 
 	GPUPtr dBastaBuffers;
-	GPUPtr dBastaE;
+	GPUPtr dBastaBlockResMemory;
+	GPUPtr dBastaFinalResMemory;
+	GPUPtr dBastaMemory;
 	GPUPtr dBlockSegmentKeysEnd;
-	GPUPtr dBastaF;
-	GPUPtr dBastaG;
-	GPUPtr dBastaH;
 	GPUPtr dBastaLogL;
 	GPUPtr dBastaDistance;
 	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
 	GPUPtr dBastaInterval;
 	GPUPtr dBastaFlags;
-	GPUPtr dBastaBlockResE;
-	GPUPtr dBastaBlockResF;
-	GPUPtr dBastaBlockResG;
-	GPUPtr dBastaBlockResH;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
