@@ -238,11 +238,11 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
     //Set up block for basta partials
 
-    bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, 32);
-    bgBastaPeelingGrid = Dim3Int(1,1);
+    bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, 4);
+    bgBastaPeelingGrid = Dim3Int(30,1);
 
-    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 32);
-    bgBastaReductionGrid = Dim3Int(110, 1);
+    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 4);
+    bgBastaReductionGrid = Dim3Int(18162, 1);
 
     bgBastaPreBlock = Dim3Int(32);
     bgBastaPreGrid = Dim3Int(110);

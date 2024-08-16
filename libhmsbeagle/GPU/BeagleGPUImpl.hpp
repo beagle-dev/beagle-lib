@@ -2247,7 +2247,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
     kCoalescentBufferLength = bufferLength;
     kCoalescentBufferCount = bufferCount;
-    kBastaIntervalBlockCount =  bufferLength / 32 + 1;
+    kBastaIntervalBlockCount =  bufferLength / 4 + 1;
 
     dCoalescentBuffers = gpu->AllocateMemory(kCoalescentBufferCount * kCoalescentBufferLength * sizeof(Real));
 
@@ -2292,8 +2292,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
 #endif  														   
   														   
-    //GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-    GPUPtr coalescent = (GPUPtr) NULL;
+    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    // GPUPtr coalescent = (GPUPtr) NULL;
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, 0);
 
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
@@ -2453,11 +2453,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 #endif 
 
 
-    //GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-     GPUPtr coalescent = (GPUPtr) NULL;
+    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    // GPUPtr coalescent = (GPUPtr) NULL;
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     const int numOps = BEAGLE_BASTA_OP_COUNT;
-    const int blockSize = 32;
+    const int blockSize = 4;
 
     Real* hBastaInterval = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
     Real* hBastaFlags = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
@@ -2520,14 +2520,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 
              //Real r = 0;
 
-        Real* hBastaE = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
-        Real* hBastaF = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
-        Real* hBastaG = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
-        Real* hBastaH = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
-        Real* hBastaEres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
-        Real* hBastaFres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
-        Real* hBastaGres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
-        Real* hBastaHres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
+    Real* hBastaE = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
+    Real* hBastaF = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
+    Real* hBastaG = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
+    Real* hBastaH = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * kCoalescentBufferLength);
+    Real* hBastaEres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
+    Real* hBastaFres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
+    Real* hBastaGres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
+    Real* hBastaHres = (Real*) gpu->CallocHost(sizeof(Real), kPaddedStateCount * numSubinterval);
     // for (int i = 0; i < operationCount; i += chunkSize) {
     //     // TODO execute in parallel (no race conditions)
          const int start = 0;
