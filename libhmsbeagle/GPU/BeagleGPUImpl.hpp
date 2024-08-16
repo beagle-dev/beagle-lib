@@ -2279,8 +2279,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
 #endif  														   
   														   
-    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-    // GPUPtr coalescent = (GPUPtr) NULL;
+    //GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    GPUPtr coalescent = (GPUPtr) NULL;
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, 0);
 
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
@@ -2436,10 +2436,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
 #endif 
-            //DEBUG_CREATE_TIME();
-            //DEBUG_START_TIME();
-    GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
-    // GPUPtr coalescent = (GPUPtr) NULL;
+
+    //GPUPtr coalescent = dCoalescentBuffers + kCoalescentBufferLength * coalescentIndex;
+    GPUPtr coalescent = (GPUPtr) NULL;
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     const int numOps = BEAGLE_BASTA_OP_COUNT;
     const int blockSize = 4;
@@ -2468,13 +2467,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
         hBastaSubintervals[i] = currentSubinterval;
         hBastaFinalKeys[currentSubinterval] = hBastaInterval[i];
     }
-            //DEBUG_END_TIME();
 
-           // std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;
-            //for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {
-               // std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first)
-                       // .count() << " ns" << "\t" << it->second.second << std::endl;
-           // };
 
     numSubinterval = currentSubinterval + 1;
 
@@ -2482,7 +2475,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     dBastaMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
     dBastaBlockResMemory = gpu->AllocateMemory(4 * kPaddedStateCount * numSubinterval * sizeof(Real));
-
+            
     // for (int i = 0; i < operationCount; ++i) {
     //     hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * numOps]];
     //     hBastaOperationQueue[i * numOps + 1] = hPartialsOffsets[operations[i * numOps + 1]];
@@ -2505,14 +2498,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 
              //Real r = 0;
 
-    Real* hBastaMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
-    Real* hBastaResMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * numSubinterval);
 
     // Set the pointers to the correct locations within the block
-    Real* hBastaE = hBastaMemory;
-    Real* hBastaF = hBastaE + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaG = hBastaF + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaH = hBastaG + kPaddedStateCount * kCoalescentBufferLength;
+
 
     // for (int i = 0; i < operationCount; i += chunkSize) {
 
@@ -2550,9 +2538,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
         // gpu->PrintfDeviceVector(dBastaOperationQueue, operationCount * numOps, r);
     // }
 
+    Real* hBastaMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+    Real* hBastaResMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * numSubinterval);
     gpu->MemcpyDeviceToHost(hBastaResMemory, dBastaBlockResMemory, sizeof(Real) * 4 * kPaddedStateCount * numSubinterval);
 
-
+    Real* hBastaE = hBastaMemory;
+    Real* hBastaF = hBastaE + kPaddedStateCount * kCoalescentBufferLength;
+    Real* hBastaG = hBastaF + kPaddedStateCount * kCoalescentBufferLength;
+    Real* hBastaH = hBastaG + kPaddedStateCount * kCoalescentBufferLength;
     // Set the pointers to the correct locations within the block
     Real* hBastaEres = hBastaResMemory;
     Real* hBastaFres = hBastaEres + kPaddedStateCount * numSubinterval;
