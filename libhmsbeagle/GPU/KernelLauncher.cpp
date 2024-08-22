@@ -2524,26 +2524,21 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 }
 
 
-    void KernelLauncher::accumulateCarryOut(GPUPtr e,
-                                            GPUPtr f,
-                                            GPUPtr g,
-                                            GPUPtr h,
-                                            GPUPtr eRes,
-                                            GPUPtr fRes,
-                                            GPUPtr gRes,
-                                            GPUPtr hRes,
-                                            GPUPtr keys,
-                                            unsigned int numBlocks) {
+    void KernelLauncher::accumulateCarryOut(GPUPtr dBastaBlockResMemory,
+                                            GPUPtr dBastaFinalResMemory,
+                                            GPUPtr dBastaFlags,
+                                            unsigned int numSubinterval,
+                                            unsigned int  numSubintervalFinal) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
 #endif
-    int parameterCountV = 9;
-    int totalParameterCount = 10;
+    int parameterCountV = 3;
+    int totalParameterCount = 5;
 
     gpu->LaunchKernel(fAccumulateCarryOut,
-                      bgBastaSumBlock, bgBastaSumGrid,
+                      bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      e, f, g, h, eRes, fRes, gRes, hRes, keys, numBlocks);
+                      dBastaBlockResMemory, dBastaFinalResMemory, dBastaFlags, numSubinterval, numSubintervalFinal);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
 #endif

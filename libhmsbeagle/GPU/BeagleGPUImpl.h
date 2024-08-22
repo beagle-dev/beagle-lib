@@ -222,6 +222,7 @@ private:
 	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
 	GPUPtr dBastaInterval;
+	GPUPtr dBastaFlags;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
