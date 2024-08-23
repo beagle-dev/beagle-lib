@@ -2179,6 +2179,59 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	//}
 //}
 
+KW_GLOBAL_KERNEL void kernelAccumulateCarryOutFinal(KW_GLOBAL_VAR REAL* dBastaFinalResMemory,
+                                                KW_GLOBAL_VAR REAL* dBastaMemory,
+                                                KW_GLOBAL_VAR REAL* intervals,
+                                                int numSubinterval,
+                                                int numSubintervalFinal,
+                                                int kCoalescentBufferLength) {
+#define SUM_PARTIAL_BLOCK_SIZE_B 4
+	        int state = KW_LOCAL_ID_0;
+	        int opIdx = KW_LOCAL_ID_1;
+	        int opBlock = KW_GROUP_ID_0;
+	        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
+	        int opCount = numSubintervalFinal;
+            int u = opNumber * PADDED_STATE_COUNT;
+
+	        KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	        KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	        KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	        KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	        KW_GLOBAL_VAR REAL* keys = intervals + 2 * numSubinterval;
+
+	        KW_LOCAL_MEM REAL sResE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+	        KW_LOCAL_MEM REAL sResF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+	        KW_LOCAL_MEM REAL sResG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+	        KW_LOCAL_MEM REAL sResH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+	        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
+
+            if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
+                int m = numSubintervalFinal * PADDED_STATE_COUNT;
+                sSegmentKeys[opIdx] = keys[opNumber];
+                sResE[opIdx][state] = dBastaFinalResMemory[u + state];
+                sResF[opIdx][state] = dBastaFinalResMemory[m + u + state];
+                sResG[opIdx][state] = dBastaFinalResMemory[2 * m + u + state];
+                sResH[opIdx][state] = dBastaFinalResMemory[3 * m + u + state];
+            } else {
+                sSegmentKeys[opIdx] = -1;
+                sResE[opIdx][state] = 0;
+                sResF[opIdx][state] = 0;
+                sResG[opIdx][state]= 0;
+                sResH[opIdx][state] = 0;
+            }
+
+            KW_LOCAL_FENCE;
+
+	        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
+	            int intervalNumber = sSegmentKeys[opIdx];
+	            int y = intervalNumber * PADDED_STATE_COUNT;
+
+                atomicAdd(&e[y + state], sResE[opIdx][state]);
+                atomicAdd(&f[y + state], sResF[opIdx][state]);
+                atomicAdd(&g[y + state], sResG[opIdx][state]);
+                atomicAdd(&h[y + state], sResH[opIdx][state]);
+            }
+}
 
 KW_GLOBAL_KERNEL void kernelPreProcessBastaFlags(KW_GLOBAL_VAR REAL* KW_RESTRICT intervals,
                                                                     KW_GLOBAL_VAR REAL* flags,

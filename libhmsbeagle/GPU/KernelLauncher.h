@@ -111,6 +111,7 @@ private:
 	GPUFunction fReduceAcrossInterval;
 	GPUFunction fPreProcessBastaFlags;
 	GPUFunction fAccumulateCarryOut;
+	GPUFunction fAccumulateCarryOutFinal;
     GPUFunction fReorderPatterns;
 
     Dim3Int bgTransitionProbabilitiesBlock;
@@ -631,6 +632,7 @@ GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber,
     void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
 	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
 	void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);
+	void accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory, GPUPtr dBastaMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal, unsigned int kCoalescentBufferLength);
     void SetupKernelBlocksAndGrids();
 
 protected:

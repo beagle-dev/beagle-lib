@@ -2246,7 +2246,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     dBastaLogL = gpu->AllocateMemory(kBastaIntervalBlockCount * sizeof(Real));
     dBastaDistance = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
     dBastaInterval = gpu->AllocateMemory(kBufferCount * sizeof(Real));
-    dBastaFlags = gpu->AllocateMemory(kBufferCount * sizeof(Real));
+    dBastaFlags = gpu->AllocateMemory(3 * kBufferCount * sizeof(Real));
     dBastaOperationQueue = gpu->AllocateMemory(kBufferCount * 8 * sizeof(Real));
     dBastaMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
     dBastaBlockResMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * kBastaIntervalBlockCount * sizeof(Real));
@@ -2536,10 +2536,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     // gpu->PrintfDeviceVector(dBastaOperationQueue, operationCount * numOps, r);
 // }
 
-    // auto start4 = std::chrono::high_resolution_clock::now();
-    Real* hBastaFinalSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 2 * numSubinterval);
-    Real* hBastaAccumFinalKeys = (Real*) gpu->CallocHost(sizeof(Real), numSubinterval);
+     // auto start4 = std::chrono::high_resolution_clock::now();
+    Real* hBastaFinalSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 3 * numSubinterval);
     Real* hBastaFinalFlags = hBastaFinalSubintervals + numSubinterval;
+    Real* hBastaAccumFinalKeys = hBastaFinalFlags + numSubinterval;
     int currentSubintervalFinal = 0;
     int previousIntervalFinal = 0;
     int numSubintervalFinal = 0;
@@ -2572,9 +2572,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key4, std::pair<std::chrono::duration<double>, int>(end4 - start4, 1)));\
     // }
 
-    // auto start5 = std::chrono::high_resolution_clock::now();
+     // auto start5 = std::chrono::high_resolution_clock::now();
 
-    gpu->MemcpyHostToDevice(dBastaFlags, hBastaFinalSubintervals, sizeof(Real) * 2 * numSubinterval);
+    gpu->MemcpyHostToDevice(dBastaFlags, hBastaFinalSubintervals, sizeof(Real) * 3 * numSubinterval);
 
     // auto end5 = std::chrono::high_resolution_clock::now();\
     // std::string key5 = "copy: flag2";\
@@ -2585,12 +2585,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     // } else {\
     //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key5, std::pair<std::chrono::duration<double>, int>(end5 - start5, 1)));\
     // }
-
-
-    // auto start6 = std::chrono::high_resolution_clock::now();
+    //
+    //
+    //  auto start6 = std::chrono::high_resolution_clock::now();
 
     kernels->accumulateCarryOut(dBastaBlockResMemory, dBastaFinalResMemory, dBastaFlags, numSubinterval, numSubintervalFinal);
-    //gpu->SynchronizeDevice();
+    // gpu->SynchronizeDevice();
 
     // auto end6 = std::chrono::high_resolution_clock::now();\
     // std::string key6 = "kernel2";\
@@ -2602,24 +2602,18 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key6, std::pair<std::chrono::duration<double>, int>(end6 - start6, 1)));\
     // }
 
-
-    //gpu->PrintfDeviceVector(dBastaFlags, 2 * numSubinterval, r);
-    //gpu->PrintfDeviceVector(dBastaFinalResMemory, kPaddedStateCount * kCoalescentBufferLength, r);
-
-
-
-    Real* hBastaFinalResMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * numSubintervalFinal);
-
-    Real* hBastaFinalEres = hBastaFinalResMemory;
-    Real* hBastaFinalFres = hBastaFinalEres + kPaddedStateCount * numSubintervalFinal;
-    Real* hBastaFinalGres = hBastaFinalFres + kPaddedStateCount * numSubintervalFinal;
-    Real* hBastaFinalHres = hBastaFinalGres + kPaddedStateCount * numSubintervalFinal;
-
     // auto start7 = std::chrono::high_resolution_clock::now();
-    gpu->MemcpyDeviceToHost(hBastaFinalResMemory, dBastaFinalResMemory, sizeof(Real) * 4 * kPaddedStateCount * numSubintervalFinal);
+
+    Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+    // Fill with zeroes
+    gpu->MemcpyHostToDevice(dBastaMemory, zeroes,
+                            sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+    gpu->FreeHostMemory(zeroes);
 
     // auto end7 = std::chrono::high_resolution_clock::now();\
-    // std::string key7 = "copy intermediate result to cpu";\
+    // std::string key7 = "zero out dbastamemory";\
     // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it7 = benchmarkDuration.find(key7);\
     // if(it7 != benchmarkDuration.end()){\
     //     it7 ->second.second += 1;\
@@ -2629,26 +2623,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     // }
 
     // auto start8 = std::chrono::high_resolution_clock::now();
-    Real* hBastaMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
 
-    // Set the pointers to the correct locations within the block
-    Real* hBastaE = hBastaMemory;
-    Real* hBastaF = hBastaE + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaG = hBastaF + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaH = hBastaG + kPaddedStateCount * kCoalescentBufferLength;
-
-    for (int i = 0; i < numSubintervalFinal; ++i) {
-        int interval = hBastaAccumFinalKeys[i];
-        for (int j = 0; j < kStateCount; ++j) {
-            hBastaE[interval * kPaddedStateCount + j] += hBastaFinalEres[i * kPaddedStateCount + j];
-            hBastaF[interval * kPaddedStateCount + j] += hBastaFinalFres[i * kPaddedStateCount + j];
-            hBastaG[interval * kPaddedStateCount + j] += hBastaFinalGres[i * kPaddedStateCount + j];
-            hBastaH[interval * kPaddedStateCount + j] += hBastaFinalHres[i * kPaddedStateCount + j];
-        }
-    }
+    kernels->accumulateCarryOutFinal(dBastaFinalResMemory, dBastaMemory, dBastaFlags, numSubinterval, numSubintervalFinal, kCoalescentBufferLength);
+    // gpu->SynchronizeDevice();
 
     // auto end8 = std::chrono::high_resolution_clock::now();\
-    // std::string key8 = "last cpu accumulation";\
+    // std::string key8 = "last gpu kernel for accumulation";\
     // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it8 = benchmarkDuration.find(key8);\
     // if(it8 != benchmarkDuration.end()){\
     //     it8 ->second.second += 1;\
@@ -2657,20 +2637,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key8, std::pair<std::chrono::duration<double>, int>(end8 - start8, 1)));\
     // }
 
-    // auto start9 = std::chrono::high_resolution_clock::now();
 
-    gpu->MemcpyHostToDevice(dBastaMemory, hBastaMemory, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
-
-    // auto end9 = std::chrono::high_resolution_clock::now();\
-    // std::string key9 = "copy: final result";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it9 = benchmarkDuration.find(key9);\
-    // if(it9 != benchmarkDuration.end()){\
-    //     it9 ->second.second += 1;\
-    //     it9 ->second.first += end9-start9;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key9, std::pair<std::chrono::duration<double>, int>(end9 - start9, 1)));\
-    // }
-    //
     // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
     // std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
     // for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
@@ -2703,10 +2670,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     gpu->FreeHostMemory(hBastaDistance);
     gpu->FreeHostMemory(hBastaSubintervals);
     gpu->FreeHostMemory(hBastaFinalKeys);
-    gpu->FreeHostMemory(hBastaAccumFinalKeys);
-    gpu->FreeHostMemory(hBastaMemory);
     gpu->FreeHostMemory(hBastaFinalSubintervals);
-    gpu->FreeHostMemory(hBastaFinalResMemory);
 
   				
 #ifdef BEAGLE_DEBUG_FLOW
