@@ -125,6 +125,16 @@ namespace gpu {
     dRescalingTrigger = (GPUPtr)NULL;
     dScalingFactorsMaster = NULL;
 
+    hBastaOperationQueue = NULL;
+    hBastaSubintervals = NULL;
+    hBastaFinalKeys = NULL;
+    hBastaFinalSubintervals = NULL;
+    hBastaMemory = NULL;
+    hBastaInterval = NULL;
+    hBastaLogL = NULL;
+    hBastaDistance = NULL;
+    hBastazeroes = NULL;
+    hBastaFinalResMemory = NULL;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -284,6 +294,16 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeHostMemory(hLogLikelihoodsCache);
         gpu->FreeHostMemory(hMatrixCache);
 
+        gpu->FreeHostMemory(hBastaOperationQueue);
+        gpu->FreeHostMemory(hBastaSubintervals);
+        gpu->FreeHostMemory(hBastaFinalKeys);
+        gpu->FreeHostMemory(hBastaInterval);
+        gpu->FreeHostMemory(hBastaLogL);
+        gpu->FreeHostMemory(hBastaDistance);
+        gpu->FreeHostMemory(hBastaFinalSubintervals);
+        gpu->FreeHostMemory(hBastaMemory);
+        gpu->FreeHostMemory(hBastazeroes);
+        gpu->FreeHostMemory(hBastaFinalResMemory);
     }
 
     if (kernels)
@@ -2252,6 +2272,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     dBastaBlockResMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * kBastaIntervalBlockCount * sizeof(Real));
     dBastaFinalResMemory = gpu->AllocateMemory(4 * kPaddedStateCount *  kCoalescentBufferLength * kBastaIntervalBlockCount * sizeof(Real));
     // gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
+    hBastaOperationQueue = (Real*) gpu->CallocHost(sizeof(Real), kBufferCount * 8);
+    hBastaFinalKeys = (Real*) gpu->CallocHost(sizeof(Real), kBufferCount);
+    hBastaInterval = (Real*) gpu->CallocHost(sizeof(Real), kBufferCount);
+    hBastaSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 2 * kBufferCount);
+    hBastaFinalSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 3 * kBufferCount);
+    hBastazeroes = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+    hBastaFinalResMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kBufferCount);
+    hBastaMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+    hBastaLogL = (Real*) gpu->CallocHost(sizeof(Real), kBastaIntervalBlockCount);
+    hBastaDistance = (Real*) gpu->CallocHost(sizeof(Real), kCoalescentBufferLength);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::allocateBastaBuffers\n");
@@ -2312,7 +2343,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
 
             const int numOps = BEAGLE_BASTA_OP_COUNT;
             const int operationCount = end - begin;
-            Real* hBastaOperationQueue = (Real*) gpu->CallocHost(sizeof(Real), operationCount * numOps);
+
 
             for (int i = 0; i < operationCount; ++i) {
                 hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * numOps]];
@@ -2331,7 +2362,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
             }
 
             gpu->MemcpyHostToDevice(dBastaOperationQueue, hBastaOperationQueue, sizeof(Real) * operationCount * numOps);
-            gpu->FreeHostMemory(hBastaOperationQueue);
+
 
             // Real r = 0;
             // fprintf(stderr, "e:\n");
@@ -2446,12 +2477,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     const int numOps = BEAGLE_BASTA_OP_COUNT;
     const int blockSize = 4;
-    // auto start1 = std::chrono::high_resolution_clock::now();
-    Real* hBastaInterval = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
+    const int start = 0;
+    const int end = operationCount;
+#ifdef BEAGLE_BENCHMARK
+     auto start1 = std::chrono::high_resolution_clock::now();
+#endif
     int numBlocks = (operationCount + blockSize - 1) / blockSize;
-    Real* hBastaSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 2 * operationCount);
+
     Real* hBastaFlags = hBastaSubintervals + operationCount;
-    Real* hBastaFinalKeys = (Real*) gpu->CallocHost(sizeof(Real), operationCount);
+
     int currentSubinterval = 0;
     int previousInterval = 0;
     int numSubinterval = 0;
@@ -2474,70 +2508,59 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     numSubinterval = currentSubinterval + 1;
 
+#ifdef BEAGLE_BENCHMARK
+    auto end1 = std::chrono::high_resolution_clock::now();\
+    std::string key1 = "flag1";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it1 = benchmarkDuration.find(key1);\
+    if(it1 != benchmarkDuration.end()){\
+        it1->second.second += 1;\
+        it1->second.first += end1-start1;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key1, std::pair<std::chrono::duration<double>, int>(end1 - start1, 1)));\
+    }
 
-    // auto end1 = std::chrono::high_resolution_clock::now();\
-    // std::string key1 = "flag1";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it1 = benchmarkDuration.find(key1);\
-    // if(it1 != benchmarkDuration.end()){\
-    //     it1->second.second += 1;\
-    //     it1->second.first += end1-start1;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key1, std::pair<std::chrono::duration<double>, int>(end1 - start1, 1)));\
-    // }
-    //
-    // auto start2 = std::chrono::high_resolution_clock::now();
+    auto start2 = std::chrono::high_resolution_clock::now();
+#endif
 
     gpu->MemcpyHostToDevice(dBastaInterval, hBastaSubintervals, sizeof(Real) * 2 * operationCount);
 
-    // auto end2 = std::chrono::high_resolution_clock::now();\
-    // std::string key2 = "copy: flag1";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it2 = benchmarkDuration.find(key2);\
-    // if(it2 != benchmarkDuration.end()){\
-    //     it2->second.second += 1;\
-    //     it2->second.first += end2-start2;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key2, std::pair<std::chrono::duration<double>, int>(end2 - start2, 1)));\
-    // }
+
+#ifdef BEAGLE_BENCHMARK
+    auto end2 = std::chrono::high_resolution_clock::now();\
+    std::string key2 = "copy: flag1";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it2 = benchmarkDuration.find(key2);\
+    if(it2 != benchmarkDuration.end()){\
+        it2->second.second += 1;\
+        it2->second.first += end2-start2;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key2, std::pair<std::chrono::duration<double>, int>(end2 - start2, 1)));\
+    }
 
 
-     const int start = 0;
-     const int end = operationCount;
 
 
-    //auto start3 = std::chrono::high_resolution_clock::now();
+    auto start3 = std::chrono::high_resolution_clock::now();
+#endif
 
     kernels->reduceWithinInterval(dBastaOperationQueue, dPartialsOrigin, dBastaBlockResMemory, dBastaInterval, numOps,
                          start, end, numSubinterval);
-    //gpu->SynchronizeDevice();
 
-    // auto end3 = std::chrono::high_resolution_clock::now();\
-    // std::string key3 = "kernel1";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it3 = benchmarkDuration.find(key3);\
-    // if(it3 != benchmarkDuration.end()){\
-    //     it3->second.second += 1;\
-    //     it3->second.first += end3-start3;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key3, std::pair<std::chrono::duration<double>, int>(end3 - start3, 1)));\
-    // }
+#ifdef BEAGLE_BENCHMARK
+    gpu->SynchronizeHost();
 
-    // fprintf(stderr, "e:\n");
-    // gpu->PrintfDeviceVector(dBastaE, kPaddedStateCount * kCoalescentBufferLength, r);
-    // fprintf(stderr, "f:\n");
-    // gpu->PrintfDeviceVector(dBastaF, kPaddedStateCount * kCoalescentBufferLength, r);
-    // fprintf(stderr, "g:\n");
-    // gpu->PrintfDeviceVector(dBastaG, kPaddedStateCount * kCoalescentBufferLength, r);
-    // fprintf(stderr, "h:\n");
-    // gpu->PrintfDeviceVector(dBastaH, kPaddedStateCount * kCoalescentBufferLength, r);
-    // Real r = 0;
-    // // fprintf(stderr, "The count is: %d\n", kPaddedStateCount);
-    // fprintf(stderr, "partials:\n");
-    // gpu->PrintfDeviceVector(dPartialsOrigin, 24 * kPaddedStateCount, r);
-    // fprintf(stderr, "operations:\n");
-    // gpu->PrintfDeviceVector(dBastaOperationQueue, operationCount * numOps, r);
-// }
+    auto end3 = std::chrono::high_resolution_clock::now();\
+    std::string key3 = "kernel1";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it3 = benchmarkDuration.find(key3);\
+    if(it3 != benchmarkDuration.end()){\
+     it3->second.second += 1;\
+     it3->second.first += end3-start3;\
+    } else {\
+     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key3, std::pair<std::chrono::duration<double>, int>(end3 - start3, 1)));\
+    }
 
-     // auto start4 = std::chrono::high_resolution_clock::now();
-    Real* hBastaFinalSubintervals = (Real*) gpu->CallocHost(sizeof(Real), 3 * numSubinterval);
+    auto start4 = std::chrono::high_resolution_clock::now();
+#endif
+
     Real* hBastaFinalFlags = hBastaFinalSubintervals + numSubinterval;
     Real* hBastaAccumFinalKeys = hBastaFinalFlags + numSubinterval;
     int currentSubintervalFinal = 0;
@@ -2562,93 +2585,176 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     numSubintervalFinal = currentSubintervalFinal + 1;
 
-    // auto end4 = std::chrono::high_resolution_clock::now();\
-    // std::string key4 = "flag2";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it4 = benchmarkDuration.find(key4);\
-    // if(it4 != benchmarkDuration.end()){\
-    //     it4 ->second.second += 1;\
-    //     it4 ->second.first += end4-start4;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key4, std::pair<std::chrono::duration<double>, int>(end4 - start4, 1)));\
-    // }
 
-     // auto start5 = std::chrono::high_resolution_clock::now();
+#ifdef BEAGLE_BENCHMARK
+    auto end4 = std::chrono::high_resolution_clock::now();\
+    std::string key4 = "flag2";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it4 = benchmarkDuration.find(key4);\
+    if(it4 != benchmarkDuration.end()){\
+        it4 ->second.second += 1;\
+        it4 ->second.first += end4-start4;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key4, std::pair<std::chrono::duration<double>, int>(end4 - start4, 1)));\
+    }
+
+     auto start5 = std::chrono::high_resolution_clock::now();
+#endif
 
     gpu->MemcpyHostToDevice(dBastaFlags, hBastaFinalSubintervals, sizeof(Real) * 3 * numSubinterval);
 
-    // auto end5 = std::chrono::high_resolution_clock::now();\
-    // std::string key5 = "copy: flag2";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it5 = benchmarkDuration.find(key5);\
-    // if(it5 != benchmarkDuration.end()){\
-    //     it5 ->second.second += 1;\
-    //     it5 ->second.first += end5-start5;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key5, std::pair<std::chrono::duration<double>, int>(end5 - start5, 1)));\
-    // }
-    //
-    //
-    //  auto start6 = std::chrono::high_resolution_clock::now();
+#ifdef BEAGLE_BENCHMARK
+    auto end5 = std::chrono::high_resolution_clock::now();\
+    std::string key5 = "copy: flag2";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it5 = benchmarkDuration.find(key5);\
+    if(it5 != benchmarkDuration.end()){\
+        it5 ->second.second += 1;\
+        it5 ->second.first += end5-start5;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key5, std::pair<std::chrono::duration<double>, int>(end5 - start5, 1)));\
+    }
 
+
+     auto start6 = std::chrono::high_resolution_clock::now();
+#endif
     kernels->accumulateCarryOut(dBastaBlockResMemory, dBastaFinalResMemory, dBastaFlags, numSubinterval, numSubintervalFinal);
-    // gpu->SynchronizeDevice();
 
-    // auto end6 = std::chrono::high_resolution_clock::now();\
-    // std::string key6 = "kernel2";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it6 = benchmarkDuration.find(key6);\
-    // if(it6 != benchmarkDuration.end()){\
-    //     it6 ->second.second += 1;\
-    //     it6 ->second.first += end6-start6;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key6, std::pair<std::chrono::duration<double>, int>(end6 - start6, 1)));\
-    // }
+#ifdef BEAGLE_BENCHMARK
+    gpu->SynchronizeHost();;
 
-    // auto start7 = std::chrono::high_resolution_clock::now();
+    auto end6 = std::chrono::high_resolution_clock::now();\
+    std::string key6 = "kernel2";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it6 = benchmarkDuration.find(key6);\
+    if(it6 != benchmarkDuration.end()){\
+        it6 ->second.second += 1;\
+        it6 ->second.first += end6-start6;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key6, std::pair<std::chrono::duration<double>, int>(end6 - start6, 1)));\
+    }
 
-    Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+    auto start7 = std::chrono::high_resolution_clock::now();
+#endif
 
+#ifdef BEAGLE_BASTA_CPU_ACCUM
+
+    Real* hBastaFinalEres = hBastaFinalResMemory;
+    Real* hBastaFinalFres = hBastaFinalEres + kPaddedStateCount * numSubintervalFinal;
+    Real* hBastaFinalGres = hBastaFinalFres + kPaddedStateCount * numSubintervalFinal;
+    Real* hBastaFinalHres = hBastaFinalGres + kPaddedStateCount * numSubintervalFinal;
+
+
+    gpu->MemcpyDeviceToHost(hBastaFinalResMemory, dBastaFinalResMemory, sizeof(Real) * 4 * kPaddedStateCount * numSubintervalFinal);
+
+#ifdef BEAGLE_BENCHMARK
+    auto end7 = std::chrono::high_resolution_clock::now();\
+    std::string key7 = "copy intermediate result to cpu";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it7 = benchmarkDuration.find(key7);\
+    if(it7 != benchmarkDuration.end()){\
+        it7 ->second.second += 1;\
+        it7 ->second.first += end7-start7;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key7, std::pair<std::chrono::duration<double>, int>(end7 - start7, 1)));\
+    }
+
+    auto start8 = std::chrono::high_resolution_clock::now();
+#endif
+    memset(hBastaMemory, 0, 4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
+    // Set the pointers to the correct locations within the block
+    Real* hBastaE = hBastaMemory;
+    Real* hBastaF = hBastaE + kPaddedStateCount * kCoalescentBufferLength;
+    Real* hBastaG = hBastaF + kPaddedStateCount * kCoalescentBufferLength;
+    Real* hBastaH = hBastaG + kPaddedStateCount * kCoalescentBufferLength;
+
+    for (int i = 0; i < numSubintervalFinal; ++i) {
+        int interval = hBastaAccumFinalKeys[i];
+        for (int j = 0; j < kStateCount; ++j) {
+            hBastaE[interval * kPaddedStateCount + j] += hBastaFinalEres[i * kPaddedStateCount + j];
+            hBastaF[interval * kPaddedStateCount + j] += hBastaFinalFres[i * kPaddedStateCount + j];
+            hBastaG[interval * kPaddedStateCount + j] += hBastaFinalGres[i * kPaddedStateCount + j];
+            hBastaH[interval * kPaddedStateCount + j] += hBastaFinalHres[i * kPaddedStateCount + j];
+        }
+    }
+
+#ifdef BEAGLE_BENCHMARK
+    auto end8 = std::chrono::high_resolution_clock::now();\
+    std::string key8 = "last cpu accumulation";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it8 = benchmarkDuration.find(key8);\
+    if(it8 != benchmarkDuration.end()){\
+        it8 ->second.second += 1;\
+        it8 ->second.first += end8-start8;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key8, std::pair<std::chrono::duration<double>, int>(end8 - start8, 1)));\
+    }
+
+    auto start9 = std::chrono::high_resolution_clock::now();
+#endif
+
+    gpu->MemcpyHostToDevice(dBastaMemory, hBastaMemory, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+#ifdef BEAGLE_BENCHMARK
+    auto end9 = std::chrono::high_resolution_clock::now();\
+    std::string key9 = "copy: final result";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it9 = benchmarkDuration.find(key9);\
+    if(it9 != benchmarkDuration.end()){\
+        it9 ->second.second += 1;\
+        it9 ->second.first += end9-start9;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key9, std::pair<std::chrono::duration<double>, int>(end9 - start9, 1)));\
+    }
+
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
+    std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
+    for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
+        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+    }
+#endif
+
+#else
     // Fill with zeroes
-    gpu->MemcpyHostToDevice(dBastaMemory, zeroes,
+    gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes,
                             sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
 
-    gpu->FreeHostMemory(zeroes);
+#ifdef BEAGLE_BENCHMARK
+    auto end7 = std::chrono::high_resolution_clock::now();\
+    std::string key7 = "zero out dbastamemory";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it7 = benchmarkDuration.find(key7);\
+    if(it7 != benchmarkDuration.end()){\
+        it7 ->second.second += 1;\
+        it7 ->second.first += end7-start7;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key7, std::pair<std::chrono::duration<double>, int>(end7 - start7, 1)));\
+    }
 
-    // auto end7 = std::chrono::high_resolution_clock::now();\
-    // std::string key7 = "zero out dbastamemory";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it7 = benchmarkDuration.find(key7);\
-    // if(it7 != benchmarkDuration.end()){\
-    //     it7 ->second.second += 1;\
-    //     it7 ->second.first += end7-start7;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key7, std::pair<std::chrono::duration<double>, int>(end7 - start7, 1)));\
-    // }
-
-    // auto start8 = std::chrono::high_resolution_clock::now();
+    auto start8 = std::chrono::high_resolution_clock::now();
+#endif
 
     kernels->accumulateCarryOutFinal(dBastaFinalResMemory, dBastaMemory, dBastaFlags, numSubinterval, numSubintervalFinal, kCoalescentBufferLength);
-    // gpu->SynchronizeDevice();
 
-    // auto end8 = std::chrono::high_resolution_clock::now();\
-    // std::string key8 = "last gpu kernel for accumulation";\
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it8 = benchmarkDuration.find(key8);\
-    // if(it8 != benchmarkDuration.end()){\
-    //     it8 ->second.second += 1;\
-    //     it8 ->second.first += end8-start8;\
-    // } else {\
-    //     benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key8, std::pair<std::chrono::duration<double>, int>(end8 - start8, 1)));\
-    // }
+#ifdef BEAGLE_BENCHMARK
+    gpu->SynchronizeHost();
+
+    auto end8 = std::chrono::high_resolution_clock::now();\
+    std::string key8 = "last gpu kernel for accumulation";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it8 = benchmarkDuration.find(key8);\
+    if(it8 != benchmarkDuration.end()){\
+        it8 ->second.second += 1;\
+        it8 ->second.first += end8-start8;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key8, std::pair<std::chrono::duration<double>, int>(end8 - start8, 1)));\
+    }
 
 
-    // std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
-    // std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
-    // for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
-    //     std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
-    // }
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
+    std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
+    for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
+        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+    }
+#endif
+#endif
 
-    Real* hBastaDistance = (Real*) gpu->CallocHost(sizeof(Real), kCoalescentBufferLength);
     for (int i = 0; i < kCoalescentBufferLength; ++i) {
         hBastaDistance[i] = (Real) intervalLengths[i];
     }
-    Real* hBastaLogL = (Real*) gpu->CallocHost(sizeof(Real), kBastaIntervalBlockCount);
+
     gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * kCoalescentBufferLength);
 
 
@@ -2665,13 +2771,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     for (int i = 0; i < kBastaIntervalBlockCount; i++) {
         out[0] += hBastaLogL[i];
     }
-    gpu->FreeHostMemory(hBastaInterval);
-    gpu->FreeHostMemory(hBastaLogL);
-    gpu->FreeHostMemory(hBastaDistance);
-    gpu->FreeHostMemory(hBastaSubintervals);
-    gpu->FreeHostMemory(hBastaFinalKeys);
-    gpu->FreeHostMemory(hBastaFinalSubintervals);
-
   				
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials\n");

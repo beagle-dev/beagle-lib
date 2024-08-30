@@ -227,6 +227,18 @@ private:
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
 
+
+	Real* hBastaOperationQueue;
+	Real* hBastaSubintervals;
+	Real* hBastaFinalKeys;
+	Real* hBastaFinalSubintervals;
+	Real* hBastaInterval;
+	Real* hBastaLogL;
+	Real* hBastaDistance;
+	Real* hBastazeroes;
+	Real* hBastaFinalResMemory;
+	Real* hBastaMemory;
+
 public:
     BeagleGPUImpl();
 
