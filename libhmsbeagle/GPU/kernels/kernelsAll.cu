@@ -2529,7 +2529,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
         KW_LOCAL_FENCE;
 
         if (tidTotal < intervalCount && (coalescent[u] != 0)) {
-            sPartials2[tid] = logf(coalescent[u]);
+            sPartials2[tid] = log(coalescent[u]);
         } else {
             sPartials2[tid] = 0;
         }
