@@ -105,6 +105,10 @@ protected:
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     REALTYPE** gPartials;
+    REALTYPE**** gPartialsGrad;
+    REALTYPE*** coalescentGrad;
+    // REALTYPE**** efghGrad;
+    REALTYPE** tempGrad;
     int** gTipStates;
     REALTYPE** gScaleBuffers;
 
@@ -120,6 +124,7 @@ protected:
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     REALTYPE** gTransitionMatrices;
+    REALTYPE**** gTransitionMatricesGrad;
 
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
@@ -140,6 +145,7 @@ protected:
     REALTYPE* zeros;
 
     std::vector<REALTYPE> gBastaBuffers;
+    std::vector<REALTYPE> gBastaGradBuffers;
     std::vector<REALTYPE> gCoalescentBuffers;
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
@@ -291,13 +297,16 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateTransitionMatricesGrad(const int* probabilityIndices,
+                                     const double* edgeLengths,
+                                     int count);
+
     int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
-
 
     int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
                                                    const int* categoryRateIndices,
@@ -462,6 +471,13 @@ public:
   							int intervalCount,
                             int populationSizesIndex,
                             int coalescentIndex);
+    
+    int updateBastaPartialsGrad(const int* operations,
+                                int operationCount,
+                                const int* intervals,
+                                int intervalCount,
+                                int populationSizesIndex,
+                                int coalescentIndex);
                            
 	int accumulateBastaPartials(const int* operations,
 	     				  		int operationCount,
@@ -471,6 +487,15 @@ public:
                                 const int populationSizesIndex,
                                 int coalescentIndex,
                                 double* out);
+
+    int accumulateBastaPartialsGrad(const int *operations, 
+                                    const int operationCount, 
+                                    const int *intervalStarts, 
+                                    const int intervalStartsCount, 
+                                    const double *intervalLengths, 
+                                    const int populationSizesIndex, 
+                                    const int coalescentIndex, 
+                                    double *out);
 
     int allocateBastaBuffers(int bufferCount,
                              int bufferLength);
@@ -484,11 +509,26 @@ public:
                               int endBuffer1, int endBuffer2,
                               int interval);
 
+    void reduceWithinIntervalGrad(REALTYPE*** eGrad, REALTYPE*** fGrad,
+                                  REALTYPE*** gGrad, REALTYPE*** hGrad,
+                                  int startBuffer1, int startBuffer2,
+                                  int endBuffer1, int endBuffer2,
+                                  int interval);
+
     REALTYPE reduceAcrossIntervals(REALTYPE* e, REALTYPE* f, // TODO move to protected
                                    REALTYPE* g, REALTYPE* h,
                                    int interval, REALTYPE length,
                                    const REALTYPE* sizes,
                                    const REALTYPE* coalescent);
+    
+    void reduceAcrossIntervalsGrad(REALTYPE *e, REALTYPE *f, 
+                                   REALTYPE *g, REALTYPE *h, 
+                                   REALTYPE ***eGrad, REALTYPE ***fGrad, 
+                                   REALTYPE ***gGrad, REALTYPE ***hGrad, 
+                                   REALTYPE **resultGrad, 
+                                   int interval, REALTYPE length, 
+                                   const REALTYPE *sizes, 
+                                   const REALTYPE *coalescent);
 
     int block(void);
 
@@ -821,6 +861,17 @@ protected:
                                   const int op,
                                   const REALTYPE* sizes,
                                   REALTYPE* coalescent);
+    
+    void updateInnerBastaPartialsGrad(const int* operations,
+                                    const int begin,
+                                    const int end,
+                                    const REALTYPE* sizes,
+                                    const REALTYPE* coalescent);
+    
+    void matrixMultiply(const REALTYPE* matrices1,
+                        const REALTYPE* matrices2,
+                        REALTYPE* output,
+                        int n);
 
 private:
 

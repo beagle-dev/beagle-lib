@@ -106,6 +106,12 @@ private:
     GPUFunction fSumSites2;
     GPUFunction fSumSites3;
 
+	GPUFunction fInnerBastaPartialsCoalescent;
+	GPUFunction fReduceWithinInterval;
+	GPUFunction fReduceAcrossInterval;
+	GPUFunction fPreProcessBastaFlags;
+	GPUFunction fAccumulateCarryOut;
+	GPUFunction fAccumulateCarryOutFinal;
     GPUFunction fReorderPatterns;
 
     Dim3Int bgTransitionProbabilitiesBlock;
@@ -128,6 +134,15 @@ private:
 	Dim3Int bgMultiNodeSumGrid;
 	Dim3Int bgCrossProductBlock;
 	Dim3Int bgCrossProductGrid;
+	Dim3Int bgBastaPeelingBlock;
+	Dim3Int bgBastaPeelingGrid;
+	Dim3Int bgBastaReductionBlock;
+	Dim3Int bgBastaReductionGrid;
+	Dim3Int bgBastaPreBlock;
+	Dim3Int bgBastaPreGrid;
+	Dim3Int bgBastaSumBlock;
+	Dim3Int bgBastaSumGrid;
+
 
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -605,6 +620,19 @@ public:
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
 
+    // void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
+    // GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
+
+	void InnerBastaPartialsCoalescent(GPUPtr partials, GPUPtr matrices,
+GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int start, unsigned int numOps, unsigned int patternCount);
+    // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
+    //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
+
+	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
+    void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
+	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
+	void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);
+	void accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory, GPUPtr dBastaMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal, unsigned int kCoalescentBufferLength);
     void SetupKernelBlocksAndGrids();
 
 protected:

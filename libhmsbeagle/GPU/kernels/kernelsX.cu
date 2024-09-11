@@ -1384,6 +1384,9 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
         dResult[pattern] = (log(sum[state]) + (M_LN2 * maxScaleFactor));
 }
 
+
+
+
 #ifdef CUDA
     #include "kernelsXDerivatives.cu"
 #endif // CUDA
