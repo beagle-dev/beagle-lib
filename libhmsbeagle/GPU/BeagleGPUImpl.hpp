@@ -2466,6 +2466,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
                                                                const int populationSizesIndex,
                                                                int coalescentIndex,
                                                                double* out) {
+//#define BEAGLE_BASTA_SERIAL
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
 #endif
@@ -2475,10 +2476,55 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     const int blockSize = 4;
     const int start = 0;
     const int end = operationCount;
+
 #ifdef BEAGLE_BENCHMARK
      auto start1 = std::chrono::high_resolution_clock::now();
 #endif
-    int numBlocks = (operationCount + blockSize - 1) / blockSize;
+
+#ifdef BEAGLE_BASTA_SERIAL
+
+    gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes,
+                sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+#ifdef BEAGLE_BENCHMARK
+    auto end1 = std::chrono::high_resolution_clock::now();\
+    std::string key1 = "zero out bastamemory";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it1 = benchmarkDuration.find(key1);\
+    if(it1 != benchmarkDuration.end()){\
+        it1->second.second += 1;\
+        it1->second.first += end1-start1;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key1, std::pair<std::chrono::duration<double>, int>(end1 - start1, 1)));\
+    }
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+#endif
+
+    kernels->reduceWithinIntervalSerial(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, numOps,
+                         start, end, kCoalescentBufferLength);
+
+#ifdef BEAGLE_BENCHMARK
+    gpu->SynchronizeHost();
+
+    auto end2 = std::chrono::high_resolution_clock::now();\
+    std::string key2 = "kernel1";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it2 = benchmarkDuration.find(key2);\
+    if(it2 != benchmarkDuration.end()){\
+        it2->second.second += 1;\
+        it2->second.first += end2-start2;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key2, std::pair<std::chrono::duration<double>, int>(end2 - start2, 1)));\
+    }
+
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
+    std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
+    for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
+        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+    }
+
+#endif
+
+#else
 
     Real* hBastaFlags = hBastaSubintervals + operationCount;
 
@@ -2536,99 +2582,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     auto start3 = std::chrono::high_resolution_clock::now();
 #endif
 
-#ifdef BEAGLE_BASTA_SERIAL
-
-    kernels->reduceWithinIntervalSerial(dBastaOperationQueue, dPartialsOrigin, dBastaBlockResMemory, dBastaInterval, numOps,
-                         start, end, numSubinterval);
-
-    Real* hBastaFinalEres = hBastaFinalResMemory;
-    Real* hBastaFinalFres = hBastaFinalEres + kPaddedStateCount * numSubinterval;
-    Real* hBastaFinalGres = hBastaFinalFres + kPaddedStateCount * numSubinterval;
-    Real* hBastaFinalHres = hBastaFinalGres + kPaddedStateCount * numSubinterval;
-#ifdef BEAGLE_BENCHMARK
-    gpu->SynchronizeHost();
-
-    auto end3 = std::chrono::high_resolution_clock::now();\
-    std::string key3 = "kernel1";\
-    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it3 = benchmarkDuration.find(key3);\
-    if(it3 != benchmarkDuration.end()){\
-        it3->second.second += 1;\
-        it3->second.first += end3-start3;\
-    } else {\
-        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key3, std::pair<std::chrono::duration<double>, int>(end3 - start3, 1)));\
-    }
-
-    auto start4 = std::chrono::high_resolution_clock::now();
-#endif
-
-    gpu->MemcpyDeviceToHost(hBastaFinalResMemory, dBastaBlockResMemory, sizeof(Real) * 4 * kPaddedStateCount * numSubinterval);
-
-#ifdef BEAGLE_BENCHMARK
-    auto end4 = std::chrono::high_resolution_clock::now();\
-    std::string key4 = "memcopy intermediate result";\
-    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it4 = benchmarkDuration.find(key4);\
-    if(it4 != benchmarkDuration.end()){\
-        it4 ->second.second += 1;\
-        it4 ->second.first += end4-start4;\
-    } else {\
-        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key4, std::pair<std::chrono::duration<double>, int>(end4 - start4, 1)));\
-    }
-
-    auto start5 = std::chrono::high_resolution_clock::now();
-#endif
-
-    memset(hBastaMemory, 0, 4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
-    // Set the pointers to the correct locations within the block
-    Real* hBastaE = hBastaMemory;
-    Real* hBastaF = hBastaE + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaG = hBastaF + kPaddedStateCount * kCoalescentBufferLength;
-    Real* hBastaH = hBastaG + kPaddedStateCount * kCoalescentBufferLength;
-
-    for (int i = 0; i < numSubinterval; ++i) {
-        int interval = hBastaFinalKeys[i];
-        for (int j = 0; j < kStateCount; ++j) {
-            hBastaE[interval * kPaddedStateCount + j] += hBastaFinalEres[i * kPaddedStateCount + j];
-            hBastaF[interval * kPaddedStateCount + j] += hBastaFinalFres[i * kPaddedStateCount + j];
-            hBastaG[interval * kPaddedStateCount + j] += hBastaFinalGres[i * kPaddedStateCount + j];
-            hBastaH[interval * kPaddedStateCount + j] += hBastaFinalHres[i * kPaddedStateCount + j];
-        }
-    }
-
-#ifdef BEAGLE_BENCHMARK
-    auto end5 = std::chrono::high_resolution_clock::now();\
-    std::string key5 = "cpu accumulation: final result";\
-    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it5 = benchmarkDuration.find(key5);\
-    if(it5 != benchmarkDuration.end()){\
-        it5 ->second.second += 1;\
-        it5 ->second.first += end5-start5;\
-    } else {\
-        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key5, std::pair<std::chrono::duration<double>, int>(end5 - start5, 1)));\
-    }
-
-
-    auto start6 = std::chrono::high_resolution_clock::now();
-#endif
-
-    gpu->MemcpyHostToDevice(dBastaMemory, hBastaMemory, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
-
-#ifdef BEAGLE_BENCHMARK
-    auto end6 = std::chrono::high_resolution_clock::now();\
-    std::string key6 = "memcopy back final result";\
-    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it6 = benchmarkDuration.find(key6);\
-    if(it6 != benchmarkDuration.end()){\
-        it6 ->second.second += 1;\
-        it6 ->second.first += end6-start6;\
-    } else {\
-        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key6, std::pair<std::chrono::duration<double>, int>(end6 - start6, 1)));\
-    }
-
-    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
-    std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
-    for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
-        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
-    }
-#endif
-#else
     kernels->reduceWithinInterval(dBastaOperationQueue, dPartialsOrigin, dBastaBlockResMemory, dBastaInterval, numOps,
                          start, end, numSubinterval);
 

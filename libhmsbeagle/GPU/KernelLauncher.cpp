@@ -245,7 +245,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     bgBastaReductionGrid = Dim3Int(18162, 1);
 
     bgBastaPreBlock = Dim3Int(32);
-    bgBastaPreGrid = Dim3Int(110);
+    bgBastaPreGrid = Dim3Int(1);
 
     bgBastaSumBlock = Dim3Int(128);
     bgBastaSumGrid = Dim3Int(400);
@@ -2506,7 +2506,6 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
     void KernelLauncher::reduceWithinIntervalSerial(GPUPtr operations,
                           GPUPtr partials,
                           GPUPtr dBastaMemory,
-                          GPUPtr intervals,
                           unsigned int numOps,
                           unsigned int start,
                           unsigned int end,
@@ -2518,9 +2517,9 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
     int parameterCountV = 4;
     int totalParameterCount = 8;
     gpu->LaunchKernel(fReduceWithinIntervalSerial,
-                      bgBastaReductionBlock, bgBastaReductionGrid,
+                      bgBastaPreBlock, bgBastaPreGrid,
                       parameterCountV, totalParameterCount,
-                      operations, partials, dBastaMemory, intervals, numOps, start, end, kCoalescentBufferLength);
+                      operations, partials, dBastaMemory, numOps, start, end, kCoalescentBufferLength);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
