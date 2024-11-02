@@ -108,6 +108,7 @@ private:
 
 	GPUFunction fInnerBastaPartialsCoalescent;
 	GPUFunction fReduceWithinInterval;
+	GPUFunction fReduceWithinIntervalSerial;
 	GPUFunction fReduceAcrossInterval;
 	GPUFunction fPreProcessBastaFlags;
 	GPUFunction fAccumulateCarryOut;
@@ -629,6 +630,7 @@ GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber,
     //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
 
 	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
+	void reduceWithinIntervalSerial(GPUPtr operations, GPUPtr partials, GPUPtr dBastaMemory, unsigned int numOps, unsigned int start, unsigned int end, unsigned int kCoalescentBufferLength);
     void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
 	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
 	void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);

@@ -84,11 +84,9 @@ namespace gpu {
     dBastaLogL = (GPUPtr)NULL;
     dBastaDistance = (GPUPtr)NULL;
     dBastaOperationQueue = (GPUPtr)NULL;
-    dBastaBuffers = (GPUPtr)NULL;
     dCoalescentBuffers = (GPUPtr)NULL;
     dBastaInterval = (GPUPtr)NULL;
     dBastaFlags = (GPUPtr)NULL;
-    dBlockSegmentKeysEnd= (GPUPtr)NULL;
     dEigenValues = NULL;
     dEvec = NULL;
     dIevc = NULL;
@@ -267,10 +265,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(hStatesOffsets);
 
 
-        gpu->FreeMemory(dBastaBuffers);
         gpu->FreeMemory(dBastaBlockResMemory);
         gpu->FreeMemory(dBastaFinalResMemory);
-        gpu->FreeMemory(dBlockSegmentKeysEnd);
         gpu->FreeMemory(dBastaMemory);
         gpu->FreeMemory(dBastaLogL);
         gpu->FreeMemory(dBastaDistance);
@@ -2470,6 +2466,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
                                                                const int populationSizesIndex,
                                                                int coalescentIndex,
                                                                double* out) {
+//#define BEAGLE_BASTA_SERIAL
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
 #endif
@@ -2479,10 +2476,55 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     const int blockSize = 4;
     const int start = 0;
     const int end = operationCount;
+
 #ifdef BEAGLE_BENCHMARK
      auto start1 = std::chrono::high_resolution_clock::now();
 #endif
-    int numBlocks = (operationCount + blockSize - 1) / blockSize;
+
+#ifdef BEAGLE_BASTA_SERIAL
+
+    gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes,
+                sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+#ifdef BEAGLE_BENCHMARK
+    auto end1 = std::chrono::high_resolution_clock::now();\
+    std::string key1 = "zero out bastamemory";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it1 = benchmarkDuration.find(key1);\
+    if(it1 != benchmarkDuration.end()){\
+        it1->second.second += 1;\
+        it1->second.first += end1-start1;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key1, std::pair<std::chrono::duration<double>, int>(end1 - start1, 1)));\
+    }
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+#endif
+
+    kernels->reduceWithinIntervalSerial(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, numOps,
+                         start, end, kCoalescentBufferLength);
+
+#ifdef BEAGLE_BENCHMARK
+    gpu->SynchronizeHost();
+
+    auto end2 = std::chrono::high_resolution_clock::now();\
+    std::string key2 = "kernel1";\
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it2 = benchmarkDuration.find(key2);\
+    if(it2 != benchmarkDuration.end()){\
+        it2->second.second += 1;\
+        it2->second.first += end2-start2;\
+    } else {\
+        benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key2, std::pair<std::chrono::duration<double>, int>(end2 - start2, 1)));\
+    }
+
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
+    std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
+    for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
+        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+    }
+
+#endif
+
+#else
 
     Real* hBastaFlags = hBastaSubintervals + operationCount;
 
@@ -2535,8 +2577,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     } else {\
         benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key2, std::pair<std::chrono::duration<double>, int>(end2 - start2, 1)));\
     }
-
-
 
 
     auto start3 = std::chrono::high_resolution_clock::now();
@@ -2750,7 +2790,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     }
 #endif
 #endif
-
+#endif
     for (int i = 0; i < kCoalescentBufferLength; ++i) {
         hBastaDistance[i] = (Real) intervalLengths[i];
     }

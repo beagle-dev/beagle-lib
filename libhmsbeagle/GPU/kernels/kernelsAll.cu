@@ -2360,6 +2360,57 @@ KW_GLOBAL_KERNEL void kernelAccumulateCarryOut(KW_GLOBAL_VAR REAL* dBastaBlockRe
 }
 
 
+KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalSerial(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
+                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                            KW_GLOBAL_VAR REAL* dBastaMemory,
+                                                            int numOps,
+                                                            int start,
+                                                            int end,
+                                                            int kCoalescentBufferLength) {
+    int state = KW_LOCAL_ID_0;
+    int opCount = end - start;
+    int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
+
+	KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+
+
+    if (state < PADDED_STATE_COUNT) {
+    	for (int opIdx = 0; opIdx < opCount; ++opIdx) {
+        	int op = start + opIdx;
+        	int intervalNumber = operations[op * numOps + 7];
+        	int child1PartialIndex = operations[op * numOps + 1];
+        	int accumulation1PartialIndex = operations[op * numOps + 5];
+            int u = intervalNumber * PADDED_STATE_COUNT + state;
+        	KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
+        	KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
+
+        	REAL partialE = startPartials1[state];
+        	REAL partialF = partialE * partialE;
+        	REAL partialG = endPartials1[state];
+        	REAL partialH = partialG * partialG;
+
+        	int child2PartialIndex = operations[op * numOps + 3];
+        	int accumulation2PartialIndex = operations[op * numOps + 6];
+        	if (child2PartialIndex >= 0) {
+            	KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
+            	KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
+            	partialE += startPartials2[state];
+            	partialF += startPartials2[state] * startPartials2[state];
+            	partialG += endPartials2[state];
+            	partialH += endPartials2[state] * endPartials2[state];
+        	}
+
+        	e[u] += partialE;
+       	 	f[u] += partialF;
+        	g[u] += partialG;
+        	h[u] += partialH;
+    	}
+    }
+}
+
 KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
                                                             KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                             KW_GLOBAL_VAR REAL* dBastaBlockResMemory,

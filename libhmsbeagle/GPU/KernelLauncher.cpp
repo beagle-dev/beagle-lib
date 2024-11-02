@@ -245,7 +245,7 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     bgBastaReductionGrid = Dim3Int(18162, 1);
 
     bgBastaPreBlock = Dim3Int(32);
-    bgBastaPreGrid = Dim3Int(110);
+    bgBastaPreGrid = Dim3Int(1);
 
     bgBastaSumBlock = Dim3Int(128);
     bgBastaSumGrid = Dim3Int(400);
@@ -418,6 +418,7 @@ void KernelLauncher::LoadKernels() {
 
     fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
     fReduceWithinInterval = gpu->GetFunction("kernelBastaReduceWithinInterval");
+    fReduceWithinIntervalSerial = gpu->GetFunction("kernelBastaReduceWithinIntervalSerial");
     fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
     fPreProcessBastaFlags = gpu->GetFunction("kernelPreProcessBastaFlags");
     fAccumulateCarryOut = gpu->GetFunction("kernelAccumulateCarryOut");
@@ -2502,6 +2503,29 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 
 }
 
+    void KernelLauncher::reduceWithinIntervalSerial(GPUPtr operations,
+                          GPUPtr partials,
+                          GPUPtr dBastaMemory,
+                          unsigned int numOps,
+                          unsigned int start,
+                          unsigned int end,
+                          unsigned int kCoalescentBufferLength) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
+#endif
+
+    int parameterCountV = 4;
+    int totalParameterCount = 8;
+    gpu->LaunchKernel(fReduceWithinIntervalSerial,
+                      bgBastaPreBlock, bgBastaPreGrid,
+                      parameterCountV, totalParameterCount,
+                      operations, partials, dBastaMemory, numOps, start, end, kCoalescentBufferLength);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
+#endif
+
+}
 
     void KernelLauncher::preProcessBastaFlags(GPUPtr dBastaInterval,
                               GPUPtr dBastaFlags,
