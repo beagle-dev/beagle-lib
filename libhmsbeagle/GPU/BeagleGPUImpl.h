@@ -228,7 +228,7 @@ private:
 	int kBastaIntervalBlockCount;
 
 
-	Real* hBastaOperationQueue;
+	int* hBastaOperationQueue;
 	Real* hBastaSubintervals;
 	Real* hBastaFinalKeys;
 	Real* hBastaFinalSubintervals;
@@ -526,7 +526,9 @@ public:
                                      double *out);
 
     int allocateBastaBuffers(int bufferCount,
-                             int bufferLength);
+                             int bufferLength,
+                             int partialsCount,
+                             int initial);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);

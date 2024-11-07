@@ -497,8 +497,8 @@ public:
                                     const int coalescentIndex, 
                                     double *out);
 
-    int allocateBastaBuffers(int bufferCount,
-                             int bufferLength);
+
+    int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);

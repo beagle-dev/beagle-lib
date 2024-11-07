@@ -1456,7 +1456,9 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
 
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
                                                 const int bufferCount,
-                                                const int bufferLength);
+                                                const int bufferLength,
+                                                const int partialsCount,
+                                                const int initial);
 
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,

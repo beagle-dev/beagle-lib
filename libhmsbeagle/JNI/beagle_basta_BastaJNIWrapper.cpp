@@ -15,9 +15,9 @@
  * Signature: (III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentBuffers
-        (JNIEnv *env, jobject obj, jint instance, jint bufferCount, jint bufferLength) {
+        (JNIEnv *env, jobject obj, jint instance, jint bufferCount, jint bufferLength, jint partialsCount, jint initial) {
 
-    jint errCode = (jint)beagleAllocateBastaBuffers(instance, bufferCount, bufferLength);
+    jint errCode = (jint)beagleAllocateBastaBuffers(instance, bufferCount, bufferLength, partialsCount, initial);
 
     return errCode;
 }

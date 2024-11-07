@@ -1488,7 +1488,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
-                                                            int bufferLength) {
+                                                            int bufferLength,
+                                                            int partialsCount,
+                                                            int initial) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleCPUImpl::allocateBastaBuffers\n");
 #endif
@@ -1499,6 +1501,44 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     gCoalescentBuffers.resize(kCoalescentBufferCount * kCoalescentBufferLength);
     gBastaBuffers.resize(kPartialsPaddedStateCount * kCoalescentBufferLength * 4);
     gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
+
+    if (partialsCount > kBufferCount) {
+        int oldBufferCount = kBufferCount;
+        kBufferCount = partialsCount;
+        gPartials = (REALTYPE**) realloc(gPartials, kBufferCount * sizeof(REALTYPE*));
+
+        for (int i = oldBufferCount; i < kBufferCount; i++) {
+            gPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+        }
+
+        for (int i = 0; i < kStateCount; i++) {
+            for (int j = 0; j < kStateCount; j++) {
+                // Reallocate gPartialsGrad[i][j] to new size kBufferCount
+                REALTYPE** temp = (REALTYPE**) realloc(gPartialsGrad[i][j], sizeof(REALTYPE*) * kBufferCount);
+                if (temp == NULL) {
+                    // Handle allocation failure
+                    throw std::bad_alloc();
+                }
+                gPartialsGrad[i][j] = temp;
+
+                // Initialize new entries from oldBufferCount to new kBufferCount
+                for (int k = oldBufferCount; k < kBufferCount; k++) {
+                    gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+                    if (gPartialsGrad[i][j][k] == NULL) {
+                        // Handle allocation failure
+                        throw std::bad_alloc();
+                    }
+                }
+            }
+        }
+
+        gTipStates = (int**) realloc(gTipStates, sizeof(int*) * kBufferCount);
+
+        for (int i = oldBufferCount; i < kBufferCount; i++) {
+            gTipStates[i] = NULL;
+        }
+
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleCPUImpl::allocateBastaBuffers\n");

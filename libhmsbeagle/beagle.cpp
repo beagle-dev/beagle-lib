@@ -1958,8 +1958,10 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
 }
 
 int beagleAllocateBastaBuffers(const int instance,
-                               const int bufferCount,
-                               const int bufferLength) {
+                                int bufferCount,
+                                int bufferLength,
+                                int partialsCount,
+                                int initial) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
 
@@ -1968,7 +1970,7 @@ int beagleAllocateBastaBuffers(const int instance,
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     }
 
-    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength);
+    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial);
 
     DEBUG_END_TIME();
     DEBUG_END_ENERGY();

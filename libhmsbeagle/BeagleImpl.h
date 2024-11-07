@@ -300,7 +300,9 @@ public:
                                         double* out) = 0;
 
     virtual int allocateBastaBuffers(int bufferCount,
-                                     int bufferLength) = 0;
+                                     int bufferLength,
+                                     int partialsCount,
+                                     int initial) = 0;
 
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;
