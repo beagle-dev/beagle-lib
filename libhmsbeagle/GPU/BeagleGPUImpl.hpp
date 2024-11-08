@@ -2347,7 +2347,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
         if (bufferLength > kCoalescentBufferLength || initial == 1) {
             kCoalescentBufferLength = bufferLength;
             kBastaIntervalBlockCount = kCoalescentBufferLength * kPaddedStateCount / 128 + 1;
-            // Free GPU memory, but no need to free CPU host memory since std::vector handles it
             if (initial == 0) {
                 if (dCoalescentBuffers != (GPUPtr)NULL) {
                     gpu->FreeMemory(dCoalescentBuffers);
@@ -2572,6 +2571,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
         //}
 
 #ifdef BEAGLE_DEBUG_SYNCH
+            gpu->SynchronizeHost();
+#endif
+
+#ifdef BEAGLE_DEBUG_SYNCH
     gpu->SynchronizeHost();
 #endif
     return BEAGLE_SUCCESS;
@@ -2591,6 +2594,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad(const int* operat
 	int returnCode = BEAGLE_ERROR_GENERAL;
 
   	fprintf(stderr, "BeagleGPUImpl::updateBastaPartials\n");
+
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartials\n");
@@ -2649,6 +2653,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     for (int i = 0; i < kBastaIntervalBlockCount; i++) {
         out[0] += hBastaLogL[i];
     }
+
+#ifdef BEAGLE_DEBUG_SYNCH
+            gpu->SynchronizeHost();
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials\n");
 #endif  		

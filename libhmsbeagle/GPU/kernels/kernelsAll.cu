@@ -1994,6 +1994,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
     int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE_B) + patIdx;
+    int op = pattern + start;
 
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
@@ -2001,8 +2002,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
     KW_LOCAL_MEM int shared_buffer[PATTERN_BLOCK_SIZE_B * 8];
 
-    int op = pattern + start;
-	//int maxOp = start;
+
     if (state < 8) {
       shared_buffer[patIdx * numOps + state] = operations[op * numOps + state];
     }
@@ -2012,17 +2012,21 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     int desIndex = shared_buffer[patIdx * numOps];
     int child1PartialIndex = shared_buffer[patIdx * numOps + 1];
     int child1TransIndex = shared_buffer[2];
-    int child2PartialIndex = (pattern < totalPatterns) ? shared_buffer[patIdx * numOps + 3] : -1;
-    //int child2TransIndex = (pattern < totalPatterns) ? shared_buffer[patIdx * numOps + 4] : -1;
+    int child2PartialIndex = shared_buffer[patIdx * numOps + 3];
     int accumulation1PartialIndex = shared_buffer[patIdx * numOps + 5];
     int accumulation2PartialIndex = shared_buffer[patIdx * numOps + 6];
     int intervalNumber = shared_buffer[patIdx * numOps + 7];
 
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
+	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
+	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
     KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
 
     if (pattern < totalPatterns) {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
         sPartials1[patIdx][state] = partials1[state];
         //printf("op %d \n",  op);
         //printf("index %d \n",  child1PartialIndex);
@@ -2050,22 +2054,16 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
 
     if (pattern < totalPatterns) {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
         partials3[state] = sum1;
     }
 
 
     /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
     /* These are all coherent global memory reads; checked in Profiler */
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-
     if (pattern < totalPatterns && child2PartialIndex >= 0) {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
         sPartials2[patIdx][state] = partials2[state];
-        popSizes[state] = sizes[state];
     } else {
         sPartials2[patIdx][state] = 0;
-        popSizes[state] = 0;
     }
 
     if (patIdx == 0) {
@@ -2092,9 +2090,6 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
 
 	if (pattern < totalPatterns && child2PartialIndex >= 0) {
-	    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
-	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
-	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
 		accumulation1[state] = sum1;
 		accumulation2[state] = sum2;
 		if (popSizes[state] > 0) {
