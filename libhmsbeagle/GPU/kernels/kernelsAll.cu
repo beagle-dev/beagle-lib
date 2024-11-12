@@ -1979,6 +1979,145 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
  * BASTA kernels
  */
 
+//KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+//                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+//                                                    KW_GLOBAL_VAR int* KW_RESTRICT operations,
+//                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+//                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+//													int start,
+//                                                    int numOps,
+//                                                    int totalPatterns) {
+//
+//    #define PATTERN_BLOCK_SIZE_B 4
+//    #define BLOCK_PEELING_SIZE_B 4
+//
+//    int state = KW_LOCAL_ID_0;
+//    int patIdx = KW_LOCAL_ID_1;
+//    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE_B) + patIdx;
+//    int op = pattern + start;
+//
+//    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
+//    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
+//
+//    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+//    KW_LOCAL_MEM int shared_buffer[PATTERN_BLOCK_SIZE_B * 8];
+//
+//
+//    if (state < 8) {
+//      shared_buffer[patIdx * numOps + state] = operations[op * numOps + state];
+//    }
+//
+//    KW_LOCAL_FENCE;
+//
+//    int desIndex = shared_buffer[patIdx * numOps];
+//    int child1PartialIndex = shared_buffer[patIdx * numOps + 1];
+//    int child1TransIndex = shared_buffer[2];
+//    int child2PartialIndex = shared_buffer[patIdx * numOps + 3];
+//    int accumulation1PartialIndex = shared_buffer[patIdx * numOps + 5];
+//    int accumulation2PartialIndex = shared_buffer[patIdx * numOps + 6];
+//    int intervalNumber = shared_buffer[patIdx * numOps + 7];
+//
+//    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
+//    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
+//    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
+//	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
+//	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
+//    KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+//    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+//    KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
+//
+//    if (pattern < totalPatterns) {
+//        sPartials1[patIdx][state] = partials1[state];
+//        //printf("op %d \n",  op);
+//        //printf("index %d \n",  child1PartialIndex);
+//        //printf("partials1 %1.2e \n",  partials1[state]);
+//    } else {
+//        sPartials1[patIdx][state] = 0;
+//    }
+//    REAL sum1 = 0;
+//
+//    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
+//    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
+//        /* load one row of matrices */
+//        if (patIdx < BLOCK_PEELING_SIZE_B) {
+//            /* These are all coherent global memory reads. */
+//            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
+//            /* sMatrix now filled with starting in state and ending in i */
+//            matrix1 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
+//        }
+//        KW_LOCAL_FENCE;
+//        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
+//            FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
+//        }
+//        KW_LOCAL_FENCE;
+//    }
+//
+//
+//    if (pattern < totalPatterns) {
+//        partials3[state] = sum1;
+//    }
+//
+//
+//    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
+//    /* These are all coherent global memory reads; checked in Profiler */
+//    if (pattern < totalPatterns && child2PartialIndex >= 0) {
+//        sPartials2[patIdx][state] = partials2[state];
+//    } else {
+//        sPartials2[patIdx][state] = 0;
+//    }
+//
+//    if (patIdx == 0) {
+//        popSizes[state] = sizes[state];
+//    }
+//
+//    REAL sum2 = 0;
+//
+//    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child1TransIndex;
+//    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
+//        /* load one row of matrices */
+//        if (patIdx < BLOCK_PEELING_SIZE_B) {
+//            /* These are all coherent global memory reads. */
+//            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+//            /* sMatrix now filled with starting in state and ending in i */
+//            matrix2 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
+//        }
+//        KW_LOCAL_FENCE;
+//        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
+//            FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
+//        }
+//        KW_LOCAL_FENCE;
+//    }
+//
+//
+//	if (pattern < totalPatterns && child2PartialIndex >= 0) {
+//		accumulation1[state] = sum1;
+//		accumulation2[state] = sum2;
+//		if (popSizes[state] > 0) {
+//            partials3[state] = sum1 * sum2 / popSizes[state];
+//        } else {
+//            partials3[state] = 0;
+//        }
+//	    sPartials3[patIdx][state] = partials3[state];
+//
+//#ifdef IS_POWER_OF_TWO
+//	    // parallelized reduction *** only works for powers-of-2 ****
+//	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+//	        if (state < i) {
+//#else
+//	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+//	        if (state < i && state + i < PADDED_STATE_COUNT) {
+//#endif // IS_POWER_OF_TWO
+//	            sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
+//	        }
+//	        KW_LOCAL_FENCE;
+//	    }
+//		REAL denominator = sPartials3[patIdx][0];
+//		partials3[state] = partials3[state] / denominator;
+//		coalescent[intervalNumber] = denominator;
+//    }
+//}
+
+
 KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
                                                     KW_GLOBAL_VAR int* KW_RESTRICT operations,
@@ -1997,11 +2136,11 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     int op = pattern + start;
 
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
-
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
     KW_LOCAL_MEM int shared_buffer[PATTERN_BLOCK_SIZE_B * 8];
-
 
     if (state < 8) {
       shared_buffer[patIdx * numOps + state] = operations[op * numOps + state];
@@ -2022,19 +2161,22 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
 	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
 	KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
-    KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
+
 
     if (pattern < totalPatterns) {
         sPartials1[patIdx][state] = partials1[state];
-        //printf("op %d \n",  op);
-        //printf("index %d \n",  child1PartialIndex);
-        //printf("partials1 %1.2e \n",  partials1[state]);
     } else {
         sPartials1[patIdx][state] = 0;
     }
     REAL sum1 = 0;
+
+    if (pattern < totalPatterns && child2PartialIndex >= 0) {
+        sPartials2[patIdx][state] = partials2[state];
+    } else {
+        sPartials2[patIdx][state] = 0;
+    }
+
+    REAL sum2 = 0;
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
@@ -2048,6 +2190,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         KW_LOCAL_FENCE;
         for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
             FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
+            FMA(sMatrix1[j][state], sPartials2[patIdx][i + j], sum2);
         }
         KW_LOCAL_FENCE;
     }
@@ -2060,32 +2203,10 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
     /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
     /* These are all coherent global memory reads; checked in Profiler */
-    if (pattern < totalPatterns && child2PartialIndex >= 0) {
-        sPartials2[patIdx][state] = partials2[state];
-    } else {
-        sPartials2[patIdx][state] = 0;
-    }
+
 
     if (patIdx == 0) {
         popSizes[state] = sizes[state];
-    }
-
-    REAL sum2 = 0;
-
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child1TransIndex;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
-        /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE_B) {
-            /* These are all coherent global memory reads. */
-            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix2 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
-        }
-        KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
-            FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
-        }
-        KW_LOCAL_FENCE;
     }
 
 
@@ -2116,8 +2237,6 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 		coalescent[intervalNumber] = denominator;
     }
 }
-
-
 
 //KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* e,
                                                     //KW_GLOBAL_VAR REAL*  f,
