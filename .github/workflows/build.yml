@@ -65,7 +65,7 @@ jobs:
             arch: "mac-arm64"
 
           - name: windows
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             compiler: mingw
             version: "N/A"
             buildtype: "release"
