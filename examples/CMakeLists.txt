@@ -72,6 +72,10 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+add_executable(hellobeagle
+		standalone/hellobeagle/hello.cpp)
+target_link_libraries(hellobeagle hmsbeagle)
+
 #target_link_libraries(hmctest5 hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(hmcGaptest hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
