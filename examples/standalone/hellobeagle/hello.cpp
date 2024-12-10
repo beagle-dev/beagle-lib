@@ -3,8 +3,8 @@
  * @author Aaron Darling
  */
 
-#include <config.h>
-#include <libhmsbeagle/beagle.h>
+/*#include <config.h>*/
+#include "libhmsbeagle/beagle.h"
 #include <iostream>
 #include <string>
 #include <vector>
