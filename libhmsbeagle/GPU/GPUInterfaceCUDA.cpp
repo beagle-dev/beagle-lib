@@ -42,6 +42,8 @@
             BLOCK_PEELING_SIZE_##prec##_##state, \
             SLOW_REWEIGHING_##prec##_##state, \
             MULTIPLY_BLOCK_SIZE_##prec, \
+            SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
+            SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
             0,0,0,0);
 
 namespace cuda_device {

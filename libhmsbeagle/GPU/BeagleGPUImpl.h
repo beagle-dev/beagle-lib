@@ -89,6 +89,8 @@ private:
 
     int kResultPaddedPatterns;
 
+	int kSumIntervalBlockSize;
+	int kSumAcrossBlockSize;
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
@@ -221,7 +223,6 @@ private:
 	GPUPtr dBastaDistance;
 	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
-	GPUPtr dBastaInterval;
 	GPUPtr dBastaFlags;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
@@ -229,14 +230,9 @@ private:
 
 
 	int* hBastaOperationQueue;
-	Real* hBastaSubintervals;
-	Real* hBastaFinalKeys;
-	Real* hBastaFinalSubintervals;
-	Real* hBastaInterval;
 	Real* hBastaLogL;
 	Real* hBastaDistance;
 	Real* hBastazeroes;
-	Real* hBastaFinalResMemory;
 	Real* hBastaMemory;
 
 public:
