@@ -2309,7 +2309,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
         if (bufferLength > kCoalescentBufferLength || initial == 1) {
             kCoalescentBufferLength = bufferLength;
-            kBastaIntervalBlockCount = kCoalescentBufferLength * kSumAcrossBlockSize + 1;
+            kBastaIntervalBlockCount = kCoalescentBufferLength / kSumAcrossBlockSize + 1;
             if (initial == 0) {
                 if (dCoalescentBuffers != (GPUPtr)NULL) {
                     gpu->FreeMemory(dCoalescentBuffers);
