@@ -2110,6 +2110,8 @@ if (sameTransIndex) {
         }
 	    sPartials3[patIdx][state] = partials3[state];
 
+        KW_LOCAL_FENCE;
+        
 #ifdef IS_POWER_OF_TWO
 	    // parallelized reduction *** only works for powers-of-2 ****
 	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
