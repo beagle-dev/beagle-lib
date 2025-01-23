@@ -2013,41 +2013,26 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
                                                     int numOps,
                                                     int totalPatterns) {
 
-    #define BLOCK_PEELING_SIZE 4
-
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
     int pattern = __umul24(KW_GROUP_ID_0,SUM_ACROSS_BLOCK_SIZE) + patIdx;
     int op = pattern + start;
+    int maxOp = start + totalPatterns - 1;
     int sameTransIndex = 1;
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials3[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials2[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM int shared_buffer[SUM_ACROSS_BLOCK_SIZE * 8];
 
-    int loadPasses = (PADDED_STATE_COUNT <= 4) ? 2 : 1;
-
-	for (int pass = 0; pass < loadPasses; pass++) {
-        int globalIdx = op * numOps + pass * 4 + state;
-        int sharedIdx = patIdx * numOps + pass * 4 + state;
-    	if (state < 8) {
-            shared_buffer[sharedIdx] = operations[globalIdx];
-        }
-    }
-
-    KW_LOCAL_FENCE;
-
-    int desIndex = shared_buffer[patIdx * numOps];
-    int child1PartialIndex = shared_buffer[patIdx * numOps + 1];
-    int child1TransIndex = shared_buffer[2];
-    int child2PartialIndex = shared_buffer[patIdx * numOps + 3];
-    int child2TransIndex = shared_buffer[4];
-    int accumulation1PartialIndex = shared_buffer[patIdx * numOps + 5];
-    int accumulation2PartialIndex = shared_buffer[patIdx * numOps + 6];
-    int intervalNumber = shared_buffer[patIdx * numOps + 7];
+    int desIndex = operations[op * numOps];
+    int child1PartialIndex = operations[op * numOps + 1];
+    int child1TransIndex = operations[maxOp * numOps + 2];
+    int child2PartialIndex = operations[op * numOps + 3];
+    int child2TransIndex = operations[maxOp * numOps + 4];
+    int accumulation1PartialIndex = operations[op * numOps + 5];
+    int accumulation2PartialIndex = operations[op * numOps + 6];
+    int intervalNumber = operations[op * numOps + 7];;
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
@@ -2071,21 +2056,33 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
     REAL sum2 = 0;
 
-if (sameTransIndex) {
+
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child2TransIndex;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
         /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE) {
+        if (patIdx < BLOCK_PEELING_SIZE_SCA) {
             /* These are all coherent global memory reads. */
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
             /* sMatrix now filled with starting in state and ending in i */
-            matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
+            matrix1 += BLOCK_PEELING_SIZE_SCA * PADDED_STATE_COUNT;
+            if (!sameTransIndex) {
+          		sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
+                matrix2 += BLOCK_PEELING_SIZE_SCA * PADDED_STATE_COUNT;
+        	}
         }
         KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-            FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-            FMA(sMatrix1[j][state], sPartials2[patIdx][i + j], sum2);
-        }
+        if (sameTransIndex) {
+        	for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+            	FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
+            	FMA(sMatrix1[j][state], sPartials2[patIdx][i + j], sum2);
+        	}
+        } else {
+            for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+            	FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
+            	FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
+        	}
+         }
         KW_LOCAL_FENCE;
     }
 
@@ -2108,7 +2105,7 @@ if (sameTransIndex) {
         } else {
             partials3[state] = 0;
         }
-	    sPartials3[patIdx][state] = partials3[state];
+	    sPartials1[patIdx][state] = partials3[state];
 
         KW_LOCAL_FENCE;
         
@@ -2120,81 +2117,17 @@ if (sameTransIndex) {
 	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
 	        if (state < i && state + i < PADDED_STATE_COUNT) {
 #endif // IS_POWER_OF_TWO
-	            sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
+	            sPartials1[patIdx][state] += sPartials1[patIdx][state + i];
 	        }
 	        KW_LOCAL_FENCE;
 	    }
 
-		REAL denominator = sPartials3[patIdx][0];
+		REAL denominator = sPartials1[patIdx][0];
 		partials3[state] = partials3[state] / denominator;
 
 
 		coalescent[intervalNumber] = denominator;
     }
-} else {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-            if (patIdx < BLOCK_PEELING_SIZE) {
-                sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-                matrix1 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            }
-            KW_LOCAL_FENCE;
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-                FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        if (pattern < totalPatterns) {
-            partials3[state] = sum1;
-        }
-
-        if (patIdx == 0) {
-            popSizes[state] = sizes[state];
-        }
-
-        KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child2TransIndex;
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-            if (patIdx < BLOCK_PEELING_SIZE) {
-                sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-                matrix2 += BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            }
-            KW_LOCAL_FENCE;
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-                FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        if (pattern < totalPatterns && child2PartialIndex >= 0) {
-            accumulation1[state] = sum1;
-            accumulation2[state] = sum2;
-            if (popSizes[state] > 0) {
-                partials3[state] = (sum1 * sum2) / popSizes[state];
-            } else {
-                partials3[state] = 0;
-            }
-            sPartials3[patIdx][state] = partials3[state];
-
-#ifdef IS_POWER_OF_TWO
-            // parallelized reduction
-            for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-                if (state < i) {
-#else
-            for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-                if (state < i && state + i < PADDED_STATE_COUNT) {
-#endif
-                    sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
-                }
-                KW_LOCAL_FENCE;
-            }
-
-            REAL denominator = sPartials3[patIdx][0];
-            partials3[state] = partials3[state] / denominator;
-            coalescent[intervalNumber] = denominator;
-        }
-
-}
 }
 
 //KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* e,
@@ -2260,444 +2193,6 @@ if (sameTransIndex) {
 	//}
 //}
 
-KW_GLOBAL_KERNEL void kernelAccumulateCarryOutFinal(KW_GLOBAL_VAR REAL* dBastaFinalResMemory,
-                                                KW_GLOBAL_VAR REAL* dBastaMemory,
-                                                KW_GLOBAL_VAR REAL* intervals,
-                                                int numSubinterval,
-                                                int numSubintervalFinal,
-                                                int kCoalescentBufferLength) {
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-	        int state = KW_LOCAL_ID_0;
-	        int opIdx = KW_LOCAL_ID_1;
-	        int opBlock = KW_GROUP_ID_0;
-	        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-	        int opCount = numSubintervalFinal;
-            int u = opNumber * PADDED_STATE_COUNT;
-
-	        KW_GLOBAL_VAR REAL* e = dBastaMemory;
-	        KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* keys = intervals + 2 * numSubinterval;
-
-	        KW_LOCAL_MEM REAL sResE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-
-            if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-                int m = numSubintervalFinal * PADDED_STATE_COUNT;
-                sSegmentKeys[opIdx] = keys[opNumber];
-                sResE[opIdx][state] = dBastaFinalResMemory[u + state];
-                sResF[opIdx][state] = dBastaFinalResMemory[m + u + state];
-                sResG[opIdx][state] = dBastaFinalResMemory[2 * m + u + state];
-                sResH[opIdx][state] = dBastaFinalResMemory[3 * m + u + state];
-            } else {
-                sSegmentKeys[opIdx] = -1;
-                sResE[opIdx][state] = 0;
-                sResF[opIdx][state] = 0;
-                sResG[opIdx][state]= 0;
-                sResH[opIdx][state] = 0;
-            }
-
-            KW_LOCAL_FENCE;
-
-	        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-	            int intervalNumber = sSegmentKeys[opIdx];
-	            int y = intervalNumber * PADDED_STATE_COUNT;
-#if (defined CUDA)
-                atomicAdd(&e[y + state], sResE[opIdx][state]);
-                atomicAdd(&f[y + state], sResF[opIdx][state]);
-                atomicAdd(&g[y + state], sResG[opIdx][state]);
-                atomicAdd(&h[y + state], sResH[opIdx][state]);
-#endif
-            }
-}
-
-KW_GLOBAL_KERNEL void kernelPreProcessBastaFlags(KW_GLOBAL_VAR REAL* KW_RESTRICT intervals,
-                                                                    KW_GLOBAL_VAR REAL* flags,
-                                                                    KW_GLOBAL_VAR REAL* blockEnds,
-                                                                    int operationCount,
-                                                                    int numBlocks) {
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-        int opIdx = KW_LOCAL_ID_0;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_0 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-        if (opNumber < operationCount) {
-            if (opNumber == 0 || intervals[opNumber] != intervals[opNumber - 1]) {
-                flags[opNumber] = 1;
-            } else {
-                flags[opNumber] = 0;
-            }
-        }
-
-        KW_LOCAL_FENCE;
-
-        if (opBlock < numBlocks && opIdx == 0) {
-            int start_index = opBlock * blockSize;
-            int end_index = min(start_index + blockSize - 1, operationCount - 1);
-            blockEnds[opBlock] = intervals[end_index];
-        }
-}
-
-
-KW_GLOBAL_KERNEL void kernelAccumulateCarryOut(KW_GLOBAL_VAR REAL* dBastaBlockResMemory,
-                                                KW_GLOBAL_VAR REAL* dBastaFinalResMemory,
-                                                KW_GLOBAL_VAR REAL* intervals,
-                                                int numSubinterval,
-                                                int numSubintervalFinal) {
-
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-        int state = KW_LOCAL_ID_0;
-        int opIdx = KW_LOCAL_ID_1;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int opCount = numSubinterval;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-	    KW_GLOBAL_VAR REAL* e = dBastaFinalResMemory;
-	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* flags = intervals + numSubinterval;
-
-        KW_LOCAL_MEM REAL sPartialsE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-        KW_LOCAL_MEM REAL sSegmentFlags[SUM_PARTIAL_BLOCK_SIZE_B];
-
-        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-            int op = opNumber;
-            int u = op * PADDED_STATE_COUNT;
-            int m = numSubinterval * PADDED_STATE_COUNT;
-            sSegmentFlags[opIdx] = flags[op];
-            sSegmentKeys[opIdx] = intervals[op];
-            sPartialsE[opIdx][state] = dBastaBlockResMemory[u + state];
-            sPartialsF[opIdx][state] = dBastaBlockResMemory[m + u + state];
-            sPartialsG[opIdx][state] = dBastaBlockResMemory[2 * m + u + state];
-            sPartialsH[opIdx][state] = dBastaBlockResMemory[3 * m + u + state];
-
-        } else {
-            sPartialsE[opIdx][state] = 0;
-            sPartialsF[opIdx][state] = 0;
-            sPartialsG[opIdx][state] = 0;
-            sPartialsH[opIdx][state] = 0;
-            sSegmentKeys[opIdx] = -1;
-            sSegmentFlags[opIdx] = 0;
-        }
-
-        KW_LOCAL_FENCE;
-
-
-        int intervalNumber = sSegmentKeys[opIdx];
-        int y = intervalNumber * PADDED_STATE_COUNT;
-        for (int stride = 1; stride < blockSize; stride *= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k < blockSize) {
-                if (sSegmentFlags[k] == 0) {
-                    sPartialsE[k][state] += sPartialsE[k - stride][state];
-                    sPartialsF[k][state] += sPartialsF[k - stride][state];
-                    sPartialsG[k][state] += sPartialsG[k - stride][state];
-                    sPartialsH[k][state] += sPartialsH[k - stride][state];
-                    sSegmentFlags[k] = sSegmentFlags[k - stride];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        for (int stride = blockSize / 2; stride > 0; stride /= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k  + stride < blockSize) {
-                if (sSegmentFlags[k + stride] == 0) {
-                    sPartialsE[k + stride][state] += sPartialsE[k][state];
-                    sPartialsF[k + stride][state] += sPartialsF[k][state];
-                    sPartialsG[k + stride][state] += sPartialsG[k][state];
-                    sPartialsH[k + stride][state] += sPartialsH[k][state];
-                    sSegmentFlags[k + stride] = sSegmentFlags[k];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-	    if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1] && (opIdx < blockSize - 1) && (opNumber < opCount -1)) {
-	        e[y + state] = sPartialsE[opIdx][state];
-	        f[y + state] = sPartialsF[opIdx][state];
-	        g[y + state] = sPartialsG[opIdx][state];
-	        h[y + state] = sPartialsH[opIdx][state];
-	    }
-
-        if (opIdx == blockSize - 1 && (opNumber < opCount -1) || opNumber == opCount -1) {
-            e[y + state] = sPartialsE[opIdx][state];
-            f[y + state] = sPartialsF[opIdx][state];
-            g[y + state] = sPartialsG[opIdx][state];
-            h[y + state] = sPartialsH[opIdx][state];
-        }
-
-
-}
-
-
-KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalSerial(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                            KW_GLOBAL_VAR REAL* distance,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
-                                                            int numOps,
-                                                            int start,
-                                                            int end,
-                                                            int intervalStartsCount) {
-
-	int intervalCount = intervalStartsCount - 1;
-	int tid = KW_LOCAL_ID_0;
-	int tidTotal = __umul24(KW_GROUP_ID_0, SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
-	int state = tid % PADDED_STATE_COUNT;
-	int intervalIdx = tid / PADDED_STATE_COUNT;
-	int intervalNumber = __umul24(KW_GROUP_ID_0, SUM_INTERVAL_BLOCK_SIZE) + intervalIdx;
-	//int u = state + intervalNumber * PADDED_STATE_COUNT;
-    //int opCount = end - start;
-
-	REAL partialE = 0.0;
-	REAL partialF = 0.0;
-	REAL partialG = 0.0;
-	REAL partialH = 0.0;
-
-	for (int opIdx = start; opIdx < end; ++opIdx) {
-	    int opBaseIndex = opIdx * numOps;
-	    int opIntervalNumber = operations[opBaseIndex + 7];
-
-	    if (opIntervalNumber == intervalNumber) {
-	        // Perform per-state computations
-
-	        int child2PartialIndex = operations[opBaseIndex + 3];
-	        if (child2PartialIndex >= 0) {
-	            int accumulation2PartialIndex = operations[opBaseIndex + 6];
-	            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-	            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
-
-	            REAL startPartial2 = startPartials2[state];
-	            REAL endPartial2 = endPartials2[state];
-
-	            partialE += startPartial2;
-	            partialF += startPartial2 * startPartial2;
-	            partialG += endPartial2;
-	            partialH += endPartial2 * endPartial2;
-	        }
-
-	        int child1PartialIndex = operations[opBaseIndex + 1];
-	        int accumulation1PartialIndex = operations[opBaseIndex + 5];
-	        KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-	        KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-
-	        REAL startPartial1 = startPartials1[state];
-	        REAL endPartial1 = endPartials1[state];
-
-	        partialE += startPartial1;
-	        partialF += startPartial1 * startPartial1;
-	        partialG += endPartial1;
-	        partialH += endPartial1 * endPartial1;
-
-	        // If there is a second child, fetch its partials
-	    }
-	}
-
-
-//	        if (KW_GROUP_ID_0 == 6) {
-//                 printf("interval %d\n", intervalNumber);
-//	            printf("state %d\n", state);
-//	            printf("addedE %1.2e\n",  partialE);
-//	            printf("addedF %1.2e\n",  partialF);
-//	            printf("addedG %1.2e\n",  partialG);
-//	            printf("addedH %1.2e\n",  partialH);
-//
-//                   }
-
-	REAL sPartial1 = 0.0;
-	REAL sPartial2 = 0.0;
-    //REAL d = distance[intervalNumber];
-	if (intervalNumber < intervalCount && (sizes[state] > 0)) {
-	    sPartial1 = (partialE * partialE - partialF + partialG * partialG - partialH) / sizes[state];
-//	    if (KW_GROUP_ID_0 == 0) {
-//	        printf("interval %d\n", intervalNumber);
-//	        printf("state %d\n", state);
-//	        printf("distance %f\n",  d);
-//	    }
-	} else {
-	    sPartial1 = 0;
-	}
-
-	int u = intervalNumber * PADDED_STATE_COUNT + state;
-	if (tidTotal < intervalCount && (coalescent[u] != 0)) {
-	    sPartial2 = log(coalescent[u]);
-	} else {
-	    sPartial2 = 0;
-	}
-
-
-	KW_LOCAL_MEM REAL sPartials1[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
-	KW_LOCAL_MEM REAL sPartials2[SUM_INTERVAL_BLOCK_SIZE];
-
-	sPartials1[tid] = sPartial1;
-	sPartials2[tid] = sPartial2;
-
-	KW_LOCAL_FENCE;
-
-
-	// Perform reduction over states and intervals within the block
-	int totalThreads = SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT;
-	for (int stride = totalThreads / 2; stride > 0; stride >>= 1) {
-	    if (tid < stride) {
-	        sPartials1[tid] += sPartials1[tid + stride];
-	        sPartials2[tid] += sPartials2[tid + stride];
-	    }
-	    KW_LOCAL_FENCE;
-	}
-
-
-	if (tid == 0) {
-	    REAL temp = -sPartials1[0] / 4.0 + sPartials2[0];
-	    dLogL[KW_GROUP_ID_0] = temp;
-	}
-}
-
-KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                            KW_GLOBAL_VAR REAL* dBastaBlockResMemory,
-                                                            KW_GLOBAL_VAR REAL* intervals,
-                                                            int numOps,
-                                                            int start,
-                                                            int end,
-                                                            int numSubinterval) {
-
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-
-        int state = KW_LOCAL_ID_0;
-        int opIdx = KW_LOCAL_ID_1;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int opCount = end - start;
-        // int opCountLast = opCount % SUM_PARTIAL_BLOCK_SIZE_B;
-        // int blockSize = (SUM_PARTIAL_BLOCK_SIZE_B > opCountLast) ? opCountLast : SUM_PARTIAL_BLOCK_SIZE_B;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-	    KW_GLOBAL_VAR REAL* e = dBastaBlockResMemory;
-	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* flags = intervals + end;
-
-        KW_LOCAL_MEM REAL sPartialsE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-        KW_LOCAL_MEM REAL sSegmentFlags[SUM_PARTIAL_BLOCK_SIZE_B];
-
-        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-            int op = opNumber + start;
-            int child1PartialIndex = operations[op * numOps + 1];
-            int accumulation1PartialIndex = operations[op * numOps + 5];
-            KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-            KW_GLOBAL_VAR REAL* partialIntervals = intervals + start;
-            sSegmentFlags[opIdx] = flags[op];
-            sSegmentKeys[opIdx] = partialIntervals[op];
-            sPartialsE[opIdx][state] = startPartials1[state];
-            sPartialsF[opIdx][state] = startPartials1[state] * startPartials1[state];
-            sPartialsG[opIdx][state] = endPartials1[state];
-            sPartialsH[opIdx][state] = endPartials1[state] * endPartials1[state];
-        } else {
-            sPartialsE[opIdx][state] = 0;
-            sPartialsF[opIdx][state] = 0;
-            sPartialsG[opIdx][state] = 0;
-            sPartialsH[opIdx][state] = 0;
-            sSegmentKeys[opIdx] = -1;
-            sSegmentFlags[opIdx] = 0;
-        }
-
-        KW_LOCAL_FENCE;
-
-
-        int intervalNumber = sSegmentKeys[opIdx];
-        int y = intervalNumber * PADDED_STATE_COUNT;
-
-        if (opNumber < opCount && state < PADDED_STATE_COUNT) {
-            int op = opNumber + start;
-            int child2PartialIndex = operations[op * numOps + 3];
-            int accumulation2PartialIndex = operations[op * numOps + 6];
-            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
-            e[y + state] = 0;
-            f[y + state] = 0;
-            g[y + state] = 0;
-            h[y + state] = 0;
-
-            KW_LOCAL_FENCE;
-
-            if (child2PartialIndex >= 0) {
-                e[y + state] = startPartials2[state];
-                f[y + state] = startPartials2[state] * startPartials2[state];
-                g[y + state] = endPartials2[state];
-                h[y + state] = endPartials2[state] * endPartials2[state];
-            }
-        }
-
-        for (int stride = 1; stride < blockSize; stride *= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k < blockSize) {
-                if (sSegmentFlags[k] == 0) {
-                    sPartialsE[k][state] += sPartialsE[k - stride][state];
-                    sPartialsF[k][state] += sPartialsF[k - stride][state];
-                    sPartialsG[k][state] += sPartialsG[k - stride][state];
-                    sPartialsH[k][state] += sPartialsH[k - stride][state];
-                    sSegmentFlags[k] = sSegmentFlags[k - stride];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        for (int stride = blockSize / 2; stride > 0; stride /= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k  + stride < blockSize) {
-                if (sSegmentFlags[k + stride] == 0) {
-                    sPartialsE[k + stride][state] += sPartialsE[k][state];
-                    sPartialsF[k + stride][state] += sPartialsF[k][state];
-                    sPartialsG[k + stride][state] += sPartialsG[k][state];
-                    sPartialsH[k + stride][state] += sPartialsH[k][state];
-                    sSegmentFlags[k + stride] = sSegmentFlags[k];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        //if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1]) {
-            //if (sSegmentFlags[opIdx] == 0) {
-                //sPartialsE[opIdx][state] += sPartialsE[opIdx - 1][state];
-                //sPartialsF[opIdx][state] += sPartialsF[opIdx - 1][state];
-                //sPartialsG[opIdx][state] += sPartialsG[opIdx - 1][state];
-                //sPartialsH[opIdx][state] += sPartialsH[opIdx - 1][state];
-            //}
-        //}
-
-        if (opIdx == blockSize - 1 && (opNumber < opCount -1) || opNumber == opCount -1) {
-            e[y + state] += sPartialsE[opIdx][state];
-            f[y + state] += sPartialsF[opIdx][state];
-            g[y + state] += sPartialsG[opIdx][state];
-            h[y + state] += sPartialsH[opIdx][state];
-        }
-
-        if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1] && (opIdx < blockSize - 1) && (opNumber < opCount -1)) {
-            e[y + state] += sPartialsE[opIdx][state];
-            f[y + state] += sPartialsF[opIdx][state];
-            g[y + state] += sPartialsG[opIdx][state];
-            h[y + state] += sPartialsH[opIdx][state];
-       }
-}
 
 
 
@@ -2729,7 +2224,6 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
     KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
     KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
-    KW_LOCAL_MEM int shared_buffer[5 * SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
 // 	KW_LOCAL_MEM int shared_child1PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
 // 	KW_LOCAL_MEM int shared_child2PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
 // 	KW_LOCAL_MEM int shared_accumulation1PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
@@ -2758,29 +2252,15 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     REAL carryOutG = 0;
     REAL carryOutH = 0;
 
-    if (state < 5) {
-          for (int op = opStart; op < opEnd; ++op) {
-            int offset = 5 * (op - opStart);
-        	int opOffset = op * numOps;
-            int index = (state < 3) ? 2 * state + 1 : state + 3;
-        	shared_buffer[5 * threadId * OPS_PER_THREAD + offset + state] = operations[opOffset + index];
-            if (PADDED_STATE_COUNT == 4 && state == 3) {
-      		shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 4] = operations[opOffset + index + 1];
-    		}
-          }
-   	}
-
-	KW_LOCAL_FENCE;
 
 
      if (state < PADDED_STATE_COUNT && next_op < opEnd) {
         int op = next_op;
-		int offset = 5 * (op - opStart);
-        int child1PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset];
-    	int child2PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 1];
-    	int accumulation1PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 2];
-    	int accumulation2PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 3];
-    	int segmentKey = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 4];
+		int child1PartialIndex = operations[op * numOps + 1];
+		int child2PartialIndex = operations[op * numOps + 3];
+		int accumulation1PartialIndex = operations[op * numOps + 5];
+		int accumulation2PartialIndex = operations[op * numOps + 6];
+		int segmentKey = operations[op * numOps + 7];
 
         KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
         KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
@@ -2820,13 +2300,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
         next_op = idx + 1;
         if (state < PADDED_STATE_COUNT && next_op < opEnd) {
             int op = next_op;
-            int offset = 5 * (op - opStart);
-
-        	int child1PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset];
-    		int child2PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 1];
-    		int accumulation1PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 2];
-    		int accumulation2PartialIndex = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 3];
-    		int segmentKeyNext = shared_buffer[5 * threadId * OPS_PER_THREAD + offset + 4];
+			int child1PartialIndex = operations[op * numOps + 1];
+			int child2PartialIndex = operations[op * numOps + 3];
+			int accumulation1PartialIndex = operations[op * numOps + 5];
+			int accumulation2PartialIndex = operations[op * numOps + 6];
+			int segmentKeyNext = operations[op * numOps + 7];
 
             KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
             KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
@@ -2961,13 +2439,14 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 
     if (threadId == SUM_INTERVAL_BLOCK_SIZE - 1 || sCarryOutSegmentKeys[threadId] != sCarryOutSegmentKeys[threadId + 1]) {
         int reducedKey = sCarryOutSegmentKeys[threadId];
-        int u = reducedKey * PADDED_STATE_COUNT + state;
+        if (reducedKey >= 0) {
+    		int u = reducedKey * PADDED_STATE_COUNT + state;
 
-        atomicAdd(&e[u], sCarryOutE[threadId][state]);
-        atomicAdd(&f[u], sCarryOutF[threadId][state]);
-        atomicAdd(&g[u], sCarryOutG[threadId][state]);
-        atomicAdd(&h[u], sCarryOutH[threadId][state]);
-
+    		atomicAdd(&e[u], sCarryOutE[threadId][state]);
+    		atomicAdd(&f[u], sCarryOutF[threadId][state]);
+    		atomicAdd(&g[u], sCarryOutG[threadId][state]);
+    		atomicAdd(&h[u], sCarryOutH[threadId][state]);
+		}
     }
 }
 
@@ -2994,20 +2473,12 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
 
         KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartials2[SUM_ACROSS_BLOCK_SIZE];
 
         if (intervalNumber < intervalCount && (sizes[state] > 0)) {
             sPartials1[tid] = (e[u] * e[u] - f[u] +
                                  g[u] * g[u] - h[u]) * distance[intervalNumber] / sizes[state];
         } else {
             sPartials1[tid] = 0;
-        }
-        KW_LOCAL_FENCE;
-
-        if (tidTotal < intervalCount && (coalescent[tidTotal] > 0)) {
-            sPartials2[tid] = log(coalescent[tidTotal]);
-        } else {
-            sPartials2[tid] = 0;
         }
         KW_LOCAL_FENCE;
 
@@ -3019,15 +2490,26 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
             KW_LOCAL_FENCE;
         }
 
+
+        REAL temp = - sPartials1[0] / 4;
+
+        if (tidTotal < intervalCount && (coalescent[tidTotal] > 0)) {
+            sPartials1[tid] = log(coalescent[tidTotal]);
+        } else {
+            sPartials1[tid] = 0;
+        }
+
+        KW_LOCAL_FENCE;
+
         for (int i = SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
             if (tid < i) {
-                sPartials2[tid] += sPartials2[tid + i];
+                sPartials1[tid] += sPartials1[tid + i];
             }
             KW_LOCAL_FENCE;
         }
 
         if (tid == 0) {
-            REAL temp = - sPartials1[0] / 4 + sPartials2[0];
+            temp = temp + sPartials1[0];
             dLogL[KW_GROUP_ID_0] = temp;
         }
     }

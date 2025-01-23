@@ -419,13 +419,8 @@ void KernelLauncher::LoadKernels() {
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
     fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
-    fReduceWithinInterval = gpu->GetFunction("kernelBastaReduceWithinInterval");
-    fReduceWithinIntervalSerial = gpu->GetFunction("kernelBastaReduceWithinIntervalSerial");
     fReduceWithinIntervalMerged = gpu->GetFunction("kernelBastaReduceWithinIntervalMerged");
     fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
-    fPreProcessBastaFlags = gpu->GetFunction("kernelPreProcessBastaFlags");
-    fAccumulateCarryOut = gpu->GetFunction("kernelAccumulateCarryOut");
-    fAccumulateCarryOutFinal = gpu->GetFunction("kernelAccumulateCarryOutFinal");
 
 
     fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");

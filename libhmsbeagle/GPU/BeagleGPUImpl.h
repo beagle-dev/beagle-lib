@@ -214,26 +214,20 @@ private:
 
     int* hStreamIndices;
 
-	GPUPtr dBastaBuffers;
-	GPUPtr dBastaBlockResMemory;
-	GPUPtr dBastaFinalResMemory;
+
 	GPUPtr dBastaMemory;
-	GPUPtr dBlockSegmentKeysEnd;
 	GPUPtr dBastaLogL;
 	GPUPtr dBastaDistance;
 	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
-	GPUPtr dBastaFlags;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
-
 
 	int* hBastaOperationQueue;
 	Real* hBastaLogL;
 	Real* hBastaDistance;
 	Real* hBastazeroes;
-	Real* hBastaMemory;
 
 public:
     BeagleGPUImpl();

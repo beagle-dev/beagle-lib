@@ -171,6 +171,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_4             0
 #define SUM_INTERVAL_BLOCK_SIZE_SP_4     64
 #define SUM_ACROSS_BLOCK_SIZE_SP_4       32
+#define BLOCK_PEELING_SIZE_SCA_SP_4      4
 
 // PADDED_STATE_COUNT == 16
 // TODO: find optimal settings
@@ -182,6 +183,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_16            0
 #define SUM_INTERVAL_BLOCK_SIZE_SP_16    16
 #define SUM_ACROSS_BLOCK_SIZE_SP_16      8
+#define BLOCK_PEELING_SIZE_SCA_SP_16     4
 
 // PADDED_STATE_COUNT == 32
 // TODO: find optimal settings
@@ -193,6 +195,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_32            0
 #define SUM_INTERVAL_BLOCK_SIZE_SP_32    8
 #define SUM_ACROSS_BLOCK_SIZE_SP_32      4
+#define BLOCK_PEELING_SIZE_SCA_SP_32     4
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_SP_48         8
@@ -206,6 +209,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_48            0
 #define SUM_INTERVAL_BLOCK_SIZE_SP_48    4
 #define SUM_ACROSS_BLOCK_SIZE_SP_48      2
+#define BLOCK_PEELING_SIZE_SCA_SP_48     2
 
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_SP_64         8
@@ -219,6 +223,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_64            0
 #define SUM_INTERVAL_BLOCK_SIZE_SP_64    4
 #define SUM_ACROSS_BLOCK_SIZE_SP_64      2
+#define BLOCK_PEELING_SIZE_SCA_SP_64     2
 
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_SP_80         8
@@ -232,6 +237,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_80            1
 #define SUM_INTERVAL_BLOCK_SIZE_SP_80    2
 #define SUM_ACROSS_BLOCK_SIZE_SP_80      1
+#define BLOCK_PEELING_SIZE_SCA_SP_80     2
 
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_SP_128        4
@@ -245,6 +251,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_128           1
 #define SUM_INTERVAL_BLOCK_SIZE_SP_128   2
 #define SUM_ACROSS_BLOCK_SIZE_SP_128     1
+#define BLOCK_PEELING_SIZE_SCA_SP_128    1
 
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_SP_192        2
@@ -258,6 +265,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_192           1
 #define SUM_INTERVAL_BLOCK_SIZE_SP_192   1
 #define SUM_ACROSS_BLOCK_SIZE_SP_192     1
+#define BLOCK_PEELING_SIZE_SCA_SP_192    1
 
 // PADDED_STATE_COUNT == 256
 #define PATTERN_BLOCK_SIZE_SP_256        2
@@ -271,6 +279,8 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_SP_256           1
 #define SUM_INTERVAL_BLOCK_SIZE_SP_256   1
 #define SUM_ACROSS_BLOCK_SIZE_SP_256     1
+#define BLOCK_PEELING_SIZE_SCA_SP_256    1
+
 // DOUBLE PRECISION definitions   TODO None of these have been checked
 
 // PADDED_STATE_COUNT == 4
@@ -284,6 +294,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_4             0
 #define SUM_INTERVAL_BLOCK_SIZE_DP_4     64
 #define SUM_ACROSS_BLOCK_SIZE_DP_4       32
+#define BLOCK_PEELING_SIZE_SCA_DP_4      4
 
 // PADDED_STATE_COUNT == 16
 #define PATTERN_BLOCK_SIZE_DP_16         8
@@ -294,6 +305,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_16            0
 #define SUM_INTERVAL_BLOCK_SIZE_DP_16    16
 #define SUM_ACROSS_BLOCK_SIZE_DP_16      8
+#define BLOCK_PEELING_SIZE_SCA_DP_16     4
 
 // PADDED_STATE_COUNT == 32
 #define PATTERN_BLOCK_SIZE_DP_32         8
@@ -304,6 +316,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_32            0
 #define SUM_INTERVAL_BLOCK_SIZE_DP_32    8
 #define SUM_ACROSS_BLOCK_SIZE_DP_32      4
+#define BLOCK_PEELING_SIZE_SCA_DP_32     4
 
 // PADDED_STATE_COUNT == 48
 #define PATTERN_BLOCK_SIZE_DP_48         8
@@ -317,6 +330,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_48            0
 #define SUM_INTERVAL_BLOCK_SIZE_DP_48    4
 #define SUM_ACROSS_BLOCK_SIZE_DP_48      2
+#define BLOCK_PEELING_SIZE_SCA_DP_48     2
 
 // PADDED_STATE_COUNT == 64
 #define PATTERN_BLOCK_SIZE_DP_64         8
@@ -330,6 +344,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_64            0
 #define SUM_INTERVAL_BLOCK_SIZE_DP_64    4
 #define SUM_ACROSS_BLOCK_SIZE_DP_64      2
+#define BLOCK_PEELING_SIZE_SCA_DP_64     2
 
 // PADDED_STATE_COUNT == 80
 #define PATTERN_BLOCK_SIZE_DP_80         8
@@ -343,6 +358,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_80            1
 #define SUM_INTERVAL_BLOCK_SIZE_DP_80    2
 #define SUM_ACROSS_BLOCK_SIZE_DP_80      1
+#define BLOCK_PEELING_SIZE_SCA_DP_80     2
 
 // PADDED_STATE_COUNT == 128
 #define PATTERN_BLOCK_SIZE_DP_128        4
@@ -356,6 +372,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_128           1
 #define SUM_INTERVAL_BLOCK_SIZE_DP_128   2
 #define SUM_ACROSS_BLOCK_SIZE_DP_128     1
+#define BLOCK_PEELING_SIZE_SCA_DP_128    1
 
 // PADDED_STATE_COUNT == 192
 #define PATTERN_BLOCK_SIZE_DP_192        2
@@ -369,6 +386,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_192           1
 #define SUM_INTERVAL_BLOCK_SIZE_DP_192   1
 #define SUM_ACROSS_BLOCK_SIZE_DP_192     1
+#define BLOCK_PEELING_SIZE_SCA_DP_192    1
 
 // PADDED_STATE_COUNT == 256
 #define PATTERN_BLOCK_SIZE_DP_256        2
@@ -382,6 +400,7 @@ enum BeagleDeviceImplementationCodes {
 #define SLOW_REWEIGHING_DP_256           1
 #define SUM_INTERVAL_BLOCK_SIZE_DP_256   1
 #define SUM_ACROSS_BLOCK_SIZE_DP_256     1
+#define BLOCK_PEELING_SIZE_SCA_DP_256    1
 
 #ifdef STATE_COUNT
 #if (STATE_COUNT == 4 || STATE_COUNT == 16 || STATE_COUNT == 32 || STATE_COUNT == 48 || STATE_COUNT == 64 || STATE_COUNT == 80 || STATE_COUNT == 128 || STATE_COUNT == 192 || STATE_COUNT == 256)
@@ -431,6 +450,7 @@ enum BeagleDeviceImplementationCodes {
 #define CHECK_SLOW_REWEIGHING	GET3_VALUE(SLOW_REWEIGHING, PREC, PADDED_STATE_COUNT)
 #define SUM_INTERVAL_BLOCK_SIZE GET3_VALUE(SUM_INTERVAL_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
 #define SUM_ACROSS_BLOCK_SIZE GET3_VALUE(SUM_ACROSS_BLOCK_SIZE, PREC, PADDED_STATE_COUNT)
+#define BLOCK_PEELING_SIZE_SCA GET3_VALUE(BLOCK_PEELING_SIZE_SCA, PREC, PADDED_STATE_COUNT)
 
 #if (CHECK_SLOW_REWEIGHING == 1)
 	#define SLOW_REWEIGHING

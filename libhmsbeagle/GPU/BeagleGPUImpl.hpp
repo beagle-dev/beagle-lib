@@ -79,13 +79,10 @@ namespace gpu {
 
 
     dBastaMemory = (GPUPtr)NULL;
-    dBastaBlockResMemory = (GPUPtr)NULL;
-    dBastaFinalResMemory = (GPUPtr)NULL;
     dBastaLogL = (GPUPtr)NULL;
     dBastaDistance = (GPUPtr)NULL;
     dBastaOperationQueue = (GPUPtr)NULL;
     dCoalescentBuffers = (GPUPtr)NULL;
-    dBastaFlags = (GPUPtr)NULL;
     dEigenValues = NULL;
     dEvec = NULL;
     dIevc = NULL;
@@ -123,7 +120,6 @@ namespace gpu {
     dScalingFactorsMaster = NULL;
 
     hBastaOperationQueue = NULL;
-    hBastaMemory = NULL;
     hBastaLogL = NULL;
     hBastaDistance = NULL;
     hBastazeroes = NULL;
@@ -258,14 +254,10 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(hPartialsOffsets);
         free(hStatesOffsets);
 
-
-        gpu->FreeMemory(dBastaBlockResMemory);
-        gpu->FreeMemory(dBastaFinalResMemory);
         gpu->FreeMemory(dBastaMemory);
         gpu->FreeMemory(dBastaLogL);
         gpu->FreeMemory(dBastaDistance);
         gpu->FreeMemory(dBastaOperationQueue);
-        gpu->FreeMemory(dBastaFlags);
 
         gpu->FreeHostMemory(hPtrQueue);
 
@@ -286,7 +278,6 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeHostMemory(hBastaOperationQueue);
         gpu->FreeHostMemory(hBastaLogL);
         gpu->FreeHostMemory(hBastaDistance);
-        gpu->FreeHostMemory(hBastaMemory);
         gpu->FreeHostMemory(hBastazeroes);
     }
 
@@ -2289,11 +2280,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                 }
 
 
-                if (dBastaFlags != (GPUPtr)NULL) {
-                    gpu->FreeMemory(dBastaFlags);
-                    dBastaFlags = (GPUPtr)NULL;
-                }
-
                 if (hBastaOperationQueue != NULL) {
                     gpu->FreeHostMemory(hBastaOperationQueue);
                     hBastaOperationQueue = NULL;
@@ -2302,8 +2288,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
             hBastaOperationQueue = (int*) gpu->CallocHost(sizeof(int), kBufferCount * 8);
 
-            // Allocate GPU memory as before
-            dBastaFlags = gpu->AllocateMemory(3 * kBufferCount * sizeof(Real));
             dBastaOperationQueue = gpu->AllocateMemory(kBufferCount * 8 * sizeof(int));
         }
 
@@ -2323,14 +2307,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                     gpu->FreeMemory(dBastaMemory);
                     dBastaMemory = (GPUPtr)NULL;
                 }
-                if (dBastaBlockResMemory != (GPUPtr)NULL) {
-                    gpu->FreeMemory(dBastaBlockResMemory);
-                    dBastaBlockResMemory = (GPUPtr)NULL;
-                }
-                if (dBastaFinalResMemory != (GPUPtr)NULL) {
-                    gpu->FreeMemory(dBastaFinalResMemory);
-                    dBastaFinalResMemory = (GPUPtr)NULL;
-                }
+
                 if (dBastaLogL != (GPUPtr)NULL) {
                     gpu->FreeMemory(dBastaLogL);
                     dBastaLogL = (GPUPtr)NULL;
@@ -2344,10 +2321,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                     gpu->FreeHostMemory(hBastaDistance);
                     hBastaDistance = NULL;
                 }
-                if (hBastaMemory != NULL) {
-                    gpu->FreeHostMemory(hBastaMemory);
-                    hBastaMemory = NULL;
-                }
+
                 if (hBastazeroes != NULL) {
                     gpu->FreeHostMemory(hBastazeroes);
                     hBastazeroes = NULL;
@@ -2357,26 +2331,20 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                 dBastaMemory = (GPUPtr)NULL;
                 dBastaLogL = (GPUPtr)NULL;
                 dBastaDistance = (GPUPtr)NULL;
-                dBastaFinalResMemory = (GPUPtr)NULL;
-                dBastaBlockResMemory = (GPUPtr)NULL;
 
 
                 hBastaLogL = NULL;
                 hBastaDistance = NULL;
-                hBastaMemory = NULL;
                 hBastazeroes = NULL;
             }
 
             hBastazeroes = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
-            hBastaMemory = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
             hBastaLogL = (Real*) gpu->CallocHost(sizeof(Real), kBastaIntervalBlockCount);
             hBastaDistance = (Real*) gpu->CallocHost(sizeof(Real), kCoalescentBufferLength);
 
             dCoalescentBuffers = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
             dBastaDistance = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
             dBastaMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
-            dBastaBlockResMemory = gpu->AllocateMemory(4 * kPaddedStateCount * (kCoalescentBufferLength + 4 * kBastaIntervalBlockCount) * sizeof(Real));
-            dBastaFinalResMemory = gpu->AllocateMemory(4 * kPaddedStateCount * (kCoalescentBufferLength + 4 * kBastaIntervalBlockCount) * sizeof(Real));
             dBastaLogL = gpu->AllocateMemory(kBastaIntervalBlockCount * sizeof(Real));
         }
 
@@ -2552,7 +2520,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
                  start, end, numBlocks, kCoalescentBufferLength);
 
 
-    for (int i = 0; i < kCoalescentBufferLength; ++i) {
+    for (int i = 0; i < intervalStartsCount; ++i) {
         hBastaDistance[i] = (Real) intervalLengths[i];
     }
 

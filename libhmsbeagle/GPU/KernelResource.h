@@ -30,6 +30,7 @@ public:
         int inMultiplyBlockSize,
         int inSumIntervalBlockSize,
         int inSumAcrossBlockSize,
+        int inBlockPeelingSizeSCA,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -50,6 +51,7 @@ public:
     int matrixBlockSize;
     int sumIntervalBlockSize;
     int sumAcrossBlockSize;
+    int blockPeelingSizeSCA;
     int blockPeelingSize;
     int isPowerOfTwo;
     int smallestPowerOfTwo;
