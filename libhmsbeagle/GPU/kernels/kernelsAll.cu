@@ -2022,7 +2022,8 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials2[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+	KW_LOCAL_MEM REAL sPartials2[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    //    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
 
     int desIndex = operations[op * numOps];
@@ -2072,17 +2073,18 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         	}
         }
         KW_LOCAL_FENCE;
-        if (sameTransIndex) {
+        REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
         	for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
             	FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-            	FMA(sMatrix1[j][state], sPartials2[patIdx][i + j], sum2);
+                FMA(secondMatrix[j][state], sPartials2[patIdx][i + j], sum2);
         	}
-        } else {
-            for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
-            	FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-            	FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
-        	}
-         }
+
+//            if (pattern < totalPatterns && child2PartialIndex >= 0) {
+//                for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+//            		FMA(secondMatrix[j][state], sPartials2[i + j], sum2);
+//        		}
+//    		}
+
         KW_LOCAL_FENCE;
     }
 
@@ -2212,6 +2214,10 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     int threadId = KW_LOCAL_ID_1;
     int blockY = KW_GROUP_ID_0;
 
+    int halfBlocks = numBlocks / 2;
+    int doEF = (blockY < halfBlocks) ? 1 : 0;
+
+    if (!doEF) {blockY = blockY - halfBlocks;}
     int threadGlobalY = blockY * SUM_INTERVAL_BLOCK_SIZE + threadId;
     int opStart = start + threadGlobalY * OPS_PER_THREAD;
     int opEnd = opStart + OPS_PER_THREAD;
@@ -2219,6 +2225,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 	int opBlockEnd = opBlockStart + OPS_PER_THREAD * SUM_INTERVAL_BLOCK_SIZE;
     if (opEnd > end) opEnd = end;
 	if (opBlockEnd > end) opBlockEnd = end;
+
 
     KW_GLOBAL_VAR REAL* e = dBastaMemory;
     KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
@@ -2231,26 +2238,14 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 // 	KW_LOCAL_MEM int shared_segmentKey[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
     int currentSegmentKey = -1;
     int carryOutSegmentKey = -1;
-    REAL partialE = 0;
-    REAL partialF = 0;
-    REAL partialG = 0;
-    REAL partialH = 0;
+    REAL partialA = 0;
+    REAL partialB = 0;
+
 
     int next_op = opStart;
     int nextSegmentKey = -1;
-    REAL next_e_val1 = 0;
-    REAL next_f_val1 = 0;
-    REAL next_g_val1 = 0;
-    REAL next_h_val1 = 0;
-    REAL next_e_val2 = 0;
-    REAL next_f_val2 = 0;
-    REAL next_g_val2 = 0;
-    REAL next_h_val2 = 0;
-
-    REAL carryOutE = 0;
-    REAL carryOutF = 0;
-    REAL carryOutG = 0;
-    REAL carryOutH = 0;
+    REAL nextA_val1 = 0, nextB_val1 = 0;
+    REAL nextA_val2 = 0, nextB_val2 = 0;
 
 
 
@@ -2262,38 +2257,30 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 		int accumulation2PartialIndex = operations[op * numOps + 6];
 		int segmentKey = operations[op * numOps + 7];
 
-        KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-        KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-        KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-        KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
 
-        next_e_val1 = startPartials1[state];
-        next_g_val1 = endPartials1[state];
-        next_f_val1 = next_e_val1 * next_e_val1;
-        next_h_val1 = next_g_val1 * next_g_val1;
+        KW_GLOBAL_VAR REAL* part1A = (doEF)? (partials + child1PartialIndex):(partials + accumulation1PartialIndex);
+
+        KW_GLOBAL_VAR REAL* part2A = (doEF)? (partials + child2PartialIndex):(partials + accumulation2PartialIndex);
+
+        REAL val1A = part1A[state];
+        REAL val2A = 0;
 
         if (child2PartialIndex >= 0) {
-            next_e_val2 = startPartials2[state];
-            next_g_val2 = endPartials2[state];
-            next_f_val2 = next_e_val2 * next_e_val2;
-            next_h_val2 = next_g_val2 * next_g_val2;
-        } else {
-            next_e_val2 = next_f_val2 = next_g_val2 = next_h_val2 = 0;
+            val2A = part2A[state];
         }
 
+        nextA_val1 = val1A;
+        nextB_val1 = val1A * val1A;
+        nextA_val2 = val2A;
+        nextB_val2 = val2A * val2A;
         nextSegmentKey = segmentKey;
     }
 
     for (int idx = opStart; idx < opEnd; ++idx) {
-        REAL curr_e_val1 = next_e_val1;
-        REAL curr_f_val1 = next_f_val1;
-        REAL curr_g_val1 = next_g_val1;
-        REAL curr_h_val1 = next_h_val1;
-
-        REAL curr_e_val2 = next_e_val2;
-        REAL curr_f_val2 = next_f_val2;
-        REAL curr_g_val2 = next_g_val2;
-        REAL curr_h_val2 = next_h_val2;
+        REAL currA_val1 = nextA_val1;
+        REAL currB_val1 = nextB_val1;
+        REAL currA_val2 = nextA_val2;
+        REAL currB_val2 = nextB_val2;
 
         int segmentKey = nextSegmentKey;
 
@@ -2306,30 +2293,26 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 			int accumulation2PartialIndex = operations[op * numOps + 6];
 			int segmentKeyNext = operations[op * numOps + 7];
 
-            KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
+        	KW_GLOBAL_VAR REAL* part1A = (doEF)? (partials + child1PartialIndex):(partials + accumulation1PartialIndex);
 
+        	KW_GLOBAL_VAR REAL* part2A = (doEF)? (partials + child2PartialIndex):(partials + accumulation2PartialIndex);
 
-    		next_e_val1 = startPartials1[state];
-    		next_g_val1 = endPartials1[state];
-    		next_f_val1 = next_e_val1 * next_e_val1;
-    		next_h_val1 = next_g_val1 * next_g_val1;
+        	REAL val1A = part1A[state];
+        	REAL val2A = 0;
 
-            if (child2PartialIndex >= 0) {
-            	next_e_val2 = startPartials2[state];
-            	next_g_val2 = endPartials2[state];
-            	next_f_val2 = next_e_val2 * next_e_val2;
-            	next_h_val2 = next_g_val2 * next_g_val2;
-            } else {
-                next_e_val2 = next_f_val2 = next_g_val2 = next_h_val2 = 0;
-            }
+        	if (child2PartialIndex >= 0) {
+            	val2A = part2A[state];
+        	}
+
+        	nextA_val1 = val1A;
+        	nextB_val1 = val1A * val1A;
+        	nextA_val2 = val2A;
+        	nextB_val2 = val2A * val2A;
 
             nextSegmentKey = segmentKeyNext;
         } else {
-            next_e_val1 = next_f_val1 = next_g_val1 = next_h_val1 = 0;
-            next_e_val2 = next_f_val2 = next_g_val2 = next_h_val2 = 0;
+            nextA_val1 = nextB_val1 = 0;
+            nextA_val2 = nextB_val2 = 0;
             nextSegmentKey = -1;
         }
 
@@ -2338,50 +2321,43 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
         if (isNewSegment == 1 && idx != opStart) {
         	int w = currentSegmentKey * PADDED_STATE_COUNT + state;
 
-                atomicAdd(&e[w], partialE);
-        		atomicAdd(&f[w], partialF);
-        		atomicAdd(&g[w], partialG);
-        		atomicAdd(&h[w], partialH);
+                if (doEF) {
+                    // partialA => e, partialB => f
+                    atomicAdd(&e[w], partialA);
+                    atomicAdd(&f[w], partialB);
+                } else {
+                    // partialA => g, partialB => h
+                    atomicAdd(&g[w], partialA);
+                    atomicAdd(&h[w], partialB);
+                }
 
-
-                partialE = 0;
-                partialF = 0;
-                partialG = 0;
-                partialH = 0;
+            partialA = 0;
+            partialB = 0;
             }
 
+        partialA += (currA_val1 + currA_val2);
+        partialB += (currB_val1 + currB_val2);
 
-            partialE += curr_e_val1 + curr_e_val2;
-            partialF += curr_f_val1 + curr_f_val2;
-            partialG += curr_g_val1 + curr_g_val2;
-            partialH += curr_h_val1 + curr_h_val2;
-
-            currentSegmentKey = segmentKey;
+        currentSegmentKey = segmentKey;
     }
 
 	KW_LOCAL_FENCE;
 
 	carryOutSegmentKey = currentSegmentKey;
-    carryOutE = partialE;
-    carryOutF = partialF;
-    carryOutG = partialG;
-    carryOutH = partialH;
+    REAL carryOutA = partialA;
+    REAL carryOutB = partialB;
 
 
-    KW_LOCAL_MEM REAL sCarryOutE[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCarryOutF[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCarryOutG[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCarryOutH[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutA[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutB[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
 
 	KW_LOCAL_MEM REAL sSegmentFlags[SUM_INTERVAL_BLOCK_SIZE];
 	KW_LOCAL_MEM REAL sCarryOutSegmentKeys[SUM_INTERVAL_BLOCK_SIZE + 1];
 
 
     if (state < PADDED_STATE_COUNT) {
-        sCarryOutE[threadId][state] = carryOutE;
-        sCarryOutF[threadId][state] = carryOutF;
-        sCarryOutG[threadId][state] = carryOutG;
-        sCarryOutH[threadId][state] = carryOutH;
+        sCarryOutA[threadId][state] = carryOutA;
+        sCarryOutB[threadId][state] = carryOutB;
         sCarryOutSegmentKeys[threadId] = carryOutSegmentKey;
     }
 
@@ -2408,10 +2384,8 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
         int index = (threadId + 1) * 2 * stride - 1;
         if (index < n) {
             if (sSegmentFlags[index] == 0) {
-                sCarryOutE[index][state] += sCarryOutE[index - stride][state];
-                sCarryOutF[index][state] += sCarryOutF[index - stride][state];
-                sCarryOutG[index][state] += sCarryOutG[index - stride][state];
-                sCarryOutH[index][state] += sCarryOutH[index - stride][state];
+                sCarryOutA[index][state] += sCarryOutA[index - stride][state];
+                sCarryOutB[index][state] += sCarryOutB[index - stride][state];
                 if (state == 0) {
                     sSegmentFlags[index] = sSegmentFlags[index - stride];
                 }
@@ -2424,10 +2398,8 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
         int index = (threadId + 1) * 2 * stride - 1;
         if (index + stride < n) {
             if (sSegmentFlags[index + stride] == 0) {
-                sCarryOutE[index + stride][state] += sCarryOutE[index][state];
-                sCarryOutF[index + stride][state] += sCarryOutF[index][state];
-                sCarryOutG[index + stride][state] += sCarryOutG[index][state];
-                sCarryOutH[index + stride][state] += sCarryOutH[index][state];
+                sCarryOutA[index + stride][state] += sCarryOutA[index][state];
+                sCarryOutB[index + stride][state] += sCarryOutB[index][state];
                 if (state == 0) {
                     sSegmentFlags[index + stride] = sSegmentFlags[index];
                 }
@@ -2442,13 +2414,17 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
         if (reducedKey >= 0) {
     		int u = reducedKey * PADDED_STATE_COUNT + state;
 
-    		atomicAdd(&e[u], sCarryOutE[threadId][state]);
-    		atomicAdd(&f[u], sCarryOutF[threadId][state]);
-    		atomicAdd(&g[u], sCarryOutG[threadId][state]);
-    		atomicAdd(&h[u], sCarryOutH[threadId][state]);
+            if (doEF) {
+    			atomicAdd(&e[u], sCarryOutA[threadId][state]);
+    			atomicAdd(&f[u], sCarryOutB[threadId][state]);
+            } else {
+    			atomicAdd(&g[u], sCarryOutA[threadId][state]);
+    			atomicAdd(&h[u], sCarryOutB[threadId][state]);
+            }
 		}
     }
 }
+
 
 KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT distance,

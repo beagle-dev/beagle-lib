@@ -397,61 +397,64 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
      throw std::bad_alloc();
 
     // TODO: deconstrucor should free all of these
-    gPartialsGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
-    for (int i = 0; i < kStateCount; i++) {
-        gPartialsGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-        if (gPartialsGrad[i] == NULL)
-            throw std::bad_alloc();
-        for (int j = 0; j < kStateCount; j++) {
-            gPartialsGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kBufferCount);
-            if (gPartialsGrad[i][j] == NULL)
+    int BEAGLE_BASTA_GRAD = 0;
+    if (BEAGLE_BASTA_GRAD == 1) {
+        gPartialsGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
+        for (int i = 0; i < kStateCount; i++) {
+            gPartialsGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
+            if (gPartialsGrad[i] == NULL)
                 throw std::bad_alloc();
-            for (int k = 0; k < kBufferCount; k++) {
-                gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
-                if (gPartialsGrad[i][j][k] == NULL)
+            for (int j = 0; j < kStateCount; j++) {
+                gPartialsGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kBufferCount);
+                if (gPartialsGrad[i][j] == NULL)
+                    throw std::bad_alloc();
+                for (int k = 0; k < kBufferCount; k++) {
+                    gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+                    if (gPartialsGrad[i][j][k] == NULL)
+                        throw std::bad_alloc();
+                }
+            }
+        }
+
+        // TODO: figure out the exact number of coalescent intervals
+        int MAX_NUM_COALESCENT_INTERVALS = 5000;
+
+        coalescentGrad = (REALTYPE***) malloc(sizeof(REALTYPE***) * kStateCount);
+        for (int i = 0; i < kStateCount; i++) {
+            coalescentGrad[i] = (REALTYPE**) malloc(sizeof(REALTYPE**) * kStateCount);
+            if (coalescentGrad[i] == NULL)
+                throw std::bad_alloc();
+            for (int j = 0; j < kStateCount; j++) {
+                coalescentGrad[i][j] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * MAX_NUM_COALESCENT_INTERVALS);
+                if (coalescentGrad[i][j] == NULL)
                     throw std::bad_alloc();
             }
         }
-    }
-    // TODO: figure out the exact number of coalescent intervals
-    int MAX_NUM_COALESCENT_INTERVALS = 5000;
 
-    coalescentGrad = (REALTYPE***) malloc(sizeof(REALTYPE***) * kStateCount);
-    for (int i = 0; i < kStateCount; i++) {
-        coalescentGrad[i] = (REALTYPE**) malloc(sizeof(REALTYPE**) * kStateCount);
-        if (coalescentGrad[i] == NULL)
-            throw std::bad_alloc();
-        for (int j = 0; j < kStateCount; j++) {
-            coalescentGrad[i][j] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * MAX_NUM_COALESCENT_INTERVALS);
-            if (coalescentGrad[i][j] == NULL)
+        //    efghGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * 4);
+        //    for (int i = 0; i < 4; i++) {
+        //        efghGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
+        //        if (efghGrad[i] == NULL)
+        //            throw std::bad_alloc();
+        //        for (int j = 0; j < kStateCount; j++) {
+        //            efghGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
+        //            if (efghGrad[i][j] == NULL)
+        //                throw std::bad_alloc();
+        //            for (int k = 0; k < kStateCount; k++) {
+        //                efghGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsPaddedStateCount * kCoalescentBufferLength);
+        //                if (efghGrad[i][j][k] == NULL)
+        //                    throw std::bad_alloc();
+        //            }
+        //        }
+        //    }
+
+        tempGrad = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
+        for (int i = 0; i < kStateCount; i++) {
+            tempGrad[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kStateCount);
+            if (tempGrad[i] == NULL)
                 throw std::bad_alloc();
         }
     }
-
-//    efghGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * 4);
-//    for (int i = 0; i < 4; i++) {
-//        efghGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-//        if (efghGrad[i] == NULL)
-//            throw std::bad_alloc();
-//        for (int j = 0; j < kStateCount; j++) {
-//            efghGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
-//            if (efghGrad[i][j] == NULL)
-//                throw std::bad_alloc();
-//            for (int k = 0; k < kStateCount; k++) {
-//                efghGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsPaddedStateCount * kCoalescentBufferLength);
-//                if (efghGrad[i][j][k] == NULL)
-//                    throw std::bad_alloc();
-//            }
-//        }
-//    }
-
-    tempGrad = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
-    for (int i = 0; i < kStateCount; i++) {
-        tempGrad[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kStateCount);
-        if (tempGrad[i] == NULL)
-            throw std::bad_alloc();
-    }
-
     gStateFrequencies = (REALTYPE**) calloc(sizeof(REALTYPE*), kEigenDecompCount);
     if (gStateFrequencies == NULL)
         throw std::bad_alloc();
@@ -531,20 +534,22 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
             throw std::bad_alloc();
     }
 
-    // TODO: deconstrucor should free all of these
-    gTransitionMatricesGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
-    for (int i = 0; i < kStateCount; i++) {
-        gTransitionMatricesGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-        if (gTransitionMatricesGrad[i] == NULL)
-            throw std::bad_alloc();
-        for (int j = 0; j < kStateCount; j++) {
-            gTransitionMatricesGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kMatrixCount);
-            if (gTransitionMatricesGrad[i][j] == NULL)
+    if (BEAGLE_BASTA_GRAD == 1) {
+        // TODO: deconstrucor should free all of these
+        gTransitionMatricesGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
+        for (int i = 0; i < kStateCount; i++) {
+            gTransitionMatricesGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
+            if (gTransitionMatricesGrad[i] == NULL)
                 throw std::bad_alloc();
-            for (int k = 0; k < kMatrixCount; k++) {
-                gTransitionMatricesGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
-                if (gTransitionMatricesGrad[i][j][k] == NULL)
+            for (int j = 0; j < kStateCount; j++) {
+                gTransitionMatricesGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kMatrixCount);
+                if (gTransitionMatricesGrad[i][j] == NULL)
                     throw std::bad_alloc();
+                for (int k = 0; k < kMatrixCount; k++) {
+                    gTransitionMatricesGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
+                    if (gTransitionMatricesGrad[i][j][k] == NULL)
+                        throw std::bad_alloc();
+                }
             }
         }
     }
@@ -1500,7 +1505,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
     gCoalescentBuffers.resize(kCoalescentBufferCount * kCoalescentBufferLength);
     gBastaBuffers.resize(kPartialsPaddedStateCount * kCoalescentBufferLength * 4);
-    gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
+    //gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
 
     if (partialsCount > kBufferCount) {
         int oldBufferCount = kBufferCount;
@@ -1511,26 +1516,26 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
             gPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
         }
 
-        for (int i = 0; i < kStateCount; i++) {
-            for (int j = 0; j < kStateCount; j++) {
-                // Reallocate gPartialsGrad[i][j] to new size kBufferCount
-                REALTYPE** temp = (REALTYPE**) realloc(gPartialsGrad[i][j], sizeof(REALTYPE*) * kBufferCount);
-                if (temp == NULL) {
-                    // Handle allocation failure
-                    throw std::bad_alloc();
-                }
-                gPartialsGrad[i][j] = temp;
-
-                // Initialize new entries from oldBufferCount to new kBufferCount
-                for (int k = oldBufferCount; k < kBufferCount; k++) {
-                    gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
-                    if (gPartialsGrad[i][j][k] == NULL) {
-                        // Handle allocation failure
-                        throw std::bad_alloc();
-                    }
-                }
-            }
-        }
+        // for (int i = 0; i < kStateCount; i++) {
+        //     for (int j = 0; j < kStateCount; j++) {
+        //         // Reallocate gPartialsGrad[i][j] to new size kBufferCount
+        //         REALTYPE** temp = (REALTYPE**) realloc(gPartialsGrad[i][j], sizeof(REALTYPE*) * kBufferCount);
+        //         if (temp == NULL) {
+        //             // Handle allocation failure
+        //             throw std::bad_alloc();
+        //         }
+        //         gPartialsGrad[i][j] = temp;
+        //
+        //         // Initialize new entries from oldBufferCount to new kBufferCount
+        //         for (int k = oldBufferCount; k < kBufferCount; k++) {
+        //             gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+        //             if (gPartialsGrad[i][j][k] == NULL) {
+        //                 // Handle allocation failure
+        //                 throw std::bad_alloc();
+        //             }
+        //         }
+        //     }
+        // }
 
         gTipStates = (int**) realloc(gTipStates, sizeof(int*) * kBufferCount);
 
@@ -1958,48 +1963,47 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
 }
 
 
-BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations,
-  														   const int count,
-  														   const int* intervals,
-  														   const int intervalCount,
-                                                           const int populationSizesIndex,
-                                                           const int coalescentIndex) {
-	int returnCode = BEAGLE_SUCCESS;
+    BEAGLE_CPU_TEMPLATE
+    int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartials(const int* operations,
+                                                                 const int count,
+                                                                 const int* intervals,
+                                                                 const int intervalCount,
+                                                               const int populationSizesIndex,
+                                                               const int coalescentIndex) {
+        int returnCode = BEAGLE_SUCCESS;
 
-    REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
+        REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
+        std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
 
-    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
-    bool THREADING = true;
-    int CUT_POINT = 1280000;
-    int nThreads = 2;
+        bool THREADING = true;
+        int CUT_POINT = 1280000;
+        int numThreads = 8;
 
-    if (THREADING) {
+        if (THREADING) {
 
-        for (int i = 0; i < intervalCount - 1; ++i) {
+            for (int i = 0; i < intervalCount - 1; ++i) {
 
-            const int begin = intervals[i];
-            const int end = intervals[i + 1];
+                const int begin = intervals[i];
+                const int end = intervals[i + 1];
 
-            if (end - begin > CUT_POINT) {
-                for_each(begin, end, [&](const int threadBegin, const int threadEnd) {
-                    updateInnerBastaPartials(operations, threadBegin, threadEnd, sizes, coalescent);
-                }, nThreads);
-//                for_each(begin, end, [&](const int j) {
-//                    updateInnerBastaPartials2(operations, j, sizes, coalescent);
-//                }, nThreads);
-            } else {
-                updateInnerBastaPartials(operations, begin, end, sizes, coalescent);
+                if (end - begin > CUT_POINT) {
+#pragma omp parallel for num_threads(numThreads)
+                    for (int op = begin; op < end; ++op) {
+                        updateInnerBastaPartials2(operations, op, sizes, coalescent);
+                    }
+
+                } else {
+                    updateInnerBastaPartials(operations, begin, end, sizes, coalescent);
+                }
             }
+        } else {
+            updateInnerBastaPartials(operations, 0, count, sizes, coalescent);
         }
-    } else {
-        updateInnerBastaPartials(operations, 0, count, sizes, coalescent);
-    }
 
-	return returnCode;  														   
-}
+        return returnCode;
+    }
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsGrad(const int* operations,
@@ -2263,6 +2267,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+    bool threading = false;
+    int numThreads = threading ? 8 : 1;
+#pragma omp parallel for num_threads(numThreads)
     for (int interval = 0; interval < intervalStartsCount - 1; ++interval) { // TODO execute in parallel (no race conditions)
         const int start = intervalStarts[interval];
         const int end = intervalStarts[interval + 1];
@@ -2286,30 +2293,34 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
                                  intervalNumber);
         }
     }
-
     REALTYPE logL = 0.0;
-    for (int i = 0; i < intervalStartsCount - 1; ++i) { // TODO execute in parallel
-        const int op = intervalStarts[i];
 
-        const int numOps = BEAGLE_BASTA_OP_COUNT;
+#pragma omp parallel num_threads(numThreads)
+    {
+	    REALTYPE threadLogL = 0.0;
 
-        const int destinationPartialIndex = operations[op * numOps];
-        const int child1PartialIndex = operations[op * numOps + 1];
-        const int child1TransMatIndex = operations[op * numOps + 2];
-        const int child2PartialIndex = operations[op * numOps + 3];
-        const int child2TransMatIndex = operations[op * numOps + 4];
-        const int accumulation1PartialIndex = operations[op * numOps + 5];
-        const int accumulation2PartialIndex = operations[op * numOps + 6];
-        const int intervalNumber = operations[op * numOps + 7];
+#pragma omp for
+	    for (int i = 0; i < intervalStartsCount - 1; ++i) {
+	        const int op = intervalStarts[i];
+	        const int numOps = BEAGLE_BASTA_OP_COUNT;
+	        const int intervalNumber = operations[op * numOps + 7];
 
-        logL += reduceAcrossIntervals(e, f, g, h,
-                                      intervalNumber, intervalLengths[i],
-                                      sizes, coalescent);
+	        threadLogL += reduceAcrossIntervals(
+                e, f, g, h,
+                intervalNumber,
+                intervalLengths[i],
+                sizes,
+                coalescent
+            );
+	    }
+
+#pragma omp critical
+	    {
+	        logL += threadLogL;
+	    }
     }
-
-    out[0] = (double) logL;
-
-	return returnCode;  		     				  									   
+    out[0] = logL;
+	return returnCode;
 }
 
 

@@ -2425,8 +2425,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
             }
 
             gpu->MemcpyHostToDevice(dBastaOperationQueue, hBastaOperationQueue, sizeof(int) * operationCount * numOps);
-
-            //int r = 1;
+            gpu->MemcpyHostToDevice(coalescent, hBastazeroes, sizeof(Real) * kCoalescentBufferLength);
+            // Real r = 0;
             // fprintf(stderr, "The op is: %d\n", op);
             // fprintf(stderr, "The index is: %d\n", child1TransMatIndex);
             //fprintf(stderr,"matrices = \n");
@@ -2513,7 +2513,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     const int start = 0;
     const int end = operationCount;
 
-    int numBlocks = (operationCount + blockSize - 1) / blockSize; // Total number of blocks
+    int numBlocks = 2 * (operationCount + blockSize - 1) / blockSize; // Total number of blocks
 
     gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
     kernels->reduceWithinIntervalMerged(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, numOps,
