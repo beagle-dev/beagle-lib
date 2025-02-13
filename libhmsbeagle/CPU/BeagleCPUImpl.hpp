@@ -133,49 +133,49 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     }
     free(gTransitionMatrices);
 
-    for (int i = 0; i < kStateCount; i++) {
-        for (int j = 0; j < kStateCount; j++) {
-            for (int k = 0; k < kMatrixCount; k++) {
-                if (gTransitionMatricesGrad[i][j][k] != NULL)
-                    free(gTransitionMatricesGrad[i][j][k]);
-            }
-            if (gTransitionMatricesGrad[i][j] != NULL)
-                free(gTransitionMatricesGrad[i][j]);
-        }
-        if (gTransitionMatricesGrad[i] != NULL)
-        free(gTransitionMatricesGrad[i]);
-    }
-    free(gTransitionMatricesGrad);
-
-    for (int i = 0; i < kStateCount; i++) {
-        for (int j = 0; j < kStateCount; j++) {
-            for (int k = 0; k < kBufferCount; k++) {
-                if (gPartialsGrad[i][j][k] != NULL)
-                    free(gPartialsGrad[i][j][k]);
-            }
-            if (gPartialsGrad[i][j] != NULL)
-                free(gPartialsGrad[i][j]);
-        }
-        if (gPartialsGrad[i] != NULL)
-            free(gPartialsGrad[i]);
-    }
-    free(gPartialsGrad);
-
-    for (int i = 0; i < kStateCount; i++) {
-        for (int j = 0; j < kStateCount; j++) {
-            if (coalescentGrad[i][j] != NULL)
-                free(coalescentGrad[i][j]);
-        }
-        if (coalescentGrad[i] != NULL)
-            free(coalescentGrad[i]);
-    }
-    free(coalescentGrad);
-
-
-    for (int i = 0; i < kStateCount; i++) {
-        if (tempGrad[i] != NULL)
-            free(tempGrad[i]);
-    }
+    // for (int i = 0; i < kStateCount; i++) {
+    //     for (int j = 0; j < kStateCount; j++) {
+    //         for (int k = 0; k < kMatrixCount; k++) {
+    //             if (gTransitionMatricesGrad[i][j][k] != NULL)
+    //                 free(gTransitionMatricesGrad[i][j][k]);
+    //         }
+    //         if (gTransitionMatricesGrad[i][j] != NULL)
+    //             free(gTransitionMatricesGrad[i][j]);
+    //     }
+    //     if (gTransitionMatricesGrad[i] != NULL)
+    //     free(gTransitionMatricesGrad[i]);
+    // }
+    // free(gTransitionMatricesGrad);
+    //
+    // for (int i = 0; i < kStateCount; i++) {
+    //     for (int j = 0; j < kStateCount; j++) {
+    //         for (int k = 0; k < kBufferCount; k++) {
+    //             if (gPartialsGrad[i][j][k] != NULL)
+    //                 free(gPartialsGrad[i][j][k]);
+    //         }
+    //         if (gPartialsGrad[i][j] != NULL)
+    //             free(gPartialsGrad[i][j]);
+    //     }
+    //     if (gPartialsGrad[i] != NULL)
+    //         free(gPartialsGrad[i]);
+    // }
+    // free(gPartialsGrad);
+    //
+    // for (int i = 0; i < kStateCount; i++) {
+    //     for (int j = 0; j < kStateCount; j++) {
+    //         if (coalescentGrad[i][j] != NULL)
+    //             free(coalescentGrad[i][j]);
+    //     }
+    //     if (coalescentGrad[i] != NULL)
+    //         free(coalescentGrad[i]);
+    // }
+    // free(coalescentGrad);
+    //
+    //
+    // for (int i = 0; i < kStateCount; i++) {
+    //     if (tempGrad[i] != NULL)
+    //         free(tempGrad[i]);
+    // }
 
     for(unsigned int i=0; i<kBufferCount; i++) {
 #ifndef BEAGLE_CACHE_FRIENDLY

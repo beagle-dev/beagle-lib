@@ -2022,7 +2022,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
-	KW_LOCAL_MEM REAL sPartials2[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+	KW_LOCAL_MEM REAL sPartials2[1][PADDED_STATE_COUNT];
     //    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
 
@@ -2075,8 +2075,9 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         KW_LOCAL_FENCE;
         REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
         	for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+                int k = (pattern < totalPatterns && child2PartialIndex >= 0) ? 0 : patIdx;
             	FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-                FMA(secondMatrix[j][state], sPartials2[patIdx][i + j], sum2);
+                FMA(secondMatrix[j][state], sPartials2[k][i + j], sum2);
         	}
 
 //            if (pattern < totalPatterns && child2PartialIndex >= 0) {
