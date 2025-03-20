@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -27,8 +17,8 @@
     #include <stdlib.h>
     #include <string.h>
     #include <stdio.h>
-    extern "C" {    
-#elif defined(FW_OPENCL)    
+    extern "C" {
+#elif defined(FW_OPENCL)
     #ifdef DOUBLE_PRECISION
         #pragma OPENCL EXTENSION cl_khr_fp64: enable
     #endif
@@ -73,10 +63,10 @@ KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*           
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeightsSort,
                                                                 int               patternCount,
                                                                 int               paddedPatternCount) {
-#ifdef FW_OPENCL_CPU 
+#ifdef FW_OPENCL_CPU
     int state      = 0;
     int pattern    = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0;
-#else 
+#else
     int state      = KW_LOCAL_ID_0;
     int pattern    = KW_LOCAL_ID_1 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_1;
 #endif
@@ -97,10 +87,10 @@ KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*           
             const KW_GLOBAL_VAR REAL* KW_RESTRICT partialOriginal = dPartials + dTipOffsets[tip];
                   KW_GLOBAL_VAR REAL* KW_RESTRICT partialSorted   = dPartials + dTipOffsets[tip+tipCount];
 
-#ifdef FW_OPENCL_CPU 
+#ifdef FW_OPENCL_CPU
             for (int i=0; i < stateCount; i++) {
                 partialSorted[sortIndex+i] = partialOriginal[originIndex+i];
-            }    
+            }
 #else
             sortIndex += state;
             originIndex += state;
@@ -128,7 +118,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBMulti(KW_GLOBAL_VAR REAL* dMatrices,
                                               int length,
                                               int wB,
                                               int totalMatrix) {
-           
+
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
     int offIndex = wMatrix * 3;
 
@@ -337,7 +327,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
               PADDED_STATE_COUNT * ty + tx] = Csub;
     }
 }
-    
+
 KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices,
                                            KW_GLOBAL_VAR unsigned int* listC,
                                            KW_GLOBAL_VAR REAL* A,
@@ -380,7 +370,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices
     distanceLength = distanceQueue[wMatrix];
     distanceRate = distanceQueue[wMatrix + totalMatrix];
 #endif
-    
+
     KW_LOCAL_FENCE;
 
     const int EDGE = PADDED_STATE_COUNT - (BLOCKS - 1) * MULTIPLY_BLOCK_SIZE;
@@ -626,7 +616,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
           PADDED_STATE_COUNT * ty + tx] = CSecondDerivSub;
     }
 }
-    
+
 KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
 								        KW_GLOBAL_VAR unsigned int* list,
 								        int totalMatrixCount
@@ -643,7 +633,7 @@ KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
 	    int ty = KW_LOCAL_ID_1;
 	    int BLOCKS = KW_NUM_GROUPS_1;
 
-    
+
 #ifdef CUDA
         KW_LOCAL_MEM REAL* A;
         KW_LOCAL_MEM REAL* B;
@@ -786,7 +776,7 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 	    }
 
 	    KW_LOCAL_FENCE;
-	   
+
 	    if (row < PADDED_STATE_COUNT && col < PADDED_STATE_COUNT) {
 		    C[PADDED_STATE_COUNT * rowOffset + colOffset +
 		      PADDED_STATE_COUNT * ty + tx] = As[tx][ty];
@@ -1011,7 +1001,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
     }
 #endif
 }
-    
+
 
 KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
@@ -1240,13 +1230,13 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
     }
 #endif
 }
-    
+
 KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
                                       KW_GLOBAL_VAR REAL* dSum,
                                       KW_GLOBAL_VAR REAL* dPatternWeights,
                                       int patternCount) {
 #ifdef FW_OPENCL_CPU
-    
+
     REAL sum = 0;
 
     int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
@@ -1263,7 +1253,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
     dSum[KW_GROUP_ID_0] = sum;
 
 #else
-    
+
     KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
 
     int tx = KW_LOCAL_ID_0;
@@ -1294,7 +1284,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
                                                int startPattern,
                                                int endPattern) {
 #ifdef FW_OPENCL_CPU
-    
+
     REAL sum = 0;
 
     int pattern = startPattern + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
@@ -1311,7 +1301,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
     dSum[KW_GROUP_ID_0] = sum;
 
 #else
-    
+
     KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
 
     int tx = KW_LOCAL_ID_0;
@@ -1340,13 +1330,13 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
 //                                                KW_GLOBAL_VAR REAL*         dSum,
 //                                                KW_GLOBAL_VAR REAL*         dPatternWeights,
 //                                                KW_GLOBAL_VAR unsigned int* dPtrOffsets) {
-    
+
 //     int opIndexPtr = KW_GROUP_ID_0 * 2;
 //     int startPattern = dPtrOffsets[opIndexPtr    ];
 //     int endPattern   = dPtrOffsets[opIndexPtr + 1];
 
 // #ifdef FW_OPENCL_CPU
-    
+
 //     REAL sum = 0;
 
 //     int pattern = startPattern + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
@@ -1359,7 +1349,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
 //     dSum[KW_GROUP_ID_0] = sum;
 
 // #else
-    
+
 //     KW_LOCAL_MEM REAL sum[SUM_SITES_BLOCK_SIZE];
 
 //     int tx = KW_LOCAL_ID_0;
@@ -1392,7 +1382,7 @@ KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
                                       int patternCount) {
 
 #ifdef FW_OPENCL_CPU
-    
+
     REAL sum1 = 0, sum2 = 0;
 
     int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;
@@ -1455,7 +1445,7 @@ KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
                                       int patternCount) {
 
 #ifdef FW_OPENCL_CPU
-    
+
     REAL sum1 = 0, sum2 = 0, sum3 = 0;
 
     int pattern = KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE;

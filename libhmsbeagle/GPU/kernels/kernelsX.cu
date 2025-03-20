@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -25,7 +15,7 @@
 #ifdef CUDA
     #include "libhmsbeagle/GPU/GPUImplDefs.h"
     #include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
-    extern "C" {    
+    extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -535,7 +525,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;    
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
         partials3[u] = matrix1[state] * matrix2[state];
     } else if (state1 < PADDED_STATE_COUNT) {
@@ -550,7 +540,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
     int state1 = states1[pattern];
     int state2 = states2[pattern];
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;    
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
     if (pattern < totalPatterns) {
         if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
             partials3[u] = matrix1[state] * matrix2[state];
@@ -1131,7 +1121,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_V
     if (pattern < totalPatterns) {
         dPartialsTmp[u] = sum1 * sPartials2[patIdx][state];
         dFirstDerivTmp[u] = sumFirstDeriv * sPartials2[patIdx][state];
-        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];   
+        dSecondDerivTmp[u] = sumSecondDeriv * sPartials2[patIdx][state];
     }
 #endif // FW_OPENCL_CPU
 }
@@ -1281,27 +1271,27 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
             sPartials1[patIdx][0] = 0;
         }
     }
-        
+
     KW_LOCAL_FENCE;
-    
+
     int scalingActive = sPartials2[patIdx][0];
-        
+
     if (scalingActive) {
         // now using sPartials1 to store max unscaled partials3
         sPartials1[patIdx][state] = tmpPartial;
     }
-            
+
     KW_LOCAL_FENCE;
-            
+
     // Unrolled parallel max-reduction
     if (scalingActive && state < 2) {
         REAL compare = sPartials1[patIdx][state + 2];
         if (compare >  sPartials1[patIdx][state])
             sPartials1[patIdx][state] = compare;
     }
-    
+
     KW_LOCAL_FENCE;
-            
+
     if (scalingActive && state < 1) {
         REAL maxPartial = sPartials1[patIdx][1];
         if (maxPartial < sPartials1[patIdx][0])
@@ -1312,7 +1302,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     }
 
     KW_LOCAL_FENCE;
-    
+
     if (scalingActive)
         partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
 
@@ -1356,14 +1346,14 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 
     int u = state + pattern * PADDED_STATE_COUNT;
     int delta = patternCount * PADDED_STATE_COUNT;
-    
+
     short maxScaleFactor = matrixScalers[0];
     for(int r = 1; r < matrixCount; r++) {
         int tmpFactor = matrixScalers[r];
         if (tmpFactor > maxScaleFactor)
             maxScaleFactor = tmpFactor;
     }
-    
+
     for(int r = 0; r < matrixCount; r++) {
         int tmpFactor = matrixScalers[r];
         if (tmpFactor != maxScaleFactor) {
