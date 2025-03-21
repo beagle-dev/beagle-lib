@@ -321,6 +321,28 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
 //    }
 }
 
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesParallel(
+    int eigenIndex,
+    const int* probabilityIndices,
+    const int* firstDerivativeIndices,
+    const int* secondDerivativeIndices,
+    const double* edgeLengths,
+    const double* categoryRates,
+    REALTYPE** transitionMatrices,
+    int count,
+    int numThreads)
+{
+	updateTransitionMatrices(
+			eigenIndex,
+			probabilityIndices,
+			firstDerivativeIndices,
+			secondDerivativeIndices,
+			edgeLengths,
+			categoryRates,
+			transitionMatrices,
+			count);
+}
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesWithModelCategories(int* eigenIndices,

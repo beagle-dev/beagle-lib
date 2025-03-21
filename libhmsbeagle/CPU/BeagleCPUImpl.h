@@ -83,6 +83,7 @@ protected:
     bool kPartitionsInitialised;
     bool kPatternsReordered;
     int kMinPatternCount;
+	int kBastaNumThreads;
 
     long kFlags;
 

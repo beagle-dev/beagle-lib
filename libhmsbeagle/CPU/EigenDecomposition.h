@@ -76,6 +76,12 @@ public:
                                  REALTYPE** transitionMatrices,
                                  int count) = 0;
 
+	virtual void updateTransitionMatricesParallel(int eigenIndex, const int *probabilityIndices,
+									  const int *firstDerivativeIndices,
+									  const int *secondDerivativeIndices, const double *edgeLengths,
+									  const double *categoryRates, REALTYPE **transitionMatrices, int count,
+									  int numThreads);
+
     virtual void updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,

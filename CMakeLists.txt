@@ -116,6 +116,7 @@ if(BUILD_OPENMP)
 	find_package(OpenMP)
 	if(OpenMP_CXX_FOUND)
 		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread -fopenmp")
 	else(OpenMP_CXX_FOUND)
 		message (FATAL_ERROR "No OpenMP Found")
 	endif(OpenMP_CXX_FOUND)

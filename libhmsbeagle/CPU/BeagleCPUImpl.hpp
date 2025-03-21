@@ -80,10 +80,7 @@
 namespace beagle {
 namespace cpu {
 
-//#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
-//const bool DEBUGGING_OUTPUT = true;
-//#else
-//const bool DEBUGGING_OUTPUT = false;
+//#if definBUGGING_OUTPUT = false;
 //#endif
 
 BEAGLE_CPU_FACTORY_TEMPLATE
@@ -1358,20 +1355,39 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
 }
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
-                                            const int* probabilityIndices,
-                                            const int* firstDerivativeIndices,
-                                            const int* secondDerivativeIndices,
-                                            const double* edgeLengths,
-                                            int count) {
-    // for (int i = 0; i < count; i++) {
-    //     printf("uTM %d %d %f %d\n", eigenIndex, probabilityIndices[i], edgeLengths[i], 0);
-    // }
-
-    gEigenDecomposition->updateTransitionMatrices(eigenIndex,probabilityIndices,firstDerivativeIndices,secondDerivativeIndices,
-                                                  edgeLengths,gCategoryRates[0],gTransitionMatrices,count);
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(
+        int eigenIndex,
+        const int* probabilityIndices,
+        const int* firstDerivativeIndices,
+        const int* secondDerivativeIndices,
+        const double* edgeLengths,
+        int count)
+    {
+    bool threading = true;
+    if (threading) {
+        gEigenDecomposition->updateTransitionMatricesParallel(
+            eigenIndex,
+            probabilityIndices,
+            firstDerivativeIndices,
+            secondDerivativeIndices,
+            edgeLengths,
+            gCategoryRates[0],
+            gTransitionMatrices,
+            count,
+            kBastaNumThreads);
+    } else {
+        gEigenDecomposition->updateTransitionMatrices(
+            eigenIndex,
+            probabilityIndices,
+            firstDerivativeIndices,
+            secondDerivativeIndices,
+            edgeLengths,
+            gCategoryRates[0],
+            gTransitionMatrices,
+            count);
+    }
     return BEAGLE_SUCCESS;
-}
+    }
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesGrad(const int* probabilityIndices,
@@ -1502,6 +1518,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
     kCoalescentBufferLength = bufferLength;
     kCoalescentBufferCount = bufferCount;
+    kBastaNumThreads = 24;
 
     gCoalescentBuffers.resize(kCoalescentBufferCount * kCoalescentBufferLength);
     gBastaBuffers.resize(kPartialsPaddedStateCount * kCoalescentBufferLength * 4);
@@ -1978,9 +1995,8 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
         const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
         bool THREADING = true;
-        int CUT_POINT = 1280000;
-        int numThreads = 8;
-
+        int CUT_POINT = 16;
+        int numThreads = kBastaNumThreads;
         if (THREADING) {
 
             for (int i = 0; i < intervalCount - 1; ++i) {
@@ -2267,8 +2283,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
-    bool threading = false;
-    int numThreads = threading ? 8 : 1;
+    bool threading = true;
+    int numThreads = threading ? kBastaNumThreads : 1;
 #pragma omp parallel for num_threads(numThreads)
     for (int interval = 0; interval < intervalStartsCount - 1; ++interval) { // TODO execute in parallel (no race conditions)
         const int start = intervalStarts[interval];
