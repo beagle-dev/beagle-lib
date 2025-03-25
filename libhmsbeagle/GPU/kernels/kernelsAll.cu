@@ -2015,13 +2015,13 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0,SUM_ACROSS_BLOCK_SIZE) + patIdx;
+    int pattern = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
     int op = pattern + start;
     int maxOp = start + totalPatterns - 1;
     int sameTransIndex = 1;
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
 	KW_LOCAL_MEM REAL sPartials2[1][PADDED_STATE_COUNT];
     //    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
@@ -2219,11 +2219,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     int doEF = (blockY < halfBlocks) ? 1 : 0;
 
     if (!doEF) {blockY = blockY - halfBlocks;}
-    int threadGlobalY = blockY * SUM_INTERVAL_BLOCK_SIZE + threadId;
+    int threadGlobalY = blockY * BASTA_SUM_INTERVAL_BLOCK_SIZE + threadId;
     int opStart = start + threadGlobalY * OPS_PER_THREAD;
     int opEnd = opStart + OPS_PER_THREAD;
-    int opBlockStart = OPS_PER_THREAD * blockY * SUM_INTERVAL_BLOCK_SIZE;
-	int opBlockEnd = opBlockStart + OPS_PER_THREAD * SUM_INTERVAL_BLOCK_SIZE;
+    int opBlockStart = OPS_PER_THREAD * blockY * BASTA_SUM_INTERVAL_BLOCK_SIZE;
+	int opBlockEnd = opBlockStart + OPS_PER_THREAD * BASTA_SUM_INTERVAL_BLOCK_SIZE;
     if (opEnd > end) opEnd = end;
 	if (opBlockEnd > end) opBlockEnd = end;
 
@@ -2232,11 +2232,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
     KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
     KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
-// 	KW_LOCAL_MEM int shared_child1PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
-// 	KW_LOCAL_MEM int shared_child2PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
-// 	KW_LOCAL_MEM int shared_accumulation1PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
-// 	KW_LOCAL_MEM int shared_accumulation2PartialIndex[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
-// 	KW_LOCAL_MEM int shared_segmentKey[SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
+// 	KW_LOCAL_MEM int shared_child1PartialIndex[BASTA_SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
+// 	KW_LOCAL_MEM int shared_child2PartialIndex[BASTA_SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
+// 	KW_LOCAL_MEM int shared_accumulation1PartialIndex[BASTA_SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
+// 	KW_LOCAL_MEM int shared_accumulation2PartialIndex[BASTA_SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
+// 	KW_LOCAL_MEM int shared_segmentKey[BASTA_SUM_INTERVAL_BLOCK_SIZE * OPS_PER_THREAD];
     int currentSegmentKey = -1;
     int carryOutSegmentKey = -1;
     REAL partialA = 0;
@@ -2349,11 +2349,11 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     REAL carryOutB = partialB;
 
 
-    KW_LOCAL_MEM REAL sCarryOutA[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCarryOutB[SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutA[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutB[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
 
-	KW_LOCAL_MEM REAL sSegmentFlags[SUM_INTERVAL_BLOCK_SIZE];
-	KW_LOCAL_MEM REAL sCarryOutSegmentKeys[SUM_INTERVAL_BLOCK_SIZE + 1];
+	KW_LOCAL_MEM REAL sSegmentFlags[BASTA_SUM_INTERVAL_BLOCK_SIZE];
+	KW_LOCAL_MEM REAL sCarryOutSegmentKeys[BASTA_SUM_INTERVAL_BLOCK_SIZE + 1];
 
 
     if (state < PADDED_STATE_COUNT) {
@@ -2380,7 +2380,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 
 	KW_LOCAL_FENCE;
 
-    int n = SUM_INTERVAL_BLOCK_SIZE;
+    int n = BASTA_SUM_INTERVAL_BLOCK_SIZE;
     for (int stride = 1; stride < n; stride *= 2) {
         int index = (threadId + 1) * 2 * stride - 1;
         if (index < n) {
@@ -2410,7 +2410,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
     }
 
 
-    if (threadId == SUM_INTERVAL_BLOCK_SIZE - 1 || sCarryOutSegmentKeys[threadId] != sCarryOutSegmentKeys[threadId + 1]) {
+    if (threadId == BASTA_SUM_INTERVAL_BLOCK_SIZE - 1 || sCarryOutSegmentKeys[threadId] != sCarryOutSegmentKeys[threadId + 1]) {
         int reducedKey = sCarryOutSegmentKeys[threadId];
         if (reducedKey >= 0) {
     		int u = reducedKey * PADDED_STATE_COUNT + state;
@@ -2438,10 +2438,10 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 
         int intervalCount = intervalStartsCount - 1;
         int tid = KW_LOCAL_ID_0;
-        int tidTotal = __umul24(KW_GROUP_ID_0, SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
+        int tidTotal = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
         int state = tid % PADDED_STATE_COUNT;
         int intervalIdx = tid / PADDED_STATE_COUNT;
-        int intervalNumber = __umul24(KW_GROUP_ID_0, SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
+        int intervalNumber = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
         int u = state + intervalNumber * PADDED_STATE_COUNT;
 
 	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
@@ -2449,7 +2449,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
 	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
 
-        KW_LOCAL_MEM REAL sPartials1[SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
+        KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
 
         if (intervalNumber < intervalCount && (sizes[state] > 0)) {
             sPartials1[tid] = (e[u] * e[u] - f[u] +
@@ -2460,7 +2460,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
         KW_LOCAL_FENCE;
 
 
-        for (int i = SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
             if (tid < i) {
                 sPartials1[tid] += sPartials1[tid + i];
             }
@@ -2478,7 +2478,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 
         KW_LOCAL_FENCE;
 
-        for (int i = SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+        for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
             if (tid < i) {
                 sPartials1[tid] += sPartials1[tid + i];
             }
