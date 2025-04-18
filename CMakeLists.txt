@@ -70,6 +70,7 @@ if(BUILD_JNI)
 
 		include_directories(
     		    $ENV{JAVA_HOME}/include
+    		    $ENV{JAVA_HOME}/include/linux
 	    	    ${JNI_INCLUDE_DIRS}
 		)
 	else(JNI_FOUND)	
