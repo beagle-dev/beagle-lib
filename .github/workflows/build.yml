@@ -17,6 +17,7 @@ jobs:
                ubuntu-gcc-12,
                ubuntu-gcc-13,
                ubuntu-clang-15,
+               ubuntu-clang-17,
                macos-xcode-15-intel,
                macos-xcode-16-arm,
                windows
