@@ -15,6 +15,7 @@ jobs:
         name: [ubuntu-gcc-10,
                ubuntu-gcc-11,
                ubuntu-gcc-12,
+               ubuntu-gcc-13,
                ubuntu-clang-15,
                macos-xcode-15-intel,
                macos-xcode-16-arm,
@@ -23,7 +24,7 @@ jobs:
 
         include:
           - name: ubuntu-gcc-10
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             compiler: gcc
             version: "10"
             buildtype: "release"
@@ -38,6 +39,13 @@ jobs:
 
           - name: ubuntu-gcc-12
             os: ubuntu-22.04
+            compiler: gcc
+            version: "12"
+            buildtype: "release"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-13
+            os: ubuntu-24.04
             compiler: gcc
             version: "12"
             buildtype: "release"
