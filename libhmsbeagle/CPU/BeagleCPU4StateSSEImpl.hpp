@@ -639,10 +639,10 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsStates(co
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(double *outDerivatives,
+                                                                                double *outSumDerivatives,
+                                                                                double *outSumSquaredDerivatives,
+                                                                                int offset) {
 
     V_Real vSum = VEC_SETZERO();
     V_Real vSumSquared = VEC_SETZERO();
@@ -703,46 +703,47 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives, bool DoSum>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch2(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch2(double *outDerivatives,
+                                                                                     double *outSumDerivatives,
+                                                                                     double *outSumSquaredDerivatives,
+                                                                                     int offset) {
 
     if (outSumSquaredDerivatives == NULL) {
         accumulateDerivativesImpl<DoDerivatives, DoSum, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesImpl<DoDerivatives, DoSum, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch1(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch1(double *outDerivatives,
+                                                                                     double *outSumDerivatives,
+                                                                                     double *outSumSquaredDerivatives,
+                                                                                     int offset) {
 
     if (outSumDerivatives == NULL) {
         accumulateDerivativesDispatch2<DoDerivatives, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch2<DoDerivatives, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
-                                                                            double* outSumDerivatives,
-                                                                            double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double *outDerivatives,
+                                                                            double *outSumDerivatives,
+                                                                            double *outSumSquaredDerivatives,
+                                                                            int offset) {
     if (outDerivatives == NULL) {
         accumulateDerivativesDispatch1<false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch1<true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 

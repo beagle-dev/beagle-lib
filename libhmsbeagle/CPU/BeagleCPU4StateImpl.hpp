@@ -1008,7 +1008,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
                                                                            const REALTYPE *categoryWeights,
                                                                            double *outDerivatives,
                                                                            double *outSumDerivatives,
-                                                                           double *outSumSquaredDerivatives) {
+                                                                           double *outSumSquaredDerivatives,
+                                                                           int cacheOffset) {
 
     for (int category = 0; category < kCategoryCount; category++) {
 
@@ -1047,7 +1048,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
                                                                              const int scalingFactorsIndex,
                                                                              double *outDerivatives,
                                                                              double *outSumDerivatives,
-                                                                             double *outSumSquaredDerivatives) {
+                                                                             double *outSumSquaredDerivatives,
+                                                                             int cacheOffset) {
 
     const REALTYPE* transMatrix = gTransitionMatrices[firstDerivativeIndex];
 
