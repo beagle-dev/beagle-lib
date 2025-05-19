@@ -536,6 +536,9 @@ protected:
     virtual int upPartialsByPartitionAsync(const int* operations,
                                            int operationCount);
 
+    virtual int upPrePartialsByPartitionAsync(const int* operations,
+                                              int operationCount);
+
     virtual int reorderPatternsByPartition();
 
     virtual void calcStatesStates(REALTYPE* destP,
