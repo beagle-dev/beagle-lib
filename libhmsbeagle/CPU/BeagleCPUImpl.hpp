@@ -811,6 +811,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     kPartitionCount = partitionCount;
     grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kPartitionCount);
     grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kPartitionCount);
+    firstDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
+    secondDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
+
 
     if (!kPartitionsInitialised) {
         gPatternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
@@ -1431,32 +1434,20 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
             for (int j=0; j<kPartitionCount; j++) {
 
                 gThreadOperations[j][i * numOpsP] = postBufferIndices[i * kPartitionCount + j];
+                gThreadOperations[j][i * numOpsP + 1] = preBufferIndices[i * kPartitionCount + j];
+                gThreadOperations[j][i * numOpsP + 2] = derivativeMatrixIndices[i * kPartitionCount + j];
+                gThreadOperations[j][i * numOpsP + 3] = categoryWeightsIndices[0];
+                gThreadOperations[j][i * numOpsP + 4] = i * kPartitionCount + j;
+                gThreadOperations[j][i * numOpsP + 5] = j;
+                gThreadOpCounts[j]++;
+
 #ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 0 = " << gThreadOperations[j][i * numOpsP] << std::endl;
-#endif
-                gThreadOperations[j][i * numOpsP + 1] = preBufferIndices[i * kPartitionCount + j];
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 1 = " << gThreadOperations[j][i * numOpsP + 1]  << std::endl;
-#endif
-                gThreadOperations[j][i * numOpsP + 2] = derivativeMatrixIndices[i * kPartitionCount + j];
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 2 = " << gThreadOperations[j][i * numOpsP + 2]  << std::endl;
-#endif
-                gThreadOperations[j][i * numOpsP + 3] = categoryWeightsIndices[0];
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 3 = " << gThreadOperations[j][i * numOpsP + 3]  << std::endl;
-#endif
-                gThreadOperations[j][i * numOpsP + 4] = i * kPartitionCount + j;
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 4 = " << gThreadOperations[j][i * numOpsP + 4]  << std::endl;
-#endif
-                gThreadOperations[j][i * numOpsP + 5] = j;
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"j + 5 = " << gThreadOperations[j][i * numOpsP + 5]  << std::endl;
-#endif
-
-                gThreadOpCounts[j]++;
-#ifdef BEAGLE_DEBUG_FLOW
                 std::cerr<<"gThreadOpCounts[j] = " << gThreadOpCounts[j] <<std::endl;
 #endif
             }
