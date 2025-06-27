@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     beagle_basta_BastaJNIWrapper
  * Method:    allocateCoalescentBuffers
- * Signature: (III)I
+ * Signature: (IIIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentBuffers
-  (JNIEnv *, jobject, jint, jint, jint, jint, jint);
+  (JNIEnv *, jobject, jint, jint, jint, jint, jint, jint);
 
 /*
  * Class:     beagle_basta_BastaJNIWrapper

@@ -1458,7 +1458,8 @@ BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
                                                 const int bufferCount,
                                                 const int bufferLength,
                                                 const int partialsCount,
-                                                const int initial);
+                                                const int initial,
+                                                const int numThreads);
 
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,

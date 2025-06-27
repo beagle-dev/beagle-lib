@@ -1363,7 +1363,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(
         const double* edgeLengths,
         int count)
     {
-    bool threading = true;
+    bool threading = (kBastaNumThreads > 1);
     if (threading) {
         gEigenDecomposition->updateTransitionMatricesParallel(
             eigenIndex,
@@ -1511,14 +1511,15 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                                                             int bufferLength,
                                                             int partialsCount,
-                                                            int initial) {
+                                                            int initial,
+                                                            int numThreads) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleCPUImpl::allocateBastaBuffers\n");
 #endif
 
     kCoalescentBufferLength = bufferLength;
     kCoalescentBufferCount = bufferCount;
-    kBastaNumThreads = 24;
+    kBastaNumThreads = numThreads;
 
     gCoalescentBuffers.resize(kCoalescentBufferCount * kCoalescentBufferLength);
     gBastaBuffers.resize(kPartialsPaddedStateCount * kCoalescentBufferLength * 4);
@@ -1994,7 +1995,7 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
 
         const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
-        bool THREADING = true;
+        bool THREADING = (kBastaNumThreads > 1);
         int CUT_POINT = 16;
         int numThreads = kBastaNumThreads;
         if (THREADING) {
@@ -2283,7 +2284,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
-    bool threading = true;
+    bool threading = (kBastaNumThreads > 1);
     int numThreads = threading ? kBastaNumThreads : 1;
 #pragma omp parallel for num_threads(numThreads)
     for (int interval = 0; interval < intervalStartsCount - 1; ++interval) { // TODO execute in parallel (no race conditions)

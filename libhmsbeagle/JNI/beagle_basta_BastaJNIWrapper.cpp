@@ -12,12 +12,12 @@
 /*
  * Class:     beagle_basta_BastaJNIWrapper
  * Method:    allocateCoalescentBuffers
- * Signature: (III)I
+ * Signature: (IIIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentBuffers
-        (JNIEnv *env, jobject obj, jint instance, jint bufferCount, jint bufferLength, jint partialsCount, jint initial) {
+        (JNIEnv *env, jobject obj, jint instance, jint bufferCount, jint bufferLength, jint partialsCount, jint initial, jint numThreads) {
 
-    jint errCode = (jint)beagleAllocateBastaBuffers(instance, bufferCount, bufferLength, partialsCount, initial);
+    jint errCode = (jint)beagleAllocateBastaBuffers(instance, bufferCount, bufferLength, partialsCount, initial, numThreads);
 
     return errCode;
 }

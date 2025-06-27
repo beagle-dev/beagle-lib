@@ -499,7 +499,7 @@ public:
                                     double *out);
 
 
-    int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial);
+    int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial, int numThreads);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);

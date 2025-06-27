@@ -302,7 +302,8 @@ public:
     virtual int allocateBastaBuffers(int bufferCount,
                                      int bufferLength,
                                      int partialsCount,
-                                     int initial) = 0;
+                                     int initial,
+                                     int numThreads) = 0;
 
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;

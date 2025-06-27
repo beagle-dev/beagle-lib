@@ -1,4 +1,3 @@
-
 /*
  *  BeagleGPUImpl.cpp
  *  BEAGLE
@@ -2230,7 +2229,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
-                                     int bufferLength, int partialsCount, int initial) {
+                                     int bufferLength, int partialsCount, int initial, int numThreads) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaBuffers\n");
 #endif

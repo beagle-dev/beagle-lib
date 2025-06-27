@@ -1961,7 +1961,8 @@ int beagleAllocateBastaBuffers(const int instance,
                                 int bufferCount,
                                 int bufferLength,
                                 int partialsCount,
-                                int initial) {
+                                int initial,
+                                int numThreads) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
 
@@ -1970,7 +1971,7 @@ int beagleAllocateBastaBuffers(const int instance,
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     }
 
-    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial);
+    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial, numThreads);
 
     DEBUG_END_TIME();
     DEBUG_END_ENERGY();
