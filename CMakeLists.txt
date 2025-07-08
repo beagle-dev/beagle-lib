@@ -224,6 +224,10 @@ if(APPLE)
   			DISPLAY_NAME "CPU-SSE plugin"
   			DESCRIPTION "CPU-SSE plugin")
 
+  	cpack_add_component(cpu_omp
+  			DISPLAY_NAME "CPU-OMP plugin"
+  			DESCRIPTION "CPU-OMP plugin")
+
   	cpack_add_component(cuda
   			DISPLAY_NAME "CUDA plugin"
   			DESCRIPTION "CUDA plugin")
