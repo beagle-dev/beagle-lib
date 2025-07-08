@@ -24,7 +24,7 @@ option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
 option(BUILD_SSE "Build beagle with SSE library" ON)
-option(BUILD_BASTA "Build beagle with basta library" OFF)
+option(BUILD_BIT "Build beagle with basta library" OFF)
 
 # Old config.h settings
 
@@ -187,11 +187,11 @@ set(CPACK_PACKAGE_MAJOR "${BEAGLE_VERSION_MAJOR}")
 set(CPACK_PACKAGE_MINOR "${BEAGLE_VERSION_MINOR}")
 set(CPACK_PACKAGE_PATCH "${BEAGLE_VERSION_PATCH}")
 
-if(BUILD_BASTA)
+if(BUILD_BIT)
 	set(CPACK_PACKAGE_NAME "${BEAGLE_CPACK_PACKAGE_NAME}-${BASTA_EXTENSION}")
-else(BUILD_BASTA)
+else(BUILD_BIT)
 	set(CPACK_PACKAGE_NAME "${BEAGLE_CPACK_PACKAGE_NAME}")
-endif(BUILD_BASTA)
+endif(BUILD_BIT)
 
 message(STATUS "CPack package name: ${CPACK_PACKAGE_NAME}")
 
