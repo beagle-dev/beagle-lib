@@ -1,12 +1,26 @@
 if(BUILD_OPENMP)
 
-	find_package(OpenMP)
-	if(OpenMP_CXX_FOUND)
-		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -pthread -fopenmp")
-	else(OpenMP_CXX_FOUND)
-		message (FATAL_ERROR "No OpenMP Found")
-	endif(OpenMP_CXX_FOUND)
+	option(BUILD_OPENMP_WITH_HOMEBREW "Build beagle with OpenMP library" OFF)
+
+	if(BUILD_OPENMP_WITH_HOMEBREW)
+	    set(OpenMP_C_FLAGS "-Xclang -fopenmp -I/opt/homebrew/opt/llvm/include")
+   		set(OpenMP_CXX_FLAGS "-Xclang -fopenmp -I/opt/homebrew/opt/llvm/include")
+    
+	    set(OpenMP_C_LIB_NAMES omp)   
+    	set(OpenMP_CXX_LIB_NAMES omp)
+    
+	    set(OpenMP_omp_LIBRARY ${OpenMP_C_LIB_NAMES})
+	    set(OpenMP_C_INCLUDE_DIR "/opt/homebrew/opt/llvm/include")
+	endif(BUILD_OPENMP_WITH_HOMEBREW)
+    
+    find_package(OpenMP REQUIRED)
+
+ 	if(OpenMP_CXX_FOUND)
+ 		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
+
+ 	else(OpenMP_CXX_FOUND)
+ 		message (FATAL_ERROR "No OpenMP Found")
+ 	endif(OpenMP_CXX_FOUND)
 
 	add_library(hmsbeagle-cpu-omp SHARED
         ../BeagleCPU4StateSSEImpl.h
