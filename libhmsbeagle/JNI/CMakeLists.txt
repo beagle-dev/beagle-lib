@@ -18,6 +18,7 @@ endif(APPLE)
 
 install(TARGETS hmsbeagle-jni
         DESTINATION ${BEAGLE_INSTALL_DIR}
+        COMPONENT jni
         )
 
 if(BUILD_BASTA)
@@ -38,6 +39,7 @@ if(BUILD_BASTA)
 	
 	install(TARGETS hmsbeagle-jni-basta
     	    DESTINATION ${BEAGLE_INSTALL_DIR}
+    	    COMPONENT jni_basta
         	)
 	
 endif(BUILD_BASTA)
