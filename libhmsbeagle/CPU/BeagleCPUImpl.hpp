@@ -331,6 +331,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
 
+    kResourceNumber = resourceNumber;
+
     kMatrixSize = (T_PAD + kStateCount) * kStateCount;
 
     int scaleBufferSize = kPaddedPatternCount;
@@ -368,6 +370,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     if (requirementFlags & BEAGLE_FLAG_THREADING_CPP || preferenceFlags & BEAGLE_FLAG_THREADING_CPP)
         kFlags |= BEAGLE_FLAG_THREADING_CPP;
+    else if (requirementFlags & BEAGLE_FLAG_THREADING_OPENMP || preferenceFlags & BEAGLE_FLAG_THREADING_OPENMP)
+        kFlags |= BEAGLE_FLAG_THREADING_OPENMP;
     else
         kFlags |= BEAGLE_FLAG_THREADING_NONE;
 
@@ -635,7 +639,7 @@ const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
-        returnInfo->resourceNumber = 0;
+        returnInfo->resourceNumber = kResourceNumber;
         returnInfo->flags = getFlags();
         returnInfo->flags |= kFlags;
 
@@ -6004,6 +6008,9 @@ const long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
                  BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                  BEAGLE_FLAG_FRAMEWORK_CPU;
+#ifdef BEAGLE_OPENMP_ENABLED
+    flags |= BEAGLE_FLAG_THREADING_OPENMP;
+#endif
     if (DOUBLE_PRECISION)
         flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else

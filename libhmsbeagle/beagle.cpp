@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <cassert>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
@@ -117,6 +118,27 @@ void beagleLoadPlugins(void) {
 
     beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
+    // Check if threading is explicitly disabled
+    bool skipOpenMP = false;
+    const char* threadingType = getenv("BEAGLE_THREADING_TYPE");
+    if (threadingType && strcmp(threadingType, "none") == 0) {
+        skipOpenMP = true;
+    }
+
+    if (!skipOpenMP) {
+        try{
+#ifdef BEAGLE_DEBUG_LOAD
+            std::cerr << "Loading hmsbeagle-cpu-omp" << std::endl;
+#endif
+            beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-omp");
+            plugins->push_back(openmpplug);
+        }catch(beagle::plugin::SharedLibraryException sle){
+#ifdef BEAGLE_DEBUG_LOAD
+            std::cerr << "Unable to load hmsbeagle-cpu-omp: " << sle.getError() << std::endl;
+#endif
+        }
+    }
+
     try{
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cpu-sse" << std::endl;
@@ -170,11 +192,6 @@ void beagleLoadPlugins(void) {
     try{
         beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
         plugins->push_back(avxplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
-
-    try{
-        beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-        plugins->push_back(openmpplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
 }
 
@@ -331,6 +348,25 @@ int scoreFlags(long flags1, long flags2) {
             score++;
         trait <<= 1;
     }
+
+
+    if ((flags1 & BEAGLE_FLAG_THREADING_NONE) && 
+        (flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
+        score += 1000; // Large penalty to ensure OpenMP is avoided
+    }
+
+    if ((flags1 & BEAGLE_FLAG_THREADING_OPENMP) && 
+        (flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
+        score -= 100; // Bonus for OpenMP when OpenMP is requested
+
+    }
+    
+    if ((flags1 & BEAGLE_FLAG_THREADING_NONE) && 
+        (flags2 & BEAGLE_FLAG_THREADING_NONE) &&
+        !(flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
+        score -= 100;
+    }
+
     return -score;
 }
 
@@ -339,6 +375,19 @@ int filterResources(int* resourceList,
                     long preferenceFlags,
                     long requirementFlags,
                     PairedList* possibleResources) {
+
+    const long THREADING_FLAGS = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP | BEAGLE_FLAG_THREADING_OPENMP;
+
+    if (preferenceFlags & BEAGLE_FLAG_THREADING_NONE) {
+        // User explicitly requested no threading
+        requirementFlags |= BEAGLE_FLAG_THREADING_NONE;
+    } else if (preferenceFlags & BEAGLE_FLAG_THREADING_OPENMP) {
+        // User explicitly requested OpenMP threading
+        requirementFlags |= BEAGLE_FLAG_THREADING_OPENMP;
+    } else if ((preferenceFlags & THREADING_FLAGS) == 0) {
+        // User did not specify any threading preference -> assume they want single-threaded
+        requirementFlags |= BEAGLE_FLAG_THREADING_NONE;
+    }
 
     // First determine a list of possible resources
     if (resourceList == NULL || resourceCount == 0) { // No list given
@@ -354,6 +403,8 @@ int filterResources(int* resourceList,
     }
 
     if (requirementFlags != 0) { // If requirements given do restriction
+        bool openMPResourceFound = false;
+        
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
@@ -364,9 +415,16 @@ int filterResources(int* resourceList,
                     it=possibleResources->begin();
                 }else
                     possibleResources->remove(*(it--));
+            } else {
+                if (resourceFlag & BEAGLE_FLAG_THREADING_OPENMP) {
+                    openMPResourceFound = true;
+                }
             }
             if(it==possibleResources->end())
                 break;
+        }
+        if ((requirementFlags & BEAGLE_FLAG_THREADING_OPENMP) && !openMPResourceFound) {
+            return BEAGLE_ERROR_NO_RESOURCE;
         }
     }
 

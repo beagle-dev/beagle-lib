@@ -16,7 +16,8 @@ if(BUILD_OPENMP)
     find_package(OpenMP REQUIRED)
 
  	if(OpenMP_CXX_FOUND)
- 		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
+ 		message(STATUS "OpenMP CXX flags: ${OpenMP_CXX_FLAGS}")
+ 		message(STATUS "OpenMP CXX libraries: ${OpenMP_CXX_LIBRARIES}")
 
  	else(OpenMP_CXX_FOUND)
  		message (FATAL_ERROR "No OpenMP Found")
@@ -41,6 +42,13 @@ if(BUILD_OPENMP)
         ../Precision.h
         ../SSEDefinitions.h
         )
+
+	# Apply OpenMP compilation flags and link OpenMP libraries
+	target_compile_options(hmsbeagle-cpu-omp PRIVATE ${OpenMP_CXX_FLAGS})
+	target_link_libraries(hmsbeagle-cpu-omp PRIVATE OpenMP::OpenMP_CXX)
+	
+	# Add preprocessor definition to enable OpenMP threading flags in CPU implementations
+	target_compile_definitions(hmsbeagle-cpu-omp PRIVATE BEAGLE_OPENMP_ENABLED)
 
 	install(TARGETS hmsbeagle-cpu-omp
 		DESTINATION ${BEAGLE_INSTALL_DIR}

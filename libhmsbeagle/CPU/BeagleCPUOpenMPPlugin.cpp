@@ -17,14 +17,17 @@ namespace beagle {
 namespace cpu {
 
 BeagleCPUOpenMPPlugin::BeagleCPUOpenMPPlugin() :
-Plugin("CPU-SSE-OpenMP", "CPU-SSE-OpenMP")
+Plugin("CPU-OpenMP", "CPU-OpenMP")
 {
 	BeagleResource resource;
-        resource.name = (char*) "CPU";
-        resource.description = (char*) "";
+#ifdef __aarch64__
+        resource.name = (char*) "CPU-OpenMP (arm64)";
+#else
+        resource.name = (char*) "CPU-OpenMP (x86_64)";
+#endif
+        resource.description = (char*) "CPU implementation with OpenMP threading support";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                                          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-                                         BEAGLE_FLAG_THREADING_NONE |
                                          BEAGLE_FLAG_PROCESSOR_CPU |
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
                                          BEAGLE_FLAG_VECTOR_NONE |
