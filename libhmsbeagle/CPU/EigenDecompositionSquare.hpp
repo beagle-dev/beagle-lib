@@ -217,7 +217,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
             for (int i = 0; i < kStateCount; i++) {
                 if (!isComplex || EvalImag[i] == 0) {
                     const REALTYPE tmp = exp(Eval[i] * distance);
-                    #pragma omp simd
+
                     for (int j = 0; j < kStateCount; j++) {
                         matrixTmp_local[i * kStateCount + j] = Ievc[i * kStateCount + j] * tmp;
                     }
@@ -227,7 +227,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
                     const REALTYPE expat        = exp(Eval[i] * distance);
                     const REALTYPE expatcosbt   = expat * cos(b * distance);
                     const REALTYPE expatsinbt   = expat * sin(b * distance);
-                    #pragma omp simd
+
                     for (int j = 0; j < kStateCount; j++) {
                         matrixTmp_local[i * kStateCount + j] =
                             expatcosbt * Ievc[i * kStateCount + j] + expatsinbt * Ievc[i2 * kStateCount + j];
@@ -241,7 +241,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
             for (int i = 0; i < kStateCount; i++) {
                 for (int j = 0; j < kStateCount; j++) {
                     REALTYPE sum = 0.0;
-                    #pragma omp simd reduction(+:sum)
+
                     for (int k = 0; k < kStateCount; k++) {
                         sum += Evec[i * kStateCount + k] * matrixTmp_local[k * kStateCount + j];
                     }

@@ -86,6 +86,7 @@ protected:
 	int kBastaNumThreads;
 
     long kFlags;
+    int kResourceNumber;
 
     REALTYPE realtypeMin;
     int scalingExponentThreshold;
