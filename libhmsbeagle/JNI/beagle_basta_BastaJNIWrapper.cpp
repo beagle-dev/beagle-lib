@@ -37,7 +37,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials
 
 	jint errCode = (jint)beagleUpdateBastaPartials(instance, 
 		(BastaOperation*) operations, operationCount,
-		intervals, intervalCount,
+		(const int*) intervals, intervalCount,
         populationSizesIndex, coalescentIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
@@ -62,7 +62,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad
 
 	jint errCode = (jint)beagleUpdateBastaPartialsGrad(instance, 
 		(BastaOperation*) operations, operationCount,
-		intervals, intervalCount,
+		(const int*) intervals, intervalCount,
         populationSizesIndex, coalescentIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
@@ -122,7 +122,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
 
     jint errCode = beagleAccumulateBastaPartials(instance,
                                                  (const BastaOperation*) operations, operationCount,
-                                                 intervals, intervalCount,
+                                                 (const int*) intervals, intervalCount,
                                                  (double *)intervalLengths,
                                                  populationSizesIndex,
                                                  coalescentIndex, (double *)array);
@@ -155,7 +155,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
 
     jint errCode = beagleAccumulateBastaPartialsGrad(instance,
                                                  (const BastaOperation*) operations, operationCount,
-                                                 intervals, intervalCount,
+                                                 (const int*) intervals, intervalCount,
                                                  (double *)intervalLengths,
                                                  populationSizesIndex,
                                                  coalescentIndex, (double *)array);

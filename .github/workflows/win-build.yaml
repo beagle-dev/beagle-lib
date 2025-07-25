@@ -15,6 +15,7 @@ jobs:
     steps:    
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1 # This action sets up the environment
+      
       - name: Build
         run: |        
           mkdir build
@@ -22,3 +23,9 @@ jobs:
           cmake -DBUILD_CUDA=OFF -DBUILD_OPENCL=OFF -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
+      - name: Upload installer package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer_package
+          path: build/*.msi
