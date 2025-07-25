@@ -1,6 +1,11 @@
 name: win-build
 
-on: workflow_dispatch
+# on: workflow_dispatch
+
+on:
+  push:
+    branches:
+    - basta
 
 jobs:
   build:
