@@ -19,6 +19,6 @@ jobs:
         run: |        
           mkdir build
           cd build
-          cmake ..
+          cmake -DBUILD_CUDA=OFF -DBUILD_OPENCL=OFF -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
