@@ -1,5 +1,7 @@
 name: win-build
 
+on: workflow_dispatch
+
 jobs:
   build:
     name: Build release on windoz
