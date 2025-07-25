@@ -125,7 +125,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
         const double edgeLength = edgeLengths[u];
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
-			const REALTYPE distance = categoryRates[l] * edgeLength;
+			const REALTYPE distance = static_cast<REALTYPE>(categoryRates[l] * edgeLength);
         	for(int i=0; i<kStateCount; i++) {
         		if (!isComplex || EvalImag[i] == 0) {
         			const REALTYPE tmp = exp(Eval[i] * distance);
@@ -205,7 +205,8 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
 
     #pragma omp parallel for num_threads(numThreads)
     for (int u = 0; u < count; u++) {
-        REALTYPE matrixTmp_local[matrixSize];
+    	std::vector<REALTYPE> matrixTmp_local(matrixSize);
+//         REALTYPE matrixTmp_local[matrixSize];
 
         REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
         const double edgeLength   = edgeLengths[u];
