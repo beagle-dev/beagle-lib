@@ -3134,10 +3134,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
             outDerivatives[k] = derivative;
         }
         if (DoSum) { // TODO Confirm that these are compile-time
-            sum += derivative * gPatternWeights[k];
+            sum += derivative * static_cast<REALTYPE>(gPatternWeights[k]);
         }
         if (DoSumSquared) {
-            sumSquared += derivative * derivative * gPatternWeights[k];
+            sumSquared += derivative * derivative * static_cast<REALTYPE>(gPatternWeights[k]);
         }
     }
 

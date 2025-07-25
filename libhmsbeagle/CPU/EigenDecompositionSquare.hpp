@@ -213,7 +213,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
         int n = 0;
 
         for (int l = 0; l < kCategoryCount; l++) {
-            const REALTYPE distance = categoryRates[l] * edgeLength;
+            const REALTYPE distance = static_cast<REALTYPE>(categoryRates[l] * edgeLength);
 
             for (int i = 0; i < kStateCount; i++) {
                 if (!isComplex || EvalImag[i] == 0) {
