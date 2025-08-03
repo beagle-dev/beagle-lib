@@ -6,7 +6,8 @@
  */
 #ifndef _EigenDecompositionSquare_hpp_
 #define _EigenDecompositionSquare_hpp_
-#include "EigenDecompositionSquare.h"
+
+#include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 #include "libhmsbeagle/beagle.h"
 
 //#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
