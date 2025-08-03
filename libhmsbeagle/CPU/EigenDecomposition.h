@@ -80,7 +80,7 @@ public:
 									  const int* firstDerivativeIndices,
 									  const int* secondDerivativeIndices, const double* edgeLengths,
 									  const double* categoryRates, REALTYPE** transitionMatrices, int count,
-									  int numThreads);
+									  int numThreads) = 0;
 
     virtual void updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
