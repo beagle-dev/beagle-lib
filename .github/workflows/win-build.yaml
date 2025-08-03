@@ -24,8 +24,10 @@ jobs:
       
       - name: Install OpenCL
         run: |
-          curl https://github.com/KhronosGroup/OpenCL-SDK/releases/download/v2025.07.23/OpenCL-SDK-v2025.07.23-Win-x64.zip
-          ./OpenCL-SDK-v2025.07.23-Win-x64.zip
+#           curl https://github.com/KhronosGroup/OpenCL-SDK/releases/download/v2025.07.23/OpenCL-SDK-v2025.07.23-Win-x64.zip
+#           ./OpenCL-SDK-v2025.07.23-Win-x64.zip
+          curl https://registrationcenter-download.intel.com/akdlm/IRC_NAS/a8589e7b-70f8-4ef2-bdc3-7306dfb93e92/w_opencl_runtime_p_2025.2.0.768.exe
+          ./w_opencl_runtime_p_2025.2.0.768.exe
       
       - name: Build
         run: |        
