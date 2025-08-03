@@ -23,6 +23,7 @@ jobs:
 #           cuda: '12.5.0'      
       
       - name: Install OpenCL
+        shell: powershell
         run: |
           curl https://registrationcenter-download.intel.com/akdlm/IRC_NAS/a8589e7b-70f8-4ef2-bdc3-7306dfb93e92/w_opencl_runtime_p_2025.2.0.768.exe
           ./w_opencl_runtime_p_2025.2.0.768.exe
