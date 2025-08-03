@@ -14,19 +14,24 @@ jobs:
 
     steps:    
       - uses: actions/checkout@v4
-#      - uses: Jimver/cuda-toolkit@master
+    
       - uses: ilammy/msvc-dev-cmd@v1 # This action sets up the environment
       
-      - uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-toolkit
-        with:
-          cuda: '12.5.0'      
+#       - uses: Jimver/cuda-toolkit@v0.2.24
+#         id: cuda-toolkit
+#         with:
+#           cuda: '12.5.0'      
+      
+      - name: Install OpenCL
+        run: |
+          curl https://github.com/KhronosGroup/OpenCL-SDK/releases/download/v2025.07.23/OpenCL-SDK-v2025.07.23-Win-x64.zip
+          ./OpenCL-SDK-v2025.07.23-Win-x64.zip
       
       - name: Build
         run: |        
           mkdir build
           cd build
-          cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=OFF -DBUILD_BIT=ON ..
+          cmake -DBUILD_CUDA=OFF -DBUILD_OPENCL=ON -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
       - name: Upload CPack files
