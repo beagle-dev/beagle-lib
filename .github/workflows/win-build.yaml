@@ -14,7 +14,7 @@ jobs:
 
     steps:    
       - uses: actions/checkout@v4
-      - uses: Jimver/cuda-toolkit@master
+#      - uses: Jimver/cuda-toolkit@master
       - uses: ilammy/msvc-dev-cmd@v1 # This action sets up the environment
       
       - name: Build
