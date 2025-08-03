@@ -24,6 +24,11 @@ jobs:
           cmake -DBUILD_CUDA=OFF -DBUILD_OPENCL=OFF -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
+      - name: Upload CPack files
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPack files
+          path: build
       - name: Upload installer package
         if: success()
         uses: actions/upload-artifact@v4
