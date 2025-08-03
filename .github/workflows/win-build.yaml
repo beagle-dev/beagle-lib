@@ -20,29 +20,38 @@ jobs:
       - uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit
         with:
-          cuda: '12.5.0'      
+          cuda: '12.5.0'         
       
-#       - name: Install OpenCL
-#         shell: powershell
-#         run: |
-#           curl https://registrationcenter-download.intel.com/akdlm/IRC_NAS/a8589e7b-70f8-4ef2-bdc3-7306dfb93e92/w_opencl_runtime_p_2025.2.0.768.exe
-#           ./w_opencl_runtime_p_2025.2.0.768.exe
-#           curl https://github.com/KhronosGroup/OpenCL-SDK/releases/download/v2025.07.23/OpenCL-SDK-v2025.07.23-Win-x64.zip
-#           ./OpenCL-SDK-v2025.07.23-Win-x64.zip          
-      
-      - name: Build
+      - name: Build with BIT
         run: |        
-          mkdir build
-          cd build
+          mkdir build_bit
+          cd build_bit
           cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=ON -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
-      - name: Upload CPack files
+          
+#       - name: Upload CPack files
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: CPack files
+#           path: build
+
+      - name: Upload BIT installer package
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: CPack files
-          path: build
-      - name: Upload installer package
+          name: installer_package
+          path: build_bit/*.msi
+
+      - name: Build BEAGLE
+        run: |        
+          mkdir build
+          cd build
+          cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=ON -DBUILD_BIT=OFF ..
+          devenv BEAGLE.sln /build "Release"
+          cpack .
+
+      - name: Upload BEAGLE installer package
         if: success()
         uses: actions/upload-artifact@v4
         with:
