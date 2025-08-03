@@ -74,11 +74,11 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int
     if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
         int l = 0;
         for (int i = 0; i < kStateCount; i++) {
-            gEigenValues[eigenIndex][i] = inEigenValues[i];
+            gEigenValues[eigenIndex][i] = static_cast<REALTYPE>(inEigenValues[i]);
             for (int j = 0; j < kStateCount; j++) {
                 for (int k = 0; k < kStateCount; k++) {
-                    gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
-                            * inInverseEigenVectors[(k * kStateCount) + j];
+                    gCMatrices[eigenIndex][l] = static_cast<REALTYPE>(inEigenVectors[(i * kStateCount) + k]
+                            * inInverseEigenVectors[(k * kStateCount) + j]);
                     l++;
                 }
             }
@@ -86,11 +86,11 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int
     } else {
         int l = 0;
         for (int i = 0; i < kStateCount; i++) {
-            gEigenValues[eigenIndex][i] = inEigenValues[i];
+            gEigenValues[eigenIndex][i] = static_cast<REALTYPE>(inEigenValues[i]);
             for (int j = 0; j < kStateCount; j++) {
                 for (int k = 0; k < kStateCount; k++) {
-                    gCMatrices[eigenIndex][l] = inEigenVectors[(i * kStateCount) + k]
-                    * inInverseEigenVectors[k + (j*kStateCount)];
+                    gCMatrices[eigenIndex][l] = static_cast<REALTYPE>(inEigenVectors[(i * kStateCount) + k]
+                    * inInverseEigenVectors[k + (j*kStateCount)]);
                     l++;
                 }
             }
@@ -189,7 +189,7 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrices(
                 for (int l = 0; l < kCategoryCount; l++) {
 
                     for (int i = 0; i < kStateCount; i++) {
-                        matrixTmp[i] = exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l]));
+                        matrixTmp[i] = static_cast<REALTYPE>(exp(gEigenValues[eigenIndex][i] * ((REALTYPE)edgeLengths[u] * categoryRates[l])));
                     }
 
                     REALTYPE* tmpCMatrices = gCMatrices[eigenIndex];

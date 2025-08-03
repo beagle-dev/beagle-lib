@@ -283,7 +283,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
         const double edgeLength = edgeLengths[u];
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
-            const REALTYPE distance = edgeLength;
+            const REALTYPE distance = static_cast<REALTYPE>(edgeLength);
             const REALTYPE* Ievc = gIMatrices[eigenIndices[l]];
             const REALTYPE* Evec = gEMatrices[eigenIndices[l]];
             const REALTYPE* Eval = gEigenValues[eigenIndices[l]];

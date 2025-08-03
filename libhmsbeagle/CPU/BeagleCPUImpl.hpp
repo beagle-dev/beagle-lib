@@ -5047,9 +5047,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogLikelihoodsSecondDeriv(const i
             for(int k = 0; k < kPatternCount; k++) {
                 int w = l * kMatrixSize;
                 for(int i = 0; i < kStateCount; i++) {
-                    double sumOverJ = 0.0;
-                    double sumOverJD1 = 0.0;
-                    double sumOverJD2 = 0.0;
+                    REALTYPE sumOverJ = 0.0;
+                    REALTYPE sumOverJD1 = 0.0;
+                    REALTYPE sumOverJD2 = 0.0;
                     for(int j = 0; j < kStateCount; j++) {
                         sumOverJ += transMatrix[w] * partialsChild[v + j];
                         sumOverJD1 += firstDerivMatrix[w] * partialsChild[v + j];
@@ -5244,7 +5244,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoRescalePartials(REALTYPE* destP,
             for (int l = 0; l < kCategoryCount; l++) {
                 int offset = l * kPaddedPatternCount * kPartialsPaddedStateCount + patternOffset;
                 for (int i = 0; i < kStateCount; i++)
-                    destP[offset++] *= pow(2.0, -expMax);
+                    destP[offset++] *= static_cast<REALTYPE>(pow(2.0, -expMax));
             }
         }
     }
