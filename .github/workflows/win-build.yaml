@@ -40,7 +40,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: installer_package
+          name: BIT_installer_package
           path: build_bit/*.msi
 
       - name: Build BEAGLE
@@ -55,5 +55,5 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: installer_package
+          name: BEAGLE_installer_package
           path: build/*.msi
