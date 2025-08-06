@@ -21,9 +21,9 @@ Plugin("CPU-OpenMP", "CPU-OpenMP")
 {
 	BeagleResource resource;
 #ifdef __aarch64__
-        resource.name = (char*) "CPU-OpenMP (arm64)";
+        resource.name = (char*) "CPU (arm64)";
 #else
-        resource.name = (char*) "CPU-OpenMP (x86_64)";
+        resource.name = (char*) "CPU (x86_64)";
 #endif
         resource.description = (char*) "CPU implementation with OpenMP threading support";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
@@ -37,6 +37,7 @@ Plugin("CPU-OpenMP", "CPU-OpenMP")
                                          BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                          BEAGLE_FLAG_FRAMEWORK_CPU;
         resource.supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
+        resource.supportFlags |= BEAGLE_FLAG_THREADING_NONE;
         resource.supportFlags |= BEAGLE_FLAG_THREADING_OPENMP;
         resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
 	beagleResources.push_back(resource);
