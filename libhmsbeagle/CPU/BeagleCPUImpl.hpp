@@ -331,8 +331,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kCategoryCount = categoryCount;
     kScaleBufferCount = scaleBufferCount;
 
-    kResourceNumber = resourceNumber;
-
     kMatrixSize = (T_PAD + kStateCount) * kStateCount;
 
     int scaleBufferSize = kPaddedPatternCount;
@@ -639,7 +637,7 @@ const long BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getFlags() {
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
     if (returnInfo != NULL) {
-        returnInfo->resourceNumber = kResourceNumber;
+        returnInfo->resourceNumber = 0;
         returnInfo->flags = getFlags();
         returnInfo->flags |= kFlags;
 

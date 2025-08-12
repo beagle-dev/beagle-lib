@@ -348,25 +348,6 @@ int scoreFlags(long flags1, long flags2) {
             score++;
         trait <<= 1;
     }
-
-
-    if ((flags1 & BEAGLE_FLAG_THREADING_NONE) && 
-        (flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
-        score += 1000; // Large penalty to ensure OpenMP is avoided
-    }
-
-    if ((flags1 & BEAGLE_FLAG_THREADING_OPENMP) && 
-        (flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
-        score -= 100; // Bonus for OpenMP when OpenMP is requested
-
-    }
-    
-    if ((flags1 & BEAGLE_FLAG_THREADING_NONE) && 
-        (flags2 & BEAGLE_FLAG_THREADING_NONE) &&
-        !(flags2 & BEAGLE_FLAG_THREADING_OPENMP)) {
-        score -= 100;
-    }
-
     return -score;
 }
 
