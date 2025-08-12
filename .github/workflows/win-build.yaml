@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
     
       - uses: ilammy/msvc-dev-cmd@v1 # This action sets up the environment
+        with:
+          vsversion: '2019'
       
       - uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit

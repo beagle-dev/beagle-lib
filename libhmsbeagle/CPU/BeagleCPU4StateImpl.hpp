@@ -1112,7 +1112,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int 
 
             for (int category = 0; category < kCategoryCount; category++) {
 
-                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+                const REALTYPE scale = categoryRates[category] * static_cast<REALTYPE>(edgeLength);
 
                 const REALTYPE weight = categoryWeights[category];
                 const int patternIndex = category * kPatternCount + pattern;

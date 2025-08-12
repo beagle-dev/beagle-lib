@@ -189,7 +189,7 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     free(gTipStates);
 
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
-        for(unsigned int i=0; i<kScaleBufferCount; i++) {
+        for (int i = 0; i < kScaleBufferCount; i++) {
             if (gAutoScaleBuffers[i] != NULL)
                 free(gAutoScaleBuffers[i]);
         }
@@ -199,7 +199,7 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
         if (gScaleBuffers[0] != NULL)
             free(gScaleBuffers[0]);
     } else {
-        for(unsigned int i=0; i<kScaleBufferCount; i++) {
+        for (int i = 0; i < kScaleBufferCount; i++) {
             if (gScaleBuffers[i] != NULL)
                 free(gScaleBuffers[i]);
         }
