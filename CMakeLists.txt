@@ -205,7 +205,7 @@ if(WIN32)
     set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/LICENSE.rtf")
     set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/banner.jpg")
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
-    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml") # MAS commented out for testing
+#     set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml") # MAS commented out for testing
     
 	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
 	
@@ -244,6 +244,10 @@ if(WIN32)
   	cpack_add_component(opencl
   			DISPLAY_NAME "OpenCL plugin"
   			DESCRIPTION "OpenCL plugin")
+  			
+# # Install files directly to the root
+# install(FILES my_file.txt DESTINATION "/")
+  			
 endif(WIN32)
 
 if(APPLE)
