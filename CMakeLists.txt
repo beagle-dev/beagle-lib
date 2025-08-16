@@ -207,44 +207,44 @@ if(WIN32)
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
 #     set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml") # MAS commented out for testing
     
-	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
-	
-	include(CPackComponent)
-
-	cpack_add_component(main
-			DISPLAY_NAME "Main library"
-			DESCRIPTION "BEAGLE main library"
-			REQUIRED)
-
-	cpack_add_component(cpu
-  			DISPLAY_NAME "CPU plugin"
-		  	DESCRIPTION "CPU plugin"
-  			REQUIRED)
-
-  	cpack_add_component(cpu_sse
-  			DISPLAY_NAME "CPU-SSE plugin"
-  			DESCRIPTION "CPU-SSE plugin")
-
-  	cpack_add_component(cpu_omp
-  			DISPLAY_NAME "CPU-OMP plugin"
-  			DESCRIPTION "CPU-OMP plugin")
-
-  	cpack_add_component(jni
-  			DISPLAY_NAME "JNI plugin"
-  			DESCRIPTION "JNI plugin")
-
-  	cpack_add_component(jni_basta
-  			DISPLAY_NAME "JNI-${BASTA_EXTENSION} plugin"
-  			DESCRIPTION "JNI-${BASTA_EXTENSION} plugin")
-
-  	cpack_add_component(cuda
-  			DISPLAY_NAME "CUDA plugin"
-  			DESCRIPTION "CUDA plugin")
-
-  	cpack_add_component(opencl
-  			DISPLAY_NAME "OpenCL plugin"
-  			DESCRIPTION "OpenCL plugin")
-  			
+# 	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
+# 	
+# 	include(CPackComponent)
+# 
+# 	cpack_add_component(main
+# 			DISPLAY_NAME "Main library"
+# 			DESCRIPTION "BEAGLE main library"
+# 			REQUIRED)
+# 
+# 	cpack_add_component(cpu
+#   			DISPLAY_NAME "CPU plugin"
+# 		  	DESCRIPTION "CPU plugin"
+#   			REQUIRED)
+# 
+#   	cpack_add_component(cpu_sse
+#   			DISPLAY_NAME "CPU-SSE plugin"
+#   			DESCRIPTION "CPU-SSE plugin")
+# 
+#   	cpack_add_component(cpu_omp
+#   			DISPLAY_NAME "CPU-OMP plugin"
+#   			DESCRIPTION "CPU-OMP plugin")
+# 
+#   	cpack_add_component(jni
+#   			DISPLAY_NAME "JNI plugin"
+#   			DESCRIPTION "JNI plugin")
+# 
+#   	cpack_add_component(jni_basta
+#   			DISPLAY_NAME "JNI-${BASTA_EXTENSION} plugin"
+#   			DESCRIPTION "JNI-${BASTA_EXTENSION} plugin")
+# 
+#   	cpack_add_component(cuda
+#   			DISPLAY_NAME "CUDA plugin"
+#   			DESCRIPTION "CUDA plugin")
+# 
+#   	cpack_add_component(opencl
+#   			DISPLAY_NAME "OpenCL plugin"
+#   			DESCRIPTION "OpenCL plugin")
+#   			
 # # Install files directly to the root
 # install(FILES my_file.txt DESTINATION "/")
   			
