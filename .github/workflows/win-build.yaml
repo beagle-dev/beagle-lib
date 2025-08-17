@@ -20,10 +20,10 @@ jobs:
 #           vsversion: '2019'
           toolset: '14.44'
       
-#       - uses: Jimver/cuda-toolkit@v0.2.24
-#         id: cuda-toolkit
-#         with:
-#           cuda: '12.5.0'         
+      - uses: Jimver/cuda-toolkit@v0.2.24
+        id: cuda-toolkit
+        with:
+          cuda: '12.5.0'         
       
       - name: Build with BIT
         run: |        
@@ -46,17 +46,17 @@ jobs:
           name: BIT_installer_package
           path: build_bit/*.msi
 
-#       - name: Build BEAGLE
-#         run: |        
-#           mkdir build
-#           cd build
-#           cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=ON -DBUILD_BIT=OFF ..
-#           devenv BEAGLE.sln /build "Release"
-#           cpack .
-# 
-#       - name: Upload BEAGLE installer package
-#         if: success()
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: BEAGLE_installer_package
-#           path: build/*.msi
+      - name: Build BEAGLE
+        run: |        
+          mkdir build
+          cd build
+          cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=ON -DBUILD_BIT=OFF ..
+          devenv BEAGLE.sln /build "Release"
+          cpack .
+
+      - name: Upload BEAGLE installer package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BEAGLE_installer_package
+          path: build/*.msi
