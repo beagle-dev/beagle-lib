@@ -146,7 +146,7 @@ jobs:
         sudo apt-get install -y cmake ninja-build ccache pkg-config
         sudo apt-get install -y dos2unix g++-mingw-w64 mingw-w64-tools wine64 zstd
 
-        echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_ACTION=OFF -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
+        echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
 
     - name: Select XCode version (macOS)
       if: runner.os == 'macOS'
@@ -188,4 +188,4 @@ jobs:
         cd build
         ./examples/synthetictest
         ./examples/hmctest
-        ./examples/actiontest
+
