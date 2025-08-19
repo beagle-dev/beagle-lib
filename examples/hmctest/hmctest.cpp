@@ -165,8 +165,8 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human) * nRepeats;
 
     // change # rate category to 2
-//    int rateCategoryCount = 4;
-    int rateCategoryCount = 1;
+    int rateCategoryCount = 4;
+//    int rateCategoryCount = 1;
 
     int scaleCount = (scaling ? 7 : 0);
 
@@ -207,6 +207,11 @@ int main( int argc, const char* argv[] )
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
 
+    int threadCount = 4;
+    if (threadCount > 1) {
+        requirementFlags |= BEAGLE_FLAG_THREADING_CPP;
+    }
+
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -226,6 +231,10 @@ int main( int argc, const char* argv[] )
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
+    }
+
+    if (threadCount > 1) {
+        beagleSetCPUThreadCount(instance, threadCount);
     }
 
 
