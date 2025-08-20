@@ -1032,8 +1032,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
 
             REALTYPE denominator = preOrderPartial[localPatternOffset + (state & 3)];
 
-            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            grandNumeratorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * numerator;
+            grandDenominatorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * denominator;
         }
     }
 }
@@ -1075,8 +1075,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 //            grandDenominatorDerivTmp[k] += (postPartials[v] * prePartials[v] + postPartials[v + 1] * prePartials[v + 1]
 //                    + postPartials[v + 2] * prePartials[v + 2] + postPartials[v + 3] * prePartials[v + 3]) * weight;
 
-            grandDenominatorDerivTmp[k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
-            grandNumeratorDerivTmp[k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
+            grandDenominatorDerivTmp[cacheOffset + k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
+            grandNumeratorDerivTmp[cacheOffset + k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
 
             v += 4;
         }

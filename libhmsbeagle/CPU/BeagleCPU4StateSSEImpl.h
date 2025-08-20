@@ -261,7 +261,8 @@ private:
                                                 const int scalingFactorsIndex,
                                                 double* outDerivatives,
                                                 double* outSumDerivatives,
-                                                double* outSumSquaredDerivatives);
+                                                double* outSumSquaredDerivatives,
+												int cacheOffset);
 
     virtual void calcEdgeLogDerivativesStates(const int* tipStates,
                                               const double *__restrict preOrderPartial,
@@ -271,7 +272,8 @@ private:
                                               const double* __restrict categoryWeights,
                                               double *outDerivatives,
                                               double *outSumDerivatives,
-                                              double *outSumSquaredDerivatives);
+                                              double *outSumSquaredDerivatives,
+											  int cacheOffset);
 
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,

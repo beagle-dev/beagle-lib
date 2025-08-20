@@ -757,7 +757,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
                                                                                      const int scalingFactorsIndex,
                                                                                      double* outDerivatives,
                                                                                      double* outSumDerivatives,
-                                                                                     double* outSumSquaredDerivatives) {
+                                                                                     double* outSumSquaredDerivatives,
+                                                                                     int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -810,8 +811,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             double numer = _mm_cvtsd_f64(vnumer) * wt[l];
             double denon = _mm_cvtsd_f64(vdenom) * wt[l];
 
-            grandNumeratorDerivTmp[k] += numer; // TODO Merge [numer, denom] into single SSE transactions
-            grandDenominatorDerivTmp[k] += denon;
+            grandNumeratorDerivTmp[cacheOffset + k] += numer; // TODO Merge [numer, denom] into single SSE transactions
+            grandDenominatorDerivTmp[cacheOffset + k] += denon;
 
             v += 4;
         }
@@ -832,7 +833,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
                                                                                    const double* categoryWeights,
                                                                                    double *outDerivatives,
                                                                                    double *outSumDerivatives,
-                                                                                   double *outSumSquaredDerivatives) {
+                                                                                   double *outSumSquaredDerivatives,
+                                                                                   int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -867,8 +869,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
             double numer = _mm_cvtsd_f64(vnumer);
             double denom = cl_r[stateChild & 3]; cl_r += 4;
 
-            grandNumeratorDerivTmp[k] += numer * wt[l];
-            grandDenominatorDerivTmp[k] += denom * wt[l];
+            grandNumeratorDerivTmp[cacheOffset + k] += numer * wt[l];
+            grandDenominatorDerivTmp[cacheOffset + k] += denom * wt[l];
         }
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
