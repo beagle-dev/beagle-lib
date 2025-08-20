@@ -165,7 +165,7 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human) * nRepeats;
 
     // change # rate category to 2
-    int rateCategoryCount = 4;
+    int rateCategoryCount = 2;
 //    int rateCategoryCount = 1;
 
     int scaleCount = (scaling ? 7 : 0);
@@ -284,10 +284,10 @@ int main( int argc, const char* argv[] )
 ////        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
 //    }
 
-//    rates[0] = 0.14251623900062188;
-//    rates[1] = 1.857483760999378;
+    rates[0] = 0.14251623900062188;
+    rates[1] = 1.857483760999378;
 
-    rates[0] = 1.0;
+//    rates[0] = 1.0;
 
 	beagleSetCategoryRates(instance, &rates[0]);
 
