@@ -809,8 +809,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     assert(inPatternPartitions != 0L);
 
     kPartitionCount = partitionCount;
-    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kPartitionCount);
-    grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kPartitionCount);
+    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1) * kPartitionCount);
+    grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1)* kPartitionCount);
     firstDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
     secondDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
 
@@ -2119,7 +2119,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsyn
         const int scalingFactorsIndex = -1; // cumulativeScaleIndices[nodeNum];
 
         const int patternOffset = operations[nodeNum * numOpsP + 4] * kPatternCount;
-        const int threadOffset = operations[nodeNum * numOpsP + 5] * kPaddedPatternCount;
+        const int threadOffset = operations[nodeNum * numOpsP + 5] * ((kPaddedPatternCount + 1) / 2 * 2);
 
 
 #ifdef BEAGLE_DEBUG_FLOW
