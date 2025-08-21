@@ -2119,7 +2119,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsyn
         const int scalingFactorsIndex = -1; // cumulativeScaleIndices[nodeNum];
 
         const int patternOffset = operations[nodeNum * numOpsP + 4] * kPatternCount;
-        const int threadOffset = operations[nodeNum * numOpsP + 5] * kPatternCount;
+        const int threadOffset = operations[nodeNum * numOpsP + 5] * kPaddedPatternCount;
 
 
 #ifdef BEAGLE_DEBUG_FLOW
