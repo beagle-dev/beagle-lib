@@ -45,8 +45,8 @@
 
 //  TODO: assess following cut-offs dynamically
 #define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD     16  // CPU category threshold
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW        256  // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH       768  // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW         256 // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH        768 // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
 #define BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT       262144  // do not use all CPU cores for problems with fewer patterns
 
 namespace beagle {
@@ -462,6 +462,13 @@ protected:
                               int count,
                               int cumulativeScaleIndex);
 
+
+    virtual int calcEdgeLogDerivativesByAutoPartitionAsync(const int *operations,
+                                                           int count,
+                                                           double *siteLogLikelihoods,
+                                                           double *outLogFirstDerivatives,
+                                                           double *outLogDiagonalSecondDerivatives);
+
     virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
                                        const int *preBufferIndices,
                                        const int *firstDerivativeIndices,
@@ -474,16 +481,15 @@ protected:
                                        double *outLogFirstDerivatives,
                                        double *outLogDiagonalSecondDerivatives);
 
-    virtual void calcEdgeLogDerivativesStates(const int *tipStates,
-                                              const REALTYPE *preOrderPartial,
+    virtual void calcEdgeLogDerivativesStates(const int *tipStates, const REALTYPE *preOrderPartial,
                                               const int firstDerivativeIndex,
                                               const int secondDerivativeIndex,
                                               const double *categoryRates,
                                               const REALTYPE *categoryWeights,
-//                                              const REALTYPE *cumulativeScaleBuffer,
                                               double *siteLogLikelihoods,
                                               double *outLogFirstDerivatives,
-                                              double *outLogDiagonalSecondDerivatives);
+                                              double *outLogDiagonalSecondDerivatives,
+                                              int cacheOffset);
 
     virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
                                                 const REALTYPE *preOrderPartial,
@@ -492,10 +498,10 @@ protected:
                                                 const double *categoryRates,
                                                 const REALTYPE *categoryWeights,
                                                 const int scalingFactorsIndex,
-//                                                const REALTYPE *cumulativeScaleBuffer,
                                                 double *siteLogLikelihoods,
                                                 double *outLogFirstDerivatives,
-                                                double *outLogDiagonalSecondDerivatives);
+                                                double *outLogDiagonalSecondDerivatives,
+                                                int cacheOffset);
 
     virtual int calcCrossProducts(const int *postBufferIndices,
                                   const int *preBufferIndices,
@@ -522,11 +528,10 @@ protected:
                                            double *outCrossProducts,
                                            double *outSumSquaredDerivatives);
 
-    virtual void resetDerivativeTemporaries();
+    virtual void resetDerivativeTemporaries(int offset);
 
-    virtual void accumulateDerivatives(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    virtual void accumulateDerivatives(double *outDerivatives, double *outSumDerivatives,
+                                       double *outSumSquaredDerivatives, int offset);
 
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
@@ -772,19 +777,17 @@ protected:
 private:
 
     template <bool DoDerivatives>
-    void accumulateDerivativesDispatch1(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void
+    accumulateDerivativesDispatch1(double *outDerivatives, double *outSumDerivatives, double *outSumSquaredDerivatives,
+                                   int offset);
 
     template <bool DoDerivatives, bool DoSum>
-    void accumulateDerivativesDispatch2(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void accumulateDerivativesDispatch2(double *outDerivatives, double *outSumDerivatives,
+                                        double *outSumSquaredDerivatives, int offset);
 
     template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-    void accumulateDerivativesImpl(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void accumulateDerivativesImpl(double *outDerivatives, double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives, int offset);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
