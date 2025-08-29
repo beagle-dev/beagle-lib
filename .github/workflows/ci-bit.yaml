@@ -29,8 +29,6 @@ jobs:
 
     - name: Build
       run: |
-#         ls /usr/local/cuda-12.5/lib
-#         ls /usr/local/cuda-12.5/lib64
         mkdir build
         cd build
         cmake .. -DBUILD_BIT=ON -DBUILD_CUDA=ON
