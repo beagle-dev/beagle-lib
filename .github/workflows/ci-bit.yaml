@@ -29,13 +29,16 @@ jobs:
 
     - name: Build
       run: |
+        ls /usr/local/cuda-12.5/lib
+        ls /usr/local/cuda-12.5/lib64
         mkdir build
         cd build
         cmake .. -DBUILD_BIT=ON -DBUILD_CUDA=ON
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
         
-    - name: Upload CPack files
+    - name: Upload debug files
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Debug files
