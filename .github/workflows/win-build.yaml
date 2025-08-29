@@ -1,11 +1,12 @@
 name: win-build
 
-# on: workflow_dispatch
+on: 
+  workflow_dispatch:
 
-on:
-  push:
-    branches:
-    - basta
+# on:
+#   push:
+#     branches:
+#     - master
 
 jobs:
   build:
@@ -17,7 +18,6 @@ jobs:
     
       - uses: ilammy/msvc-dev-cmd@v1 # This action sets up the environment
         with:
-#           vsversion: '2019'
           toolset: '14.44'
       
       - uses: Jimver/cuda-toolkit@v0.2.24
@@ -25,26 +25,43 @@ jobs:
         with:
           cuda: '12.5.0'         
       
-      - name: Build with BIT
+      # Build BEAGLE with backwards-in-time support      
+      
+      - name: Build BEAGLE with BIT
         run: |        
           mkdir build_bit
           cd build_bit
           cmake -DBUILD_CUDA=ON -DBUILD_OPENCL=ON -DBUILD_BIT=ON ..
           devenv BEAGLE.sln /build "Release"
           cpack .
-          
-      - name: Upload CPack files
-        uses: actions/upload-artifact@v4
-        with:
-          name: CPack files
-          path: build_bit
-
+           
       - name: Upload BIT installer package
+        id: upload-unsigned-bit-installer-artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: BIT_installer_package
           path: build_bit/*.msi
+          
+      - name: Sign BIT installer package
+        id: optional_bit_step_id
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: 'bfb02e6b-5dbd-4421-9d94-e759a517de38'
+          project-slug: 'beagle-lib'
+          signing-policy-slug: 'test-signing'
+          github-artifact-id: '${{ steps.upload-unsigned-bit-installer-artifact.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: 'build-bit-signed'    
+          
+      - name: Upload signed BIT installer package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BIT_installer_package_signed
+          path: build-bit-signed 
+          
+      # Build BEAGLE without backwards-in-time support                            
 
       - name: Build BEAGLE
         run: |        
@@ -55,8 +72,34 @@ jobs:
           cpack .
 
       - name: Upload BEAGLE installer package
+        id: upload-unsigned-beagle-installer-artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: BEAGLE_installer_package
           path: build/*.msi
+          
+      - name: Sign BEAGLE installer package
+        id: optional_beagle_step_id
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: 'bfb02e6b-5dbd-4421-9d94-e759a517de38'
+          project-slug: 'beagle-lib'
+          signing-policy-slug: 'test-signing'
+          github-artifact-id: '${{ steps.upload-unsigned-beagle-installer-artifact.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: 'build-signed'
+
+      - name: Upload signed BEAGLE installer package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BEAGLE_installer_package_signed
+          path: build-signed
+                  
+#       - name: Upload CPack files for debugging
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: CPack files
+#           path: build_bit
+#           
