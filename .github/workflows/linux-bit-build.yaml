@@ -1,7 +1,13 @@
 name: CI BIT
 
-on: 
-  workflow_dispatch:
+# on: 
+#   workflow_dispatch:
+  
+on:
+  push:
+    branches:
+    - master
+    - basta  
   
 jobs:
   build:
