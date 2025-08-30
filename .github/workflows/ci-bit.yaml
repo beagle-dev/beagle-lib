@@ -30,8 +30,14 @@ jobs:
         mkdir build
         cd build
         cmake .. -DBUILD_BIT=ON -DBUILD_CUDA=ON
+        echo "LS"
         ls /usr/local/cuda-13.0/lib64
+        echo "PATH"
         echo $LD_LIBRARY_PATH
+        echo "FIND"
+        sudo find /usr/ -name 'libcuda.so.*' #version
+        echo "LS"
+        ls /usr/local/cuda-13.0/lib64/stubs
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
         
