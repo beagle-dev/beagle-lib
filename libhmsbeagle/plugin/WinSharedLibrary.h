@@ -25,18 +25,15 @@ using namespace std;
 class WinSharedLibrary : public SharedLibrary
 {
   public:
-    WinSharedLibrary(const char* name)
-    throw (SharedLibraryException);
+    WinSharedLibrary(const char* name);
     ~WinSharedLibrary();
 
-    void* findSymbol(const char* name)
-    throw (SharedLibraryException);
+    void* findSymbol(const char* name);
 
   private:
     HINSTANCE m_handle;
 };
 WinSharedLibrary::WinSharedLibrary(const char* name)
-    throw (SharedLibraryException)
     : m_handle(0)
 {
 	std::string libname = name;
@@ -78,9 +75,8 @@ WinSharedLibrary::~WinSharedLibrary()
     }
 }
 void* WinSharedLibrary::findSymbol(const char* name)
-    throw (SharedLibraryException)
 {
-    void* sym = GetProcAddress(m_handle,name);
+    void* sym = (void*)GetProcAddress(m_handle,name);
     if (sym == 0)
     {
     char buffer[255];

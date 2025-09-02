@@ -1,0 +1,191 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+    - "*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        name: [ubuntu-gcc-12,
+               ubuntu-gcc-13,
+               ubuntu-gcc-14,
+               ubuntu-gcc-15,
+               ubuntu-gcc-15-debug,
+               ubuntu-clang-17,
+               ubuntu-clang-19,
+               macos-xcode-15-intel,
+               macos-xcode-16-arm,
+               windows
+               ]
+
+        include:
+
+          - name: ubuntu-gcc-12
+            os: ubuntu-22.04
+            compiler: gcc
+            version: "12"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-13
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "12"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-14
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "12"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-15
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "12"
+            buildtype: "Release"
+            arch: "linux64"
+            image: ubuntu:25.04
+
+          - name: ubuntu-gcc-15-debug
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "12"
+            buildtype: "Debug"
+            arch: "linux64"
+            image: ubuntu:25.04
+
+          - name: ubuntu-clang-17
+            os: ubuntu-24.04
+            compiler: clang
+            version: "17"
+            buildtype: "Release"
+            arch: "linux64"
+
+          - name: ubuntu-clang-19
+            os: ubuntu-24.04
+            compiler: clang
+            version: "19"
+            buildtype: "Release"
+            arch: "linux64"
+
+          - name: macos-xcode-15-intel
+            os: macos-13
+            compiler: xcode
+            version: "15"
+            arch: "mac-intel64"
+
+          - name: macos-xcode-16-arm
+            os: macos-14
+            compiler: xcode
+            version: "16"
+            arch: "mac-arm64"
+
+          - name: windows
+            os: ubuntu-24.04
+            compiler: mingw
+            version: "N/A"
+            arch: "win64"
+
+    runs-on: ${{ matrix.os }}
+    container:
+      image: ${{ matrix.image || '' }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+
+    # Caches for different branches are isolated, so we don't need to put the branch name into the key.
+    # The total size for all caches in a repository is 5Gb.
+
+    - name: Set CMake build type
+      run: |
+        CMAKE_ARGS=""
+        if [ -n "${{ matrix.buildtype }}" ] ; then
+          CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }}"
+        fi
+        echo "CMAKE_ARGS=${CMAKE_ARGS}" >> $GITHUB_ENV
+
+    - name: Install utilities (Linux)
+      if: runner.os == 'Linux' && matrix.name != 'windows'
+      run: |
+        # If we're running in a docker image, we are already root
+        if [ -n "${{ matrix.image }}" ]  ; then
+          apt-get update && apt-get install -y sudo build-essential git cmake
+        fi
+
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build ccache pkg-config
+        sudo apt-get install -y openjdk-17-jdk libeigen3-dev
+
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
+          # For newer GCCs, maybe.
+          # sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa
+          # sudo apt-get update
+
+          sudo apt-get install -y g++-${{ matrix.version }}
+          echo "CC=ccache gcc-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CXX=ccache g++-${{ matrix.version }}" >> $GITHUB_ENV
+        else
+          sudo apt-get install -y clang-${{ matrix.version }}
+          echo "CC=ccache clang-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CXX=ccache clang++-${{ matrix.version }}" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+        fi
+
+    - name: Install utilities (Linux -> Windows [cross])
+      if: matrix.name == 'windows'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build ccache pkg-config
+        sudo apt-get install -y dos2unix g++-mingw-w64 mingw-w64-tools wine64 zstd
+
+        echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
+
+    - name: Select XCode version (macOS)
+      if: runner.os == 'macOS'
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.version }}
+
+    - name: Install utilities (macOS)
+      if: runner.os == 'macOS'
+      run: |
+          brew install cmake ninja pkg-config ccache coreutils eigen openjdk
+          echo "CC=ccache clang" >> $GITHUB_ENV
+          echo "CXX=ccache clang++" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+         key: ${{ matrix.name }}
+         restore-keys: |
+           ${{ matrix.name }}
+
+    - name: Configure
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G Ninja -DCMAKE_INSTALL_PREFIX=$HOME/local ${CMAKE_ARGS}
+
+    - name: Build
+      run: |
+        ccache -p
+        ccache -s
+        ninja -C build install -j4
+        ccache -s
+
+    - name: Test
+      if: matrix.name != 'windows'
+      run: |
+        cd build
+        ./examples/synthetictest
+        ./examples/hmctest
+

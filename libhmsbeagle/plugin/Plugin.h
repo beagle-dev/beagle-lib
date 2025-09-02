@@ -35,6 +35,9 @@ class BEAGLE_DLLEXPORT Plugin
     Plugin(const char* plugin_name, const char* plugin_type)
     : m_plugin_name(plugin_name), m_plugin_type(plugin_type) {}
 
+    // Make sure the destructor is virtual.
+    virtual ~Plugin() {}
+
     virtual std::string pluginName() const{ return m_plugin_name; }
     virtual std::string pluginType() const{ return m_plugin_type; }
 

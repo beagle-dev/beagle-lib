@@ -95,7 +95,7 @@ bool check_sse2(){
 
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(_WIN32)
 #if !defined(DLS_MACOS) // For non-Mac OS X GNU C
 bool check_sse2()
 {

@@ -1,6 +1,5 @@
 if(WIN32)
 	add_definitions(-D_EXPORTING)
-	add_definitions(-DWIN32)
 	add_definitions(-D_CONSOLE)
 #	add_definitions(-DPACKAGE_VERSION="${BEAGLE_VERSION}")
 #	add_definitions(-DPLUGIN_VERSION="${BEAGLE_PLUGIN_VERSION}")
@@ -14,10 +13,12 @@ if(WIN32)
 	    plugin/WinSharedLibrary.h
         )
 
-    set(BEAGLE_INTEGRATED_JNI_SOURCE
-        JNI/beagle_BeagleJNIWrapper.cpp
-        JNI/beagle_BeagleJNIWrapper.h
-        )
+    if (BUILD_JNI)
+        set(BEAGLE_INTEGRATED_JNI_SOURCE
+            JNI/beagle_BeagleJNIWrapper.cpp
+            JNI/beagle_BeagleJNIWrapper.h
+          )
+    endif()
 else(WIN32)
 	set(BEAGLE_PLUGIN_SUFFIX ".so")
     set(BEAGLE_INSTALL_DIR lib)
