@@ -23,6 +23,7 @@ jobs:
         APPLICATION_CERTIFICATES_BASE64: ${{ secrets.APPLE_APPLICATION_CERTIFICATES_BASE64 }}
         CERTIFICATES_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}     
         KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        SIGNER: ${{ secrets.APPLE_SIGNER }}
       run: |
         # create variables
         APPLICATION_CERTIFICATE_PATH=$RUNNER_TEMP/application_certificates.p12
@@ -41,6 +42,9 @@ jobs:
         security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
         security list-keychain -d user -s $KEYCHAIN_PATH
  
+        # sign
+        codesign -s "$SIGNER" -v CMakeLists.txt
+        
 #       # apply provisioning profile
 #       mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 #       cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles      
