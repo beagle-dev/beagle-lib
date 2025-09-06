@@ -23,10 +23,10 @@ jobs:
         APPLICATION_CERTIFICATES_BASE64: ${{ secrets.APPLE_APPLICATION_CERTIFICATES_BASE64 }}
         CERTIFICATES_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}     
         KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-        SIGNER: ${{ secrets.APPLE_SIGNER }}     
+        SIGNER: ${{ secrets.APPLE_SIGNER }}
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_API_PASSWORD }}
-        TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}        
+        TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
         # create variables
         APPLICATION_CERTIFICATE_PATH=$RUNNER_TEMP/application_certificates.p12
@@ -43,7 +43,7 @@ jobs:
         # import certificate to keychain
         security import $APPLICATION_CERTIFICATE_PATH -P "$CERTIFICATES_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
         security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-#         security list-keychain -d user -s $KEYCHAIN_PATH
+        security list-keychain -d user -s $KEYCHAIN_PATH
         
         # add notary password
         xcrun notarytool store-credentials --apple-id "$APPLE_ID" --password "$APP_SPECIFIC_PASSWORD" --team-id "$TEAM_ID" "my-notary-profile"
