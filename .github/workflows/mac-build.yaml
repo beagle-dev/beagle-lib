@@ -64,8 +64,12 @@ jobs:
         codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
         
     - name: Notarize BIT package
-      run: |
-        REQUEST_UUID=$(xcrun notarytool submit "build/BEAGLE-BIT-4.1.0-Darwin.pkg" --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}')        
+      run: |      
+        xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}'
+              
+#         REQUEST_UUID=$(
+#         xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}'
+#         )
               
 #    - name: Notarize BIT package
 #       run: |
