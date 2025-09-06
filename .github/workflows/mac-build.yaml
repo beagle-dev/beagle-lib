@@ -43,7 +43,7 @@ jobs:
         # import certificate to keychain
         security import $APPLICATION_CERTIFICATE_PATH -P "$CERTIFICATES_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
         security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-        security list-keychain -d user -s $KEYCHAIN_PATH
+#         security list-keychain -d user -s $KEYCHAIN_PATH
         
         # add notary password
         xcrun notarytool store-credentials --apple-id "$APPLE_ID" --password "$APP_SPECIFIC_PASSWORD" --team-id "$TEAM_ID" "my-notary-profile"
@@ -62,6 +62,10 @@ jobs:
       run: |   
         # sign
         codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
+        
+    - name: Notarize BIT package
+      run: |
+        REQUEST_UUID=$(xcrun notarytool submit "build/BEAGLE-BIT-4.1.0-Darwin.pkg" --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}')        
               
 #    - name: Notarize BIT package
 #       run: |
