@@ -62,7 +62,7 @@ jobs:
       run: |   
         # sign
         codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
-        xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait 
+#         xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait 
         
 #     - name: Notarize BIT package
 #       run: |      
