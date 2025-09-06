@@ -55,11 +55,11 @@ jobs:
         SIGNER: ${{ secrets.APPLE_SIGNER }}    
       run: |   
         # sign
-        codesign -s "$SIGNER" -v CMakeLists.txt
+        codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
                  
     - name: Upload BIT package
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: Debug files
-        path: build        
+        name: Mac_BIT_installer
+        path: build/BEAGLE-BIT-4.1.0-Darwin.pkg        
