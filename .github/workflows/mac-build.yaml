@@ -1,13 +1,13 @@
 name: Build mac package
 
-# on: 
-#   workflow_dispatch:
+on: 
+  workflow_dispatch:
   
-on:
-  push:
-    branches:
-    - master
-    - basta  
+# on:
+#   push:
+#     branches:
+#     - master
+#     - basta  
   
 jobs:
   build:
