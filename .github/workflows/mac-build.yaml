@@ -62,7 +62,7 @@ jobs:
       run: |   
         # sign
         codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
-        productsign --sign "$INSTALLER_SIGNER" BEAGLE-BIT-4.1.0-Darwin.pkg BEAGLE-BIT-4.1.0-Darwin-signed.pkg
+        productsign --sign "$INSTALLER_SIGNER" build/BEAGLE-BIT-4.1.0-Darwin.pkg build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg
 
         
     - name: Notarize BIT package
