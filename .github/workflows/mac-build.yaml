@@ -51,6 +51,8 @@ jobs:
         cpack .    
     
     - name: Sign BIT package
+      env:
+        SIGNER: ${{ secrets.APPLE_SIGNER }}    
       run: |   
         # sign
         codesign -s "$SIGNER" -v CMakeLists.txt
