@@ -24,6 +24,7 @@ jobs:
         CERTIFICATES_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}     
         KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         SIGNER: ${{ secrets.APPLE_SIGNER }}
+        INSTALLER_SIGNER: ${{ secrets.APPLE_INSTALLER_SIGNER }}
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_API_PASSWORD }}
         TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -62,10 +63,12 @@ jobs:
       run: |   
         # sign
         codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
+        productsign --sign "$INSTALLER_SIGNER" BEAGLE-BIT-4.1.0-Darwin.pkg BEAGLE-BIT-4.1.0-Darwin-signed.pkg
+
         
     - name: Notarize BIT package
       run: |      
-        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait)
+        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2})
          xcrun notarytool log "$REQUEST_UUID" --keychain-profile "my-notary-profile"
         
         
@@ -100,4 +103,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mac_BIT_installer
-        path: build/BEAGLE-BIT-4.1.0-Darwin.pkg        
+        path: build/BEAGLE-BIT-4.1.0-Darwin*      
