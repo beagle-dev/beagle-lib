@@ -70,7 +70,7 @@ jobs:
         
     - name: Notarize BIT package
       run: |      
-        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2})
+        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}')
          xcrun notarytool log "$REQUEST_UUID" --keychain-profile "my-notary-profile"
         
         
