@@ -51,10 +51,12 @@ jobs:
         xcrun notarytool store-credentials --apple-id "$APPLE_ID" --password "$APP_SPECIFIC_PASSWORD" --team-id "$TEAM_ID" "my-notary-profile"
         
     - name: Build BIT package
+      env:
+        APPLICATION_SIGNER: ${{ secrets.APPLE_SIGNER }}
       run: |
         mkdir build
         cd build
-        cmake .. -DBUILD_BIT=ON -DBUILD_OPENCL=ON
+        cmake .. -DBUILD_BIT=ON -DBUILD_OPENCL=ON -DCPACK_BUNDLE_APPLE_CERT_APP="$APPLICATION_SIGNER"
         make
         cpack .    
     
@@ -64,13 +66,13 @@ jobs:
         INSTALLER_SIGNER: ${{ secrets.APPLE_INSTALLER_SIGNER }}   
       run: |   
         # sign
-        codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
+        # codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
         productsign --sign "$INSTALLER_SIGNER" build/BEAGLE-BIT-4.1.0-Darwin.pkg build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg
 
         
     - name: Notarize BIT package
       run: |      
-        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}')
+        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | head -1 | awk '{print $2}')
          xcrun notarytool log "$REQUEST_UUID" --keychain-profile "my-notary-profile"
         
         
