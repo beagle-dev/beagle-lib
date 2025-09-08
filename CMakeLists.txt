@@ -297,8 +297,7 @@ if(APPLE)
   			DESCRIPTION "OpenCL plugin")
 
 	set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
-	
-	set(CPACK_BUNDLE_APPLE_CERT_APP "Developer ID Applicaton: Marc Suchard (LC992Z5R7E)")
+
 endif(APPLE)
 
 include(CPack)
