@@ -56,52 +56,21 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DBUILD_BIT=ON -DBUILD_OPENCL=ON -DCPACK_BUNDLE_APPLE_CERT_APP="$APPLICATION_SIGNER"
+        cmake .. -DBUILD_BIT=ON -DBUILD_OPENCL=ON
         make
         cpack .    
     
-    - name: Sign BIT package
+    - name: Sign and notarize BIT package
       env:
-        SIGNER: ${{ secrets.APPLE_SIGNER }}
-        INSTALLER_SIGNER: ${{ secrets.APPLE_INSTALLER_SIGNER }}   
-      run: |   
-        # sign
-        # codesign -s "$SIGNER" -v --deep build/BEAGLE-BIT-4.1.0-Darwin.pkg
-        productsign --sign "$INSTALLER_SIGNER" build/BEAGLE-BIT-4.1.0-Darwin.pkg build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg
-
-        
-    - name: Notarize BIT package
-      run: |      
-        REQUEST_UUID=$(xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin-signed.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | head -1 | awk '{print $2}')
-         xcrun notarytool log "$REQUEST_UUID" --keychain-profile "my-notary-profile"
-        
-        
-#         xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait 
-        
-#     - name: Notarize BIT package
-#       run: |      
-#         xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait 
-              
-#         REQUEST_UUID=$(
-#         xcrun notarytool submit build/BEAGLE-BIT-4.1.0-Darwin.pkg --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}'
-#         )
-              
-#    - name: Notarize BIT package
-#       run: |
-#         # Submit for notarization
-#         REQUEST_UUID=$(xcrun notarytool submit "build/BEAGLE-BIT-4.1.0-Darwin.pkg" --keychain-profile "my-notary-profile" --wait | grep "id:" | awk '{print $2}')
-# 
-#         # Check notarization status and staple
-#         if [[ -n "$REQUEST_UUID" ]]; then
-#           echo "Notarization submitted with UUID: $REQUEST_UUID"
-#           xcrun notarytool log "$REQUEST_UUID" --keychain-profile "my-notary-profile"
-#           xcrun stapler staple "build/BEAGLE-BIT-4.1.0-Darwin.pkg"
-#           echo "Notarization successful and stapled."
-#         else
-#           echo "Notarization submission failed."
-#           exit 1
-#         fi          
-                 
+        APPLE_APPLICATION_IDENTITY_SHA: ${{ secrets.APPLE_SIGNER }}
+        APPLE_INSTALLER_IDENTITY_SHA: ${{ secrets.APPLE_INSTALLER_SIGNER }}       
+      run: |
+        KEYCHAIN_NAME=$RUNNER_TEMP/app-signing.keychain-db
+        INITIAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin.pkg"
+        FINAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin-signed.pkg"
+        cd build
+        ../project/beagle-macos/macos_signing.sh
+                            
     - name: Upload BIT package
       if: always()
       uses: actions/upload-artifact@v4
