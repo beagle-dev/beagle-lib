@@ -65,7 +65,7 @@ jobs:
         APPLE_APPLICATION_IDENTITY_SHA: ${{ secrets.APPLE_SIGNER }}
         APPLE_INSTALLER_IDENTITY_SHA: ${{ secrets.APPLE_INSTALLER_SIGNER }}       
       run: |
-        export KEYCHAIN_NAME=$RUNNER_TEMP/app-signing.keychain-db
+        export KEYCHAIN_NAME="my-notary-profile"
         export INITIAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin.pkg"
         export FINAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin-signed.pkg"
         cd build
