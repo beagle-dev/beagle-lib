@@ -17,6 +17,14 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentBuffe
 
 /*
  * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizes
+ * Signature: (I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizes
+  (JNIEnv *, jobject, jint, jdoubleArray, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
  * Method:    getBastaBuffer
  * Signature: (II[D)I
  */

@@ -521,6 +521,8 @@ public:
                              int initial,
                              int numThreads);
 
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize);
+
     int getBastaBuffer(int bufferIndex,
                        double* out);
 	     				  		                           

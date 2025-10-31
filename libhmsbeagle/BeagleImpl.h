@@ -305,6 +305,8 @@ public:
                                      int initial,
                                      int numThreads) = 0;
 
+    virtual int setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize) = 0;
+
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;
                                    

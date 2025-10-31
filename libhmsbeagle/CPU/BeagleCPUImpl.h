@@ -150,6 +150,8 @@ protected:
     std::vector<REALTYPE> gCoalescentBuffers;
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
+    REALTYPE* gBastaPopulationSizes;
+    int kLastBastaPopulationSizeAllocation;
 
     struct threadData
     {
@@ -501,6 +503,8 @@ public:
 
     int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial, int numThreads);
 
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize);
+
     int getBastaBuffer(int bufferIndex,
                        double* out);
 
@@ -519,6 +523,7 @@ public:
     REALTYPE reduceAcrossIntervals(REALTYPE* e, REALTYPE* f, // TODO move to protected
                                    REALTYPE* g, REALTYPE* h,
                                    int interval, REALTYPE length,
+                                   int populationSizeIndex,
                                    const REALTYPE* sizes,
                                    const REALTYPE* coalescent);
     
@@ -527,7 +532,8 @@ public:
                                    REALTYPE ***eGrad, REALTYPE ***fGrad, 
                                    REALTYPE ***gGrad, REALTYPE ***hGrad, 
                                    REALTYPE **resultGrad, 
-                                   int interval, REALTYPE length, 
+                                   int interval, REALTYPE length,
+                                   int populationSizeIndex,
                                    const REALTYPE *sizes, 
                                    const REALTYPE *coalescent);
 

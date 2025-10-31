@@ -2018,6 +2018,25 @@ int beagleAllocateBastaBuffers(const int instance,
     return returnValue;
 }
 
+int beagleSetBastaPopulationSizes(const int instance,
+                                   const double* combinedSizesIntegrals,
+                                   const int requiredStorageSize) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->setBastaPopulationSizes(combinedSizesIntegrals, requiredStorageSize);
+
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+    return returnValue;
+}
+
 
 int beagleGetBastaBuffer(const int instance,
                          const int bufferIndex,

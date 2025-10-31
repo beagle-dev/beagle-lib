@@ -84,6 +84,29 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateTransitionMatrice
     env->ReleaseIntArrayElements(inProbabilityIndices, probabilityIndices, JNI_ABORT);
     return errCode;
 }
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizes
+ * Signature: (I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizes
+        (JNIEnv *env, jobject obj, jint instance, jdoubleArray inCombinedSizesIntegrals, jint requiredStorageSize) {
+
+    jdouble *combinedSizesIntegrals = NULL;
+    if (inCombinedSizesIntegrals != NULL) {
+        combinedSizesIntegrals = env->GetDoubleArrayElements(inCombinedSizesIntegrals, NULL);
+    }
+
+    jint errCode = (jint)beagleSetBastaPopulationSizes(instance, (const double*)combinedSizesIntegrals, (int)requiredStorageSize);
+
+    if (combinedSizesIntegrals != NULL) {
+        env->ReleaseDoubleArrayElements(inCombinedSizesIntegrals, combinedSizesIntegrals, JNI_ABORT);
+    }
+
+    return errCode;
+}
+
 /*
  * Class:     beagle_basta_BastaJNIWrapper
  * Method:    getBastaBuffer

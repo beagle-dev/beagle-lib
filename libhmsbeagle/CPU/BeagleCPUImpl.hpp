@@ -124,6 +124,11 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
             free(gStateFrequencies[i]);
     }
 
+    if (gBastaPopulationSizes != NULL) {
+        free(gBastaPopulationSizes);
+        gBastaPopulationSizes = NULL;
+    }
+
     for(unsigned int i=0; i<kMatrixCount; i++) {
         if (gTransitionMatrices[i] != NULL)
             free(gTransitionMatrices[i]);
@@ -313,6 +318,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kPatternsReordered = false;
 
     kInternalPartialsBufferCount = kBufferCount - kTipCount;
+    gBastaPopulationSizes = NULL;
+    kLastBastaPopulationSizeAllocation = 0;
 
     kTransPaddedStateCount = kStateCount + T_PAD;
     kPartialsPaddedStateCount = kStateCount + P_PAD;
@@ -1573,6 +1580,38 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleCPUImpl::setBastaPopulationSizes\n");
+#endif
+
+    if (combinedSizesIntegrals == NULL) {
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    // Allocate or reallocate if size changes
+    int combinedVectorSize = 2 * requiredStorageSize;
+    if (gBastaPopulationSizes == NULL || combinedVectorSize != kLastBastaPopulationSizeAllocation) {
+        if (gBastaPopulationSizes != NULL) {
+            free(gBastaPopulationSizes);
+        }
+        gBastaPopulationSizes = (REALTYPE*) malloc(sizeof(REALTYPE) * combinedVectorSize);
+        if (gBastaPopulationSizes == NULL) {
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        kLastBastaPopulationSizeAllocation = combinedVectorSize;
+    }
+
+    beagleMemCpy(gBastaPopulationSizes, combinedSizesIntegrals, combinedVectorSize);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleCPUImpl::setBastaPopulationSizes\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaBuffer(int bufferIndex,
                                                       double* out) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1617,6 +1656,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials(const int* oper
         const int accumulation1PartialIndex = operations[op * numOps + 5];
         const int accumulation2PartialIndex = operations[op * numOps + 6];
         const int intervalNumber = operations[op * numOps + 7];
+        const int popSizeIndex = operations[op * numOps + 8];
 
         const int matrixIncr = kStateCount + T_PAD;
         const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1677,7 +1717,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials(const int* oper
 
                 REALTYPE child1 = destPartial[i];
                 REALTYPE child2 = sum2A + sum2B;
-                REALTYPE parent = child1 * child2 / sizes[i];
+                REALTYPE parent = child1 * child2 / sizes[popSizeIndex + i];
 
                 accumulation1[i] = child1;
                 accumulation2[i] = child2;
@@ -1710,6 +1750,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials2(const int* ope
     const int accumulation1PartialIndex = operations[op * numOps + 5];
     const int accumulation2PartialIndex = operations[op * numOps + 6];
     const int intervalNumber = operations[op * numOps + 7];
+    const int popSizeIndex = operations[op * numOps + 8];
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1770,7 +1811,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartials2(const int* ope
 
             REALTYPE child1 = destPartial[i];
             REALTYPE child2 = sum2A + sum2B;
-            REALTYPE parent = child1 * child2 / sizes[i];
+            REALTYPE parent = child1 * child2 / sizes[popSizeIndex + i];
 
             accumulation1[i] = child1;
             accumulation2[i] = child2;
@@ -1805,6 +1846,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartialsGrad(const int* 
         const int accumulation1PartialIndex = operations[op * numOps + 5];
         const int accumulation2PartialIndex = operations[op * numOps + 6];
         const int intervalNumber = operations[op * numOps + 7];
+        const int popSizeIndex = operations[op * numOps + 8];
 
         const int matrixIncr = kStateCount + T_PAD;
         const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1887,7 +1929,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartialsGrad(const int* 
                         REALTYPE child1 = accumulation1[i];
                         REALTYPE child2 = accumulation2[i];
 
-                        REALTYPE entry = (child1Grad * child2 + child1 * sum) / sizes[i];
+                        REALTYPE entry = (child1Grad * child2 + child1 * sum) / sizes[popSizeIndex + i];
                         partial_J_ab += entry;
 
                         destPartialGrad[i] = entry / J;
@@ -1995,8 +2037,8 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
         REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
         std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
 
-        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
-
+        const REALTYPE* sizes = gBastaPopulationSizes;
+        
         bool THREADING = (kBastaNumThreads > 1);
         int CUT_POINT = 16;
         int numThreads = kBastaNumThreads;
@@ -2006,7 +2048,6 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
 
                 const int begin = intervals[i];
                 const int end = intervals[i + 1];
-
                 if (end - begin > CUT_POINT) {
 #pragma omp parallel for num_threads(numThreads)
                     for (int op = begin; op < end; ++op) {
@@ -2037,7 +2078,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsGrad(const int* operat
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
     // just for test
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+    const REALTYPE* sizes = gBastaPopulationSizes;
 
     bool THREADING = true;
     int CUT_POINT = 1280000;
@@ -2072,6 +2113,7 @@ REALTYPE BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervals(
         REALTYPE* e, REALTYPE* f,
         REALTYPE* g, REALTYPE* h,
         int interval, REALTYPE length,
+        int populationSizeIndex,
         const REALTYPE* sizes,
         const REALTYPE* coalescent) {
 
@@ -2079,13 +2121,18 @@ REALTYPE BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervals(
     f += interval * kPartialsPaddedStateCount;
     g += interval * kPartialsPaddedStateCount;
     h += interval * kPartialsPaddedStateCount;
+
+    const int integralsOffset = kLastBastaPopulationSizeAllocation / 2;
+    
     REALTYPE sum = REALTYPE(0);
     for (int k = 0; k < kStateCount; ++k) {
-        sum += (e[k] * e[k] - f[k] +
-                g[k] * g[k] - h[k]) / sizes[k];
+        REALTYPE baseIntegral = sizes[integralsOffset + populationSizeIndex + k];
+        REALTYPE integralMultiplier = (populationSizeIndex == 0) ? length : REALTYPE(1.0);
+        REALTYPE integralValue = baseIntegral * integralMultiplier;
+        sum += (e[k] * e[k] - f[k] + g[k] * g[k] - h[k]) * integralValue;
     }
 
-    REALTYPE logL = -length * sum / 4;
+    REALTYPE logL = -sum / 4;
 
     REALTYPE prob = coalescent[interval];
     if (prob != REALTYPE(0)) {
@@ -2104,10 +2151,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervalsGrad(
         REALTYPE*** gGrad, REALTYPE*** hGrad,
         REALTYPE** resultGrad,
         int interval, REALTYPE length,
+        int populationSizeIndex,
         const REALTYPE* sizes,
         const REALTYPE* coalescent) {
 
     const int offset = interval * kPartialsPaddedStateCount;
+    // The integrals are in the second half of gBastaPopulationSizes
+    const int integralsOffset = kLastBastaPopulationSizeAllocation / 2;
 
     e += offset;
     g += offset;
@@ -2121,10 +2171,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervalsGrad(
             REALTYPE* hGrad_ab = (REALTYPE*) hGrad[a][b] + offset;
 
             for (int k = 0; k < kStateCount; ++k) {
+                REALTYPE baseIntegral = sizes[integralsOffset + populationSizeIndex + k];
+                REALTYPE integralMultiplier = (populationSizeIndex == 0) ? length : REALTYPE(1.0);
+                REALTYPE integralValue = baseIntegral * integralMultiplier;
                 sum += (2 * e[k] * eGrad_ab[k] - fGrad_ab[k] +
-                        2 * g[k] * gGrad_ab[k] - hGrad_ab[k]) / sizes[k];
+                        2 * g[k] * gGrad_ab[k] - hGrad_ab[k]) * integralValue;
             }
-            resultGrad[a][b] = -length * sum / 4;
+            resultGrad[a][b] = -sum / 4;
             REALTYPE prob = coalescent[interval];
             if (prob != REALTYPE(0)) {
                 resultGrad[a][b] += coalescentGrad[a][b][interval] / prob;
@@ -2285,7 +2338,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
     REALTYPE* h = gBastaBuffers.data() + 3 * kPartialsPaddedStateCount * kCoalescentBufferLength;
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+    const REALTYPE* sizes = gBastaPopulationSizes;
     bool threading = (kBastaNumThreads > 1);
     int numThreads = threading ? kBastaNumThreads : 1;
 #pragma omp parallel for num_threads(numThreads)
@@ -2323,11 +2376,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 	        const int op = intervalStarts[i];
 	        const int numOps = BEAGLE_BASTA_OP_COUNT;
 	        const int intervalNumber = operations[op * numOps + 7];
+	        const int populationSizeIndex = operations[op * numOps + 8];
 
 	        threadLogL += reduceAcrossIntervals(
                 e, f, g, h,
                 intervalNumber,
                 intervalLengths[i],
+                populationSizeIndex,
                 sizes,
                 coalescent
             );
@@ -2385,7 +2440,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
     REALTYPE*** hGrad = efghGrad[3];
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+    const REALTYPE* sizes = gBastaPopulationSizes;
 
     for (int interval = 0; interval < intervalStartsCount - 1; ++interval) {
         const int start = intervalStarts[interval];
@@ -2430,11 +2485,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
         const int accumulation1PartialIndex = operations[op * numOps + 5];
         const int accumulation2PartialIndex = operations[op * numOps + 6];
         const int intervalNumber = operations[op * numOps + 7];
+        const int populationSizeIndex = operations[op * numOps + 8];
+        
         reduceAcrossIntervalsGrad(e, f, g, h,
                                   eGrad, fGrad, gGrad, hGrad,
                                   tempGrad, // save output here!
                                   intervalNumber, intervalLengths[i],
-                                  sizes, coalescent);
+                                  populationSizeIndex,
+                                  sizes,
+                                  coalescent);
         for (int a = 0; a < kStateCount; ++a) {
             for (int b = 0; b < kStateCount; ++b) {
                 out[a*kStateCount+b] += tempGrad[a][b];

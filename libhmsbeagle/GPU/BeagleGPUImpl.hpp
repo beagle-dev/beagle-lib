@@ -2346,12 +2346,29 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
             dBastaMemory = gpu->AllocateMemory(4 * kPaddedStateCount * kCoalescentBufferLength * sizeof(Real));
             dBastaLogL = gpu->AllocateMemory(kBastaIntervalBlockCount * sizeof(Real));
         }
+        
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::allocateBastaBuffers\n");
 #endif
 
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setBastaPopulationSizes\n");
+#endif
+
+    // TODO: Implement for GPU
+    fprintf(stderr, "BeagleGPUImpl::setBastaPopulationSizes not yet implemented\n");
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setBastaPopulationSizes\n");
+#endif
+
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 BEAGLE_GPU_TEMPLATE
