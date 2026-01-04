@@ -155,6 +155,10 @@ if(APPLE)
 
 	# Seems necessary from macOS 10.15
 	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+	
+	# Add Metal
+	set(CMAKE_CXX_STANDARD 17)
+	add_subdirectory(metal-cmake)
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
