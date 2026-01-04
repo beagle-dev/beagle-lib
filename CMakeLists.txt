@@ -19,6 +19,7 @@ set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
+option(BUILD_METAL "Build beagle with Metal Library" OFF)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
 option(BUILD_SSE "Build beagle with SSE library" ON)
@@ -155,10 +156,6 @@ if(APPLE)
 
 	# Seems necessary from macOS 10.15
 	set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-	
-	# Add Metal
-	set(CMAKE_CXX_STANDARD 17)
-	add_subdirectory(metal-cmake)
 endif(APPLE)
 
 if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)

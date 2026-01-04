@@ -16,3 +16,7 @@ if(CUDA_FOUND AND BUILD_CUDA)
     add_subdirectory("CMake_CUDA")
 endif(CUDA_FOUND AND BUILD_CUDA)
                                     
+if(BUILD_METAL)
+	message(STATUS "Building Metal libraries")
+	add_subdirectory("CMake_Metal")
+endif(BUILD_METAL)

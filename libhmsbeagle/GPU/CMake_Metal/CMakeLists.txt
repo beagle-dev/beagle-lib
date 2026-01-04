@@ -1,3 +1,5 @@
+set(CMAKE_CXX_STANDARD 17)
+
 # Library definition
 add_library(METAL_CPP
         ${CMAKE_CURRENT_SOURCE_DIR}/definition.cpp
