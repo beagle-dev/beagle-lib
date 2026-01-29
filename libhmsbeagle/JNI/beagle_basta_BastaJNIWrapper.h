@@ -25,6 +25,22 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizes
 
 /*
  * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizesBuffer
+ * Signature: (I[DII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizesBuffer
+  (JNIEnv *, jobject, jint, jdoubleArray, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setCurrentPopulationSizeBuffer
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setCurrentPopulationSizeBuffer
+  (JNIEnv *, jobject, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
  * Method:    getBastaBuffer
  * Signature: (II[D)I
  */
@@ -45,10 +61,10 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials
  * Signature: (I[II[III[D)I
  */
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
-  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jboolean, jdoubleArray);
 
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad
-  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jboolean, jdoubleArray);
 
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad
   (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);

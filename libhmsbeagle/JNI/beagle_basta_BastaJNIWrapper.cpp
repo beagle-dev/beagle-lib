@@ -109,6 +109,41 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizes
 
 /*
  * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizesBuffer
+ * Signature: (I[DII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizesBuffer
+        (JNIEnv *env, jobject obj, jint instance, jdoubleArray inCombinedSizesIntegrals, jint requiredStorageSize, jint bufferIndex) {
+
+    jdouble *combinedSizesIntegrals = NULL;
+    if (inCombinedSizesIntegrals != NULL) {
+        combinedSizesIntegrals = env->GetDoubleArrayElements(inCombinedSizesIntegrals, NULL);
+    }
+
+    jint errCode = (jint)beagleSetBastaPopulationSizesBuffer(instance, (const double*)combinedSizesIntegrals, (int)requiredStorageSize, (int)bufferIndex);
+
+    if (combinedSizesIntegrals != NULL) {
+        env->ReleaseDoubleArrayElements(inCombinedSizesIntegrals, combinedSizesIntegrals, JNI_ABORT);
+    }
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setCurrentPopulationSizeBuffer
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setCurrentPopulationSizeBuffer
+        (JNIEnv *env, jobject obj, jint instance, jint bufferIndex) {
+
+    jint errCode = (jint)beagleSetCurrentPopulationSizeBuffer(instance, (int)bufferIndex);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
  * Method:    getBastaBuffer
  * Signature: (II[D)I
  */
@@ -135,6 +170,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
    jdoubleArray inIntervalLengths,
    jint populationSizesIndex,
    jint coalescentIndex,
+   jboolean isConstantPopulationModel,
    jdoubleArray out) {
 
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
@@ -148,7 +184,9 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
                                                  (const int*) intervals, intervalCount,
                                                  (double *)intervalLengths,
                                                  populationSizesIndex,
-                                                 coalescentIndex, (double *)array);
+                                                 coalescentIndex,
+                                                 (int)isConstantPopulationModel,
+                                                 (double *)array);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
     env->ReleaseIntArrayElements(inIntervals, intervals, JNI_ABORT);
@@ -168,6 +206,7 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
    jdoubleArray inIntervalLengths,
    jint populationSizesIndex,
    jint coalescentIndex,
+   jboolean isConstantPopulationModel,
    jdoubleArray out) {
 
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
@@ -181,7 +220,9 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
                                                  (const int*) intervals, intervalCount,
                                                  (double *)intervalLengths,
                                                  populationSizesIndex,
-                                                 coalescentIndex, (double *)array);
+                                                 coalescentIndex,
+                                                 (int)isConstantPopulationModel,
+                                                 (double *)array);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
     env->ReleaseIntArrayElements(inIntervals, intervals, JNI_ABORT);

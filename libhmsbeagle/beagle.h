@@ -1442,6 +1442,7 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
+                                                   int isConstantPopulationModel,
                                                    double* out);
 
 BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
@@ -1452,6 +1453,7 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
+                                                   int isConstantPopulationModel,
                                                    double* out);
 
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
@@ -1464,6 +1466,14 @@ BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
 BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizes(const int instance,
                                                     const double* combinedSizesIntegrals,
                                                     const int requiredStorageSize);
+
+BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizesBuffer(const int instance,
+                                                          const double* combinedSizesIntegrals,
+                                                          const int requiredStorageSize,
+                                                          const int bufferIndex);
+
+BEAGLE_DLLEXPORT int beagleSetCurrentPopulationSizeBuffer(const int instance,
+                                                           const int bufferIndex);
 
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,

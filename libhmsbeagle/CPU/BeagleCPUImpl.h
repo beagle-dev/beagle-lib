@@ -150,8 +150,12 @@ protected:
     std::vector<REALTYPE> gCoalescentBuffers;
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
-    REALTYPE* gBastaPopulationSizes;
-    int kLastBastaPopulationSizeAllocation;
+    
+    // Double-buffered population sizes for store/restore optimization
+    static const int kPopulationSizeBufferCount = 2;
+    REALTYPE* gBastaPopulationSizes[kPopulationSizeBufferCount];
+    int kLastBastaPopulationSizeAllocation[kPopulationSizeBufferCount];
+    int currentPopulationSizeBuffer;  // 0 or 1
 
     struct threadData
     {
@@ -489,6 +493,7 @@ public:
                                 const double* intervalLengths,
                                 const int populationSizesIndex,
                                 int coalescentIndex,
+                                int isConstantPopulationModel,
                                 double* out);
 
     int accumulateBastaPartialsGrad(const int *operations, 
@@ -497,13 +502,20 @@ public:
                                     const int intervalStartsCount, 
                                     const double *intervalLengths, 
                                     const int populationSizesIndex, 
-                                    const int coalescentIndex, 
+                                    const int coalescentIndex,
+                                    int isConstantPopulationModel,
                                     double *out);
 
 
     int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial, int numThreads);
 
     int setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize);
+    
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals, 
+                                       const int requiredStorageSize,
+                                       const int bufferIndex);
+    
+    int setCurrentPopulationSizeBuffer(const int bufferIndex);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);

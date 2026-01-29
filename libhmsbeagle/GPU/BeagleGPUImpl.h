@@ -219,15 +219,22 @@ private:
 	GPUPtr dBastaLogL;
 	GPUPtr dBastaDistance;
 	GPUPtr dBastaOperationQueue;
+	GPUPtr dBastaIntervalStarts;
 	GPUPtr dCoalescentBuffers;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
 
 	int* hBastaOperationQueue;
+	int* hBastaIntervalStarts;
 	Real* hBastaLogL;
 	Real* hBastaDistance;
 	Real* hBastazeroes;
+
+	static const int kPopulationSizeBufferCount = 2;
+	GPUPtr dBastaPopulationSizes[kPopulationSizeBufferCount];
+	int kLastBastaPopulationSizeAllocation[kPopulationSizeBufferCount];
+	int currentPopulationSizeBuffer;  // 0 or 1
 
 public:
     BeagleGPUImpl();
@@ -504,6 +511,7 @@ public:
                                 const double* intervalLengths,
                                 const int populationSizesIndex,
                                 int coalescentIndex,
+                                int isConstantPopulationModel,
                                 double* out);
     
      int accumulateBastaPartialsGrad(const int *operations,
@@ -513,6 +521,7 @@ public:
                                      const double *intervalLengths,
                                      const int populationSizesIndex,
                                      const int coalescentIndex,
+                                     int isConstantPopulationModel,
                                      double *out);
 
     int allocateBastaBuffers(int bufferCount,
@@ -522,6 +531,12 @@ public:
                              int numThreads);
 
     int setBastaPopulationSizes(const double* combinedSizesIntegrals, const int requiredStorageSize);
+
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals, 
+                                       const int requiredStorageSize,
+                                       const int bufferIndex);
+    
+    int setCurrentPopulationSizeBuffer(const int bufferIndex);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);

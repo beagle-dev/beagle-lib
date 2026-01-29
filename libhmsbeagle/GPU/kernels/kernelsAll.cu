@@ -2033,7 +2033,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
     int child2TransIndex = operations[maxOp * numOps + 4];
     int accumulation1PartialIndex = operations[op * numOps + 5];
     int accumulation2PartialIndex = operations[op * numOps + 6];
-    int intervalNumber = operations[op * numOps + 7];;
+    int intervalNumber = operations[op * numOps + 7];
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
@@ -2427,7 +2427,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
 }
 
 
-KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossIntervalConstant(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT distance,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
@@ -2451,9 +2451,85 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 
         KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
 
+
         if (intervalNumber < intervalCount && (sizes[state] > 0)) {
             sPartials1[tid] = (e[u] * e[u] - f[u] +
                                  g[u] * g[u] - h[u]) * distance[intervalNumber] / sizes[state];
+        } else {
+            sPartials1[tid] = 0;
+        }
+        KW_LOCAL_FENCE;
+
+
+        for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+            if (tid < i) {
+                sPartials1[tid] += sPartials1[tid + i];
+            }
+            KW_LOCAL_FENCE;
+        }
+
+
+        REAL temp = - sPartials1[0] / 4;
+
+        if (tidTotal < intervalCount && (coalescent[tidTotal] > 0)) {
+            sPartials1[tid] = log(coalescent[tidTotal]);
+        } else {
+            sPartials1[tid] = 0;
+        }
+
+        KW_LOCAL_FENCE;
+
+        for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+            if (tid < i) {
+                sPartials1[tid] += sPartials1[tid + i];
+            }
+            KW_LOCAL_FENCE;
+        }
+
+        if (tid == 0) {
+            temp = temp + sPartials1[0];
+            dLogL[KW_GROUP_ID_0] = temp;
+        }
+    }
+
+
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossIntervalVariable(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT distance,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+                                                    KW_GLOBAL_VAR int* KW_RESTRICT populationSizeIndices,
+													int intervalStartsCount,
+													int kCoalescentBufferLength,
+													int integralsOffset) {
+
+
+        int intervalCount = intervalStartsCount - 1;
+        int tid = KW_LOCAL_ID_0;
+        int tidTotal = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
+        int state = tid % PADDED_STATE_COUNT;
+        int intervalIdx = tid / PADDED_STATE_COUNT;
+        int intervalNumber = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
+        int u = state + intervalNumber * PADDED_STATE_COUNT;
+
+	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+
+        KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
+
+        if (intervalNumber < intervalCount) {
+            int populationSizeIndex = populationSizeIndices[intervalNumber];
+            int integralIndex = populationSizeIndex + state;
+            REAL integralValue = sizes[integralIndex];
+
+            if (integralValue > 0) {
+                sPartials1[tid] = (e[u] * e[u] - f[u] +
+                                   g[u] * g[u] - h[u]) * integralValue;
+            } else {
+                sPartials1[tid] = 0;
+            }
         } else {
             sPartials1[tid] = 0;
         }
