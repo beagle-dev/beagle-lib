@@ -2646,7 +2646,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
                                                                const double* intervalLengths,
                                                                const int populationSizesIndex,
                                                                int coalescentIndex,
-                                                               int isConstantPopulationModel,
                                                                double* out) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
@@ -2680,22 +2679,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * kCoalescentBufferLength);
 
     const int integralsOffset = kLastBastaPopulationSizeAllocation[currentPopulationSizeBuffer] / 2;
-
-    GPUPtr dataPtr;
-    if (isConstantPopulationModel) {
-        dataPtr = sizesBuffer;
-    } else {
-        dataPtr = gpu->CreateSubPointer(sizesBuffer,
-                                        integralsOffset * sizeof(Real),
-                                        kLastBastaPopulationSizeAllocation[currentPopulationSizeBuffer] * sizeof(Real) / 2);
-    }
+    GPUPtr integralsPtr = gpu->CreateSubPointer(sizesBuffer,
+                                    integralsOffset * sizeof(Real),
+                                    kLastBastaPopulationSizeAllocation[currentPopulationSizeBuffer] * sizeof(Real) / 2);
 
     gpu->MemcpyHostToDevice(dBastaLogL, hBastazeroes, sizeof(Real) * kBastaIntervalBlockCount);
 
-    kernels->reduceAcrossIntervals(dBastaMemory, dBastaDistance, dBastaLogL, dataPtr, coalescent,
+    kernels->reduceAcrossIntervals(dBastaMemory, dBastaDistance, dBastaLogL, integralsPtr, coalescent,
                                   dBastaIntervalStarts,
-                                  intervalStartsCount, kCoalescentBufferLength,
-                                  integralsOffset, isConstantPopulationModel);
+                                  intervalStartsCount, kCoalescentBufferLength);
 
     gpu->MemcpyDeviceToHost(hBastaLogL, dBastaLogL, sizeof(Real) * kBastaIntervalBlockCount);
     for (int i = 0; i < kBastaIntervalBlockCount; i++) {
@@ -2722,7 +2714,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                                                                     const double *intervalLengths,
                                                                     const int populationSizesIndex,
                                                                     const int coalescentIndex,
-                                                                    int isConstantPopulationModel,
                                                                     double *out) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");

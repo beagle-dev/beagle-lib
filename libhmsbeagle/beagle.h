@@ -1442,7 +1442,6 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
-                                                   int isConstantPopulationModel,
                                                    double* out);
 
 BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
@@ -1453,7 +1452,6 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
-                                                   int isConstantPopulationModel,
                                                    double* out);
 
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,

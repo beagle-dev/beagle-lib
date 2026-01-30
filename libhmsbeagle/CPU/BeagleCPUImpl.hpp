@@ -2362,7 +2362,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
                                                                const double* intervalLengths,
                                                                const int populationSizesIndex,
                                                                const int coalescentIndex,
-                                                               const int isConstantPopulationModel,
                                                                double* out) {
 	int returnCode = BEAGLE_SUCCESS;
 
@@ -2442,7 +2441,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
                                                                const double* intervalLengths,
                                                                const int populationSizesIndex,
                                                                const int coalescentIndex,
-                                                               int isConstantPopulationModel,
                                                                double* out) {
 	int returnCode = BEAGLE_SUCCESS;
 

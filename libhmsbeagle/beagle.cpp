@@ -2150,7 +2150,6 @@ int beagleAccumulateBastaPartials(const int instance,
                                   const double* intervalLengths,
                                   const int populationSizesIndex,
                                   int coalescentIndex,
-                                  int isConstantPopulationModel,
                                   double* out) {
 	DEBUG_START_TIME();
     DEBUG_START_ENERGY();
@@ -2163,7 +2162,6 @@ int beagleAccumulateBastaPartials(const int instance,
 	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
 															  intervalStarts, intervalCount, intervalLengths,
                                                               populationSizesIndex, coalescentIndex,
-                                                              isConstantPopulationModel,
                                                               out);
 	
 	DEBUG_END_TIME();
@@ -2181,7 +2179,6 @@ int beagleAccumulateBastaPartialsGrad(const int instance,
                                   const double* intervalLengths,
                                   const int populationSizesIndex,
                                   int coalescentIndex,
-                                  int isConstantPopulationModel,
                                   double* out) {
 	DEBUG_START_TIME();
     DEBUG_START_ENERGY();
@@ -2193,8 +2190,7 @@ int beagleAccumulateBastaPartialsGrad(const int instance,
 	
 	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
 															  intervalStarts, intervalCount, intervalLengths,
-                                                              populationSizesIndex, coalescentIndex,
-                                                              isConstantPopulationModel, out);
+                                                              populationSizesIndex, coalescentIndex, out);
 	
 	DEBUG_END_TIME();
     DEBUG_END_ENERGY();

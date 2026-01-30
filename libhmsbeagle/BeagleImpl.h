@@ -289,7 +289,6 @@ public:
                                         const double* intervalLengths,
                                         const int populationSizesIndex,
                                         int coalescentIndex,
-                                        int isConstantPopulationModel,
                                         double* out) = 0;
     virtual int accumulateBastaPartialsGrad(const int* operations,
 	     				  			    int operationCount,
@@ -298,7 +297,6 @@ public:
                                         const double* intervalLengths,
                                         const int populationSizesIndex,
                                         int coalescentIndex,
-                                        int isConstantPopulationModel,
                                         double* out) = 0;
 
     virtual int allocateBastaBuffers(int bufferCount,

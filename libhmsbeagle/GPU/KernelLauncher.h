@@ -110,8 +110,7 @@ private:
 	GPUFunction fReduceWithinInterval;
 	GPUFunction fReduceWithinIntervalSerial;
 	GPUFunction fReduceWithinIntervalMerged;
-	GPUFunction fReduceAcrossIntervalConstant;
-	GPUFunction fReduceAcrossIntervalVariable;
+	GPUFunction fReduceAcrossInterval;
 	GPUFunction fPreProcessBastaFlags;
 	GPUFunction fAccumulateCarryOut;
 	GPUFunction fAccumulateCarryOutFinal;
@@ -636,10 +635,9 @@ public:
 	// void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
 	// void reduceWithinIntervalSerial(GPUPtr operations, GPUPtr partials, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int numOps, int
 	//                                 start, unsigned int end, unsigned int intervalNUmber);
-    void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, 
+    void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr integrals, GPUPtr coalescent, 
                                GPUPtr populationSizeIndices,
-                               unsigned int intervalNumber, unsigned int kCoalescentBufferLength, 
-                               unsigned int integralsOffset, bool isConstantModel);
+                               unsigned int intervalNumber, unsigned int kCoalescentBufferLength);
 	// void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
 	// void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);
 	// void accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory, GPUPtr dBastaMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal, unsigned int kCoalescentBufferLength);
