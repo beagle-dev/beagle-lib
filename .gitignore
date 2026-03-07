@@ -222,4 +222,5 @@ project/beagle-xcode/BEAGLE-1.0.pkg
 .vs/
 CMakeSettings.json
 out/
+target/
 
