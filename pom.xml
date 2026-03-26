@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.beagle-lib</groupId>
+    <groupId>io.github.beagle-dev</groupId>
     <artifactId>beagle</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -133,25 +133,24 @@
                         <configuration>
                             <!-- Matches the uid of your GPG key, e.g. "Your Name <you@example.com>" -->
                             <keyname>${gpg.keyname}</keyname>
-                            <passphraseServerId>${gpg.keyname}</passphraseServerId>
+                            <passphraseServerId>${gpg.passphrase}</passphraseServerId>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
-            <!-- Nexus staging plugin for Maven Central release -->
-            <plugin>
-                <groupId>org.sonatype.plugins</groupId>
-                <artifactId>nexus-staging-maven-plugin</artifactId>
-                <version>1.6.13</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <serverId>ossrh</serverId>
-                    <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
-                    <!-- Set to true to auto-release after staging, false to manually review first -->
-                    <autoReleaseAfterClose>false</autoReleaseAfterClose>
-                </configuration>
-            </plugin>
+            <!-- Nexus staging plugin for Maven Central release -->            
+			<plugin>
+				<groupId>org.sonatype.central</groupId>
+				<artifactId>central-publishing-maven-plugin</artifactId>
+				<version>0.7.0</version>
+				<extensions>true</extensions>
+				<configuration>
+					<publishingServerId>central</publishingServerId>
+					<autoPublish>false</autoPublish>
+				</configuration>
+			</plugin>
+            
         </plugins>
     </build>
 
