@@ -141,6 +141,116 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 #endif // FW_OPENCL_CPU
 }
 
+KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
+                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
+                                                  int totalPatterns) {
+#ifdef FW_OPENCL_CPU // CPU/MIC implementation
+    DETERMINE_INDICES_X_CPU();
+    SUM_STATES_PARTIALS_X_CPU();
+    partials3[u] = sum1 * sum2;
+#else // GPU implementation
+    const int NEW_PATTERN_BLOCK_SIZE = 8;
+    DETERMINE_INDICES_X_GPU();
+    int patternBlock = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE);
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
+
+    KW_LOCAL_MEM REAL sPartials1[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sMatrix2[4 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT * NEW_PATTERN_BLOCK_SIZE];
+
+    int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
+
+    const int WMMA_M = 8;
+    const int WMMA_N = 8;
+    const int WMMA_K = 4;
+
+    int warpSize = 32;
+    int warpState = state / warpSize;
+    int warpPattern = patIdx;
+    float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
+    int warpIdx = warpState + warpPattern * warpsPerPattern;
+    int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
+
+    int sMatrixRow, partialsCol, sMatrixCol, partialsRow, state1;
+
+    double a2, b2, res21 = 0, res22 = 0, res11 = 0, res12 = 0;
+
+    if (pattern < totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
+        state1 = states1[pattern];
+        if(state1 < PADDED_STATE_COUNT) {
+            sPartials1[patIdx * PADDED_STATE_COUNT + state] = matrix1[state1 * PADDED_STATE_COUNT + state];
+        } else {
+            sPartials1[patIdx * PADDED_STATE_COUNT + state] = 1.0;
+        }
+
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[y + patIdx * PADDED_STATE_COUNT + state];
+    } else {
+        sPartials1[patIdx * PADDED_STATE_COUNT + state] = 0;
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+    }
+
+    int pattern_span = patIdx + 4;
+    if (pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
+        state1 = states1[pattern + 4];
+        if(state1 < PADDED_STATE_COUNT) {
+            sPartials1[pattern_span * PADDED_STATE_COUNT + state] = matrix1[state1 * PADDED_STATE_COUNT + state];
+        } else {
+            sPartials1[pattern_span * PADDED_STATE_COUNT + state] = 1.0;
+        }
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2[y + pattern_span * PADDED_STATE_COUNT + state];
+    } else {
+        sPartials1[pattern_span * PADDED_STATE_COUNT + state] = 0;
+        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+    }
+
+    for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
+        sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
+        sMatrixCol = i;
+        partialsRow = i;
+        partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
+
+        sMatrix2[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
+
+        KW_LOCAL_FENCE;
+
+        int reg_row = state % 4;
+        int reg_col = (warpIdx * WMMA_M) + (laneid / 4);
+
+        int reg_row_partials = laneid / 4;
+        int reg_col_partials = partialsRow + state % 4;
+
+        a2 = sMatrix2[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+        b2 = sPartials2[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
+
+        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+            : "=d"(res21), "=d"(res22)
+            : "d"(a2), "d"(b2), "d"(res21), "d"(res22));
+
+        KW_LOCAL_FENCE;
+    }
+
+    u = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
+
+    int statesPerWarp = (PADDED_STATE_COUNT >= warpSize) ? state : laneid;
+
+    if (patternBlock + ((laneid * 2) % 8) < totalPatterns && ((laneid * 2) % 8) < PATTERN_BLOCK_SIZE) {
+        res11 = sPartials1[(int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8];
+        partials3[u + (int) (patIdx * warpsPerPattern) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res11 * res21;
+    }
+
+    if (patternBlock + ((laneid * 2) % 8) + 1 < totalPatterns && ((laneid * 2) % 8) + 1 < PATTERN_BLOCK_SIZE) {
+        res12 = sPartials1[PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8];
+        partials3[u + PADDED_STATE_COUNT + (int) (patIdx * (warpsPerPattern)) * WMMA_M + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8] = res12 * res22;
+    }
+
+#endif // FW_OPENCL_CPU
+}
+
 // Testing for half grid size without tensor cores
 
 //KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
