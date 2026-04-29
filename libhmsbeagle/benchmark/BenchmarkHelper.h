@@ -18,24 +18,34 @@ double debugGetTime() {
 #include <iostream>
 #include <map>
 
-std::map<std::string,std::pair<std::chrono::duration<double>, int>> benchmarkDuration;
+std::map<int, std::map<std::string,std::pair<std::chrono::duration<double>, int>>> benchmarkDuration;
 
-#define DEBUG_CREATE_TIME()
+#define DEBUG_CREATE_TIME() benchmarkDuration.insert( \
+benchmarkDuration.end(), \
+        std::map<int, std::map<std::string, \
+                std::pair<std::chrono::duration<double>, int>>>::value_type(instance, {}) \
+);
 // Note: Calling DEBUG_FINALIZE_TIME() in beagle_library_finalize() will lead to memory errors
 #define DEBUG_FINALIZE_TIME() std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it;\
-std::cerr << "\nBENCHMARKS: " << __FILE__ << "\n" << "Function\tTime" << std::endl;\
-for (it = benchmarkDuration.begin(); it != benchmarkDuration.end(); it++) {\
-    std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+std::map<int, std::map<std::string,std::pair<std::chrono::duration<double>, int>>>::iterator instanceIt = benchmarkDuration.find(instance); \
+if (instanceIt != benchmarkDuration.end()) {                                                                   \
+    std::cerr << "\nBENCHMARKS FOR BEAGLE INSTANCE: " << instance << "\n" << "Function\tTime" << std::endl; \
+    for (it = instanceIt->second.begin(); it != instanceIt->second.end(); it++) {\
+        std::cerr << it->first << "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(it->second.first).count() << " ns" << "\t" << it->second.second << std::endl;\
+    } \
 }
 #define DEBUG_START_TIME() auto start = std::chrono::high_resolution_clock::now();
 #define DEBUG_END_TIME() auto end = std::chrono::high_resolution_clock::now();\
-std::string key = __func__;\
-std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it = benchmarkDuration.find(key);\
-if(it != benchmarkDuration.end()){\
-    it->second.second += 1;\
-    it->second.first += end-start;\
-} else {\
-    benchmarkDuration.insert(benchmarkDuration.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key, std::pair<std::chrono::duration<double>, int>(end - start, 1)));\
+std::string key = __func__;                                                   \
+std::map<int, std::map<std::string,std::pair<std::chrono::duration<double>, int>>>::iterator instanceIt = benchmarkDuration.find(instance); \
+if (instanceIt != benchmarkDuration.end()) { \
+    std::map<std::string,std::pair<std::chrono::duration<double>, int>>::iterator it = instanceIt->second.find(key);\
+    if(it != instanceIt->second.end()){\
+        it->second.second += 1;\
+        it->second.first += end-start;\
+    } else {\
+        instanceIt->second.insert(instanceIt->second.end(), std::pair<std::string,std::pair<std::chrono::duration<double>, int>>(key, std::pair<std::chrono::duration<double>, int>(end - start, 1)));\
+    } \
 }
 #else
 #define DEBUG_CREATE_TIME()

@@ -654,7 +654,6 @@ int beagleCreateInstance(int tipCount,
                          long preferenceFlags,
                          long requirementFlags,
                          BeagleInstanceDetails* returnInfo) {
-    DEBUG_CREATE_TIME();
     try {
         if (instances == NULL) {
             DEBUG_CREATE_ENERGY();
@@ -726,6 +725,7 @@ int beagleCreateInstance(int tipCount,
 
             int instance = instances->size();
             instances->push_back(bestBeagle);
+            DEBUG_CREATE_TIME();
 
             int returnValue = bestBeagle->getInstanceDetails(returnInfo);
             if (returnValue == BEAGLE_SUCCESS) {
