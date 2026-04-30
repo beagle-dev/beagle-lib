@@ -971,14 +971,23 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesGrowing\n");
 #endif
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsStatesGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, states2, partials3, matrices1, matrices2,
                       patternCount);
     gpu->SynchronizeDevice();
-
+#ifdef CUDA_TENSOR_CORES
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = tmpBgPeelingBlocky;
+    }
+#endif
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
