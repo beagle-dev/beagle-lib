@@ -742,13 +742,22 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 #endif
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgDerivativeBlocky = bgDerivativeBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsStatesEdgeFirstDerivatives,
                       bgDerivativeBlock, bgDerivativeGrid,
                       6, 9,
                       out, states0, partials0, matrices0, instructions, weights,
                       instructionOffset, patternCount, categoryCount);
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = tmpBgDerivativeBlocky;
+    }
+#endif
     if (synchronize) {
         gpu->SynchronizeDevice();
     }
