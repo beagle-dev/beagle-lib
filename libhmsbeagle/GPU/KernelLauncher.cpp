@@ -1693,23 +1693,12 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                         states1, states2, partials3, matrices1, matrices2,
                                         startPattern, endPattern, patternCount);
         } else {
-#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
-            int tmpBgPeelingBlocky = bgPeelingBlock.y;
-    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
-        bgPeelingBlock.y = 4;
-    }
-#endif
             gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 6,
                                         states1, states2, partials3, matrices1, matrices2,
                                         patternCount);
-#ifdef CUDA_TENSOR_CORES
-            if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
-        bgPeelingBlock.y = tmpBgPeelingBlocky;
-    }
-#endif
         }
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
