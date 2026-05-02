@@ -259,7 +259,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
     int pattern_span = patIdx + 4;
     if(pattern + 4 < totalPatterns && patIdx + 4 < PATTERN_BLOCK_SIZE) {
         sPartials1[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1[y + (pattern_span) * PADDED_STATE_COUNT + state];
-        state2 = states2[pattern];
+        state2 = states2[pattern + 4];
         if(state2 < PADDED_STATE_COUNT) {
             sPartials2[(patIdx + 4) * PADDED_STATE_COUNT + state] = matrix2[state2 * PADDED_STATE_COUNT + state];
         } else {
