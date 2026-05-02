@@ -61,6 +61,20 @@ set_source_files_properties(test_x_state_gradient.cu PROPERTIES LANGUAGE CUDA)
 
 add_dependencies(${GRADIENT_TEST_NAME} TensorCoresKernels)
 
+set(GRADIENT_STATE_PARTIALS_TEST_NAME "test_gradient_state_partials_${STATE_SIZE}")
+add_executable(${GRADIENT_STATE_PARTIALS_TEST_NAME} test_x_state_partials_gradient.cu)
+target_compile_definitions( ${GRADIENT_STATE_PARTIALS_TEST_NAME} PRIVATE STATE_SIZE=${STATE_SIZE} )
+target_compile_options(${GRADIENT_STATE_PARTIALS_TEST_NAME} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:
+        -I/usr/local/cuda/include;
+        -lineinfo
+        >
+)
+target_link_libraries(${GRADIENT_STATE_PARTIALS_TEST_NAME} cuda)
+set_source_files_properties(test_x_state_partials_gradient.cu PROPERTIES LANGUAGE CUDA)
+
+add_dependencies(${GRADIENT_STATE_PARTIALS_TEST_NAME} TensorCoresKernels)
+
 
 set(STATE_SIZES 16)
 
