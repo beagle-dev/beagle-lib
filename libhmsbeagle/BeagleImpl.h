@@ -146,13 +146,15 @@ public:
 
 	virtual int updatePrePartials(const int *operations,
                                   int count,
-                                  int cumulativeScaleIndex) = 0;
+                                  int cumulativeScaleIndex,
+                                  BeaglePreorderType preorderType) = 0;
 
     virtual int updatePartialsByPartition(const int* operations,
                                           int operationCount) = 0;
 
     virtual int updatePrePartialsByPartition(const int* operations,
-                                             int operationCount) = 0;
+                                             int operationCount,
+                                             BeaglePreorderType preorderType) = 0;
 
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;

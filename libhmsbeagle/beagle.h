@@ -205,6 +205,18 @@ enum BeagleOpCodes {
 };
 
 /**
+ * @anchor BEAGLE_PREORDER_TYPE
+ *
+ * @brief Type of per-order partials to compute
+ *
+ * This enumerates all posslbe pre-order partial types.
+ */
+enum BeaglePreorderType {
+	BEAGLE_PREORDER_BOTTOM = 0, /**< Pre-order partial include transition probability along current branch */
+	BEAGLE_PREORDER_TOP = 1     /**< Pre-order partial does not include transition probability along current branch */
+};
+
+/**
  * @brief Information about a specific instance
  */
 typedef struct {
@@ -908,13 +920,15 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ * @param preorderType              Type of pre-order partial calculation (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
                                              const BeagleOperation* operations,
                                              int operationCount,
-                                             int cumulativeScaleIndex);
+                                             int cumulativeScaleIndex,
+                                             BeaglePreorderType preorderType);
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation for a partitioned analysis.
@@ -958,12 +972,14 @@ BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
+ * @param preorderType              Type of pre-order partial calculation (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition(const int instance,
                                                         const BeagleOperationByPartition* operations,
-                                                        int operationCount);
+                                                        int operationCount,
+                                                        BeaglePreorderType preorderType);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

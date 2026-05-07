@@ -284,16 +284,18 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
-        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex);
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex,
+                                  final BeaglePreorderType preorderType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex, preorderType.getType());
         if (errCode != 0) {
             throw new BeagleException("updatePrePartials", errCode);
         }
     }
 
 
-    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
-        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount);
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount,
+                                             final BeaglePreorderType preorderType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount, preorderType.getType());
         if (errCode != 0) {
             throw new BeagleException("updatePrePartialsByPartition", errCode);
         }

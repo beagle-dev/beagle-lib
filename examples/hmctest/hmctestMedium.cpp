@@ -381,7 +381,8 @@ int main( int argc, const char* argv[] )
     beagleUpdatePrePartials(instance,
                             pre_order_operations,
                             8,
-                            BEAGLE_OP_NONE);
+                            BEAGLE_OP_NONE,
+                            BEAGLE_PREORDER_BOTTOM);
 
 //  print pre-order partials and edge length log-likelihood gradient to screen
 //  TODO: implement gradient calculation according to beagleCalculateEdgeLogLikelihoods() in beagle.cpp

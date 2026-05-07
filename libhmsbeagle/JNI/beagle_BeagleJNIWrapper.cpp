@@ -877,11 +877,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
  * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
-  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex, jint preorderType)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-    jint errCode = (jint)beagleUpdatePrePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex);
+    jint errCode = (jint)beagleUpdatePrePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex, (BeaglePreorderType)preorderType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
@@ -894,11 +894,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
  * Signature: (I[II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
-  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint preorderType)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-    jint errCode = (jint)beagleUpdatePrePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount);
+    jint errCode = (jint)beagleUpdatePrePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount, (BeaglePreorderType)preorderType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 

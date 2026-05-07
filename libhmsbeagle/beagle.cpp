@@ -1230,13 +1230,14 @@ int beagleUpdatePartials(const int instance,
 int beagleUpdatePrePartials(const int instance,
                             const BeagleOperation* operations,
                             int operationCount,
-                            int cumulativeScalingIndex){
+                            int cumulativeScalingIndex,
+                            BeaglePreorderType preorderType){
     DEBUG_START_TIME();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->updatePrePartials((const int *) operations, operationCount,
-                                                        cumulativeScalingIndex);
+                                                        cumulativeScalingIndex, preorderType);
     DEBUG_END_TIME();
     return returnValue;
 }
@@ -1255,12 +1256,13 @@ int beagleUpdatePartialsByPartition(const int instance,
 
 int beagleUpdatePrePartialsByPartition(const int instance,
                                        const BeagleOperationByPartition* operations,
-                                       int operationCount) {
+                                       int operationCount,
+                                       BeaglePreorderType preorderType) {
     DEBUG_START_TIME();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount);
+    int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount, preorderType);
     DEBUG_END_TIME();
     return returnValue;
 }

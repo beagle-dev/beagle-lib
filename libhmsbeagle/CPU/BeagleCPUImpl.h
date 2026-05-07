@@ -308,13 +308,15 @@ public:
 
     int updatePrePartials(const int *operations,
                           int operationCount,
-                          int cumulativeScalingIndex);
+                          int cumulativeScalingIndex,
+                          BeaglePreorderType preorderType);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 
     int updatePrePartialsByPartition(const int* operations,
-                                     int operationCount);
+                                     int operationCount,
+                                     BeaglePreorderType preorderType);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -460,7 +462,18 @@ protected:
     virtual int upPrePartials(bool byPartition,
                               const int* operations,
                               int count,
-                              int cumulativeScaleIndex);
+                              int cumulativeScaleIndex,
+                              BeaglePreorderType preorderType);
+
+    virtual int upPrePartialsBottom(bool byPartition,
+                                    const int* operations,
+                                    int count,
+                                    int cumulativeScaleIndex);
+
+    virtual int upPrePartialsTop(bool byPartition,
+                                 const int* operations,
+                                 int count,
+                                 int cumulativeScaleIndex);
 
     virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
                                        const int *preBufferIndices,

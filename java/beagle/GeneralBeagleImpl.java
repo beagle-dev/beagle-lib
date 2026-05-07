@@ -429,7 +429,8 @@ public class GeneralBeagleImpl implements Beagle {
      *                               Ptr matrices of the sibling node}
      *
      */
-    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex,
+                                  final BeaglePreorderType preorderType) {
 
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
@@ -453,7 +454,8 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount,
+                                             final BeaglePreorderType preorderType) {
         throw new BeagleException("updatePrePartialsByPartition", -1);
     }
 

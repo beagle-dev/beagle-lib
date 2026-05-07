@@ -329,7 +329,8 @@ public:
 
     int updatePrePartials(const int *operations,
                           int count,
-                          int cumulativeScaleIndex);
+                          int cumulativeScaleIndex,
+                          BeaglePreorderType preorderType);
 
 	int calculateEdgeDerivative(const int *postBufferIndices,
 								const int *preBufferIndices,
@@ -359,7 +360,8 @@ public:
                                   int operationCount);
 
     int updatePrePartialsByPartition(const int* operations,
-                                     int operationCount);
+                                     int operationCount,
+                                     BeaglePreorderType preorderType);
 
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
@@ -483,7 +485,18 @@ private:
 	int upPrePartials(bool byPartition,
 					  const int* operations,
 					  int count,
-					  int cumulativeScaleIndex);
+					  int cumulativeScaleIndex,
+					  BeaglePreorderType preorderType);
+
+	int upPrePartialsBottom(bool byPartition,
+					        const int* operations,
+					        int count,
+					        int cumulativeScaleIndex);
+
+	int upPrePartialsTop(bool byPartition,
+					     const int* operations,
+					     int count,
+					     int cumulativeScaleIndex);
 
 	void initDerivatives(int replicates);
 

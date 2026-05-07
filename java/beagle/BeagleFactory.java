@@ -387,7 +387,7 @@ public class BeagleFactory {
 
         instance.setRootPrePartials(rootPreIndices, stateFrequencyIndices, 1);
 
-        instance.updatePrePartials(pre_order_operations, 4, 0);
+        instance.updatePrePartials(pre_order_operations, 4, 0, BeaglePreorderType.BOTTOM);
 
         int[] scalingFactorsIndices = {2}; // internal nodes
 

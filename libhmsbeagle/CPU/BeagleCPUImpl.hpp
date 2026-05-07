@@ -1312,11 +1312,12 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int count,
-                                                         int cumulativeScaleIndex) {
+                                                         int cumulativeScaleIndex,
+                                                         BeaglePreorderType preorderType) {
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     bool byPartition = false;
-    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex);
+    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, preorderType);
 
     return returnCode;
 }
@@ -1406,7 +1407,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* operations,
-                                                                    int count) {
+                                                                    int count,
+                                                                    BeaglePreorderType preorderType) {
 
     int returnCode = BEAGLE_ERROR_GENERAL;
 
@@ -1419,7 +1421,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* o
         returnCode = upPrePartials(byPartition,
                                   operations,
                                   count,
-                                  BEAGLE_OP_NONE);
+                                  BEAGLE_OP_NONE,
+                                  preorderType);
     }
 
     return returnCode;
@@ -1682,7 +1685,20 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
                                                      const int* operations,
                                                      int count,
-                                                     int cumulativeScaleIndex) {
+                                                     int cumulativeScaleIndex,
+                                                     BeaglePreorderType preorderType) {
+    if (preorderType == BEAGLE_PREORDER_TOP) {
+        return upPrePartialsTop(byPartition, operations, count, cumulativeScaleIndex);
+    } else {
+        return upPrePartialsBottom(byPartition, operations, count, cumulativeScaleIndex);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsBottom(bool byPartition,
+                                                           const int* operations,
+                                                           int count,
+                                                           int cumulativeScaleIndex) {
 
     REALTYPE* cumulativeScaleBuffer = NULL;  // don't need to normalize/transform back preOrderPartials, off by constant rescaling factor is fine
 //    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
@@ -1852,6 +1868,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
     }
 
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsTop(bool byPartition,
+                                                        const int* operations,
+                                                        int count,
+                                                        int cumulativeScaleIndex) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 BEAGLE_CPU_TEMPLATE
