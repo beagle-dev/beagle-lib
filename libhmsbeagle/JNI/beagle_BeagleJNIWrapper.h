@@ -242,18 +242,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePrePartials
- * Signature: (I[III)I
+ * Signature: (I[IIII)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
-  (JNIEnv *, jobject, jint, jintArray, jint, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jint, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePrePartialsByPartition
- * Signature: (I[II)I
+ * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
-  (JNIEnv *, jobject, jint, jintArray, jint, jint);
+  (JNIEnv *, jobject, jint, jintArray, jint, jint, jint);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
