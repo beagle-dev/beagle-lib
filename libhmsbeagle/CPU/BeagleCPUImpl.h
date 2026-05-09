@@ -592,6 +592,38 @@ protected:
                                          int startPattern,
                                          int endPattern);
 
+    virtual void calcPrePartialsStatesTop(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const int* states2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsStatesTopRoot(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const int* states2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);                                         
+
+    virtual void calcPrePartialsPartialsTop(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsPartialsTopRoot(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);                                         
+
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,
@@ -741,7 +773,7 @@ protected:
                                                    const REALTYPE* matrices2,
                                                    const REALTYPE* scaleFactors,
                                                    int startPattern,
-                                                   int endPattern);
+                                                   int endPattern);                                               
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
                                             const REALTYPE *child0States,
