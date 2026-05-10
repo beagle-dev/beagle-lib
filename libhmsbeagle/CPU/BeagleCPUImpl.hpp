@@ -4744,7 +4744,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTopRoot(REALTYPE*
     }
 }
 
-// #define PRE_CACHE_FRIENDLY 1
+#define PRE_CACHE_FRIENDLY
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* destP,
@@ -4770,6 +4770,45 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
         REALTYPE* destPtr = &destP[v];
 
         for (int k = startPattern; k < endPattern; k++) {
+            REALTYPE* destPtri = destPtr;
+#ifdef PRE_CACHE_FRIENDLY            
+            for (int i = 0; i < kStateCount; i++) {
+                // scatter (M2[i,:].P2) * P1[i] via row i of M1 — contiguous
+                const REALTYPE Pk = partials1Ptr[i];
+                const REALTYPE* m1row = matrices1 + matrixOffset + i * matrixIncr;
+                REALTYPE* tmpdestPtr = destPtr;
+                int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    *(tmpdestPtr++) += m1row[j + 0] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 1] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 2] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 3] * Pk;
+                }
+
+                for (; j < kStateCount; j++) {
+                    *(tmpdestPtr++) += m1row[j] * Pk;
+                }
+            }
+
+            for (int i = 0; i < kStateCount; i++) {
+                // sum2 = M2[i,:] . P2 — row i of M2 is contiguous
+                const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;                
+                REALTYPE sum2A = 0.0, sum2B = 0.0;  
+                int j = 0;          
+                for (; j < stateCountModFour; j += 4) {
+                    sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
+                    sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+                    sum2A += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
+                    sum2B += matrices2Ptr[j + 3] * partials2Ptr[j + 3];
+                }
+
+                for (; j < kStateCount; j++) {
+                    sum2A += matrices2Ptr[j] * partials2Ptr[j];
+                }                
+
+                *(destPtri++) *= (sum2A + sum2B);
+            }
+#else
             for (int i = 0; i < kStateCount; i++) {
                 // sum2 = M2[i,:] . P2 — row i of M2 is contiguous
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
@@ -4786,33 +4825,15 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
 
-#ifdef PRE_CACHE_FRIENDLY
-                // scatter (M2[i,:].P2) * P1[i] via row i of M1 — contiguous
-                const REALTYPE MjPj = (sum2A + sum2B) * partials1Ptr[i];
-                const REALTYPE* m1row = matrices1 + matrixOffset + i * matrixIncr;
-                REALTYPE* tmpdestPtr = destPtr;
-                for (j = 0; j < stateCountModFour; j += 4) {
-                    *(tmpdestPtr++) += m1row[j + 0] * MjPj;
-                    *(tmpdestPtr++) += m1row[j + 1] * MjPj;
-                    *(tmpdestPtr++) += m1row[j + 2] * MjPj;
-                    *(tmpdestPtr++) += m1row[j + 3] * MjPj;
-                }
-
-                for (; j < kStateCount; j++) {
-                    *(tmpdestPtr++) += m1row[j] * MjPj;
-                }
-#else
-                REALTYPE* tmpdestPtr = destPtr;
                 REALTYPE sum1A = 0.0;
 
                 for (j = 0; j < kStateCount; ++j) {
                     sum1A += matrices1[matrixOffset + j * matrixIncr + i] * partials1Ptr[j];
-                    // TODO This is awful code; note transposed access
                 }
 
-                *(tmpdestPtr++) += (sum2A + sum2B) * sum1A;
-#endif
+                *(destPtri++) = (sum2A + sum2B) * sum1A;
             }
+#endif            
 
             destPtr      += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
