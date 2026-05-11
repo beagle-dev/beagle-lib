@@ -4914,10 +4914,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
     int matrixIncr = kStateCount + T_PAD;
     int stateCountModFour = (kStateCount / 4) * 4;
 
-    REALTYPE* tmpdestPtr = destP;
-#ifdef PRE_CACHE_FRIENDLY    
-    //clean up the partial first, set every entry to 0
-    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
+#ifdef PRE_CACHE_FRIENDLY        
+    std::fill(destP, destP + kPartialsSize, 0);
 #endif
 
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -4925,43 +4923,55 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
-
         REALTYPE* destPtr = &destP[v];
-        tmpdestPtr = destPtr;
+      
         for (int k = startPattern; k < endPattern; k++) {
+            REALTYPE* destPtri = destPtr;
             int w = l * kMatrixSize;
-            int state2 = states2[k];
+            int state2 = states2[k];            
+#ifdef PRE_CACHE_FRIENDLY
+            for (int i = 0; i < kStateCount; i++) {
+                // scatter (M2[i,:].P2) * P1[i] via row i of M1 — contiguous
+                const REALTYPE Pk = partials1Ptr[i];
+                const REALTYPE* m1row = matrices1 + matrixOffset + i * matrixIncr;
+                REALTYPE* tmpdestPtr = destPtr;
+                int j = 0;
+                for (; j < stateCountModFour; j += 4) {
+                    *(tmpdestPtr++) += m1row[j + 0] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 1] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 2] * Pk;
+                    *(tmpdestPtr++) += m1row[j + 3] * Pk;
+                }
+
+                for (; j < kStateCount; j++) {
+                    *(tmpdestPtr++) += m1row[j] * Pk;
+                }
+            }
+
+            const REALTYPE sum2A = matrices2[w + state2];
+            for (int i = 0; i < kStateCount; i++) {
+                const REALTYPE sum2A = matrices2[w + state2];
+                *(destPtri++) *= sum2A;
+
+                w += matrixIncr;
+            }
+#else              
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
 
                 const REALTYPE sum2A = matrices2[w + state2];
-                // tmpdestPtr = destPtr;
-                // const REALTYPE  MjPj = matrices2[w + state2] * partials1Ptr[i];
-
-                // int j = 0;
-                // for (; j < stateCountModFour; j += 4) {
-                //     *(tmpdestPtr++) += matrices1Ptr[j + 0] * MjPj;
-                //     *(tmpdestPtr++) += matrices1Ptr[j + 1] * MjPj;
-                //     *(tmpdestPtr++) += matrices1Ptr[j + 2] * MjPj;
-                //     *(tmpdestPtr++) += matrices1Ptr[j + 3] * MjPj;
-                // }
-
-                // for (; j < kStateCount; j++) {
-                //     *(tmpdestPtr++) += matrices1Ptr[j] * MjPj;
-                // }
                 
                 REALTYPE sum1A = 0.0;
-
                 int j;
                 for (j = 0; j < kStateCount; ++j) {
                     sum1A += matrices1[matrixOffset + j * matrixIncr + i] * partials1Ptr[j];
-                    // TODO This is awful code; note transposed access
                 }
 
-                *(tmpdestPtr++) += sum2A * sum1A;
+                *(destPtri++) = sum2A * sum1A;
 
                 w += matrixIncr;
             }
+#endif
             destPtr +=kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
         }
@@ -4979,10 +4989,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTopRoot(REALTYPE* d
     int matrixIncr = kStateCount + T_PAD;
     int stateCountModFour = (kStateCount / 4) * 4;
 
-    REALTYPE* tmpdestPtr = destP;
-    //clean up the partial first, set every entry to 0
-    // std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
-
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
@@ -4990,7 +4996,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTopRoot(REALTYPE* d
         const REALTYPE* partials1Ptr = &partials1[v];
 
         REALTYPE* destPtr = &destP[v];
-        tmpdestPtr = destPtr;
+        REALTYPE* tmpdestPtr = destPtr;
+    
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             int state2 = states2[k];
