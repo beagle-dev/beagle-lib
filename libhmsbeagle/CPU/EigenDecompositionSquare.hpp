@@ -186,6 +186,21 @@ if (T_PAD != 0) {
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenValuesPtr(int eigenIndex) const {
+    return gEigenValues[eigenIndex];               
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenVectorsPtr(int eigenIndex) const {
+    return gEMatrices[eigenIndex];
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getInverseEigenVectorsPtr(int eigenIndex) const {
+    return gIMatrices[eigenIndex];
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
 void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                                         const int* probabilityIndices,
                                                         const int* firstDerivativeIndices,

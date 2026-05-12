@@ -58,6 +58,12 @@ public:
                                  const double* edgeLengths,
                                  REALTYPE** transitionMatrices,
                                  int count);
+
+    virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const;
+
+    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const;
+
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;                                 
 };
 
 }

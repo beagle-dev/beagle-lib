@@ -85,6 +85,11 @@ public:
                                  int count) = 0;
 
 
+    virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
 };
 
 }
