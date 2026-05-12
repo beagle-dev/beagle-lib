@@ -450,6 +450,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     const BranchEigenInfo& info1 = gBranchEigenInfo[branchEigenIndex1];
     const BranchEigenInfo& info2 = gBranchEigenInfo[branchEigenIndex2];
 
+    // TODO: we can optimize for info1.eigenIndex == info2.eigenIndex
+    
     const REALTYPE* eigenValuesReal1 = gEigenDecomposition->getEigenValuesPtr(info1.eigenIndex);
     const REALTYPE* eigenValuesReal2 = gEigenDecomposition->getEigenValuesPtr(info2.eigenIndex);
 
@@ -471,6 +473,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     const int matrixIncr = kStateCount; // TODO: no padding`
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+    for (int i = 0; i < kStateCount; i++) {
+        fprintf(stderr, "eigenValuesImag1[%d] = %f\n", i, eigenValuesImag1[i]);
+        fprintf(stderr, "eigenValuesImag2[%d] = %f\n", i, eigenValuesImag2[i]);
+    }
+    fprintf(stderr, "\n");
+
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
@@ -485,14 +493,64 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
         for (int k = startPattern; k < endPattern; k++) {
 
             for (int i = 0; i < kStateCount; i++) {
-                REALTYPE sum1 = 0.0, sum2 = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum1 += inverseEigenVectors1[i * matrixIncr + j] * partials1Ptr[j];
-                    sum2 += inverseEigenVectors2[i * matrixIncr + j] * partials2Ptr[j];
-                }
 
-                gPartialTmp1[i] = exp(eigenValuesReal1[i] * scaledBranchLength1) * sum1;
-                gPartialTmp2[i] = exp(eigenValuesReal2[i] * scaledBranchLength2) * sum2;
+                const REALTYPE expat1 = exp(eigenValuesReal1[i] * scaledBranchLength1);
+                const REALTYPE expat2 = exp(eigenValuesReal2[i] * scaledBranchLength2);
+
+                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
+                    // Both real 
+                    REALTYPE sum1 = 0.0, sum2 = 0.0;
+                    for (int j = 0; j < kStateCount; j++) {
+                        sum1 += inverseEigenVectors1[i * matrixIncr + j] * partials1Ptr[j];
+                        sum2 += inverseEigenVectors2[i * matrixIncr + j] * partials2Ptr[j];
+                    }
+
+                    gPartialTmp1[i] = expat1 * sum1;
+                    gPartialTmp2[i] = expat2 * sum2;
+
+                } else if (eigenValuesImag1[i] != 0.0 && eigenValuesImag2[i] != 0.0) {
+                    // Both complex conjugate pairs
+                    //
+                    // 2x2 conjugate block
+                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
+                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
+
+                    int i2 = i + 1;                   
+                    const REALTYPE b1 = eigenValuesImag1[i];                                 
+                    const REALTYPE expatcosbt1 = expat1 * cos(scaledBranchLength1 * b1);
+                    const REALTYPE expatsinbt1 = expat1 * sin(scaledBranchLength1 * b1);
+
+                    const REALTYPE b2 = eigenValuesImag2[i];
+                    const REALTYPE expatcosbt2 = expat2 * cos(scaledBranchLength2 * b2);                    
+                    const REALTYPE expatsinbt2 = expat2 * sin(scaledBranchLength2 * b2);
+
+                    REALTYPE sum1A = 0.0, sum1B = 0.0, sum2A = 0.0, sum2B = 0.0;
+                    for (int j = 0; j < kStateCount; j++) {
+                        sum1A += (expatcosbt1 * inverseEigenVectors1[i * matrixIncr + j] +
+                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + j]) * partials1Ptr[j];
+
+                        sum1B += (expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + j] -
+                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + j]) * partials1Ptr[j];
+
+                        sum2A += (expatcosbt2 * inverseEigenVectors2[i * matrixIncr + j] +
+                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + j]) * partials2Ptr[j];
+
+                        sum2B += (expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + j] -
+                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];                        
+                    }
+
+                    gPartialTmp1[i] = sum1A;
+                    gPartialTmp1[i2] = sum1B;
+
+                    gPartialTmp2[i] = sum2A;
+                    gPartialTmp2[i2] = sum2B;
+
+                    i++; // processed two conjugate rows
+                    
+                } else {
+                    fprintf(stderr, "Error: Mismatched eigenvalue types in calcPartialsPartials; not yet implemented\n");
+                    exit(-1);
+                }
             }
 
             for (int i = 0; i < kStateCount; i++) {
