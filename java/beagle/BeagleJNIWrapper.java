@@ -148,19 +148,28 @@ public class BeagleJNIWrapper {
     public native int updatePrePartials(final int instance,
                                         final int[] operations,
                                         int operationCount,
-                                        int cumulativeScalingIndex,
-                                        int preorderType);
+                                        int cumulativeScalingIndex);
 
+    public native int updatePrePartials_v5(final int instance,
+                                           final int[] operations,
+                                           int operationCount,
+                                           int cumulativeScalingIndex,
+                                           int partialsType); 
 
     public native int updatePrePartialsByPartition(final int instance,
                                                    final int[] operations,
-                                                   int operationCount,
-                                                   int preorderType);
+                                                   int operationCount);
 
     public native int updatePartials(final int instance,
                                      final int[] operations,
                                      int operationCount,
                                      int cumulativeScalingIndex);
+
+    public native int updatePartials_v5(final int instance,
+                                        final int[] operations,
+                                        int operationCount,
+                                        int cumulativeScalingIndex,
+                                        int partialsType);
 
     public native int updatePartialsByPartition(final int instance,
                                                 final int[] operations,

@@ -172,8 +172,10 @@ enum BeagleFlags {
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
 
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1 << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1 << 31 /**< Automatically transpose pre-order transition matrices */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1L << 31, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1L << 32, /**< Automatically transpose pre-order transition matrices */
+
+    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40  /**< Use spectral representation for transition probability calculation */
 };
 
 
@@ -205,16 +207,19 @@ enum BeagleOpCodes {
 };
 
 /**
- * @anchor BEAGLE_PREORDER_TYPE
+ * @anchor BEAGLE_PARTIALS_TYPE
  *
  * @brief Type of per-order partials to compute
  *
  * This enumerates all posslbe pre-order partial types.
  */
-enum BeaglePreorderType {
-	BEAGLE_PREORDER_BOTTOM = 0, /**< Pre-order partial include transition probability along current branch */
-	BEAGLE_PREORDER_TOP = 1     /**< Pre-order partial does not include transition probability along current branch */
+enum BeaglePartialsFlags {
+	BEAGLE_PARTIALS_BOTTOM      = 1 << 0, /**< Partials include transition probability along current branch */
+	BEAGLE_PARTIALS_TOP         = 1 << 1, /**< Partials do not include transition probability along current branch */
+    BEAGLE_PARTIALS_USE_MATRIX  = 1 << 2, /**< Calculated using finite-time transition matrices */
+    BEAGLE_PARTIALS_USE_SPECTRA = 1 << 3  /**< Calculated using eigenvalue decomposition */
 };
+typedef long BeaglePartialsType;
 
 /**
  * @brief Information about a specific instance
@@ -900,14 +905,20 @@ typedef struct {
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ * @param partialsType              Type of partials calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePartials_v5(const int instance,
+                                             const BeagleOperation* operations,
+                                             int operationCount,
+                                             int cumulativeScaleIndex,
+                                             BeaglePartialsType partialsType);
+                                          
 BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
                                           const BeagleOperation* operations,
                                           int operationCount,
                                           int cumulativeScaleIndex);
-
 /**
  * @brief Calculate or queue for calculation pre-order partials using a list of operations
  *
@@ -920,15 +931,20 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
- * @param preorderType              Type of pre-order partial calculation (input)
+ * @param partialsType              Type of partials calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartials_v5(const int instance,
+                                                const BeagleOperation* operations,
+                                                int operationCount,
+                                                int cumulativeScaleIndex,
+                                                BeaglePartialsType partialsType);
+
 BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
                                              const BeagleOperation* operations,
                                              int operationCount,
-                                             int cumulativeScaleIndex,
-                                             BeaglePreorderType preorderType);
+                                             int cumulativeScaleIndex);
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation for a partitioned analysis.
@@ -972,14 +988,14 @@ BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
- * @param preorderType              Type of pre-order partial calculation (input)
+ * @param partialsType              Type of pre-order partial calculation (input)
  *
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition(const int instance,
                                                         const BeagleOperationByPartition* operations,
                                                         int operationCount,
-                                                        BeaglePreorderType preorderType);
+                                                        BeaglePartialsType partialsType);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

@@ -477,13 +477,17 @@ public interface Beagle extends Serializable {
     void updatePrePartials(
             final int[] operations,
             int operationCount,
+            int cumulativeScaleIndex);
+
+    void updatePrePartials_v5(
+            final int[] operations,
+            int operationCount,
             int cumulativeScaleIndex,
-            BeaglePreorderType preorderType);
+            BeaglePartialsType partialsType);
 
     void updatePrePartialsByPartition(
             final int[] operations,
-            int operationCount,
-            BeaglePreorderType preorderType);
+            int operationCount);
 
     /**
      * Calculate gradient or / and diagonal hessian of given edges
@@ -594,6 +598,12 @@ public interface Beagle extends Serializable {
             final int[] operations,
             int operationCount,
             int cumulativeScaleIndex);
+
+    void updatePartials_v5(
+            final int[] operations,
+            int operationCount,
+            int cumulativeScaleIndex,
+            BeaglePartialsType partialsType);
 
     /**
      * Calculate or queue for calculating partials by partition using a list of operations

@@ -873,15 +873,32 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePrePartials_v5
+ * Signature: (I[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials_1v5
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex, jint partialsType)
+{
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+    
+    jint errCode = (jint)beagleUpdatePrePartials_v5(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex, (BeaglePartialsType)partialsType);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePrePartials
  * Signature: (I[III)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
-  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex, jint preorderType)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-    jint errCode = (jint)beagleUpdatePrePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex, (BeaglePreorderType)preorderType);
+    jint errCode = (jint)beagleUpdatePrePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
@@ -898,7 +915,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-    jint errCode = (jint)beagleUpdatePrePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount, (BeaglePreorderType)preorderType);
+    jint errCode = (jint)beagleUpdatePrePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount, (BeaglePartialsType)preorderType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
@@ -916,6 +933,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
 	jint errCode = (jint)beagleUpdatePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScalingIndex);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
+}
+
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials_1v5
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScalingIndex, jint partialsType)
+{
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+
+	jint errCode = (jint)beagleUpdatePartials_v5(instance, (BeagleOperation*)operations, operationCount, cumulativeScalingIndex, (BeaglePartialsType)partialsType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 

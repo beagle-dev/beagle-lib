@@ -57,3 +57,29 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 endif(BUILD_SSE)
+
+if(BUILD_SPECTRAL)
+add_library(hmsbeagle-cpu-spectral SHARED
+        BeagleCPUSpectralImpl.h
+        BeagleCPUSpectralImpl.hpp
+        BeagleCPUSpectralPlugin.cpp
+        BeagleCPUSpectralPlugin.h
+        EigenDecomposition.h
+        EigenDecompositionCube.h
+        EigenDecompositionCube.hpp
+        EigenDecompositionSquare.h
+        EigenDecompositionSquare.hpp
+        Precision.h
+        )
+
+install(TARGETS hmsbeagle-cpu-spectral
+	DESTINATION ${BEAGLE_INSTALL_DIR}
+	COMPONENT cpu_spectral
+    )
+
+SET_TARGET_PROPERTIES(hmsbeagle-cpu-spectral
+    PROPERTIES
+    SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
+	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
+    )
+endif(BUILD_SPECTRAL)

@@ -2159,7 +2159,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithMultipleModel
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                       int operationCount,
-                                                      int cumulativeScalingIndex) {
+                                                      int cumulativeScalingIndex,
+                                                      BeaglePartialsType partialsType) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePartials\n");
@@ -2169,7 +2170,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
     int returnCode = upPartials(byPartition,
                                 operations,
                                 operationCount,
-                                cumulativeScalingIndex);
+                                cumulativeScalingIndex,
+                                partialsType);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePartials\n");
@@ -2182,7 +2184,7 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int count,
                                                          int cumulativeScaleIndex,
-                                                         BeaglePreorderType preorderType) {
+                                                         BeaglePartialsType partialsType) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePrePartials\n");
@@ -2191,7 +2193,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int *operations,
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     bool byPartition = false;
-    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, preorderType);
+    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, partialsType);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePrePartials\n");
@@ -2286,7 +2288,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* oper
     int returnCode = upPartials(byPartition,
                                 operations,
                                 operationCount,
-                                BEAGLE_OP_NONE);
+                                BEAGLE_OP_NONE,
+                                BEAGLE_PARTIALS_BOTTOM);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePartialsByPartition\n");
@@ -2298,7 +2301,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* oper
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartialsByPartition(const int* operations,
                                                                     int operationCount,
-                                                                    BeaglePreorderType preorderType) {
+                                                                    BeaglePartialsType partialsType) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updatePrePartialsByPartition\n");
 #endif
@@ -2308,7 +2311,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePrePartialsByPartition(const int* o
                                    operations,
                                    operationCount,
                                    BEAGLE_OP_NONE,
-                                   preorderType);
+                                   partialsType);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updatePrePartialsByPartition\n");
@@ -2322,7 +2325,8 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                                                   const int* operations,
                                                   int operationCount,
-                                                  int cumulativeScalingIndex) {
+                                                  int cumulativeScalingIndex,
+                                                  BeaglePartialsType partialsType) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::upPartials\n");
 #endif
@@ -2848,8 +2852,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
                                                      const int* inOperations,
                                                      int operationCount,
                                                      int cumulativeScaleIndex,
-                                                     BeaglePreorderType preorderType) {
-    if (preorderType == BEAGLE_PREORDER_TOP) {
+                                                     BeaglePartialsType partialsType) {
+    if (partialsType == BEAGLE_PARTIALS_TOP) {
         return upPrePartialsTop(byPartition, inOperations, operationCount, cumulativeScaleIndex);
     } else {
         return upPrePartialsBottom(byPartition, inOperations, operationCount, cumulativeScaleIndex);

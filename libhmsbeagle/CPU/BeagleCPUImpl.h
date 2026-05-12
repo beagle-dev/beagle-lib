@@ -304,19 +304,20 @@ public:
     // rescale indicate if partials should be rescaled during peeling
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex);
+                       int cumulativeScalingIndex,
+                       BeaglePartialsType partialsType);
 
     int updatePrePartials(const int *operations,
                           int operationCount,
                           int cumulativeScalingIndex,
-                          BeaglePreorderType preorderType);
+                          BeaglePartialsType partialsType);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 
     int updatePrePartialsByPartition(const int* operations,
                                      int operationCount,
-                                     BeaglePreorderType preorderType);
+                                     BeaglePartialsType partialsType);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -457,13 +458,14 @@ protected:
     virtual int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,
-                           int cumulativeScalingIndex);
+                           int cumulativeScalingIndex,
+                           BeaglePartialsType partialsType);
 
     virtual int upPrePartials(bool byPartition,
                               const int* operations,
                               int count,
                               int cumulativeScaleIndex,
-                              BeaglePreorderType preorderType);
+                              BeaglePartialsType preorderType);
 
     virtual int upPrePartialsBottom(bool byPartition,
                                     const int* operations,

@@ -584,8 +584,7 @@ int main( int argc, const char* argv[] )
     beagleUpdatePrePartials(instance,
                             pre_order_operations,
                             4,
-                            BEAGLE_OP_NONE,
-                            BEAGLE_PREORDER_BOTTOM);
+                            BEAGLE_OP_NONE);
 
     fprintf(stdout, "logL = %.5f (R = -16.18744865764452)\n\n", logL);
 

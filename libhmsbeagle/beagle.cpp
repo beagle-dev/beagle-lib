@@ -156,6 +156,18 @@ void beagleLoadPlugins(void) {
 
     try{
 #ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-cpu-spectral" << std::endl;
+#endif
+        beagle::plugin::Plugin* spectralplug = pm.findPlugin("hmsbeagle-cpu-spectral");
+        plugins->push_back(spectralplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-cpu-spectral: " << sle.getError() << std::endl;
+#endif
+    }    
+    
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cuda" << std::endl;
 #endif
         beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda");
@@ -1207,12 +1219,20 @@ int beagleUpdatePartials(const int instance,
                          const BeagleOperation* operations,
                          int operationCount,
                          int cumulativeScalingIndex) {
+    return beagleUpdatePartials_v5(instance, operations, operationCount, cumulativeScalingIndex, BEAGLE_PARTIALS_BOTTOM);
+}
+
+int beagleUpdatePartials_v5(const int instance,
+                         const BeagleOperation* operations,
+                         int operationCount,
+                         int cumulativeScalingIndex,
+                         BeaglePartialsType partialsType) {
     DEBUG_START_TIME();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-        int returnValue = beagleInstance->updatePartials((const int*)operations, operationCount, cumulativeScalingIndex);
+        int returnValue = beagleInstance->updatePartials((const int*)operations, operationCount, cumulativeScalingIndex, partialsType);
         DEBUG_END_TIME();
         return returnValue;
 //    }
@@ -1230,14 +1250,21 @@ int beagleUpdatePartials(const int instance,
 int beagleUpdatePrePartials(const int instance,
                             const BeagleOperation* operations,
                             int operationCount,
-                            int cumulativeScalingIndex,
-                            BeaglePreorderType preorderType){
+                            int cumulativeScalingIndex){
+    return beagleUpdatePrePartials_v5(instance, operations, operationCount, cumulativeScalingIndex, BEAGLE_PARTIALS_BOTTOM);
+}
+
+int beagleUpdatePrePartials_v5(const int instance,
+                               const BeagleOperation* operations,
+                               int operationCount,
+                               int cumulativeScalingIndex,
+                               BeaglePartialsType partialsType){
     DEBUG_START_TIME();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->updatePrePartials((const int *) operations, operationCount,
-                                                        cumulativeScalingIndex, preorderType);
+                                                        cumulativeScalingIndex, partialsType);
     DEBUG_END_TIME();
     return returnValue;
 }
@@ -1257,12 +1284,12 @@ int beagleUpdatePartialsByPartition(const int instance,
 int beagleUpdatePrePartialsByPartition(const int instance,
                                        const BeagleOperationByPartition* operations,
                                        int operationCount,
-                                       BeaglePreorderType preorderType) {
+                                       BeaglePartialsType partialsType) {
     DEBUG_START_TIME();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount, preorderType);
+    int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount, partialsType);
     DEBUG_END_TIME();
     return returnValue;
 }

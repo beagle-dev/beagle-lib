@@ -24,6 +24,7 @@ option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
 option(BUILD_SSE "Build beagle with SSE library" ON)
+option(BUILD_SPECTRAL "Build beagle with spectral representation" ON)
 option(BUILD_BIT "Build beagle with basta library" OFF)
 
 # Old config.h settings

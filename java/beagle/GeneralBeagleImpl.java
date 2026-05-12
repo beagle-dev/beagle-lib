@@ -418,6 +418,11 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updatePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        throw new BeagleException("updatePartials_v5", -1);
+    }
+
+
     /**
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
      * Format of 7-tuple operation: {destinationPartials,
@@ -429,8 +434,7 @@ public class GeneralBeagleImpl implements Beagle {
      *                               Ptr matrices of the sibling node}
      *
      */
-    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex,
-                                  final BeaglePreorderType preorderType) {
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
 
         int x = 0;
         for (int op = 0; op < operationCount; op++) {
@@ -454,8 +458,11 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
-    public void updatePrePartialsByPartition(final int[] operations, final int operationCount,
-                                             final BeaglePreorderType preorderType) {
+    public void updatePrePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        throw new BeagleException("updatePrePartials_v5", -1);
+    }
+    
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
         throw new BeagleException("updatePrePartialsByPartition", -1);
     }
 

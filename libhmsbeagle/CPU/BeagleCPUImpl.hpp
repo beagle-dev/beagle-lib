@@ -1285,9 +1285,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesWithMultipleModel
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
                                                       int count,
-                                                      int cumulativeScaleIndex) {
+                                                      int cumulativeScaleIndex,
+                                                      BeaglePartialsType partialsType) {
 
     int returnCode = BEAGLE_ERROR_GENERAL;
+
+    if (partialsType & BEAGLE_PARTIALS_TOP) {
+        fprintf(stderr, "Post-order top partials are not currently supported on the CPU implementation.\n");
+        return returnCode;
+    }
 
     if (kAutoPartitioningEnabled) {
         autoPartitionPartialsOperations(operations,
@@ -1302,7 +1308,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
         returnCode = upPartials(byPartition,
                                 operations,
                                 count,
-                                cumulativeScaleIndex);
+                                cumulativeScaleIndex,
+                                partialsType);
     }
 
     return returnCode;
@@ -1313,11 +1320,11 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int count,
                                                          int cumulativeScaleIndex,
-                                                         BeaglePreorderType preorderType) {
+                                                         BeaglePartialsType partialsType) {
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     bool byPartition = false;
-    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, preorderType);
+    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, partialsType);
 
     return returnCode;
 }
@@ -1399,7 +1406,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
         returnCode = upPartials(byPartition,
                                 operations,
                                 count,
-                                BEAGLE_OP_NONE);
+                                BEAGLE_OP_NONE,
+                                BEAGLE_PARTIALS_BOTTOM);
     }
 
     return returnCode;
@@ -1408,7 +1416,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* operations,
                                                                     int count,
-                                                                    BeaglePreorderType preorderType) {
+                                                                    BeaglePartialsType partialsType) {
 
     int returnCode = BEAGLE_ERROR_GENERAL;
 
@@ -1422,7 +1430,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* o
                                   operations,
                                   count,
                                   BEAGLE_OP_NONE,
-                                  preorderType);
+                                  partialsType);
     }
 
     return returnCode;
@@ -1470,7 +1478,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsByPartitionAsync(const int* ope
                       true,
                       (const int*) gThreadOperations[i],
                       gThreadOpCounts[i],
-                      BEAGLE_OP_NONE));
+                      BEAGLE_OP_NONE,
+                      BEAGLE_PARTIALS_BOTTOM));
 
         gFutures[i] = threadTask.get_future();
         threadData* td = &gThreads[i];
@@ -1493,7 +1502,8 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                                                   const int* operations,
                                                   int count,
-                                                  int cumulativeScaleIndex) {
+                                                  int cumulativeScaleIndex,
+                                                  BeaglePartialsType partialsType) {
 
     REALTYPE* cumulativeScaleBuffer = NULL;
     if (cumulativeScaleIndex != BEAGLE_OP_NONE)
@@ -1686,8 +1696,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials(bool byPartition,
                                                      const int* operations,
                                                      int count,
                                                      int cumulativeScaleIndex,
-                                                     BeaglePreorderType preorderType) {
-    if (preorderType == BEAGLE_PREORDER_TOP) {
+                                                     BeaglePartialsType partialsType) {
+    if (partialsType & BEAGLE_PARTIALS_TOP) {
         return upPrePartialsTop(byPartition, operations, count, cumulativeScaleIndex);
     } else {
         return upPrePartialsBottom(byPartition, operations, count, cumulativeScaleIndex);

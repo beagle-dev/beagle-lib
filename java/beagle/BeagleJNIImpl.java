@@ -284,18 +284,22 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
-    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex,
-                                  final BeaglePreorderType preorderType) {
-        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex, preorderType.getType());
+    public void updatePrePartials(final int[] operations, final int operationCount, final int cumulativeScaleIndex) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("updatePrePartials", errCode);
         }
     }
 
+    public void updatePrePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials_v5(instance, operations, operationCount, cumulativeScaleIndex, partialsType.getType());
+        if (errCode != 0) {
+            throw new BeagleException("updatePrePartials_v5", errCode);
+        }
+    }    
 
-    public void updatePrePartialsByPartition(final int[] operations, final int operationCount,
-                                             final BeaglePreorderType preorderType) {
-        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount, preorderType.getType());
+    public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount);
         if (errCode != 0) {
             throw new BeagleException("updatePrePartialsByPartition", errCode);
         }
@@ -363,6 +367,13 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("updatePartials", errCode);
+        }
+    }
+
+    public void updatePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePartials_v5(instance, operations, operationCount, cumulativeScaleIndex, partialsType.getType());
+        if (errCode != 0) {
+            throw new BeagleException("updatePartials_v5", errCode);
         }
     }
 

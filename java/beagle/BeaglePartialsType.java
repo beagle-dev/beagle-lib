@@ -5,11 +5,11 @@ package beagle;
  * @author Filippo Monti
  * @version $Id$
  */
-public enum BeaglePreorderType {
-	BOTTOM(0, "bottom"),
-	TOP(1, "top");    
+public enum BeaglePartialsType {
+	BOTTOM(1 << 0, "bottom"),
+	TOP(1 << 1, "top");    
 
-    BeaglePreorderType(int type, String meaning) {
+    BeaglePartialsType(int type, String meaning) {
         this.type = type;
         this.meaning = meaning;
     }
