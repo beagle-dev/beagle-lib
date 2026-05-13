@@ -451,7 +451,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     const BranchEigenInfo& info2 = gBranchEigenInfo[branchEigenIndex2];
 
     // TODO: we can optimize for info1.eigenIndex == info2.eigenIndex
-    
+
     const REALTYPE* eigenValuesReal1 = gEigenDecomposition->getEigenValuesPtr(info1.eigenIndex);
     const REALTYPE* eigenValuesReal2 = gEigenDecomposition->getEigenValuesPtr(info2.eigenIndex);
 
@@ -472,12 +472,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
 
     const int matrixIncr = kStateCount; // TODO: no padding`
     const int stateCountModFour = (kStateCount / 4) * 4;
-
-    for (int i = 0; i < kStateCount; i++) {
-        fprintf(stderr, "eigenValuesImag1[%d] = %f\n", i, eigenValuesImag1[i]);
-        fprintf(stderr, "eigenValuesImag2[%d] = %f\n", i, eigenValuesImag2[i]);
-    }
-    fprintf(stderr, "\n");
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
