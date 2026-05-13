@@ -116,30 +116,36 @@ namespace beagle {
                                    int cumulativeScalingIndex,
                                    BeaglePartialsType partialsType);
 
+            template <bool useScaleFactors>
             void calcPartialsPartials(REALTYPE *destPartials,
                                       const REALTYPE *partials1,
                                       const int branchEigenIndex1,
                                       const REALTYPE *partials2,
                                       const int branchEigenIndex2,
+                                      const REALTYPE* scaleFactors,
                                       int startPattern,
                                       int endPattern,
                                       bool isComplex);
 
-            virtual void calcStatesStates(REALTYPE *destP,
-                                          const int *states1,
-                                          const int branchEigenIndex1,
-                                          const int *states2,
-                                          const int branchEigenIndex2,
-                                          int startPattern,
-                                          int endPattern);
+            template <bool useScaleFactors>
+            void calcStatesStates(REALTYPE *destP,
+                                  const int *states1,
+                                  const int branchEigenIndex1,
+                                  const int *states2,
+                                  const int branchEigenIndex2,
+                                  const REALTYPE* scaleFactors,
+                                  int startPattern,
+                                  int endPattern);
 
-            virtual void calcStatesPartials(REALTYPE *destP,
-                                            const int *states1,
-                                            const int branchEigenIndex1,
-                                            const REALTYPE *partials2,
-                                            const int branchEigenIndex2,
-                                            int startPattern,
-                                            int endPattern);
+            template <bool useScaleFactors>
+            void calcStatesPartials(REALTYPE *destP,
+                                    const int *states1,
+                                    const int branchEigenIndex1,
+                                    const REALTYPE *partials2,
+                                    const int branchEigenIndex2,
+                                    const REALTYPE* scaleFactors,
+                                    int startPattern,
+                                    int endPattern);
 
             virtual void calcPrePartialsPartials(REALTYPE *destP,
                                                  const REALTYPE *partialsParent,

@@ -186,14 +186,12 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         if (tipStates1 != NULL) {
             if (tipStates2 != NULL ) {
                 if (rescale == 0) { // Use fixed scaleFactors
-                    // calcStatesStatesFixedScaling(destPartials, tipStates1, matrices1, tipStates2,
-                    //                              matrices2, scalingFactors, startPattern, endPattern);
-                    fprintf(stderr, "calcStatesStatesFixedScaling is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesStates<true>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                           scalingFactors, startPattern, endPattern);
                 } else {
                     // First compute without any scaling
-                    calcStatesStates(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                                     startPattern, endPattern);
+                    calcStatesStates<false>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                            nullptr, startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -204,13 +202,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 }
             } else {
                 if (rescale == 0) {
-                    // calcStatesPartialsFixedScaling(destPartials, tipStates1, matrices1, partials2,
-                    //                                matrices2, scalingFactors, startPattern, endPattern);
-                    fprintf(stderr, "calcStatesPartialsFixedScaling is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesPartials<true>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                             scalingFactors, startPattern, endPattern);
                 } else {
-                    calcStatesPartials(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                       startPattern, endPattern);
+                    calcStatesPartials<false>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                              nullptr, startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -223,13 +219,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         } else {
             if (tipStates2 != NULL) {
                 if (rescale == 0) {
-                    // calcStatesPartialsFixedScaling(destPartials,tipStates2,matrices2,partials1,matrices1,
-                    //                                scalingFactors, startPattern, endPattern);
-                    fprintf(stderr, "calcStatesPartialsFixedScaling is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesPartials<true>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                             scalingFactors, startPattern, endPattern);
                 } else {
-                    calcStatesPartials(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
-                                       startPattern, endPattern);
+                    calcStatesPartials<false>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                              nullptr, startPattern, endPattern);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -250,15 +244,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     }
 
                 } else if (rescale == 0) {
-                    // calcPartialsPartialsFixedScaling(destPartials,partials1,matrices1,partials2,
-                    //                                  matrices2,scalingFactors,startPattern,endPattern);
-                    fprintf(stderr, "calcPartialsPartialsFixedScaling is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcPartialsPartials<true>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                               scalingFactors, startPattern, endPattern, true);
                 } else {
-                    calcPartialsPartials(destPartials,
-                                         partials1, branchEigenIndex1,
-                                         partials2, branchEigenIndex2,
-                                         startPattern, endPattern, true);
+                    calcPartialsPartials<false>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                nullptr, startPattern, endPattern, true);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -336,24 +326,30 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
     const REALTYPE et##cosbt2 = et##2 * std::cos(sbl##2 * b2); \
     const REALTYPE et##sinbt2 = et##2 * std::sin(sbl##2 * b2);
 
-#define MATRIX_VECTOR_HADAMARD_PRODUCT(out, mat, vec) \
+#define MATRIX_VECTOR(output, mat, vec) \
     for (int i = 0; i < kStateCount; i++) { \
         REALTYPE sum1 = 0.0, sum2 = 0.0; \
         for (int j = 0; j < kStateCount; j++) { \
             sum1 += mat##1[i * matrixIncr + j] * vec##1[j]; \
             sum2 += mat##2[i * matrixIncr + j] * vec##2[j]; \
         } \
-        \
-        out[i] = sum1 * sum2; \
+        output; \
     }
 
-BEAGLE_CPU_TEMPLATE
+#define MATRIX_VECTOR_HADAMARD_PRODUCT(out, mat, vec) \
+    MATRIX_VECTOR(out[i] = sum1 * sum2, mat, vec)
+
+#define MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(out, mat, vec, scale) \
+    MATRIX_VECTOR(out[i] = sum1 * sum2 * scale, mat, vec)
+
+BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
         REALTYPE *destPartials,
         const REALTYPE *partials1,
         const int branchEigenIndex1,
         const REALTYPE *partials2,
         const int branchEigenIndex2,
+        const REALTYPE *scaleFactors,
         int startPattern,
         int endPattern,
         bool isComplex) {
@@ -430,7 +426,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                 }
             }
 
-            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            if constexpr (useScaleFactors) {
+                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
+            } else {
+                MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            }
 
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
@@ -439,13 +440,14 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     }
 }
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
         REALTYPE* destPartials,
         const int* states1,
         const int branchEigenIndex1,
         const REALTYPE* partials2,
         const int branchEigenIndex2,
+        const REALTYPE* scaleFactors,
         int startPattern,
         int endPattern) {
 
@@ -522,7 +524,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
                 }
             }
 
-            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            if constexpr (useScaleFactors) {
+                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
+            } else {
+                MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            }
 
             destPtr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
@@ -531,13 +538,14 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 }
 
 
-BEAGLE_CPU_TEMPLATE
+BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
     REALTYPE* destPartials,
     const int* states1,
     const int branchEigenIndex1,
     const int* states2,
     const int branchEigenIndex2,
+    const REALTYPE* scaleFactors,
     int startPattern,
     int endPattern) {
 
@@ -601,7 +609,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
                 }
             }
 
-            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            if constexpr (useScaleFactors) {
+                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
+            } else {
+                MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+            }
 
             destPtr += kPartialsPaddedStateCount;
         }
