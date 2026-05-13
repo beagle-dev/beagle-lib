@@ -33,126 +33,6 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUSpectralImpl.h"
 
-#define EXPERIMENTAL_OPENMP
-
-
-#define OFFSET    (4 + T_PAD)    // For easy conversion between 4/5
-
-#define PREFETCH_MATRIX(num,matrices,w) \
-    REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
-           m##num##10, m##num##11, m##num##12, m##num##13, \
-           m##num##20, m##num##21, m##num##22, m##num##23, \
-           m##num##30, m##num##31, m##num##32, m##num##33; \
-    m##num##00 = matrices[w + OFFSET*0 + 0]; \
-    m##num##01 = matrices[w + OFFSET*0 + 1]; \
-    m##num##02 = matrices[w + OFFSET*0 + 2]; \
-    m##num##03 = matrices[w + OFFSET*0 + 3]; \
-    m##num##10 = matrices[w + OFFSET*1 + 0]; \
-    m##num##11 = matrices[w + OFFSET*1 + 1]; \
-    m##num##12 = matrices[w + OFFSET*1 + 2]; \
-    m##num##13 = matrices[w + OFFSET*1 + 3]; \
-    m##num##20 = matrices[w + OFFSET*2 + 0]; \
-    m##num##21 = matrices[w + OFFSET*2 + 1]; \
-    m##num##22 = matrices[w + OFFSET*2 + 2]; \
-    m##num##23 = matrices[w + OFFSET*2 + 3]; \
-    m##num##30 = matrices[w + OFFSET*3 + 0]; \
-    m##num##31 = matrices[w + OFFSET*3 + 1]; \
-    m##num##32 = matrices[w + OFFSET*3 + 2]; \
-    m##num##33 = matrices[w + OFFSET*3 + 3];
-
-#define PREFETCH_PARTIALS(num,partials,v) \
-    REALTYPE p##num##0, p##num##1, p##num##2, p##num##3; \
-    p##num##0 = partials[v + 0]; \
-    p##num##1 = partials[v + 1]; \
-    p##num##2 = partials[v + 2]; \
-    p##num##3 = partials[v + 3];
-
-#define PREFETCH_MATRIX_COLUMN(num,matrices,v) \
-    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
-    sum##num##0 = matrices[v    ]; \
-    sum##num##1 = matrices[v + OFFSET*1]; \
-    sum##num##2 = matrices[v + OFFSET*2]; \
-    sum##num##3 = matrices[v + OFFSET*3];
-
-#define PREFETCH_MATRIX_TRANSPOSE(num,matrices,w) \
-    REALTYPE m##num##00, m##num##01, m##num##02, m##num##03, \
-           m##num##10, m##num##11, m##num##12, m##num##13, \
-           m##num##20, m##num##21, m##num##22, m##num##23, \
-           m##num##30, m##num##31, m##num##32, m##num##33; \
-    m##num##00 = matrices[w + OFFSET*0 + 0]; \
-    m##num##10 = matrices[w + OFFSET*0 + 1]; \
-    m##num##20 = matrices[w + OFFSET*0 + 2]; \
-    m##num##30 = matrices[w + OFFSET*0 + 3]; \
-    m##num##01 = matrices[w + OFFSET*1 + 0]; \
-    m##num##11 = matrices[w + OFFSET*1 + 1]; \
-    m##num##21 = matrices[w + OFFSET*1 + 2]; \
-    m##num##31 = matrices[w + OFFSET*1 + 3]; \
-    m##num##02 = matrices[w + OFFSET*2 + 0]; \
-    m##num##12 = matrices[w + OFFSET*2 + 1]; \
-    m##num##22 = matrices[w + OFFSET*2 + 2]; \
-    m##num##32 = matrices[w + OFFSET*2 + 3]; \
-    m##num##03 = matrices[w + OFFSET*3 + 0]; \
-    m##num##13 = matrices[w + OFFSET*3 + 1]; \
-    m##num##23 = matrices[w + OFFSET*3 + 2]; \
-    m##num##33 = matrices[w + OFFSET*3 + 3];
-
-#define DO_SCHUR_PRODUCT(qnum, pnum, snum) \
-    p##qnum##0 = p##pnum##0 * sum##snum##0; \
-    p##qnum##1 = p##pnum##1 * sum##snum##1; \
-    p##qnum##2 = p##pnum##2 * sum##snum##2; \
-    p##qnum##3 = p##pnum##3 * sum##snum##3;
-
-#define INNER_PRODUCT(lhs, rhs) \
-    p##lhs##0 * p##rhs##0 +        \
-    p##lhs##1 * p##rhs##1 +        \
-    p##lhs##2 * p##rhs##2 +        \
-    p##lhs##3 * p##rhs##3
-
-//#define DO_INTEGRATION(num) \
-//    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
-//    sum##num##0  = m##num##00 * p##num##0; \
-//    sum##num##1  = m##num##10 * p##num##0; \
-//    sum##num##2  = m##num##20 * p##num##0; \
-//    sum##num##3  = m##num##30 * p##num##0; \
-// \
-//    sum##num##0 += m##num##01 * p##num##1; \
-//    sum##num##1 += m##num##11 * p##num##1; \
-//    sum##num##2 += m##num##21 * p##num##1; \
-//    sum##num##3 += m##num##31 * p##num##1; \
-// \
-//    sum##num##0 += m##num##02 * p##num##2; \
-//    sum##num##1 += m##num##12 * p##num##2; \
-//    sum##num##2 += m##num##22 * p##num##2; \
-//    sum##num##3 += m##num##32 * p##num##2; \
-// \
-//    sum##num##0 += m##num##03 * p##num##3; \
-//    sum##num##1 += m##num##13 * p##num##3; \
-//    sum##num##2 += m##num##23 * p##num##3; \
-//    sum##num##3 += m##num##33 * p##num##3;
-
-#define DO_INTEGRATION(num) \
-    REALTYPE sum##num##0, sum##num##1, sum##num##2, sum##num##3; \
-    sum##num##0  = m##num##00 * p##num##0 + \
-                   m##num##01 * p##num##1 + \
-                   m##num##02 * p##num##2 + \
-                   m##num##03 * p##num##3;  \
- \
-    sum##num##1  = m##num##10 * p##num##0 + \
-                   m##num##11 * p##num##1 + \
-                   m##num##12 * p##num##2 + \
-                   m##num##13 * p##num##3;  \
- \
-    sum##num##2  = m##num##20 * p##num##0 + \
-                   m##num##21 * p##num##1 + \
-                   m##num##22 * p##num##2 + \
-                   m##num##23 * p##num##3;  \
-\
-    sum##num##3  = m##num##30 * p##num##0 + \
-                   m##num##31 * p##num##1 + \
-                   m##num##32 * p##num##2 + \
-                   m##num##33 * p##num##3;
-
-
 namespace beagle {
 namespace cpu {
 
@@ -166,14 +46,36 @@ template<>
 inline const char* getBeagleCPUSpectralName<float>(){ return "CPU-Spectral-Single"; };
 
 BEAGLE_CPU_TEMPLATE
-BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUSpectralImpl() {
-    // free all that stuff...
-    // If you delete partials, make sure not to delete the last element
-    // which is TEMP_SCRATCH_PARTIAL twice.
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
+                                  int partialsBufferCount,
+                                  int compactBufferCount,
+                                  int stateCount,
+                                  int patternCount,
+                                  int eigenDecompositionCount,
+                                  int matrixCount,
+                                  int categoryCount,
+                                  int scaleBufferCount,
+                                  int resourceNumber,
+                                  int pluginResourceNumber,
+                                  long preferenceFlags,
+                                  long requirementFlags) {
+
+    int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
+                                                              stateCount, patternCount, eigenDecompositionCount,
+                                                              matrixCount, categoryCount, scaleBufferCount,
+                                                              resourceNumber, pluginResourceNumber,
+                                                              preferenceFlags, requirementFlags);
+    gBranchEigenInfo.resize(kMatrixCount);
+    gPartialTmp1.resize(kStateCount);
+    gPartialTmp2.resize(kStateCount);
+
+    return returnCode;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// private methods
+BEAGLE_CPU_TEMPLATE
+BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUSpectralImpl() {
+    // Do nothing
+}
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
@@ -182,22 +84,13 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eige
                                                                         const int* secondDerivativeIndices,
                                                                         const double* edgeLengths,
                                                                         int count) {
-    // for (int i = 0; i < count; i++) {
-    //     fprintf(stderr, "uTM %d %d %f %d\n", eigenIndex, probabilityIndices[i], edgeLengths[i], 0);
-    // }
-    // fprintf(stderr, "\n");
-
-    if (gBranchEigenInfo.size() < kMatrixCount) {
-        gBranchEigenInfo.resize(kMatrixCount);
-    }
-
     for (int i = 0; i < count; i++) {
         auto& info = gBranchEigenInfo[probabilityIndices[i]];
         info.branchLength = edgeLengths[i];
         info.eigenIndex = eigenIndex;
         info.categoryRatesIndex = 0; // TODO: Implement category rates index
     }
-                                               
+
     return BEAGLE_SUCCESS;
 }
 
@@ -249,18 +142,6 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         const int* tipStates1 = gTipStates[child1Index];
         const int* tipStates2 = gTipStates[child2Index];
 
-        // const REALTYPE* matrices1 = gTransitionMatrices[child1TransMatIndex];
-        // const REALTYPE* matrices2 = gTransitionMatrices[child2TransMatIndex];
-
-        // const REALTYPE* eigenValues1 = gEigenDecomposition->getEigenValuesPtr(child1TransMatIndex);
-        // const REALTYPE* eigenValues2 = gEigenDecomposition->getEigenValuesPtr(child2TransMatIndex);
-
-        // const REALTYPE* eigenVectors1 = gEigenDecomposition->getEigenVectorsPtr(child1TransMatIndex);
-        // const REALTYPE* eigenVectors2 = gEigenDecomposition->getEigenVectorsPtr(child2TransMatIndex);
-
-        // const REALTYPE* inverseEigenVectors1 = gEigenDecomposition->getInverseEigenVectorsPtr(child1TransMatIndex);
-        // const REALTYPE* inverseEigenVectors2 = gEigenDecomposition->getInverseEigenVectorsPtr(child2TransMatIndex);
-
         const int branchEigenIndex1 = child1TransMatIndex;
         const int branchEigenIndex2 = child2TransMatIndex;
 
@@ -311,10 +192,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     exit(-1);
                 } else {
                     // First compute without any scaling
-                    // calcStatesStates(destPartials, tipStates1, matrices1, tipStates2, matrices2,
-                    //                  startPattern, endPattern);
-                    fprintf(stderr, "calcStatesStates is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesStates(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                     startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -330,10 +209,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     fprintf(stderr, "calcStatesPartialsFixedScaling is not yet implemented for spectral representation\n");
                     exit(-1);
                 } else {
-                    // calcStatesPartials(destPartials, tipStates1, matrices1, partials2, matrices2,
-                    //                    startPattern, endPattern);
-                    fprintf(stderr, "calcStatesPartials is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesPartials(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                       startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -351,10 +228,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     fprintf(stderr, "calcStatesPartialsFixedScaling is not yet implemented for spectral representation\n");
                     exit(-1);
                 } else {
-                    // calcStatesPartials(destPartials, tipStates2, matrices2, partials1, matrices1,
-                    //                    startPattern, endPattern);
-                    fprintf(stderr, "calcStatesPartials is not yet implemented for spectral representation\n");
-                    exit(-1);
+                    calcStatesPartials(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                       startPattern, endPattern);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -380,9 +255,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     fprintf(stderr, "calcPartialsPartialsFixedScaling is not yet implemented for spectral representation\n");
                     exit(-1);
                 } else {
-                    calcPartialsPartials(destPartials, 
-                                        //  partials1, eigenValues1, eigenVectors1, inverseEigenVectors1,
-                                        //  partials2, eigenValues2, eigenVectors2, inverseEigenVectors2,
+                    calcPartialsPartials(destPartials,
                                          partials1, branchEigenIndex1,
                                          partials2, branchEigenIndex2,
                                          startPattern, endPattern, true);
@@ -427,50 +300,72 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
     return BEAGLE_SUCCESS;
 }
 
+#define INIT(ifo,evr,evi,evec,ievc,bl,cr) \
+    const BranchEigenInfo& ifo##_1 = gBranchEigenInfo[branchEigenIndex1]; \
+    const BranchEigenInfo& ifo##_2 = gBranchEigenInfo[branchEigenIndex2]; \
+    \
+    const REALTYPE* evr##1 = gEigenDecomposition->getEigenValuesPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* evr##2 = gEigenDecomposition->getEigenValuesPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* evi##1 = evr##1 + kStateCount; \
+    const REALTYPE* evi##2 = evr##2 + kStateCount; \
+    \
+    const REALTYPE* evec##1 = gEigenDecomposition->getEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* evec##2 = gEigenDecomposition->getEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* ievc##1 = gEigenDecomposition->getInverseEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* ievc##2 = gEigenDecomposition->getInverseEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE bl##1 = ifo##_1.branchLength; \
+    const REALTYPE bl##2 = ifo##_2.branchLength; \
+    \
+    const double* cr##1 = gCategoryRates[ifo##_1.categoryRatesIndex]; \
+    const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
+
+#define FORM_EXPAT(et, evr, sbl) \
+    const REALTYPE et##1 = exp(evr##1[i] * sbl##1); \
+    const REALTYPE et##2 = exp(evr##2[i] * sbl##2);
+
+#define FORM_EXPAT_COS_SIN(et, evi, sbl) \
+    int i2 = i + 1; \
+    const REALTYPE b1 = evi##1[i]; \
+    const REALTYPE et##cosbt1 = et##1 * cos(sbl##1 * b1); \
+    const REALTYPE et##sinbt1 = et##1 * sin(sbl##1 * b1); \
+    \
+    const REALTYPE b2 = evi##2[i]; \
+    const REALTYPE et##cosbt2 = et##2 * cos(sbl##1 * b2); \
+    const REALTYPE et##sinbt2 = et##2 * sin(sbl##2 * b2);
+
+#define MATRIX_VECTOR_HADAMARD_PRODUCT(out, mat, vec) \
+    for (int i = 0; i < kStateCount; i++) { \
+        REALTYPE sum1 = 0.0, sum2 = 0.0; \
+        for (int j = 0; j < kStateCount; j++) { \
+            sum1 += mat##1[i * matrixIncr + j] * vec##1[j]; \
+            sum2 += mat##2[i * matrixIncr + j] * vec##2[j]; \
+        } \
+        \
+        out[i] = sum1 * sum2; \
+    }
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
-    REALTYPE *destPartials, 
-    const REALTYPE *partials1, 
-    const int branchEigenIndex1,
-    const REALTYPE *partials2,
-    const int branchEigenIndex2,
-    int startPattern, 
-    int endPattern, 
-    bool isComplex) {
-  
-    if (gPartialTmp1.size() < kStateCount) {
-        gPartialTmp1.resize(kStateCount);
-    }
-
-    if (gPartialTmp2.size() < kStateCount) {
-        gPartialTmp2.resize(kStateCount);
-    }
-
-    const BranchEigenInfo& info1 = gBranchEigenInfo[branchEigenIndex1];
-    const BranchEigenInfo& info2 = gBranchEigenInfo[branchEigenIndex2];
+        REALTYPE *destPartials,
+        const REALTYPE *partials1,
+        const int branchEigenIndex1,
+        const REALTYPE *partials2,
+        const int branchEigenIndex2,
+        int startPattern,
+        int endPattern,
+        bool isComplex) {
 
     // TODO: we can optimize for info1.eigenIndex == info2.eigenIndex
 
-    const REALTYPE* eigenValuesReal1 = gEigenDecomposition->getEigenValuesPtr(info1.eigenIndex);
-    const REALTYPE* eigenValuesReal2 = gEigenDecomposition->getEigenValuesPtr(info2.eigenIndex);
+    INIT(info,
+         eigenValuesReal, eigenValuesImag,
+         eigenVectors, inverseEigenVectors,
+         branchLength, categoryRate);
 
-    const REALTYPE* eigenValuesImag1 = eigenValuesReal1 + kStateCount;
-    const REALTYPE* eigenValuesImag2 = eigenValuesReal2 + kStateCount;
-
-    const REALTYPE* eigenVectors1 = gEigenDecomposition->getEigenVectorsPtr(info1.eigenIndex);
-    const REALTYPE* eigenVectors2 = gEigenDecomposition->getEigenVectorsPtr(info2.eigenIndex);
-
-    const REALTYPE* inverseEigenVectors1 = gEigenDecomposition->getInverseEigenVectorsPtr(info1.eigenIndex);
-    const REALTYPE* inverseEigenVectors2 = gEigenDecomposition->getInverseEigenVectorsPtr(info2.eigenIndex);
-
-    const REALTYPE branchLength1 = info1.branchLength;
-    const REALTYPE branchLength2 = info2.branchLength;
-
-    const double* categoryRate1 = gCategoryRates[info1.categoryRatesIndex];
-    const double* categoryRate2 = gCategoryRates[info2.categoryRatesIndex];
-
-    const int matrixIncr = kStateCount; // TODO: no padding`
+    const int matrixIncr = kStateCount;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -488,11 +383,10 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
 
             for (int i = 0; i < kStateCount; i++) {
 
-                const REALTYPE expat1 = exp(eigenValuesReal1[i] * scaledBranchLength1);
-                const REALTYPE expat2 = exp(eigenValuesReal2[i] * scaledBranchLength2);
+                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
-                    // Both real 
+                    // Both real
                     REALTYPE sum1 = 0.0, sum2 = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
                         sum1 += inverseEigenVectors1[i * matrixIncr + j] * partials1Ptr[j];
@@ -502,21 +396,14 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                     gPartialTmp1[i] = expat1 * sum1;
                     gPartialTmp2[i] = expat2 * sum2;
 
-                } else if (eigenValuesImag1[i] != 0.0 && eigenValuesImag2[i] != 0.0) {
-                    // Both complex conjugate pairs
+                } else {
+                    // At least one complex conjugate pair
                     //
                     // 2x2 conjugate block
                     // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
                     // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
 
-                    int i2 = i + 1;                   
-                    const REALTYPE b1 = eigenValuesImag1[i];                                 
-                    const REALTYPE expatcosbt1 = expat1 * cos(scaledBranchLength1 * b1);
-                    const REALTYPE expatsinbt1 = expat1 * sin(scaledBranchLength1 * b1);
-
-                    const REALTYPE b2 = eigenValuesImag2[i];
-                    const REALTYPE expatcosbt2 = expat2 * cos(scaledBranchLength2 * b2);                    
-                    const REALTYPE expatsinbt2 = expat2 * sin(scaledBranchLength2 * b2);
+                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
 
                     REALTYPE sum1A = 0.0, sum1B = 0.0, sum2A = 0.0, sum2B = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
@@ -530,7 +417,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                                     expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + j]) * partials2Ptr[j];
 
                         sum2B += (expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + j] -
-                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];                        
+                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];
                     }
 
                     gPartialTmp1[i] = sum1A;
@@ -540,49 +427,221 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                     gPartialTmp2[i2] = sum2B;
 
                     i++; // processed two conjugate rows
-                    
-                } else {
-                    fprintf(stderr, "Error: Mismatched eigenvalue types in calcPartialsPartials; not yet implemented\n");
-                    exit(-1);
                 }
+            }
+
+            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+
+            destPtr += kPartialsPaddedStateCount;
+            partials1Ptr += kPartialsPaddedStateCount;
+            partials2Ptr += kPartialsPaddedStateCount;
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
+        REALTYPE* destPartials,
+        const int* states1,
+        const int branchEigenIndex1,
+        const REALTYPE* partials2,
+        const int branchEigenIndex2,
+        int startPattern,
+        int endPattern) {
+
+    INIT(info,
+         eigenValuesReal, eigenValuesImag,
+         eigenVectors, inverseEigenVectors,
+         branchLength, categoryRate);
+
+    const int matrixIncr = kStateCount;
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
+        const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
+
+        const REALTYPE* partials2Ptr = &partials2[v];
+        REALTYPE* destPtr = &destPartials[v];
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state1 = states1[k];
+
+            if (state1 >= kStateCount) {
+                fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
+                exit(-1);
             }
 
             for (int i = 0; i < kStateCount; i++) {
-                REALTYPE sum1 = 0.0, sum2 = 0.0;
-                for (int j = 0; j < kStateCount; j++) {
-                    sum1 += eigenVectors1[i * matrixIncr + j] * gPartialTmp1[j];
-                    sum2 += eigenVectors2[i * matrixIncr + j] * gPartialTmp2[j];
-                }
 
-                destPtr[i] = sum1 * sum2;
+                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
+
+                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
+                    // Both real
+                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+
+                    REALTYPE sum2 = 0.0;
+                    for (int j = 0; j < kStateCount; j++) {
+                        sum2 += inverseEigenVectors2[i * matrixIncr + j] * partials2Ptr[j];
+                    }
+
+                    gPartialTmp2[i] = expat2 * sum2;
+
+                } else {
+                    // At least one complex conjugate pair
+                    //
+                    // 2x2 conjugate block
+                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
+                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
+
+                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
+
+                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                 expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+
+                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+
+                    REALTYPE sum2A = 0.0, sum2B = 0.0;
+                    for (int j = 0; j < kStateCount; j++) {
+                        sum2A += (expatcosbt2 * inverseEigenVectors2[i * matrixIncr + j] +
+                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + j]) * partials2Ptr[j];
+
+                        sum2B += (expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + j] -
+                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];
+                    }
+
+                    gPartialTmp2[i] = sum2A;
+                    gPartialTmp2[i2] = sum2B;
+
+                    i++; // processed two conjugate rows
+                }
             }
 
-            
-//                 REALTYPE sum1A = 0.0, sum2A = 0.0;
-//                 REALTYPE sum1B = 0.0, sum2B = 0.0;
+            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+
+            destPtr += kPartialsPaddedStateCount;
+            partials2Ptr += kPartialsPaddedStateCount;
+        }
+    }
+
+// #pragma omp parallel for num_threads(kCategoryCount)
+//     for (int l = 0; l < kCategoryCount; l++) {
+//         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+//         int matrixOffset = l*kMatrixSize;
+//         const REALTYPE* partials2Ptr = &partials2[v];
+//         REALTYPE* destPtr = &destP[v];
+//         for (int k = startPattern; k < endPattern; k++) {
+//             int w = l * kMatrixSize;
+//             int state1 = states1[k];
+//             for (int i = 0; i < kStateCount; i++) {
+//                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
+//                 REALTYPE tmp = matrices1[w + state1];
+//                 REALTYPE sumA = 0.0;
+//                 REALTYPE sumB = 0.0;
 //                 int j = 0;
 //                 for (; j < stateCountModFour; j += 4) {
-//                     sum1A += matrices1Ptr[j + 0] * partials1Ptr[j + 0];
-//                     sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
-
-//                     sum1B += matrices1Ptr[j + 1] * partials1Ptr[j + 1];
-//                     sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
-
-//                     sum1A += matrices1Ptr[j + 2] * partials1Ptr[j + 2];
-//                     sum2A += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
-
-//                     sum1B += matrices1Ptr[j + 3] * partials1Ptr[j + 3];
-//                     sum2B += matrices2Ptr[j + 3] * partials2Ptr[j + 3];
+//                     sumA += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
+//                     sumB += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
+//                     sumA += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
+//                     sumB += matrices2Ptr[j + 3] * partials2Ptr[j + 3];
 //                 }
-
 //                 for (; j < kStateCount; j++) {
-//                     sum1A += matrices1Ptr[j] * partials1Ptr[j];
-//                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
+//                     sumA += matrices2Ptr[j] * partials2Ptr[j];
 //                 }
 
-            destPtr += P_PAD;
-            partials1Ptr += kPartialsPaddedStateCount;
-            partials2Ptr += kPartialsPaddedStateCount;
+//                 w += matrixIncr;
+
+//                 *(destPtr++) = tmp * (sumA + sumB);
+//             }
+//             if (P_PAD) {
+//                 for (int pad = 0; pad < P_PAD; pad++)  {
+//                     *(destPtr++) = 0.0;
+//                 }
+//             }
+//             partials2Ptr += kPartialsPaddedStateCount;
+//         }
+//     }
+}
+
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
+    REALTYPE* destPartials,
+    const int* states1,
+    const int branchEigenIndex1,
+    const int* states2,
+    const int branchEigenIndex2,
+    int startPattern,
+    int endPattern) {
+
+    INIT(info,
+         eigenValuesReal, eigenValuesImag,
+         eigenVectors, inverseEigenVectors,
+         branchLength, categoryRate);
+
+    const int matrixIncr = kStateCount; // TODO: handle missing state case (T_PAD?)
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
+        const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
+
+        REALTYPE* destPtr = &destPartials[v];
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state1 = states1[k];
+            const int state2 = states2[k];
+
+            if (state1 >= kStateCount || state2 >= kStateCount) {
+                fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
+                exit(-1);
+            }
+
+            for (int i = 0; i < kStateCount; i++) {
+
+                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
+
+                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
+                    // Both real eigenvalues
+                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
+                } else {
+                    // At least one complex conjugate pair
+                    //
+                    // 2x2 conjugate block
+                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
+                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
+
+                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
+
+                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                 expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+
+                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+
+                    gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
+                                expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
+
+                    gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
+                                expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
+
+                    i++; // processed two conjugate rows
+                }
+            }
+
+            MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+
+            destPtr += kPartialsPaddedStateCount;
         }
     }
 }
@@ -597,37 +656,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE
                                                                    int endPattern) {
 
     fprintf(stderr, "calcPrePartialsPartials is not yet implemented for spectral representation\n");
-
-#pragma omp parallel for num_threads(kCategoryCount)
-    for (int l = 0; l < kCategoryCount; l++) {
-        int u = l*4*kPaddedPatternCount;
-        if (startPattern != 0) {
-            u += 4*startPattern;
-        }
-        int w = l*4*OFFSET;
-
-
-        PREFETCH_MATRIX(2,matrices2,w); // m200, m201, ..., m233
-        PREFETCH_MATRIX_TRANSPOSE(1,matrices1,w); //m100, m101, ..., m133
-        for (int k = startPattern; k < endPattern; k++) {
-            PREFETCH_PARTIALS(2,partials2,u); // p20, p21, p22, p23
-            PREFETCH_PARTIALS(1,partials1,u); // p10, p11, p12, p13
-
-            DO_INTEGRATION(2); // defines sum20, sum21, sum22, sum23
-            DO_SCHUR_PRODUCT(1, 1, 2); // reWrites p10, p11, p12, p13
-
-            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
-
-            // Final results
-            destP[u    ] = sum10;
-            destP[u + 1] = sum11;
-            destP[u + 2] = sum12;
-            destP[u + 3] = sum13;
-
-            u += 4;
-
-        }
-    }
+    exit(-1);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -706,4 +735,3 @@ const long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() 
 }	// namespace beagle
 
 #endif // BEAGLE_CPU_SPECTRAL_IMPL_HPP
-

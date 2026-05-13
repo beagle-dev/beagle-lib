@@ -70,10 +70,25 @@ namespace beagle {
 
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gActiveScalingFactors;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gAutoScaleBuffers;
-            
+
         public:
+            // BeagleCPUSpectralImpl();
             virtual ~BeagleCPUSpectralImpl();
             virtual const char *getName();
+
+            int createInstance(int tipCount,
+                              int partialsBufferCount,
+                              int compactBufferCount,
+                              int stateCount,
+                              int patternCount,
+                              int eigenDecompositionCount,
+                              int matrixCount,
+                              int categoryCount,
+                              int scaleBufferCount,
+                              int resourceNumber,
+                              int pluginResourceNumber,
+                              long preferenceFlags,
+                              long requirementFlags);
 
         private:
             struct BranchEigenInfo {
@@ -94,59 +109,36 @@ namespace beagle {
                                          const double* edgeLengths,
                                          int count);
 
-            // virtual void updateTransitionMatrices(int eigenIndex,
-            //                                       const int* probabilityIndices,
-            //                                       const int* firstDerivativeIndices,
-            //                                       const int* secondDerivativeIndices,
-            //                                       const double* edgeLengths,
-            //                                       const double* categoryRates,
-            //                                       REALTYPE** transitionMatrices,
-            //                                       int count);        
-
             virtual int upPartials(bool byPartition,
                                    const int* operations,
                                    int operationCount,
                                    int cumulativeScalingIndex,
                                    BeaglePartialsType partialsType);
 
-            void calcPartialsPartials(REALTYPE *destPartials, 
-                                      const REALTYPE *partials1, 
-                                    //   const REALTYPE *eigenValues1, 
-                                    //   const REALTYPE *eigenVectors1, 
-                                    //   const REALTYPE *inverseEigenVectors1,
+            void calcPartialsPartials(REALTYPE *destPartials,
+                                      const REALTYPE *partials1,
                                       const int branchEigenIndex1,
-                                      const REALTYPE *partials2, 
-                                    //   const REALTYPE *eigenValues2, 
-                                    //   const REALTYPE *eigenVectors2, 
-                                    //   const REALTYPE *inverseEigenVectors2,
+                                      const REALTYPE *partials2,
                                       const int branchEigenIndex2,
-                                      int startPattern, 
-                                      int endPattern, 
-                                      bool isComples);                                   
+                                      int startPattern,
+                                      int endPattern,
+                                      bool isComplex);
 
-            // virtual void calcStatesStates(REALTYPE *destP,
-            //                               const int *states1,
-            //                               const REALTYPE *matrices1,
-            //                               const int *states2,
-            //                               const REALTYPE *matrices2,
-            //                               int startPattern,
-            //                               int endPattern);
+            virtual void calcStatesStates(REALTYPE *destP,
+                                          const int *states1,
+                                          const int branchEigenIndex1,
+                                          const int *states2,
+                                          const int branchEigenIndex2,
+                                          int startPattern,
+                                          int endPattern);
 
-            // virtual void calcStatesPartials(REALTYPE *destP,
-            //                                 const int *states1,
-            //                                 const REALTYPE *matrices1,
-            //                                 const REALTYPE *partials2,
-            //                                 const REALTYPE *matrices2,
-            //                                 int startPattern,
-            //                                 int endPattern);
-
-            // virtual void calcPartialsPartials(REALTYPE *destP,
-            //                                   const REALTYPE *partials1,
-            //                                   const REALTYPE *matrices1,
-            //                                   const REALTYPE *partials2,
-            //                                   const REALTYPE *matrices2,
-            //                                   int startPattern,
-            //                                   int endPattern);
+            virtual void calcStatesPartials(REALTYPE *destP,
+                                            const int *states1,
+                                            const int branchEigenIndex1,
+                                            const REALTYPE *partials2,
+                                            const int branchEigenIndex2,
+                                            int startPattern,
+                                            int endPattern);
 
             virtual void calcPrePartialsPartials(REALTYPE *destP,
                                                  const REALTYPE *partialsParent,
@@ -164,138 +156,6 @@ namespace beagle {
         //                                        int startPattern,
         //                                        int endPattern);
 
-        //     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
-        //                                               const REALTYPE *preOrderPartial,
-        //                                               const int firstDerivativeIndex,
-        //                                               const int secondDerivativeIndex,
-        //                                               const double *categoryRates,
-        //                                               const REALTYPE *categoryWeights,
-        //                                               double *outDerivatives,
-        //                                               double *outSumDerivatives,
-        //                                               double *outSumSquaredDerivatives);
-
-        //     virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
-        //                                                 const REALTYPE *preOrderPartial,
-        //                                                 const int firstDerivativeIndex,
-        //                                                 const int secondDerivativeIndex,
-        //                                                 const double *categoryRates,
-        //                                                 const REALTYPE *categoryWeights,
-        //                                                 const int scalingFactorsIndex,
-        //                                                 double *outDerivatives,
-        //                                                 double *outSumDerivatives,
-        //                                                 double *outSumSquaredDerivatives);
-
-        //     virtual void calcCrossProductsStates(const int *tipStates,
-        //                                          const REALTYPE *preOrderPartial,
-        //                                          const double *categoryRates,
-        //                                          const REALTYPE *categoryWeights,
-        //                                          const double edgeLength,
-        //                                          double *outCrossProducts,
-        //                                          double *outSumSquaredDerivatives);
-
-        //     virtual void calcCrossProductsPartials(const REALTYPE *postOrderPartial,
-        //                                            const REALTYPE *preOrderPartial,
-        //                                            const double *categoryRates,
-        //                                            const REALTYPE *categoryWeights,
-        //                                            const double edgeLength,
-        //                                            double *outCrossProducts,
-        //                                            double *outSumSquaredDerivatives);
-
-        //     virtual int calcRootLogLikelihoods(const int bufferIndex,
-        //                                        const int categoryWeightsIndex,
-        //                                        const int stateFrequenciesIndex,
-        //                                        const int scalingFactorsIndex,
-        //                                        double *outSumLogLikelihood);
-
-        //     virtual void calcRootLogLikelihoodsByPartition(const int *bufferIndices,
-        //                                                    const int *categoryWeightsIndices,
-        //                                                    const int *stateFrequenciesIndices,
-        //                                                    const int *cumulativeScaleIndices,
-        //                                                    const int *partitionIndices,
-        //                                                    int partitionCount,
-        //                                                    double *outSumLogLikelihoodByPartition);
-
-        //     virtual int calcRootLogLikelihoodsMulti(const int *bufferIndices,
-        //                                             const int *categoryWeightsIndices,
-        //                                             const int *stateFrequenciesIndices,
-        //                                             const int *scaleBufferIndices,
-        //                                             int count,
-        //                                             double *outSumLogLikelihood);
-
-        //     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
-        //                                        const int childBufferIndex,
-        //                                        const int probabilityIndex,
-        //                                        const int categoryWeightsIndex,
-        //                                        const int stateFrequenciesIndex,
-        //                                        const int scalingFactorsIndex,
-        //                                        double *outSumLogLikelihood);
-
-        //     virtual void calcEdgeLogLikelihoodsByPartition(const int *parentBufferIndices,
-        //                                                    const int *childBufferIndices,
-        //                                                    const int *probabilityIndices,
-        //                                                    const int *categoryWeightsIndices,
-        //                                                    const int *stateFrequenciesIndices,
-        //                                                    const int *cumulativeScaleIndices,
-        //                                                    const int *partitionIndices,
-        //                                                    int partitionCount,
-        //                                                    double *outSumLogLikelihoodByPartition);
-
-        //     virtual void calcStatesStatesFixedScaling(REALTYPE *destP,
-        //                                               const int *child0States,
-        //                                               const REALTYPE *child0TransMat,
-        //                                               const int *child1States,
-        //                                               const REALTYPE *child1TransMat,
-        //                                               const REALTYPE *scaleFactors,
-        //                                               int startPattern,
-        //                                               int endPattern);
-
-        //     virtual void calcStatesPartialsFixedScaling(REALTYPE *destP,
-        //                                                 const int *child0States,
-        //                                                 const REALTYPE *child0TransMat,
-        //                                                 const REALTYPE *child1Partials,
-        //                                                 const REALTYPE *child1TransMat,
-        //                                                 const REALTYPE *scaleFactors,
-        //                                                 int startPattern,
-        //                                                 int endPattern);
-
-        //     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
-        //                                                   const REALTYPE *child0Partials,
-        //                                                   const REALTYPE *child0TransMat,
-        //                                                   const REALTYPE *child1Partials,
-        //                                                   const REALTYPE *child1TransMat,
-        //                                                   const REALTYPE *scaleFactors,
-        //                                                   int startPattern,
-        //                                                   int endPattern);
-
-        //     virtual void calcPartialsPartialsAutoScaling(REALTYPE *destP,
-        //                                                  const REALTYPE *child0Partials,
-        //                                                  const REALTYPE *child0TransMat,
-        //                                                  const REALTYPE *child1Partials,
-        //                                                  const REALTYPE *child1TransMat,
-        //                                                  int *activateScaling);
-
-        //     inline int integrateOutStatesAndScale(const REALTYPE *integrationTmp,
-        //                                           const int stateFrequenciesIndex,
-        //                                           const int scalingFactorsIndex,
-        //                                           double *outSumLogLikelihood);
-
-        //     inline void integrateOutStatesAndScaleByPartition(const REALTYPE *integrationTmp,
-        //                                                       const int *stateFrequenciesIndices,
-        //                                                       const int *cumulativeScaleIndices,
-        //                                                       const int *partitionIndices,
-        //                                                       int partitionCount,
-        //                                                       double *outSumLogLikelihoodByPartition);
-
-        //     virtual void rescalePartials(REALTYPE *destP,
-        //                                  REALTYPE *scaleFactors,
-        //                                  REALTYPE *cumulativeScaleFactors,
-        //                                  const int fillWithOnes);
-
-        //     virtual void rescalePartialsByPartition(REALTYPE *destP,
-        //                                             REALTYPE *scaleFactors,
-        //                                             REALTYPE *cumulativeScaleFactors,
-        //                                             const int fillWithOnes,
-        //                                             const int partitionIndex);
         };
 
         BEAGLE_CPU_FACTORY_TEMPLATE
