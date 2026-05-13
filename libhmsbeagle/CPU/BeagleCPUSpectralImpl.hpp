@@ -528,44 +528,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
-
-// #pragma omp parallel for num_threads(kCategoryCount)
-//     for (int l = 0; l < kCategoryCount; l++) {
-//         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
-//         int matrixOffset = l*kMatrixSize;
-//         const REALTYPE* partials2Ptr = &partials2[v];
-//         REALTYPE* destPtr = &destP[v];
-//         for (int k = startPattern; k < endPattern; k++) {
-//             int w = l * kMatrixSize;
-//             int state1 = states1[k];
-//             for (int i = 0; i < kStateCount; i++) {
-//                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
-//                 REALTYPE tmp = matrices1[w + state1];
-//                 REALTYPE sumA = 0.0;
-//                 REALTYPE sumB = 0.0;
-//                 int j = 0;
-//                 for (; j < stateCountModFour; j += 4) {
-//                     sumA += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
-//                     sumB += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
-//                     sumA += matrices2Ptr[j + 2] * partials2Ptr[j + 2];
-//                     sumB += matrices2Ptr[j + 3] * partials2Ptr[j + 3];
-//                 }
-//                 for (; j < kStateCount; j++) {
-//                     sumA += matrices2Ptr[j] * partials2Ptr[j];
-//                 }
-
-//                 w += matrixIncr;
-
-//                 *(destPtr++) = tmp * (sumA + sumB);
-//             }
-//             if (P_PAD) {
-//                 for (int pad = 0; pad < P_PAD; pad++)  {
-//                     *(destPtr++) = 0.0;
-//                 }
-//             }
-//             partials2Ptr += kPartialsPaddedStateCount;
-//         }
-//     }
 }
 
 
