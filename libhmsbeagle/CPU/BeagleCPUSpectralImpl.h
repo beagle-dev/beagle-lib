@@ -23,6 +23,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
 #include <vector>
+#include <cmath>
 
 namespace beagle {
     namespace cpu {

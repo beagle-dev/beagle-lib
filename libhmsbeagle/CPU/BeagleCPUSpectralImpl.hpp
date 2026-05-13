@@ -323,18 +323,18 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
     const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
 
 #define FORM_EXPAT(et, evr, sbl) \
-    const REALTYPE et##1 = exp(evr##1[i] * sbl##1); \
-    const REALTYPE et##2 = exp(evr##2[i] * sbl##2);
+    const REALTYPE et##1 = std::exp(evr##1[i] * sbl##1); \
+    const REALTYPE et##2 = std::exp(evr##2[i] * sbl##2);
 
 #define FORM_EXPAT_COS_SIN(et, evi, sbl) \
     int i2 = i + 1; \
     const REALTYPE b1 = evi##1[i]; \
-    const REALTYPE et##cosbt1 = et##1 * cos(sbl##1 * b1); \
-    const REALTYPE et##sinbt1 = et##1 * sin(sbl##1 * b1); \
+    const REALTYPE et##cosbt1 = et##1 * std::cos(sbl##1 * b1); \
+    const REALTYPE et##sinbt1 = et##1 * std::sin(sbl##1 * b1); \
     \
     const REALTYPE b2 = evi##2[i]; \
-    const REALTYPE et##cosbt2 = et##2 * cos(sbl##1 * b2); \
-    const REALTYPE et##sinbt2 = et##2 * sin(sbl##2 * b2);
+    const REALTYPE et##cosbt2 = et##2 * std::cos(sbl##2 * b2); \
+    const REALTYPE et##sinbt2 = et##2 * std::sin(sbl##2 * b2);
 
 #define MATRIX_VECTOR_HADAMARD_PRODUCT(out, mat, vec) \
     for (int i = 0; i < kStateCount; i++) { \
