@@ -2128,11 +2128,11 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
 													int start,
                                                     int numOps,
                                                     int totalPatterns) {
-
+    const int TENSOR_BLOCK_SIZE = 8;
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
-    int patternPlusFour = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx + 4;
+    int pattern = __umul24(KW_GROUP_ID_0,TENSOR_BLOCK_SIZE) + patIdx;
+    int patternPlusFour = pattern + 4;
 
     int op = pattern + start;
     int opPlusFour = patternPlusFour + start;
@@ -2221,8 +2221,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
     }
 
     if (pattern + 4 < totalPatterns && patIdx + 4 < 8) {
-//        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1PlusFour[state];
-        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1PlusFour[state];
     } else {
         sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
     }
@@ -2237,27 +2236,14 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
 
     if(isCoalescentPlusFour){
         if (pattern < totalPatterns && patIdx + 4 < 8) {
-//            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2PlusFour[state];
-            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2PlusFour[state];
         } else {
             sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
         }
     }
 
 
-//    sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
-//    REAL sum1 = 0;
-//
-//    if (pattern < totalPatterns && isCoalescent) {
-//        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
-//        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[state];
-//    }
-//
-//    REAL sum2 = 0;
-
     KW_LOCAL_FENCE;
-
-//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sPartials1Permuted[patIdx * PADDED_STATE_COUNT + state];
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child2TransIndex;
@@ -2319,9 +2305,6 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
     int partials2PatIdx = partials2Index / PADDED_STATE_COUNT;
     int partials2PatIdxPlusOne = partials2PatIdx + 1;
 
-//    coalescent[patIdx * PADDED_STATE_COUNT + state] = partials2State;
-//    coalescent[(patIdx + pattern_span) * PADDED_STATE_COUNT + state] = res12;
-
     sum1Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx)] = res11;
     sum1Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdxPlusOne)] = res12;
 
@@ -2337,9 +2320,9 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
         sum21 = sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)];
     }
 
-//    if(isCoalescentPlusFour) {
-//        sum22 = sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
-//    }
+    if(isCoalescentPlusFour) {
+        sum22 = sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
+    }
 
 
     if (pattern < totalPatterns) {
@@ -2347,18 +2330,16 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
     }
 
     if (pattern + 4 < totalPatterns) {
-//        partials3PlusFour[state] = sum12;
+        partials3PlusFour[state] = sum12;
     }
 
-//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sum11;
-//    coalescent[(patIdx + pattern_span) * PADDED_STATE_COUNT + state] = sum12;
-
-
-
-//    coalescent[(patIdx + 4) * PADDED_STATE_COUNT + state] = sum12;
-//    coalescent[patIdx * PADDED_STATE_COUNT + state] = GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx);
-//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)];
-//    coalescent[(patIdx + 4) * PADDED_STATE_COUNT + state] = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
+//    if (pattern < totalPatterns && isCoalescent && patIdx < 8) {
+//        partials3[state] = sum21;
+//    }
+//
+//    if (pattern + 4 < totalPatterns && isCoalescentPlusFour && patIdx + 4 < 8) {
+//        partials3PlusFour[state] = sum22;
+//    }
 
 	if (pattern < totalPatterns && isCoalescent && patIdx < 8) {
 	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation11 = partials + accumulation1PartialIndex;
@@ -2394,39 +2375,39 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VA
 		coalescent[intervalNumber] = denominator;
     }
 
-//    if (pattern + 4 < totalPatterns && isCoalescent && patIdx + 4 < 8) {
-//	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation12 = partials + accumulation1PartialIndexPlusFour;
-//	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation22 = partials + accumulation2PartialIndexPlusFour;
-//		accumulation12[state] = sum12;
-//		accumulation22[state] = sum22;
-//		REAL popSize = sizes[state];
-//		if (popSize > 0) {
-//            partials3PlusFour[state] = sum12 * sum22 / popSize;
-//        } else {
-//            partials3PlusFour[state] = 0;
-//        }
-//	    sPartials2Permuted[state] = partials3PlusFour[state];
-//
-//        KW_LOCAL_FENCE;
-//
-//#ifdef IS_POWER_OF_TWO
-//	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-//	        if (state < i) {
-//#else
-//	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-//	        if (state < i && state + i < PADDED_STATE_COUNT) {
-//#endif // IS_POWER_OF_TWO
-//                sPartials2Permuted[state] += sPartials2Permuted[state + i];
-//	        }
-//	        KW_LOCAL_FENCE;
-//	    }
-//
-//		REAL denominator = sPartials2Permuted[0];
-//        partials3PlusFour[state] = partials3PlusFour[state] / denominator;
-//
-//
-//		coalescent[intervalNumberPlusFour] = denominator;
-//    }
+    if (pattern + 4 < totalPatterns && isCoalescentPlusFour && patIdx + 4 < 8) {
+	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation12 = partials + accumulation1PartialIndexPlusFour;
+	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation22 = partials + accumulation2PartialIndexPlusFour;
+		accumulation12[state] = sum12;
+		accumulation22[state] = sum22;
+		REAL popSize = sizes[state];
+		if (popSize > 0) {
+            partials3PlusFour[state] = sum12 * sum22 / popSize;
+        } else {
+            partials3PlusFour[state] = 0;
+        }
+	    sPartials2Permuted[state] = partials3PlusFour[state];
+
+        KW_LOCAL_FENCE;
+
+#ifdef IS_POWER_OF_TWO
+	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+	        if (state < i) {
+#else
+	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+	        if (state < i && state + i < PADDED_STATE_COUNT) {
+#endif // IS_POWER_OF_TWO
+                sPartials2Permuted[state] += sPartials2Permuted[state + i];
+	        }
+	        KW_LOCAL_FENCE;
+	    }
+
+		REAL denominator = sPartials2Permuted[0];
+        partials3PlusFour[state] = partials3PlusFour[state] / denominator;
+
+
+		coalescent[intervalNumberPlusFour] = denominator;
+    }
 }
 
 KW_GLOBAL_KERNEL void kernelBastaPrecomputeDiagonals(

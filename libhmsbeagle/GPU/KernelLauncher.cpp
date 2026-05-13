@@ -418,8 +418,8 @@ void KernelLauncher::LoadKernels() {
     fSumSites2 = gpu->GetFunction("kernelSumSites2");
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
-    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
-//    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescentTensorCores");
+//    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
+    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescentTensorCores");
     fReduceWithinIntervalMerged = gpu->GetFunction("kernelBastaReduceWithinIntervalMerged");
     fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
 
@@ -2485,11 +2485,23 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 //        fprintf(stderr, "PADDED_STATE_COUNT: %d", kPaddedStateCount);
 //        fprintf(stderr, "bgPeelingBlock: %d, %d", bgBastaPeelingBlock.x, bgBastaPeelingBlock.y);
 
+
+    bgBastaPeelingGrid.x = patternCount / 8 + 1;
+
+    int tmp = bgBastaPeelingBlock.y;
+    bgBastaPeelingBlock.y = 4;
+
+//    fprintf(stderr, "bgBastaPeelingGrid: %d, %d\n", bgBastaPeelingGrid.x, bgBastaPeelingGrid.y);
+//
+//    fprintf(stderr, "patternCount: %d\n", patternCount);
+
         gpu->LaunchKernel(fInnerBastaPartialsCoalescent,
                           bgBastaPeelingBlock, bgBastaPeelingGrid,
                           parameterCountV, totalParameterCount,
                           partials, matrices, operations, sizes, coalescent,
                           start, numOps, patternCount);
+    bgBastaPeelingGrid.x = patternCount / kSumAcrossBlockSize + 1;
+    bgBastaPeelingBlock.y = tmp;
 //        double tmpAccCoalescent[32];
 //        gpu->MemcpyDeviceToHost(tmpAccCoalescent, coalescent, 32 * sizeof(double));
 //        fprintf(stderr, "coalescent: ");
