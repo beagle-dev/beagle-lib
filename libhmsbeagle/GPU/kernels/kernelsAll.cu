@@ -2098,7 +2098,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	    sPartials2[state] = partials3[state];
 
         KW_LOCAL_FENCE;
-        
+
 #ifdef IS_POWER_OF_TWO
 	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
 	        if (state < i) {
@@ -2117,6 +2117,316 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
 		coalescent[intervalNumber] = denominator;
     }
+}
+
+
+KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescentTensorCores(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+                                                    KW_GLOBAL_VAR int* KW_RESTRICT operations,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+													int start,
+                                                    int numOps,
+                                                    int totalPatterns) {
+
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int pattern = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
+    int patternPlusFour = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx + 4;
+
+    int op = pattern + start;
+    int opPlusFour = patternPlusFour + start;
+
+    int maxOp = start + totalPatterns - 1;
+    int sameTransIndex = 1;
+    KW_LOCAL_MEM REAL sMatrix1Permuted[4 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2Permuted[4 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1Permuted[8 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2Permuted[8 * PADDED_STATE_COUNT];
+
+    int desIndex = operations[op * numOps];
+    int child1PartialIndex = operations[op * numOps + 1];
+    int child1TransIndex = operations[maxOp * numOps + 2];
+    int child2PartialIndex = operations[op * numOps + 3];
+    int child2TransIndex = operations[maxOp * numOps + 4];
+    int accumulation1PartialIndex = operations[op * numOps + 5];
+    int accumulation2PartialIndex = operations[op * numOps + 6];
+    int intervalNumber = operations[op * numOps + 7];
+
+    int desIndexPlusFour = operations[opPlusFour * numOps];
+    int child1PartialIndexPlusFour = operations[opPlusFour * numOps + 1];
+    int child2PartialIndexPlusFour = operations[opPlusFour * numOps + 3];
+    int accumulation1PartialIndexPlusFour = operations[opPlusFour * numOps + 5];
+    int accumulation2PartialIndexPlusFour = operations[opPlusFour * numOps + 6];
+    int intervalNumberPlusFour = operations[opPlusFour * numOps + 7];
+
+    int isCoalescent = (child2PartialIndex >= 0);
+    int isCoalescentPlusFour =  (child2PartialIndexPlusFour >= 0);
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1PlusFour = partials + child1PartialIndexPlusFour;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3PlusFour = partials + desIndexPlusFour;
+
+    const int WMMA_M = 8;
+    const int WMMA_N = 8;
+    const int WMMA_K = 4;
+    int warpSize = 32; // TODO: Check if its better to get this from Cuda API
+    int warpState = state/warpSize;
+    int warpPattern = patIdx;
+    float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
+
+#define MODULUS_NON_NEGATIVE(A,B) (A % B + B) % B
+// Indices to permute ShM for sMatrix
+// X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
+// (int(X/8): Splits 32 values into groups of 8.
+// ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
+// & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
+#define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
+#define GET_BANK_GROUP_SMATRIX(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
+#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
+#define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
+//#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
+
+// Indices to permute ShM for partials
+// X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
+// (int(X/8): Splits 32 values into groups of 4.
+// ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
+// & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
+#define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
+#define GET_BANK_GROUP_PARTIALS(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
+#define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
+#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
+
+//    if (pattern < totalPatterns) {
+//        sPartials1[patIdx][state] = partials1[state];
+//    } else {
+//        sPartials1[patIdx][state] = 0;
+//    }
+    REAL sum11 = 0, sum12 = 0;
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials2PlusFour = partials + child2PartialIndexPlusFour;
+//    if (pattern < totalPatterns && isCoalescent) {
+//        sPartials2[state] = partials2[state];
+//    }
+
+    REAL sum21 = 0, sum22 = 0;
+    int pattern_span = patIdx + 4;
+
+    if (pattern < totalPatterns && patIdx < 8) {
+        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials1[state];
+    } else {
+        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+    }
+
+    if (pattern + 4 < totalPatterns && patIdx + 4 < 8) {
+//        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials1PlusFour[state];
+        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+    } else {
+        sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+    }
+
+    if(isCoalescent) {
+        if (pattern < totalPatterns && patIdx < 8) {
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[state];
+        } else {
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = 0;
+        }
+    }
+
+    if(isCoalescentPlusFour){
+        if (pattern < totalPatterns && patIdx + 4 < 8) {
+//            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = partials2PlusFour[state];
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+        } else {
+            sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+        }
+    }
+
+
+//    sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)] = 0;
+//    REAL sum1 = 0;
+//
+//    if (pattern < totalPatterns && isCoalescent) {
+//        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
+//        sPartials2[GET_SMEM_OFFSET_PARTIALS(state, patIdx)] = partials2[state];
+//    }
+//
+//    REAL sum2 = 0;
+
+    KW_LOCAL_FENCE;
+
+//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sPartials1Permuted[patIdx * PADDED_STATE_COUNT + state];
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child2TransIndex;
+
+    int warpIdx = warpState + warpPattern * warpsPerPattern;
+    int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
+    int sMatrixRow, partialsCol, sMatrixCol, partialsRow;
+    double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
+
+    KW_LOCAL_MEM REAL sum1Matrix[8 * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sum2Matrix[8 * PADDED_STATE_COUNT];
+
+    for (int i = 0; i < PADDED_STATE_COUNT; i += WMMA_K) {
+        sMatrixRow = warpIdx % (PADDED_STATE_COUNT / WMMA_M);
+        sMatrixCol = i;
+        partialsRow = i;
+        partialsCol = warpIdx / (PADDED_STATE_COUNT / WMMA_M);
+
+        sMatrix1Permuted[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix1[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
+        if (!sameTransIndex) {
+            sMatrix2Permuted[GET_SMEM_OFFSET_SMATRIX(state, patIdx)] = matrix2[sMatrixCol * PADDED_STATE_COUNT + patIdx * PADDED_STATE_COUNT + state];
+        }
+
+        KW_LOCAL_FENCE;
+
+        // reg_row* and reg_col* are according to memory layout in ShM
+        int reg_row = state % 4;
+        int reg_col = (warpIdx * WMMA_M) + (laneid / 4);
+
+        // TODO: More book keeping if PATTERN_BLOCK_SIZE > WMMA_M
+        int reg_row_partials = laneid / 4;
+        int reg_col_partials = partialsRow + state % 4;
+
+        a1 = sMatrix1Permuted[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+        b1 = sPartials1Permuted[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
+
+        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+            : "=d"(res11), "=d"(res12)
+            : "d"(a1), "d"(b1), "d"(res11), "d"(res12));
+
+//        REAL *secondMatrix = (sameTransIndex == 1) ? sMatrix1Permuted : sMatrix2Permuted;
+
+//        if(isCoalescent) {
+        a2 = sMatrix1Permuted[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
+        b2 = sPartials2Permuted[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
+
+        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
+                : "=d"(res21), "=d"(res22)
+                : "d"(a2), "d"(b2), "d"(res21), "d"(res22));
+//        }
+
+        KW_LOCAL_FENCE;
+    }
+
+    int statesPerWarp = (PADDED_STATE_COUNT >= warpSize) ? state : laneid;
+    // Map results of MMA operation (8x8) to permuted shared memory for elementwise multiplication of partials
+    int partials2Index = WMMA_M * (int) (patIdx * warpsPerPattern) + ((laneid * 2) % 8) * PADDED_STATE_COUNT + (statesPerWarp * 2)/8;
+    int partials2State = partials2Index % PADDED_STATE_COUNT;
+    int partials2PatIdx = partials2Index / PADDED_STATE_COUNT;
+    int partials2PatIdxPlusOne = partials2PatIdx + 1;
+
+//    coalescent[patIdx * PADDED_STATE_COUNT + state] = partials2State;
+//    coalescent[(patIdx + pattern_span) * PADDED_STATE_COUNT + state] = res12;
+
+    sum1Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx)] = res11;
+    sum1Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdxPlusOne)] = res12;
+
+    sum2Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx)] = res21;
+    sum2Matrix[GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdxPlusOne)] = res22;
+
+    KW_LOCAL_FENCE;
+
+    sum11 = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)];
+    sum12 = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
+
+    if(isCoalescent) {
+        sum21 = sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)];
+    }
+
+//    if(isCoalescentPlusFour) {
+//        sum22 = sum2Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
+//    }
+
+
+    if (pattern < totalPatterns) {
+        partials3[state] = sum11;
+    }
+
+    if (pattern + 4 < totalPatterns) {
+//        partials3PlusFour[state] = sum12;
+    }
+
+//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sum11;
+//    coalescent[(patIdx + pattern_span) * PADDED_STATE_COUNT + state] = sum12;
+
+
+
+//    coalescent[(patIdx + 4) * PADDED_STATE_COUNT + state] = sum12;
+//    coalescent[patIdx * PADDED_STATE_COUNT + state] = GET_SMEM_OFFSET_PARTIALS(partials2State, partials2PatIdx);
+//    coalescent[patIdx * PADDED_STATE_COUNT + state] = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, patIdx)];
+//    coalescent[(patIdx + 4) * PADDED_STATE_COUNT + state] = sum1Matrix[GET_SMEM_OFFSET_PARTIALS(state, pattern_span)];
+
+	if (pattern < totalPatterns && isCoalescent && patIdx < 8) {
+	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation11 = partials + accumulation1PartialIndex;
+	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation21 = partials + accumulation2PartialIndex;
+		accumulation11[state] = sum11;
+		accumulation21[state] = sum21;
+        REAL popSize = sizes[state];
+		if (popSize > 0) {
+            partials3[state] = sum11 * sum21 / popSize;
+        } else {
+            partials3[state] = 0;
+        }
+	    sPartials2Permuted[state] = partials3[state];
+
+        KW_LOCAL_FENCE;
+
+#ifdef IS_POWER_OF_TWO
+	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+	        if (state < i) {
+#else
+	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+	        if (state < i && state + i < PADDED_STATE_COUNT) {
+#endif // IS_POWER_OF_TWO
+                sPartials2Permuted[state] += sPartials2Permuted[state + i];
+	        }
+	        KW_LOCAL_FENCE;
+	    }
+
+        REAL denominator = sPartials2Permuted[0];
+		partials3[state] = partials3[state] / denominator;
+
+
+		coalescent[intervalNumber] = denominator;
+    }
+
+//    if (pattern + 4 < totalPatterns && isCoalescent && patIdx + 4 < 8) {
+//	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation12 = partials + accumulation1PartialIndexPlusFour;
+//	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation22 = partials + accumulation2PartialIndexPlusFour;
+//		accumulation12[state] = sum12;
+//		accumulation22[state] = sum22;
+//		REAL popSize = sizes[state];
+//		if (popSize > 0) {
+//            partials3PlusFour[state] = sum12 * sum22 / popSize;
+//        } else {
+//            partials3PlusFour[state] = 0;
+//        }
+//	    sPartials2Permuted[state] = partials3PlusFour[state];
+//
+//        KW_LOCAL_FENCE;
+//
+//#ifdef IS_POWER_OF_TWO
+//	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+//	        if (state < i) {
+//#else
+//	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+//	        if (state < i && state + i < PADDED_STATE_COUNT) {
+//#endif // IS_POWER_OF_TWO
+//                sPartials2Permuted[state] += sPartials2Permuted[state + i];
+//	        }
+//	        KW_LOCAL_FENCE;
+//	    }
+//
+//		REAL denominator = sPartials2Permuted[0];
+//        partials3PlusFour[state] = partials3PlusFour[state] / denominator;
+//
+//
+//		coalescent[intervalNumberPlusFour] = denominator;
+//    }
 }
 
 KW_GLOBAL_KERNEL void kernelBastaPrecomputeDiagonals(

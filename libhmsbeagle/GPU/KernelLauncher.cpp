@@ -419,6 +419,7 @@ void KernelLauncher::LoadKernels() {
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
     fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
+//    fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescentTensorCores");
     fReduceWithinIntervalMerged = gpu->GetFunction("kernelBastaReduceWithinIntervalMerged");
     fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
 
@@ -2430,16 +2431,72 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr, "\t\tEntering KernelLauncher::InnerBastaPartialsCoalescent\n");
 #endif
-    int peelingGrid = patternCount / kSumAcrossBlockSize + 1;
-    bgBastaPeelingGrid = Dim3Int(peelingGrid, 1);
+        int peelingGrid = patternCount / kSumAcrossBlockSize + 1;
+        bgBastaPeelingGrid = Dim3Int(peelingGrid, 1);
 
         int parameterCountV = 5;
         int totalParameterCount = 8;
+
+//        fprintf(stderr, "bgBastaPeelingGrid %d %d\n", bgBastaPeelingBlock.x, bgBastaPeelingBlock.y);
+//        int tmp = bgBastaPeelingBlock.y;
+//        bgBastaPeelingBlock.y = 4;
+
+
+//        double tmpAcc[patternCount * 32];
+//        gpu->MemcpyDeviceToHost(tmpAcc, partials, patternCount * 32 * sizeof(double));
+//        fprintf(stderr, "partials [patternCount: %d]", patternCount);
+//        for(int i = 0; i < patternCount * 32; i++) {
+//            fprintf(stderr, "%.17g, ", tmpAcc[i]);
+//        }
+//        fprintf(stderr, "\n\n");
+//
+//        double tmpAccMatrices[32 * 32];
+//        gpu->MemcpyDeviceToHost(tmpAccMatrices, matrices, 32 * 32 * sizeof(double));
+//        fprintf(stderr, "matrices: ");
+//        for(int i = 0; i < 32 * 32; i++) {
+//            fprintf(stderr, "%f, ", tmpAccMatrices[i]);
+//        }
+//        fprintf(stderr, "\n\n");
+//
+//        int tmpAccOperations[numOps];
+//        gpu->MemcpyDeviceToHost(tmpAccOperations, operations, numOps * sizeof(int));
+//        fprintf(stderr, "operations [%d]: ", numOps);
+//        for(int i = 0; i < numOps; i++) {
+//            fprintf(stderr, "%d, ", tmpAccOperations[i]);
+//        }
+//        fprintf(stderr, "\n\n");
+//
+//        double tmpAccSizes[32];
+//        gpu->MemcpyDeviceToHost(tmpAccSizes, sizes, 32 * sizeof(double));
+//        fprintf(stderr, "sizes: ");
+//        for(int i = 0; i < 32; i++) {
+//            fprintf(stderr, "%f, ", tmpAccSizes[i]);
+//        }
+//        fprintf(stderr, "\n\n");
+
+//        double tmpAccCoalescent[32];
+//        gpu->MemcpyDeviceToHost(tmpAcc, coalescent, 32 * sizeof(double));
+//        fprintf(stderr, "coalescent: ");
+//        for(int i = 0; i < 32; i++) {
+//            fprintf(stderr, "%f, ", tmpAcc[i]);
+//        }
+//        fprintf(stderr, "\n");
+//    fprintf(stderr, "start: %d", start);
+//        fprintf(stderr, "PADDED_STATE_COUNT: %d", kPaddedStateCount);
+//        fprintf(stderr, "bgPeelingBlock: %d, %d", bgBastaPeelingBlock.x, bgBastaPeelingBlock.y);
+
         gpu->LaunchKernel(fInnerBastaPartialsCoalescent,
                           bgBastaPeelingBlock, bgBastaPeelingGrid,
                           parameterCountV, totalParameterCount,
                           partials, matrices, operations, sizes, coalescent,
                           start, numOps, patternCount);
+//        double tmpAccCoalescent[32];
+//        gpu->MemcpyDeviceToHost(tmpAccCoalescent, coalescent, 32 * sizeof(double));
+//        fprintf(stderr, "coalescent: ");
+//        for(int i = 0; i < 32; i++) {
+//            fprintf(stderr, "%f, ", tmpAccCoalescent[i]);
+//        }
+//                fprintf(stderr, "\n\n------\n\n");
 
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr, "\t\tLeaving  KernelLauncher::InnerBastaPartialsCoalescent\n");
