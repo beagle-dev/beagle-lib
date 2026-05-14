@@ -503,11 +503,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
                     // Both real
-                    if (states1[k] < kStateCount) {
-                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    } else {
-                        gPartialTmp1[i] = expat1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
-                    }
+                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
 
                     REALTYPE sum2 = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
@@ -525,19 +521,11 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
                     FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
 
-                    if (state1 < kStateCount) {
-                        gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                     expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
 
-                        gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    } else {
-                        gPartialTmp1[i] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i] +
-                                 expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2];
-
-                        gPartialTmp1[i2] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2] -
-                                    expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
-                    }
+                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
 
                     REALTYPE sum2A = 0.0, sum2B = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
@@ -602,27 +590,25 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
             const int state1 = states1[k];
             const int state2 = states2[k];
 
-            // if (state1 >= kStateCount || state2 >= kStateCount) {
-            //     fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
-            //     exit(-1);
-            // }
-
             for (int i = 0; i < kStateCount; i++) {
 
                 FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
                     // Both real eigenvalues
+                    // gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    // gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
+
                     if (state1 < kStateCount) {
                         gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
                     } else {
-                        gPartialTmp1[i] = expat1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
+                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
                     }
 
                     if (state2 < kStateCount) {
                         gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
                     } else {
-                        gPartialTmp2[i] = expat2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i];
+                        gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
                     }
                 } else {
                     // At least one complex conjugate pair
@@ -633,31 +619,15 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
 
                     FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
 
-                    if (state1 < kStateCount) {
-                        gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                     expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
 
-                        gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    } else {
-                        gPartialTmp1[i] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i] +
-                                 expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2];
-                        gPartialTmp1[i2] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2] -
-                                    expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
-                    }
-
-                    if (state2 < kStateCount) {
-                        gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
-                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
-
-                        gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
-                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
-                    } else {
-                        gPartialTmp2[i] = expatcosbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i] +
-                                expatsinbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i2];
-                        gPartialTmp2[i2] = expatcosbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i2] -
-                                    expatsinbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i];
-                    }
+                    gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
+                                expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
+                    gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
+                                expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
 
                     i++; // processed two conjugate rows
                 }
