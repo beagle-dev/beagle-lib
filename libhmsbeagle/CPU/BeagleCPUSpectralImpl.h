@@ -92,11 +92,6 @@ namespace beagle {
                               long preferenceFlags,
                               long requirementFlags);
 
-            int setEigenDecomposition(int eigenIndex,
-                                      const double* inEigenVectors,
-                                      const double* inInverseEigenVectors,
-                                      const double* inEigenValues);
-
         protected:
             virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
                     int decompositionCount,
@@ -114,8 +109,6 @@ namespace beagle {
 
             std::vector<REALTYPE> gPartialTmp1;
             std::vector<REALTYPE> gPartialTmp2;
-
-            std::vector<REALTYPE> gIvecRowSums;
 
         protected:
             int updateTransitionMatrices(int eigenIndex,

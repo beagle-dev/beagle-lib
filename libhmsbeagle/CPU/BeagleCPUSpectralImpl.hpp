@@ -69,31 +69,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gBranchEigenInfo.resize(kMatrixCount);
     gPartialTmp1.resize(kStateCount);
     gPartialTmp2.resize(kStateCount);
-    gIvecRowSums.resize(kEigenDecompCount * kStateCount);
 
     return returnCode;
-}
-
-BEAGLE_CPU_TEMPLATE
-int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eigenIndex,
-                                         const double* inEigenVectors,
-                                         const double* inInverseEigenVectors,
-                                         const double* inEigenValues) {
-
-    BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
-
-    // TODO: could only compute when necessary
-    const REALTYPE* inverseEigenVectorsPtr = gEigenDecomposition->getInverseEigenVectorsPtr(eigenIndex);
-    for (int i = 0; i < kStateCount; i++) {
-        REALTYPE rowSum = 0.0;
-        for (int j = 0; j < kStateCount; j++) {
-            rowSum += inverseEigenVectorsPtr[i * kStateCount + j];
-        }
-        gIvecRowSums[eigenIndex * kStateCount + i] = rowSum;
-        // fprintf(stderr, "EigenIndex= %d i= %d rowSum= %f\n", eigenIndex, i, rowSum);
-    }
-
-    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
