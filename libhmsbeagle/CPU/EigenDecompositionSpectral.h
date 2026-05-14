@@ -29,8 +29,12 @@ private:
     const int kMatrixStride;
 
     std::vector<std::vector<REALTYPE>> eigenValuesStorage;
+
     std::vector<std::vector<REALTYPE>> eigenVectorsStorage;
-    std::vector<std::vector<REALTYPE>> inverseEigenVectorsStorage;    
+    std::vector<std::vector<REALTYPE>> inverseEigenVectorsStorage;
+
+    std::vector<std::vector<REALTYPE>> transposedEigenVectorsStorage;
+    std::vector<std::vector<REALTYPE>> transposedInverseEigenVectorsStorage;
 
 public:
     EigenDecompositionSpectral(int decompositionCount,
@@ -67,6 +71,11 @@ public:
     virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const;
 
     virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;
+
+private:
+    void rescale(REALTYPE* rowVectors, const REALTYPE* eval, REALTYPE scalar);
+
+    void transposeInPlace(REALTYPE* matrix);
 };
 
 }

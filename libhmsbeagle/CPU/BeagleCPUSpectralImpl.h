@@ -124,6 +124,18 @@ namespace beagle {
                                    int cumulativeScalingIndex,
                                    BeaglePartialsType partialsType);
 
+            virtual int upPrePartials(bool byPartition,
+                                      const int* operations,
+                                      int count,
+                                      int cumulativeScaleIndex,
+                                      BeaglePartialsType preorderType);
+
+            template <typename T>
+            int upPrePartialsImpl(bool byPartition,
+                                  const int* operations,
+                                  int count,
+                                  int cumulativeScaleIndex);
+
             template <typename T>
             void calcPartialsPartials(REALTYPE *destPartials,
                                       const REALTYPE *partials1,
@@ -155,13 +167,16 @@ namespace beagle {
                                     int startPattern,
                                     int endPattern);
 
-            virtual void calcPrePartialsPartials(REALTYPE *destP,
-                                                 const REALTYPE *partialsParent,
-                                                 const REALTYPE *matricesSelf,
-                                                 const REALTYPE *partialsSibling,
-                                                 const REALTYPE *matricesSibling,
-                                                 int startPattern,
-                                                 int endPattern);
+            // template <typename T>
+            // void calcPrePartialsPartialsTop(REALTYPE *destP,
+            //                                      const REALTYPE *partialsParent,
+            //                                      const REALTYPE *matricesSelf,
+            //                                      const REALTYPE *partialsSibling,
+            //                                      const REALTYPE *matricesSibling,
+            //                                      int startPattern,
+            //                                      int endPattern);
+
+
 
         //     virtual void calcPrePartialsStates(REALTYPE *destP,
         //                                        const REALTYPE *partials1,
@@ -171,6 +186,33 @@ namespace beagle {
         //                                        int startPattern,
         //                                        int endPattern);
 
+            struct Top {
+                void calcPrePartialsPartials(REALTYPE *destP,
+                                                    const REALTYPE *partialsParent,
+                                                    const int branchEigenIndexSelf,
+                                                    const REALTYPE *partialsSibling,
+                                                    const int branchEigenIndexSibling,
+                                                    int startPattern,
+                                                    int endPattern);
+            };
+
+                                    // const int *states1,
+                                    // const int branchEigenIndex1,
+                                    // const REALTYPE *partials2,
+                                    // const int branchEigenIndex2,
+                                    // const REALTYPE* scaleFactors,
+                                    // int startPattern,
+                                    // int endPattern);            
+
+            struct Bottom {
+              void calcPrePartialsPartials(REALTYPE *destP,
+                                                    const REALTYPE *partialsParent,
+                                                    const int branchEigenIndexSelf,
+                                                    const REALTYPE *partialsSibling,
+                                                    const int branchEigenIndexSibling,
+                                                    int startPattern,
+                                                    int endPattern);
+            };
         };
 
         BEAGLE_CPU_FACTORY_TEMPLATE
@@ -196,7 +238,6 @@ namespace beagle {
             virtual const long getFlags();
         };
 
-
         struct NoScaling {
             static constexpr bool useScaleFactors = false;
         };
@@ -205,6 +246,12 @@ namespace beagle {
             static constexpr bool useScaleFactors = true;
         };
 
+        struct Root {
+            static constexpr bool atRoot = true;
+        };
+        struct NotRoot {
+            static constexpr bool atRoot = false;
+        };
     } // namespace cpu
 } // namespace beagle
 
