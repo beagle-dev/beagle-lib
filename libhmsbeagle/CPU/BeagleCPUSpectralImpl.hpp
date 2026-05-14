@@ -596,20 +596,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
                     // Both real eigenvalues
-                    // gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    // gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
+                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
 
-                    if (state1 < kStateCount) {
-                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    } else {
-                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    }
-
-                    if (state2 < kStateCount) {
-                        gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
-                    } else {
-                        gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
-                    }
                 } else {
                     // At least one complex conjugate pair
                     //
