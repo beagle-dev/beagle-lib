@@ -65,10 +65,8 @@ add_library(hmsbeagle-cpu-spectral SHARED
         BeagleCPUSpectralPlugin.cpp
         BeagleCPUSpectralPlugin.h
         EigenDecomposition.h
-        EigenDecompositionCube.h
-        EigenDecompositionCube.hpp
-        EigenDecompositionSquare.h
-        EigenDecompositionSquare.hpp
+        EigenDecompositionSpectral.h
+        EigenDecompositionSpectral.hpp
         Precision.h
         )
 

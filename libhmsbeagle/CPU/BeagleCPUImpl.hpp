@@ -231,6 +231,25 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
 }
 
 BEAGLE_CPU_TEMPLATE
+EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createEigenDecomposition(
+        int decompositionCount,
+        int stateCount,
+        int categoryCount,
+        long flags) {
+
+    EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* ed;
+
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
+        ed = new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
+                kStateCount,kCategoryCount,kFlags);
+    else
+        ed = new EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
+                kStateCount, kCategoryCount,kFlags);
+
+    return ed;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int partialsBufferCount,
                                   int compactBufferCount,
@@ -325,12 +344,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     else
         kFlags |= BEAGLE_FLAG_THREADING_NONE;
 
-    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
-        gEigenDecomposition = new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
-                kStateCount,kCategoryCount,kFlags);
-    else
-        gEigenDecomposition = new EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>(kEigenDecompCount,
-                kStateCount, kCategoryCount,kFlags);
+    gEigenDecomposition = createEigenDecomposition(kEigenDecompCount, kStateCount, kCategoryCount, kFlags);
 
     gCategoryRates = (double**) calloc(sizeof(double), kEigenDecompCount);
     if (gCategoryRates == NULL)

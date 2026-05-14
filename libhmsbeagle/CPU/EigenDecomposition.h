@@ -24,7 +24,7 @@ namespace cpu {
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 class EigenDecomposition {
-	
+
 protected:
     REALTYPE** gEigenValues;
     int kStateCount;
@@ -34,7 +34,7 @@ protected:
     REALTYPE* matrixTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
-    
+
 public:
 	EigenDecomposition(int decompositionCount,
 					   int stateCount,
@@ -47,9 +47,9 @@ public:
 					   		kCategoryCount = categoryCount;
                             kFlags = flags;
 					   	};
-	
+
 	virtual ~EigenDecomposition() {};
-	
+
     // sets the Eigen decomposition for a given matrix
     //
     // matrixIndex the matrix index to update
@@ -60,7 +60,7 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues) = 0;
-		
+
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //

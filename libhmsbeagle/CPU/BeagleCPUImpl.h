@@ -455,6 +455,13 @@ public:
 	virtual const long getFlags();
 
 protected:
+
+    virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
+        int decompositionCount,
+        int stateCount,
+        int categoryCount,
+        long flags);
+
     virtual int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,

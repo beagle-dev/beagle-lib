@@ -32,6 +32,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUSpectralImpl.h"
+#include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 
 namespace beagle {
 namespace cpu {
@@ -68,8 +69,31 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gBranchEigenInfo.resize(kMatrixCount);
     gPartialTmp1.resize(kStateCount);
     gPartialTmp2.resize(kStateCount);
+    gIvecRowSums.resize(kEigenDecompCount * kStateCount);
 
     return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eigenIndex,
+                                         const double* inEigenVectors,
+                                         const double* inInverseEigenVectors,
+                                         const double* inEigenValues) {
+
+    BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
+
+    // TODO: could only compute when necessary
+    const REALTYPE* inverseEigenVectorsPtr = gEigenDecomposition->getInverseEigenVectorsPtr(eigenIndex);
+    for (int i = 0; i < kStateCount; i++) {
+        REALTYPE rowSum = 0.0;
+        for (int j = 0; j < kStateCount; j++) {
+            rowSum += inverseEigenVectorsPtr[i * kStateCount + j];
+        }
+        gIvecRowSums[eigenIndex * kStateCount + i] = rowSum;
+        // fprintf(stderr, "EigenIndex= %d i= %d rowSum= %f\n", eigenIndex, i, rowSum);
+    }
+
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -186,12 +210,12 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         if (tipStates1 != NULL) {
             if (tipStates2 != NULL ) {
                 if (rescale == 0) { // Use fixed scaleFactors
-                    calcStatesStates<true>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                                           scalingFactors, startPattern, endPattern);
+                    calcStatesStates<WithScaling>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                                  scalingFactors, startPattern, endPattern);
                 } else {
                     // First compute without any scaling
-                    calcStatesStates<false>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                                            nullptr, startPattern, endPattern);
+                    calcStatesStates<NoScaling>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                                nullptr, startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -202,11 +226,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 }
             } else {
                 if (rescale == 0) {
-                    calcStatesPartials<true>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                             scalingFactors, startPattern, endPattern);
+                    calcStatesPartials<WithScaling>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                    scalingFactors, startPattern, endPattern);
                 } else {
-                    calcStatesPartials<false>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                              nullptr, startPattern, endPattern);
+                    calcStatesPartials<NoScaling>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                  nullptr, startPattern, endPattern);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -219,11 +243,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         } else {
             if (tipStates2 != NULL) {
                 if (rescale == 0) {
-                    calcStatesPartials<true>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
-                                             scalingFactors, startPattern, endPattern);
+                    calcStatesPartials<WithScaling>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                                    scalingFactors, startPattern, endPattern);
                 } else {
-                    calcStatesPartials<false>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
-                                              nullptr, startPattern, endPattern);
+                    calcStatesPartials<NoScaling>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                                  nullptr, startPattern, endPattern);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -244,11 +268,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     }
 
                 } else if (rescale == 0) {
-                    calcPartialsPartials<true>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                               scalingFactors, startPattern, endPattern, true);
+                    calcPartialsPartials<WithScaling>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                      scalingFactors, startPattern, endPattern, true);
                 } else {
-                    calcPartialsPartials<false>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                                nullptr, startPattern, endPattern, true);
+                    calcPartialsPartials<NoScaling>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                    nullptr, startPattern, endPattern, true);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -342,7 +366,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
 #define MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(out, mat, vec, scale) \
     MATRIX_VECTOR(out[i] = sum1 * sum2 * scale, mat, vec)
 
-BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
+BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
         REALTYPE *destPartials,
         const REALTYPE *partials1,
@@ -361,7 +385,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
 
-    const int matrixIncr = kStateCount;
+    const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -426,7 +450,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                 }
             }
 
-            if constexpr (useScaleFactors) {
+            if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
                 MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
             } else {
@@ -440,7 +464,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     }
 }
 
-BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
+BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
         REALTYPE* destPartials,
         const int* states1,
@@ -456,7 +480,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
 
-    const int matrixIncr = kStateCount;
+    const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -473,18 +497,17 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
             const int state1 = states1[k];
 
-            if (state1 >= kStateCount) {
-                fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
-                exit(-1);
-            }
-
             for (int i = 0; i < kStateCount; i++) {
 
                 FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
                     // Both real
-                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    if (states1[k] < kStateCount) {
+                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    } else {
+                        gPartialTmp1[i] = expat1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
+                    }
 
                     REALTYPE sum2 = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
@@ -502,11 +525,19 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
                     FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
 
-                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                 expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+                    if (state1 < kStateCount) {
+                        gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                     expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
 
-                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+                        gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    } else {
+                        gPartialTmp1[i] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i] +
+                                 expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2];
+
+                        gPartialTmp1[i2] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2] -
+                                    expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
+                    }
 
                     REALTYPE sum2A = 0.0, sum2B = 0.0;
                     for (int j = 0; j < kStateCount; j++) {
@@ -524,7 +555,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
                 }
             }
 
-            if constexpr (useScaleFactors) {
+            if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
                 MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
             } else {
@@ -538,7 +569,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 }
 
 
-BEAGLE_CPU_TEMPLATE template <bool useScaleFactors>
+BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
     REALTYPE* destPartials,
     const int* states1,
@@ -554,7 +585,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
 
-    const int matrixIncr = kStateCount; // TODO: handle missing state case (T_PAD?)
+    const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
 #pragma omp parallel for num_threads(kCategoryCount)
@@ -571,10 +602,10 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
             const int state1 = states1[k];
             const int state2 = states2[k];
 
-            if (state1 >= kStateCount || state2 >= kStateCount) {
-                fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
-                exit(-1);
-            }
+            // if (state1 >= kStateCount || state2 >= kStateCount) {
+            //     fprintf(stderr, "Error: Missing state handling is not yet implemented in calcStatesStates for spectral representation\n");
+            //     exit(-1);
+            // }
 
             for (int i = 0; i < kStateCount; i++) {
 
@@ -582,8 +613,17 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
 
                 if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
                     // Both real eigenvalues
-                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
+                    if (state1 < kStateCount) {
+                        gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    } else {
+                        gPartialTmp1[i] = expat1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
+                    }
+
+                    if (state2 < kStateCount) {
+                        gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
+                    } else {
+                        gPartialTmp2[i] = expat2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i];
+                    }
                 } else {
                     // At least one complex conjugate pair
                     //
@@ -593,23 +633,37 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
 
                     FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
 
-                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                 expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
+                    if (state1 < kStateCount) {
+                        gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
+                                     expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
 
-                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+                        gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
+                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
+                    } else {
+                        gPartialTmp1[i] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i] +
+                                 expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2];
+                        gPartialTmp1[i2] = expatcosbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i2] -
+                                    expatsinbt1 * gIvecRowSums[info_1.eigenIndex * kStateCount + i];
+                    }
 
-                    gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
-                                expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
+                    if (state2 < kStateCount) {
+                        gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
+                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
 
-                    gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
-                                expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
+                        gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
+                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
+                    } else {
+                        gPartialTmp2[i] = expatcosbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i] +
+                                expatsinbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i2];
+                        gPartialTmp2[i2] = expatcosbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i2] -
+                                    expatsinbt2 * gIvecRowSums[info_2.eigenIndex * kStateCount + i];
+                    }
 
                     i++; // processed two conjugate rows
                 }
             }
 
-            if constexpr (useScaleFactors) {
+            if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
                 MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(destPtr, eigenVectors, gPartialTmp, oneOverScaleFactor);
             } else {
@@ -632,6 +686,19 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE
 
     fprintf(stderr, "calcPrePartialsPartials is not yet implemented for spectral representation\n");
     exit(-1);
+}
+
+BEAGLE_CPU_TEMPLATE
+EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createEigenDecomposition(
+        int decompositionCount,
+        int stateCount,
+        int categoryCount,
+        long flags) {
+
+    return new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
+        decompositionCount, stateCount, categoryCount, flags);
+        // return new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(
+        // decompositionCount, stateCount, categoryCount, flags);
 }
 
 BEAGLE_CPU_TEMPLATE

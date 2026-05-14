@@ -41,6 +41,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTransitionMatrices;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPatternCount;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kEigenDecompCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kMatrixSize;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPaddedPatternCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kTransPaddedStateCount;
@@ -91,6 +92,18 @@ namespace beagle {
                               long preferenceFlags,
                               long requirementFlags);
 
+            int setEigenDecomposition(int eigenIndex,
+                                      const double* inEigenVectors,
+                                      const double* inInverseEigenVectors,
+                                      const double* inEigenValues);
+
+        protected:
+            virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
+                    int decompositionCount,
+                    int stateCount,
+                    int categoryCount,
+                    long flags);
+
         private:
             struct BranchEigenInfo {
                 REALTYPE branchLength;
@@ -101,6 +114,8 @@ namespace beagle {
 
             std::vector<REALTYPE> gPartialTmp1;
             std::vector<REALTYPE> gPartialTmp2;
+
+            std::vector<REALTYPE> gIvecRowSums;
 
         protected:
             int updateTransitionMatrices(int eigenIndex,
@@ -116,7 +131,7 @@ namespace beagle {
                                    int cumulativeScalingIndex,
                                    BeaglePartialsType partialsType);
 
-            template <bool useScaleFactors>
+            template <typename T>
             void calcPartialsPartials(REALTYPE *destPartials,
                                       const REALTYPE *partials1,
                                       const int branchEigenIndex1,
@@ -127,7 +142,7 @@ namespace beagle {
                                       int endPattern,
                                       bool isComplex);
 
-            template <bool useScaleFactors>
+            template <typename T>
             void calcStatesStates(REALTYPE *destP,
                                   const int *states1,
                                   const int branchEigenIndex1,
@@ -137,7 +152,7 @@ namespace beagle {
                                   int startPattern,
                                   int endPattern);
 
-            template <bool useScaleFactors>
+            template <typename T>
             void calcStatesPartials(REALTYPE *destP,
                                     const int *states1,
                                     const int branchEigenIndex1,
@@ -186,6 +201,15 @@ namespace beagle {
 
             virtual const char *getName();
             virtual const long getFlags();
+        };
+
+
+        struct NoScaling {
+            static constexpr bool useScaleFactors = false;
+        };
+
+        struct WithScaling {
+            static constexpr bool useScaleFactors = true;
         };
 
     } // namespace cpu

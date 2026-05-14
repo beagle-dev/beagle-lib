@@ -76,7 +76,7 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionSquare() 
 	free(gEigenValues);
 	free(matrixTmp);
 }
-    
+
 /**
  * @brief Transposes a square matrix in place
  */
@@ -97,7 +97,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(i
 										             const double* inEigenVectors,
                                                      const double* inInverseEigenVectors,
                                                      const double* inEigenValues) {
-    
+
 	beagleMemCpy(gEigenValues[eigenIndex],inEigenValues,kEigenValuesSize);
 	const int len = kStateCount * kStateCount;
 	beagleMemCpy(gEMatrices[eigenIndex],inEigenVectors,len);
@@ -169,10 +169,10 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
                         transitionMat[n] = 0;
                     n++;
                 }
-if (T_PAD != 0) {
-                transitionMat[n] = 1.0;
-                n += T_PAD;
-}
+                if (T_PAD != 0) {
+                    transitionMat[n] = 1.0;
+                    n += T_PAD;
+                }
             }
         }
 
@@ -187,7 +187,7 @@ if (T_PAD != 0) {
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenValuesPtr(int eigenIndex) const {
-    return gEigenValues[eigenIndex];               
+    return gEigenValues[eigenIndex];
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
@@ -281,5 +281,5 @@ if (T_PAD != 0) {
 }
 }
 
-#endif 
+#endif
 
