@@ -186,6 +186,18 @@ const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getInverse
     return inverseEigenVectorsStorage[eigenIndex].data();
 }
 
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenVectorsPtr(
+        int eigenIndex) const {
+    return transposedEigenVectorsStorage[eigenIndex].data();
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsInverseEigenVectorsPtr(
+        int eigenIndex) const {
+    return transposedInverseEigenVectorsStorage[eigenIndex].data();
+}
+
 } // namespace cpu
 } // namespace beagle
 

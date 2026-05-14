@@ -72,6 +72,10 @@ public:
 
     virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;
 
+    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const;
+
+    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const;
+
 private:
     void rescale(REALTYPE* rowVectors, const REALTYPE* eval, REALTYPE scalar);
 

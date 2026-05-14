@@ -347,11 +347,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
 
         const int *tipStates2 = gTipStates[siblingIndex];
 
-        // const REALTYPE *matrices1 = (parentTransMatIndex >= 0) ? gTransitionMatrices[parentTransMatIndex] : NULL;
-        // const REALTYPE *matrices2 = gTransitionMatrices[siblingTransMatIndex];
-
         const int branchEigenIndex1 = parentTransMatIndex;
-        const int branchEigenIndex2 = siblingIndex;
+        const int branchEigenIndex2 = siblingTransMatIndex;
 
         REALTYPE *destPartials = gPartials[parIndex];
 
@@ -361,8 +358,6 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             startPattern = gPatternPartitionsStartPatterns[currentPartition];
             endPattern = gPatternPartitionsStartPatterns[currentPartition + 1];
         }
-
-        int rescale = BEAGLE_OP_NONE;
 
         if (tipStates2 != NULL) {
             if constexpr (std::is_same_v<T, Top>) {
