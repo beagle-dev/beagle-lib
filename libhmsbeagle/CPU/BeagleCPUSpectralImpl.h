@@ -167,52 +167,41 @@ namespace beagle {
                                     int startPattern,
                                     int endPattern);
 
-            // template <typename T>
-            // void calcPrePartialsPartialsTop(REALTYPE *destP,
-            //                                      const REALTYPE *partialsParent,
-            //                                      const REALTYPE *matricesSelf,
-            //                                      const REALTYPE *partialsSibling,
-            //                                      const REALTYPE *matricesSibling,
-            //                                      int startPattern,
-            //                                      int endPattern);
+            template <typename T>
+            void calcPrePartialsPartials(REALTYPE *destP,
+                                         const REALTYPE *partialsParent,
+                                         const int branchEigenIndex1,
+                                         const REALTYPE *partials2,
+                                         const int branchEigenIndex2,
+                                         int startPattern,
+                                         int endPattern);
 
+            template <typename T>
+            void calcPrePartialsStates(REALTYPE *destP,
+                                       const REALTYPE *partials1,
+                                       const int branchEigenIndex1,
+                                       const int *states2,
+                                       const int branchEigenIndex2,
+                                       int startPattern,
+                                       int endPattern);
 
+            template <typename T>
+            void calcPrePartialsPartialsRoot(REALTYPE *destP,
+                                             const REALTYPE *partialsParent,
+                                             const int branchEigenIndexSelf,
+                                             const REALTYPE *partialsSibling,
+                                             const int branchEigenIndexSibling,
+                                             int startPattern,
+                                             int endPattern);
 
-        //     virtual void calcPrePartialsStates(REALTYPE *destP,
-        //                                        const REALTYPE *partials1,
-        //                                        const REALTYPE *matrices1,
-        //                                        const int *states2,
-        //                                        const REALTYPE *matrices2,
-        //                                        int startPattern,
-        //                                        int endPattern);
-
-            struct Top {
-                void calcPrePartialsPartials(REALTYPE *destP,
-                                                    const REALTYPE *partialsParent,
-                                                    const int branchEigenIndexSelf,
-                                                    const REALTYPE *partialsSibling,
-                                                    const int branchEigenIndexSibling,
-                                                    int startPattern,
-                                                    int endPattern);
-            };
-
-                                    // const int *states1,
-                                    // const int branchEigenIndex1,
-                                    // const REALTYPE *partials2,
-                                    // const int branchEigenIndex2,
-                                    // const REALTYPE* scaleFactors,
-                                    // int startPattern,
-                                    // int endPattern);            
-
-            struct Bottom {
-              void calcPrePartialsPartials(REALTYPE *destP,
-                                                    const REALTYPE *partialsParent,
-                                                    const int branchEigenIndexSelf,
-                                                    const REALTYPE *partialsSibling,
-                                                    const int branchEigenIndexSibling,
-                                                    int startPattern,
-                                                    int endPattern);
-            };
+            template <typename T>
+            void calcPrePartialsStatesRoot(REALTYPE *destP,
+                                           const REALTYPE *partials1,
+                                           const int branchEigenIndex1,
+                                           const int *states2,
+                                           const int branchEigenIndex2,
+                                           int startPattern,
+                                           int endPattern);
         };
 
         BEAGLE_CPU_FACTORY_TEMPLATE
@@ -238,6 +227,8 @@ namespace beagle {
             virtual const long getFlags();
         };
 
+            struct Top {};
+            struct Bottom {};
         struct NoScaling {
             static constexpr bool useScaleFactors = false;
         };
