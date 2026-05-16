@@ -413,19 +413,41 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
     const double* cr##1 = gCategoryRates[ifo##_1.categoryRatesIndex]; \
     const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
 
-#define FORM_EXPAT(et, evr, sbl) \
-    const REALTYPE et##1 = std::exp(evr##1[i] * sbl##1); \
-    const REALTYPE et##2 = std::exp(evr##2[i] * sbl##2);
-
-#define FORM_EXPAT_COS_SIN(et, evi, sbl) \
-    int i2 = i + 1; \
-    const REALTYPE b1 = evi##1[i]; \
-    const REALTYPE et##cosbt1 = et##1 * std::cos(sbl##1 * b1); \
-    const REALTYPE et##sinbt1 = et##1 * std::sin(sbl##1 * b1); \
+#define INIT_TRANSPOSE1(ifo,evr,evi,evec,ievc,bl,cr) \
+    const BranchEigenInfo& ifo##_1 = gBranchEigenInfo[branchEigenIndex1]; \
+    const BranchEigenInfo& ifo##_2 = gBranchEigenInfo[branchEigenIndex2]; \
     \
-    const REALTYPE b2 = evi##2[i]; \
-    const REALTYPE et##cosbt2 = et##2 * std::cos(sbl##2 * b2); \
-    const REALTYPE et##sinbt2 = et##2 * std::sin(sbl##2 * b2);
+    const REALTYPE* evr##1 = gEigenDecomposition->getEigenValuesPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* evr##2 = gEigenDecomposition->getEigenValuesPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* evi##1 = evr##1 + kStateCount; \
+    const REALTYPE* evi##2 = evr##2 + kStateCount; \
+    \
+    const REALTYPE* evec##1 = gEigenDecomposition->getBackwardsEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* evec##2 = gEigenDecomposition->getEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* ievc##1 = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* ievc##2 = gEigenDecomposition->getInverseEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE bl##1 = ifo##_1.branchLength; \
+    const REALTYPE bl##2 = ifo##_2.branchLength; \
+    \
+    const double* cr##1 = gCategoryRates[ifo##_1.categoryRatesIndex]; \
+    const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
+
+// #define FORM_EXPAT(et, evr, sbl) \
+//     const REALTYPE et##1 = std::exp(evr##1[i] * sbl##1); \
+//     const REALTYPE et##2 = std::exp(evr##2[i] * sbl##2);
+
+// #define FORM_EXPAT_COS_SIN(et, evi, sbl) \
+//     int i2 = i + 1; \
+//     const REALTYPE b1 = evi##1[i]; \
+//     const REALTYPE et##cosbt1 = et##1 * std::cos(sbl##1 * b1); \
+//     const REALTYPE et##sinbt1 = et##1 * std::sin(sbl##1 * b1); \
+//     \
+//     const REALTYPE b2 = evi##2[i]; \
+//     const REALTYPE et##cosbt2 = et##2 * std::cos(sbl##2 * b2); \
+//     const REALTYPE et##sinbt2 = et##2 * std::sin(sbl##2 * b2);
 
 #define MATRIX_VECTOR(output, mat, vec) \
     for (int i = 0; i < kStateCount; i++) { \
@@ -437,11 +459,160 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
         output; \
     }
 
+#define MATRIX_VECTOR_SINGLE(output, mat, vec, sum) \
+    for (int i = 0; i < kStateCount; i++) { \
+        REALTYPE sum = 0.0; \
+        for (int j = 0; j < kStateCount; j++) { \
+            sum += mat[i * matrixIncr + j] * vec[j]; \
+        } \
+        output; \
+    }
+
 #define MATRIX_VECTOR_HADAMARD_PRODUCT(out, mat, vec) \
     MATRIX_VECTOR(out[i] = sum1 * sum2, mat, vec)
 
 #define MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(out, mat, vec, scale) \
     MATRIX_VECTOR(out[i] = sum1 * sum2 * scale, mat, vec)
+
+BEAGLE_CPU_TEMPLATE template <typename First, typename Second>
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple(
+        REALTYPE* out1, REALTYPE* out2,
+        const REALTYPE* partials1, const int state1,
+            const REALTYPE* real1, 
+            const REALTYPE* imag1,           
+            const REALTYPE* matrix1, 
+            const REALTYPE time1,
+        const REALTYPE* partials2, const int state2,
+            const REALTYPE* real2, 
+            const REALTYPE* imag2,            
+            const REALTYPE* matrix2,             
+            const REALTYPE time2,
+        // REALTYPE* temp1, REALTYPE* temp2,
+            const int matrixIncr) {
+
+    if constexpr (
+        !(std::is_same_v<First,  None> || std::is_same_v<First,  States> || std::is_same_v<First,  Partials>) ||
+        !(std::is_same_v<Second, None> || std::is_same_v<Second, States> || std::is_same_v<Second, Partials>)
+        ) {
+        static_assert(always_false<First>::value, "Unsupported type T");
+    }
+
+    for (int i = 0; i < kStateCount; i++) {
+
+        REALTYPE expat1;
+        REALTYPE expat2;
+        if constexpr (!std::is_same_v<First, None>) {
+            expat1 = std::exp(real1[i] * time1);
+        }
+        if constexpr (!std::is_same_v<Second, None>) {
+            expat2 = std::exp(real2[i] * time2);        
+        }
+
+        if ((std::is_same_v<First,  None> || imag1[i] == 0.0) &&
+            (std::is_same_v<Second, None> || imag2[i] == 0.0)) {
+            // All real
+            REALTYPE sum1, sum2;
+            if constexpr (std::is_same_v<First, States>) {
+                sum1 = matrix1[i * matrixIncr + state1];
+            } else if constexpr (std::is_same_v<First, Partials>) {
+                sum1 = 0.0;
+            }
+
+            if constexpr (std::is_same_v<Second, States>) {
+                sum2 = matrix2[i * matrixIncr + state2];
+            } else if constexpr (std::is_same_v<Second, Partials>) {
+                sum2 = 0.0;
+            }            
+        
+            for (int j = 0; j < kStateCount; j++) {
+                if constexpr (std::is_same_v<First, Partials>) {
+                    sum1 += matrix1[i * matrixIncr + j] * partials1[j];
+                }
+                if constexpr (std::is_same_v<Second, Partials>) {
+                    sum2 += matrix2[i * matrixIncr + j] * partials2[j];
+                }
+            }
+
+            if constexpr (!std::is_same_v<First, None>) {
+                out1[i] = expat1 * sum1;
+            }
+            if constexpr (!std::is_same_v<Second, None>) {
+                out2[i] = expat2 * sum2;
+            }
+
+        } else {
+            // At least one complex conjugate pair
+            //
+            // 2x2 conjugate block
+            // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
+            // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
+            int i2 = i + 1;            
+            REALTYPE expatcosbt1, expatcosbt2;
+            REALTYPE expatsinbt1, expatsinbt2;
+
+            if constexpr (!std::is_same_v<First, None>) {
+                expatcosbt1 = expat1 * std::cos(time1 * imag1[i]);
+                expatsinbt1 = expat1 * std::sin(time1 * imag1[i]);
+            }
+
+            if constexpr (!std::is_same_v<Second, None>) {
+                expatcosbt2 = expat2 * std::cos(time2 * imag2[i]);
+                expatsinbt2 = expat2 * std::sin(time2 * imag2[i]);
+            }
+
+            REALTYPE sum1A, sum1B, sum2A, sum2B;
+            if constexpr (std::is_same_v<First, States>) {                
+                sum1A = expatcosbt1 * matrix1[i * matrixIncr + state1] +
+                            expatsinbt1 * matrix1[i2 * matrixIncr + state1];
+
+                sum1B = expatcosbt1 * matrix1[i2 * matrixIncr + state1] -
+                            expatsinbt1 * matrix1[i * matrixIncr + state1];
+            } else if constexpr (std::is_same_v<First, Partials>) {
+                sum1A = 0.0; sum1B = 0.0;
+            }
+
+            if constexpr (std::is_same_v<Second, States>) {                
+                sum2A = expatcosbt2 * matrix2[i * matrixIncr + state2] +
+                            expatsinbt2 * matrix2[i2 * matrixIncr + state2];
+
+                sum2B = expatcosbt2 * matrix2[i2 * matrixIncr + state2] -
+                            expatsinbt2 * matrix2[i * matrixIncr + state2];
+            } else if constexpr (std::is_same_v<Second, Partials>) {
+                sum2A = 0.0; sum2B = 0.0;
+            }            
+
+            for (int j = 0; j < kStateCount; j++) {
+                if constexpr (std::is_same_v<First, Partials>) {
+                    sum1A += (expatcosbt1 * matrix1[i * matrixIncr + j] +
+                                expatsinbt1 * matrix1[i2 * matrixIncr + j]) * partials1[j];                
+
+                    sum1B += (expatcosbt1 * matrix1[i2 * matrixIncr + j] -
+                                expatsinbt1 * matrix1[i * matrixIncr + j]) * partials1[j];
+                }
+
+                if constexpr (std::is_same_v<Second, Partials>) {
+                    sum2A += (expatcosbt2 * matrix2[i * matrixIncr + j] +
+                                expatsinbt2 * matrix2[i2 * matrixIncr + j]) * partials2[j];
+
+                    sum2B += (expatcosbt2 * matrix2[i2 * matrixIncr + j] -
+                                expatsinbt2 * matrix2[i * matrixIncr + j]) * partials2[j];
+                }
+            }
+
+            if constexpr (!std::is_same_v<First, None>) {
+                out1[i] = sum1A;
+                out1[i2] = sum1B;
+            }
+
+            if constexpr (!std::is_same_v<Second, None>) {
+                out2[i] = sum2A;
+                out2[i2] = sum2B;
+            }
+
+            i++; // processed two conjugate rows
+        }
+    }    
+}
 
 BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
@@ -465,7 +636,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
-#pragma omp parallel for num_threads(kCategoryCount)
+    #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
@@ -478,54 +649,13 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
 
         for (int k = startPattern; k < endPattern; k++) {
 
-            for (int i = 0; i < kStateCount; i++) {
-
-                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
-
-                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
-                    // Both real
-                    REALTYPE sum1 = 0.0, sum2 = 0.0;
-                    for (int j = 0; j < kStateCount; j++) {
-                        sum1 += inverseEigenVectors1[i * matrixIncr + j] * partials1Ptr[j];
-                        sum2 += inverseEigenVectors2[i * matrixIncr + j] * partials2Ptr[j];
-                    }
-
-                    gPartialTmp1[i] = expat1 * sum1;
-                    gPartialTmp2[i] = expat2 * sum2;
-
-                } else {
-                    // At least one complex conjugate pair
-                    //
-                    // 2x2 conjugate block
-                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
-                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
-
-                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
-
-                    REALTYPE sum1A = 0.0, sum1B = 0.0, sum2A = 0.0, sum2B = 0.0;
-                    for (int j = 0; j < kStateCount; j++) {
-                        sum1A += (expatcosbt1 * inverseEigenVectors1[i * matrixIncr + j] +
-                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + j]) * partials1Ptr[j];
-
-                        sum1B += (expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + j] -
-                                    expatsinbt1 * inverseEigenVectors1[i * matrixIncr + j]) * partials1Ptr[j];
-
-                        sum2A += (expatcosbt2 * inverseEigenVectors2[i * matrixIncr + j] +
-                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + j]) * partials2Ptr[j];
-
-                        sum2B += (expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + j] -
-                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];
-                    }
-
-                    gPartialTmp1[i] = sum1A;
-                    gPartialTmp1[i2] = sum1B;
-
-                    gPartialTmp2[i] = sum2A;
-                    gPartialTmp2[i2] = sum2B;
-
-                    i++; // processed two conjugate rows
-                }
-            }
+            expScaledMatrixVectorMultiple<Partials,Partials>(
+                gPartialTmp1.data(), gPartialTmp2.data(), 
+                partials1Ptr, 0, eigenValuesReal1, eigenValuesImag1,
+                inverseEigenVectors1, scaledBranchLength1,
+                partials2Ptr, 0, eigenValuesReal2, eigenValuesImag2,
+                inverseEigenVectors2, scaledBranchLength2,                    
+                matrixIncr);          
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -574,51 +704,13 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
             const int state1 = states1[k];
 
-            for (int i = 0; i < kStateCount; i++) {
-
-                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
-
-                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
-                    // Both real
-                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-
-                    REALTYPE sum2 = 0.0;
-                    for (int j = 0; j < kStateCount; j++) {
-                        sum2 += inverseEigenVectors2[i * matrixIncr + j] * partials2Ptr[j];
-                    }
-
-                    gPartialTmp2[i] = expat2 * sum2;
-
-                } else {
-                    // At least one complex conjugate pair
-                    //
-                    // 2x2 conjugate block
-                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
-                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
-
-                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
-
-                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
-
-                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
-
-                    REALTYPE sum2A = 0.0, sum2B = 0.0;
-                    for (int j = 0; j < kStateCount; j++) {
-                        sum2A += (expatcosbt2 * inverseEigenVectors2[i * matrixIncr + j] +
-                                    expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + j]) * partials2Ptr[j];
-
-                        sum2B += (expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + j] -
-                                    expatsinbt2 * inverseEigenVectors2[i * matrixIncr + j]) * partials2Ptr[j];
-                    }
-
-                    gPartialTmp2[i] = sum2A;
-                    gPartialTmp2[i2] = sum2B;
-
-                    i++; // processed two conjugate rows
-                }
-            }
+            expScaledMatrixVectorMultiple<States,Partials>(
+                gPartialTmp1.data(), gPartialTmp2.data(), 
+                nullptr, state1, eigenValuesReal1, eigenValuesImag1,
+                inverseEigenVectors1, scaledBranchLength1,
+                partials2Ptr, 0, eigenValuesReal2, eigenValuesImag2,
+                inverseEigenVectors2, scaledBranchLength2,                    
+                matrixIncr);                
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -667,37 +759,13 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
             const int state1 = states1[k];
             const int state2 = states2[k];
 
-            for (int i = 0; i < kStateCount; i++) {
-
-                FORM_EXPAT(expat, eigenValuesReal, scaledBranchLength);
-
-                if (eigenValuesImag1[i] == 0.0 && eigenValuesImag2[i] == 0.0) {
-                    // Both real eigenvalues
-                    gPartialTmp1[i] = expat1 * inverseEigenVectors1[i * matrixIncr + state1];
-                    gPartialTmp2[i] = expat2 * inverseEigenVectors2[i * matrixIncr + state2];
-
-                } else {
-                    // At least one complex conjugate pair
-                    //
-                    // 2x2 conjugate block
-                    // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
-                    // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
-
-                    FORM_EXPAT_COS_SIN(expat, eigenValuesImag, scaledBranchLength);
-
-                    gPartialTmp1[i] = expatcosbt1 * inverseEigenVectors1[i * matrixIncr + state1] +
-                                    expatsinbt1 * inverseEigenVectors1[i2 * matrixIncr + state1];
-                    gPartialTmp1[i2] = expatcosbt1 * inverseEigenVectors1[i2 * matrixIncr + state1] -
-                                expatsinbt1 * inverseEigenVectors1[i * matrixIncr + state1];
-
-                    gPartialTmp2[i] = expatcosbt2 * inverseEigenVectors2[i * matrixIncr + state2] +
-                                expatsinbt2 * inverseEigenVectors2[i2 * matrixIncr + state2];
-                    gPartialTmp2[i2] = expatcosbt2 * inverseEigenVectors2[i2 * matrixIncr + state2] -
-                                expatsinbt2 * inverseEigenVectors2[i * matrixIncr + state2];
-
-                    i++; // processed two conjugate rows
-                }
-            }
+            expScaledMatrixVectorMultiple<States,States>(
+                gPartialTmp1.data(), gPartialTmp2.data(), 
+                nullptr, state1, eigenValuesReal1, eigenValuesImag1,
+                inverseEigenVectors1, scaledBranchLength1,
+                nullptr, state2, eigenValuesReal2, eigenValuesImag2,
+                inverseEigenVectors2, scaledBranchLength2,                    
+                matrixIncr);                 
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -713,7 +781,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
 
 BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
-            REALTYPE *destP,
+            REALTYPE *destPartials,
             const REALTYPE *partials1,
             const int branchEigenIndex1,
             const REALTYPE *partials2,
@@ -721,15 +789,68 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
             int startPattern,
             int endPattern) {
 
-    if constexpr (std::is_same_v<T, Bottom>) {
-        fprintf(stderr, "calcPrePartialsPartialsTop is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else if constexpr (std::is_same_v<T, Top>) {
-        fprintf(stderr, "calcPrePartialsPartialsBottom is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else {
-        static_assert(!sizeof(T), "calcPrePartialsPartials called with unknown type");
-    }
+    INIT_TRANSPOSE1(info,
+        eigenValuesReal, eigenValuesImag,
+        eigenVectors, inverseEigenVectors,
+        branchLength, categoryRate);
+
+    const int matrixIncr = kStateCount + T_PAD;
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+    #pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
+        const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
+
+        const REALTYPE* partials1Ptr = &partials1[v];
+        const REALTYPE* partials2Ptr = &partials2[v];
+        REALTYPE* destPtr = &destPartials[v];
+
+        REALTYPE* intermediate = gPartialTmp2.data();
+        REALTYPE* parent = gPartialTmp1.data(); 
+
+        for (int k = startPattern; k < endPattern; k++) {                
+
+            if constexpr (std::is_same_v<T, Bottom>) {
+
+                // first step
+                expScaledMatrixVectorMultiple<Partials,None>(
+                    intermediate, nullptr, 
+                    partials2Ptr, 0, eigenValuesReal2, eigenValuesImag2,
+                    inverseEigenVectors2, scaledBranchLength2,
+                    nullptr, 0, nullptr, nullptr,
+                    nullptr, 0.0,                    
+                    matrixIncr);
+
+                MATRIX_VECTOR_SINGLE(parent[i] = sum2 * partials1Ptr[i], // fused Hadamard product
+                    eigenVectors2, intermediate, sum2)
+
+                // second step
+                expScaledMatrixVectorMultiple<Partials,None>(
+                    intermediate, nullptr,
+                    parent, 0, eigenValuesReal1, eigenValuesImag1,
+                    inverseEigenVectors1, scaledBranchLength1,
+                    nullptr, 0, nullptr, nullptr,
+                    nullptr, 0.0,
+                    matrixIncr);
+
+                MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
+                
+            } else if constexpr (std::is_same_v<T, Top>) {        
+                fprintf(stderr, "calcPrePartialsPartialsTop is not yet implemented for spectral representation\n");
+                exit(-1);
+            } else {
+                static_assert(!sizeof(T), "calcPrePartialsPartials called with unknown type");
+            }
+
+            // end
+            destPtr += kPartialsPaddedStateCount;
+            partials1Ptr += kPartialsPaddedStateCount;
+            partials2Ptr += kPartialsPaddedStateCount;
+        }
+    }            
 }
 
 BEAGLE_CPU_TEMPLATE template <typename T>
@@ -742,20 +863,20 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsRoot(
             int startPattern,
             int endPattern) {
 
-    if constexpr (std::is_same_v<T, Bottom>) {
-        fprintf(stderr, "calcPrePartialsPartialsRootTop is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else if constexpr (std::is_same_v<T, Top>) {
-        fprintf(stderr, "calcPrePartialsPartialsRootBottom is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else {
-        static_assert(!sizeof(T), "calcPrePartialsPartialsRoot called with unknown type");
-    }
+            if constexpr (std::is_same_v<T, Bottom>) {
+                fprintf(stderr, "calcPrePartialsPartialsRootTop is not yet implemented for spectral representation\n");
+                exit(-1);
+            } else if constexpr (std::is_same_v<T, Top>) {
+                fprintf(stderr, "calcPrePartialsPartialsRootBottom is not yet implemented for spectral representation\n");
+                exit(-1);
+            } else {
+                static_assert(!sizeof(T), "calcPrePartialsPartialsRoot called with unknown type");
+            }
 }
 
 BEAGLE_CPU_TEMPLATE template <typename T>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
-            REALTYPE *destP,
+            REALTYPE *destPartials,
             const REALTYPE *partials1,
             const int branchEigenIndex1,
             const int *states2,
@@ -763,14 +884,67 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
             int startPattern,
             int endPattern) {
 
-    if constexpr (std::is_same_v<T, Bottom>) {
-        fprintf(stderr, "calcPrePartialsStatesTop is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else if constexpr (std::is_same_v<T, Top>) {
-        fprintf(stderr, "calcPrePartialsStatesBottom is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else {
-        static_assert(!sizeof(T), "calcPrePartialsStates called with unknown type");
+    INIT_TRANSPOSE1(info,
+        eigenValuesReal, eigenValuesImag,
+        eigenVectors, inverseEigenVectors,
+        branchLength, categoryRate);
+
+    const int matrixIncr = kStateCount + T_PAD;
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+    #pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
+        const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
+
+        const REALTYPE* partials1Ptr = &partials1[v];        
+        REALTYPE* destPtr = &destPartials[v];
+
+        REALTYPE* intermediate = gPartialTmp2.data();
+        REALTYPE* parent = gPartialTmp1.data(); 
+
+        for (int k = startPattern; k < endPattern; k++) {  
+
+            const int state2 = states2[k];                 
+
+            if constexpr (std::is_same_v<T, Bottom>) {
+                
+                // first step
+                expScaledMatrixVectorMultiple<States,None>(
+                    intermediate, nullptr, 
+                    nullptr, state2, eigenValuesReal2, eigenValuesImag2,
+                    inverseEigenVectors2, scaledBranchLength2,
+                    nullptr, 0, nullptr, nullptr,
+                    nullptr, 0.0,                    
+                    matrixIncr);
+
+                MATRIX_VECTOR_SINGLE(parent[i] = sum2 * partials1Ptr[i], // fused Hadamard product
+                    eigenVectors2, intermediate, sum2)
+
+                // second step
+                expScaledMatrixVectorMultiple<Partials,None>(
+                    intermediate, nullptr,
+                    parent, 0, eigenValuesReal1, eigenValuesImag1,
+                    inverseEigenVectors1, scaledBranchLength1,
+                    nullptr, 0, nullptr, nullptr,
+                    nullptr, 0.0,
+                    matrixIncr);
+
+                MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
+
+            } else if constexpr (std::is_same_v<T, Top>) {
+                fprintf(stderr, "calcPrePartialsStatesTop is not yet implemented for spectral representation\n");
+                exit(-1);
+            } else {
+                static_assert(!sizeof(T), "calcPrePartialsStates called with unknown type");
+            }
+
+            // end
+            destPtr += kPartialsPaddedStateCount;
+            partials1Ptr += kPartialsPaddedStateCount;       
+        }
     }
 }
 

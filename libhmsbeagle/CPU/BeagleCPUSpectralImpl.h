@@ -202,6 +202,21 @@ namespace beagle {
                                            const int branchEigenIndex2,
                                            int startPattern,
                                            int endPattern);
+           
+            template <typename First, typename Second>
+            void expScaledMatrixVectorMultiple(REALTYPE* outPartials1, REALTYPE* outPartials2,
+                                               const REALTYPE* inPartials1, const int state1,
+                                               const REALTYPE* eigenValuesReal1, 
+                                               const REALTYPE* eigenValuesImag1,            
+                                               const REALTYPE* inverseEigenVectors1,             
+                                               const REALTYPE scaledBranchLength1,
+                                               const REALTYPE* inPartials2, const int state2,
+                                               const REALTYPE* eigenValuesReal2, 
+                                               const REALTYPE* eigenValuesImag2,             
+                                               const REALTYPE* inverseEigenVectors2,             
+                                               const REALTYPE scaledBranchLength2,
+                                               const int matrixIncr);
+
         };
 
         BEAGLE_CPU_FACTORY_TEMPLATE
@@ -226,6 +241,13 @@ namespace beagle {
             virtual const char *getName();
             virtual const long getFlags();
         };
+
+        template <typename T>
+        struct always_false : std::false_type {};
+
+        struct States {};
+        struct Partials {};
+        struct None {};
 
             struct Top {};
             struct Bottom {};

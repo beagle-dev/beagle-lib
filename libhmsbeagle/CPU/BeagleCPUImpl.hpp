@@ -4711,7 +4711,6 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
-
 }
 
 BEAGLE_CPU_TEMPLATE
