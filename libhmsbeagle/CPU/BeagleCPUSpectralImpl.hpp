@@ -362,27 +362,27 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
         if (tipStates2 != NULL) {
             if constexpr (std::is_same_v<T, Top>) {
                 if (branchEigenIndex1 < 0) { // Parent node is root
-                calcPrePartialsStatesRoot<T>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                    calcPrePartialsStates<T, Root>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
                                               startPattern, endPattern);
                 } else {
-                    calcPrePartialsStates<T>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                    calcPrePartialsStates<T, NotRoot>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
                         startPattern, endPattern);
                 }
-            } else {
-                calcPrePartialsStates<T>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+            } else { // T == Bottom
+                calcPrePartialsStates<T, NotUsed>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
                     startPattern, endPattern);
             }
         } else {
             if constexpr (std::is_same_v<T, Top>) {
                 if (branchEigenIndex1 < 0) { // Parent node is root
-                    calcPrePartialsPartialsRoot<T>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                    calcPrePartialsPartials<T, Root>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
                         startPattern, endPattern);
                 } else {
-                    calcPrePartialsPartials<T>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                    calcPrePartialsPartials<T, NotRoot>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
                         startPattern, endPattern);
                 }
-            } else {
-                calcPrePartialsPartials<T>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+            } else { // T == Bottom
+                calcPrePartialsPartials<T, NotUsed>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
                     startPattern, endPattern);
             }
         }
@@ -779,7 +779,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
     }
 }
 
-BEAGLE_CPU_TEMPLATE template <typename T>
+BEAGLE_CPU_TEMPLATE template <typename T, typename V>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
             REALTYPE *destPartials,
             const REALTYPE *partials1,
@@ -838,9 +838,34 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
 
                 MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
                 
-            } else if constexpr (std::is_same_v<T, Top>) {        
-                fprintf(stderr, "calcPrePartialsPartialsTop is not yet implemented for spectral representation\n");
-                exit(-1);
+            } else if constexpr (std::is_same_v<T, Top>) {   
+
+                if constexpr (std::is_same_v<V, Root>) {
+                                    
+                    expScaledMatrixVectorMultiple<Partials,None>(
+                        intermediate, nullptr, 
+                        partials2Ptr, 0, eigenValuesReal2, eigenValuesImag2,
+                        inverseEigenVectors2, scaledBranchLength2,
+                        nullptr, 0, nullptr, nullptr,
+                        nullptr, 0.0,                    
+                        matrixIncr);
+
+                    MATRIX_VECTOR_SINGLE(destPtr[i] = sum2 * partials1Ptr[i], // fused Hadamard product
+                        eigenVectors2, intermediate, sum2)                    
+                             
+                } else {
+
+                    expScaledMatrixVectorMultiple<Partials,Partials>(
+                        gPartialTmp1.data(), gPartialTmp2.data(), 
+                        partials1Ptr, 0, eigenValuesReal1, eigenValuesImag1,
+                        inverseEigenVectors1, scaledBranchLength1,
+                        partials2Ptr, 0, eigenValuesReal2, eigenValuesImag2,
+                        inverseEigenVectors2, scaledBranchLength2,                    
+                        matrixIncr);          
+
+                    MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);   
+
+                }             
             } else {
                 static_assert(!sizeof(T), "calcPrePartialsPartials called with unknown type");
             }
@@ -853,28 +878,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
     }            
 }
 
-BEAGLE_CPU_TEMPLATE template <typename T>
-void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsRoot(
-            REALTYPE *destP,
-            const REALTYPE *partials1,
-            const int branchEigenIndex1,
-            const REALTYPE *partials2,
-            const int branchEigenIndex2,
-            int startPattern,
-            int endPattern) {
-
-            if constexpr (std::is_same_v<T, Bottom>) {
-                fprintf(stderr, "calcPrePartialsPartialsRootTop is not yet implemented for spectral representation\n");
-                exit(-1);
-            } else if constexpr (std::is_same_v<T, Top>) {
-                fprintf(stderr, "calcPrePartialsPartialsRootBottom is not yet implemented for spectral representation\n");
-                exit(-1);
-            } else {
-                static_assert(!sizeof(T), "calcPrePartialsPartialsRoot called with unknown type");
-            }
-}
-
-BEAGLE_CPU_TEMPLATE template <typename T>
+BEAGLE_CPU_TEMPLATE template <typename T, typename V>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
             REALTYPE *destPartials,
             const REALTYPE *partials1,
@@ -935,8 +939,34 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                 MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
 
             } else if constexpr (std::is_same_v<T, Top>) {
-                fprintf(stderr, "calcPrePartialsStatesTop is not yet implemented for spectral representation\n");
-                exit(-1);
+
+                if constexpr (std::is_same_v<V, Root>) {                   
+
+                    expScaledMatrixVectorMultiple<States,None>(
+                        intermediate, nullptr, 
+                        nullptr, state2, eigenValuesReal2, eigenValuesImag2,
+                        inverseEigenVectors2, scaledBranchLength2,
+                        nullptr, 0, nullptr, nullptr,
+                        nullptr, 0.0,                    
+                        matrixIncr);
+
+                    MATRIX_VECTOR_SINGLE(destPtr[i] = sum2 * partials1Ptr[i], // fused Hadamard product
+                        eigenVectors2, intermediate, sum2)   
+
+                } else {                    
+
+                    expScaledMatrixVectorMultiple<Partials,States>(
+                        gPartialTmp1.data(), gPartialTmp2.data(), 
+                        partials1Ptr, 0, eigenValuesReal1, eigenValuesImag1,
+                        inverseEigenVectors1, scaledBranchLength1,
+                        nullptr, state2, eigenValuesReal2, eigenValuesImag2,
+                        inverseEigenVectors2, scaledBranchLength2,                    
+                        matrixIncr);                
+             
+                    MATRIX_VECTOR_HADAMARD_PRODUCT(destPtr, eigenVectors, gPartialTmp);
+                    
+                }  
+
             } else {
                 static_assert(!sizeof(T), "calcPrePartialsStates called with unknown type");
             }
@@ -945,27 +975,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;       
         }
-    }
-}
-
-BEAGLE_CPU_TEMPLATE template <typename T>
-void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesRoot(
-            REALTYPE *destP,
-            const REALTYPE *partials1,
-            const int branchEigenIndex1,
-            const int *states2,
-            const int branchEigenIndex2,
-            int startPattern,
-            int endPattern) {
-
-    if constexpr (std::is_same_v<T, Bottom>) {
-        fprintf(stderr, "calcPrePartialsStatesRootTop is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else if constexpr (std::is_same_v<T, Top>) {
-        fprintf(stderr, "calcPrePartialsStatesRootBottom is not yet implemented for spectral representation\n");
-        exit(-1);
-    } else {
-        static_assert(!sizeof(T), "calcPrePartialsRootStates called with unknown type");
     }
 }
 
@@ -978,8 +987,6 @@ EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* BeagleCPUSpectralImpl<BEAGLE_CPU_G
 
     return new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
         decompositionCount, stateCount, categoryCount, flags);
-        // return new EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>(
-        // decompositionCount, stateCount, categoryCount, flags);
 }
 
 BEAGLE_CPU_TEMPLATE
