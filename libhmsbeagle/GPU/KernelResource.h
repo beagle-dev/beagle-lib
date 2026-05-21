@@ -31,6 +31,8 @@ public:
         int inSumIntervalBlockSize,
         int inSumAcrossBlockSize,
         int inBlockPeelingSizeSCA,
+        int inSlabOpsPerBlock,
+        int inSpineT,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -52,6 +54,8 @@ public:
     int sumIntervalBlockSize;
     int sumAcrossBlockSize;
     int blockPeelingSizeSCA;
+    int slabOpsPerBlock;
+    int spineT;
     int blockPeelingSize;
     int isPowerOfTwo;
     int smallestPowerOfTwo;

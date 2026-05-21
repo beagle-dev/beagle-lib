@@ -107,14 +107,37 @@ private:
     GPUFunction fSumSites3;
 
 	GPUFunction fInnerBastaPartialsCoalescent;
-	GPUFunction fReduceWithinInterval;
-	GPUFunction fReduceWithinIntervalSerial;
+	GPUFunction fBastaPartialsGradMigrationAB;
+	GPUFunction fBastaReduceAcrossIntervalGrad;
 	GPUFunction fReduceWithinIntervalMerged;
+	GPUFunction fReduceWithinIntervalMergedSlab;
+	GPUFunction fReduceWithinIntervalGrad;
 	GPUFunction fReduceAcrossInterval;
-	GPUFunction fPreProcessBastaFlags;
-	GPUFunction fAccumulateCarryOut;
-	GPUFunction fAccumulateCarryOutFinal;
     GPUFunction fReorderPatterns;
+
+	GPUFunction fComputeHazardAdjoints;
+	GPUFunction fAdjointBastaPartials;
+	GPUFunction fTiledBatchGemmABt;
+	GPUFunction fTiledBatchGemmAtB;
+	GPUFunction fReduceMatrices;
+	GPUFunction fApplyComplexLoewnerInPlace;
+	GPUFunction fTiledSingleGemmAtB;
+	GPUFunction fTiledSingleGemmABt;
+	GPUFunction fAccumulateMatrixAdjoints;
+	GPUFunction fAccumulateMatrixAdjointsSlabEigen;
+
+
+	GPUFunction fProjectPartialsToEigenbasis;
+	GPUFunction fProjectHazardsToEigen;
+	GPUFunction fCoalescentSlab;
+
+	GPUFunction fAdjointBranchSlabLocal;
+	GPUFunction fAdjointBranchSlabSpine;
+	GPUFunction fAdjointBranchSlabSpineFixup;
+	GPUFunction fAdjointBranchSlabApply;
+
+	GPUFunction fForwardBranchSlab;
+	GPUFunction fForwardCoalescentSlab;
 
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
@@ -138,12 +161,25 @@ private:
 	Dim3Int bgCrossProductGrid;
 	Dim3Int bgBastaPeelingBlock;
 	Dim3Int bgBastaPeelingGrid;
+	Dim3Int bgBastaGradBlock;
+	Dim3Int bgBastaGradGrid;
 	Dim3Int bgBastaReductionBlock;
 	Dim3Int bgBastaReductionGrid;
 	Dim3Int bgBastaPreBlock;
 	Dim3Int bgBastaPreGrid;
 	Dim3Int bgBastaSumBlock;
 	Dim3Int bgBastaSumGrid;
+	Dim3Int bgAdjointBastaPeelingBlock;
+	Dim3Int bgAdjointBastaPeelingGrid;
+	Dim3Int bgHazardAdjointBlock;
+	Dim3Int bgEigenTileBlock;
+	Dim3Int bgReduceBlock;
+	Dim3Int bgCoalescentSlabBlock;
+	Dim3Int bgPartialProjectBlock;
+	Dim3Int bgHazardEigenBlock;
+	Dim3Int bgSlabSegLocalBlock;
+	Dim3Int bgSlabSegSpineBlock;
+	Dim3Int bgSlabSegApplyBlock;
 
 
     unsigned int kPaddedStateCount;
@@ -155,6 +191,7 @@ private:
     unsigned int kSlowReweighing;
     unsigned int kMultiplyBlockSize;
 	unsigned int kSumIntervalBlockSize;
+	unsigned int kSlabOpsPerBlock;
 	unsigned int kSumAcrossBlockSize;
     unsigned int kSumSitesBlockSize;
     long kFlags;
@@ -624,23 +661,166 @@ public:
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
 
-    // void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
-    // GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
-
 	void InnerBastaPartialsCoalescent(GPUPtr partials, GPUPtr matrices,
 	GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int start, unsigned int numOps, unsigned int patternCount);
-    // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
-    //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
 
-	// void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
-	// void reduceWithinIntervalSerial(GPUPtr operations, GPUPtr partials, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int numOps, int
-	//                                 start, unsigned int end, unsigned int intervalNUmber);
+	void BastaPartialsGradMigrationAB(GPUPtr partials, GPUPtr partialsGrad,
+	    GPUPtr matrices, GPUPtr operations, GPUPtr gradNodeOps,
+	    GPUPtr sizes, GPUPtr coalescent,
+	    GPUPtr coalescentGrad, GPUPtr edgeLengthsGrad,
+	    unsigned int start, unsigned int numOps,
+	    unsigned int patternCount, unsigned int stateCount,
+	    unsigned int gradAbStride, unsigned int coalLength,
+	    unsigned int matrixIndex);
+
     void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
-	// void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
-	// void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);
-	// void accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory, GPUPtr dBastaMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal, unsigned int kCoalescentBufferLength);
+
+    void reduceWithinIntervalGrad(GPUPtr operations, GPUPtr partials, GPUPtr partialsGrad,
+        GPUPtr gradNodeOps, GPUPtr dBastaGradBuffers,
+        unsigned int numOps, unsigned int start, unsigned int end,
+        unsigned int stateCount, unsigned int gradAbStride,
+        unsigned int kCoalescentBufferLength);
+
+    void reduceAcrossIntervalGrad(GPUPtr dBastaMemory, GPUPtr dBastaGradBuffers,
+        GPUPtr distance, GPUPtr sizes, GPUPtr coalescent, GPUPtr coalescentGrad,
+        GPUPtr dGradOut,
+        unsigned int intervalCount, unsigned int stateCount,
+        unsigned int kCoalescentBufferLength);
     void SetupKernelBlocksAndGrids();
     void reduceWithinIntervalMerged(GPUPtr operations, GPUPtr partials, GPUPtr dBastaMemory, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numBlocks, unsigned int kCoalescentBufferLength);
+
+
+    void reduceWithinIntervalMergedSlab(GPUPtr reduceOps, GPUPtr partials,
+                                        GPUPtr dBastaMemory,
+                                        unsigned int start, unsigned int end,
+                                        unsigned int numBlocks,
+                                        unsigned int kCoalescentBufferLength);
+
+    void ComputeHazardAdjoints(GPUPtr dBastaMemory, GPUPtr intervalLengths,
+        GPUPtr intervalNumbers, GPUPtr sizes,
+        GPUPtr dHazardAdjoints, GPUPtr dPopSizeGrad,
+        unsigned int numIntervals, unsigned int kCoalescentBufferLength);
+
+
+    void AdjointBastaPartials(GPUPtr partials, GPUPtr partialAdj,
+        GPUPtr matrices,
+        GPUPtr scratchYBar, GPUPtr scratchX,
+        GPUPtr coalRightYBar, GPUPtr coalRightX,
+        GPUPtr operations, GPUPtr sizes, GPUPtr coalescent,
+        GPUPtr dHazardAdjoints, GPUPtr dPopSizeGrad,
+        unsigned int interval, unsigned int start,
+        unsigned int totalPatterns, unsigned int matTransIndex,
+        unsigned int stateCount, int coalOp);
+
+    void AccumulateMatrixAdjoints(GPUPtr scratchYBar, GPUPtr scratchX,
+        GPUPtr coalRightYBar, GPUPtr coalRightX,
+        GPUPtr intervalStarts, GPUPtr matTransIndices, GPUPtr coalOps,
+        GPUPtr matrixAdj, unsigned int intervalCount);
+
+    void AccumulateMatrixAdjointsSlabEigen(
+        GPUPtr scratchYBar, GPUPtr partialsTilde,
+        GPUPtr opInBufOff,
+        GPUPtr intervalOpStart, GPUPtr intervalOpList,
+        GPUPtr matrixAdj, unsigned int intervalCount);
+
+    void TiledBatchGemmABt(GPUPtr A, GPUPtr B, GPUPtr C, unsigned int matrixCount);
+
+    void TiledBatchGemmAtB(GPUPtr A, GPUPtr B, GPUPtr C, unsigned int matrixCount);
+
+    void ReduceMatrices(GPUPtr src, GPUPtr dst, unsigned int matrixCount);
+
+    void ApplyComplexLoewnerInPlace(GPUPtr transformed, GPUPtr eigenValues,
+        GPUPtr branchLengths, GPUPtr blockStarts, GPUPtr blockDims,
+        unsigned int matrixCount, unsigned int stateCount, unsigned int numBlocks);
+
+    void TiledSingleGemmAtB(GPUPtr A, GPUPtr B, GPUPtr C);
+
+    void TiledSingleGemmABt(GPUPtr A, GPUPtr B, GPUPtr C);
+
+
+    void ProjectPartialsToEigenbasis(GPUPtr partials, GPUPtr inverseEvec,
+        GPUPtr partialsTilde, GPUPtr bufferIndices,
+        unsigned int bufferCount, unsigned int stateCount, unsigned int stride);
+
+
+    void ProjectHazardsToEigen(GPUPtr partials,
+                                GPUPtr hazardAdjoints,
+                                GPUPtr evecT,
+                                GPUPtr opUOff, GPUPtr opKIn,
+                                GPUPtr opKAcc, GPUPtr opHasAcc,
+                                GPUPtr hazardEigenPerOp,
+                                unsigned int opCount,
+                                unsigned int stateCount);
+
+    void CoalescentSlab(GPUPtr partials, GPUPtr partialAdj,
+        GPUPtr sizes, GPUPtr coalescent, GPUPtr popSizeGrad,
+        GPUPtr coalDestBufs, GPUPtr coalLeftAccBufs, GPUPtr coalRightAccBufs,
+        GPUPtr coalIntervals,
+        unsigned int coalSlabOffset,
+        unsigned int coalCount, unsigned int stateCount, unsigned int stride);
+
+    void AdjointBranchSlabLocal(
+        GPUPtr partials, GPUPtr partialAdj, GPUPtr scratchYBar,
+        GPUPtr evecT,
+        GPUPtr eigenValues, GPUPtr blockStarts, GPUPtr blockDims,
+        GPUPtr hazardAdjoints, GPUPtr hazardEigenPerOp,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchKTop,
+        GPUPtr branchTopBuf, GPUPtr branchOpFirst,
+        GPUPtr branchTimeStart, GPUPtr branchT,
+        GPUPtr slabCarryOut, GPUPtr slabAStash, GPUPtr slabYBottomEigen,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks,
+        unsigned int stateCount, unsigned int stride);
+
+    void AdjointBranchSlabSpine(
+        GPUPtr slabCarryOut, GPUPtr slabCarryPrefix,
+        GPUPtr slabBlockBranchIdx,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int stateCount);
+
+    void AdjointBranchSlabSpineFixup(
+        GPUPtr slabCarryPrefix,
+        GPUPtr ctaCarryBuf, GPUPtr ctaCarryBranch,
+        GPUPtr slabBlockBranchIdx,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numCTAs, unsigned int stateCount);
+
+    void AdjointBranchSlabApply(
+        GPUPtr partialAdj, GPUPtr scratchYBar,
+        GPUPtr inverseEvecT,
+        GPUPtr slabAStash, GPUPtr slabCarryPrefix, GPUPtr slabYBottomEigen,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchBotBuf, GPUPtr branchOpFirst,
+        GPUPtr blockStarts, GPUPtr blockDims,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks, unsigned int opsPerBlock,
+        unsigned int stateCount, unsigned int stride);
+
+
+    void ForwardBranchSlab(
+        GPUPtr partials, GPUPtr partialsTilde,
+        GPUPtr evecT,
+        GPUPtr eigenValues, GPUPtr blockStarts, GPUPtr blockDims,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchTopBuf, GPUPtr branchBotBuf,
+        GPUPtr branchOpFirst, GPUPtr branchTimeStart, GPUPtr branchT,
+        GPUPtr opInBufOff,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks,
+        unsigned int stateCount, unsigned int stride);
+
+    void ForwardCoalescentSlab(
+        GPUPtr partials, GPUPtr partialsTilde,
+        GPUPtr inverseEvecT,
+        GPUPtr sizes, GPUPtr coalescent,
+        GPUPtr coalDestBufs, GPUPtr coalLeftAccBufs, GPUPtr coalRightAccBufs,
+        GPUPtr coalIntervals,
+        unsigned int coalSlabOffset, unsigned int coalCount,
+        unsigned int stateCount, unsigned int stride);
 
 protected:
     void LoadKernels();

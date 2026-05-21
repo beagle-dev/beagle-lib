@@ -1454,6 +1454,35 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    int coalescentIndex,
                                                    double* out);
 
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartialsPopSizeGrad(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount,
+                                               const int* intervalStarts,
+                                               int intervalCount,
+                                               int populationSizeIndex,
+                                               int coalescentIndex);
+
+BEAGLE_DLLEXPORT int beagleUploadBastaSlabMetadata(const int instance,
+                                                   const int* packed,
+                                                   int packedLen);
+
+BEAGLE_DLLEXPORT int beagleGetBastaSlabConstants(const int instance,
+                                                 int* opsPerBlock,
+                                                 int* indexOffsetPat);
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsPopSizeGrad(const int instance,
+                                                   const BastaOperation* operations,
+                                                   int operationCount,
+                                                   const int* intervalStarts,
+                                                   int intervalCount,
+                                                   const double* intervalLengths,
+                                                   const int populationSizesIndex,
+                                                   int coalescentIndex,
+                                                   double* out);
+
+BEAGLE_DLLEXPORT int beagleAllocateBastaGradBuffers(const int instance,
+                                                    const int partialsCount);
+
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
                                                 const int bufferCount,
                                                 const int bufferLength,
@@ -1464,6 +1493,34 @@ BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,
                                           double* out);
+
+BEAGLE_DLLEXPORT int beagleGetBastaMatrixAdjoint(const int instance,
+                                                  const int matrixIndex,
+                                                  double* out);
+
+BEAGLE_DLLEXPORT int beagleGetBastaPopulationSizeGradient(const int instance,
+                                                           double* out);
+
+BEAGLE_DLLEXPORT int beagleSetBastaExpmKernels(const int instance,
+                                                const double* kernels);
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaExpmGradient(const int instance,
+                                                        double* out);
+
+BEAGLE_DLLEXPORT int beagleTransformBastaMatrixAdjoints(const int instance,
+                                                         const int matrixCount,
+                                                         double* out);
+
+BEAGLE_DLLEXPORT int beagleBackTransformBastaEigenBasisGradient(const int instance,
+                                                                 const double* eigenBasisGrad,
+                                                                 double* out);
+
+BEAGLE_DLLEXPORT int beagleAccumulateEigenBasisGradient(const int instance,
+                                                         const double* eigenValues,
+                                                         const double* branchLengths,
+                                                         const int matrixCount,
+                                                         const int hasComplexEigenvalues,
+                                                         double* outRateGradient);
 
 // END OF BASTA
 

@@ -70,6 +70,10 @@ private:
     CUmodule cudaModule;
     CUstream* cudaStreams;
     CUevent cudaEvent;
+    // CUDA Graphs support
+    CUstream cudaCaptureStream;
+    CUstream savedDefaultStream;
+    bool isCapturing;
     const char* GetCUDAErrorDescription(int errorCode);
 #elif defined(FW_OPENCL)
     cl_device_id openClDeviceId;             // compute device id
@@ -123,6 +127,20 @@ public:
                                int totalParameterCount,
                                ...); // parameters
 
+
+    bool SupportsGraphCapture();
+
+
+    bool BeginGraphCapture();
+
+    void* EndGraphCapture();
+
+    bool LaunchGraph(void* graphExec);
+
+    void SynchronizeGraph();
+
+    void DestroyGraph(void* graphExec);
+
     void* MallocHost(size_t memSize);
 
     void* CallocHost(size_t size, size_t length);
@@ -152,6 +170,9 @@ public:
     void MemsetShort(GPUPtr dest,
                      unsigned short val,
                      size_t count);
+
+    void MemsetZero(GPUPtr dest,
+                    size_t byteCount);
 
     void MemcpyHostToDevice(GPUPtr dest,
                             const void* src,

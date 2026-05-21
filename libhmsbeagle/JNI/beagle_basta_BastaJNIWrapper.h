@@ -47,7 +47,44 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad
 
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateTransitionMatricesGrad
   (JNIEnv *, jobject, jint, jintArray, jdoubleArray, jint);
-  
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentGradBuffers
+  (JNIEnv *, jobject, jint, jint);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsPopSizeGrad
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsPopSizeGrad
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getMatrixAdjoint
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getPopulationSizeGradient
+  (JNIEnv *, jobject, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setExpmKernels
+  (JNIEnv *, jobject, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateExpmGradient
+  (JNIEnv *, jobject, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_transformMatrixAdjoints
+  (JNIEnv *, jobject, jint, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_backTransformEigenBasisGradient
+  (JNIEnv *, jobject, jint, jdoubleArray, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateEigenBasisGradient
+  (JNIEnv *, jobject, jint, jdoubleArray, jdoubleArray, jint, jint, jdoubleArray);
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_uploadBastaSlabMetadata
+  (JNIEnv *, jobject, jint, jintArray, jint);
+
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getBastaSlabConstants
+  (JNIEnv *, jobject, jint, jintArray);
+
 #ifdef __cplusplus
 }
 #endif

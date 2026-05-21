@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  BeagleCPUImpl.cpp
  *  BEAGLE
  *
@@ -70,6 +70,7 @@
 #include <cassert>
 #include <vector>
 #include <cfloat>
+#include <chrono>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/Precision.h"
@@ -130,49 +131,21 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     }
     free(gTransitionMatrices);
 
-    // for (int i = 0; i < kStateCount; i++) {
-    //     for (int j = 0; j < kStateCount; j++) {
-    //         for (int k = 0; k < kMatrixCount; k++) {
-    //             if (gTransitionMatricesGrad[i][j][k] != NULL)
-    //                 free(gTransitionMatricesGrad[i][j][k]);
-    //         }
-    //         if (gTransitionMatricesGrad[i][j] != NULL)
-    //             free(gTransitionMatricesGrad[i][j]);
-    //     }
-    //     if (gTransitionMatricesGrad[i] != NULL)
-    //     free(gTransitionMatricesGrad[i]);
-    // }
-    // free(gTransitionMatricesGrad);
-    //
-    // for (int i = 0; i < kStateCount; i++) {
-    //     for (int j = 0; j < kStateCount; j++) {
-    //         for (int k = 0; k < kBufferCount; k++) {
-    //             if (gPartialsGrad[i][j][k] != NULL)
-    //                 free(gPartialsGrad[i][j][k]);
-    //         }
-    //         if (gPartialsGrad[i][j] != NULL)
-    //             free(gPartialsGrad[i][j]);
-    //     }
-    //     if (gPartialsGrad[i] != NULL)
-    //         free(gPartialsGrad[i]);
-    // }
-    // free(gPartialsGrad);
-    //
-    // for (int i = 0; i < kStateCount; i++) {
-    //     for (int j = 0; j < kStateCount; j++) {
-    //         if (coalescentGrad[i][j] != NULL)
-    //             free(coalescentGrad[i][j]);
-    //     }
-    //     if (coalescentGrad[i] != NULL)
-    //         free(coalescentGrad[i]);
-    // }
-    // free(coalescentGrad);
-    //
-    //
-    // for (int i = 0; i < kStateCount; i++) {
-    //     if (tempGrad[i] != NULL)
-    //         free(tempGrad[i]);
-    // }
+    if (gPartialsGrad != NULL) {
+        free(gPartialsGrad);
+    }
+
+    if (coalescentGrad != NULL) {
+        free(coalescentGrad);
+    }
+
+    if (gPartialsGradPopSize != NULL) {
+        free(gPartialsGradPopSize);
+    }
+
+    if (coalescentGradPopSize != NULL) {
+        free(coalescentGradPopSize);
+    }
 
     for(unsigned int i=0; i<kBufferCount; i++) {
 #ifndef BEAGLE_CACHE_FRIENDLY
@@ -395,65 +368,18 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     if (gPartials == NULL)
      throw std::bad_alloc();
 
-    // TODO: deconstrucor should free all of these
-    int BEAGLE_BASTA_GRAD = 0;
-    if (BEAGLE_BASTA_GRAD == 1) {
-        gPartialsGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
-        for (int i = 0; i < kStateCount; i++) {
-            gPartialsGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-            if (gPartialsGrad[i] == NULL)
-                throw std::bad_alloc();
-            for (int j = 0; j < kStateCount; j++) {
-                gPartialsGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kBufferCount);
-                if (gPartialsGrad[i][j] == NULL)
-                    throw std::bad_alloc();
-                for (int k = 0; k < kBufferCount; k++) {
-                    gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
-                    if (gPartialsGrad[i][j][k] == NULL)
-                        throw std::bad_alloc();
-                }
-            }
-        }
 
-        // TODO: figure out the exact number of coalescent intervals
-        int MAX_NUM_COALESCENT_INTERVALS = 5000;
+    gPartialsGrad = NULL;
+    coalescentGrad = NULL;
+    gPartialsGradPopSize = NULL;
+    coalescentGradPopSize = NULL;
+    kCoalescentGradLength = 0;
+    kAdjointBuffersAllocated = false;
+    kUseAdjointGradient = false;
+    kAdjointReversePassDone = false;
+    kUnclampedForwardDone = false;
+    kBastaNumThreads = 1;
 
-        coalescentGrad = (REALTYPE***) malloc(sizeof(REALTYPE***) * kStateCount);
-        for (int i = 0; i < kStateCount; i++) {
-            coalescentGrad[i] = (REALTYPE**) malloc(sizeof(REALTYPE**) * kStateCount);
-            if (coalescentGrad[i] == NULL)
-                throw std::bad_alloc();
-            for (int j = 0; j < kStateCount; j++) {
-                coalescentGrad[i][j] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * MAX_NUM_COALESCENT_INTERVALS);
-                if (coalescentGrad[i][j] == NULL)
-                    throw std::bad_alloc();
-            }
-        }
-
-        //    efghGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * 4);
-        //    for (int i = 0; i < 4; i++) {
-        //        efghGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-        //        if (efghGrad[i] == NULL)
-        //            throw std::bad_alloc();
-        //        for (int j = 0; j < kStateCount; j++) {
-        //            efghGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
-        //            if (efghGrad[i][j] == NULL)
-        //                throw std::bad_alloc();
-        //            for (int k = 0; k < kStateCount; k++) {
-        //                efghGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsPaddedStateCount * kCoalescentBufferLength);
-        //                if (efghGrad[i][j][k] == NULL)
-        //                    throw std::bad_alloc();
-        //            }
-        //        }
-        //    }
-
-        tempGrad = (REALTYPE**) malloc(sizeof(REALTYPE*) * kStateCount);
-        for (int i = 0; i < kStateCount; i++) {
-            tempGrad[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kStateCount);
-            if (tempGrad[i] == NULL)
-                throw std::bad_alloc();
-        }
-    }
     gStateFrequencies = (REALTYPE**) calloc(sizeof(REALTYPE*), kEigenDecompCount);
     if (gStateFrequencies == NULL)
         throw std::bad_alloc();
@@ -531,26 +457,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         gTransitionMatrices[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
         if (gTransitionMatrices[i] == 0L)
             throw std::bad_alloc();
-    }
-
-    if (BEAGLE_BASTA_GRAD == 1) {
-        // TODO: deconstrucor should free all of these
-        gTransitionMatricesGrad = (REALTYPE****) malloc(sizeof(REALTYPE***) * kStateCount);
-        for (int i = 0; i < kStateCount; i++) {
-            gTransitionMatricesGrad[i] = (REALTYPE***) malloc(sizeof(REALTYPE**) * kStateCount);
-            if (gTransitionMatricesGrad[i] == NULL)
-                throw std::bad_alloc();
-            for (int j = 0; j < kStateCount; j++) {
-                gTransitionMatricesGrad[i][j] = (REALTYPE**) malloc(sizeof(REALTYPE*) * kMatrixCount);
-                if (gTransitionMatricesGrad[i][j] == NULL)
-                    throw std::bad_alloc();
-                for (int k = 0; k < kMatrixCount; k++) {
-                    gTransitionMatricesGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
-                    if (gTransitionMatricesGrad[i][j][k] == NULL)
-                        throw std::bad_alloc();
-                }
-            }
-        }
     }
 
     integrationTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kStateCount);
@@ -898,6 +804,20 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenValues) {
 
     gEigenDecomposition->setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
+
+    if (eigenIndex == 0) {
+        const int S = kStateCount;
+        const int S2 = S * S;
+        int evalSize = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? 2 * S : S;
+        gRawEigenVectors.resize(S2);
+        gRawInverseEigenVectors.resize(S2);
+        gRawEigenValues.resize(2 * S, 0.0);
+        std::copy(inEigenVectors, inEigenVectors + S2, gRawEigenVectors.begin());
+        std::copy(inEigenValues, inEigenValues + evalSize, gRawEigenValues.begin());
+
+        std::copy(inInverseEigenVectors, inInverseEigenVectors + S2, gRawInverseEigenVectors.begin());
+    }
+
     return BEAGLE_SUCCESS;
 }
 
@@ -1365,6 +1285,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(
         const double* edgeLengths,
         int count)
     {
+
+    for (int u = 0; u < count; u++) {
+        if (!gEdgeLengthsGrad.empty()) {
+            gEdgeLengthsGrad[probabilityIndices[u]] = edgeLengths[u];
+        }
+    }
+
     bool threading = (kBastaNumThreads > 1);
     if (threading) {
         gEigenDecomposition->updateTransitionMatricesParallel(
@@ -1395,25 +1322,10 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesGrad(const int* probabilityIndices,
                                                                     const double* edgeLengths,
                                                                     int count) {
-    const int matrixIncr = kStateCount + T_PAD;
 
+    std::fill(gEdgeLengthsGrad.begin(), gEdgeLengthsGrad.end(), 0.0);
     for (int u = 0; u < count; u++) {
-        REALTYPE* transitionMat = gTransitionMatrices[probabilityIndices[u]];
-        const double edgeLength = edgeLengths[u];
-        for (int a = 0; a < kStateCount; a++) {
-            for (int b = 0; b < kStateCount; b++) {
-                REALTYPE* transitionMatGrad = gTransitionMatricesGrad[a][b][probabilityIndices[u]];
-                for (int c = 0; c < kStateCount; c++) {
-                    for (int d = 0; d < kStateCount; d++) {
-                        if (d == b) {
-                            transitionMatGrad[c*matrixIncr + b] = edgeLength * transitionMat[c*matrixIncr + a];
-                        } else {
-                            transitionMatGrad[c*matrixIncr + d] = 0.0;
-                        }
-                    }
-                }
-            }
-        }
+        gEdgeLengthsGrad[probabilityIndices[u]] = edgeLengths[u];
     }
     return BEAGLE_SUCCESS;
 }
@@ -1525,7 +1437,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
     gCoalescentBuffers.resize(kCoalescentBufferCount * kCoalescentBufferLength);
     gBastaBuffers.resize(kPartialsPaddedStateCount * kCoalescentBufferLength * 4);
-    //gBastaGradBuffers.resize(4 * kStateCount * kStateCount * kPartialsPaddedStateCount * kCoalescentBufferLength);
+
+    gEdgeLengthsGrad.resize(kMatrixCount, 0);
 
     if (partialsCount > kBufferCount) {
         int oldBufferCount = kBufferCount;
@@ -1598,6 +1511,34 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaBuffer(int bufferIndex,
 #endif
 
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaMatrixAdjoint(int matrixIndex,
+                                                              double* out) {
+    return BEAGLE_ERROR_GENERAL;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaPopulationSizeGradient(double* out) {
+    if (!kAdjointBuffersAllocated) {
+        return BEAGLE_ERROR_GENERAL;
+    }
+    const int S = kStateCount;
+    for (int i = 0; i < S; ++i) {
+        out[i] = (double)gAdjointPopSizeGradient[i];
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setBastaExpmKernels(const double* kernels) {
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaExpmGradient(double* out) {
+    return BEAGLE_ERROR_GENERAL;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1793,6 +1734,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartialsGrad(const int* 
                                                                     const int end,
                                                                     const REALTYPE* sizes,
                                                                     const REALTYPE* coalescent) {
+    // gPartialsGrad[(node * SÂ² + a*S + b) * S_pad + i]
+    // coalescentGrad[(a*S + b) * L + interval]
+    const int S = kStateCount;
+    const int S2 = S * S;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int L = kCoalescentGradLength;
+
     for (int op = begin; op < end; ++op) {
 
         const int numOps = BEAGLE_BASTA_OP_COUNT;
@@ -1806,127 +1754,89 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartialsGrad(const int* 
         const int accumulation2PartialIndex = operations[op * numOps + 6];
         const int intervalNumber = operations[op * numOps + 7];
 
-        const int matrixIncr = kStateCount + T_PAD;
-        const int stateCountModFour = (kStateCount / 4) * 4;
+        const int matrixIncr = S + T_PAD;
 
-        REALTYPE *destPartial = gPartials[destinationPartialIndex]; 
+        REALTYPE *destPartial = gPartials[destinationPartialIndex];
 
-        // child 1
-        const REALTYPE *partial1 = gPartials[child1PartialIndex];
+        const REALTYPE distance1 = gEdgeLengthsGrad[child1TransMatIndex];
+
         const REALTYPE *matrix1 = gTransitionMatrices[child1TransMatIndex];
-        for (int a = 0; a < kStateCount; a++) {
-            for (int b = 0; b < kStateCount; b++) {
-                const REALTYPE *partialGrad1 = gPartialsGrad[a][b][child1PartialIndex];
-//                for (int i = 0; i < 4; i++) {
-//                    std::cout << "partialGrad1:" << partialGrad1[i] << std::endl;
-//                }
-//                for (int i = 0; i < 4; i++) {
-//                    std::cout << "partial1:" <<  partial1[i] << std::endl;
-//                }
-                const REALTYPE *matrixGrad1 = gTransitionMatricesGrad[a][b][child1TransMatIndex];
+        const REALTYPE *leftAcc = (child2PartialIndex >= 0)? gPartials[accumulation1PartialIndex]: gPartials[destinationPartialIndex];
 
-//                for (int i = 0; i < kMatrixSize; ++i) {
-//                        std::cout << "matrix grad:" <<  matrixGrad1[i] << std::endl;
-//                }
-                for (int i = 0; i < kStateCount; i++) {
+        const int childGradBase  = child1PartialIndex * S2 * S_pad;
+        const int destGradBase   = destinationPartialIndex * S2 * S_pad;
+
+        for (int a = 0; a < S; a++) {
+            for (int b = 0; b < S; b++) {
+                const int ab = a * S + b;
+                const REALTYPE *childGrad = gPartialsGrad + childGradBase + ab * S_pad;
+                REALTYPE *destGrad = gPartialsGrad + destGradBase + ab * S_pad;
+                for (int i = 0; i < S; i++) {
                     REALTYPE sum = 0.0;
-                    const REALTYPE *matrices1Ptr = matrix1 + i * matrixIncr;
-                    const REALTYPE *matricesGrad1Ptr = matrixGrad1 + i * matrixIncr;
-                    REALTYPE *destPartialGrad = gPartialsGrad[a][b][destinationPartialIndex];
-                    for (int j = 0; j < kStateCount; j++) {
-                        sum += matrices1Ptr[j] * partialGrad1[j] + matricesGrad1Ptr[j] * partial1[j];
+                    const REALTYPE *matRow = matrix1 + i * matrixIncr;
+                    for (int j = 0; j < S; j++) {
+                        sum += matRow[j] * childGrad[j];
                     }
-                    destPartialGrad[i] = sum;
+                    destGrad[i] = sum;
                 }
+                destGrad[b] += leftAcc[a] * distance1;
             }
         }
 
-//        for (int a = 0; a < kStateCount; ++a) {
-//            for (int b = 0; b < kStateCount; ++b) {
-//                std::cout << "a:" << a << std::endl;
-//                std::cout << "b:" << b << std::endl;
-//                for (int i = 0; i < 4; i++) {
-//                    std::cout << " result:" << "\n";
-//                    std::cout << gPartialsGrad[a][b][destinationPartialIndex][i] << ' ';
-//                }
-//                std::cout << " " << "\n";
-//            }
-//        }
-
         if (child2PartialIndex >= 0) {
-            // child 2
-            const REALTYPE *partial2 = gPartials[child2PartialIndex];
             const REALTYPE *matrix2 = gTransitionMatrices[child2TransMatIndex];
+            const REALTYPE distance2 = gEdgeLengthsGrad[child2TransMatIndex];
 
             REALTYPE *accumulation1 = gPartials[accumulation1PartialIndex];
             REALTYPE *accumulation2 = gPartials[accumulation2PartialIndex];
 
-            for (int a = 0; a < kStateCount; a++) {
-                for (int b = 0; b < kStateCount; b++) {
+            const int child2GradBase = child2PartialIndex * S2 * S_pad;
+            const int acc1GradBase   = accumulation1PartialIndex * S2 * S_pad;
+            const int acc2GradBase   = accumulation2PartialIndex * S2 * S_pad;
+
+            for (int a = 0; a < S; a++) {
+                for (int b = 0; b < S; b++) {
+                    const int ab = a * S + b;
                     REALTYPE J = coalescent[intervalNumber];
 
-                    // first half
-                    const REALTYPE *partialGrad2 = gPartialsGrad[a][b][child2PartialIndex];
-                    const REALTYPE *matrixGrad2 = gTransitionMatricesGrad[a][b][child2TransMatIndex];
+                    const REALTYPE *childGrad2 = gPartialsGrad + child2GradBase + ab * S_pad;
 
-                    REALTYPE *destPartialGrad = gPartialsGrad[a][b][destinationPartialIndex];
-                    REALTYPE *accumulationGrad1 = gPartialsGrad[a][b][accumulation1PartialIndex];
-                    REALTYPE *accumulationGrad2 = gPartialsGrad[a][b][accumulation2PartialIndex];
+                    REALTYPE *destGrad  = gPartialsGrad + destGradBase + ab * S_pad;
+                    REALTYPE *accGrad1  = gPartialsGrad + acc1GradBase + ab * S_pad;
+                    REALTYPE *accGrad2  = gPartialsGrad + acc2GradBase + ab * S_pad;
 
                     REALTYPE partial_J_ab = REALTYPE(0);
-                    for (int i = 0; i < kStateCount; i++) {
-                        // sum is child2Grad
-                        REALTYPE sum = 0.0;
-                        const REALTYPE *matrices2Ptr = matrix2 + i * matrixIncr;
-                        const REALTYPE *matricesGrad2Ptr = matrixGrad2 + i * matrixIncr;
-
-                        for (int j = 0; j < kStateCount; j++) {
-                            sum += matrices2Ptr[j] * partialGrad2[j] + matricesGrad2Ptr[j] * partial2[j];
+                    for (int i = 0; i < S; i++) {
+                        REALTYPE rightGradI = 0.0;
+                        const REALTYPE *matRow2 = matrix2 + i * matrixIncr;
+                        for (int j = 0; j < S; j++) {
+                            rightGradI += matRow2[j] * childGrad2[j];
                         }
-                        REALTYPE child1Grad = gPartialsGrad[a][b][destinationPartialIndex][i];
-                        REALTYPE child1 = accumulation1[i];
-                        REALTYPE child2 = accumulation2[i];
+                        accGrad2[i] = rightGradI;
+                    }
+                    accGrad2[b] += accumulation2[a] * distance2;
 
-                        REALTYPE entry = (child1Grad * child2 + child1 * sum) / sizes[i];
+                    for (int i = 0; i < S; i++) {
+                        REALTYPE rightGrad = accGrad2[i];
+                        REALTYPE leftGrad = destGrad[i];
+                        REALTYPE left = accumulation1[i];
+                        REALTYPE right = accumulation2[i];
+
+                        REALTYPE entry = (leftGrad * right + rightGrad * left) / sizes[i];
                         partial_J_ab += entry;
 
-                        destPartialGrad[i] = entry / J;
-                        accumulationGrad1[i] = child1Grad;
-                        accumulationGrad2[i] = sum;
+                        destGrad[i] = entry / J;
+                        accGrad1[i] = leftGrad;
                     }
 
-                    // second half
-                    for (int i = 0; i < kStateCount; i++) {
+                    for (int i = 0; i < S; i++) {
                         REALTYPE entry = destPartial[i];
-                        destPartialGrad[i] -= partial_J_ab * entry / J;
+                        destGrad[i] -= partial_J_ab * entry / J;
                     }
-                    coalescentGrad[a][b][intervalNumber] = partial_J_ab;
+                    coalescentGrad[ab * L + intervalNumber] = partial_J_ab;
                 }
             }
         }
-//        for (int a = 0; a < kStateCount; ++a) {
-//            for (int b = 0; b < kStateCount; ++b) {
-//                 std::cout << "a:" << a << std::endl;
-//                 std::cout << "b:" << b << std::endl;
-//                if (child2PartialIndex >= 0) {
-//                    for (int i = 0; i < 4; i++) {
-//                        std::cout << " left:" << "\n";
-//                        std::cout << gPartialsGrad[a][b][accumulation1PartialIndex][i] << ' ';
-//                    }
-//
-//                    for (int i = 0; i < 4; i++) {
-//                        std::cout << " right:" << "\n";
-//                        std::cout << gPartialsGrad[a][b][accumulation2PartialIndex][i] << ' ';
-//                    }
-//                }
-//                    for (int i = 0; i < 4; i++) {
-//                        std::cout << " result:" << "\n";
-//                        std::cout << gPartialsGrad[a][b][destinationPartialIndex][i] << ' ';
-//                    }
-//                std::cout << " " << "\n";
-//            }
-//        }
-
     }
 }
 
@@ -1992,6 +1902,8 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
                                                                const int coalescentIndex) {
         int returnCode = BEAGLE_SUCCESS;
 
+        kUnclampedForwardDone = false;
+
         REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
         std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
 
@@ -2025,6 +1937,94 @@ inline void for_each(Integer begin, Integer end, Function function, int global_n
     }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaGradBuffers(int partialsCount) {
+
+    if (partialsCount < 0) {
+        kUseAdjointGradient = true;
+        partialsCount = -partialsCount;
+    }
+
+    const int S  = kStateCount;
+    const int S2 = S * S;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int bufferLength = kCoalescentBufferLength;
+
+    gEdgeLengthsGrad.resize(kMatrixCount, 0);
+
+    if (kUseAdjointGradient) {
+        if (!kAdjointBuffersAllocated) {
+            gPartialAdjoint.resize((size_t)kBufferCount * S_pad, REALTYPE(0));
+            gMatrixAdjoint.resize((size_t)kMatrixCount * S2, REALTYPE(0));
+            gAdjointPopSizeGradient.resize(S, REALTYPE(0));
+            gCoalescentDetails.resize(bufferLength);
+
+            gAdjointWorkE.resize(S_pad);
+            gAdjointWorkF.resize(S_pad);
+            gAdjointWorkG.resize(S_pad);
+            gAdjointWorkH.resize(S_pad);
+            gAdjointWorkW.resize(S_pad);
+            gAdjointWorkLeft.resize(S_pad);
+            gAdjointWorkRight.resize(S_pad);
+            gAdjointWorkIexp.resize(S2);
+            gAdjointWorkTemp.resize(S2);
+
+            kAdjointBuffersAllocated = true;
+        }
+    } else {
+        gBastaGradBuffers.resize(4 * (size_t)S2 * S_pad * bufferLength);
+        gBastaGradBuffersPopSize.resize(4 * (size_t)S * S_pad * bufferLength);
+
+        const size_t partialsGradSize = (size_t)kBufferCount * S2 * S_pad;
+        const size_t coalescentGradSize = (size_t)S2 * bufferLength;
+
+        if (gPartialsGrad == NULL) {
+            gPartialsGrad = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * partialsGradSize);
+            if (gPartialsGrad == NULL) throw std::bad_alloc();
+        } else if (partialsCount > kBufferCount) {
+            const size_t newSize = (size_t)partialsCount * S2 * S_pad;
+            REALTYPE* temp = (REALTYPE*) realloc(gPartialsGrad, sizeof(REALTYPE) * newSize);
+            if (temp == NULL) throw std::bad_alloc();
+            gPartialsGrad = temp;
+        }
+
+        if (coalescentGrad == NULL) {
+            coalescentGrad = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * coalescentGradSize);
+            if (coalescentGrad == NULL) throw std::bad_alloc();
+            kCoalescentGradLength = bufferLength;
+        } else if (bufferLength > kCoalescentGradLength) {
+            REALTYPE* temp = (REALTYPE*) realloc(coalescentGrad, sizeof(REALTYPE) * coalescentGradSize);
+            if (temp == NULL) throw std::bad_alloc();
+            coalescentGrad = temp;
+            kCoalescentGradLength = bufferLength;
+        }
+
+        const size_t partialsGradPopSizeSize   = (size_t)kBufferCount * S * S_pad;
+        const size_t coalescentGradPopSizeSize = (size_t)S * bufferLength;
+
+        if (gPartialsGradPopSize == NULL) {
+            gPartialsGradPopSize = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * partialsGradPopSizeSize);
+            if (gPartialsGradPopSize == NULL) throw std::bad_alloc();
+        } else if (partialsCount > kBufferCount) {
+            const size_t newSize = (size_t)partialsCount * S * S_pad;
+            REALTYPE* temp = (REALTYPE*) realloc(gPartialsGradPopSize, sizeof(REALTYPE) * newSize);
+            if (temp == NULL) throw std::bad_alloc();
+            gPartialsGradPopSize = temp;
+        }
+
+        if (coalescentGradPopSize == NULL) {
+            coalescentGradPopSize = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * coalescentGradPopSizeSize);
+            if (coalescentGradPopSize == NULL) throw std::bad_alloc();
+        } else if (bufferLength > kCoalescentGradLength) {
+            REALTYPE* temp = (REALTYPE*) realloc(coalescentGradPopSize, sizeof(REALTYPE) * coalescentGradPopSizeSize);
+            if (temp == NULL) throw std::bad_alloc();
+            coalescentGradPopSize = temp;
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsGrad(const int* operations,
   														   const int count,
   														   const int* intervals,
@@ -2033,38 +2033,26 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsGrad(const int* operat
                                                            const int coalescentIndex) {
 	int returnCode = BEAGLE_SUCCESS;
 
-    // REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    // std::fill(coalescent, coalescent + kCoalescentBufferLength, REALTYPE(0));
-    // just for test
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
-    bool THREADING = true;
-    int CUT_POINT = 1280000;
-    int nThreads = 2;
+    if (kAdjointBuffersAllocated) {
+        kAdjointReversePassDone = false;
+    } else {
+        const size_t partialsGradSize = (size_t)kBufferCount * kStateCount * kStateCount * kPartialsPaddedStateCount;
+        std::fill(gPartialsGrad, gPartialsGrad + partialsGradSize, REALTYPE(0));
 
-    if (THREADING) {
+        const size_t coalescentGradSize = (size_t)kStateCount * kStateCount * kCoalescentGradLength;
+        std::fill(coalescentGrad, coalescentGrad + coalescentGradSize, REALTYPE(0));
 
         for (int i = 0; i < intervalCount - 1; ++i) {
             const int begin = intervals[i];
             const int end = intervals[i + 1];
-
-            if (end - begin > CUT_POINT) {
-                for_each(begin, end, [&](const int threadBegin, const int threadEnd) {
-                    updateInnerBastaPartialsGrad(operations, threadBegin, threadEnd, sizes, coalescent);
-                }, nThreads);
-//                for_each(begin, end, [&](const int j) {
-//                    updateInnerBastaPartials2(operations, j, sizes, coalescent);
-//                }, nThreads);
-            } else {
-                updateInnerBastaPartialsGrad(operations, begin, end, sizes, coalescent);
-            }
+            updateInnerBastaPartialsGrad(operations, begin, end, sizes, coalescent);
         }
-    } else {
-        updateInnerBastaPartialsGrad(operations, 0, count, sizes, coalescent);
     }
 
-	return returnCode;  														   
+	return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2100,35 +2088,37 @@ BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervalsGrad(
         REALTYPE* e, REALTYPE* f,
         REALTYPE* g, REALTYPE* h,
-        REALTYPE*** eGrad, REALTYPE*** fGrad,
-        REALTYPE*** gGrad, REALTYPE*** hGrad,
-        REALTYPE** resultGrad,
+        REALTYPE* eGrad, REALTYPE* fGrad,
+        REALTYPE* gGrad, REALTYPE* hGrad,
+        REALTYPE* resultGrad,
         int interval, REALTYPE length,
         const REALTYPE* sizes,
         const REALTYPE* coalescent) {
 
-    const int offset = interval * kPartialsPaddedStateCount;
+    const int S = kStateCount;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int L = kCoalescentBufferLength;
 
-    e += offset;
-    g += offset;
+    const int eOffset = interval * S_pad;
+    e += eOffset;
+    g += eOffset;
 
-    for (int a = 0; a < kStateCount; ++a) {
-        for (int b = 0; b < kStateCount; ++b) {
-            REALTYPE sum = REALTYPE(0);
-            REALTYPE* eGrad_ab = (REALTYPE*) eGrad[a][b] + offset;
-            REALTYPE* fGrad_ab = (REALTYPE*) fGrad[a][b] + offset;
-            REALTYPE* gGrad_ab = (REALTYPE*) gGrad[a][b] + offset;
-            REALTYPE* hGrad_ab = (REALTYPE*) hGrad[a][b] + offset;
+    for (int ab = 0; ab < S * S; ++ab) {
+        REALTYPE sum = REALTYPE(0);
+        const int efghOff = (ab * L + interval) * S_pad;
+        REALTYPE* eGrad_ab = eGrad + efghOff;
+        REALTYPE* fGrad_ab = fGrad + efghOff;
+        REALTYPE* gGrad_ab = gGrad + efghOff;
+        REALTYPE* hGrad_ab = hGrad + efghOff;
 
-            for (int k = 0; k < kStateCount; ++k) {
-                sum += (2 * e[k] * eGrad_ab[k] - fGrad_ab[k] +
-                        2 * g[k] * gGrad_ab[k] - hGrad_ab[k]) / sizes[k];
-            }
-            resultGrad[a][b] = -length * sum / 4;
-            REALTYPE prob = coalescent[interval];
-            if (prob != REALTYPE(0)) {
-                resultGrad[a][b] += coalescentGrad[a][b][interval] / prob;
-            }
+        for (int k = 0; k < S; ++k) {
+            sum += (2 * e[k] * eGrad_ab[k] - fGrad_ab[k] +
+                    2 * g[k] * gGrad_ab[k] - hGrad_ab[k]) / sizes[k];
+        }
+        resultGrad[ab] = -length * sum / 4;
+        REALTYPE prob = coalescent[interval];
+        if (prob != REALTYPE(0)) {
+            resultGrad[ab] += coalescentGrad[ab * L + interval] / prob;
         }
     }
 }
@@ -2177,93 +2167,504 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceWithinInterval(REALTYPE* e, REALTY
 
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceWithinIntervalGrad(REALTYPE*** eGrad, REALTYPE*** fGrad,
-                                                             REALTYPE*** gGrad, REALTYPE*** hGrad,
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceWithinIntervalGrad(REALTYPE* eGrad, REALTYPE* fGrad,
+                                                             REALTYPE* gGrad, REALTYPE* hGrad,
                                                              int startBuffer1, int startBuffer2,
                                                              int endBuffer1, int endBuffer2,
                                                              int interval) {
-    const int offset = interval * kPartialsPaddedStateCount;
-//    std::cout << "interval:" << interval << std::endl;
+
+    const int S = kStateCount;
+    const int S2 = S * S;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int L = kCoalescentBufferLength;
+
     const REALTYPE* startPartials = gPartials[startBuffer1];
     const REALTYPE* endPartials = gPartials[endBuffer1];
 
-    for (int a = 0; a < kStateCount; ++a) {
-        for (int b = 0; b < kStateCount; ++b) {
-            REALTYPE* eGrad_ab = (REALTYPE*) eGrad[a][b] + offset;
-            REALTYPE* fGrad_ab = (REALTYPE*) fGrad[a][b] + offset;
-            REALTYPE* gGrad_ab = (REALTYPE*) gGrad[a][b] + offset;
-            REALTYPE* hGrad_ab = (REALTYPE*) hGrad[a][b] + offset;
-//            std::cout << "a:" << a << std::endl;
-//            std::cout << "b:" << b << std::endl;
-            for (int i = 0; i < kStateCount; ++i) {
-                REALTYPE startPGrad = gPartialsGrad[a][b][startBuffer1][i];
+
+    const int startGradBase1 = startBuffer1 * S2 * S_pad;
+    const int endGradBase1   = endBuffer1 * S2 * S_pad;
+
+    for (int ab = 0; ab < S2; ++ab) {
+        const int efghOffset = (ab * L + interval) * S_pad;
+        REALTYPE* eGrad_ab = eGrad + efghOffset;
+        REALTYPE* fGrad_ab = fGrad + efghOffset;
+        REALTYPE* gGrad_ab = gGrad + efghOffset;
+        REALTYPE* hGrad_ab = hGrad + efghOffset;
+
+        const REALTYPE* startPGradPtr = gPartialsGrad + startGradBase1 + ab * S_pad;
+        const REALTYPE* endPGradPtr   = gPartialsGrad + endGradBase1 + ab * S_pad;
+
+        for (int i = 0; i < S; ++i) {
+            REALTYPE startPGrad = startPGradPtr[i];
+            REALTYPE startP = startPartials[i];
+            eGrad_ab[i] += startPGrad;
+            fGrad_ab[i] += 2 * startP * startPGrad;
+
+            REALTYPE endPGrad = endPGradPtr[i];
+            REALTYPE endP = endPartials[i];
+            gGrad_ab[i] += endPGrad;
+            hGrad_ab[i] += 2 * endP * endPGrad;
+        }
+    }
+
+    if (gPartialsGradPopSize != nullptr) {
+        const size_t efghSliceSizePS = (size_t)S * L * S_pad;
+        REALTYPE* eGradPS = gBastaGradBuffersPopSize.data() + 0 * efghSliceSizePS;
+        REALTYPE* fGradPS = gBastaGradBuffersPopSize.data() + 1 * efghSliceSizePS;
+        REALTYPE* gGradPS = gBastaGradBuffersPopSize.data() + 2 * efghSliceSizePS;
+        REALTYPE* hGradPS = gBastaGradBuffersPopSize.data() + 3 * efghSliceSizePS;
+
+        const int startGradBase1PS = startBuffer1 * S * S_pad;
+        const int endGradBase1PS   = endBuffer1 * S * S_pad;
+
+        for (int a = 0; a < S; ++a) {
+            const int efghOffset = (a * L + interval) * S_pad;
+
+            const REALTYPE* startPGradPtr = gPartialsGradPopSize + startGradBase1PS + a * S_pad;
+            const REALTYPE* endPGradPtr   = gPartialsGradPopSize + endGradBase1PS   + a * S_pad;
+
+            for (int i = 0; i < S; ++i) {
+                REALTYPE startPGrad = startPGradPtr[i];
                 REALTYPE startP = startPartials[i];
-//                std::cout << "startPGrad:" << startPGrad << std::endl;
+                eGradPS[efghOffset + i] += startPGrad;
+                fGradPS[efghOffset + i] += 2 * startP * startPGrad;
+
+                REALTYPE endPGrad = endPGradPtr[i];
+                REALTYPE endP = endPartials[i];
+                gGradPS[efghOffset + i] += endPGrad;
+                hGradPS[efghOffset + i] += 2 * endP * endPGrad;
+            }
+        }
+    }
+
+    if (startBuffer2 >= 0) {
+        const REALTYPE* startPartials2 = gPartials[startBuffer2];
+        const REALTYPE* endPartials2 = gPartials[endBuffer2];
+
+        const int startGradBase2 = startBuffer2 * S2 * S_pad;
+        const int endGradBase2   = endBuffer2 * S2 * S_pad;
+
+        for (int ab = 0; ab < S2; ++ab) {
+            const int efghOffset = (ab * L + interval) * S_pad;
+            REALTYPE* eGrad_ab = eGrad + efghOffset;
+            REALTYPE* fGrad_ab = fGrad + efghOffset;
+            REALTYPE* gGrad_ab = gGrad + efghOffset;
+            REALTYPE* hGrad_ab = hGrad + efghOffset;
+
+            const REALTYPE* startPGradPtr = gPartialsGrad + startGradBase2 + ab * S_pad;
+            const REALTYPE* endPGradPtr   = gPartialsGrad + endGradBase2 + ab * S_pad;
+
+            for (int i = 0; i < S; ++i) {
+                REALTYPE startPGrad = startPGradPtr[i];
+                REALTYPE startP = startPartials2[i];
                 eGrad_ab[i] += startPGrad;
                 fGrad_ab[i] += 2 * startP * startPGrad;
 
-
-                //same for endPGrad and endP
-                REALTYPE endPGrad = gPartialsGrad[a][b][endBuffer1][i];
-                REALTYPE endP = endPartials[i];
+                REALTYPE endPGrad = endPGradPtr[i];
+                REALTYPE endP = endPartials2[i];
                 gGrad_ab[i] += endPGrad;
                 hGrad_ab[i] += 2 * endP * endPGrad;
-//                std::cout << "endPGrad:" << endPGrad << std::endl;
             }
-
-//            for (int i = 0; i < 4; i++) {
-//                std::cout << "fGrad_ab:" << "\n";
-//                std::cout << fGrad_ab[i] << ' ';
-//                    }
-//            for (int i = 0; i < 4; i++) {
-//                std::cout << "hGrad_ab:" << "\n";
-//                std::cout << hGrad_ab[i] << ' ';
-//            }
         }
-    }
 
+        if (gPartialsGradPopSize != nullptr) {
+            const size_t efghSliceSizePS = (size_t)S * L * S_pad;
+            REALTYPE* eGradPS = gBastaGradBuffersPopSize.data() + 0 * efghSliceSizePS;
+            REALTYPE* fGradPS = gBastaGradBuffersPopSize.data() + 1 * efghSliceSizePS;
+            REALTYPE* gGradPS = gBastaGradBuffersPopSize.data() + 2 * efghSliceSizePS;
+            REALTYPE* hGradPS = gBastaGradBuffersPopSize.data() + 3 * efghSliceSizePS;
 
-    if (startBuffer2 >= 0) {
-        // same for startBuffer2 and endBuffer2
-        const REALTYPE* startPartials = gPartials[startBuffer2];
-        const REALTYPE* endPartials = gPartials[endBuffer2];
+            const int startGradBase2PS = startBuffer2 * S * S_pad;
+            const int endGradBase2PS   = endBuffer2 * S * S_pad;
 
-        for (int a = 0; a < kStateCount; ++a) {
-            for (int b = 0; b < kStateCount; ++b) {
+            for (int a = 0; a < S; ++a) {
+                const int efghOffset = (a * L + interval) * S_pad;
 
-//                std::cout << "a:" << a << std::endl;
-//                std::cout << "b:" << b << std::endl;
+                const REALTYPE* startPGradPtr = gPartialsGradPopSize + startGradBase2PS + a * S_pad;
+                const REALTYPE* endPGradPtr   = gPartialsGradPopSize + endGradBase2PS   + a * S_pad;
 
-                REALTYPE* eGrad_ab = (REALTYPE*) eGrad[a][b] + offset;
-                REALTYPE* fGrad_ab = (REALTYPE*) fGrad[a][b] + offset;
-                REALTYPE* gGrad_ab = (REALTYPE*) gGrad[a][b] + offset;
-                REALTYPE* hGrad_ab = (REALTYPE*) hGrad[a][b] + offset;
+                for (int i = 0; i < S; ++i) {
+                    REALTYPE startPGrad = startPGradPtr[i];
+                    REALTYPE startP = startPartials2[i];
+                    eGradPS[efghOffset + i] += startPGrad;
+                    fGradPS[efghOffset + i] += 2 * startP * startPGrad;
 
-                for (int i = 0; i < kStateCount; ++i) {
-                    REALTYPE startPGrad = gPartialsGrad[a][b][startBuffer2][i];
-                    REALTYPE startP = startPartials[i];
-                    eGrad_ab[i] += startPGrad;
-                    fGrad_ab[i] += 2 * startP * startPGrad;
-                    
-                    //same for endPGrad and endP
-                    REALTYPE endPGrad = gPartialsGrad[a][b][endBuffer2][i];
-                    REALTYPE endP = endPartials[i];
-                    gGrad_ab[i] += endPGrad;
-                    hGrad_ab[i] += 2 * endP * endPGrad;
+                    REALTYPE endPGrad = endPGradPtr[i];
+                    REALTYPE endP = endPartials2[i];
+                    gGradPS[efghOffset + i] += endPGrad;
+                    hGradPS[efghOffset + i] += 2 * endP * endPGrad;
                 }
-
-//                for (int i = 0; i < 4; i++) {
-//                    std::cout << "fGrad_ab:" << "\n";
-//                    std::cout << fGrad_ab[i] << ' ';
-//                }
-//                for (int i = 0; i < 4; i++) {
-//                    std::cout << "hGrad_ab:" << "\n";
-//                    std::cout << hGrad_ab[i] << ' ';
-//                }
-
             }
         }
     }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointPushReductionAdjoints(
+        const REALTYPE* partials, REALTYPE* partialAdj,
+        int buffer, const REALTYPE* adjSum, const REALTYPE* adjSq) {
+    if (buffer < 0) return;
+    const REALTYPE* vec = gPartials[buffer];
+    REALTYPE* adj = partialAdj + buffer * kPartialsPaddedStateCount;
+    for (int i = 0; i < kStateCount; ++i) {
+        adj[i] += adjSum[i] + REALTYPE(2) * vec[i] * adjSq[i];
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointAddMatTVecAndOuterInPlace(
+        REALTYPE* transposeVecTarget, REALTYPE* outerTarget,
+        const REALTYPE* matrix, const REALTYPE* left, const REALTYPE* right,
+        int matrixIncr) {
+    const int S = kStateCount;
+    for (int i = 0; i < S; ++i) {
+        REALTYPE leftVal = left[i];
+        if (leftVal == REALTYPE(0)) continue;
+        const REALTYPE* matRow = matrix + i * matrixIncr;
+        REALTYPE* outerRow = outerTarget + i * S;
+        for (int j = 0; j < S; ++j) {
+            transposeVecTarget[j] += matRow[j] * leftVal;
+            outerRow[j] += leftVal * right[j];
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
+        const int* operations, int count,
+        const int* intervals, int intervalCount,
+        const double* intervalLengths,
+        const REALTYPE* sizes, const REALTYPE* coalescent) {
+
+    const int S = kStateCount;
+    const int S2 = S * S;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int numOps = BEAGLE_BASTA_OP_COUNT;
+    const int matrixIncr = S + T_PAD;
+
+    memset(gPartialAdjoint.data(), 0, gPartialAdjoint.size() * sizeof(REALTYPE));
+    memset(gMatrixAdjoint.data(), 0, gMatrixAdjoint.size() * sizeof(REALTYPE));
+    memset(gAdjointPopSizeGradient.data(), 0, gAdjointPopSizeGradient.size() * sizeof(REALTYPE));
+
+    if (!gRawEigenVectors.empty() && !kUnclampedForwardDone) {
+
+        std::vector<int> indices(kMatrixCount);
+        std::vector<double> edgeLengths(kMatrixCount);
+        int activeCount = 0;
+        for (int m = 0; m < kMatrixCount; ++m) {
+            if (gEdgeLengthsGrad[m] != REALTYPE(0)) {
+                indices[activeCount] = m;
+                edgeLengths[activeCount] = (double)gEdgeLengthsGrad[m];
+                activeCount++;
+            }
+        }
+
+        if (activeCount > 0) {
+            gEigenDecomposition->updateTransitionMatrices(
+                0, indices.data(), NULL, NULL,
+                edgeLengths.data(), gCategoryRates[0],
+                gTransitionMatrices, activeCount);
+        }
+
+        REALTYPE* coal = const_cast<REALTYPE*>(coalescent);
+        memset(coal, 0, kCoalescentBufferLength * sizeof(REALTYPE));
+        updateInnerBastaPartials(operations, 0, count, sizes, coal);
+
+        std::fill(gBastaBuffers.begin(), gBastaBuffers.end(), REALTYPE(0));
+        REALTYPE* eB = gBastaBuffers.data();
+        REALTYPE* fB = eB + S_pad * kCoalescentBufferLength;
+        REALTYPE* gB = fB + S_pad * kCoalescentBufferLength;
+        REALTYPE* hB = gB + S_pad * kCoalescentBufferLength;
+        for (int op = 0; op < count; ++op) {
+            reduceWithinInterval(eB, fB, gB, hB,
+                operations[op * numOps + 1], operations[op * numOps + 3],
+                operations[op * numOps + 5], operations[op * numOps + 6],
+                operations[op * numOps + 7]);
+        }
+        kUnclampedForwardDone = true;
+    }
+
+    REALTYPE* partialAdj = gPartialAdjoint.data();
+    REALTYPE* matrixAdj = gMatrixAdjoint.data();
+    REALTYPE* popSizeGrad = gAdjointPopSizeGradient.data();
+
+    const REALTYPE* e = gBastaBuffers.data();
+    const REALTYPE* f = e + S_pad * kCoalescentBufferLength;
+    const REALTYPE* g = f + S_pad * kCoalescentBufferLength;
+    const REALTYPE* h = g + S_pad * kCoalescentBufferLength;
+
+    REALTYPE* adjE = gAdjointWorkE.data();
+    REALTYPE* adjF = gAdjointWorkF.data();
+    REALTYPE* adjG = gAdjointWorkG.data();
+    REALTYPE* adjH = gAdjointWorkH.data();
+    REALTYPE* adjW = gAdjointWorkW.data();
+    REALTYPE* leftEndBar = gAdjointWorkLeft.data();
+    REALTYPE* rightEndBar = gAdjointWorkRight.data();
+
+    for (int interval = intervalCount - 2; interval >= 0; --interval) {
+        const int start = intervals[interval];
+        const int end = intervals[interval + 1];
+
+        const int intervalNumber = operations[start * numOps + 7];
+        const REALTYPE length = (REALTYPE)intervalLengths[interval];
+
+        const REALTYPE* eI = e + intervalNumber * S_pad;
+        const REALTYPE* fI = f + intervalNumber * S_pad;
+        const REALTYPE* gI = g + intervalNumber * S_pad;
+        const REALTYPE* hI = h + intervalNumber * S_pad;
+
+        for (int i = 0; i < S; ++i) {
+            REALTYPE invSize = REALTYPE(1) / sizes[i];
+            adjE[i] = -length * eI[i] / (REALTYPE(2) * sizes[i]);
+            adjF[i] = length * invSize / REALTYPE(4);
+            adjG[i] = -length * gI[i] / (REALTYPE(2) * sizes[i]);
+            adjH[i] = length * invSize / REALTYPE(4);
+            popSizeGrad[i] += length * (eI[i]*eI[i] - fI[i] + gI[i]*gI[i] - hI[i]) /
+                              (REALTYPE(4) * sizes[i] * sizes[i]);
+        }
+
+        for (int idx = start; idx < end; ++idx) {
+            const int accBuf1 = operations[idx * numOps + 5];
+            const int accBuf2 = operations[idx * numOps + 6];
+            const int inBuf1 = operations[idx * numOps + 1];
+            const int inBuf2 = operations[idx * numOps + 3];
+
+            adjointPushReductionAdjoints(nullptr, partialAdj, accBuf1, adjG, adjH);
+            adjointPushReductionAdjoints(nullptr, partialAdj, accBuf2, adjG, adjH);
+            adjointPushReductionAdjoints(nullptr, partialAdj, inBuf1, adjE, adjF);
+            adjointPushReductionAdjoints(nullptr, partialAdj, inBuf2, adjE, adjF);
+        }
+
+        int coalOpIdx = -1;
+        for (int idx = start; idx < end; ++idx) {
+            if (operations[idx * numOps + 3] >= 0) {
+                coalOpIdx = idx;
+                break;
+            }
+        }
+
+        if (coalOpIdx >= 0) {
+            const int destBuf = operations[coalOpIdx * numOps];
+            const int inBuf1 = operations[coalOpIdx * numOps + 1];
+            const int inBuf2 = operations[coalOpIdx * numOps + 3];
+            const int inMat1 = operations[coalOpIdx * numOps + 2];
+            const int inMat2 = operations[coalOpIdx * numOps + 4];
+            const int accBuf1 = operations[coalOpIdx * numOps + 5];
+            const int accBuf2 = operations[coalOpIdx * numOps + 6];
+            const int intNum = operations[coalOpIdx * numOps + 7];
+
+            const REALTYPE* leftEnd = gPartials[accBuf1];
+            const REALTYPE* rightEnd = gPartials[accBuf2];
+            const REALTYPE* leftStart = gPartials[inBuf1];
+            const REALTYPE* rightStart = gPartials[inBuf2];
+            const REALTYPE* destP = gPartials[destBuf];
+            REALTYPE J = coalescent[intNum];
+
+            REALTYPE* zAdj = partialAdj + destBuf * S_pad;
+
+            REALTYPE dotZW = REALTYPE(0);
+            for (int i = 0; i < S; ++i) {
+                REALTYPE w_i = leftEnd[i] * rightEnd[i] / sizes[i];
+                dotZW += zAdj[i] * w_i;
+            }
+            REALTYPE adjJ = REALTYPE(1) / J - dotZW / (J * J);
+
+            for (int i = 0; i < S; ++i) {
+                REALTYPE w_i = leftEnd[i] * rightEnd[i] / sizes[i];
+                adjW[i] = zAdj[i] / J + adjJ;
+                leftEndBar[i] = partialAdj[accBuf1 * S_pad + i] + adjW[i] * rightEnd[i] / sizes[i];
+                rightEndBar[i] = partialAdj[accBuf2 * S_pad + i] + adjW[i] * leftEnd[i] / sizes[i];
+                popSizeGrad[i] -= adjW[i] * leftEnd[i] * rightEnd[i] / (sizes[i] * sizes[i]);
+            }
+
+            adjointAddMatTVecAndOuterInPlace(
+                    partialAdj + inBuf1 * S_pad,
+                    matrixAdj + inMat1 * S * S,
+                    gTransitionMatrices[inMat1], leftEndBar, leftStart, matrixIncr);
+            adjointAddMatTVecAndOuterInPlace(
+                    partialAdj + inBuf2 * S_pad,
+                    matrixAdj + inMat2 * S * S,
+                    gTransitionMatrices[inMat2], rightEndBar, rightStart, matrixIncr);
+        }
+
+        for (int idx = end - 1; idx >= start; --idx) {
+            if (operations[idx * numOps + 3] >= 0) continue;
+
+            const int inBuf1 = operations[idx * numOps + 1];
+            const int inMat1 = operations[idx * numOps + 2];
+            const int accBuf1 = operations[idx * numOps + 5];
+
+            REALTYPE* yBar = partialAdj + accBuf1 * S_pad;
+            const REALTYPE* x = gPartials[inBuf1];
+
+            adjointAddMatTVecAndOuterInPlace(
+                    partialAdj + inBuf1 * S_pad,
+                    matrixAdj + inMat1 * S * S,
+                    gTransitionMatrices[inMat1], yBar, x, matrixIncr);
+        }
+
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transformBastaMatrixAdjoints(int matrixCount, double* out) {
+    return BEAGLE_ERROR_GENERAL;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::backTransformBastaEigenBasisGradient(
+        const double* eigenBasisGrad, double* out) {
+    return BEAGLE_ERROR_GENERAL;
+}
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateEigenBasisGradient(
+        const double* eigenValues, const double* branchLengths,
+        int matrixCount, int hasComplexEigenvalues, double* outRateGradient) {
+
+    if (!kAdjointBuffersAllocated || gRawEigenVectors.empty())
+        return BEAGLE_ERROR_GENERAL;
+
+    const int S = kStateCount;
+    const int S2 = S * S;
+    const double* evec = gRawEigenVectors.data();
+    const double* ievc = gRawInverseEigenVectors.data();
+    const int M = matrixCount < kMatrixCount ? matrixCount : kMatrixCount;
+
+
+    std::vector<int> blockStartsVec(S), blockDimsVec(S);
+    int* blockStarts = blockStartsVec.data();
+    int* blockDimsArr = blockDimsVec.data();
+    int numBlocks = 0;
+    for (int i = 0; i < S; i++) {
+        blockStarts[numBlocks] = i;
+        if (hasComplexEigenvalues && std::abs(eigenValues[S + i]) > 1e-12) {
+            blockDimsArr[numBlocks] = 2; i++;
+        } else {
+            blockDimsArr[numBlocks] = 1;
+        }
+        numBlocks++;
+    }
+
+    REALTYPE* eigenBasisGrad = gAdjointWorkTemp.data();
+    memset(eigenBasisGrad, 0, S2 * sizeof(REALTYPE));
+
+    REALTYPE* localTemp = gAdjointWorkIexp.data();
+    std::vector<REALTYPE> transformedVec(S2);
+    REALTYPE* transformed = transformedVec.data();
+
+    for (int m = 0; m < M; ++m) {
+        const REALTYPE* matAdj = gMatrixAdjoint.data() + m * S2;
+
+        memset(localTemp, 0, S2 * sizeof(REALTYPE));
+        for (int i = 0; i < S; ++i)
+            for (int j = 0; j < S; ++j) {
+                REALTYPE val = matAdj[i * S + j];
+                if (val == REALTYPE(0)) continue;
+                for (int b = 0; b < S; ++b) localTemp[i * S + b] += val * ievc[b * S + j];
+            }
+
+
+        memset(transformed, 0, S2 * sizeof(REALTYPE));
+        for (int i = 0; i < S; ++i)
+            for (int a = 0; a < S; ++a) {
+                REALTYPE v = evec[i * S + a];
+                if (v == REALTYPE(0)) continue;
+                for (int b = 0; b < S; ++b) transformed[a * S + b] += v * localTemp[i * S + b];
+            }
+
+        REALTYPE t = (REALTYPE)branchLengths[m];
+        for (int lb = 0; lb < numBlocks; lb++) {
+            int ls = blockStarts[lb], ld = blockDimsArr[lb];
+            for (int rb = 0; rb < numBlocks; rb++) {
+                int rs = blockStarts[rb], rd = blockDimsArr[rb];
+
+                if (ld == 1 && rd == 1) {
+                    REALTYPE la = eigenValues[ls], lbb = eigenValues[rs];
+                    REALTYPE tla = t*la, tlb = t*lbb;
+                    REALTYPE coeff = (std::abs(tla-tlb) < 1e-12) ? t*std::exp(tla)
+                        : (std::exp(tla) - std::exp(tlb)) / (la - lbb);
+                    eigenBasisGrad[ls*S+rs] += transformed[ls*S+rs] * coeff;
+
+                } else if (ld == 1 && rd == 2) {
+                    REALTYPE la=eigenValues[ls],rr=eigenValues[rs],ri=eigenValues[S+rs];
+                    REALTYPE sr=rr-la,den=sr*sr+ri*ri,scale=std::exp(t*la),ic0,ic1;
+                    if(den<1e-12){ic0=t;ic1=0;}else{REALTYPE ex=std::exp(t*sr),cs=std::cos(t*ri),sn=std::sin(t*ri);
+                        ic0=(ex*(sr*cs+ri*sn)-sr)/den;ic1=(ex*(sr*sn-ri*cs)+ri)/den;}
+                    REALTYPE c0=scale*ic0,c1=scale*ic1;
+                    REALTYPE in0=transformed[ls*S+rs],in1=transformed[ls*S+rs+1];
+                    eigenBasisGrad[ls*S+rs]+=c0*in0+c1*in1; eigenBasisGrad[ls*S+rs+1]+=-c1*in0+c0*in1;
+
+                } else if (ld == 2 && rd == 1) {
+                    REALTYPE lr=eigenValues[ls],li=eigenValues[S+ls],rb2=eigenValues[rs];
+                    REALTYPE sr=rb2-lr,den=sr*sr+li*li,ic0,ic1;
+                    if(den<1e-12){ic0=t;ic1=0;}else{REALTYPE ex=std::exp(t*sr),cs=std::cos(t*li),sn=std::sin(t*li);
+                        ic0=(ex*(sr*cs+li*sn)-sr)/den;ic1=(ex*(sr*sn-li*cs)+li)/den;}
+                    REALTYPE eR=std::exp(t*lr),cI=std::cos(t*li),sI=std::sin(t*li);
+                    REALTYPE l00=eR*cI,l01=-eR*sI,l10=eR*sI,l11=eR*cI;
+                    REALTYPE p0=l00*ic0-l01*ic1,p1=l00*ic1+l01*ic0;
+                    REALTYPE p2=l10*ic0-l11*ic1,p3=l10*ic1+l11*ic0;
+                    REALTYPE in0=transformed[ls*S+rs],in1=transformed[(ls+1)*S+rs];
+                    eigenBasisGrad[ls*S+rs]+=p0*in0+p1*in1; eigenBasisGrad[(ls+1)*S+rs]+=p2*in0+p3*in1;
+
+                } else {
+                    REALTYPE lr=eigenValues[ls],li=eigenValues[S+ls],rr=eigenValues[rs],ri=eigenValues[S+rs];
+                    REALTYPE sr1=rr-lr,si1=li+ri,sr2=rr-lr,si2=ri-li;
+                    REALTYPE e1=std::exp(t*lr);
+                    REALTYPE exp1r=e1*std::cos(-t*li),exp1i=e1*std::sin(-t*li);
+                    REALTYPE exp2r=e1*std::cos(t*li),exp2i=e1*std::sin(t*li);
+                    REALTYPE int1r,int1i,int2r,int2i;
+                    REALTYPE d1=sr1*sr1+si1*si1;
+                    if(d1<1e-12){int1r=t;int1i=0;}else{
+                        REALTYPE ex1=std::exp(t*sr1),cs1=std::cos(t*si1),sn1=std::sin(t*si1);
+                        int1r=(sr1*(ex1*cs1-1)+si1*ex1*sn1)/d1;int1i=(sr1*ex1*sn1-si1*(ex1*cs1-1))/d1;}
+                    REALTYPE d2=sr2*sr2+si2*si2;
+                    if(d2<1e-12){int2r=t;int2i=0;}else{
+                        REALTYPE ex2=std::exp(t*sr2),cs2=std::cos(t*si2),sn2=std::sin(t*si2);
+                        int2r=(sr2*(ex2*cs2-1)+si2*ex2*sn2)/d2;int2i=(sr2*ex2*sn2-si2*(ex2*cs2-1))/d2;}
+                    REALTYPE pr=exp1r*int1r-exp1i*int1i,pi_=exp1r*int1i+exp1i*int1r;
+                    REALTYPE mr_=exp2r*int2r-exp2i*int2i,mi_=exp2r*int2i+exp2i*int2r;
+                    REALTYPE c[16];
+                    REALTYPE basis[4][4]={{.5,0,.5,0},{0,.5,0,.5},{0,-.5,0,.5},{.5,0,-.5,0}};
+                    for(int col=0;col<4;col++){
+                        REALTYPE u=basis[col][0],v=basis[col][1],p=basis[col][2],q=basis[col][3];
+                        c[col]=mr_*u+mi_*v+pr*p+pi_*q; c[4+col]=-mi_*u+mr_*v-pi_*p+pr*q;
+                        c[8+col]=mi_*u-mr_*v-pi_*p+pr*q; c[12+col]=mr_*u+mi_*v-pr*p-pi_*q;}
+                    REALTYPE in00=transformed[ls*S+rs],in01=transformed[ls*S+rs+1];
+                    REALTYPE in10=transformed[(ls+1)*S+rs],in11=transformed[(ls+1)*S+rs+1];
+                    eigenBasisGrad[ls*S+rs]       += c[0]*in00+c[1]*in01+c[2]*in10+c[3]*in11;
+                    eigenBasisGrad[ls*S+rs+1]     += c[4]*in00+c[5]*in01+c[6]*in10+c[7]*in11;
+                    eigenBasisGrad[(ls+1)*S+rs]   += c[8]*in00+c[9]*in01+c[10]*in10+c[11]*in11;
+                    eigenBasisGrad[(ls+1)*S+rs+1] += c[12]*in00+c[13]*in01+c[14]*in10+c[15]*in11;
+                }
+            }
+        }
+    }
+
+    REALTYPE* backTemp = gAdjointWorkIexp.data();
+    memset(backTemp, 0, S2 * sizeof(REALTYPE));
+    for (int i = 0; i < S; ++i)
+        for (int a = 0; a < S; ++a) {
+            REALTYPE w = ievc[a * S + i];
+            if (w == REALTYPE(0)) continue;
+            for (int b = 0; b < S; ++b) backTemp[i * S + b] += w * eigenBasisGrad[a * S + b];
+        }
+
+    memset(outRateGradient, 0, S2 * sizeof(double));
+    for (int i = 0; i < S; ++i)
+        for (int b = 0; b < S; ++b) {
+            REALTYPE val = backTemp[i * S + b];
+            if (val == REALTYPE(0)) continue;
+            for (int j = 0; j < S; ++j) outRateGradient[i * S + j] += val * evec[j * S + b];
+        }
+
+    for (int i = 0; i < S; ++i)
+        for (int j = i + 1; j < S; ++j)
+            std::swap(outRateGradient[i * S + j], outRateGradient[j * S + i]);
+
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2339,6 +2740,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 	    }
     }
     out[0] = logL;
+
+    if (kAdjointBuffersAllocated) {
+        kUnclampedForwardDone = true;
+    }
+
 	return returnCode;
 }
 
@@ -2346,7 +2752,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartials(const int* operat
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* operations,
 	     				  									   const int operationCount,
-							  	     				  		   const int* intervalStarts,
+					  	     				  		   		   const int* intervalStarts,
 	     				  									   const int intervalStartsCount,
                                                                const double* intervalLengths,
                                                                const int populationSizesIndex,
@@ -2354,71 +2760,87 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
                                                                double* out) {
 	int returnCode = BEAGLE_SUCCESS;
 
-    REALTYPE* e = gBastaBuffers.data() + 0 * kPartialsPaddedStateCount * kCoalescentBufferLength;
-    REALTYPE* f = gBastaBuffers.data() + 1 * kPartialsPaddedStateCount * kCoalescentBufferLength;
-    REALTYPE* g = gBastaBuffers.data() + 2 * kPartialsPaddedStateCount * kCoalescentBufferLength;
-    REALTYPE* h = gBastaBuffers.data() + 3 * kPartialsPaddedStateCount * kCoalescentBufferLength;
+    const int S = kStateCount;
+    const int S2 = S * S;
 
-//    std::fill(&efghGrad[0][0][0][0], &efghGrad[0][0][0][0] + sizeof(efghGrad) / sizeof(efghGrad[0][0][0][0]), REALTYPE(0));
-//
-//    REALTYPE*** eGrad = efghGrad[0];
-//    REALTYPE*** fGrad = efghGrad[1];
-//    REALTYPE*** gGrad = efghGrad[2];
-//    REALTYPE*** hGrad = efghGrad[3];
-    std::fill(gBastaGradBuffers.begin(), gBastaGradBuffers.end(), REALTYPE(0));
-    // Create the 4D array structure using pointers into the contiguous memory block
-    REALTYPE**** efghGrad = new REALTYPE***[4];
-    for (int i = 0; i < 4; i++) {
-        efghGrad[i] = new REALTYPE**[kStateCount];
-        for (int j = 0; j < kStateCount; j++) {
-            efghGrad[i][j] = new REALTYPE*[kStateCount];
-            for (int k = 0; k < kStateCount; k++) {
-                int offset = ((i * kStateCount + j) * kStateCount + k) * kPartialsPaddedStateCount * kCoalescentBufferLength;
-                efghGrad[i][j][k] = gBastaGradBuffers.data() + offset;
+    if (kAdjointBuffersAllocated) {
+        const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
+        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+
+        adjointReversePass(operations, operationCount, intervalStarts, intervalStartsCount,
+                           intervalLengths, sizes, coalescent);
+
+
+    } else {
+        const int S_pad = kPartialsPaddedStateCount;
+        const int L = kCoalescentBufferLength;
+
+        REALTYPE* e = gBastaBuffers.data() + 0 * S_pad * L;
+        REALTYPE* f = gBastaBuffers.data() + 1 * S_pad * L;
+        REALTYPE* g = gBastaBuffers.data() + 2 * S_pad * L;
+        REALTYPE* h = gBastaBuffers.data() + 3 * S_pad * L;
+
+        std::fill(gBastaGradBuffers.begin(), gBastaGradBuffers.end(), REALTYPE(0));
+        std::fill(gBastaGradBuffersPopSize.begin(), gBastaGradBuffersPopSize.end(), REALTYPE(0));
+
+        const size_t efghSliceSize = (size_t)S2 * L * S_pad;
+        REALTYPE* eGrad = gBastaGradBuffers.data() + 0 * efghSliceSize;
+        REALTYPE* fGrad = gBastaGradBuffers.data() + 1 * efghSliceSize;
+        REALTYPE* gGrad = gBastaGradBuffers.data() + 2 * efghSliceSize;
+        REALTYPE* hGrad = gBastaGradBuffers.data() + 3 * efghSliceSize;
+
+        const REALTYPE* coalescent = gCoalescentBuffers.data() + L * coalescentIndex;
+        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+
+        for (int interval = 0; interval < intervalStartsCount - 1; ++interval) {
+            const int start = intervalStarts[interval];
+            const int end = intervalStarts[interval + 1];
+            for (int op = start; op < end; ++op) {
+                const int numOps = BEAGLE_BASTA_OP_COUNT;
+                const int child1PartialIndex = operations[op * numOps + 1];
+                const int child2PartialIndex = operations[op * numOps + 3];
+                const int accumulation1PartialIndex = operations[op * numOps + 5];
+                const int accumulation2PartialIndex = operations[op * numOps + 6];
+                const int intervalNumber = operations[op * numOps + 7];
+                reduceWithinIntervalGrad(eGrad, fGrad, gGrad, hGrad,
+                                     child1PartialIndex, child2PartialIndex,
+                                     accumulation1PartialIndex, accumulation2PartialIndex,
+                                     intervalNumber);
+            }
+        }
+
+        std::fill(out, out + S2, 0.0);
+        std::vector<REALTYPE> tempGradLocal(S2);
+        for (int i = 0; i < intervalStartsCount - 1; ++i) {
+            const int op = intervalStarts[i];
+            const int numOps = BEAGLE_BASTA_OP_COUNT;
+            const int intervalNumber = operations[op * numOps + 7];
+            reduceAcrossIntervalsGrad(e, f, g, h, eGrad, fGrad, gGrad, hGrad,
+                                      tempGradLocal.data(), intervalNumber, intervalLengths[i],
+                                      sizes, gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex);
+            for (int ab = 0; ab < S2; ++ab) {
+                out[ab] += tempGradLocal[ab];
             }
         }
     }
 
-    REALTYPE*** eGrad = efghGrad[0];
-    REALTYPE*** fGrad = efghGrad[1];
-    REALTYPE*** gGrad = efghGrad[2];
-    REALTYPE*** hGrad = efghGrad[3];
+	return returnCode;
+}
 
-    const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
-    const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
 
-    for (int interval = 0; interval < intervalStartsCount - 1; ++interval) {
-        const int start = intervalStarts[interval];
-        const int end = intervalStarts[interval + 1];
 
-        for (int op = start; op < end; ++op) { // TODO execute in parallel (has race conditions on e,f,g,h
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateInnerBastaPartialsPopSizeGrad(const int* operations,
+                                                                             const int begin,
+                                                                             const int end,
+                                                                             const REALTYPE* sizes,
+                                                                             const REALTYPE* coalescent) {
 
-            const int numOps = BEAGLE_BASTA_OP_COUNT;
+    const int S = kStateCount;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int L = kCoalescentGradLength;
 
-            const int destinationPartialIndex = operations[op * numOps];
-            const int child1PartialIndex = operations[op * numOps + 1];
-            const int child1TransMatIndex = operations[op * numOps + 2];
-            const int child2PartialIndex = operations[op * numOps + 3];
-            const int child2TransMatIndex = operations[op * numOps + 4];
-            const int accumulation1PartialIndex = operations[op * numOps + 5];
-            const int accumulation2PartialIndex = operations[op * numOps + 6];
-            const int intervalNumber = operations[op * numOps + 7];
-
-            reduceWithinIntervalGrad(eGrad, fGrad, gGrad, hGrad,
-                                 child1PartialIndex, child2PartialIndex,
-                                 accumulation1PartialIndex, accumulation2PartialIndex,
-                                 intervalNumber);
-        }
-    }
-
-    for (int a = 0; a < kStateCount; ++a) {
-        for (int b = 0; b < kStateCount; ++b) {
-            out[a*kStateCount+b] = (double) 0;
-        }
-    }
-
-    for (int i = 0; i < intervalStartsCount - 1; ++i) {
-        const int op = intervalStarts[i];
+    for (int op = begin; op < end; ++op) {
 
         const int numOps = BEAGLE_BASTA_OP_COUNT;
 
@@ -2430,18 +2852,233 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
         const int accumulation1PartialIndex = operations[op * numOps + 5];
         const int accumulation2PartialIndex = operations[op * numOps + 6];
         const int intervalNumber = operations[op * numOps + 7];
-        reduceAcrossIntervalsGrad(e, f, g, h,
-                                  eGrad, fGrad, gGrad, hGrad,
-                                  tempGrad, // save output here!
-                                  intervalNumber, intervalLengths[i],
-                                  sizes, coalescent);
-        for (int a = 0; a < kStateCount; ++a) {
-            for (int b = 0; b < kStateCount; ++b) {
-                out[a*kStateCount+b] += tempGrad[a][b];
+
+        const int matrixIncr = S + T_PAD;
+
+        REALTYPE* destPartial = gPartials[destinationPartialIndex];
+
+        const REALTYPE* matrix1 = gTransitionMatrices[child1TransMatIndex];
+
+        const int childGradBase = child1PartialIndex * S * S_pad;
+        const int destGradBase  = destinationPartialIndex * S * S_pad;
+
+
+        for (int a = 0; a < S; a++) {
+            const REALTYPE* childGrad = gPartialsGradPopSize + childGradBase + a * S_pad;
+            REALTYPE* destGrad        = gPartialsGradPopSize + destGradBase  + a * S_pad;
+            for (int i = 0; i < S; i++) {
+                REALTYPE sum = 0.0;
+                const REALTYPE* matRow = matrix1 + i * matrixIncr;
+                for (int j = 0; j < S; j++) {
+                    sum += matRow[j] * childGrad[j];
+                }
+                destGrad[i] = sum;
+            }
+        }
+
+
+        if (child2PartialIndex >= 0) {
+            const REALTYPE* matrix2 = gTransitionMatrices[child2TransMatIndex];
+
+            REALTYPE* accumulation1 = gPartials[accumulation1PartialIndex];
+            REALTYPE* accumulation2 = gPartials[accumulation2PartialIndex];
+
+            const int child2GradBase = child2PartialIndex * S * S_pad;
+            const int acc1GradBase = accumulation1PartialIndex * S * S_pad;
+            const int acc2GradBase = accumulation2PartialIndex * S * S_pad;
+
+            for (int a = 0; a < S; a++) {
+                REALTYPE J = coalescent[intervalNumber];
+
+                const REALTYPE* childGrad2 = gPartialsGradPopSize + child2GradBase + a * S_pad;
+
+                REALTYPE* destGrad = gPartialsGradPopSize + destGradBase  + a * S_pad;
+                REALTYPE* accGrad1 = gPartialsGradPopSize + acc1GradBase  + a * S_pad;
+                REALTYPE* accGrad2 = gPartialsGradPopSize + acc2GradBase  + a * S_pad;
+
+                for (int i = 0; i < S; i++) {
+                    REALTYPE rightGradI = 0.0;
+                    const REALTYPE* matRow2 = matrix2 + i * matrixIncr;
+                    for (int j = 0; j < S; j++) {
+                        rightGradI += matRow2[j] * childGrad2[j];
+                    }
+                    accGrad2[i] = rightGradI;
+                }
+
+
+                REALTYPE partial_J_a = REALTYPE(0);
+                for (int i = 0; i < S; i++) {
+                    REALTYPE rightGrad = accGrad2[i];
+                    REALTYPE leftGrad  = destGrad[i];
+                    REALTYPE left  = accumulation1[i];
+                    REALTYPE right = accumulation2[i];
+
+                    REALTYPE entry = (leftGrad * right + rightGrad * left) / sizes[i];
+                    if (i == a) {
+                        entry += left * right;
+                    }
+                    partial_J_a += entry;
+
+                    destGrad[i] = entry / J;
+                    accGrad1[i] = leftGrad;
+                }
+
+                for (int i = 0; i < S; i++) {
+                    REALTYPE entry = destPartial[i];
+                    destGrad[i] -= partial_J_a * entry / J;
+                }
+                coalescentGradPopSize[a * L + intervalNumber] = partial_J_a;
             }
         }
     }
-	return returnCode;  		     				  									   
+}
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsPopSizeGrad(const int* operations,
+                                                                       const int count,
+                                                                       const int* intervals,
+                                                                       const int intervalCount,
+                                                                       const int populationSizesIndex,
+                                                                       const int coalescentIndex) {
+    int returnCode = BEAGLE_SUCCESS;
+
+    if (kAdjointBuffersAllocated) {
+    } else {
+        const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
+        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+
+        const size_t partialsGradSize = (size_t)kBufferCount * kStateCount * kPartialsPaddedStateCount;
+        std::fill(gPartialsGradPopSize, gPartialsGradPopSize + partialsGradSize, REALTYPE(0));
+
+        for (int i = 0; i < intervalCount - 1; ++i) {
+            const int begin = intervals[i];
+            const int end   = intervals[i + 1];
+            updateInnerBastaPartialsPopSizeGrad(operations, begin, end, sizes, coalescent);
+        }
+    }
+
+    return returnCode;
+}
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::uploadBastaSlabMetadata(const int* packed,
+                                                                int packedLen) {
+    (void)packed;
+    (void)packedLen;
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getBastaSlabConstants(int* opsPerBlock,
+                                                               int* indexOffsetPat) {
+    (void)opsPerBlock;
+    (void)indexOffsetPat;
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::reduceAcrossIntervalsPopSizeGrad(
+        REALTYPE* e, REALTYPE* f,
+        REALTYPE* g, REALTYPE* h,
+        REALTYPE* eGrad, REALTYPE* fGrad,
+        REALTYPE* gGrad, REALTYPE* hGrad,
+        REALTYPE* resultGrad,
+        int interval, REALTYPE length,
+        const REALTYPE* sizes,
+        const REALTYPE* coalescent) {
+
+    const int S = kStateCount;
+    const int S_pad = kPartialsPaddedStateCount;
+    const int L = kCoalescentBufferLength;
+
+    const int eOffset = interval * S_pad;
+    e += eOffset;
+    f += eOffset;
+    g += eOffset;
+    h += eOffset;
+
+    for (int a = 0; a < S; ++a) {
+        REALTYPE sum = REALTYPE(0);
+        const int efghOff = (a * L + interval) * S_pad;
+        REALTYPE* eGrad_a = eGrad + efghOff;
+        REALTYPE* fGrad_a = fGrad + efghOff;
+        REALTYPE* gGrad_a = gGrad + efghOff;
+        REALTYPE* hGrad_a = hGrad + efghOff;
+
+        for (int k = 0; k < S; ++k) {
+            sum += (2 * e[k] * eGrad_a[k] - fGrad_a[k] +
+                    2 * g[k] * gGrad_a[k] - hGrad_a[k]) / sizes[k];
+            if (k == a) {
+                sum += (e[k] * e[k] - f[k] +
+                        g[k] * g[k] - h[k]);
+            }
+        }
+        resultGrad[a] = -length * sum / 4;
+        REALTYPE prob = coalescent[interval];
+        if (prob != REALTYPE(0)) {
+            resultGrad[a] += coalescentGradPopSize[a * L + interval] / prob;
+        }
+    }
+}
+
+
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsPopSizeGrad(const int* operations,
+                                                                           const int operationCount,
+                                                                           const int* intervalStarts,
+                                                                           const int intervalStartsCount,
+                                                                           const double* intervalLengths,
+                                                                           const int populationSizesIndex,
+                                                                           const int coalescentIndex,
+                                                                           double* out) {
+    int returnCode = BEAGLE_SUCCESS;
+
+    const int S = kStateCount;
+
+    if (kAdjointBuffersAllocated) {
+        for (int i = 0; i < S; ++i) {
+            out[i] = (double)gAdjointPopSizeGradient[i];
+        }
+    } else {
+        const int S_pad = kPartialsPaddedStateCount;
+        const int L = kCoalescentBufferLength;
+
+        REALTYPE* e = gBastaBuffers.data() + 0 * S_pad * L;
+        REALTYPE* f = gBastaBuffers.data() + 1 * S_pad * L;
+        REALTYPE* g = gBastaBuffers.data() + 2 * S_pad * L;
+        REALTYPE* h = gBastaBuffers.data() + 3 * S_pad * L;
+
+        const size_t efghSliceSize = (size_t)S * L * S_pad;
+        REALTYPE* eGrad = gBastaGradBuffersPopSize.data() + 0 * efghSliceSize;
+        REALTYPE* fGrad = gBastaGradBuffersPopSize.data() + 1 * efghSliceSize;
+        REALTYPE* gGrad = gBastaGradBuffersPopSize.data() + 2 * efghSliceSize;
+        REALTYPE* hGrad = gBastaGradBuffersPopSize.data() + 3 * efghSliceSize;
+
+        const REALTYPE* coalescent = gCoalescentBuffers.data() + L * coalescentIndex;
+        const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
+
+        std::fill(out, out + S, 0.0);
+        std::vector<REALTYPE> tempGradLocal(S);
+
+        for (int i = 0; i < intervalStartsCount - 1; ++i) {
+            const int op = intervalStarts[i];
+            const int numOps = BEAGLE_BASTA_OP_COUNT;
+            const int intervalNumber = operations[op * numOps + 7];
+            reduceAcrossIntervalsPopSizeGrad(e, f, g, h, eGrad, fGrad, gGrad, hGrad,
+                                             tempGradLocal.data(), intervalNumber, intervalLengths[i],
+                                             sizes, coalescent);
+            for (int a = 0; a < S; ++a) {
+                out[a] += tempGradLocal[a];
+            }
+        }
+    }
+
+    return returnCode;
 }
 
 //BEAGLE_CPU_TEMPLATE

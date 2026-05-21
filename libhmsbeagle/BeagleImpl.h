@@ -299,14 +299,57 @@ public:
                                         int coalescentIndex,
                                         double* out) = 0;
 
+    virtual int updateBastaPartialsPopSizeGrad(const int* operations,
+                                    int operationCount,
+                                    const int* intervals,
+                                    int intervalCount,
+                                    int populationSizesIndex,
+                                    int coalescentIndex) = 0;
+
+    virtual int uploadBastaSlabMetadata(const int* packed,
+                                        int packedLen) = 0;
+
+    virtual int getBastaSlabConstants(int* opsPerBlock,
+                                      int* indexOffsetPat) = 0;
+
+    virtual int accumulateBastaPartialsPopSizeGrad(const int* operations,
+                                        int operationCount,
+                                        const int* segments,
+                                        int segmentCount,
+                                        const double* intervalLengths,
+                                        const int populationSizesIndex,
+                                        int coalescentIndex,
+                                        double* out) = 0;
+
     virtual int allocateBastaBuffers(int bufferCount,
                                      int bufferLength,
                                      int partialsCount,
                                      int initial,
                                      int numThreads) = 0;
 
+    virtual int allocateBastaGradBuffers(int partialsCount) = 0;
+
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;
+
+    virtual int getBastaMatrixAdjoint(int matrixIndex,
+                                      double* out) = 0;
+
+    virtual int getBastaPopulationSizeGradient(double* out) = 0;
+
+    virtual int setBastaExpmKernels(const double* kernels) = 0;
+
+    virtual int accumulateBastaExpmGradient(double* out) = 0;
+
+    virtual int transformBastaMatrixAdjoints(int matrixCount, double* out) = 0;
+
+    virtual int backTransformBastaEigenBasisGradient(const double* eigenBasisGrad, double* out) = 0;
+
+    virtual int accumulateEigenBasisGradient(const double* eigenValues,
+                                             const double* branchLengths,
+                                             int matrixCount,
+                                             int hasComplexEigenvalues,
+                                             double* outRateGradient) = 0;
                                    
 //protected:
     int resourceNumber;

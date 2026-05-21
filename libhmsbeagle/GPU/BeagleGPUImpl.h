@@ -24,6 +24,7 @@
 #endif
 
 #include <vector>
+#include <cstdint>
 
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -90,6 +91,8 @@ private:
     int kResultPaddedPatterns;
 
 	int kSumIntervalBlockSize;
+	int kSlabOpsPerBlock;
+	int kSpineT;
 	int kSumAcrossBlockSize;
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -228,6 +231,251 @@ private:
 	Real* hBastaLogL;
 	Real* hBastaDistance;
 	Real* hBastazeroes;
+
+	GPUPtr dPartialsGrad;
+	GPUPtr dCoalescentGrad;
+
+
+	GPUPtr dPartialsGradPopSize;
+	GPUPtr dCoalescentGradPopSize;
+
+	GPUPtr dBastaGradBuffers;
+	GPUPtr dBastaGradBuffersPopSize;
+
+	GPUPtr dEdgeLengthsGrad;
+	GPUPtr dGradOut;
+
+
+	GPUPtr dBastaGradNodeOps;
+	int* hBastaGradNodeOps;
+
+	Real* hEdgeLengthsGrad;
+	Real* hGradZeros;
+	size_t kGradZerosSize;
+
+
+	int kGradAbStride;
+	int kGradAbStridePopSize;
+	int kCoalescentGradLength;
+	bool kGradBuffersAllocated;
+	bool kBastaOpsUploaded;
+	int  kBastaOpsCount;
+
+	GPUPtr dPartialAdjoint;
+	size_t kAdjointPartialBytes;
+	GPUPtr dMatrixAdjoint;
+	GPUPtr dAdjointPopSizeGrad;
+	GPUPtr dHazardAdjoints;
+	GPUPtr dTransformedAdjoints;
+	GPUPtr dRawEigenVectors;
+	GPUPtr dRawInverseEigenVectors;
+	GPUPtr dAdjointIntervalNumbers;        // [intervalCount]    intervalNumber per interval (used by ComputeHazardAdjoints)
+	GPUPtr dAdjointIntervalStarts;         // [intervalCount + 1] op range per interval (used by gather kernel)
+	GPUPtr dAdjointMatTransIndices;        // [intervalCount]    destination matrix offset per interval
+	GPUPtr dAdjointCoalOps;                // [intervalCount]    coalescent op index per interval, -1 if none
+	int* hAdjointIntervalNumbers;
+	int* hAdjointCoalOps;
+	int* hAdjointMatTransIndices;
+	int* hAdjointIntervalStarts;
+	int kAdjointIntervalNumbersSize;
+	Real* hRawEigenVectors;
+	Real* hRawInverseEigenVectors;
+	Real* hMatrixAdjointHost;
+	Real* hTransformedAdjointsHost;
+	GPUPtr dLoewnerEigenValues;
+	GPUPtr dLoewnerBranchLengths;
+	GPUPtr dLoewnerBlockStarts;
+	GPUPtr dLoewnerBlockDims;
+	GPUPtr dLoewnerOutRateGrad;
+	Real* hLoewnerEigenValues;
+	Real* hLoewnerBranchLengths;
+	int* hLoewnerBlockStarts;
+	int* hLoewnerBlockDims;
+	int kLoewnerNumBlocks;
+	int kLoewnerEvalSize;
+	int kLoewnerMaxM;
+	bool kAdjointGradBuffersAllocated;
+
+	bool kAdjointGradMode;
+	bool kRawEigenVectorsUploaded;
+
+	GPUPtr dScratchYBar;            // [operationCount * PADDED_STATE_COUNT]
+	GPUPtr dScratchX;               // same shape, used by legacy pipeline only
+	GPUPtr dCoalRightYBar;          // [intervalCount * PADDED_STATE_COUNT], legacy pipeline only
+	GPUPtr dCoalRightX;             // same shape, legacy pipeline only
+	int kScratchOpCapacity;      // allocated op slots for dScratchYBar
+	int kScratchXOpCapacity;     // allocated op slots for dScratchX (legacy only)
+	int kCoalRightCapacity;      // current capacity of coalRight buffers, in interval slots
+	int kAdjointMaxOpsPerInterval;
+
+	uint64_t kAdjointMetaFingerprint;     // hash over (hBastaOperationQueue, intervalStarts)
+	bool kAdjointMetaCached;
+	int kAdjointMetaIntervalCount;
+
+	uint64_t kLoewnerMetaFingerprint;     // hash over eigenvalues
+	bool kLoewnerMetaCached;
+	int kLoewnerMetaEvalSize;
+
+	void* kAdjointGraphExec;
+	bool kAdjointGraphValid;
+	uint64_t kAdjointGraphFingerprint;
+	int kAdjointGraphIntervalCount;
+	int kAdjointGraphNumEvBlocks;    // kSlabNumEvBlocks at capture time
+	long kAdjointGraphReplayCount;    // diagnostics
+	long kAdjointGraphRebuildCount;
+	long kAdjointGraphFallbackCount;
+
+	bool kForwardSlabPipelineEnabled;
+	void* kForwardSlabGraphExec;
+	bool kForwardSlabGraphValid;
+	uint64_t kForwardSlabGraphFingerprint;
+	int kForwardSlabGraphIntervalCount;
+	int kForwardSlabGraphNumEvBlocks;
+	long kForwardSlabGraphReplayCount;
+	long kForwardSlabGraphRebuildCount;
+	long kForwardSlabGraphFallbackCount;
+
+
+	bool   kAdjointSlabPipelineEnabled;
+	GPUPtr dPartialsTilde;
+	size_t kPartialsTildeBytes;
+
+	GPUPtr dGEigen;
+
+
+	GPUPtr dEvecT;
+	GPUPtr dInverseEvecT;
+
+	GPUPtr dBranchKb;
+	GPUPtr dBranchKTop;
+	GPUPtr dBranchTopBuf;
+	GPUPtr dBranchBotBuf;
+	GPUPtr dBranchOpFirst;
+	GPUPtr dBranchTimeStart;
+	GPUPtr dBranchT;
+
+	GPUPtr dCoalDestBufs;
+	GPUPtr dCoalLeftAccBufs;
+	GPUPtr dCoalRightAccBufs;
+	GPUPtr dCoalIntervals;
+
+	int kMaxSlabDepth;
+	int* hBranchSlabStart;
+	int* hCoalSlabStart;
+
+
+	GPUPtr dOpInBufOff;
+
+
+	GPUPtr dOpKIn;
+	GPUPtr dOpKAcc;
+	GPUPtr dOpHasAcc;
+	GPUPtr dOpReduceTable;
+	int kBastaOpReduceCount;
+
+	GPUPtr dIntervalOpStartCSR;
+	GPUPtr dIntervalOpListCSR;
+
+
+	GPUPtr dHazardEigenPerOp;
+	size_t kHazardEigenPerOpBytes;
+
+	GPUPtr dSlabBlockBranchIdx;
+	GPUPtr dSlabBlockChunkStart;
+	GPUPtr dSlabBlockChunkLen;
+	GPUPtr dSlabBlockChunkIdx;
+
+
+	GPUPtr dBranchFirstBlock;
+	GPUPtr dBranchSlabList;
+	GPUPtr dSlabCarryOut;
+	GPUPtr dSlabCarryPrefix;
+	GPUPtr dSlabCtaCarry;
+	GPUPtr dSlabCtaCarryBranch;
+	GPUPtr dSlabAStash;
+
+	GPUPtr dSlabYBottomEigen;
+	size_t kSlabYBottomBytes;
+
+
+	GPUPtr dIntervalBranchLengths;
+	size_t kIntervalBLBytes;
+	size_t kIntervalOpStartBytes;
+	Real*  hIntervalBranchLengths;
+
+
+	int kSlabBlockCap;
+	size_t kSlabCarryBytes;
+	size_t kSlabAStashBytes;
+
+
+	int* hSlabBlockBranchIdx;
+	int* hSlabBlockChunkStart;
+	int* hSlabBlockChunkLen;
+	int* hSlabBlockChunkIdx;
+	int* hSlabBlockStart;
+	int* hBranchFirstBlock;
+
+	GPUPtr dForwardBufList;
+	int kForwardBufCount;
+
+	// Capacity tracking
+	int kSlabBranchCount;
+	int kSlabCoalCount;
+	int kSlabBranchListCap;
+	int kSlabBranchTimeCap;
+	int kSlabSlabCap;
+	int kSlabCtaCarryCap;
+	int kSlabOpCap;
+	int kSlabOpReduceCap;
+	int kSlabForwardBufCap;
+
+
+	int* hBranchKb;
+	int* hBranchKTop;
+	int* hBranchTopBuf;
+	int* hBranchBotBuf;
+	int* hBranchOpFirst;
+	int* hBranchTimeStart;
+	Real* hBranchT;
+	int* hCoalDestBufs;
+	int* hCoalLeftAccBufs;
+	int* hCoalRightAccBufs;
+	int* hCoalIntervals;
+	int* hBranchSlabList;
+	int* hOpInBufOff;
+	int* hOpKIn;
+	int* hOpKAcc;
+	int* hOpHasAcc;
+	int* hOpReduceTable;
+	int* hIntervalOpStartCSR;
+	int* hIntervalOpListCSR;
+	int* hForwardBufList;
+
+
+	double* hStashedEigenValues;
+	int kStashedEigenValueSize;
+	bool kStashedHasComplex;
+	bool kLoewnerInfoBootstrapped;
+
+
+	int kSlabBranchCountActive;
+	int kSlabCoalCountActive;
+	int kSlabBranchOpTotalActive;
+	int kSlabNumEvBlocks;
+
+
+	bool kBastaSlabMetadataUploaded;
+
+
+	void* kForwardGraphExec;
+	bool kForwardGraphValid;
+	uint64_t kForwardGraphFingerprint;
+	int kForwardGraphIntervalCount;
+	int kForwardGraphOperationCount;
+	long kForwardGraphReplayCount;
+	long kForwardGraphRebuildCount;
+	long kForwardGraphFallbackCount;
 
 public:
     BeagleGPUImpl();
@@ -483,6 +731,14 @@ public:
 
     int updateInnerBastaPartials(const int * operations, const int * intervals, int i, int begin, int end, GPUPtr sizes, GPUPtr coalescent);
 
+    void uploadBastaOperationQueue(const int* operations, int count);
+
+    int uploadBastaSlabMetadata(const int* packed, int packedLen);
+
+    int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
+
+    int ensureLoewnerInfoUploaded();
+
 	int updateBastaPartials(const int* operations,
                             int operationCount,
                             const int* intervals,
@@ -515,15 +771,52 @@ public:
                                      const int coalescentIndex,
                                      double *out);
 
+     int updateBastaPartialsPopSizeGrad(const int* operations,
+                                    int operationCount,
+                                    const int* intervals,
+                                    int intervalCount,
+                                    int populationSizesIndex,
+                                    int coalescentIndex);
+
+     int accumulateBastaPartialsPopSizeGrad(const int *operations,
+                                     const int operationCount,
+                                     const int *intervalStarts,
+                                     const int intervalStartsCount,
+                                     const double *intervalLengths,
+                                     const int populationSizesIndex,
+                                     const int coalescentIndex,
+                                     double *out);
+
     int allocateBastaBuffers(int bufferCount,
                              int bufferLength,
                              int partialsCount,
                              int initial,
                              int numThreads);
 
+    int allocateBastaGradBuffers(int partialsCount);
+
     int getBastaBuffer(int bufferIndex,
                        double* out);
-	     				  		                           
+
+    int getBastaMatrixAdjoint(int matrixIndex,
+                              double* out);
+
+    int getBastaPopulationSizeGradient(double* out);
+
+    int setBastaExpmKernels(const double* kernels);
+
+    int accumulateBastaExpmGradient(double* out);
+
+    int transformBastaMatrixAdjoints(int matrixCount, double* out);
+
+    int backTransformBastaEigenBasisGradient(const double* eigenBasisGrad, double* out);
+
+    int accumulateEigenBasisGradient(const double* eigenValues,
+                                     const double* branchLengths,
+                                     int matrixCount,
+                                     int hasComplexEigenvalues,
+                                     double* outRateGradient);
+
 private:
 
     char* getInstanceName();

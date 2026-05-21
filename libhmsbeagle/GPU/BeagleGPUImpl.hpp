@@ -22,9 +22,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <cstdint>
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <algorithm>
+#include <utility>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -34,6 +37,7 @@
 #include "libhmsbeagle/GPU/Precision.h"
 #include "BeagleGPUImpl.h"
 #include "libhmsbeagle/benchmark/BenchmarkHelper.h"
+
 
 namespace beagle {
 namespace gpu {
@@ -122,6 +126,240 @@ namespace gpu {
     hBastaLogL = NULL;
     hBastaDistance = NULL;
     hBastazeroes = NULL;
+
+    dPartialsGrad = (GPUPtr)NULL;
+    dCoalescentGrad = (GPUPtr)NULL;
+    dPartialsGradPopSize = (GPUPtr)NULL;
+    dCoalescentGradPopSize = (GPUPtr)NULL;
+    dBastaGradBuffers = (GPUPtr)NULL;
+    dBastaGradBuffersPopSize = (GPUPtr)NULL;
+    dEdgeLengthsGrad = (GPUPtr)NULL;
+    dGradOut = (GPUPtr)NULL;
+    dBastaGradNodeOps = (GPUPtr)NULL;
+    hBastaGradNodeOps = NULL;
+    hEdgeLengthsGrad = NULL;
+    hGradZeros = NULL;
+    kGradZerosSize = 0;
+    kGradAbStride = 0;
+    kGradAbStridePopSize = 0;
+    kCoalescentGradLength = 0;
+    kGradBuffersAllocated = false;
+    kBastaOpsUploaded = false;
+    kBastaOpsCount = 0;
+    dPartialAdjoint = (GPUPtr)NULL;
+    dMatrixAdjoint = (GPUPtr)NULL;
+    dAdjointPopSizeGrad = (GPUPtr)NULL;
+    dHazardAdjoints = (GPUPtr)NULL;
+    dTransformedAdjoints = (GPUPtr)NULL;
+    dRawEigenVectors = (GPUPtr)NULL;
+    dRawInverseEigenVectors = (GPUPtr)NULL;
+    dAdjointIntervalNumbers = (GPUPtr)NULL;
+    dAdjointIntervalStarts = (GPUPtr)NULL;
+    dAdjointMatTransIndices = (GPUPtr)NULL;
+    dAdjointCoalOps = (GPUPtr)NULL;
+    hAdjointIntervalNumbers = NULL;
+    hAdjointCoalOps = NULL;
+    hAdjointMatTransIndices = NULL;
+    hAdjointIntervalStarts = NULL;
+    kAdjointIntervalNumbersSize = 0;
+    hRawEigenVectors = NULL;
+    hRawInverseEigenVectors = NULL;
+    hMatrixAdjointHost = NULL;
+    hTransformedAdjointsHost = NULL;
+    dLoewnerEigenValues = (GPUPtr)NULL;
+    dLoewnerBranchLengths = (GPUPtr)NULL;
+    dLoewnerBlockStarts = (GPUPtr)NULL;
+    dLoewnerBlockDims = (GPUPtr)NULL;
+    dLoewnerOutRateGrad = (GPUPtr)NULL;
+    hLoewnerEigenValues = NULL;
+    hLoewnerBranchLengths = NULL;
+    hLoewnerBlockStarts = NULL;
+    hLoewnerBlockDims = NULL;
+    kLoewnerNumBlocks = 0;
+    kLoewnerEvalSize = 0;
+    kLoewnerMaxM = 0;
+    kAdjointGradBuffersAllocated = false;
+
+    dScratchYBar = (GPUPtr)NULL;
+    dScratchX = (GPUPtr)NULL;
+    dCoalRightYBar = (GPUPtr)NULL;
+    dCoalRightX = (GPUPtr)NULL;
+    kScratchOpCapacity = 0;
+    kScratchXOpCapacity = 0;
+    kCoalRightCapacity = 0;
+    kAdjointGradMode = false;
+    kRawEigenVectorsUploaded = false;
+
+    kAdjointMaxOpsPerInterval = 0;
+
+
+    kAdjointMetaFingerprint = 0;
+    kAdjointMetaCached = false;
+    kAdjointMetaIntervalCount = 0;
+    kLoewnerMetaFingerprint = 0;
+    kLoewnerMetaCached = false;
+    kLoewnerMetaEvalSize = 0;
+
+    kAdjointGraphExec = NULL;
+    kAdjointGraphValid = false;
+    kAdjointGraphFingerprint = 0;
+    kAdjointGraphIntervalCount = 0;
+    kAdjointGraphNumEvBlocks = -1;
+    kAdjointGraphReplayCount = 0;
+    kAdjointGraphRebuildCount = 0;
+    kAdjointGraphFallbackCount = 0;
+
+    kForwardGraphExec = NULL;
+    kForwardGraphValid = false;
+    kForwardGraphFingerprint = 0;
+    kForwardGraphIntervalCount = 0;
+    kForwardGraphOperationCount = 0;
+    kForwardGraphReplayCount = 0;
+    kForwardGraphRebuildCount = 0;
+    kForwardGraphFallbackCount = 0;
+
+    kForwardSlabPipelineEnabled = false;
+    kForwardSlabGraphExec = NULL;
+    kForwardSlabGraphValid = false;
+    kForwardSlabGraphFingerprint = 0;
+    kForwardSlabGraphIntervalCount = 0;
+    kForwardSlabGraphNumEvBlocks = -1;
+    kForwardSlabGraphReplayCount = 0;
+    kForwardSlabGraphRebuildCount = 0;
+    kForwardSlabGraphFallbackCount = 0;
+
+    // ----- Depth-slab eigenbasis pipeline -----
+    kAdjointSlabPipelineEnabled = false;
+    kStashedEigenValueSize = 0;
+    kStashedHasComplex = false;
+    kLoewnerInfoBootstrapped = false;
+    kMaxSlabDepth = 0;
+
+    // Eigenbasis projections (forward) and gradient accumulator.
+    dPartialsTilde = (GPUPtr)NULL;  kPartialsTildeBytes = 0;
+    dGEigen = (GPUPtr)NULL;
+    dEvecT = (GPUPtr)NULL;
+    dInverseEvecT = (GPUPtr)NULL;
+    dHazardEigenPerOp = (GPUPtr)NULL; kHazardEigenPerOpBytes = 0;
+
+    // Per-branch / per-coal / per-op metadata read by the slab kernels.
+    dBranchKb = (GPUPtr)NULL;
+    dBranchKTop = (GPUPtr)NULL;
+    dBranchTopBuf = (GPUPtr)NULL;
+    dBranchBotBuf = (GPUPtr)NULL;
+    dBranchOpFirst = (GPUPtr)NULL;
+    dBranchTimeStart = (GPUPtr)NULL;
+    dBranchT = (GPUPtr)NULL;
+    dCoalDestBufs = (GPUPtr)NULL;
+    dCoalLeftAccBufs = (GPUPtr)NULL;
+    dCoalRightAccBufs = (GPUPtr)NULL;
+    dCoalIntervals = (GPUPtr)NULL;
+    dOpInBufOff = (GPUPtr)NULL;
+    dOpKIn = (GPUPtr)NULL;
+    dOpKAcc = (GPUPtr)NULL;
+    dOpHasAcc = (GPUPtr)NULL;
+    dOpReduceTable = (GPUPtr)NULL;
+    kBastaOpReduceCount = 0;
+    dIntervalOpStartCSR = (GPUPtr)NULL;
+    dIntervalOpListCSR = (GPUPtr)NULL;
+
+    // Segmented-scan slab kernel block / carry buffers.
+    dSlabBlockBranchIdx = (GPUPtr)NULL;
+    dSlabBlockChunkStart = (GPUPtr)NULL;
+    dSlabBlockChunkLen = (GPUPtr)NULL;
+    dSlabBlockChunkIdx = (GPUPtr)NULL;
+    dBranchFirstBlock = (GPUPtr)NULL;
+    dBranchSlabList = (GPUPtr)NULL;
+    dSlabCarryOut = (GPUPtr)NULL;
+    dSlabCarryPrefix = (GPUPtr)NULL;
+    dSlabAStash = (GPUPtr)NULL;
+    dSlabYBottomEigen = (GPUPtr)NULL;
+    kSlabBlockCap = 0;
+    kSlabCarryBytes = 0;
+    kSlabAStashBytes = 0;
+    kSlabYBottomBytes = 0;
+
+    // Per-interval branch-length cache
+    dIntervalBranchLengths = (GPUPtr)NULL;
+    kIntervalBLBytes = 0;
+    kIntervalOpStartBytes = 0;
+
+    // Forward-buffer projection list.
+    dForwardBufList = (GPUPtr)NULL;
+    kForwardBufCount = 0;
+
+    // Capacity trackers for the grow-only allocations above.
+    kSlabBranchCount = 0;
+    kSlabCoalCount = 0;
+    kSlabBranchListCap = 0;
+    kSlabBranchTimeCap = 0;
+    kSlabSlabCap = 0;
+    kSlabOpCap = 0;
+    kSlabOpReduceCap = 0;
+    kSlabForwardBufCap = 0;
+
+    // Active-build scalars filled by uploadBastaSlabMetadata.
+    kSlabBranchCountActive = 0;
+    kSlabCoalCountActive = 0;
+    kSlabBranchOpTotalActive = 0;
+    kSlabNumEvBlocks = 0;
+
+    kBastaSlabMetadataUploaded = false;
+
+    hStashedEigenValues = NULL;
+    hIntervalBranchLengths = NULL;
+    hBranchSlabStart = NULL;
+    hCoalSlabStart = NULL;
+    hBranchSlabList = NULL;
+    hSlabBlockBranchIdx = NULL;
+    hSlabBlockChunkStart = NULL;
+    hSlabBlockChunkLen = NULL;
+    hSlabBlockChunkIdx = NULL;
+    hSlabBlockStart = NULL;
+    hBranchFirstBlock = NULL;
+    hBranchKb = NULL;
+    hBranchKTop = NULL;
+    hBranchTopBuf = NULL;
+    hBranchBotBuf = NULL;
+    hBranchOpFirst = NULL;
+    hBranchTimeStart = NULL;
+    hBranchT = NULL;
+    hCoalDestBufs = NULL;
+    hCoalLeftAccBufs = NULL;
+    hCoalRightAccBufs = NULL;
+    hCoalIntervals = NULL;
+    hOpInBufOff = NULL;
+    hOpKIn = NULL;
+    hOpKAcc = NULL;
+    hOpHasAcc = NULL;
+    hOpReduceTable = NULL;
+    hIntervalOpStartCSR = NULL;
+    hIntervalOpListCSR = NULL;
+    hForwardBufList = NULL;
+}
+
+static inline uint64_t basta_splitmix64(uint64_t x) {
+    x += 0x9E3779B97F4A7C15ULL;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
+    return x ^ (x >> 31);
+}
+
+static inline uint64_t basta_hash_int_array(const int* data, size_t count, uint64_t seed) {
+    uint64_t h = seed ^ 0xcbf29ce484222325ULL;
+    for (size_t i = 0; i < count; i++) {
+        h = basta_splitmix64(h ^ (uint64_t)(uint32_t)data[i]);
+    }
+    return h;
+}
+
+static inline uint64_t basta_hash_double_array(const double* data, size_t count, uint64_t seed) {
+    uint64_t h = seed ^ 0xcbf29ce484222325ULL;
+    const uint64_t* p = reinterpret_cast<const uint64_t*>(data);
+    for (size_t i = 0; i < count; i++) {
+        h = basta_splitmix64(h ^ p[i]);
+    }
+    return h;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -188,6 +426,13 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             free(hPartitionOffsets);
             free(hGridOpIndices);
         }
+
+
+#ifdef FW_OPENCL
+        if (dPartialAdjoint != (GPUPtr)NULL) {
+            gpu->FreeMemory(dPartialAdjoint);
+        }
+#endif
 
         gpu->FreeMemory(dPartialsOrigin);
 
@@ -258,6 +503,78 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeMemory(dBastaDistance);
         gpu->FreeMemory(dBastaOperationQueue);
 
+
+        if (dScratchYBar != (GPUPtr)NULL) gpu->FreeMemory(dScratchYBar);
+        if (dScratchX != (GPUPtr)NULL) gpu->FreeMemory(dScratchX);
+        if (dCoalRightYBar != (GPUPtr)NULL) gpu->FreeMemory(dCoalRightYBar);
+        if (dCoalRightX != (GPUPtr)NULL) gpu->FreeMemory(dCoalRightX);
+
+        if (dPartialsTilde != (GPUPtr)NULL) gpu->FreeMemory(dPartialsTilde);
+        if (dGEigen != (GPUPtr)NULL) gpu->FreeMemory(dGEigen);
+        if (dEvecT != (GPUPtr)NULL) gpu->FreeMemory(dEvecT);
+        if (dInverseEvecT != (GPUPtr)NULL) gpu->FreeMemory(dInverseEvecT);
+        if (dBranchKb != (GPUPtr)NULL) gpu->FreeMemory(dBranchKb);
+        if (dBranchKTop != (GPUPtr)NULL) gpu->FreeMemory(dBranchKTop);
+        if (dBranchTopBuf != (GPUPtr)NULL) gpu->FreeMemory(dBranchTopBuf);
+        if (dBranchBotBuf != (GPUPtr)NULL) gpu->FreeMemory(dBranchBotBuf);
+        if (dBranchOpFirst != (GPUPtr)NULL) gpu->FreeMemory(dBranchOpFirst);
+        if (dBranchTimeStart != (GPUPtr)NULL) gpu->FreeMemory(dBranchTimeStart);
+        if (dBranchT != (GPUPtr)NULL) gpu->FreeMemory(dBranchT);
+        if (dCoalDestBufs != (GPUPtr)NULL) gpu->FreeMemory(dCoalDestBufs);
+        if (dCoalLeftAccBufs != (GPUPtr)NULL) gpu->FreeMemory(dCoalLeftAccBufs);
+        if (dCoalRightAccBufs != (GPUPtr)NULL) gpu->FreeMemory(dCoalRightAccBufs);
+        if (dCoalIntervals != (GPUPtr)NULL) gpu->FreeMemory(dCoalIntervals);
+        if (dOpInBufOff != (GPUPtr)NULL) gpu->FreeMemory(dOpInBufOff);
+        if (dOpKIn != (GPUPtr)NULL) gpu->FreeMemory(dOpKIn);
+        if (dOpKAcc != (GPUPtr)NULL) gpu->FreeMemory(dOpKAcc);
+        if (dOpHasAcc != (GPUPtr)NULL) gpu->FreeMemory(dOpHasAcc);
+        if (dOpReduceTable != (GPUPtr)NULL) gpu->FreeMemory(dOpReduceTable);
+        if (dIntervalOpStartCSR != (GPUPtr)NULL) gpu->FreeMemory(dIntervalOpStartCSR);
+        if (dIntervalOpListCSR != (GPUPtr)NULL) gpu->FreeMemory(dIntervalOpListCSR);
+        if (dHazardEigenPerOp != (GPUPtr)NULL) gpu->FreeMemory(dHazardEigenPerOp);
+        if (dSlabBlockBranchIdx != (GPUPtr)NULL) gpu->FreeMemory(dSlabBlockBranchIdx);
+        if (dSlabBlockChunkStart != (GPUPtr)NULL) gpu->FreeMemory(dSlabBlockChunkStart);
+        if (dSlabBlockChunkLen != (GPUPtr)NULL) gpu->FreeMemory(dSlabBlockChunkLen);
+        if (dSlabBlockChunkIdx != (GPUPtr)NULL) gpu->FreeMemory(dSlabBlockChunkIdx);
+        if (dBranchFirstBlock != (GPUPtr)NULL) gpu->FreeMemory(dBranchFirstBlock);
+        if (dBranchSlabList != (GPUPtr)NULL) gpu->FreeMemory(dBranchSlabList);
+        if (dSlabCarryOut != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryOut);
+        if (dSlabCarryPrefix != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryPrefix);
+        if (dSlabAStash != (GPUPtr)NULL) gpu->FreeMemory(dSlabAStash);
+        if (dSlabYBottomEigen != (GPUPtr)NULL) gpu->FreeMemory(dSlabYBottomEigen);
+        if (dIntervalBranchLengths != (GPUPtr)NULL) gpu->FreeMemory(dIntervalBranchLengths);
+        if (dForwardBufList != (GPUPtr)NULL) gpu->FreeMemory(dForwardBufList);
+        if (hBranchKb != NULL) gpu->FreeHostMemory(hBranchKb);
+        if (hBranchKTop != NULL) gpu->FreeHostMemory(hBranchKTop);
+        if (hBranchTopBuf != NULL) gpu->FreeHostMemory(hBranchTopBuf);
+        if (hBranchBotBuf != NULL) gpu->FreeHostMemory(hBranchBotBuf);
+        if (hBranchOpFirst != NULL) gpu->FreeHostMemory(hBranchOpFirst);
+        if (hBranchTimeStart != NULL) gpu->FreeHostMemory(hBranchTimeStart);
+        if (hBranchT != NULL) gpu->FreeHostMemory(hBranchT);
+        if (hCoalDestBufs != NULL) gpu->FreeHostMemory(hCoalDestBufs);
+        if (hCoalLeftAccBufs != NULL) gpu->FreeHostMemory(hCoalLeftAccBufs);
+        if (hCoalRightAccBufs != NULL) gpu->FreeHostMemory(hCoalRightAccBufs);
+        if (hCoalIntervals != NULL) gpu->FreeHostMemory(hCoalIntervals);
+        if (hBranchSlabList != NULL) gpu->FreeHostMemory(hBranchSlabList);
+        if (hStashedEigenValues != NULL) gpu->FreeHostMemory(hStashedEigenValues);
+        if (hBranchSlabStart != NULL) gpu->FreeHostMemory(hBranchSlabStart);
+        if (hCoalSlabStart != NULL) gpu->FreeHostMemory(hCoalSlabStart);
+        if (hOpInBufOff != NULL) gpu->FreeHostMemory(hOpInBufOff);
+        if (hIntervalBranchLengths != NULL) gpu->FreeHostMemory(hIntervalBranchLengths);
+        if (hOpKIn != NULL) gpu->FreeHostMemory(hOpKIn);
+        if (hOpKAcc != NULL) gpu->FreeHostMemory(hOpKAcc);
+        if (hOpHasAcc != NULL) gpu->FreeHostMemory(hOpHasAcc);
+        if (hOpReduceTable != NULL) gpu->FreeHostMemory(hOpReduceTable);
+        if (hIntervalOpStartCSR != NULL) gpu->FreeHostMemory(hIntervalOpStartCSR);
+        if (hIntervalOpListCSR != NULL) gpu->FreeHostMemory(hIntervalOpListCSR);
+        if (hSlabBlockBranchIdx != NULL) gpu->FreeHostMemory(hSlabBlockBranchIdx);
+        if (hSlabBlockChunkStart != NULL) gpu->FreeHostMemory(hSlabBlockChunkStart);
+        if (hSlabBlockChunkLen != NULL) gpu->FreeHostMemory(hSlabBlockChunkLen);
+        if (hSlabBlockChunkIdx != NULL) gpu->FreeHostMemory(hSlabBlockChunkIdx);
+        if (hSlabBlockStart != NULL) gpu->FreeHostMemory(hSlabBlockStart);
+        if (hBranchFirstBlock != NULL) gpu->FreeHostMemory(hBranchFirstBlock);
+        if (hForwardBufList != NULL) gpu->FreeHostMemory(hForwardBufList);
+
         gpu->FreeHostMemory(hPtrQueue);
 
         gpu->FreeHostMemory(hDerivativeQueue);
@@ -276,8 +593,27 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
 
         gpu->FreeHostMemory(hBastaOperationQueue);
         gpu->FreeHostMemory(hBastaLogL);
-        gpu->FreeHostMemory(hBastaDistance);
-        gpu->FreeHostMemory(hBastazeroes);
+
+        if (hBastaDistance != NULL) gpu->FreePinnedHostMemory(hBastaDistance);
+        if (hBastazeroes != NULL) gpu->FreePinnedHostMemory(hBastazeroes);
+    }
+
+    if (gpu != NULL) {
+        if (kAdjointGraphExec != NULL) {
+            gpu->DestroyGraph(kAdjointGraphExec);
+            kAdjointGraphExec = NULL;
+            kAdjointGraphValid = false;
+        }
+        if (kForwardGraphExec != NULL) {
+            gpu->DestroyGraph(kForwardGraphExec);
+            kForwardGraphExec = NULL;
+            kForwardGraphValid = false;
+        }
+        if (kForwardSlabGraphExec != NULL) {
+            gpu->DestroyGraph(kForwardSlabGraphExec);
+            kForwardSlabGraphExec = NULL;
+            kForwardSlabGraphValid = false;
+        }
     }
 
     if (kernels)
@@ -805,6 +1141,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             kFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO);
 
     kSumIntervalBlockSize = gpu->kernelResource->sumIntervalBlockSize;
+    kSlabOpsPerBlock = gpu->kernelResource->slabOpsPerBlock;
+    kSpineT = gpu->kernelResource->spineT;
     kSumAcrossBlockSize = gpu->kernelResource->sumAcrossBlockSize;
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1101,7 +1439,49 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
         tmpEvec += kPaddedStateCount;
     }
 
-    // Transposing matrices avoids incoherent memory read/writes
+    if (hRawEigenVectors == NULL) {
+        hRawEigenVectors = (Real*) gpu->CallocHost(sizeof(Real), kMatrixSize);
+        hRawInverseEigenVectors = (Real*) gpu->CallocHost(sizeof(Real), kMatrixSize);
+    }
+    memcpy(hRawEigenVectors, Evec, sizeof(Real) * kMatrixSize);
+    memcpy(hRawInverseEigenVectors, Ievc, sizeof(Real) * kMatrixSize);
+    kRawEigenVectorsUploaded = false;
+
+    if (kAdjointGradBuffersAllocated) {
+        gpu->MemcpyHostToDevice(dRawEigenVectors, hRawEigenVectors, sizeof(Real) * kMatrixSize);
+        gpu->MemcpyHostToDevice(dRawInverseEigenVectors, hRawInverseEigenVectors, sizeof(Real) * kMatrixSize);
+        const int Sx = kPaddedStateCount;
+        std::vector<Real> evecTbuf((size_t)Sx * Sx, (Real) 0.0);
+        std::vector<Real> ievcTbuf((size_t)Sx * Sx, (Real) 0.0);
+        for (int ii = 0; ii < Sx; ++ii) {
+            for (int jj = 0; jj < Sx; ++jj) {
+                evecTbuf[(size_t)jj * Sx + ii] = hRawEigenVectors[(size_t)ii * Sx + jj];
+                ievcTbuf[(size_t)jj * Sx + ii] = hRawInverseEigenVectors[(size_t)ii * Sx + jj];
+            }
+        }
+        if (dEvecT == (GPUPtr)NULL)
+            dEvecT = gpu->AllocateMemory(sizeof(Real) * Sx * Sx);
+        if (dInverseEvecT == (GPUPtr)NULL)
+            dInverseEvecT = gpu->AllocateMemory(sizeof(Real) * Sx * Sx);
+        gpu->MemcpyHostToDevice(dEvecT,        evecTbuf.data(), sizeof(Real) * Sx * Sx);
+        gpu->MemcpyHostToDevice(dInverseEvecT, ievcTbuf.data(), sizeof(Real) * Sx * Sx);
+        kRawEigenVectorsUploaded = true;
+    }
+
+    {
+        bool hasComplex = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) != 0;
+        int evalSize = hasComplex ? 2 * kStateCount : kStateCount;
+        if (kStashedEigenValueSize < evalSize) {
+            if (hStashedEigenValues != NULL) gpu->FreeHostMemory(hStashedEigenValues);
+            hStashedEigenValues = (double*) gpu->CallocHost(sizeof(double), evalSize);
+            kStashedEigenValueSize = evalSize;
+        }
+        memcpy(hStashedEigenValues, inEigenValues, sizeof(double) * evalSize);
+        kStashedHasComplex = hasComplex;
+        kLoewnerInfoBootstrapped = false;       // force re-upload on next slab call
+    }
+
+
     // TODO: Only need to tranpose sub-matrix of trueStateCount
     if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD)
         transposeSquareMatrix(Ievc, kPaddedStateCount);
@@ -1911,7 +2291,23 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesGrad(const int* probabilityIndices,
                                      const double* edgeLengths,
                                      int count) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updateTransitionMatricesGrad\n");
+#endif
+    if (!kGradBuffersAllocated) {
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    for (int u = 0; u < count; u++) {
+        hEdgeLengthsGrad[probabilityIndices[u]] = (Real) edgeLengths[u];
+    }
+
+    gpu->MemcpyHostToDevice(dEdgeLengthsGrad, hEdgeLengthsGrad, sizeof(Real) * kMatrixCount);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateTransitionMatricesGrad\n");
+#endif
+    return BEAGLE_SUCCESS;
 }
 
 
@@ -1925,6 +2321,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\tEntering BeagleGPUImpl::updateTransitionMatrices\n");
 #endif
+
+    if (hEdgeLengthsGrad != NULL) {
+        for (int u = 0; u < count; u++) {
+            hEdgeLengthsGrad[probabilityIndices[u]] = (Real) edgeLengths[u];
+        }
+        if (kGradBuffersAllocated) {
+            gpu->MemcpyHostToDevice(dEdgeLengthsGrad, hEdgeLengthsGrad, sizeof(Real) * kMatrixCount);
+        }
+    }
+
+    if (kAdjointGradMode && kAdjointGradBuffersAllocated
+            && kForwardSlabPipelineEnabled
+            && firstDerivativeIndices == NULL
+            && secondDerivativeIndices == NULL) {
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr,
+            "\tLeaving  BeagleGPUImpl::updateTransitionMatrices "
+            "(slab+adjoint skip, count=%d)\n", count);
+#endif
+        return BEAGLE_SUCCESS;
+    }
 
     if (count > 0) {
         // TODO: improve performance of calculation of derivatives
@@ -2234,6 +2651,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaBuffers\n");
 #endif
 
+    if (initial == 0) {
+        if (kForwardGraphExec != NULL) {
+            gpu->DestroyGraph(kForwardGraphExec);
+            kForwardGraphExec = NULL;
+        }
+        kForwardGraphValid = false;
+        kForwardGraphFingerprint = 0;
+        kForwardGraphIntervalCount = 0;
+        kForwardGraphOperationCount = 0;
+        if (kForwardSlabGraphExec != NULL) {
+            gpu->DestroyGraph(kForwardSlabGraphExec);
+            kForwardSlabGraphExec = NULL;
+        }
+        kForwardSlabGraphValid = false;
+        kForwardSlabGraphFingerprint = 0;
+        kForwardSlabGraphIntervalCount = 0;
+        kForwardSlabGraphNumEvBlocks = -1;
+        kBastaOpsUploaded = false;
+        kBastaOpsCount = 0;
+    }
+
      if (partialsCount > kBufferCount || initial == 1) {
             if (initial == 0) {
 
@@ -2271,6 +2709,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                         new_dPartialsTmpOrigin, ptrIncrement * partialsSubIndex, ptrIncrement);
                     hPartialsOffsets[i] = kIndexOffsetPat * partialsSubIndex;
                 }
+            }
+
+            if (kAdjointGradMode && dPartialAdjoint != (GPUPtr)NULL) {
+#ifdef FW_OPENCL
+                gpu->FreeMemory(dPartialAdjoint);
+#endif
+                size_t halfBytes = ((size_t)kBufferCount / 2) * ptrIncrement;
+                dPartialAdjoint = gpu->CreateSubPointer(dPartialsOrigin, halfBytes, halfBytes);
+                kAdjointPartialBytes = halfBytes;
             }
 
                 if (dBastaOperationQueue != (GPUPtr)NULL) {
@@ -2317,12 +2764,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                     hBastaLogL =NULL;
                 }
                 if (hBastaDistance != NULL) {
-                    gpu->FreeHostMemory(hBastaDistance);
+                    gpu->FreePinnedHostMemory(hBastaDistance);
                     hBastaDistance = NULL;
                 }
 
                 if (hBastazeroes != NULL) {
-                    gpu->FreeHostMemory(hBastazeroes);
+                    gpu->FreePinnedHostMemory(hBastazeroes);
                     hBastazeroes = NULL;
                 }
 
@@ -2337,9 +2784,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                 hBastazeroes = NULL;
             }
 
-            hBastazeroes = (Real*) gpu->CallocHost(sizeof(Real), 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+            size_t zeroBytes = sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength;
+            hBastazeroes = (Real*) gpu->AllocatePinnedHostMemory(zeroBytes, false, false);
+            memset(hBastazeroes, 0, zeroBytes);
+
             hBastaLogL = (Real*) gpu->CallocHost(sizeof(Real), kBastaIntervalBlockCount);
-            hBastaDistance = (Real*) gpu->CallocHost(sizeof(Real), kCoalescentBufferLength);
+
+            size_t distBytes = sizeof(Real) * kCoalescentBufferLength;
+            hBastaDistance = (Real*) gpu->AllocatePinnedHostMemory(distBytes, false, false);
+            memset(hBastaDistance, 0, distBytes);
+
 
             dCoalescentBuffers = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
             dBastaDistance = gpu->AllocateMemory(kCoalescentBufferLength * sizeof(Real));
@@ -2347,10 +2802,155 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
             dBastaLogL = gpu->AllocateMemory(kBastaIntervalBlockCount * sizeof(Real));
         }
 
+
+    if (hEdgeLengthsGrad == NULL) {
+        hEdgeLengthsGrad = (Real*) gpu->CallocHost(sizeof(Real), kMatrixCount);
+    }
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::allocateBastaBuffers\n");
 #endif
 
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaGradBuffers(int partialsCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaGradBuffers\n");
+#endif
+
+    const int S = kPaddedStateCount;
+    const int S2 = S * S;
+    const int L = kCoalescentBufferLength;
+
+    bool adjointMode = (partialsCount < 0);
+    int bufCount = adjointMode
+                 ? ((-partialsCount > kBufferCount) ? -partialsCount : kBufferCount)
+                 : ((partialsCount > kBufferCount) ? partialsCount  : kBufferCount);
+
+
+    if (dEdgeLengthsGrad != (GPUPtr)NULL) gpu->FreeMemory(dEdgeLengthsGrad);
+    dEdgeLengthsGrad = gpu->AllocateMemory(kMatrixCount * sizeof(Real));
+    if (hEdgeLengthsGrad == NULL) {
+        hEdgeLengthsGrad = (Real*) gpu->CallocHost(sizeof(Real), kMatrixCount);
+    }
+
+    if (adjointMode) {
+        kAdjointGradMode = true;
+
+        const bool kCfgUseForwardSlab = true;
+        const bool kCfgUseAdjointSlab = true;
+
+        kForwardSlabPipelineEnabled = kCfgUseForwardSlab;
+        kAdjointSlabPipelineEnabled = kCfgUseAdjointSlab;
+
+
+        const char* cfgTag;
+        if (kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
+            cfgTag = "FULL-SLAB   (fwd=slab,   adj=slab)";
+        } else if (!kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
+            cfgTag = "FWD-LEGACY  (fwd=legacy, adj=slab)";
+        } else if (kForwardSlabPipelineEnabled && !kAdjointSlabPipelineEnabled) {
+            cfgTag = "ADJ-LEGACY  (fwd=slab,   adj=legacy)";
+        } else {
+            cfgTag = "FULL-LEGACY (fwd=legacy, adj=legacy)";
+        }
+        fprintf(stderr,
+            "BeagleGPUImpl: BASTA pipeline version = %s\n",
+            cfgTag);
+
+
+        size_t ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
+        size_t halfBytes    = (size_t)(-partialsCount) * ptrIncrement;
+
+#ifdef FW_OPENCL
+        if (dPartialAdjoint != (GPUPtr)NULL) {
+            gpu->FreeMemory(dPartialAdjoint);
+        }
+#endif
+
+        dPartialAdjoint = gpu->CreateSubPointer(dPartialsOrigin, halfBytes, halfBytes);
+        kAdjointPartialBytes = halfBytes;
+
+        if (dMatrixAdjoint != (GPUPtr)NULL) gpu->FreeMemory(dMatrixAdjoint);
+        dMatrixAdjoint = gpu->AllocateMemory((size_t)kMatrixCount * S2 * sizeof(Real));
+
+        if (dAdjointPopSizeGrad != (GPUPtr)NULL) gpu->FreeMemory(dAdjointPopSizeGrad);
+        dAdjointPopSizeGrad = gpu->AllocateMemory((size_t)S * sizeof(Real));
+
+        if (dHazardAdjoints != (GPUPtr)NULL) gpu->FreeMemory(dHazardAdjoints);
+        dHazardAdjoints = gpu->AllocateMemory((size_t)4 * L * S * sizeof(Real));
+
+        if (dTransformedAdjoints != (GPUPtr)NULL) gpu->FreeMemory(dTransformedAdjoints);
+        dTransformedAdjoints = gpu->AllocateMemory((size_t)kMatrixCount * S2 * sizeof(Real));
+
+        if (dRawEigenVectors != (GPUPtr)NULL) gpu->FreeMemory(dRawEigenVectors);
+        dRawEigenVectors = gpu->AllocateMemory((size_t)S2 * sizeof(Real));
+
+        if (dRawInverseEigenVectors != (GPUPtr)NULL) gpu->FreeMemory(dRawInverseEigenVectors);
+        dRawInverseEigenVectors = gpu->AllocateMemory((size_t)S2 * sizeof(Real));
+
+        size_t adjPartSize = (size_t)bufCount * kIndexOffsetPat * sizeof(Real);
+        size_t adjMatSize = (size_t)kMatrixCount * S2 * sizeof(Real);
+        size_t hazardSize = (size_t)4 * L * S * sizeof(Real);
+        size_t maxBytes = adjPartSize;
+        if (adjMatSize > maxBytes) maxBytes = adjMatSize;
+        if (hazardSize > maxBytes) maxBytes = hazardSize;
+        if (hGradZeros != NULL) gpu->FreeHostMemory(hGradZeros);
+        hGradZeros = (Real*) gpu->CallocHost(sizeof(Real), maxBytes / sizeof(Real));
+        kGradZerosSize = maxBytes;
+
+        if (hMatrixAdjointHost != NULL) gpu->FreeHostMemory(hMatrixAdjointHost);
+        hMatrixAdjointHost = (Real*) gpu->CallocHost(sizeof(Real), (size_t)kMatrixCount * S2);
+
+        if (hTransformedAdjointsHost != NULL) gpu->FreeHostMemory(hTransformedAdjointsHost);
+        hTransformedAdjointsHost = (Real*) gpu->CallocHost(sizeof(Real), (size_t)kMatrixCount * S2);
+
+        kAdjointGradBuffersAllocated = true;
+
+    } else {
+        kGradAbStride = bufCount * S;
+        kGradAbStridePopSize = bufCount * S;
+
+        if (dBastaGradBuffers != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradBuffers);
+        dBastaGradBuffers = gpu->AllocateMemory((size_t)4 * S2 * S * L * sizeof(Real));
+
+        if (dBastaGradBuffersPopSize != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradBuffersPopSize);
+        dBastaGradBuffersPopSize = gpu->AllocateMemory((size_t)4 * S * S * L * sizeof(Real));
+
+        if (dPartialsGrad != (GPUPtr)NULL) gpu->FreeMemory(dPartialsGrad);
+        dPartialsGrad = gpu->AllocateMemory((size_t)S2 * bufCount * S * sizeof(Real));
+
+        if (dCoalescentGrad != (GPUPtr)NULL) gpu->FreeMemory(dCoalescentGrad);
+        dCoalescentGrad = gpu->AllocateMemory((size_t)S2 * L * sizeof(Real));
+        kCoalescentGradLength = L;
+
+        if (dPartialsGradPopSize != (GPUPtr)NULL) gpu->FreeMemory(dPartialsGradPopSize);
+        dPartialsGradPopSize = gpu->AllocateMemory((size_t)S * bufCount * S * sizeof(Real));
+
+        if (dCoalescentGradPopSize != (GPUPtr)NULL) gpu->FreeMemory(dCoalescentGradPopSize);
+        dCoalescentGradPopSize = gpu->AllocateMemory((size_t)S * L * sizeof(Real));
+
+        if (dGradOut != (GPUPtr)NULL) gpu->FreeMemory(dGradOut);
+        dGradOut = gpu->AllocateMemory((size_t)S2 * (L + 1) * sizeof(Real));
+
+        if (dBastaGradNodeOps != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradNodeOps);
+        dBastaGradNodeOps = gpu->AllocateMemory((size_t)bufCount * 5 * sizeof(int));
+        if (hBastaGradNodeOps != NULL) gpu->FreeHostMemory(hBastaGradNodeOps);
+        hBastaGradNodeOps = (int*) gpu->CallocHost(sizeof(int), bufCount * 5);
+
+        size_t partialsGradBytes = (size_t)S2 * bufCount * S * sizeof(Real);
+        if (hGradZeros != NULL) gpu->FreeHostMemory(hGradZeros);
+        hGradZeros = (Real*) gpu->CallocHost(sizeof(Real), partialsGradBytes / sizeof(Real));
+        kGradZerosSize = partialsGradBytes;
+    }
+
+    kGradBuffersAllocated = true;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::allocateBastaGradBuffers\n");
+#endif
     return BEAGLE_SUCCESS;
 }
 
@@ -2371,6 +2971,223 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaBuffer(int bufferIndex,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaMatrixAdjoint(int matrixIndex,
+                                                              double* out) {
+    if (!kAdjointGradBuffersAllocated) return BEAGLE_ERROR_GENERAL;
+    const int S = kPaddedStateCount;
+    const int Su = kStateCount;
+    const int S2 = S * S;
+    size_t totalSize = (size_t)kMatrixCount * S2;
+    gpu->MemcpyDeviceToHost(hMatrixAdjointHost, dMatrixAdjoint, sizeof(Real) * totalSize);
+    size_t offset = (size_t)matrixIndex * S2;
+    for (int i = 0; i < Su; i++)
+        for (int j = 0; j < Su; j++)
+            out[i * Su + j] = (double)hMatrixAdjointHost[offset + i * S + j];
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaPopulationSizeGradient(double* out) {
+    if (!kAdjointGradBuffersAllocated) return BEAGLE_ERROR_GENERAL;
+    const int Su = kStateCount;
+    gpu->MemcpyDeviceToHost(hTransformedAdjointsHost, dAdjointPopSizeGrad, sizeof(Real) * kPaddedStateCount);
+    for (int i = 0; i < Su; i++)
+        out[i] = (double)hTransformedAdjointsHost[i];
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setBastaExpmKernels(const double* kernels) {
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaExpmGradient(double* out) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transformBastaMatrixAdjoints(int matrixCount, double* out) {
+    if (!kAdjointGradBuffersAllocated) return BEAGLE_ERROR_GENERAL;
+    const int S = kPaddedStateCount;
+    const int Su = kStateCount;
+    const int S2 = S * S;
+    int M = (matrixCount < kMatrixCount) ? matrixCount : kMatrixCount;
+
+    kernels->TiledBatchGemmABt(dMatrixAdjoint, dRawInverseEigenVectors, dTransformedAdjoints, M);
+    kernels->TiledBatchGemmAtB(dRawEigenVectors, dTransformedAdjoints, dMatrixAdjoint, M);
+    gpu->SynchronizeHost();
+
+    gpu->MemcpyDeviceToHost(hTransformedAdjointsHost, dMatrixAdjoint, sizeof(Real) * M * S2);
+    for (int m = 0; m < M; m++)
+        for (int i = 0; i < Su; i++)
+            for (int j = 0; j < Su; j++)
+                out[m * Su * Su + i * Su + j] = (double)hTransformedAdjointsHost[m * S2 + i * S + j];
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::backTransformBastaEigenBasisGradient(
+        const double* eigenBasisGrad, double* out) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
+        const double* eigenValues, const double* branchLengths,
+        int matrixCount, int hasComplexEigenvalues, double* outRateGradient) {
+    if (!kAdjointGradBuffersAllocated) return BEAGLE_ERROR_GENERAL;
+
+    const int S = kPaddedStateCount;
+    const int Su = kStateCount;
+    const int S2 = S * S;
+    int M = (matrixCount < kMatrixCount) ? matrixCount : kMatrixCount;
+
+    int evalSize = hasComplexEigenvalues ? 2 * Su : Su;
+
+
+    const int maxEvalSize = 2 * Su;
+    if (dLoewnerEigenValues == (GPUPtr)NULL) {
+        dLoewnerEigenValues = gpu->AllocateMemory(maxEvalSize * sizeof(Real));
+        if (hLoewnerEigenValues != NULL) gpu->FreeHostMemory(hLoewnerEigenValues);
+        hLoewnerEigenValues = (Real*) gpu->CallocHost(sizeof(Real), maxEvalSize);
+        kLoewnerEvalSize = maxEvalSize;
+    } else if (maxEvalSize > kLoewnerEvalSize) {
+        gpu->FreeMemory(dLoewnerEigenValues);
+        dLoewnerEigenValues = gpu->AllocateMemory(maxEvalSize * sizeof(Real));
+        if (hLoewnerEigenValues != NULL) gpu->FreeHostMemory(hLoewnerEigenValues);
+        hLoewnerEigenValues = (Real*) gpu->CallocHost(sizeof(Real), maxEvalSize);
+        kLoewnerEvalSize = maxEvalSize;
+    }
+
+    if (M > kLoewnerMaxM) {
+        if (dLoewnerBranchLengths != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerBranchLengths);
+        dLoewnerBranchLengths = gpu->AllocateMemory(M * sizeof(Real));
+        if (hLoewnerBranchLengths != NULL) gpu->FreeHostMemory(hLoewnerBranchLengths);
+        hLoewnerBranchLengths = (Real*) gpu->CallocHost(sizeof(Real), M);
+        kLoewnerMaxM = M;
+    }
+
+    if (!kAdjointSlabPipelineEnabled) {
+        kernels->TiledBatchGemmABt(dMatrixAdjoint, dRawInverseEigenVectors, dTransformedAdjoints, M);
+        kernels->TiledBatchGemmAtB(dRawEigenVectors, dTransformedAdjoints, dMatrixAdjoint, M);
+    }
+
+
+    uint64_t loewnerFingerprint = basta_hash_double_array(eigenValues, (size_t)evalSize,
+                                                         (uint64_t)((evalSize << 1) | (hasComplexEigenvalues ? 1 : 0)));
+    bool loewnerCacheHit = kLoewnerMetaCached
+                          && loewnerFingerprint == kLoewnerMetaFingerprint
+                          && kLoewnerMetaEvalSize == evalSize;
+
+    int numBlocks;
+
+    if (loewnerCacheHit) {
+        numBlocks = kLoewnerNumBlocks;
+    } else {
+        std::vector<int> blockStartsVec(Su), blockDimsVec(Su);
+        int* blockStartsBuf = blockStartsVec.data();
+        int* blockDimsBuf = blockDimsVec.data();
+        numBlocks = 0;
+        if (hasComplexEigenvalues) {
+            for (int i = 0; i < Su; i++) {
+                blockStartsBuf[numBlocks] = i;
+                if (std::abs(eigenValues[Su + i]) > 1e-12) {
+                    blockDimsBuf[numBlocks] = 2; i++;
+                } else {
+                    blockDimsBuf[numBlocks] = 1;
+                }
+                numBlocks++;
+            }
+        } else {
+            for (int i = 0; i < Su; i++) {
+                blockStartsBuf[i] = i; blockDimsBuf[i] = 1;
+            }
+            numBlocks = Su;
+        }
+
+
+        const int paddedBlocks = kPaddedStateCount;
+        if (dLoewnerBlockStarts == (GPUPtr)NULL) {
+            dLoewnerBlockStarts = gpu->AllocateMemory(paddedBlocks * sizeof(int));
+            dLoewnerBlockDims = gpu->AllocateMemory(paddedBlocks * sizeof(int));
+        }
+        if (hLoewnerBlockStarts == NULL) {
+            hLoewnerBlockStarts = (int*) gpu->CallocHost(sizeof(int), paddedBlocks);
+            hLoewnerBlockDims = (int*) gpu->CallocHost(sizeof(int), paddedBlocks);
+        }
+        kLoewnerNumBlocks = numBlocks;
+
+        for (int i = 0; i < numBlocks; i++) {
+            hLoewnerBlockStarts[i] = blockStartsBuf[i];
+            hLoewnerBlockDims[i] = blockDimsBuf[i];
+        }
+
+        for (int i = numBlocks; i < paddedBlocks; i++) {
+            hLoewnerBlockStarts[i] = kPaddedStateCount;
+            hLoewnerBlockDims[i]   = 0;
+        }
+
+        gpu->MemcpyHostToDevice(dLoewnerBlockStarts, hLoewnerBlockStarts,
+                                paddedBlocks * sizeof(int));
+        gpu->MemcpyHostToDevice(dLoewnerBlockDims,   hLoewnerBlockDims,
+                                paddedBlocks * sizeof(int));
+
+        kLoewnerMetaCached = true;
+        kLoewnerMetaFingerprint = loewnerFingerprint;
+        kLoewnerMetaEvalSize = evalSize;
+    }
+
+
+    for (int i = 0; i < evalSize; i++) hLoewnerEigenValues[i] = (Real)eigenValues[i];
+    if (!kAdjointSlabPipelineEnabled) {
+        for (int i = 0; i < M; i++) hLoewnerBranchLengths[i] = (Real)branchLengths[i];
+    }
+
+    if (!kAdjointSlabPipelineEnabled) {
+        gpu->MemcpyHostToDevice(dLoewnerEigenValues, hLoewnerEigenValues, evalSize * sizeof(Real));
+        gpu->MemcpyHostToDevice(dLoewnerBranchLengths, hLoewnerBranchLengths, M * sizeof(Real));
+    }
+
+    if (kAdjointSlabPipelineEnabled) {
+        if (dLoewnerOutRateGrad == (GPUPtr)NULL) {
+            std::fill(outRateGradient, outRateGradient + Su * Su, 0.0);
+            return BEAGLE_SUCCESS;
+        }
+        gpu->MemcpyDeviceToHost(hTransformedAdjointsHost, dLoewnerOutRateGrad, sizeof(Real) * S2);
+        gpu->SynchronizeHost();
+        for (int i = 0; i < Su; i++)
+            for (int j = 0; j < Su; j++)
+                outRateGradient[i * Su + j] = (double)hTransformedAdjointsHost[j * S + i];
+        return BEAGLE_SUCCESS;
+    }
+
+
+    kernels->ApplyComplexLoewnerInPlace(dMatrixAdjoint, dLoewnerEigenValues,
+                                         dLoewnerBranchLengths, dLoewnerBlockStarts,
+                                         dLoewnerBlockDims, M, Su, numBlocks);
+
+    if (dLoewnerOutRateGrad == (GPUPtr)NULL)
+        dLoewnerOutRateGrad = gpu->AllocateMemory(S2 * sizeof(Real));
+
+
+    kernels->ReduceMatrices(dMatrixAdjoint, dLoewnerOutRateGrad, M);
+
+
+    kernels->TiledSingleGemmAtB(dRawInverseEigenVectors, dLoewnerOutRateGrad, dTransformedAdjoints);
+    kernels->TiledSingleGemmABt(dTransformedAdjoints, dRawEigenVectors, dLoewnerOutRateGrad);
+
+    gpu->MemcpyDeviceToHost(hTransformedAdjointsHost, dLoewnerOutRateGrad, sizeof(Real) * S2);
+    gpu->SynchronizeHost();
+    for (int i = 0; i < Su; i++)
+        for (int j = 0; j < Su; j++)
+            outRateGradient[i * Su + j] = (double)hTransformedAdjointsHost[j * S + i];
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations,
   														   const int count,
   														   const int* intervals,
@@ -2379,19 +3196,49 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
                                                            const int coalescentIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
-#endif  														   
-  														   
+#endif
+
     GPUPtr coalescent = dCoalescentBuffers;
     // std::fill(coalescent, coalescent + kCoalescentBufferLength, 0);
 
     const GPUPtr sizes = dFrequencies[populationSizesIndex];
     int returnCode = updateInnerBastaPartials(operations, intervals, intervalCount, 0, count, sizes, coalescent);
-  		
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartials\n");
 #endif  		
   														   
 	return returnCode;  														   
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaOperationQueue(const int* operations, int count) {
+    const int numOps = BEAGLE_BASTA_OP_COUNT;
+    const int S = kPaddedStateCount;
+
+    for (int i = 0; i < count; ++i) {
+        hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * numOps]];
+        hBastaOperationQueue[i * numOps + 1] = hPartialsOffsets[operations[i * numOps + 1]];
+        hBastaOperationQueue[i * numOps + 2] = operations[i * numOps + 2] * S * S;
+        if (operations[i * numOps + 3] >= 0) {
+            hBastaOperationQueue[i * numOps + 3] = hPartialsOffsets[operations[i * numOps + 3]];
+            hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4] * S * S;
+        } else {
+            hBastaOperationQueue[i * numOps + 3] = operations[i * numOps + 3];
+            hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4];
+        }
+        hBastaOperationQueue[i * numOps + 5] = hPartialsOffsets[operations[i * numOps + 5]];
+        if (operations[i * numOps + 6] >= 0) {
+            hBastaOperationQueue[i * numOps + 6] = hPartialsOffsets[operations[i * numOps + 6]];
+        } else {
+            hBastaOperationQueue[i * numOps + 6] = operations[i * numOps + 6];
+        }
+        hBastaOperationQueue[i * numOps + 7] = operations[i * numOps + 7];
+    }
+
+    gpu->MemcpyHostToDevice(dBastaOperationQueue, hBastaOperationQueue, sizeof(int) * count * numOps);
+    kBastaOpsUploaded = true;
+    kBastaOpsCount = count;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -2406,40 +3253,324 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
             const int numOps = BEAGLE_BASTA_OP_COUNT;
             const int operationCount = end - begin;
 
-
-            for (int i = 0; i < operationCount; ++i) {
-                hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * numOps]];
-                hBastaOperationQueue[i * numOps + 1] = hPartialsOffsets[operations[i * numOps + 1]];
-                hBastaOperationQueue[i * numOps + 2] = operations[i * numOps + 2] * kPaddedStateCount * kPaddedStateCount;
-                if (operations[i * numOps + 3] >= 0) {
-                    hBastaOperationQueue[i * numOps + 3] = hPartialsOffsets[operations[i * numOps + 3]];
-                    hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4] * kPaddedStateCount * kPaddedStateCount;
-                } else {
-                    hBastaOperationQueue[i * numOps + 3] = operations[i * numOps + 3];
-                    hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4];
-                }
-                hBastaOperationQueue[i * numOps + 5] = hPartialsOffsets[operations[i * numOps + 5]];
-                hBastaOperationQueue[i * numOps + 6] = hPartialsOffsets[operations[i * numOps + 6]];
-                hBastaOperationQueue[i * numOps + 7] = operations[i * numOps + 7];
+            const bool skipOpQueueUpload =
+                kForwardSlabPipelineEnabled && kBastaSlabMetadataUploaded;
+            if (!skipOpQueueUpload) {
+                uploadBastaOperationQueue(operations, operationCount);
             }
 
-            gpu->MemcpyHostToDevice(dBastaOperationQueue, hBastaOperationQueue, sizeof(int) * operationCount * numOps);
-            gpu->MemcpyHostToDevice(coalescent, hBastazeroes, sizeof(Real) * kCoalescentBufferLength);
-            // Real r = 0;
-            // fprintf(stderr, "The op is: %d\n", op);
-            // fprintf(stderr, "The index is: %d\n", child1TransMatIndex);
-            //fprintf(stderr,"matrices = \n");
-            //fprintf(stderr, "partials:\n");
-            //gpu->PrintfDeviceVector(dBastaOperationQueue, operationCount * numOps, r);
+            if (kForwardSlabPipelineEnabled) {
+                const int S  = kPaddedStateCount;
+                const int S2 = S * S;
 
-            for (int interval = 0; interval < intervalCount - 1; ++interval) {
-                // TODO execute in parallel (no race conditions)
-                const int start = intervals[interval];
-                const int end = intervals[interval + 1];
-                const int opCounts = end - start;
-                kernels->InnerBastaPartialsCoalescent(dPartialsOrigin, dMatricesOrigin, dBastaOperationQueue,
-                                               sizes, coalescent, start, numOps, opCounts);
+                {
+                    int rc = ensureLoewnerInfoUploaded();
+                    if (rc != BEAGLE_SUCCESS) {
+                        fprintf(stderr,
+                            "BeagleGPUImpl: ensureLoewnerInfoUploaded failed (rc=%d); "
+                            "slab+adjoint cannot fall back to legacy here because "
+                            "dMatrices is intentionally not computed in this mode. ", rc);
+                        kForwardSlabPipelineEnabled = false;
+                        return rc;
+                    }
+                }
 
+                if (!kBastaSlabMetadataUploaded) {
+                    fprintf(stderr,
+                        "BeagleGPUImpl: forward slab pipeline invoked before "
+                        "slab metadata was uploaded. Caller must invoke "
+                        "uploadBastaSlabMetadata() prior to "
+                        "updateBastaPartials().\n");
+                    kForwardSlabPipelineEnabled = false;
+                    return BEAGLE_ERROR_GENERAL;
+                }
+
+                kSlabNumEvBlocks = kLoewnerNumBlocks;
+
+
+                {
+                    const bool useEdgeBL = (hEdgeLengthsGrad != NULL);
+                    if (hIntervalBranchLengths != NULL) {
+                        for (int k = 0; k < intervalCount; ++k) {
+                            Real bl = (Real) 0.0;
+                            bool gotFromEdge = false;
+                            if (useEdgeBL) {
+                                int lastOpIdx = intervals[k + 1] - 1;
+                                if (lastOpIdx >= 0 && lastOpIdx < operationCount) {
+                                    int matIdx = operations[lastOpIdx * numOps + 2];
+                                    if (matIdx >= 0 && matIdx < kMatrixCount) {
+                                        bl = hEdgeLengthsGrad[matIdx];
+                                        if (bl != (Real) 0.0) gotFromEdge = true;
+                                    }
+                                }
+                            }
+                            if (!gotFromEdge && hBastaDistance != NULL) {
+                                bl = hBastaDistance[k];
+                            }
+                            hIntervalBranchLengths[k] = bl;
+                        }
+                    }
+                }
+
+
+                {
+                    int branchTimeTotal = 0;
+                    for (int bi = 0; bi < kSlabBranchCountActive; ++bi) {
+                        int kTop = hBranchKTop[bi];
+                        int K_b = hBranchKb[bi];
+                        int timeStart = hBranchTimeStart[bi];
+                        Real cumT = (Real) 0.0;
+                        for (int n = 1; n <= K_b; ++n) {
+                            int absInterval = kTop - (n - 1);
+                            if (absInterval >= 0 && absInterval < intervalCount &&
+                                hIntervalBranchLengths != NULL) {
+                                cumT += hIntervalBranchLengths[absInterval];
+                            }
+                            if (hBranchT != NULL)
+                                hBranchT[timeStart + n - 1] = cumT;
+                        }
+                        branchTimeTotal = std::max(branchTimeTotal, timeStart + K_b);
+                    }
+                    if (branchTimeTotal > 0 && hBranchT != NULL) {
+                        gpu->MemcpyHostToDevice(dBranchT, hBranchT,
+                            sizeof(Real) * (size_t)branchTimeTotal);
+                    }
+                }
+
+                uint64_t slabFwdFingerprint = basta_hash_int_array(intervals,
+                                                 (size_t)intervalCount,
+                                                 (uint64_t)intervalCount);
+                {
+                    uint64_t sizesPtr = (uint64_t)(size_t) sizes;
+                    uint64_t coalPtr  = (uint64_t)(size_t) coalescent;
+                    slabFwdFingerprint = basta_hash_int_array(
+                        reinterpret_cast<const int*>(&sizesPtr),
+                        sizeof(sizesPtr) / sizeof(int), slabFwdFingerprint);
+                    slabFwdFingerprint = basta_hash_int_array(
+                        reinterpret_cast<const int*>(&coalPtr),
+                        sizeof(coalPtr) / sizeof(int), slabFwdFingerprint);
+                }
+
+                bool graphSupported = gpu->SupportsGraphCapture();
+                bool slabFwdGraphReady = graphSupported
+                    && kForwardSlabGraphValid
+                    && kForwardSlabGraphExec != NULL
+                    && kForwardSlabGraphFingerprint == slabFwdFingerprint
+                    && kForwardSlabGraphIntervalCount == intervalCount;
+
+                if (graphSupported && !slabFwdGraphReady) {
+                    if (kForwardSlabGraphExec != NULL) {
+                        gpu->DestroyGraph(kForwardSlabGraphExec);
+                        kForwardSlabGraphExec = NULL;
+                        kForwardSlabGraphValid = false;
+                    }
+
+                    if (gpu->BeginGraphCapture()) {
+
+                        gpu->MemcpyHostToDevice(coalescent, hBastazeroes,
+                            sizeof(Real) * kCoalescentBufferLength);
+
+
+                        kernels->ProjectPartialsToEigenbasis(
+                            dPartialsOrigin, dRawInverseEigenVectors,
+                            dPartialsTilde, dForwardBufList,
+                            kForwardBufCount, kStateCount, kIndexOffsetPat);
+
+                        for (int d = kMaxSlabDepth; d >= 0; --d) {
+                            int brLo = hBranchSlabStart[d];
+                            int brHi = hBranchSlabStart[d + 1];
+                            if (brHi > brLo) {
+								int blockBase = hSlabBlockStart[d];
+                                int numBlks = hSlabBlockStart[d + 1] - blockBase;
+                                kernels->ForwardBranchSlab(dPartialsOrigin, dPartialsTilde,dEvecT,
+                                    dLoewnerEigenValues, dLoewnerBlockStarts, dLoewnerBlockDims,
+                                    dSlabBlockBranchIdx, dSlabBlockChunkStart, dSlabBlockChunkLen,
+                                    dSlabBlockChunkIdx, dBranchKb, dBranchTopBuf, dBranchBotBuf,
+									dBranchOpFirst, dBranchTimeStart, dBranchT, dOpInBufOff,
+                                    (unsigned int)blockBase,
+                                    (unsigned int)numBlks,
+                                    (unsigned int)kSlabNumEvBlocks,
+                                    (unsigned int)kStateCount,
+                                    (unsigned int)kIndexOffsetPat);
+                            }
+
+                            int coalLo = hCoalSlabStart[d];
+                            int coalHi = hCoalSlabStart[d + 1];
+                            if (coalHi > coalLo) {
+                                kernels->ForwardCoalescentSlab(dPartialsOrigin, dPartialsTilde,
+                                    dInverseEvecT, sizes, coalescent, dCoalDestBufs,
+                                    dCoalLeftAccBufs, dCoalRightAccBufs, dCoalIntervals,
+                                    (unsigned int)coalLo,
+                                    (unsigned int)(coalHi - coalLo),
+                                    (unsigned int)kStateCount,
+                                    (unsigned int)kIndexOffsetPat);
+                            }
+                        }
+
+                        kForwardSlabGraphExec = gpu->EndGraphCapture();
+                        if (kForwardSlabGraphExec != NULL) {
+                            kForwardSlabGraphValid = true;
+                            kForwardSlabGraphFingerprint = slabFwdFingerprint;
+                            kForwardSlabGraphIntervalCount = intervalCount;
+                            kForwardSlabGraphNumEvBlocks = kSlabNumEvBlocks;
+                            kForwardSlabGraphRebuildCount++;
+                            slabFwdGraphReady = true;
+                        } else {
+                            kForwardSlabGraphFallbackCount++;
+                        }
+                    } else {
+                        kForwardSlabGraphFallbackCount++;
+                    }
+                }
+
+                if (slabFwdGraphReady) {
+                    gpu->LaunchGraph(kForwardSlabGraphExec);
+                    kForwardSlabGraphReplayCount++;
+                    gpu->SynchronizeGraph();
+                } else {
+                    gpu->MemcpyHostToDevice(coalescent, hBastazeroes,
+                        sizeof(Real) * kCoalescentBufferLength);
+
+                    kernels->ProjectPartialsToEigenbasis(
+                        dPartialsOrigin, dRawInverseEigenVectors,
+                        dPartialsTilde, dForwardBufList,
+                        kForwardBufCount, kStateCount, kIndexOffsetPat);
+
+                    for (int d = kMaxSlabDepth; d >= 0; --d) {
+                        int brLo = hBranchSlabStart[d];
+                        int brHi = hBranchSlabStart[d + 1];
+                        if (brHi > brLo) {
+                            int blockBase = hSlabBlockStart[d];
+                            int numBlks   = hSlabBlockStart[d + 1] - blockBase;
+                            kernels->ForwardBranchSlab(
+                                dPartialsOrigin, dPartialsTilde,
+                                dEvecT,
+                                dLoewnerEigenValues,
+                                dLoewnerBlockStarts, dLoewnerBlockDims,
+                                dSlabBlockBranchIdx,
+                                dSlabBlockChunkStart,
+                                dSlabBlockChunkLen,
+                                dSlabBlockChunkIdx,
+                                dBranchKb,
+                                dBranchTopBuf,
+                                dBranchBotBuf,
+                                dBranchOpFirst,
+                                dBranchTimeStart,
+                                dBranchT,
+                                dOpInBufOff,
+                                (unsigned int)blockBase,
+                                (unsigned int)numBlks,
+                                (unsigned int)kSlabNumEvBlocks,
+                                (unsigned int)kStateCount,
+                                (unsigned int)kIndexOffsetPat);
+                        }
+
+                        int coalLo = hCoalSlabStart[d];
+                        int coalHi = hCoalSlabStart[d + 1];
+                        if (coalHi > coalLo) {
+                            kernels->ForwardCoalescentSlab(
+                                dPartialsOrigin, dPartialsTilde,
+                                dInverseEvecT,
+                                sizes, coalescent,
+                                dCoalDestBufs,
+                                dCoalLeftAccBufs,
+                                dCoalRightAccBufs,
+                                dCoalIntervals,
+                                (unsigned int)coalLo,
+                                (unsigned int)(coalHi - coalLo),
+                                (unsigned int)kStateCount,
+                                (unsigned int)kIndexOffsetPat);
+                        }
+                    }
+                    gpu->SynchronizeDevice();
+                }
+
+#ifdef BEAGLE_DEBUG_SYNCH
+                gpu->SynchronizeHost();
+#endif
+                return BEAGLE_SUCCESS;
+            }
+
+            uint64_t fwdFingerprint = basta_hash_int_array(intervals,
+                                                           (size_t)intervalCount,
+                                                           (uint64_t)intervalCount);
+
+            {
+                uint64_t sizesPtr = (uint64_t)(size_t) sizes;
+                uint64_t coalPtr  = (uint64_t)(size_t) coalescent;
+                fwdFingerprint = basta_hash_int_array(
+                    reinterpret_cast<const int*>(&sizesPtr),
+                    sizeof(sizesPtr) / sizeof(int),
+                    fwdFingerprint);
+                fwdFingerprint = basta_hash_int_array(
+                    reinterpret_cast<const int*>(&coalPtr),
+                    sizeof(coalPtr) / sizeof(int),
+                    fwdFingerprint);
+            }
+
+
+            bool fwdGraphSupported = gpu->SupportsGraphCapture();
+            bool fwdGraphReady = fwdGraphSupported
+                                 && kForwardGraphValid
+                                 && kForwardGraphExec != NULL
+                                 && kForwardGraphFingerprint == fwdFingerprint
+                                 && kForwardGraphIntervalCount == intervalCount;
+
+            if (fwdGraphSupported && !fwdGraphReady) {
+                if (kForwardGraphExec != NULL) {
+                    gpu->DestroyGraph(kForwardGraphExec);
+                    kForwardGraphExec = NULL;
+                    kForwardGraphValid = false;
+                }
+
+                if (gpu->BeginGraphCapture()) {
+                    gpu->MemcpyHostToDevice(coalescent, hBastazeroes,
+                                            sizeof(Real) * kCoalescentBufferLength);
+
+                    for (int interval = 0; interval < intervalCount - 1; ++interval) {
+                        const int start = intervals[interval];
+                        const int e = intervals[interval + 1];
+                        const int opCounts = e - start;
+                        kernels->InnerBastaPartialsCoalescent(dPartialsOrigin, dMatricesOrigin,
+                                                              dBastaOperationQueue,
+                                                              sizes, coalescent,
+                                                              start, numOps, opCounts);
+                    }
+
+                    kForwardGraphExec = gpu->EndGraphCapture();
+                    if (kForwardGraphExec != NULL) {
+                        kForwardGraphValid = true;
+                        kForwardGraphFingerprint = fwdFingerprint;
+                        kForwardGraphIntervalCount = intervalCount;
+                        kForwardGraphOperationCount = operationCount;
+                        kForwardGraphRebuildCount++;
+                        fwdGraphReady = true;
+                    } else {
+                        kForwardGraphFallbackCount++;
+                    }
+                } else {
+                    kForwardGraphFallbackCount++;
+                }
+            }
+
+            if (fwdGraphReady) {
+                gpu->LaunchGraph(kForwardGraphExec);
+                kForwardGraphReplayCount++;
+                gpu->SynchronizeGraph();
+            } else {
+                gpu->MemcpyHostToDevice(coalescent, hBastazeroes,
+                                        sizeof(Real) * kCoalescentBufferLength);
+
+                for (int interval = 0; interval < intervalCount - 1; ++interval) {
+                    const int start = intervals[interval];
+                    const int e = intervals[interval + 1];
+                    const int opCounts = e - start;
+                    kernels->InnerBastaPartialsCoalescent(dPartialsOrigin, dMatricesOrigin,
+                                                          dBastaOperationQueue,
+                                                          sizes, coalescent,
+                                                          start, numOps, opCounts);
+                }
+                gpu->SynchronizeDevice();
             }
 
 
@@ -2478,19 +3609,602 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad(const int* operat
                                                            const int populationSizesIndex,
                                                            const int coalescentIndex) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartialsGrad\n");
 #endif
 
-	int returnCode = BEAGLE_ERROR_GENERAL;
 
-  	fprintf(stderr, "BeagleGPUImpl::updateBastaPartials\n");
+    if (!kGradBuffersAllocated) {
+        return BEAGLE_ERROR_GENERAL;
+    }
 
+    if (kAdjointGradMode) {
+        const bool skipOpQueueUpload =
+            kAdjointSlabPipelineEnabled && kBastaSlabMetadataUploaded;
+        if (!skipOpQueueUpload) {
+            if (!kBastaOpsUploaded || kBastaOpsCount != count) {
+                uploadBastaOperationQueue(operations, count);
+            }
+        }
+        return BEAGLE_SUCCESS;
+    }
+
+    const int numOps = BEAGLE_BASTA_OP_COUNT;
+    const int S = kPaddedStateCount;
+    const int S2 = S * S;
+
+    GPUPtr coalescent = dCoalescentBuffers;
+    const GPUPtr sizes = dFrequencies[populationSizesIndex];
+
+    gpu->MemcpyHostToDevice(dPartialsGrad, hGradZeros, (size_t)kBufferCount * S2 * S * sizeof(Real));
+    gpu->MemcpyHostToDevice(dCoalescentGrad, hGradZeros, (size_t)S2 * kCoalescentBufferLength * sizeof(Real));
+
+    if (!kBastaOpsUploaded || kBastaOpsCount != count) {
+        uploadBastaOperationQueue(operations, count);
+    }
+
+    for (int i = 0; i < count; ++i) {
+        int srcIdx = i * numOps;
+        hBastaGradNodeOps[i * 5] = operations[srcIdx];
+        hBastaGradNodeOps[i * 5 + 1] = operations[srcIdx + 1];
+        hBastaGradNodeOps[i * 5 + 2] = operations[srcIdx + 3];
+        hBastaGradNodeOps[i * 5 + 3] = operations[srcIdx + 5];
+        hBastaGradNodeOps[i * 5 + 4] = operations[srcIdx + 6];
+    }
+    gpu->MemcpyHostToDevice(dBastaGradNodeOps, hBastaGradNodeOps, sizeof(int) * count * 5);
+
+    for (int interval = 0; interval < intervalCount - 1; ++interval) {
+        const int begin = intervals[interval];
+        const int end   = intervals[interval + 1];
+        const int opCount = end - begin;
+
+        int lastSrcIdx = (end - 1) * numOps;
+        int matIdx = operations[lastSrcIdx + 2];
+
+        kernels->BastaPartialsGradMigrationAB(dPartialsOrigin, dPartialsGrad, dMatricesOrigin,
+            dBastaOperationQueue, dBastaGradNodeOps, sizes,
+            coalescent, dCoalescentGrad, dEdgeLengthsGrad,
+            (unsigned int)begin, numOps, opCount,
+            kPaddedStateCount, kGradAbStride, kCoalescentBufferLength, (unsigned int)matIdx);
+
+#ifdef BEAGLE_DEBUG_SYNCH
+        gpu->SynchronizeHost();
+#endif
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartials\n");
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartialsGrad\n");
 #endif
 
-	return returnCode;
+    return BEAGLE_SUCCESS;
+}
+
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureLoewnerInfoUploaded() {
+    if (hStashedEigenValues == NULL) {
+        return BEAGLE_ERROR_GENERAL;
+    }
+
+    const int Su = kStateCount;
+    const int S2 = kPaddedStateCount * kPaddedStateCount;
+    const int evalSize = kStashedEigenValueSize;
+    const bool hasComplex = kStashedHasComplex;
+
+    const int maxEvalSize = 2 * Su;
+    if (dLoewnerEigenValues == (GPUPtr)NULL) {
+        dLoewnerEigenValues = gpu->AllocateMemory(maxEvalSize * sizeof(Real));
+        if (hLoewnerEigenValues != NULL) {
+            gpu->FreeHostMemory(hLoewnerEigenValues);
+        }
+        hLoewnerEigenValues = (Real*) gpu->CallocHost(sizeof(Real), maxEvalSize);
+        kLoewnerEvalSize = maxEvalSize;
+    } else if (maxEvalSize > kLoewnerEvalSize) {
+
+        gpu->FreeMemory(dLoewnerEigenValues);
+        dLoewnerEigenValues = gpu->AllocateMemory(maxEvalSize * sizeof(Real));
+        if (hLoewnerEigenValues != NULL) {
+            gpu->FreeHostMemory(hLoewnerEigenValues);
+        }
+        hLoewnerEigenValues = (Real*) gpu->CallocHost(sizeof(Real), maxEvalSize);
+        kLoewnerEvalSize = maxEvalSize;
+    }
+
+    std::vector<int> blockStartsVec(Su, 0);
+    std::vector<int> blockDimsVec(Su, 1);
+    int numBlocks = 0;
+    if (hasComplex) {
+        int idx = 0;
+        while (idx < Su) {
+            blockStartsVec[numBlocks] = idx;
+            int dim = 1;
+            double imag_i = hStashedEigenValues[Su + idx];
+            double abs_imag = (imag_i < 0.0) ? -imag_i : imag_i;
+            if (abs_imag > 1e-12) {
+                dim = 2;
+                idx = idx + 2;
+            } else {
+                idx = idx + 1;
+            }
+            blockDimsVec[numBlocks] = dim;
+            numBlocks = numBlocks + 1;
+        }
+    } else {
+        for (int i = 0; i < Su; i++) {
+            blockStartsVec[i] = i;
+            blockDimsVec[i] = 1;
+        }
+        numBlocks = Su;
+    }
+
+    const int paddedBlocks = kPaddedStateCount;
+    if (dLoewnerBlockStarts == (GPUPtr)NULL) {
+        dLoewnerBlockStarts = gpu->AllocateMemory(paddedBlocks * sizeof(int));
+        dLoewnerBlockDims = gpu->AllocateMemory(paddedBlocks * sizeof(int));
+    }
+    if (hLoewnerBlockStarts == NULL) {
+        hLoewnerBlockStarts = (int*) gpu->CallocHost(sizeof(int), paddedBlocks);
+        hLoewnerBlockDims = (int*) gpu->CallocHost(sizeof(int), paddedBlocks);
+    }
+    kLoewnerNumBlocks = numBlocks;
+
+    for (int i = 0; i < numBlocks; i++) {
+        hLoewnerBlockStarts[i] = blockStartsVec[i];
+        hLoewnerBlockDims[i] = blockDimsVec[i];
+    }
+
+    for (int i = numBlocks; i < paddedBlocks; i++) {
+        hLoewnerBlockStarts[i] = kPaddedStateCount;
+        hLoewnerBlockDims[i]   = 0;
+    }
+
+    for (int i = 0; i < evalSize; ++i) {
+        hLoewnerEigenValues[i] = (Real) hStashedEigenValues[i];
+    }
+
+    gpu->MemcpyHostToDevice(dLoewnerEigenValues,
+                            hLoewnerEigenValues,
+                            sizeof(Real) * evalSize);
+    gpu->MemcpyHostToDevice(dLoewnerBlockStarts,
+                            hLoewnerBlockStarts,
+                            sizeof(int) * paddedBlocks);
+    gpu->MemcpyHostToDevice(dLoewnerBlockDims,
+                            hLoewnerBlockDims,
+                            sizeof(int) * paddedBlocks);
+
+    if (dLoewnerOutRateGrad == (GPUPtr)NULL) {
+        dLoewnerOutRateGrad = gpu->AllocateMemory(S2 * sizeof(Real));
+    }
+    if (hTransformedAdjointsHost == NULL) {
+        hTransformedAdjointsHost = (Real*) gpu->CallocHost(sizeof(Real), S2);
+    }
+
+    kLoewnerInfoBootstrapped = true;
+    return BEAGLE_SUCCESS;
+}
+
+
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed,
+                                                                int packedLen) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::uploadBastaSlabMetadata\n");
+#endif
+
+
+    if (packed == NULL || packedLen < 11) {
+        fprintf(stderr,
+                "BeagleGPUImpl::uploadBastaSlabMetadata: packed payload "
+                "missing or too short (packedLen=%d, minimum=11)\n",
+                packedLen);
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    const int kPackedVersionExpected = 2;
+    const int version        = packed[0];
+    if (version != kPackedVersionExpected) {
+        fprintf(stderr, "BeagleGPUImpl::uploadBastaSlabMetadata: unsupported "
+                        "packed version %d (expected %d)\n",
+                        version, kPackedVersionExpected);
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    const int branchCount = packed[1];
+    const int coalCount = packed[2];
+    const int branchOpTotal = packed[3];
+    const int builderMaxDepth = packed[4];
+    const int forwardBufCount = packed[5];
+    const int totalSlabBlocks = packed[6];
+    const int intervalCount = packed[7];
+    const int slabOpsPerBlock = packed[8];
+    const int slabDepthCap = packed[9];
+    const int operationCount = packed[10];
+
+
+    if (slabOpsPerBlock != kSlabOpsPerBlock) {
+        fprintf(stderr,
+            "BeagleGPUImpl::uploadBastaSlabMetadata: OPS_PER_BLOCK mismatch "
+            "(packed=%d, expected=%d, paddedStateCount=%d)\n",
+            slabOpsPerBlock, kSlabOpsPerBlock, kPaddedStateCount);
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    if (branchCount     < 0 || coalCount      < 0 || branchOpTotal < 0 ||
+        builderMaxDepth < 0 || forwardBufCount < 0 || totalSlabBlocks < 0 ||
+        intervalCount   < 0 || slabDepthCap   < 0 || operationCount  < 0) {
+        fprintf(stderr,
+                "BeagleGPUImpl::uploadBastaSlabMetadata: malformed header "
+                "(one or more counts < 0)\n");
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    const long long flatTapeLen = (long long)branchOpTotal + branchCount;
+    const long long expectedLen =
+          11LL
+        + (long long)branchCount
+        + (long long)branchCount
+        + (long long)branchCount
+        + (long long)branchCount
+        + (long long)branchCount
+        + (long long)branchCount
+        + (long long)branchCount + 1
+        + (long long)branchCount
+        + (long long)branchCount + 1
+        + flatTapeLen
+        + (long long)coalCount * 4
+        + (long long)branchOpTotal * 4
+        + (long long)slabDepthCap * 3
+        + (long long)branchCount
+        + (long long)intervalCount + 1
+        + (long long)branchOpTotal
+        + (long long)forwardBufCount
+        + (long long)totalSlabBlocks * 4
+        + (long long)operationCount * 5;
+
+    if ((long long)packedLen != expectedLen) {
+        fprintf(stderr, "BeagleGPUImpl::uploadBastaSlabMetadata: packed length "
+                        "mismatch: got %d, expected %lld (branchCount=%d, "
+                        "coalCount=%d, branchOpTotal=%d, totalSlabBlocks=%d, "
+                        "intervalCount=%d, slabDepthCap=%d, forwardBufCount=%d)\n",
+                        packedLen, expectedLen, branchCount, coalCount,
+                        branchOpTotal, totalSlabBlocks, intervalCount,
+                        slabDepthCap, forwardBufCount);
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+
+    bool metadataPointersChanged = false;
+    auto growHostInt = [&](int*& hostPtr, int oldCap, int newCap) {
+        if (newCap > oldCap) {
+            if (hostPtr != NULL) gpu->FreeHostMemory(hostPtr);
+            hostPtr = (int*) gpu->CallocHost(sizeof(int), newCap);
+        }
+    };
+    auto growHostReal = [&](Real*& hostPtr, int oldCap, int newCap) {
+        if (newCap > oldCap) {
+            if (hostPtr != NULL) gpu->FreeHostMemory(hostPtr);
+            hostPtr = (Real*) gpu->CallocHost(sizeof(Real), newCap);
+        }
+    };
+    auto growDevice = [&](GPUPtr& devPtr, int oldCap, int newCap, size_t elemSize) {
+        if (newCap > oldCap) {
+            if (devPtr != (GPUPtr)NULL) gpu->FreeMemory(devPtr);
+            devPtr = gpu->AllocateMemory((size_t)newCap * elemSize);
+            metadataPointersChanged = true;
+        }
+    };
+
+    const int S = kPaddedStateCount;
+    const int stride = kIndexOffsetPat;
+
+    growHostInt(hBranchKb, kSlabBranchCount, branchCount);
+    growHostInt(hBranchKTop, kSlabBranchCount, branchCount);
+    growHostInt(hBranchTopBuf, kSlabBranchCount, branchCount);
+    growHostInt(hBranchBotBuf, kSlabBranchCount, branchCount);
+    growHostInt(hBranchOpFirst, kSlabBranchCount, branchCount);
+    growHostInt(hBranchTimeStart, kSlabBranchCount, branchCount + 1);
+    growHostInt(hBranchFirstBlock, kSlabBranchCount, branchCount);
+    growDevice(dBranchKb, kSlabBranchCount, branchCount, sizeof(int));
+    growDevice(dBranchKTop, kSlabBranchCount, branchCount, sizeof(int));
+    growDevice(dBranchTopBuf, kSlabBranchCount, branchCount, sizeof(int));
+    growDevice(dBranchBotBuf, kSlabBranchCount, branchCount, sizeof(int));
+    growDevice(dBranchOpFirst, kSlabBranchCount, branchCount, sizeof(int));
+    growDevice(dBranchTimeStart, kSlabBranchCount, branchCount + 1, sizeof(int));
+    growDevice(dBranchFirstBlock, kSlabBranchCount, branchCount, sizeof(int));
+    if (branchCount > kSlabBranchCount) kSlabBranchCount = branchCount;
+
+    growHostReal(hBranchT, kSlabBranchTimeCap, branchOpTotal);
+    growDevice(dBranchT, kSlabBranchTimeCap, branchOpTotal, sizeof(Real));
+    if (branchOpTotal > kSlabBranchTimeCap) kSlabBranchTimeCap = branchOpTotal;
+
+    growHostInt(hCoalDestBufs, kSlabCoalCount, coalCount);
+    growHostInt(hCoalLeftAccBufs, kSlabCoalCount, coalCount);
+    growHostInt(hCoalRightAccBufs, kSlabCoalCount, coalCount);
+    growHostInt(hCoalIntervals, kSlabCoalCount, coalCount);
+    growDevice(dCoalDestBufs, kSlabCoalCount, coalCount, sizeof(int));
+    growDevice(dCoalLeftAccBufs, kSlabCoalCount, coalCount, sizeof(int));
+    growDevice(dCoalRightAccBufs, kSlabCoalCount, coalCount, sizeof(int));
+    growDevice(dCoalIntervals, kSlabCoalCount, coalCount, sizeof(int));
+    if (coalCount > kSlabCoalCount) kSlabCoalCount = coalCount;
+
+    growHostInt(hBranchSlabList, kSlabBranchListCap, branchCount);
+    growDevice(dBranchSlabList, kSlabBranchListCap, branchCount, sizeof(int));
+    if (branchCount > kSlabBranchListCap) kSlabBranchListCap = branchCount;
+
+    growHostInt(hBranchSlabStart, kSlabSlabCap, slabDepthCap);
+    growHostInt(hCoalSlabStart, kSlabSlabCap, slabDepthCap);
+    growHostInt(hSlabBlockStart, kSlabSlabCap, slabDepthCap);
+    if (slabDepthCap > kSlabSlabCap) kSlabSlabCap = slabDepthCap;
+
+    growHostInt(hOpInBufOff, kSlabOpCap, branchOpTotal);
+    growHostInt(hOpKIn, kSlabOpCap, branchOpTotal);
+    growHostInt(hOpKAcc, kSlabOpCap, branchOpTotal);
+    growHostInt(hOpHasAcc, kSlabOpCap, branchOpTotal);
+    growHostInt(hIntervalOpListCSR, kSlabOpCap, branchOpTotal);
+    growDevice(dOpInBufOff, kSlabOpCap, branchOpTotal, sizeof(int));
+    growDevice(dOpKIn, kSlabOpCap, branchOpTotal, sizeof(int));
+    growDevice(dOpKAcc, kSlabOpCap, branchOpTotal, sizeof(int));
+    growDevice(dOpHasAcc, kSlabOpCap, branchOpTotal, sizeof(int));
+    growDevice(dIntervalOpListCSR,  kSlabOpCap, branchOpTotal, sizeof(int));
+    if (branchOpTotal > kSlabOpCap) kSlabOpCap = branchOpTotal;
+
+
+    {
+        const int newReduceCap = operationCount;
+        const int newReduceLen = 5 * operationCount;
+        if (newReduceCap > kSlabOpReduceCap) {
+            if (hOpReduceTable != NULL) gpu->FreeHostMemory(hOpReduceTable);
+            const int hostInts = newReduceLen + (newReduceLen >> 2) + 5;
+            hOpReduceTable = (int*) gpu->CallocHost(sizeof(int), hostInts);
+            if (dOpReduceTable != (GPUPtr)NULL) gpu->FreeMemory(dOpReduceTable);
+            dOpReduceTable = gpu->AllocateMemory((size_t)hostInts * sizeof(int));
+            kSlabOpReduceCap = newReduceCap;
+            metadataPointersChanged = true;
+        }
+    }
+
+    {
+        size_t need = (size_t)branchOpTotal * S * sizeof(Real);
+        if (dHazardEigenPerOp == (GPUPtr)NULL || need > kHazardEigenPerOpBytes) {
+            if (dHazardEigenPerOp != (GPUPtr)NULL) gpu->FreeMemory(dHazardEigenPerOp);
+            size_t alloc = need + need / 4 + (size_t)S * sizeof(Real);
+            dHazardEigenPerOp = gpu->AllocateMemory(alloc);
+            kHazardEigenPerOpBytes = alloc;
+            metadataPointersChanged = true;
+        }
+    }
+
+    if (dPartialsTilde == (GPUPtr)NULL) {
+        kPartialsTildeBytes = (size_t)kBufferCount * stride * sizeof(Real);
+        dPartialsTilde = gpu->AllocateMemory(kPartialsTildeBytes);
+        metadataPointersChanged = true;
+    }
+
+    if (dGEigen == (GPUPtr)NULL) {
+        dGEigen = gpu->AllocateMemory((size_t)S * S * sizeof(Real));
+        metadataPointersChanged = true;
+    }
+
+    if (intervalCount > 0) {
+        size_t needBL = (size_t)intervalCount * sizeof(Real);
+        if (needBL > kIntervalBLBytes) {
+            if (dIntervalBranchLengths != (GPUPtr)NULL) gpu->FreeMemory(dIntervalBranchLengths);
+            size_t alloc = needBL + needBL / 4 + sizeof(Real);
+            dIntervalBranchLengths = gpu->AllocateMemory(alloc);
+            kIntervalBLBytes = alloc;
+            if (hIntervalBranchLengths != NULL) gpu->FreeHostMemory(hIntervalBranchLengths);
+            hIntervalBranchLengths = (Real*) gpu->CallocHost(sizeof(Real),
+                (size_t)intervalCount + (size_t)intervalCount / 4 + 1);
+            metadataPointersChanged = true;
+        }
+    }
+
+
+    if (totalSlabBlocks > 0) {
+        size_t needCarry = (size_t)totalSlabBlocks * S * sizeof(Real);
+        if (needCarry > kSlabCarryBytes) {
+            if (dSlabCarryOut != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryOut);
+            if (dSlabCarryPrefix != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryPrefix);
+            size_t alloc = needCarry + needCarry / 4 + (size_t)S * sizeof(Real);
+            dSlabCarryOut = gpu->AllocateMemory(alloc);
+            dSlabCarryPrefix = gpu->AllocateMemory(alloc);
+            kSlabCarryBytes = alloc;
+            metadataPointersChanged = true;
+        }
+    }
+
+    if (branchOpTotal > 0) {
+        size_t needA = (size_t)branchOpTotal * S * 2 * sizeof(Real);
+        if (needA > kSlabAStashBytes) {
+            if (dSlabAStash != (GPUPtr)NULL) gpu->FreeMemory(dSlabAStash);
+            size_t alloc = needA + needA / 4 + (size_t)S * 2 * sizeof(Real);
+            dSlabAStash = gpu->AllocateMemory(alloc);
+            kSlabAStashBytes = alloc;
+            metadataPointersChanged = true;
+        }
+    }
+
+    if (branchCount > 0) {
+        size_t needY = (size_t)branchCount * S * sizeof(Real);
+        if (needY > kSlabYBottomBytes) {
+            if (dSlabYBottomEigen != (GPUPtr)NULL) gpu->FreeMemory(dSlabYBottomEigen);
+            size_t alloc = needY + needY / 4 + (size_t)S * sizeof(Real);
+            dSlabYBottomEigen = gpu->AllocateMemory(alloc);
+            kSlabYBottomBytes = alloc;
+            metadataPointersChanged = true;
+        }
+    }
+
+    growHostInt(hForwardBufList, kSlabForwardBufCap, kBufferCount);
+    growDevice(dForwardBufList,  kSlabForwardBufCap, kBufferCount, sizeof(int));
+    if (kBufferCount > kSlabForwardBufCap) kSlabForwardBufCap = kBufferCount;
+
+    if (intervalCount > 0) {
+        size_t needCS = (size_t)(intervalCount + 1) * sizeof(int);
+        if (needCS > kIntervalOpStartBytes) {
+            if (dIntervalOpStartCSR != (GPUPtr)NULL) gpu->FreeMemory(dIntervalOpStartCSR);
+            size_t alloc = needCS + needCS / 4 + sizeof(int);
+            dIntervalOpStartCSR = gpu->AllocateMemory(alloc);
+            kIntervalOpStartBytes = alloc;
+            if (hIntervalOpStartCSR != NULL) gpu->FreeHostMemory(hIntervalOpStartCSR);
+            hIntervalOpStartCSR = (int*) gpu->CallocHost(sizeof(int),
+                (size_t)intervalCount + (size_t)intervalCount / 4 + 2);
+            metadataPointersChanged = true;
+        }
+    }
+
+    if (totalSlabBlocks > 0) {
+        growHostInt(hSlabBlockBranchIdx, kSlabBlockCap, totalSlabBlocks);
+        growHostInt(hSlabBlockChunkStart, kSlabBlockCap, totalSlabBlocks);
+        growHostInt(hSlabBlockChunkLen, kSlabBlockCap, totalSlabBlocks);
+        growHostInt(hSlabBlockChunkIdx, kSlabBlockCap, totalSlabBlocks);
+        growDevice(dSlabBlockBranchIdx, kSlabBlockCap, totalSlabBlocks, sizeof(int));
+        growDevice(dSlabBlockChunkStart, kSlabBlockCap, totalSlabBlocks, sizeof(int));
+        growDevice(dSlabBlockChunkLen, kSlabBlockCap, totalSlabBlocks, sizeof(int));
+        growDevice(dSlabBlockChunkIdx, kSlabBlockCap, totalSlabBlocks, sizeof(int));
+        if (totalSlabBlocks > kSlabBlockCap) kSlabBlockCap = totalSlabBlocks;
+    }
+
+
+    auto copyTo = [&](int* dst, int& cursor, int n) {
+        if (n > 0 && dst != NULL) {
+            std::memcpy(dst, packed + cursor, sizeof(int) * (size_t)n);
+        }
+        cursor += n;
+    };
+    auto skip = [&](int& cursor, int n) {
+        cursor += n;
+    };
+
+    int p = 11;
+    copyTo(hBranchKb, p, branchCount);
+    copyTo(hBranchKTop, p, branchCount);
+    copyTo(hBranchTopBuf, p, branchCount);
+    copyTo(hBranchBotBuf, p, branchCount);
+    skip(p, branchCount);
+    copyTo(hBranchOpFirst, p, branchCount);
+    copyTo(hBranchTimeStart, p, branchCount + 1);
+    copyTo(hBranchFirstBlock, p, branchCount);
+    skip(p, branchCount + 1);
+    skip(p, (int)flatTapeLen);
+    copyTo(hCoalDestBufs, p, coalCount);
+    copyTo(hCoalLeftAccBufs, p, coalCount);
+    copyTo(hCoalRightAccBufs, p, coalCount);
+    copyTo(hCoalIntervals, p, coalCount);
+    copyTo(hOpInBufOff, p, branchOpTotal);
+    copyTo(hOpKIn, p, branchOpTotal);
+    copyTo(hOpKAcc, p, branchOpTotal);
+    copyTo(hOpHasAcc, p, branchOpTotal);
+    copyTo(hBranchSlabStart, p, slabDepthCap);
+    copyTo(hCoalSlabStart, p, slabDepthCap);
+    copyTo(hSlabBlockStart, p, slabDepthCap);
+    copyTo(hBranchSlabList, p, branchCount);
+    if (intervalCount > 0) {
+        copyTo(hIntervalOpStartCSR, p, intervalCount + 1);
+    } else {
+        skip(p, intervalCount + 1);
+    }
+    copyTo(hIntervalOpListCSR, p, branchOpTotal);
+    copyTo(hForwardBufList, p, forwardBufCount);
+    copyTo(hSlabBlockBranchIdx, p, totalSlabBlocks);
+    copyTo(hSlabBlockChunkStart, p, totalSlabBlocks);
+    copyTo(hSlabBlockChunkLen, p, totalSlabBlocks);
+    copyTo(hSlabBlockChunkIdx, p, totalSlabBlocks);
+    copyTo(hOpReduceTable, p, operationCount * 5);
+
+    if (p != packedLen) {
+        fprintf(stderr, "BeagleGPUImpl::uploadBastaSlabMetadata: cursor "
+                        "ended at %d but packedLen=%d (schema drift)\n",
+                        p, packedLen);
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    gpu->MemcpyHostToDevice(dBranchKb, hBranchKb, sizeof(int) * branchCount);
+    gpu->MemcpyHostToDevice(dBranchKTop, hBranchKTop, sizeof(int) * branchCount);
+    gpu->MemcpyHostToDevice(dBranchTopBuf, hBranchTopBuf, sizeof(int) * branchCount);
+    gpu->MemcpyHostToDevice(dBranchBotBuf, hBranchBotBuf, sizeof(int) * branchCount);
+    gpu->MemcpyHostToDevice(dBranchOpFirst, hBranchOpFirst, sizeof(int) * branchCount);
+    gpu->MemcpyHostToDevice(dBranchTimeStart, hBranchTimeStart, sizeof(int) * (branchCount + 1));
+    gpu->MemcpyHostToDevice(dCoalDestBufs, hCoalDestBufs, sizeof(int) * coalCount);
+    gpu->MemcpyHostToDevice(dCoalLeftAccBufs, hCoalLeftAccBufs, sizeof(int) * coalCount);
+    gpu->MemcpyHostToDevice(dCoalRightAccBufs, hCoalRightAccBufs, sizeof(int) * coalCount);
+    gpu->MemcpyHostToDevice(dCoalIntervals, hCoalIntervals, sizeof(int) * coalCount);
+    gpu->MemcpyHostToDevice(dBranchSlabList, hBranchSlabList, sizeof(int) * branchCount);
+    if (branchOpTotal > 0) {
+        gpu->MemcpyHostToDevice(dOpInBufOff, hOpInBufOff, sizeof(int) * branchOpTotal);
+        gpu->MemcpyHostToDevice(dOpKIn, hOpKIn, sizeof(int) * branchOpTotal);
+        gpu->MemcpyHostToDevice(dOpKAcc, hOpKAcc,  sizeof(int) * branchOpTotal);
+        gpu->MemcpyHostToDevice(dOpHasAcc, hOpHasAcc, sizeof(int) * branchOpTotal);
+    }
+    if (operationCount > 0) {
+        gpu->MemcpyHostToDevice(dOpReduceTable, hOpReduceTable,
+                                sizeof(int) * (size_t)operationCount * 5);
+    }
+    if (intervalCount > 0 && branchOpTotal > 0) {
+        gpu->MemcpyHostToDevice(dIntervalOpStartCSR, hIntervalOpStartCSR,
+                                sizeof(int) * (intervalCount + 1));
+        gpu->MemcpyHostToDevice(dIntervalOpListCSR,  hIntervalOpListCSR,
+                                sizeof(int) * branchOpTotal);
+    }
+    if (forwardBufCount > 0) {
+        gpu->MemcpyHostToDevice(dForwardBufList, hForwardBufList,
+                                sizeof(int) * forwardBufCount);
+    }
+    if (totalSlabBlocks > 0) {
+        gpu->MemcpyHostToDevice(dSlabBlockBranchIdx,  hSlabBlockBranchIdx,
+                                sizeof(int) * totalSlabBlocks);
+        gpu->MemcpyHostToDevice(dSlabBlockChunkStart, hSlabBlockChunkStart,
+                                sizeof(int) * totalSlabBlocks);
+        gpu->MemcpyHostToDevice(dSlabBlockChunkLen, hSlabBlockChunkLen,
+                                sizeof(int) * totalSlabBlocks);
+        gpu->MemcpyHostToDevice(dSlabBlockChunkIdx, hSlabBlockChunkIdx,
+                                sizeof(int) * totalSlabBlocks);
+    }
+    gpu->MemcpyHostToDevice(dBranchFirstBlock, hBranchFirstBlock, sizeof(int) * branchCount);
+
+    kSlabBranchCountActive = branchCount;
+    kSlabCoalCountActive = coalCount;
+    kSlabBranchOpTotalActive = branchOpTotal;
+    kSlabNumEvBlocks = kLoewnerNumBlocks;
+    kMaxSlabDepth = builderMaxDepth;
+    kForwardBufCount = forwardBufCount;
+    kBastaOpReduceCount = operationCount;
+    kBastaSlabMetadataUploaded = true;
+
+    if (metadataPointersChanged) {
+        if (kForwardSlabGraphExec != (GPUPtr)NULL) {
+            gpu->DestroyGraph(kForwardSlabGraphExec);
+            kForwardSlabGraphExec = NULL;
+        }
+        kForwardSlabGraphValid = false;
+        kForwardSlabGraphFingerprint = 0;
+        kForwardSlabGraphIntervalCount = 0;
+        kForwardSlabGraphNumEvBlocks = -1;
+        if (kAdjointGraphExec != (GPUPtr)NULL) {
+            gpu->DestroyGraph(kAdjointGraphExec);
+            kAdjointGraphExec = NULL;
+        }
+        kAdjointGraphValid = false;
+        kAdjointGraphFingerprint = 0;
+        kAdjointGraphIntervalCount = 0;
+        kAdjointGraphNumEvBlocks = -1;
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::uploadBastaSlabMetadata\n");
+#endif
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaSlabConstants(int* opsPerBlock,
+                                                              int* indexOffsetPat) {
+    if (opsPerBlock == NULL || indexOffsetPat == NULL) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    *opsPerBlock    = kSlabOpsPerBlock;
+    *indexOffsetPat = (int) kIndexOffsetPat;
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -2515,34 +4229,33 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials(const int* operat
     int numBlocks = 2 * (operationCount + blockSize - 1) / blockSize; // Total number of blocks
 
     gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
-    kernels->reduceWithinIntervalMerged(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, numOps,
-                 start, end, numBlocks, kCoalescentBufferLength);
+
+    if (kBastaSlabMetadataUploaded
+            && dOpReduceTable != (GPUPtr)NULL
+            && kBastaOpReduceCount == operationCount) {
+        kernels->reduceWithinIntervalMergedSlab(dOpReduceTable, dPartialsOrigin, dBastaMemory,
+                     start, end, numBlocks, kCoalescentBufferLength);
+    } else {
+        kernels->reduceWithinIntervalMerged(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, numOps,
+                     start, end, numBlocks, kCoalescentBufferLength);
+    }
 
 
     for (int i = 0; i < intervalStartsCount; ++i) {
         hBastaDistance[i] = (Real) intervalLengths[i];
     }
 
-            //fprintf(stderr, "The block count is: %d\n", kBastaIntervalBlockCount);
-            // fprintf(stderr, "logL:\n");
-            // gpu->PrintfDeviceVector(dBastaLogL, kBastaIntervalBlockCount, r);
-             //fprintf(stderr, "sizes:\n");
-             //gpu->PrintfDeviceVector(sizes, 4, r);
-           // fprintf(stderr, "coalescent:\n");
-            //gpu->PrintfDeviceVector(coalescent, kCoalescentBufferLength, r);
-
     gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * kCoalescentBufferLength);
 
     kernels->reduceAcrossIntervals(dBastaMemory, dBastaDistance, dBastaLogL, sizes, coalescent,
                                   intervalStartsCount, kCoalescentBufferLength);
 
-        // Real r = 0;
-        // fprintf(stderr, "logL:\n");
-        // gpu->PrintfDeviceVector(dBastaLogL, kBastaIntervalBlockCount, r);
     gpu->MemcpyDeviceToHost(hBastaLogL, dBastaLogL, sizeof(Real) * kBastaIntervalBlockCount);
+    Real logLSum = (Real) 0.0;
     for (int i = 0; i < kBastaIntervalBlockCount; i++) {
-        out[0] += hBastaLogL[i];
+        logLSum += hBastaLogL[i];
     }
+    out[0] = (double) logLSum;
 
 #ifdef BEAGLE_DEBUG_SYNCH
             gpu->SynchronizeHost();
@@ -2566,20 +4279,673 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                                                                     const int coalescentIndex,
                                                                     double *out) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials\n");
+    fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartialsGrad\n");
 #endif
 
-	int returnCode = BEAGLE_ERROR_GENERAL;
+    if (!kGradBuffersAllocated) {
+        fprintf(stderr, "BeagleGPUImpl::accumulateBastaPartialsGrad - gradient buffers not allocated\n");
+        return BEAGLE_ERROR_GENERAL;
+    }
 
-  	fprintf(stderr, "BeagleGPUImpl::accumulateBastaPartials\n");
+    const int S = kPaddedStateCount;
+    const int S2 = S * S;
+    const int numOps = BEAGLE_BASTA_OP_COUNT;
+    const int L = kCoalescentBufferLength;
+    const int intervalCount = intervalStartsCount - 1;
+
+    GPUPtr coalescent = dCoalescentBuffers;
+    const GPUPtr sizes = dFrequencies[populationSizesIndex];
+
+    if (kAdjointGradMode && kAdjointGradBuffersAllocated) {
+        const bool skipOpQueueUpload =
+            kAdjointSlabPipelineEnabled && kBastaSlabMetadataUploaded;
+        bool opsChanged = (!kBastaOpsUploaded || kBastaOpsCount != operationCount);
+        if (opsChanged && !skipOpQueueUpload) {
+            uploadBastaOperationQueue(operations, operationCount);
+        }
+        if (!kRawEigenVectorsUploaded && hRawEigenVectors != NULL) {
+            gpu->MemcpyHostToDevice(dRawEigenVectors, hRawEigenVectors, sizeof(Real) * kMatrixSize);
+            gpu->MemcpyHostToDevice(dRawInverseEigenVectors, hRawInverseEigenVectors, sizeof(Real) * kMatrixSize);
+            std::vector<Real> evecTbuf((size_t)S * S, (Real) 0.0);
+            std::vector<Real> ievcTbuf((size_t)S * S, (Real) 0.0);
+            for (int ii = 0; ii < S; ++ii) {
+                for (int jj = 0; jj < S; ++jj) {
+                    evecTbuf[(size_t)jj * S + ii] = hRawEigenVectors[(size_t)ii * S + jj];
+                    ievcTbuf[(size_t)jj * S + ii] = hRawInverseEigenVectors[(size_t)ii * S + jj];
+                }
+            }
+            if (dEvecT == (GPUPtr)NULL)
+                dEvecT = gpu->AllocateMemory(sizeof(Real) * S * S);
+            if (dInverseEvecT == (GPUPtr)NULL)
+                dInverseEvecT = gpu->AllocateMemory(sizeof(Real) * S * S);
+            gpu->MemcpyHostToDevice(dEvecT,        evecTbuf.data(), sizeof(Real) * S * S);
+            gpu->MemcpyHostToDevice(dInverseEvecT, ievcTbuf.data(), sizeof(Real) * S * S);
+            kRawEigenVectorsUploaded = true;
+        }
+        size_t adjPartSize = kAdjointPartialBytes;
+        size_t adjMatSize  = (size_t)kMatrixCount * S2 * sizeof(Real);
+        size_t adjPopSize  = (size_t)S * sizeof(Real);
+        size_t hazardSize  = (size_t)4 * L * S * sizeof(Real);
+        gpu->MemsetZero(dPartialAdjoint, adjPartSize);
+        gpu->MemsetZero(dAdjointPopSizeGrad, adjPopSize);
+        gpu->MemsetZero(dHazardAdjoints, hazardSize);
+        if (!kAdjointSlabPipelineEnabled) {
+            gpu->MemsetZero(dMatrixAdjoint, adjMatSize);
+        } else {
+            (void) adjMatSize;
+        }
+
+
+        for (int i = 0; i < intervalCount; ++i) {
+            hBastaDistance[i] = (Real) intervalLengths[i];
+        }
+
+        uint64_t metaFingerprint = basta_hash_int_array(operations,
+                                                        (size_t)operationCount * numOps,
+                                                        (uint64_t)operationCount);
+        metaFingerprint = basta_hash_int_array(intervalStarts,
+                                               (size_t)intervalStartsCount,
+                                               metaFingerprint);
+
+        bool metaCacheHit = kAdjointMetaCached
+                           && !opsChanged
+                           && metaFingerprint == kAdjointMetaFingerprint
+                           && kAdjointMetaIntervalCount == intervalCount;
+
+        if (!metaCacheHit) {
+            int allocSize = intervalCount + 1;
+            if (allocSize > kAdjointIntervalNumbersSize) {
+                if (dAdjointIntervalNumbers != (GPUPtr)NULL) gpu->FreeMemory(dAdjointIntervalNumbers);
+                if (dAdjointIntervalStarts != (GPUPtr)NULL) gpu->FreeMemory(dAdjointIntervalStarts);
+                if (dAdjointMatTransIndices != (GPUPtr)NULL) gpu->FreeMemory(dAdjointMatTransIndices);
+                if (dAdjointCoalOps != (GPUPtr)NULL) gpu->FreeMemory(dAdjointCoalOps);
+                dAdjointIntervalNumbers = gpu->AllocateMemory(allocSize * sizeof(int));
+                dAdjointIntervalStarts = gpu->AllocateMemory(allocSize * sizeof(int));
+                dAdjointMatTransIndices = gpu->AllocateMemory(allocSize * sizeof(int));
+                dAdjointCoalOps = gpu->AllocateMemory(allocSize * sizeof(int));
+                if (hAdjointIntervalNumbers != NULL) gpu->FreeHostMemory(hAdjointIntervalNumbers);
+                hAdjointIntervalNumbers = (int*) gpu->CallocHost(sizeof(int), allocSize);
+                if (hAdjointIntervalStarts != NULL) gpu->FreeHostMemory(hAdjointIntervalStarts);
+                hAdjointIntervalStarts = (int*) gpu->CallocHost(sizeof(int), allocSize);
+                if (hAdjointCoalOps != NULL) gpu->FreeHostMemory(hAdjointCoalOps);
+                hAdjointCoalOps = (int*) gpu->CallocHost(sizeof(int), allocSize);
+                if (hAdjointMatTransIndices != NULL) gpu->FreeHostMemory(hAdjointMatTransIndices);
+                hAdjointMatTransIndices = (int*) gpu->CallocHost(sizeof(int), allocSize);
+                kAdjointIntervalNumbersSize = allocSize;
+            }
+
+
+            const int matStride = kPaddedStateCount * kPaddedStateCount;
+            int maxOpsPerInterval = 0;
+            for (int i = 0; i < intervalCount; i++) {
+                int start = intervalStarts[i];
+                int end   = intervalStarts[i + 1];
+                hAdjointIntervalNumbers[i] = operations[start * numOps + 7];
+                hAdjointIntervalStarts[i]  = start;
+                hAdjointMatTransIndices[i] = operations[(end - 1) * numOps + 2] * matStride;
+
+                int opsInInterval = end - start;
+                if (opsInInterval > maxOpsPerInterval) maxOpsPerInterval = opsInInterval;
+
+                int coalOp = -1;
+                for (int idx = start; idx < end; idx++) {
+                    if (operations[idx * numOps + 3] >= 0) {
+                        coalOp = idx;
+                        break;
+                    }
+                }
+                hAdjointCoalOps[i] = coalOp;
+            }
+            hAdjointIntervalStarts[intervalCount] = intervalStarts[intervalCount];
+            kAdjointMaxOpsPerInterval = maxOpsPerInterval;
+
+
+            gpu->MemcpyHostToDevice(dAdjointIntervalNumbers, hAdjointIntervalNumbers, intervalCount * sizeof(int));
+            gpu->MemcpyHostToDevice(dAdjointIntervalStarts,  hAdjointIntervalStarts, (intervalCount + 1) * sizeof(int));
+            gpu->MemcpyHostToDevice(dAdjointMatTransIndices, hAdjointMatTransIndices, intervalCount * sizeof(int));
+            gpu->MemcpyHostToDevice(dAdjointCoalOps, hAdjointCoalOps, intervalCount * sizeof(int));
+
+            int requiredOpCap = operationCount;
+            if (requiredOpCap > kScratchOpCapacity) {
+                size_t scratchBytes = (size_t)requiredOpCap * S * sizeof(Real);
+                if (dScratchYBar != (GPUPtr)NULL) gpu->FreeMemory(dScratchYBar);
+                dScratchYBar = gpu->AllocateMemory(scratchBytes);
+                kScratchOpCapacity = requiredOpCap;
+            }
+            if (requiredOpCap > kScratchXOpCapacity) {
+                size_t scratchBytes = (size_t)requiredOpCap * S * sizeof(Real);
+                if (dScratchX != (GPUPtr)NULL) gpu->FreeMemory(dScratchX);
+                dScratchX = gpu->AllocateMemory(scratchBytes);
+                kScratchXOpCapacity = requiredOpCap;
+            }
+            int requiredCoalCap = intervalCount;
+            if (requiredCoalCap > kCoalRightCapacity) {
+                size_t coalBytes = (size_t)requiredCoalCap * S * sizeof(Real);
+                if (dCoalRightYBar != (GPUPtr)NULL) gpu->FreeMemory(dCoalRightYBar);
+                if (dCoalRightX != (GPUPtr)NULL) gpu->FreeMemory(dCoalRightX);
+                dCoalRightYBar = gpu->AllocateMemory(coalBytes);
+                dCoalRightX = gpu->AllocateMemory(coalBytes);
+                kCoalRightCapacity = requiredCoalCap;
+            }
+            if (kAdjointSlabPipelineEnabled) {
+                if (!kLoewnerInfoBootstrapped) {
+                    int rc = ensureLoewnerInfoUploaded();
+                    if (rc != BEAGLE_SUCCESS) return rc;
+                }
+
+                if (!kBastaSlabMetadataUploaded) {
+                    fprintf(stderr,
+                        "BeagleGPUImpl: adjoint slab pipeline invoked before "
+                        "slab metadata was uploaded. Caller must invoke "
+                        "uploadBastaSlabMetadata() prior to "
+                        "accumulateBastaPartialsGrad().\n");
+                    kAdjointSlabPipelineEnabled = false;
+                } else {
+                    int slabOpCap = kSlabBranchOpTotalActive;
+                    if (slabOpCap > kScratchOpCapacity) {
+                        size_t scratchBytes = (size_t)slabOpCap * S * sizeof(Real);
+                        if (dScratchYBar != (GPUPtr)NULL) gpu->FreeMemory(dScratchYBar);
+                        dScratchYBar = gpu->AllocateMemory(scratchBytes);
+                        kScratchOpCapacity = slabOpCap;
+                    }
+                }
+            }
+
+            kAdjointMetaCached = true;
+            kAdjointMetaFingerprint = metaFingerprint;
+            kAdjointMetaIntervalCount = intervalCount;
+        }
+
+        if (kAdjointSlabPipelineEnabled) {
+
+            int eigenRc = ensureLoewnerInfoUploaded();
+            if (eigenRc != BEAGLE_SUCCESS) return eigenRc;
+
+            kSlabNumEvBlocks = kLoewnerNumBlocks;
+
+
+            const int kMatStride = S2;
+            const bool useEdgeBL =
+                (hEdgeLengthsGrad != NULL) &&
+                (hAdjointMatTransIndices != NULL);
+
+            auto branchLenForAbsInt = [&] (int absInterval) -> Real {
+                if (useEdgeBL && absInterval >= 0 && absInterval < intervalCount) {
+                    int matOff = hAdjointMatTransIndices[absInterval];
+                    int matIdx = (kMatStride > 0) ? (matOff / kMatStride) : matOff;
+                    if (matIdx >= 0 && matIdx < kMatrixCount) {
+                        Real bl = hEdgeLengthsGrad[matIdx];
+                        if (bl != (Real) 0.0) return bl;
+                    }
+                }
+                if (absInterval >= 0 && absInterval < intervalCount) {
+                    return (Real) intervalLengths[absInterval];
+                }
+                return (Real) 0.0;
+            };
+
+
+            if (hIntervalBranchLengths != NULL) {
+                for (int k = 0; k < intervalCount; ++k) {
+                    hIntervalBranchLengths[k] = branchLenForAbsInt(k);
+                }
+                gpu->MemcpyHostToDevice(dIntervalBranchLengths,
+                                        hIntervalBranchLengths,
+                                        sizeof(Real) * (size_t)intervalCount);
+            }
+
+
+            auto cachedBL = [&](int absInterval) -> Real {
+                if (absInterval >= 0 && absInterval < intervalCount &&
+                    hIntervalBranchLengths != NULL) {
+                    return hIntervalBranchLengths[absInterval];
+                }
+                return (Real) 0.0;
+            };
+
+            int branchTimeTotal = 0;
+            for (int bi = 0; bi < kSlabBranchCountActive; ++bi) {
+                int kTop      = hBranchKTop[bi];
+                int K_b       = hBranchKb[bi];
+                int timeStart = hBranchTimeStart[bi];
+
+                Real cumT = (Real) 0.0;
+                for (int n = 1; n <= K_b; ++n) {
+                    int absInterval = kTop - (n - 1);
+                    cumT += cachedBL(absInterval);
+                    hBranchT[timeStart + n - 1] = cumT;
+                }
+                branchTimeTotal = std::max(branchTimeTotal, timeStart + K_b);
+            }
+
+            if (branchTimeTotal > 0) {
+                gpu->MemcpyHostToDevice(dBranchT, hBranchT,
+                    sizeof(Real) * (size_t)branchTimeTotal);
+            }
+
+
+            bool graphSupported = gpu->SupportsGraphCapture();
+            bool graphReady = graphSupported
+                              && kAdjointGraphValid
+                              && kAdjointGraphExec != NULL
+                              && kAdjointGraphFingerprint == metaFingerprint
+                              && kAdjointGraphIntervalCount == intervalCount;
+
+            if (graphSupported && !graphReady) {
+                if (kAdjointGraphExec != NULL) {
+                    gpu->DestroyGraph(kAdjointGraphExec);
+                    kAdjointGraphExec = NULL;
+                    kAdjointGraphValid = false;
+                }
+
+                if (gpu->BeginGraphCapture()) {
+                    kernels->ProjectPartialsToEigenbasis(
+                        dPartialsOrigin, dRawInverseEigenVectors,
+                        dPartialsTilde, dForwardBufList,
+                        kForwardBufCount, kStateCount, kIndexOffsetPat);
+
+                    gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
+                    kernels->ComputeHazardAdjoints(dBastaMemory, dBastaDistance,
+                                                   dAdjointIntervalNumbers,
+                                                   sizes, dHazardAdjoints, dAdjointPopSizeGrad,
+                                                   intervalCount, L);
+
+                    kernels->ProjectHazardsToEigen(dPartialsOrigin, dHazardAdjoints, dEvecT, dOpInBufOff,
+						dOpKIn, dOpKAcc, dOpHasAcc, dHazardEigenPerOp, kSlabBranchOpTotalActive, kStateCount);
+
+                    for (int d = 0; d <= kMaxSlabDepth; ++d) {
+                        int coalLo = hCoalSlabStart[d];
+                        int coalHi = hCoalSlabStart[d + 1];
+                        int coalsInSlab = coalHi - coalLo;
+                        if (coalsInSlab > 0) {
+                            kernels->CoalescentSlab(
+                                dPartialsOrigin, dPartialAdjoint,
+                                sizes, coalescent, dAdjointPopSizeGrad,
+                                dCoalDestBufs, dCoalLeftAccBufs, dCoalRightAccBufs,
+                                dCoalIntervals,
+                                coalLo, coalsInSlab, kStateCount, kIndexOffsetPat);
+                        }
+
+                        int brLo = hBranchSlabStart[d];
+                        int brHi = hBranchSlabStart[d + 1];
+                        int branchesInSlab = brHi - brLo;
+                        if (branchesInSlab > 0) {
+                        int blockBase = hSlabBlockStart[d];
+                        int numBlocks = hSlabBlockStart[d + 1] - blockBase;
+
+                        kernels->AdjointBranchSlabLocal(
+                            dPartialsOrigin, dPartialAdjoint, dScratchYBar,
+                            dEvecT,
+                            dLoewnerEigenValues, dLoewnerBlockStarts, dLoewnerBlockDims,
+                            dHazardAdjoints, dHazardEigenPerOp,
+                            dSlabBlockBranchIdx, dSlabBlockChunkStart,
+                            dSlabBlockChunkLen,  dSlabBlockChunkIdx,
+                            dBranchKb, dBranchKTop,
+                            dBranchTopBuf, dBranchOpFirst,
+                            dBranchTimeStart, dBranchT,
+                            dSlabCarryOut, dSlabAStash, dSlabYBottomEigen,
+                            blockBase, numBlocks,
+                            kSlabNumEvBlocks,
+                            kStateCount, kIndexOffsetPat);
+
+                        kernels->AdjointBranchSlabSpine(
+                            dSlabCarryOut, dSlabCarryPrefix,
+                            dSlabBlockBranchIdx,
+                            (unsigned int)blockBase, (unsigned int)numBlocks,
+                            kStateCount);
+
+                        kernels->AdjointBranchSlabApply(
+                            dPartialAdjoint, dScratchYBar,
+                            dInverseEvecT,
+                            dSlabAStash, dSlabCarryPrefix, dSlabYBottomEigen,
+                            dSlabBlockBranchIdx, dSlabBlockChunkStart,
+                            dSlabBlockChunkLen,  dSlabBlockChunkIdx,
+                            dBranchKb, dBranchBotBuf, dBranchOpFirst,
+                            dLoewnerBlockStarts, dLoewnerBlockDims,
+                            blockBase, numBlocks,
+                            kSlabNumEvBlocks, kSlabOpsPerBlock,
+                            kStateCount, kIndexOffsetPat);
+                        }
+                    }
+
+
+                    kernels->AccumulateMatrixAdjointsSlabEigen(
+                        dScratchYBar, dPartialsTilde,
+                        dOpInBufOff,
+                        dIntervalOpStartCSR, dIntervalOpListCSR,
+                        dMatrixAdjoint,
+                        (unsigned int) intervalCount);
+                    kernels->ApplyComplexLoewnerInPlace(
+                        dMatrixAdjoint, dLoewnerEigenValues,
+                        dIntervalBranchLengths,
+                        dLoewnerBlockStarts, dLoewnerBlockDims,
+                        (unsigned int) intervalCount,
+                        (unsigned int) kStateCount,
+                        (unsigned int) kSlabNumEvBlocks);
+                    kernels->ReduceMatrices(
+                        dMatrixAdjoint, dGEigen,
+                        (unsigned int) intervalCount);
+
+                    // V^{-T} * G_eigen * V^T reuses the same tiled single
+                    // GEMM pair that the legacy pipeline already uses.
+                    kernels->TiledSingleGemmAtB(dRawInverseEigenVectors, dGEigen,
+                                                dTransformedAdjoints);
+                    kernels->TiledSingleGemmABt(dTransformedAdjoints, dRawEigenVectors,
+                                                dLoewnerOutRateGrad);
+
+                    kAdjointGraphExec = gpu->EndGraphCapture();
+                    if (kAdjointGraphExec != NULL) {
+                        kAdjointGraphValid = true;
+                        kAdjointGraphFingerprint = metaFingerprint;
+                        kAdjointGraphIntervalCount = intervalCount;
+                        kAdjointGraphNumEvBlocks = kSlabNumEvBlocks;
+                        kAdjointGraphRebuildCount++;
+                        graphReady = true;
+                    } else {
+                        kAdjointGraphFallbackCount++;
+                    }
+                } else {
+                    kAdjointGraphFallbackCount++;
+                }
+            }
+
+            if (graphReady) {
+                gpu->LaunchGraph(kAdjointGraphExec);
+                kAdjointGraphReplayCount++;
+                gpu->SynchronizeGraph();
+            } else {
+                // fallback
+
+
+                kernels->ProjectPartialsToEigenbasis(
+                    dPartialsOrigin, dRawInverseEigenVectors,
+                    dPartialsTilde, dForwardBufList,
+                    kForwardBufCount, kStateCount, kIndexOffsetPat);
+
+                gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
+                kernels->ComputeHazardAdjoints(dBastaMemory, dBastaDistance,
+                                               dAdjointIntervalNumbers,
+                                               sizes, dHazardAdjoints, dAdjointPopSizeGrad,
+                                               intervalCount, L);
+
+
+                kernels->ProjectHazardsToEigen(
+                    dPartialsOrigin, dHazardAdjoints, dEvecT,
+                    dOpInBufOff, dOpKIn, dOpKAcc, dOpHasAcc,
+                    dHazardEigenPerOp,
+                    kSlabBranchOpTotalActive, kStateCount);
+
+                for (int d = 0; d <= kMaxSlabDepth; ++d) {
+                    int coalLo = hCoalSlabStart[d];
+                    int coalHi = hCoalSlabStart[d + 1];
+                    int coalsInSlab = coalHi - coalLo;
+                    if (coalsInSlab > 0) {
+                        kernels->CoalescentSlab(
+                            dPartialsOrigin, dPartialAdjoint,
+                            sizes, coalescent, dAdjointPopSizeGrad,
+                            dCoalDestBufs, dCoalLeftAccBufs, dCoalRightAccBufs,
+                            dCoalIntervals,
+                            coalLo, coalsInSlab, kStateCount, kIndexOffsetPat);
+                    }
+
+                    int brLo = hBranchSlabStart[d];
+                    int brHi = hBranchSlabStart[d + 1];
+                    int branchesInSlab = brHi - brLo;
+                    if (branchesInSlab > 0) {
+                        int blockBase = hSlabBlockStart[d];
+                        int numBlocks = hSlabBlockStart[d + 1] - blockBase;
+
+                        kernels->AdjointBranchSlabLocal(
+                            dPartialsOrigin, dPartialAdjoint, dScratchYBar,
+                            dEvecT,
+                            dLoewnerEigenValues, dLoewnerBlockStarts, dLoewnerBlockDims,
+                            dHazardAdjoints, dHazardEigenPerOp,
+                            dSlabBlockBranchIdx, dSlabBlockChunkStart,
+                            dSlabBlockChunkLen,  dSlabBlockChunkIdx,
+                            dBranchKb, dBranchKTop,
+                            dBranchTopBuf, dBranchOpFirst,
+                            dBranchTimeStart, dBranchT,
+                            dSlabCarryOut, dSlabAStash, dSlabYBottomEigen,
+                            blockBase, numBlocks,
+                            kSlabNumEvBlocks,
+                            kStateCount, kIndexOffsetPat);
+
+                        kernels->AdjointBranchSlabSpine(
+                            dSlabCarryOut, dSlabCarryPrefix,
+                            dSlabBlockBranchIdx,
+                            (unsigned int)blockBase, (unsigned int)numBlocks,
+                            kStateCount);
+
+                        kernels->AdjointBranchSlabApply(
+                            dPartialAdjoint, dScratchYBar,
+                            dInverseEvecT,
+                            dSlabAStash, dSlabCarryPrefix, dSlabYBottomEigen,
+                            dSlabBlockBranchIdx, dSlabBlockChunkStart,
+                            dSlabBlockChunkLen,  dSlabBlockChunkIdx,
+                            dBranchKb, dBranchBotBuf, dBranchOpFirst,
+                            dLoewnerBlockStarts, dLoewnerBlockDims,
+                            blockBase, numBlocks,
+                            kSlabNumEvBlocks, kSlabOpsPerBlock,
+                            kStateCount, kIndexOffsetPat);
+                    }
+                }
+
+                kernels->AccumulateMatrixAdjointsSlabEigen(
+                    dScratchYBar, dPartialsTilde,
+                    dOpInBufOff,
+                    dIntervalOpStartCSR, dIntervalOpListCSR,
+                    dMatrixAdjoint,
+                    (unsigned int) intervalCount);
+                kernels->ApplyComplexLoewnerInPlace(
+                    dMatrixAdjoint, dLoewnerEigenValues,
+                    dIntervalBranchLengths,
+                    dLoewnerBlockStarts, dLoewnerBlockDims,
+                    (unsigned int) intervalCount,
+                    (unsigned int) kStateCount,
+                    (unsigned int) kSlabNumEvBlocks);
+                kernels->ReduceMatrices(
+                    dMatrixAdjoint, dGEigen,
+                    (unsigned int) intervalCount);
+
+                kernels->TiledSingleGemmAtB(dRawInverseEigenVectors, dGEigen,
+                                            dTransformedAdjoints);
+                kernels->TiledSingleGemmABt(dTransformedAdjoints, dRawEigenVectors,
+                                            dLoewnerOutRateGrad);
+
+                gpu->SynchronizeDevice();
+            }
 
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials\n");
+            fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad (slab)\n");
+#endif
+            return BEAGLE_SUCCESS;
+        }
+
+        bool graphSupported = gpu->SupportsGraphCapture();
+        bool graphReady = graphSupported
+                          && kAdjointGraphValid
+                          && kAdjointGraphExec != NULL
+                          && kAdjointGraphFingerprint == metaFingerprint
+                          && kAdjointGraphIntervalCount == intervalCount;
+
+        if (graphSupported && !graphReady) {
+            if (kAdjointGraphExec != NULL) {
+                gpu->DestroyGraph(kAdjointGraphExec);
+                kAdjointGraphExec = NULL;
+                kAdjointGraphValid = false;
+            }
+
+            if (gpu->BeginGraphCapture()) {
+                gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
+
+                kernels->ComputeHazardAdjoints(dBastaMemory, dBastaDistance,
+                                               dAdjointIntervalNumbers,
+                                               sizes, dHazardAdjoints, dAdjointPopSizeGrad,
+                                               intervalCount, L);
+
+                for (int interval = intervalCount - 1; interval >= 0; --interval) {
+                    int start = hAdjointIntervalStarts[interval];
+                    int opsInInterval = hAdjointIntervalStarts[interval + 1] - start;
+                    kernels->AdjointBastaPartials(
+                        dPartialsOrigin, dPartialAdjoint,
+                        dMatricesOrigin,
+                        dScratchYBar, dScratchX,
+                        dCoalRightYBar, dCoalRightX,
+                        dBastaOperationQueue, sizes, coalescent,
+                        dHazardAdjoints, dAdjointPopSizeGrad,
+                        interval, start, opsInInterval,
+                        hAdjointMatTransIndices[interval],
+                        kStateCount, hAdjointCoalOps[interval]);
+                }
+
+                kernels->AccumulateMatrixAdjoints(dScratchYBar, dScratchX,
+                                                  dCoalRightYBar, dCoalRightX,
+                                                  dAdjointIntervalStarts,
+                                                  dAdjointMatTransIndices,
+                                                  dAdjointCoalOps,
+                                                  dMatrixAdjoint,
+                                                  intervalCount);
+
+                kAdjointGraphExec = gpu->EndGraphCapture();
+                if (kAdjointGraphExec != NULL) {
+                    kAdjointGraphValid = true;
+                    kAdjointGraphFingerprint = metaFingerprint;
+                    kAdjointGraphIntervalCount = intervalCount;
+                    kAdjointGraphRebuildCount++;
+                    graphReady = true;
+                } else {
+                    kAdjointGraphFallbackCount++;
+                }
+            } else {
+                kAdjointGraphFallbackCount++;
+            }
+        }
+
+        if (graphReady) {
+            gpu->LaunchGraph(kAdjointGraphExec);
+            kAdjointGraphReplayCount++;
+            gpu->SynchronizeGraph();
+        } else {
+            gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
+
+            kernels->ComputeHazardAdjoints(dBastaMemory, dBastaDistance,
+                                           dAdjointIntervalNumbers,
+                                           sizes, dHazardAdjoints, dAdjointPopSizeGrad,
+                                           intervalCount, L);
+
+            for (int interval = intervalCount - 1; interval >= 0; --interval) {
+                int start = hAdjointIntervalStarts[interval];
+                int opsInInterval = hAdjointIntervalStarts[interval + 1] - start;
+                kernels->AdjointBastaPartials(
+                    dPartialsOrigin, dPartialAdjoint,
+                    dMatricesOrigin,
+                    dScratchYBar, dScratchX,
+                    dCoalRightYBar, dCoalRightX,
+                    dBastaOperationQueue, sizes, coalescent,
+                    dHazardAdjoints, dAdjointPopSizeGrad,
+                    interval, start, opsInInterval,
+                    hAdjointMatTransIndices[interval],
+                    kStateCount, hAdjointCoalOps[interval]);
+            }
+
+            kernels->AccumulateMatrixAdjoints(dScratchYBar, dScratchX,
+                                              dCoalRightYBar, dCoalRightX,
+                                              dAdjointIntervalStarts,
+                                              dAdjointMatTransIndices,
+                                              dAdjointCoalOps,
+                                              dMatrixAdjoint,
+                                              intervalCount);
+
+            gpu->SynchronizeDevice();
+        }
+
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad (adjoint)\n");
+#endif
+        return BEAGLE_SUCCESS;
+    }
+
+    size_t gradBufSize = (size_t)4 * S2 * S * L * sizeof(Real);
+    gpu->MemcpyHostToDevice(dBastaGradBuffers, hGradZeros, gradBufSize);
+
+    kernels->reduceWithinIntervalGrad(
+        dBastaOperationQueue, dPartialsOrigin, dPartialsGrad,
+        dBastaGradNodeOps, dBastaGradBuffers,
+        numOps, 0, operationCount,
+        S, kGradAbStride, L);
+
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->SynchronizeHost();
 #endif
 
-	return returnCode;
+    for (int i = 0; i < intervalCount; ++i) {
+        hBastaDistance[i] = (Real) intervalLengths[i];
+    }
+    gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
+
+    int numGradBlocks = intervalCount / kSumAcrossBlockSize + 1;
+
+    kernels->reduceAcrossIntervalGrad(
+        dBastaMemory, dBastaGradBuffers,
+        dBastaDistance, sizes, coalescent, dCoalescentGrad,
+        dGradOut,
+        intervalCount, S, L);
+
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->SynchronizeHost();
+#endif
+
+    std::vector<Real> hGradOut((size_t)S2 * numGradBlocks);
+    gpu->MemcpyDeviceToHost(hGradOut.data(), dGradOut, sizeof(Real) * S2 * numGradBlocks);
+
+    const int Sunpad = kStateCount;
+    const int S2unpad = Sunpad * Sunpad;
+    std::fill(out, out + S2unpad, 0.0);
+    for (int a = 0; a < Sunpad; ++a) {
+        for (int b = 0; b < Sunpad; ++b) {
+            int abPadded = a * S + b;
+            int abUnpadded = a * Sunpad + b;
+            double sum = 0.0;
+            for (int blk = 0; blk < numGradBlocks; ++blk) {
+                sum += hGradOut[abPadded * numGradBlocks + blk];
+            }
+            out[abUnpadded] = sum;
+        }
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad\n");
+#endif
+
+    return BEAGLE_SUCCESS;
 }
 
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsPopSizeGrad(const int* operations,
+                                                                       int operationCount,
+                                                                       const int* intervals,
+                                                                       int intervalCount,
+                                                                       int populationSizesIndex,
+                                                                       int coalescentIndex) {
+    fprintf(stderr, "BeagleGPUImpl::updateBastaPartialsPopSizeGrad not yet implemented\n");
+    return BEAGLE_ERROR_GENERAL;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsPopSizeGrad(const int *operations,
+                                                                           const int operationCount,
+                                                                           const int *intervalStarts,
+                                                                           const int intervalStartsCount,
+                                                                           const double *intervalLengths,
+                                                                           const int populationSizesIndex,
+                                                                           const int coalescentIndex,
+                                                                           double *out) {
+    if (kAdjointGradMode && kAdjointGradBuffersAllocated) {
+        return getBastaPopulationSizeGradient(out);
+    }
+    fprintf(stderr, "BeagleGPUImpl::accumulateBastaPartialsPopSizeGrad not yet implemented\n");
+    return BEAGLE_ERROR_GENERAL;
+}
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBufferIndices,
