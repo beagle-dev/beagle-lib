@@ -1064,4 +1064,77 @@ const long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() 
 }	// namespace cpu
 }	// namespace beagle
 
+/*
+
+__attribute__((always_inline)) / [[clang::always_inline]]
+
+template <typename Real, typename Body>
+inline void matVecDual(
+    const Real* mat1, const Real* vec1,
+    const Real* mat2, const Real* vec2,
+    int n, int matrixIncr,
+    Body body) {                       // deduced as a concrete lambda type → zero overhead
+    for (int i = 0; i < n; i++) {
+        Real sum1 = Real(0), sum2 = Real(0);
+        for (int j = 0; j < n; j++) {
+            sum1 += mat1[i * matrixIncr + j] * vec1[j];
+            sum2 += mat2[i * matrixIncr + j] * vec2[j];
+        }
+        body(i, sum1, sum2);
+    }
+}
+
+template <typename Real>
+inline void matVecHadamard(
+    Real* out,
+    const Real* mat1, const Real* vec1,
+    const Real* mat2, const Real* vec2,
+    int n, int matrixIncr) {
+    matVecDual(mat1, vec1, mat2, vec2, n, matrixIncr,
+        [out](int i, Real s1, Real s2) { out[i] = s1 * s2; });
+}
+
+template <typename Real>
+inline void matVecHadamardScale(
+    Real* out,
+    const Real* mat1, const Real* vec1,
+    const Real* mat2, const Real* vec2,
+    int n, int matrixIncr, Real scale) {
+    matVecDual(mat1, vec1, mat2, vec2, n, matrixIncr,
+        [out, scale](int i, Real s1, Real s2) { out[i] = s1 * s2 * scale; });
+}
+
+template <typename Real, typename Body>
+inline void matVecSingle(
+    const Real* mat, const Real* vec,
+    int n, int matrixIncr,
+    Body body)
+{
+    for (int i = 0; i < n; i++) {
+        Real sum = Real(0);
+        for (int j = 0; j < n; j++) {
+            sum += mat[i * matrixIncr + j] * vec[j];
+        }
+        body(i, sum);
+    }
+}
+
+matVecHadamardScale(destPtr,
+    eigenVectors1, gPartialTmp1.data(),
+    eigenVectors2, gPartialTmp2.data(),
+    kStateCount, matrixIncr, oneOverScaleFactor);
+
+matVecHadamard(destPtr,
+    eigenVectors1, gPartialTmp1.data(),
+    eigenVectors2, gPartialTmp2.data(),
+    kStateCount, matrixIncr);
+
+matVecSingle(eigenVectors2, intermediate, kStateCount, matrixIncr,
+    [&](int i, REALTYPE sum) { parent[i] = sum * partials1Ptr[i]; });
+    
+matVecSingle(eigenVectors1, intermediate, kStateCount, matrixIncr,
+    [&](int i, REALTYPE sum) { destPtr[i] = sum; });
+
+*/
+
 #endif // BEAGLE_CPU_SPECTRAL_IMPL_HPP

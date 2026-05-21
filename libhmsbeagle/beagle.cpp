@@ -901,6 +901,31 @@ int beagleGetPartials(int instance, int bufferIndex, int scaleIndex, double* out
     }
 }
 
+int beagleGetPartialsBatch(int instance,
+                      const int* bufferIndices,
+                      const int* scaleIndices,
+                      int count,
+                      double* outPartials) {
+    DEBUG_START_TIME();
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->getPartialsBatch(bufferIndices, scaleIndices, count, outPartials);
+        DEBUG_END_TIME();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}
+
 int beagleSetEigenDecomposition(int instance,
                           int eigenIndex,
                           const double* inEigenVectors,

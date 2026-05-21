@@ -203,6 +203,12 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
     }
 
+    public void getPartialsBatch(int[] bufferIndices, int[] scaleIndices, int count, final double[] outPartials) {
+        for (int i = 0; i < count; i++) {
+            System.arraycopy(this.partials[bufferIndices[i]], 0, outPartials, i * partialsSize, partialsSize);
+        }
+    }
+
     @Override
     public void getLogScaleFactors(int scaleIndex, double[] outFactors) {
         throw new UnsupportedOperationException("Not implemented. Email Marc Suchard if required (offer coauthorship for enhanced service)");

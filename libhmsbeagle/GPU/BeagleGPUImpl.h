@@ -251,6 +251,11 @@ public:
 				    int scaleIndex,
                     double* outPartials);
 
+    int getPartialsBatch(const int* bufferIndices,
+                         const int* scaleIndices,
+                         int count,
+                         double* outPartials);
+
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,

@@ -82,6 +82,10 @@ public class BeagleJNIWrapper {
     public native int getPartials(int instance, int bufferIndex, int scaleIndex,
                                   final double[] outPartials);
 
+    public native int getPartialsBatch(int instance, final int[] bufferIndices,
+                                       final int[] scaleIndices, int count,
+                                       final double[] outPartials);
+
     public native int getLogScaleFactors(int stance, int scaleIndex, final double[] outFactors);
 
     public native int setEigenDecomposition(int instance,

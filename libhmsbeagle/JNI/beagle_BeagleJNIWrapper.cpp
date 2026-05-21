@@ -459,6 +459,26 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getPartialsBatch
+ * Signature: (I[I[II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartialsBatch
+(JNIEnv *env, jobject obj, jint instance, jintArray bufferIndices, jintArray scaleIndices, jint count, jdoubleArray outPartials)
+{
+    jint *bufferIndicesPtr = env->GetIntArrayElements(bufferIndices, NULL);
+    jint *scaleIndicesPtr = env->GetIntArrayElements(scaleIndices, NULL);
+    jdouble *partials = env->GetDoubleArrayElements(outPartials, NULL);
+
+    jint errCode = (jint)beagleGetPartialsBatch(instance, (int *)bufferIndicesPtr, (int *)scaleIndicesPtr, count, (double *)partials);
+
+    env->ReleaseIntArrayElements(bufferIndices, bufferIndicesPtr, JNI_ABORT);
+    env->ReleaseIntArrayElements(scaleIndices, scaleIndicesPtr, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(outPartials, partials, 0);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateEdgeDifferentials
  * Signature: (I[I[I[I[II[D[D[D)I
  */

@@ -129,6 +129,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getPartialsBatch
+ * Signature: (I[I[II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartialsBatch
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    getLogScaleFactors
  * Signature: (II[D)I
  */

@@ -68,6 +68,11 @@ public:
 							int scaleIndex,
                             double* outPartials) = 0;
 
+    virtual int getPartialsBatch(const int* bufferIndices,
+                                 const int* scaleIndices,
+                                 int count,
+                                 double* outPartials) = 0;
+
     virtual int setEigenDecomposition(int eigenIndex,
                                       const double* inEigenVectors,
                                       const double* inInverseEigenVectors,

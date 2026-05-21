@@ -124,6 +124,13 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void getPartialsBatch(int[] bufferIndices, int[] scaleIndices, int count, final double[] outPartials) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getPartialsBatch(instance, bufferIndices, scaleIndices, count, outPartials);
+        if (errCode != 0) {
+            throw new BeagleException("getPartialsBatch", errCode);
+        }
+    }
+
     public void getLogScaleFactors(int scaleIndex, final double[] outFactors) {
         int errCode = BeagleJNIWrapper.INSTANCE.getLogScaleFactors(instance, scaleIndex, outFactors);
         if (errCode != 0) {

@@ -208,6 +208,11 @@ public:
 					int scaleBuffer,
                     double* outPartials);
 
+    int getPartialsBatch(const int* bufferIndices,
+                         const int* scaleIndices,
+                         int count,
+                         double* outPartials);
+
     // sets the Eigen decomposition for a given matrix
     //
     // matrixIndex the matrix index to update

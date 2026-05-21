@@ -249,6 +249,23 @@ public interface Beagle extends Serializable {
             final double[] outPartials);
 
     /**
+     * Get partials for multiple buffers from an instance simultaneously
+     *
+     * This function copies multiple instance buffers into outPartials. The outPartials array should
+     * be count * stateCount * patternCount * categoryCount in length.
+     *
+     * @param bufferIndices  Indices of source partialsBuffers (input)
+     * @param scaleIndices   Indices of scaleBuffers to apply to each partialsBuffer (input)
+     * @param count          Number of partialsBuffers to retrieve (input)
+     * @param outPartials    Array to receive partialsBuffers (output)
+     */
+    void getPartialsBatch(
+            int[] bufferIndices,
+            int[] scaleIndices,
+            int count,
+            final double[] outPartials);
+
+    /**
      * Get scale factors from instance buffer on log-scale
      *
      * This function copies an array of scale factors from an instance buffer. The outFactors array should

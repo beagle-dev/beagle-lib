@@ -764,6 +764,21 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getPartialsBatch(const int* bufferIndices,
+                                        const int* scaleIndices,
+                                        int count,
+                                        double* outPartials) {
+    const int stride = kPatternCount * kStateCount * kCategoryCount;
+    for (int i = 0; i < count; i++) {
+        int returnValue = getPartials(bufferIndices[i], scaleIndices[i], outPartials);
+        if (returnValue != BEAGLE_SUCCESS)
+            return returnValue;
+        outPartials += stride;
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
                                          const double* inInverseEigenVectors,

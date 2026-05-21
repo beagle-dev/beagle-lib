@@ -1049,6 +1049,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartialsBatch(const int* bufferIndices,
+                                        const int* scaleIndices,
+                                        int count,
+                                        double* outPartials) {
+    return BEAGLE_ERROR_GENERAL;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
                                          const double* inEigenVectors,
                                          const double* inInverseEigenVectors,

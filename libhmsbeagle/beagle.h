@@ -535,6 +535,26 @@ BEAGLE_DLLEXPORT int beagleGetPartials(int instance,
                       double* outPartials);
 
 /**
+ * @brief Get partials for multiple buffers from an instance simultaneously
+ *
+ * This function copies multiple instance buffers into the array outPartials. The outPartials array
+ * should be count * stateCount * patternCount * categoryCount in length.
+ *
+ * @param instance       Instance number from which to get partialsBuffers (input)
+ * @param bufferIndices  Indices of source partialsBuffers (input)
+ * @param scaleIndices   Indices of scaleBuffers to apply to each partialsBuffer (input)
+ * @param count          Number of partialsBuffers to retrieve (input)
+ * @param outPartials    Pointer to which to receive partialsBuffers (output)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleGetPartialsBatch(int instance,
+                      const int* bufferIndices,
+                      const int* scaleIndices,
+                      int count,
+                      double* outPartials);
+
+/**
  * @brief Set an eigen-decomposition buffer
  *
  * This function copies an eigen-decomposition into an instance buffer.
