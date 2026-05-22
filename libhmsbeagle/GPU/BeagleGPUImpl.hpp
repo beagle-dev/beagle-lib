@@ -4172,7 +4172,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
     kBastaSlabMetadataUploaded = true;
 
     if (metadataPointersChanged) {
-        if (kForwardSlabGraphExec != (GPUPtr)NULL) {
+        if (kForwardSlabGraphExec != NULL) {
             gpu->DestroyGraph(kForwardSlabGraphExec);
             kForwardSlabGraphExec = NULL;
         }
@@ -4180,7 +4180,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
         kForwardSlabGraphFingerprint = 0;
         kForwardSlabGraphIntervalCount = 0;
         kForwardSlabGraphNumEvBlocks = -1;
-        if (kAdjointGraphExec != (GPUPtr)NULL) {
+        if (kAdjointGraphExec != NULL) {
             gpu->DestroyGraph(kAdjointGraphExec);
             kAdjointGraphExec = NULL;
         }
