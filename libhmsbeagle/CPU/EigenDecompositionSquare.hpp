@@ -47,6 +47,10 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
        if (gIMatrices == NULL)
        	throw std::bad_alloc();
 
+    gRawIMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    if (gRawIMatrices == NULL)
+        throw std::bad_alloc();
+
     for (int i = 0; i < kEigenDecompCount; i++) {
     	gEMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
     	if (gEMatrices[i] == NULL)
@@ -54,6 +58,10 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
 
     	gIMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
     	if (gIMatrices[i] == NULL)
+    		throw std::bad_alloc();
+
+    	gRawIMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
+    	if (gRawIMatrices[i] == NULL)
     		throw std::bad_alloc();
 
     	gEigenValues[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kEigenValuesSize);
@@ -70,10 +78,12 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionSquare() 
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gEMatrices[i]);
 		free(gIMatrices[i]);
+		free(gRawIMatrices[i]);
 		free(gEigenValues[i]);
 	}
 	free(gEMatrices);
 	free(gIMatrices);
+	free(gRawIMatrices);
 	free(gEigenValues);
 	free(matrixTmp);
 }
@@ -103,8 +113,25 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(i
 	const int len = kStateCount * kStateCount;
 	beagleMemCpy(gEMatrices[eigenIndex],inEigenVectors,len);
 	beagleMemCpy(gIMatrices[eigenIndex],inInverseEigenVectors,len);
+
+	beagleMemCpy(gRawIMatrices[eigenIndex],inInverseEigenVectors,len);
     if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+int EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getRawEigenDecomposition(
+        int eigenIndex,
+        const REALTYPE** outEigenVectors,
+        const REALTYPE** outInverseEigenVectors,
+        const REALTYPE** outEigenValues) {
+    if (eigenIndex < 0 || eigenIndex >= kEigenDecompCount) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    if (outEigenVectors != NULL) *outEigenVectors = gEMatrices[eigenIndex];
+    if (outInverseEigenVectors != NULL) *outInverseEigenVectors = gRawIMatrices[eigenIndex];
+    if (outEigenValues != NULL) *outEigenValues = gEigenValues[eigenIndex];
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE

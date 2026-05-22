@@ -2047,68 +2047,9 @@ int beagleGetBastaBuffer(const int instance,
     return returnValue;
 }
 
-int beagleGetBastaMatrixAdjoint(const int instance,
-                                 const int matrixIndex,
-                                 double* out) {
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    return beagleInstance->getBastaMatrixAdjoint(matrixIndex, out);
-}
-
-int beagleGetBastaPopulationSizeGradient(const int instance,
-                                          double* out) {
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    return beagleInstance->getBastaPopulationSizeGradient(out);
-}
-
-int beagleSetBastaExpmKernels(const int instance,
-                               const double* kernels) {
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    return beagleInstance->setBastaExpmKernels(kernels);
-}
-
-int beagleAccumulateBastaExpmGradient(const int instance,
-                                       double* out) {
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    return beagleInstance->accumulateBastaExpmGradient(out);
-}
-
-int beagleTransformBastaMatrixAdjoints(const int instance,
-                                        const int matrixCount,
-                                        double* out) {
-    DEBUG_START_TIME();
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    int returnValue = beagleInstance->transformBastaMatrixAdjoints(matrixCount, out);
-    DEBUG_END_TIME();
-    return returnValue;
-}
-
-int beagleBackTransformBastaEigenBasisGradient(const int instance,
-                                                const double* eigenBasisGrad,
-                                                double* out) {
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    }
-    return beagleInstance->backTransformBastaEigenBasisGradient(eigenBasisGrad, out);
-}
-
 int beagleAccumulateEigenBasisGradient(const int instance,
-                                       const double* eigenValues,
+                                       int eigenIndex,
+                                       int matrixAdjointBufferBase,
                                        const double* branchLengths,
                                        const int matrixCount,
                                        const int hasComplexEigenvalues,
@@ -2118,7 +2059,9 @@ int beagleAccumulateEigenBasisGradient(const int instance,
     if (beagleInstance == NULL) {
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     }
-    int returnValue = beagleInstance->accumulateEigenBasisGradient(eigenValues, branchLengths,
+    int returnValue = beagleInstance->accumulateEigenBasisGradient(eigenIndex,
+                                                       matrixAdjointBufferBase,
+                                                       branchLengths,
                                                        matrixCount, hasComplexEigenvalues,
                                                        outRateGradient);
     DEBUG_END_TIME();
@@ -2210,59 +2153,33 @@ int beagleAccumulateBastaPartialsGrad(const int instance,
                                   const double* intervalLengths,
                                   const int populationSizesIndex,
                                   int coalescentIndex,
+                                  int eigenIndex,
+                                  int partialAdjointBufferBase,
+                                  int matrixAdjointBufferBase,
+                                  double* popSizeGradOut,
                                   double* out) {
 	DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-	
+
 	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
 	if (beagleInstance == NULL) {
 		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
 	}
-	
+
 	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
 															  intervalStarts, intervalCount, intervalLengths,
                                                               populationSizesIndex, coalescentIndex,
+                                                              eigenIndex,
+                                                              partialAdjointBufferBase,
+                                                              matrixAdjointBufferBase,
+                                                              popSizeGradOut,
                                                               out);
-	
+
 	DEBUG_END_TIME();
     DEBUG_END_ENERGY();
 
-	return returnValue;                                  
-                                  
-}
+	return returnValue;
 
-int beagleUpdateBastaPartialsPopSizeGrad(const int instance,
-                                const BastaOperation* operations,
-                                int operationCount,
-                                const int* intervals,
-                                int intervalCount,
-                                int populationSizesIndex,
-                                int coalescentIndex) {
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	return beagleInstance->updateBastaPartialsPopSizeGrad((const int*) operations,
-		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
-}
-
-int beagleAccumulateBastaPartialsPopSizeGrad(const int instance,
-                                  const BastaOperation* operations,
-                                  int operationCount,
-                                  const int* intervalStarts,
-                                  int intervalCount,
-                                  const double* intervalLengths,
-                                  const int populationSizesIndex,
-                                  int coalescentIndex,
-                                  double* out) {
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	return beagleInstance->accumulateBastaPartialsPopSizeGrad((const int*) operations, operationCount,
-															  intervalStarts, intervalCount, intervalLengths,
-                                                              populationSizesIndex, coalescentIndex,
-                                                              out);
 }
 
 int beagleUploadBastaSlabMetadata(const int instance,

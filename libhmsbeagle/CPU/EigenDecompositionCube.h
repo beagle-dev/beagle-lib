@@ -27,6 +27,8 @@ class EigenDecompositionCube : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERI
 
 protected:
     REALTYPE** gCMatrices;
+    REALTYPE** gRawEMatrices;
+    REALTYPE** gRawIMatrices;
 
 public:
 	EigenDecompositionCube(int decompositionCount, 
@@ -63,6 +65,11 @@ public:
 	                                                         const double* edgeLengths,
 	                                                         REALTYPE** transitionMatrices,
 	                                                         int count);
+
+	virtual int getRawEigenDecomposition(int eigenIndex,
+	                                     const REALTYPE** outEigenVectors,
+	                                     const REALTYPE** outInverseEigenVectors,
+	                                     const REALTYPE** outEigenValues);
 };
 
 }

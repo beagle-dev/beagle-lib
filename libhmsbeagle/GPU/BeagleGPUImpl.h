@@ -261,14 +261,14 @@ private:
 	bool kBastaOpsUploaded;
 	int  kBastaOpsCount;
 
-	GPUPtr dPartialAdjoint;
-	size_t kAdjointPartialBytes;
-	GPUPtr dMatrixAdjoint;
 	GPUPtr dAdjointPopSizeGrad;
 	GPUPtr dHazardAdjoints;
 	GPUPtr dTransformedAdjoints;
-	GPUPtr dRawEigenVectors;
-	GPUPtr dRawInverseEigenVectors;
+
+	GPUPtr* dRawEvec;
+	GPUPtr* dRawIevc;
+	GPUPtr  dRawEvecOrigin;
+	GPUPtr  dRawIevcOrigin;
 	GPUPtr dAdjointIntervalNumbers;        // [intervalCount]    intervalNumber per interval (used by ComputeHazardAdjoints)
 	GPUPtr dAdjointIntervalStarts;         // [intervalCount + 1] op range per interval (used by gather kernel)
 	GPUPtr dAdjointMatTransIndices;        // [intervalCount]    destination matrix offset per interval
@@ -278,10 +278,9 @@ private:
 	int* hAdjointMatTransIndices;
 	int* hAdjointIntervalStarts;
 	int kAdjointIntervalNumbersSize;
-	Real* hRawEigenVectors;
-	Real* hRawInverseEigenVectors;
-	Real* hMatrixAdjointHost;
 	Real* hTransformedAdjointsHost;
+
+	Real* hPopSizeGradHost;
 	GPUPtr dLoewnerEigenValues;
 	GPUPtr dLoewnerBranchLengths;
 	GPUPtr dLoewnerBlockStarts;
@@ -297,7 +296,7 @@ private:
 	bool kAdjointGradBuffersAllocated;
 
 	bool kAdjointGradMode;
-	bool kRawEigenVectorsUploaded;
+	int kActiveEigenIndexFwd;
 
 	GPUPtr dScratchYBar;            // [operationCount * PADDED_STATE_COUNT]
 	GPUPtr dScratchX;               // same shape, used by legacy pipeline only
@@ -342,9 +341,10 @@ private:
 
 	GPUPtr dGEigen;
 
-
-	GPUPtr dEvecT;
-	GPUPtr dInverseEvecT;
+	GPUPtr* dEvecT;
+	GPUPtr* dInverseEvecT;
+	GPUPtr  dEvecTOrigin;
+	GPUPtr  dInverseEvecTOrigin;
 
 	GPUPtr dBranchKb;
 	GPUPtr dBranchKTop;
@@ -453,9 +453,9 @@ private:
 	int* hForwardBufList;
 
 
-	double* hStashedEigenValues;
-	int kStashedEigenValueSize;
-	bool kStashedHasComplex;
+	double** hStashedEval;
+	int*  kStashedEvalSize;
+	bool* kStashedEvalHasComplex;
 	bool kLoewnerInfoBootstrapped;
 
 
@@ -737,7 +737,7 @@ public:
 
     int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
 
-    int ensureLoewnerInfoUploaded();
+    int ensureLoewnerInfoUploaded(int eigenIndex);
 
 	int updateBastaPartials(const int* operations,
                             int operationCount,
@@ -769,22 +769,10 @@ public:
                                      const double *intervalLengths,
                                      const int populationSizesIndex,
                                      const int coalescentIndex,
-                                     double *out);
-
-     int updateBastaPartialsPopSizeGrad(const int* operations,
-                                    int operationCount,
-                                    const int* intervals,
-                                    int intervalCount,
-                                    int populationSizesIndex,
-                                    int coalescentIndex);
-
-     int accumulateBastaPartialsPopSizeGrad(const int *operations,
-                                     const int operationCount,
-                                     const int *intervalStarts,
-                                     const int intervalStartsCount,
-                                     const double *intervalLengths,
-                                     const int populationSizesIndex,
-                                     const int coalescentIndex,
+                                     int eigenIndex,
+                                     int partialAdjointBufferBase,
+                                     int matrixAdjointBufferBase,
+                                     double *popSizeGradOut,
                                      double *out);
 
     int allocateBastaBuffers(int bufferCount,
@@ -798,20 +786,8 @@ public:
     int getBastaBuffer(int bufferIndex,
                        double* out);
 
-    int getBastaMatrixAdjoint(int matrixIndex,
-                              double* out);
-
-    int getBastaPopulationSizeGradient(double* out);
-
-    int setBastaExpmKernels(const double* kernels);
-
-    int accumulateBastaExpmGradient(double* out);
-
-    int transformBastaMatrixAdjoints(int matrixCount, double* out);
-
-    int backTransformBastaEigenBasisGradient(const double* eigenBasisGrad, double* out);
-
-    int accumulateEigenBasisGradient(const double* eigenValues,
+    int accumulateEigenBasisGradient(int eigenIndex,
+                                     int matrixAdjointBufferBase,
                                      const double* branchLengths,
                                      int matrixCount,
                                      int hasComplexEigenvalues,

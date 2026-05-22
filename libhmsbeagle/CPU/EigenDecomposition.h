@@ -90,7 +90,12 @@ public:
                                  REALTYPE** transitionMatrices,
                                  int count) = 0;
 
-
+    // Return raw eigen-decomposition pointers for
+    // a given eigenIndex.
+    virtual int getRawEigenDecomposition(int eigenIndex,
+                                         const REALTYPE** outEigenVectors,
+                                         const REALTYPE** outInverseEigenVectors,
+                                         const REALTYPE** outEigenValues) = 0;
 };
 
 }
