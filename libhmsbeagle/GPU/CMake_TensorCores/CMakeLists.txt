@@ -26,7 +26,7 @@ add_custom_command(
         OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTensorCore_kernels.h
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME} ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4TensorCore.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernels4DerivativesTensorCore.cu" "../kernels/kernelsX.cu" "../kernels/kernelsXTensorCore.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsXDerivativesTensorCore.cu" "../kernels/kernelsAll.cu"
+        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4TensorCore.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernels4DerivativesTensorCore.cu" "../kernels/kernelsX.cu" "../kernels/kernelsXTensorCore.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsXDerivativesTensorCore.cu" "../kernels/kernelsTensorCoreMacros.h" "../kernels/kernelsAll.cu"
         COMMENT "Building Tensor Core kernels"
         VERBATIM)
 

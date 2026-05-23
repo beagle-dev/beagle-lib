@@ -30,49 +30,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
 
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
-    const int WMMA_M = 8;
-    const int WMMA_N = 8;
-    const int WMMA_K = 4;
     const int PATTERN_SPAN = NEW_PATTERN_BLOCK_SIZE/2;
-    const int MEM_OFFSET = PATTERN_SPAN * PADDED_STATE_COUNT;
 
-    int warpSize = 32; // TODO: Check if its better to get this from Cuda API
-    int warpState = state/warpSize;
-    int warpPattern = patIdx;
-    float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
-    int warpIdx = warpState + warpPattern * warpsPerPattern;
-    int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
-//    tmpAcc[state + patIdx * PADDED_STATE_COUNT] = warpIdx;
+    TENSOR_CORE_WARP_SETUP();
 
     int sMatrixRow, partialsCol, sMatrixCol, partialsRow;
 
 //   TODO: Declare right before usage
     double a1, b1, a2,b2, res11 = 0, res12 = 0, res21 = 0, res22 = 0;
-
-    int partialsOffset = warpIdx % (NEW_PATTERN_BLOCK_SIZE / WMMA_N);
-
-#define MODULUS_NON_NEGATIVE(A,B) (A % B + B) % B
-    // Indices to permute ShM for sMatrix
-    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
-    // (int(X/8): Splits 32 values into groups of 8.
-    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
-    // & 0x03 To cycle within the limits [0,1,2,3] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_M]
-#define GET_SMEM_ROW_SMATRIX(X) ((X / WMMA_K) & 0x03)
-#define GET_BANK_GROUP_SMATRIX(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x03 should be generalized to & PADDED_STATE_COUNT/WMMA_M - 1
-#define GET_SMEM_COL_SMATRIX(X,Y) (GET_BANK_GROUP_SMATRIX(X,Y) * WMMA_K + (X % WMMA_K))
-#define GET_SMEM_OFFSET_SMATRIX(X,Y) (GET_SMEM_ROW_SMATRIX(X) * PADDED_STATE_COUNT + GET_SMEM_COL_SMATRIX(X, Y))
-//#define GET_SMEM_OFFSET_SMATRIX(X,Y) X + Y * PADDED_STATE_COUNT
-
-    // Indices to permute ShM for partials
-    // X -> threadIdx.x or state and Y -> threadIdx.y or patIdx
-    // (int(X/8): Splits 32 values into groups of 4.
-    // ((Y & 1) * -2 + 1)): For strip-mined layout: If patIdx is even increment by 1 else by -1
-    // & 0x07 To cycle within the limits [0,1,2,3,4,5,6,7] i.e., [0, ... , PADDED_STATE_COUNT/WMMA_K]
-#define GET_SMEM_ROW_PARTIALS(X, Y) (((X / WMMA_K) + ((Y / (PADDED_STATE_COUNT / WMMA_K) ) * (PADDED_STATE_COUNT / WMMA_K)) ) & 0x07)
-#define GET_BANK_GROUP_PARTIALS(X,Y) MODULUS_NON_NEGATIVE( (Y + (X/WMMA_K) * (0 - (Y & 1) | 1)), (PADDED_STATE_COUNT/WMMA_K)) // 0x07 should be generalized to & PADDED_STATE_COUNT/WMMA_K - 1
-#define GET_SMEM_COL_PARTIALS(X,Y) (GET_BANK_GROUP_PARTIALS(X,Y) * WMMA_K + (X % WMMA_K))
-#define GET_SMEM_OFFSET_PARTIALS(X,Y) (GET_SMEM_ROW_PARTIALS(X, Y) * PADDED_STATE_COUNT + GET_SMEM_COL_PARTIALS(X, Y))
-//#define GET_SMEM_OFFSET_PARTIALS(X,Y) X + Y * PADDED_STATE_COUNT
 
     // Load PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE partials
     if(pattern < totalPatterns && patIdx < PATTERN_BLOCK_SIZE) {
@@ -114,16 +79,12 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
         a1 = sMatrix1[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
         b1 = sPartials1[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
 
-        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
-            : "=d"(res11), "=d"(res12)
-            : "d"(a1), "d"(b1), "d"(res11), "d"(res12));
+        MMA_F64_M8N8K4(a1, b1, res11, res12);
 
         a2 = sMatrix2[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
         b2 = sPartials2[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
 
-        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
-            : "=d"(res21), "=d"(res22)
-            : "d"(a2), "d"(b2), "d"(res21), "d"(res22));
+        MMA_F64_M8N8K4(a2, b2, res21, res22);
 
         KW_LOCAL_FENCE;
     }
@@ -165,16 +126,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT
 
     int y = patternBlock * PADDED_STATE_COUNT + deltaPartialsByMatrix;
 
-    const int WMMA_M = 8;
-    const int WMMA_N = 8;
-    const int WMMA_K = 4;
-
-    int warpSize = 32;
-    int warpState = state / warpSize;
-    int warpPattern = patIdx;
-    float warpsPerPattern = (float) PADDED_STATE_COUNT / warpSize;
-    int warpIdx = warpState + warpPattern * warpsPerPattern;
-    int laneid = (state + patIdx * PADDED_STATE_COUNT) % warpSize;
+    TENSOR_CORE_WARP_SETUP();
 
     int sMatrixRow, partialsCol, sMatrixCol, partialsRow, state1;
 
@@ -227,9 +179,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT
         a2 = sMatrix2[GET_SMEM_OFFSET_SMATRIX(reg_col, reg_row)];
         b2 = sPartials2[GET_SMEM_OFFSET_PARTIALS(reg_col_partials, reg_row_partials)];
 
-        asm("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%4,%5};\n"
-            : "=d"(res21), "=d"(res22)
-            : "d"(a2), "d"(b2), "d"(res21), "d"(res22));
+        MMA_F64_M8N8K4(a2, b2, res21, res22);
 
         KW_LOCAL_FENCE;
     }
