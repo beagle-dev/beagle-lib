@@ -273,6 +273,17 @@ public class BeagleJNIWrapper {
 	        											 double[] outSumDerivatives,
 	        											 double[] outSumSquaredDerivatives);
 
+    public native int calculateAdjointCrossProductDifferentials(final int instance,
+    													 final int[] postBufferIndices,
+        												 final int[] preBufferIndices,
+    	    											 final int[] eigenIndices,
+    	    											 final int[] categoryRateIndices,
+    	    											 final int[] categoryWeightsIndices,
+        												 final double[] edgeLengths,
+        												 int count,
+	        											 double[] outSumDerivatives,
+	        											 double[] outSumSquaredDerivatives);
+
     public native int calculateEdgeDerivative(int instance,
     										  final int[] postBufferIndices,
                                               final int[] preBufferIndices,

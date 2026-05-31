@@ -2286,6 +2286,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivatives(const int *postB
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(const int *postBufferIndices,
+                                                                     const int *preBufferIndices,
+                                                                     const int *eigenIndices,
+                                                                     const int *categoryRatesIndices,
+                                                                     const int *categoryWeightsIndices,
+                                                                     const double *edgeLengths,
+                                                                     int count,
+                                                                     double *outSumDerivatives,
+                                                                     double *outSumSquaredDerivatives) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* operations,
                                                                  int operationCount) {
 #ifdef BEAGLE_DEBUG_FLOW

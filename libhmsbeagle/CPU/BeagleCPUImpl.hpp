@@ -1422,6 +1422,40 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateCrossProducts(const int *postBuf
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *postBufferIndices,
+                                                                     const int *preBufferIndices,
+                                                                     const int *eigenIndices,
+                                                                     const int *categoryRatesIndices,
+                                                                     const int *categoryWeightsIndices,
+                                                                     const double *edgeLengths,
+                                                                     int count,
+                                                                     double *outSumDerivatives,
+                                                                     double *outSumSquaredDerivatives) {
+    return calcAdjointCrossProducts(
+            postBufferIndices, preBufferIndices,
+            eigenIndices,
+            categoryRatesIndices,
+            categoryWeightsIndices,
+            edgeLengths,
+            count,
+            outSumDerivatives,
+            outSumSquaredDerivatives);
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postBufferIndices,
+                                                                const int *preBufferIndices,
+                                                                const int *eigenIndices,
+                                                                const int *categoryRatesIndices,
+                                                                const int *categoryWeightsIndices,
+                                                                const double *edgeLengths,
+                                                                int count,
+                                                                double *outSumDerivatives,
+                                                                double *outSumSquaredDerivatives) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* operations,
                                                                  int count) {
 
@@ -1976,11 +2010,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsTop(bool byPartition,
             } else {
                 calcPrePartialsStatesTop(destPartials, partials1, matrices1, tipStates2, matrices2,
                                          startPattern, endPattern);
-            }            
+            }
         } else {
             if (matrices1 == NULL) { // Parent node is root
                 calcPrePartialsPartialsTopRoot(destPartials, partials1, matrices1, partials2, matrices2,
-                                               startPattern, endPattern);            
+                                               startPattern, endPattern);
             } else {
                 calcPrePartialsPartialsTop(destPartials, partials1, matrices1, partials2, matrices2,
                                            startPattern, endPattern);
@@ -2145,10 +2179,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
         if (DoDerivatives) {
             outDerivatives[k] = derivative;
         }
-        if (DoSum) { // TODO Confirm that these are compile-time
+        if constexpr (DoSum) {
             sum += derivative * gPatternWeights[k];
         }
-        if (DoSumSquared) {
+        if constexpr (DoSumSquared) {
             sumSquared += derivative * derivative * gPatternWeights[k];
         }
     }
@@ -4758,9 +4792,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTopRoot(REALTYPE*
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = (matrices1 != NULL) ? matrices1 + matrixOffset + i * matrixIncr : NULL;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
-                                   
+
                 REALTYPE sum2A = 0.0, sum2B = 0.0;
-                int j = 0;                    
+                int j = 0;
                 for (; j < stateCountModFour; j += 4) {
                     sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
                     sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
@@ -4771,8 +4805,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTopRoot(REALTYPE*
                 for (; j < kStateCount; j++) {
                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
-    
-                *(destPtr++) += (sum2A + sum2B) * partials1Ptr[i];                 
+
+                *(destPtr++) += (sum2A + sum2B) * partials1Ptr[i];
             }
 
             destPtr +=kPartialsPaddedStateCount;
@@ -4809,7 +4843,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
 
         for (int k = startPattern; k < endPattern; k++) {
             REALTYPE* destPtri = destPtr;
-#ifdef PRE_CACHE_FRIENDLY            
+#ifdef PRE_CACHE_FRIENDLY
             for (int i = 0; i < kStateCount; i++) {
                 // scatter (M2[i,:].P2) * P1[i] via row i of M1 — contiguous
                 const REALTYPE Pk = partials1Ptr[i];
@@ -4830,9 +4864,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
 
             for (int i = 0; i < kStateCount; i++) {
                 // sum2 = M2[i,:] . P2 — row i of M2 is contiguous
-                const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;                
-                REALTYPE sum2A = 0.0, sum2B = 0.0;  
-                int j = 0;          
+                const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
+                REALTYPE sum2A = 0.0, sum2B = 0.0;
+                int j = 0;
                 for (; j < stateCountModFour; j += 4) {
                     sum2A += matrices2Ptr[j + 0] * partials2Ptr[j + 0];
                     sum2B += matrices2Ptr[j + 1] * partials2Ptr[j + 1];
@@ -4842,7 +4876,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
 
                 for (; j < kStateCount; j++) {
                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
-                }                
+                }
 
                 *(destPtri++) *= (sum2A + sum2B);
             }
@@ -4871,7 +4905,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
 
                 *(destPtri++) = (sum2A + sum2B) * sum1A;
             }
-#endif            
+#endif
 
             destPtr      += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
@@ -4948,11 +4982,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
                                                               const int* states2,
                                                               const REALTYPE* matrices2,
                                                               int startPattern,
-                                                              int endPattern) {                                                                
+                                                              int endPattern) {
     int matrixIncr = kStateCount + T_PAD;
     int stateCountModFour = (kStateCount / 4) * 4;
 
-#ifdef PRE_CACHE_FRIENDLY        
+#ifdef PRE_CACHE_FRIENDLY
     std::fill(destP, destP + kPartialsSize, 0);
 #endif
 
@@ -4962,11 +4996,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
         REALTYPE* destPtr = &destP[v];
-      
+
         for (int k = startPattern; k < endPattern; k++) {
             REALTYPE* destPtri = destPtr;
             int w = l * kMatrixSize;
-            int state2 = states2[k];            
+            int state2 = states2[k];
 #ifdef PRE_CACHE_FRIENDLY
             for (int i = 0; i < kStateCount; i++) {
                 // scatter (M2[i,:].P2) * P1[i] via row i of M1 — contiguous
@@ -4993,12 +5027,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
 
                 w += matrixIncr;
             }
-#else              
+#else
             for (int i = 0; i < kStateCount; i++) {
                 const REALTYPE* matrices1Ptr = matrices1 + matrixOffset + i * matrixIncr;
 
                 const REALTYPE sum2A = matrices2[w + state2];
-                
+
                 REALTYPE sum1A = 0.0;
                 int j;
                 for (j = 0; j < kStateCount; ++j) {
@@ -5035,7 +5069,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTopRoot(REALTYPE* d
 
         REALTYPE* destPtr = &destP[v];
         REALTYPE* tmpdestPtr = destPtr;
-    
+
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             int state2 = states2[k];

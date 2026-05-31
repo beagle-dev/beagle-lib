@@ -443,6 +443,16 @@ public:
                                double *outSumDerivatives,
                                double *outSumSquaredDerivatives);
 
+    int calculateAdjointCrossProducts(const int *postBufferIndices,
+                                      const int *preBufferIndices,
+                                      const int *eigenIndices,
+                                      const int *categoryRatesIndices,
+                                      const int *categoryWeightsIndices,
+                                      const double *edgeLengths,
+                                      int count,
+                                      double *outSumDerivatives,
+                                      double *outSumSquaredDerivatives);
+
     int getLogLikelihood(double* outSumLogLikelihood);
 
     int getDerivatives(double* outSumFirstDerivative,
@@ -532,6 +542,16 @@ protected:
                                   int count,
                                   double *outSumDerivatives,
                                   double *outSumSquaredDerivatives);
+
+    virtual int calcAdjointCrossProducts(const int *postBufferIndices,
+                                         const int *preBufferIndices,
+                                         const int *eigenIndices,
+                                         const int *categoryRatesIndices,
+                                         const int *categoryWeightsIndices,
+                                         const double *edgeLengths,
+                                         int count,
+                                         double *outSumDerivatives,
+                                         double *outSumSquaredDerivatives);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,

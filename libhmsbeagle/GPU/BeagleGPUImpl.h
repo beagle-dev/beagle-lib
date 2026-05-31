@@ -362,6 +362,16 @@ public:
                                  double *outSumDerivatives,
                                  double *outSumSquaredDerivatives);
 
+    int calculateAdjointCrossProducts(const int *postBufferIndices,
+                                      const int *preBufferIndices,
+                                      const int *eigenIndices,
+                                      const int *categoryRatesIndices,
+                                      const int *categoryWeightsIndices,
+                                      const double *edgeLengths,
+                                      int count,
+                                      double *outSumDerivatives,
+                                      double *outSumSquaredDerivatives);
+
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 

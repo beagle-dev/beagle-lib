@@ -580,8 +580,19 @@ public interface Beagle extends Serializable {
     void calculateCrossProductDifferentials(
     		final int[] postBufferIndices,
         	final int[] preBufferIndices,
-    	    final int[] categoryRateIndices,
-    	    final int[] categoryWeightsIndices,
+    	        final int[] categoryRateIndices,
+    	        final int[] categoryWeightsIndices,
+        	final double[] edgeLengths,
+        	int count,
+	        double[] outSumDerivatives,
+	        double[] outSumSquaredDerivatives);
+
+    void calculateAdjointCrossProductDifferentials(
+    		final int[] postBufferIndices,
+        	final int[] preBufferIndices,
+    	        final int[] eigenIndices,
+    	        final int[] categoryRateIndices,
+    	        final int[] categoryWeightsIndices,
         	final double[] edgeLengths,
         	int count,
 	        double[] outSumDerivatives,

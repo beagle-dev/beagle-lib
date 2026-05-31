@@ -118,6 +118,16 @@ namespace beagle {
                                          const double* edgeLengths,
                                          int count);
 
+            int calculateAdjointCrossProducts(const int *postBufferIndices,
+                                            const int *preBufferIndices,
+                                            const int *eigenIndices,
+                                            const int *categoryRatesIndices,
+                                            const int *categoryWeightsIndices,
+                                            const double *edgeLengths,
+                                            int count,
+                                            double *outSumDerivatives,
+                                            double *outSumSquaredDerivatives);
+
             virtual int upPartials(bool byPartition,
                                    const int* operations,
                                    int operationCount,
@@ -185,6 +195,17 @@ namespace beagle {
                                        int startPattern,
                                        int endPattern);
 
+            template <typename T, typename V>
+            void calcAdjointCrossProducts(const REALTYPE* partialsPost,
+                                          const int* tipsPost,
+                                          const REALTYPE* partialsPre,
+                                          const int branchIndex,
+                                          const double* categoryRates,
+                                          const REALTYPE* categoryWeights,
+                                          const double edgeLength,
+                                          REALTYPE* first,
+                                          REALTYPE* second);
+
             // template <typename T>
             // void calcPrePartialsPartialsRoot(REALTYPE *destP,
             //                                  const REALTYPE *partialsParent,
@@ -202,18 +223,18 @@ namespace beagle {
             //                                const int branchEigenIndex2,
             //                                int startPattern,
             //                                int endPattern);
-           
+
             template <typename First, typename Second>
             void expScaledMatrixVectorMultiple(REALTYPE* outPartials1, REALTYPE* outPartials2,
                                                const REALTYPE* inPartials1, const int state1,
-                                               const REALTYPE* eigenValuesReal1, 
-                                               const REALTYPE* eigenValuesImag1,            
-                                               const REALTYPE* inverseEigenVectors1,             
+                                               const REALTYPE* eigenValuesReal1,
+                                               const REALTYPE* eigenValuesImag1,
+                                               const REALTYPE* inverseEigenVectors1,
                                                const REALTYPE scaledBranchLength1,
                                                const REALTYPE* inPartials2, const int state2,
-                                               const REALTYPE* eigenValuesReal2, 
-                                               const REALTYPE* eigenValuesImag2,             
-                                               const REALTYPE* inverseEigenVectors2,             
+                                               const REALTYPE* eigenValuesReal2,
+                                               const REALTYPE* eigenValuesImag2,
+                                               const REALTYPE* inverseEigenVectors2,
                                                const REALTYPE scaledBranchLength2,
                                                const int matrixIncr);
 
@@ -248,6 +269,9 @@ namespace beagle {
         struct States {};
         struct Partials {};
         struct None {};
+
+        struct NoRotation {};
+        struct WithRotation {};
 
         struct Top {};
         struct Bottom {};

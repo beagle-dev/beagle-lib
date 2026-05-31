@@ -67,6 +67,8 @@ add_library(hmsbeagle-cpu-spectral SHARED
         EigenDecomposition.h
         EigenDecompositionSpectral.h
         EigenDecompositionSpectral.hpp
+        AdjointMethods.h
+        AdjointMethods.hpp
         Precision.h
         )
 

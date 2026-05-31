@@ -231,6 +231,16 @@ public:
 			                           double *outSumDerivatives,
 			                           double *outSumSquaredDerivatives) = 0;
 
+	virtual int calculateAdjointCrossProducts(const int *postBufferIndices,
+			                                  const int *preBufferIndices,
+			                                  const int *eigenIndices,
+			                                  const int *categoryRatesIndices,
+			                                  const int *categoryWeightsIndices,
+			                                  const double *edgeLengths,
+			                                  int count,
+			                                  double *outSumDerivatives,
+			                                  double *outSumSquaredDerivatives) = 0;
+
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,

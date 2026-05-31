@@ -9,6 +9,7 @@
 #define EIGENDECOMPOSITIONSPECTRAL_H_
 
 #include "EigenDecomposition.h"
+#include "libhmsbeagle/CPU/AdjointMethods.h"
 
 namespace beagle {
 namespace cpu {
@@ -29,12 +30,14 @@ private:
     const int kMatrixStride;
 
     std::vector<std::vector<REALTYPE>> eigenValuesStorage;
-
     std::vector<std::vector<REALTYPE>> eigenVectorsStorage;
     std::vector<std::vector<REALTYPE>> inverseEigenVectorsStorage;
 
+    std::vector<std::vector<REALTYPE>> transposedEigenValuesStorage;
     std::vector<std::vector<REALTYPE>> transposedEigenVectorsStorage;
     std::vector<std::vector<REALTYPE>> transposedInverseEigenVectorsStorage;
+
+    std::vector<std::shared_ptr<AdjointMethods<REALTYPE>>> adjointMethodsStorage;
 
 public:
     EigenDecompositionSpectral(int decompositionCount,
@@ -42,39 +45,43 @@ public:
                                int categoryCount,
                                long flags);
 
-    virtual ~EigenDecompositionSpectral();
+    ~EigenDecompositionSpectral() override;
 
-    virtual void setEigenDecomposition(int eigenIndex,
-                                       const double* inEigenVectors,
-                                       const double* inInverseEigenVectors,
-                                       const double* inEigenValues);
+    void setEigenDecomposition(int eigenIndex,
+                               const double* inEigenVectors,
+                               const double* inInverseEigenVectors,
+                               const double* inEigenValues) override;
 
-    virtual void updateTransitionMatrices(int eigenIndex,
-                                          const int* probabilityIndices,
-                                          const int* firstDerivativeIndices,
-                                          const int* secondDerivativeIndices,
-                                          const double* edgeLengths,
-                                          const double* categoryRates,
-                                          REALTYPE** transitionMatrices,
-                                          int count);
+    void updateTransitionMatrices(int eigenIndex,
+                                  const int* probabilityIndices,
+                                  const int* firstDerivativeIndices,
+                                  const int* secondDerivativeIndices,
+                                  const double* edgeLengths,
+                                  const double* categoryRates,
+                                  REALTYPE** transitionMatrices,
+                                  int count) override;
 
-    virtual void updateTransitionMatricesWithModelCategories(int* eigenIndices,
-                                                             const int* probabilityIndices,
-                                                             const int* firstDerivativeIndices,
-                                                             const int* secondDerivativeIndices,
-                                                             const double* edgeLengths,
-                                                             REALTYPE** transitionMatrices,
-                                                             int count);
+    void updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                                     const int* probabilityIndices,
+                                                     const int* firstDerivativeIndices,
+                                                     const int* secondDerivativeIndices,
+                                                     const double* edgeLengths,
+                                                     REALTYPE** transitionMatrices,
+                                                     int count) override;
 
-    virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const;
+    const REALTYPE* getEigenValuesPtr(int eigenIndex) const override;
 
-    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const;
+    const REALTYPE* getEigenVectorsPtr(int eigenIndex) const override;
 
-    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;
+    const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const override;
 
-    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const;
+    const REALTYPE* getBackwardsEigenValuesPtr(int eigenIndex) const override;
 
-    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const;
+    const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const override;
+
+    const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const override;
+
+    AdjointMethods<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const override;
 
 private:
     void rescale(REALTYPE* rowVectors, const REALTYPE* eval, REALTYPE scalar);

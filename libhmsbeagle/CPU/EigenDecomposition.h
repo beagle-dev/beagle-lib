@@ -16,6 +16,8 @@
 #include <cassert>
 #include <vector>
 
+#include "libhmsbeagle/CPU/AdjointMethods.h"
+
 #define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE, T_PAD
 #define BEAGLE_CPU_EIGEN_TEMPLATE	template <typename REALTYPE, int T_PAD>
 
@@ -91,9 +93,13 @@ public:
 
     virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
 
+    virtual const REALTYPE* getBackwardsEigenValuesPtr(int eigenIndex) const { return nullptr; };
+
     virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const { return nullptr; };
 
     virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual AdjointMethods<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const { return nullptr; };
 };
 
 }

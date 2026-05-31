@@ -581,6 +581,57 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateCrossProductDiffere
 
 }
 
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProductDifferentials
+  (JNIEnv *env, jobject obj, jint instance,
+		jintArray postBufferIndices,
+		jintArray preBufferIndices,
+		jintArray eigenIndices,
+		jintArray categoryRatesIndices,
+		jintArray categoryWeightsIndices,
+		jdoubleArray edgeLengths,
+		jint count,
+		jdoubleArray outSumDerivatives,
+		jdoubleArray outSumSquaredDerivatives) {
+
+    jdouble* jOutSumDerivatives = outSumDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumDerivatives, NULL);
+
+    jdouble* jOutSumSquaredDerivatives = outSumSquaredDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumSquaredDerivatives, NULL);
+
+    jint *jPostBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
+    jint *jPreBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
+
+    jint *jEigenIndices = env->GetIntArrayElements(eigenIndices, NULL);
+    jint *jCategoryRatesIndices = env->GetIntArrayElements(categoryRatesIndices, NULL);
+    jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
+
+    jdouble* jEdgeLengths = env->GetDoubleArrayElements(edgeLengths, NULL);
+
+    jint errCode = beagleCalculateAdjointCrossProductDerivative(instance, (int*)jPostBufferIndices, (int*)jPreBufferIndices,
+                                                         (int*)jEigenIndices,
+                                                         (int*)jCategoryRatesIndices, (int*)jCategoryWeightsIndices,
+                                                         (double*)jEdgeLengths, count,
+                                                         jOutSumDerivatives, jOutSumSquaredDerivatives);
+
+    env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(preBufferIndices, jPreBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(eigenIndices, jEigenIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryRatesIndices, jCategoryRatesIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryWeightsIndices, jCategoryWeightsIndices, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(edgeLengths, jEdgeLengths, JNI_ABORT);
+
+    if (outSumDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumDerivatives, jOutSumDerivatives, 0);
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumSquaredDerivatives, jOutSumSquaredDerivatives, 0);
+    }
+
+    return errCode;
+}
+
 
 
 /*
@@ -900,7 +951,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials_1v5
   (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex, jint partialsType)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
-    
+
     jint errCode = (jint)beagleUpdatePrePartials_v5(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex, (BeaglePartialsType)partialsType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
