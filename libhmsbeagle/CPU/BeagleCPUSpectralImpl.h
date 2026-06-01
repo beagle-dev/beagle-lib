@@ -25,7 +25,7 @@
 #include <vector>
 #include <cmath>
 
-// #define TEST_EB
+#define TEST_EB
 
 namespace beagle {
     namespace cpu {
