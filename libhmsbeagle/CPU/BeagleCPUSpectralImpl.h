@@ -25,6 +25,8 @@
 #include <vector>
 #include <cmath>
 
+// #define TEST_EB
+
 namespace beagle {
     namespace cpu {
 
@@ -102,13 +104,39 @@ namespace beagle {
         private:
             struct BranchEigenInfo {
                 REALTYPE branchLength;
+
                 int eigenIndex;
                 int categoryRatesIndex;
+
+                bool allReal;
+
+#ifdef TEST_EB
+                REALTYPE* time;
+
+                REALTYPE* expat;
+                REALTYPE* cosbt;
+                REALTYPE* sinbt;
+                REALTYPE* expatcosbt;
+                REALTYPE* expatsinbt;
+
+                const REALTYPE* eval;
+#endif
             };
             std::vector<BranchEigenInfo> gBranchEigenInfo;
 
+#ifdef TEST_EB
+            std::vector<REALTYPE> gTime;
+            std::vector<REALTYPE> gExpAt;
+            std::vector<REALTYPE> gCosBt;
+            std::vector<REALTYPE> gSinBt;
+            std::vector<REALTYPE> gExpAtCosBt;
+            std::vector<REALTYPE> gExpAtSinBt;
+#endif
+
             std::vector<REALTYPE> gPartialTmp1;
             std::vector<REALTYPE> gPartialTmp2;
+
+            int kStateCountModFour;
 
         protected:
             int updateTransitionMatrices(int eigenIndex,
@@ -206,6 +234,13 @@ namespace beagle {
                                           REALTYPE* first,
                                           REALTYPE* second);
 
+            template <typename First, typename Second, typename Body>
+            inline void matVecDual(
+                    const REALTYPE* mat1, const REALTYPE* vec1, const int state1,
+                    const REALTYPE* mat2, const REALTYPE* vec2, const int state2,
+                    const int matrixIncr,
+                    Body body);
+
             // template <typename T>
             // void calcPrePartialsPartialsRoot(REALTYPE *destP,
             //                                  const REALTYPE *partialsParent,
@@ -238,6 +273,17 @@ namespace beagle {
                                                const REALTYPE scaledBranchLength2,
                                                const int matrixIncr);
 
+#ifdef TEST_EB
+            template <typename First, typename Second, typename Direction>
+            void expScaledMatrixVectorMultiple2(REALTYPE* outPartials1, REALTYPE* outPartials2,
+                                               const REALTYPE* inPartials1, const int state1,
+                                               const BranchEigenInfo& info1,
+                                               const REALTYPE* inverseEigenVectors1,
+                                               const REALTYPE* inPartials2, const int state2,
+                                               const BranchEigenInfo& info2,
+                                               const REALTYPE* inverseEigenVectors2,
+                                               const int matrixIncr);
+#endif
         };
 
         BEAGLE_CPU_FACTORY_TEMPLATE
@@ -275,6 +321,9 @@ namespace beagle {
 
         struct Top {};
         struct Bottom {};
+
+        struct Forward {};
+        struct Backward {};
 
         struct NoScaling {
             static constexpr bool useScaleFactors = false;
