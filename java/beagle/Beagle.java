@@ -551,7 +551,7 @@ public interface Beagle extends Serializable {
      * @param preBufferIndices                  list of pre  order buffer indices
      * @param categoryWeightsIndices            category weights indices
      * @param count                             number of edges
-     * @param outDerivatives                    derivative-per-element output array
+     * @param outSumDerivatives                 derivative-per-element output array
      *
      */
     void calculateCrossProductDifferentials(

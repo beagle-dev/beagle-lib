@@ -122,11 +122,12 @@ set(PKG "hmsbeagle-${GENERIC_API_VERSION}")
 
 install(TARGETS hmsbeagle
         EXPORT ${PKG}
+        DESTINATION ${BEAGLE_INSTALL_DIR}
 	LIBRARY DESTINATION ${BEAGLE_INSTALL_DIR}
 	PUBLIC_HEADER DESTINATION ${BEAGLE_HEADER_DIR}
 	COMPONENT main
       )
-
+      
 include(CMakePackageConfigHelpers)
 
 write_basic_package_version_file(

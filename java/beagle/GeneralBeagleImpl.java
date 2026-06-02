@@ -599,7 +599,7 @@ public class GeneralBeagleImpl implements Beagle {
 
     /**
      * Calculates partial likelihoods at a node when both children have states.
-     * @returns the larges absolute exponent
+     * @return the larges absolute exponent
      */
     protected int updateStatesStates(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
     {

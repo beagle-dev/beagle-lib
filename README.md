@@ -49,6 +49,10 @@ The paper describing the algorithms used for calculating likelihoods of sequence
 * [API documentation](https://beagle-dev.github.io/html/beagle_8h.html)
 * [Phylogenetic Software Development Tutorial](https://stromtutorial.github.io/)
 
+### Code signing
+
+* Free code signing provided by [SignPath.io](https://about.signpath.io/?), certificate by [SignPath Foundation](https://signpath.org). This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
 ### Acknowledgements
 
 * This project is supported in part through the National Science Foundation grants IIS-1251151, DMS-1264153, DBI-1356562, DBI-1661443 & DEB-1354146; National Institutes of Health grants R01-HG006139, R01-AI107034, U19-AI135995 & R01-AI153044; Wellcome Trust grant 206298/Z/17/Z; and European Research Council grant 725422-ReservoirDOCS.
