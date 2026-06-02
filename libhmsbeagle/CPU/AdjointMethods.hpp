@@ -21,6 +21,7 @@ REALTYPE AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEigenBas
 
     REALTYPE sum = static_cast<REALTYPE>(0);
     if (allReal) {
+        #pragma clang loop vectorize(enable)
         for (int i = 0; i < stateCount; ++i) {
             sum += lhs[i] * expat[i] * rhs[i];
         }

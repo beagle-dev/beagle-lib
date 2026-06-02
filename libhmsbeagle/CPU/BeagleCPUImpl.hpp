@@ -2041,10 +2041,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIn
     const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
     const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
 
-    if (crossProductNumeratorTmp == nullptr) {
-        crossProductNumeratorTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount
-                * kStateCount * kStateCount);
-    }
+    // TODO remove unnecessary? allocation
+    // if (crossProductNumeratorTmp == nullptr) {
+    //     crossProductNumeratorTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount
+    //             * kStateCount * kStateCount);
+    // }
 
 //    std::fill(outCrossProducts, outCrossProducts + kStateCount * kStateCount, 0.0); // TODO Remove
 

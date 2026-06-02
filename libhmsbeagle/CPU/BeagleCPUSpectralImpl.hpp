@@ -570,33 +570,53 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
         if ((std::is_same_v<First,  None> || info1.sinbt[i] == 0.0) &&
             (std::is_same_v<Second, None> || info2.sinbt[i] == 0.0)) {
             // All real
-            REALTYPE sum1, sum2;
+            const int row_i = i * matrixIncr;
+            REALTYPE sum1a, sum1b, sum2a, sum2b;
             if constexpr (std::is_same_v<First, States>) {
-                sum1 = matrix1[i * matrixIncr + state1];
+                sum1a = matrix1[row_i + state1];
+                sum1b = REALTYPE(0);
             } else if constexpr (std::is_same_v<First, Partials>) {
-                sum1 = 0.0;
+                sum1a = REALTYPE(0);
+                sum1b = REALTYPE(0);
             }
 
             if constexpr (std::is_same_v<Second, States>) {
-                sum2 = matrix2[i * matrixIncr + state2];
+                sum2a = matrix2[row_i + state2];
+                sum2b = REALTYPE(0);
             } else if constexpr (std::is_same_v<Second, Partials>) {
-                sum2 = 0.0;
+                sum2a = REALTYPE(0);
+                sum2b = REALTYPE(0);
             }
 
-            for (int j = 0; j < kStateCount; j++) {
+            int j = 0;
+            for (; j < kStateCountModFour; j += 4) {
                 if constexpr (std::is_same_v<First, Partials>) {
-                    sum1 += matrix1[i * matrixIncr + j] * partials1[j];
+                    sum1a += matrix1[row_i + j + 0] * partials1[j + 0];
+                    sum1b += matrix1[row_i + j + 1] * partials1[j + 1];
+                    sum1a += matrix1[row_i + j + 2] * partials1[j + 2];
+                    sum1b += matrix1[row_i + j + 3] * partials1[j + 3];
                 }
                 if constexpr (std::is_same_v<Second, Partials>) {
-                    sum2 += matrix2[i * matrixIncr + j] * partials2[j];
+                    sum2a += matrix2[row_i + j + 0] * partials2[j + 0];
+                    sum2b += matrix2[row_i + j + 1] * partials2[j + 1];
+                    sum2a += matrix2[row_i + j + 2] * partials2[j + 2];
+                    sum2b += matrix2[row_i + j + 3] * partials2[j + 3];
+                }
+            }
+            for (; j < kStateCount; j++) {
+                if constexpr (std::is_same_v<First, Partials>) {
+                    sum1a += matrix1[row_i + j] * partials1[j];
+                }
+                if constexpr (std::is_same_v<Second, Partials>) {
+                    sum2a += matrix2[row_i + j] * partials2[j];
                 }
             }
 
             if constexpr (!std::is_same_v<First, None>) {
-                out1[i] = expat1 * sum1;
+                out1[i] = expat1 * (sum1a + sum1b);
             }
             if constexpr (!std::is_same_v<Second, None>) {
-                out2[i] = expat2 * sum2;
+                out2[i] = expat2 * (sum2a + sum2b);
             }
 
         } else {
@@ -624,53 +644,80 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
                 expatsinbt2 = info2.expatsinbt[i]; // expat2 * std::sin(time2 * imag2[i]);
             }
 
-            REALTYPE sum1A, sum1B, sum2A, sum2B;
+            const int row_i  = i  * matrixIncr;
+            const int row_i2 = i2 * matrixIncr;
+            REALTYPE s1Aa, s1Ab, s1Ba, s1Bb;
+            REALTYPE s2Aa, s2Ab, s2Ba, s2Bb;
             if constexpr (std::is_same_v<First, States>) {
-                sum1A = expatcosbt1 * matrix1[i * matrixIncr + state1] +
-                            expatsinbt1 * matrix1[i2 * matrixIncr + state1];
-
-                sum1B = expatcosbt1 * matrix1[i2 * matrixIncr + state1] -
-                            expatsinbt1 * matrix1[i * matrixIncr + state1];
+                s1Aa = expatcosbt1 * matrix1[row_i  + state1] +
+                           expatsinbt1 * matrix1[row_i2 + state1];
+                s1Ab = REALTYPE(0);
+                s1Ba = expatcosbt1 * matrix1[row_i2 + state1] -
+                           expatsinbt1 * matrix1[row_i  + state1];
+                s1Bb = REALTYPE(0);
             } else if constexpr (std::is_same_v<First, Partials>) {
-                sum1A = 0.0; sum1B = 0.0;
+                s1Aa = REALTYPE(0); s1Ab = REALTYPE(0);
+                s1Ba = REALTYPE(0); s1Bb = REALTYPE(0);
             }
 
             if constexpr (std::is_same_v<Second, States>) {
-                sum2A = expatcosbt2 * matrix2[i * matrixIncr + state2] +
-                            expatsinbt2 * matrix2[i2 * matrixIncr + state2];
-
-                sum2B = expatcosbt2 * matrix2[i2 * matrixIncr + state2] -
-                            expatsinbt2 * matrix2[i * matrixIncr + state2];
+                s2Aa = expatcosbt2 * matrix2[row_i  + state2] +
+                           expatsinbt2 * matrix2[row_i2 + state2];
+                s2Ab = REALTYPE(0);
+                s2Ba = expatcosbt2 * matrix2[row_i2 + state2] -
+                           expatsinbt2 * matrix2[row_i  + state2];
+                s2Bb = REALTYPE(0);
             } else if constexpr (std::is_same_v<Second, Partials>) {
-                sum2A = 0.0; sum2B = 0.0;
+                s2Aa = REALTYPE(0); s2Ab = REALTYPE(0);
+                s2Ba = REALTYPE(0); s2Bb = REALTYPE(0);
             }
 
-            for (int j = 0; j < kStateCount; j++) {
+            int j = 0;
+            for (; j < kStateCountModFour; j += 4) {
                 if constexpr (std::is_same_v<First, Partials>) {
-                    sum1A += (expatcosbt1 * matrix1[i * matrixIncr + j] +
-                                expatsinbt1 * matrix1[i2 * matrixIncr + j]) * partials1[j];
+                    s1Aa += (expatcosbt1 * matrix1[row_i  + j+0] + expatsinbt1 * matrix1[row_i2 + j+0]) * partials1[j+0];
+                    s1Ab += (expatcosbt1 * matrix1[row_i  + j+1] + expatsinbt1 * matrix1[row_i2 + j+1]) * partials1[j+1];
+                    s1Aa += (expatcosbt1 * matrix1[row_i  + j+2] + expatsinbt1 * matrix1[row_i2 + j+2]) * partials1[j+2];
+                    s1Ab += (expatcosbt1 * matrix1[row_i  + j+3] + expatsinbt1 * matrix1[row_i2 + j+3]) * partials1[j+3];
 
-                    sum1B += (expatcosbt1 * matrix1[i2 * matrixIncr + j] -
-                                expatsinbt1 * matrix1[i * matrixIncr + j]) * partials1[j];
+                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j+0] - expatsinbt1 * matrix1[row_i  + j+0]) * partials1[j+0];
+                    s1Bb += (expatcosbt1 * matrix1[row_i2 + j+1] - expatsinbt1 * matrix1[row_i  + j+1]) * partials1[j+1];
+                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j+2] - expatsinbt1 * matrix1[row_i  + j+2]) * partials1[j+2];
+                    s1Bb += (expatcosbt1 * matrix1[row_i2 + j+3] - expatsinbt1 * matrix1[row_i  + j+3]) * partials1[j+3];
                 }
 
                 if constexpr (std::is_same_v<Second, Partials>) {
-                    sum2A += (expatcosbt2 * matrix2[i * matrixIncr + j] +
-                                expatsinbt2 * matrix2[i2 * matrixIncr + j]) * partials2[j];
+                    s2Aa += (expatcosbt2 * matrix2[row_i  + j+0] + expatsinbt2 * matrix2[row_i2 + j+0]) * partials2[j+0];
+                    s2Ab += (expatcosbt2 * matrix2[row_i  + j+1] + expatsinbt2 * matrix2[row_i2 + j+1]) * partials2[j+1];
+                    s2Aa += (expatcosbt2 * matrix2[row_i  + j+2] + expatsinbt2 * matrix2[row_i2 + j+2]) * partials2[j+2];
+                    s2Ab += (expatcosbt2 * matrix2[row_i  + j+3] + expatsinbt2 * matrix2[row_i2 + j+3]) * partials2[j+3];
 
-                    sum2B += (expatcosbt2 * matrix2[i2 * matrixIncr + j] -
-                                expatsinbt2 * matrix2[i * matrixIncr + j]) * partials2[j];
+                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j+0] - expatsinbt2 * matrix2[row_i  + j+0]) * partials2[j+0];
+                    s2Bb += (expatcosbt2 * matrix2[row_i2 + j+1] - expatsinbt2 * matrix2[row_i  + j+1]) * partials2[j+1];
+                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j+2] - expatsinbt2 * matrix2[row_i  + j+2]) * partials2[j+2];
+                    s2Bb += (expatcosbt2 * matrix2[row_i2 + j+3] - expatsinbt2 * matrix2[row_i  + j+3]) * partials2[j+3];
+                }
+            }
+            for (; j < kStateCount; j++) {
+                if constexpr (std::is_same_v<First, Partials>) {
+                    s1Aa += (expatcosbt1 * matrix1[row_i  + j] + expatsinbt1 * matrix1[row_i2 + j]) * partials1[j];
+                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j] - expatsinbt1 * matrix1[row_i  + j]) * partials1[j];
+                }
+
+                if constexpr (std::is_same_v<Second, Partials>) {
+                    s2Aa += (expatcosbt2 * matrix2[row_i  + j] + expatsinbt2 * matrix2[row_i2 + j]) * partials2[j];
+                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j] - expatsinbt2 * matrix2[row_i  + j]) * partials2[j];
                 }
             }
 
             if constexpr (!std::is_same_v<First, None>) {
-                out1[i] = sum1A;
-                out1[i2] = sum1B;
+                out1[i]  = s1Aa + s1Ab;
+                out1[i2] = s1Ba + s1Bb;
             }
 
             if constexpr (!std::is_same_v<Second, None>) {
-                out2[i] = sum2A;
-                out2[i2] = sum2B;
+                out2[i]  = s2Aa + s2Ab;
+                out2[i2] = s2Ba + s2Bb;
             }
 
             i++; // processed two conjugate rows
@@ -946,6 +993,36 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         REALTYPE* first,
         REALTYPE* second) {
 
+    // TODO follow calcCrossProductsPartials()
+
+    // for (int pattern = 0; pattern < kPatternCount; pattern++) {
+
+    //     std::vector<REALTYPE> tmp(kStateCount * kStateCount, 0.0);
+
+    //     REALTYPE patternDenominator = 0.0;
+
+    //     for (int category = 0; category < kCategoryCount; category++) {
+
+    //         const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+    //         const REALTYPE weight = categoryWeights[category];
+
+    //         const int patternIndex = category * kPatternCount + pattern;
+    //         const int v = patternIndex * kPartialsPaddedStateCount;
+
+    //         REALTYPE denominator = 0.0;
+
+    //         // compute denominator for this pattern and category
+
+    //         patternDenominator += denominator * weight;
+
+    //         // accumulate cross products for this pattern and category into tmp[k * kStateCount + j]
+
+    //     }
+
+    //     const auto patternWeight = gPatternWeights[pattern] / patternDenominator;
+
+    //     // accumulate into outCrossProducts[k * kStateCount + j] from tmp[k * kStateCount + j] with pattern
+    // }
 
     const int startPattern = 0;
     const int endPattern = kPatternCount;
@@ -979,7 +1056,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         fprintf(stderr, "kCategoryCount > 1 not yet implemented\n");
     }
 
+#if defined(_OPENMP)
     #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
 
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
@@ -1184,7 +1263,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+#if defined(_OPENMP)
     #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
@@ -1252,7 +1333,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+#if defined(_OPENMP)
 #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
@@ -1322,7 +1405,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+#if defined(_OPENMP)
 #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
@@ -1389,7 +1474,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+#if defined(_OPENMP)
     #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
@@ -1530,7 +1617,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
+#if defined(_OPENMP)
     #pragma omp parallel for num_threads(kCategoryCount)
+#endif
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 

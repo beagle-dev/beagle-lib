@@ -283,6 +283,15 @@ namespace beagle {
                                                const BranchEigenInfo& info2,
                                                const REALTYPE* inverseEigenVectors2,
                                                const int matrixIncr);
+            template <typename First, typename Second, typename Direction>
+            void expScaledMatrixVectorMultiple3(REALTYPE* outPartials1, REALTYPE* outPartials2,
+                                               const REALTYPE* inPartials1, const int state1,
+                                               const BranchEigenInfo& info1,
+                                               const REALTYPE* inverseEigenVectors1,
+                                               const REALTYPE* inPartials2, const int state2,
+                                               const BranchEigenInfo& info2,
+                                               const REALTYPE* inverseEigenVectors2,
+                                               const int matrixIncr);
 #endif
         };
 

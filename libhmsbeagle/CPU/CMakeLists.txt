@@ -71,6 +71,17 @@ add_library(hmsbeagle-cpu-spectral SHARED
         AdjointMethods.hpp
         Precision.h
         )
+        
+# target_compile_options(hmsbeagle-cpu-spectral PRIVATE
+#     -fno-math-errno      # safe: no errno for math funcs
+#     -fno-trapping-math   # safe: assumes FP exceptions don't trap
+#     )        
+#     
+# target_compile_options(hmsbeagle-cpu-spectral PRIVATE
+#     -Rpass=loop-vectorize          # shows vectorized loops
+#     -Rpass-missed=loop-vectorize   # shows WHY a loop was skipped
+#     -Rpass-analysis=loop-vectorize # detailed analysis
+# 	)    
 
 install(TARGETS hmsbeagle-cpu-spectral
 	DESTINATION ${BEAGLE_INSTALL_DIR}
