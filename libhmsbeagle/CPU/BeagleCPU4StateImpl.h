@@ -111,25 +111,27 @@ public:
                                        int endPattern);
 
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
-                                             const REALTYPE *preOrderPartial,
-                                             const int firstDerivativeIndex,
-                                             const int secondDerivativeIndex,
-                                             const double *categoryRates,
-                                             const REALTYPE *categoryWeights,
-                                             double *outDerivatives,
-                                             double *outSumDerivatives,
-                                             double *outSumSquaredDerivatives);
+                                              const REALTYPE *preOrderPartial,
+                                              const int firstDerivativeIndex,
+                                              const int secondDerivativeIndex,
+                                              const double *categoryRates,
+                                              const REALTYPE *categoryWeights,
+                                              double *outDerivatives,
+                                              double *outSumDerivatives,
+                                              double *outSumSquaredDerivatives,
+                                              int cacheOffset);
 
     virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
-                                               const REALTYPE *preOrderPartial,
-                                               const int firstDerivativeIndex,
-                                               const int secondDerivativeIndex,
-                                               const double *categoryRates,
-                                               const REALTYPE *categoryWeights,
-                                               const int scalingFactorsIndex,
-                                               double *outDerivatives,
-                                               double *outSumDerivatives,
-                                               double *outSumSquaredDerivatives);
+                                                const REALTYPE *preOrderPartial,
+                                                const int firstDerivativeIndex,
+                                                const int secondDerivativeIndex,
+                                                const double *categoryRates,
+                                                const REALTYPE *categoryWeights,
+                                                const int scalingFactorsIndex,
+                                                double *outDerivatives,
+                                                double *outSumDerivatives,
+                                                double *outSumSquaredDerivatives,
+                                                int cacheOffset);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,

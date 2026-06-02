@@ -165,26 +165,27 @@ public:
 protected:
     virtual int getPaddedPatternsModulus();
 
-	virtual void accumulateDerivatives(double* outDerivatives,
-									   double* outSumDerivatives,
-									   double* outSumSquaredDerivatives);
+	virtual void accumulateDerivatives(double *outDerivatives, double *outSumDerivatives,
+                                       double *outSumSquaredDerivatives, int offset);
 
 private:
 
 	template <bool DoDerivatives>
-	void accumulateDerivativesDispatch1(double* outDerivatives,
-										double* outSumDerivatives,
-										double* outSumSquaredDerivatives);
+    void
+    accumulateDerivativesDispatch1(double *outDerivatives, double *outSumDerivatives, double *outSumSquaredDerivatives,
+                                   int offset);
 
 	template <bool DoDerivatives, bool DoSum>
-	void accumulateDerivativesDispatch2(double* outDerivatives,
-										double* outSumDerivatives,
-										double* outSumSquaredDerivatives);
+    void accumulateDerivativesDispatch2(double *outDerivatives,
+                                        double *outSumDerivatives,
+                                        double *outSumSquaredDerivatives,
+                                        int offset);
 
 	template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-	void accumulateDerivativesImpl(double* outDerivatives,
-								   double* outSumDerivatives,
-								   double* outSumSquaredDerivatives);
+    void accumulateDerivativesImpl(double *outDerivatives,
+                                   double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives,
+                                   int offset);
 
     virtual void calcStatesStates(double* destP,
                                   const int* states1,
@@ -260,7 +261,8 @@ private:
                                                 const int scalingFactorsIndex,
                                                 double* outDerivatives,
                                                 double* outSumDerivatives,
-                                                double* outSumSquaredDerivatives);
+                                                double* outSumSquaredDerivatives,
+												int cacheOffset);
 
     virtual void calcEdgeLogDerivativesStates(const int* tipStates,
                                               const double *__restrict preOrderPartial,
@@ -270,7 +272,8 @@ private:
                                               const double* __restrict categoryWeights,
                                               double *outDerivatives,
                                               double *outSumDerivatives,
-                                              double *outSumSquaredDerivatives);
+                                              double *outSumSquaredDerivatives,
+											  int cacheOffset);
 
     virtual void calcPartialsPartialsFixedScaling(double* __restrict destP,
                                                   const double* __restrict child0Partials,

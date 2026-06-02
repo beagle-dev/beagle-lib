@@ -3,10 +3,16 @@ project(BEAGLE)
 
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
+<<<<<<< HEAD
 set(BEAGLE_VERSION_MINOR "1")
 set(BEAGLE_VERSION_PATCH "0")
+=======
+set(BEAGLE_VERSION_MINOR "0")
+set(BEAGLE_VERSION_PATCH "2")
+>>>>>>> hmc-clock
 
 set(GENERIC_API_VERSION "1")
+
 
 set(BEAGLE_VERSION "${BEAGLE_VERSION_MAJOR}.${BEAGLE_VERSION_MINOR}.${BEAGLE_VERSION_PATCH}")
 set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
@@ -22,7 +28,11 @@ set(BASTA_EXTENSION "BIT")
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
+<<<<<<< HEAD
 option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
+=======
+option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
+>>>>>>> hmc-clock
 option(BUILD_SSE "Build beagle with SSE library" ON)
 option(BUILD_BIT "Build beagle with basta library" OFF)
 
@@ -33,7 +43,10 @@ OPTION(BEAGLE_DEBUG_FLOW "Print flow" OFF)
 OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
 OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
 OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
+<<<<<<< HEAD
 OPTION(BEAGLE_BASTA_CPU_ACCUM "Use CPU for final accumulation for reduction" OFF)
+=======
+>>>>>>> hmc-clock
 
 IF(BEAGLE_BENCHMARK)
     ADD_DEFINITIONS(-DBEAGLE_BENCHMARK)
@@ -55,11 +68,14 @@ IF(BEAGLE_DEBUG_SYNCH)
 	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
 ENDIF(BEAGLE_DEBUG_SYNCH)
 
+<<<<<<< HEAD
 IF(BEAGLE_BASTA_CPU_ACCUM)
 	ADD_DEFINITIONS(-DBEAGLE_BASTA_CPU_ACCUM)
 ENDIF(BEAGLE_BASTA_CPU_ACCUM)
 
 
+=======
+>>>>>>> hmc-clock
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"
 	-DPACKAGE_NAME="${BEAGLE_PACKAGE_NAME}"
@@ -113,6 +129,15 @@ if(BUILD_JNI)
 		message (FATAL_ERROR "No JNI includes and libraries found")	
 	endif(JNI_FOUND)
 endif(BUILD_JNI)
+
+if(BUILD_OPENMP)
+	find_package(OpenMP)
+	if(OpenMP_CXX_FOUND)
+		# Do we need to do anything?  Probably need to statically link omp to cpu *.so
+	else(OpenMP_CXX_FOUND)
+		message (FATAL_ERROR "No OpenMP Found")
+	endif(OpenMP_CXX_FOUND)
+endif(BUILD_OPENMP)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle

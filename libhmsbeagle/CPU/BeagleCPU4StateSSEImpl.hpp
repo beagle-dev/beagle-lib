@@ -94,13 +94,19 @@
 #define SSE_PREFETCH_PRE_MATRICES(src_m1, src_m2, dest_vu_m1, dest_vu_m2) \
 	const double *m1 = (src_m1); \
 	const double *m2 = (src_m2); \
-	for (int i = 0; i < OFFSET; i++, m1+=OFFSET, m2++) { \
+	for (int i = 0; i < 4; i++, m1+=OFFSET, m2++) { \
 		dest_vu_m1[i][0].x[0] = m1[0]; \
 		dest_vu_m1[i][0].x[1] = m1[1]; \
 		dest_vu_m2[i][0].x[0] = m2[0*OFFSET]; \
 		dest_vu_m2[i][0].x[1] = m2[1*OFFSET]; \
 		dest_vu_m1[i][1].x[0] = m1[2]; \
 		dest_vu_m1[i][1].x[1] = m1[3]; \
+		dest_vu_m2[i][1].x[0] = m2[2*OFFSET]; \
+		dest_vu_m2[i][1].x[1] = m2[3*OFFSET]; \
+	} \
+    for (int i = 4; i < OFFSET; i++, m2++) { \
+		dest_vu_m2[i][0].x[0] = m2[0*OFFSET]; \
+		dest_vu_m2[i][0].x[1] = m2[1*OFFSET]; \
 		dest_vu_m2[i][1].x[0] = m2[2*OFFSET]; \
 		dest_vu_m2[i][1].x[1] = m2[3*OFFSET]; \
 	}
@@ -633,10 +639,10 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsStates(co
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(double *outDerivatives,
+                                                                                double *outSumDerivatives,
+                                                                                double *outSumSquaredDerivatives,
+                                                                                int offset) {
 
     V_Real vSum = VEC_SETZERO();
     V_Real vSumSquared = VEC_SETZERO();
@@ -644,8 +650,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
     int k = 0;
     for (; k < kPatternCount - 1; k += 2) {
 
-        V_Real numerator = VEC_LOAD(grandNumeratorDerivTmp + k);
-        V_Real denominator = VEC_LOAD(grandDenominatorDerivTmp + k);
+        V_Real numerator = VEC_LOAD(grandNumeratorDerivTmp + k + offset);
+        V_Real denominator = VEC_LOAD(grandDenominatorDerivTmp + k + offset);
         V_Real derivative = VEC_DIV(numerator, denominator);
         V_Real patternWeight = VEC_LOAD(gPatternWeights + k);
 
@@ -675,7 +681,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
     }
 
     for (; k < kPatternCount; ++k) {
-        double derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        double derivative = grandNumeratorDerivTmp[k + offset] / grandDenominatorDerivTmp[k + offset];
         if (DoDerivatives) {
             outDerivatives[k] = derivative;
         }
@@ -697,46 +703,47 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives, bool DoSum>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch2(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch2(double *outDerivatives,
+                                                                                     double *outSumDerivatives,
+                                                                                     double *outSumSquaredDerivatives,
+                                                                                     int offset) {
 
     if (outSumSquaredDerivatives == NULL) {
         accumulateDerivativesImpl<DoDerivatives, DoSum, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesImpl<DoDerivatives, DoSum, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE template <bool DoDerivatives>
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch1(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesDispatch1(double *outDerivatives,
+                                                                                     double *outSumDerivatives,
+                                                                                     double *outSumSquaredDerivatives,
+                                                                                     int offset) {
 
     if (outSumDerivatives == NULL) {
         accumulateDerivativesDispatch2<DoDerivatives, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch2<DoDerivatives, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double* outDerivatives,
-                                                                            double* outSumDerivatives,
-                                                                            double* outSumSquaredDerivatives) {
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivatives(double *outDerivatives,
+                                                                            double *outSumDerivatives,
+                                                                            double *outSumSquaredDerivatives,
+                                                                            int offset) {
     if (outDerivatives == NULL) {
         accumulateDerivativesDispatch1<false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch1<true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
@@ -750,7 +757,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
                                                                                      const int scalingFactorsIndex,
                                                                                      double* outDerivatives,
                                                                                      double* outSumDerivatives,
-                                                                                     double* outSumSquaredDerivatives) {
+                                                                                     double* outSumSquaredDerivatives,
+                                                                                     int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -803,8 +811,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             double numer = _mm_cvtsd_f64(vnumer) * wt[l];
             double denon = _mm_cvtsd_f64(vdenom) * wt[l];
 
-            grandNumeratorDerivTmp[k] += numer; // TODO Merge [numer, denom] into single SSE transactions
-            grandDenominatorDerivTmp[k] += denon;
+            grandNumeratorDerivTmp[cacheOffset + k] += numer; // TODO Merge [numer, denom] into single SSE transactions
+            grandDenominatorDerivTmp[cacheOffset + k] += denon;
 
             v += 4;
         }
@@ -825,7 +833,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
                                                                                    const double* categoryWeights,
                                                                                    double *outDerivatives,
                                                                                    double *outSumDerivatives,
-                                                                                   double *outSumSquaredDerivatives) {
+                                                                                   double *outSumSquaredDerivatives,
+                                                                                   int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -860,8 +869,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
             double numer = _mm_cvtsd_f64(vnumer);
             double denom = cl_r[stateChild & 3]; cl_r += 4;
 
-            grandNumeratorDerivTmp[k] += numer * wt[l];
-            grandDenominatorDerivTmp[k] += denom * wt[l];
+            grandNumeratorDerivTmp[cacheOffset + k] += numer * wt[l];
+            grandDenominatorDerivTmp[cacheOffset + k] += denom * wt[l];
         }
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
