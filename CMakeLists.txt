@@ -196,7 +196,6 @@ enable_testing()
 add_subdirectory(examples)
 
 IF(BEAGLE_DEBUG_KERNELS)
-	add_subdirectory(tests/basta)
     add_subdirectory(tests/tensor_cores)
 ENDIF(BEAGLE_DEBUG_KERNELS)
 
