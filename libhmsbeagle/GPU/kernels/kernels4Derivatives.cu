@@ -459,7 +459,8 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
                                                         const int totalNodes,
                                                         const int categoryCount,
                                                         const int rateOffset,
-                                                        const int accumulate) {
+                                                        const int accumulate,
+                                                        const int missingState) {
   #ifdef FW_OPENCL_CPU // CPU/MIC implementation
       todo(); // Not implemented
   #else // GPU implementation
@@ -524,7 +525,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
             const KW_GLOBAL_VAR int* KW_RESTRICT postStates = states0 + statesOffset;
  
             const int stateData = postStates[pattern + pat]; // patterns are already padded mod 4
-            post[tx] = (state == stateData) ? (REAL) 1.0 : (REAL) 0.0;
+            post[tx] = (state == stateData) ? (REAL) 1.0 : (REAL) 0.0; // TODO | stateData >= missingState ?
 
               for (int c = 0; c < categoryCount; ++c) {
   

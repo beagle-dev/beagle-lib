@@ -831,6 +831,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
     assert(inPatternPartitions != 0L);
 
     kPartitionCount = partitionCount;
+    grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1) * kPartitionCount);
+    grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1)* kPartitionCount);
+    firstDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
+    secondDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
+
 
     if (!kPartitionsInitialised) {
         gPatternPartitions = (int*) malloc(sizeof(int) * kPatternCount);
@@ -1352,8 +1357,21 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
                                                          BeaglePartialsType partialsType) {
     int returnCode = BEAGLE_ERROR_GENERAL;
 
-    bool byPartition = false;
-    returnCode = upPrePartials(byPartition, operations, count, cumulativeScaleIndex, partialsType);
+    if (kAutoPartitioningEnabled) {
+        autoPartitionPartialsOperations(operations,
+                                        gAutoPartitionOperations,
+                                        count,
+                                        cumulativeScaleIndex);
+        count *= kPartitionCount;
+        returnCode = upPrePartialsByPartitionAsync((const int*) gAutoPartitionOperations,
+                                                count);
+    } else {
+        bool byPartition = false;
+        returnCode = upPrePartials(byPartition,
+                                   operations,
+                                   count,
+                                   cumulativeScaleIndex);
+    }
 
     return returnCode;
 }
@@ -1393,13 +1411,111 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
                                                                    double *outDerivatives,
                                                                    double *outSumDerivatives,
                                                                    double *outSumSquaredDerivatives) {
-    return calcEdgeLogDerivatives(
-            postBufferIndices, preBufferIndices,
-            derivativeMatrixIndices, NULL,
-            categoryWeightsIndices,categoryRatesIndices, cumulativeScaleIndices,
-            count,
-            outDerivatives,
-            outSumDerivatives, outSumSquaredDerivatives);
+    int returnCode = BEAGLE_ERROR_GENERAL;
+
+    if (kAutoPartitioningEnabled && kPartitionCount > 1) {
+
+
+
+        int numOps  = BEAGLE_OP_COUNT;
+        int numOpsP = BEAGLE_PARTITION_OP_COUNT;
+
+        int perThreadCount = (count - (count % kPartitionCount)) / kPartitionCount;
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Mark 0" << ", Original count = "<< count << ", perThreadCount = " << perThreadCount <<std::endl;
+#endif
+
+
+        if (gThreadOpCounts == NULL) {
+            memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
+        }
+
+
+
+        std::fill(gThreadOpCounts, gThreadOpCounts + kNumThreads, 0);
+
+#ifdef BEAGLE_DEBUG_FLOW
+        //        std::cerr<<"Mark 1"<<std::endl;
+#endif
+
+        if (gThreadOperations == NULL) {
+
+#ifdef BEAGLE_DEBUG_FLOW
+            std::cerr<<"Mark 1.5"<<std::endl;
+#endif
+            gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
+        }
+
+        for (int i=0; i<kPartitionCount; i++) {
+            if (gThreadOperations[i] == NULL) {
+                gThreadOperations[i] = (int*) malloc(sizeof(int) * BEAGLE_PARTITION_OP_COUNT * kBufferCount * kPartitionCount);
+            }
+        }
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Mark 2"<<std::endl;
+#endif
+
+        for (int i = 0; i < count; i++) {
+            const int partitionIndex = (i * kPartitionCount) / count;
+
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP] = postBufferIndices[i];
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP + 1] = preBufferIndices[i];
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP + 2] = derivativeMatrixIndices[i];
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP + 3] = categoryWeightsIndices[0];
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP + 4] = i;
+            gThreadOperations[partitionIndex][gThreadOpCounts[partitionIndex] * numOpsP + 5] = partitionIndex;
+            gThreadOpCounts[partitionIndex]++;
+
+        }
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Mark 3"<<std::endl;
+#endif
+
+//
+//        count *= kPartitionCount;
+//        returnCode = upPartialsByPartitionAsync((const int*) gAutoPartitionOperations,
+//                                                count);
+
+        for (int i=0; i<kPartitionCount; i++) {
+            std::packaged_task<void()> threadTask(
+                    std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsync, this,
+                              (const int*) gThreadOperations[i],
+                              gThreadOpCounts[i],
+                              outDerivatives,
+                              outSumDerivatives,
+                              outSumSquaredDerivatives));
+
+            gFutures[i] = threadTask.get_future();
+            threadData* td = &gThreads[i];
+
+            std::unique_lock<std::mutex> l(td->m);
+            td->jobs.push(std::move(threadTask));
+            l.unlock();
+
+            gThreads[i].cv.notify_one();
+        }
+
+        for (int i=0; i<kNumThreads; i++) {
+            gFutures[i].wait();
+        }
+
+        returnCode = BEAGLE_SUCCESS;
+
+    } else {
+        returnCode = calcEdgeLogDerivatives(
+                postBufferIndices, preBufferIndices,
+                derivativeMatrixIndices, NULL,
+                categoryWeightsIndices, categoryRatesIndices, cumulativeScaleIndices,
+                count,
+                outDerivatives,
+                outSumDerivatives, outSumSquaredDerivatives);
+    }
+
+    return returnCode;
 }
 
         BEAGLE_CPU_TEMPLATE
@@ -1484,9 +1600,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* o
     int returnCode = BEAGLE_ERROR_GENERAL;
 
     if (kThreadingEnabled) {
-//        TODO
-//        returnCode = upPrePartialsByPartitionAsync(operations,
-//                                                   count);
+        returnCode = upPrePartialsByPartitionAsync(operations,
+                                                   count);
     } else {
         bool byPartition = true;
         returnCode = upPrePartials(byPartition,
@@ -1543,6 +1658,47 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsByPartitionAsync(const int* ope
                       gThreadOpCounts[i],
                       BEAGLE_OP_NONE,
                       BEAGLE_PARTIALS_BOTTOM));
+
+        gFutures[i] = threadTask.get_future();
+        threadData* td = &gThreads[i];
+
+        std::unique_lock<std::mutex> l(td->m);
+        td->jobs.push(std::move(threadTask));
+        l.unlock();
+
+        gThreads[i].cv.notify_one();
+    }
+
+    for (int i=0; i<kNumThreads; i++) {
+        gFutures[i].wait();
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsByPartitionAsync(const int* operations,
+                                                                     int count) {
+
+    int numOps = BEAGLE_PARTITION_OP_COUNT;
+
+    memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
+
+    for (int i=0; i<count; i++) {
+        int t = operations[i * numOps + 7] % kNumThreads;
+        for (int j=0; j<numOps; j++) {
+            gThreadOperations[t][gThreadOpCounts[t]*numOps + j] = operations[i*numOps + j];
+        }
+        gThreadOpCounts[t]++;
+    }
+
+    for (int i=0; i<kNumThreads; i++) {
+        std::packaged_task<void()> threadTask(
+                std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials, this,
+                          true,
+                          (const int*) gThreadOperations[i],
+                          gThreadOpCounts[i],
+                          BEAGLE_OP_NONE));
 
         gFutures[i] = threadTask.get_future();
         threadData* td = &gThreads[i];
@@ -2102,6 +2258,100 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcCrossProducts(const int *postBufferIn
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsync(const int *operations,
+                                                                                  int count,
+                                                                                  double *outDerivatives,
+                                                                                  double *outSumDerivatives,
+                                                                                  double *outSumSquaredDerivatives) {
+
+    int returnCode = BEAGLE_SUCCESS;
+
+    int numOps  = BEAGLE_OP_COUNT;
+    int numOpsP = BEAGLE_PARTITION_OP_COUNT;
+
+    const int secondDerivativeIndex = BEAGLE_OP_NONE;
+    const double *categoryRates = NULL; // gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
+    const REALTYPE *categoryWeights = gCategoryWeights[operations[3]]; // TODO Generalize
+
+
+
+    for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+
+        const REALTYPE *preOrderPartial = gPartials[operations[nodeNum * numOpsP + 1]];
+        const int *tipStates = gTipStates[operations[nodeNum * numOpsP]];
+
+        const int firstDerivativeIndex = operations[nodeNum * numOpsP + 2];
+        const int scalingFactorsIndex = -1; // cumulativeScaleIndices[nodeNum];
+
+        const int patternOffset = operations[nodeNum * numOpsP + 4] * kPatternCount;
+        const int threadOffset = operations[nodeNum * numOpsP + 5] * ((kPaddedPatternCount + 1) / 2 * 2);
+
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Job = " << operations[nodeNum * numOpsP + 4] <<std::endl;
+        std::cerr<<"Post index = " << operations[nodeNum * numOpsP] <<std::endl;
+        std::cerr<<"Pre index = " << operations[nodeNum * numOpsP + 1] <<std::endl;
+        std::cerr<<"First Derivative index = " << operations[nodeNum * numOpsP + 2] <<std::endl;
+#endif
+
+
+
+        double* outDerivativesForNode = (outDerivatives == NULL) ?
+                                        NULL : outDerivatives + patternOffset;
+        double* outSumDerivativesForNode = (outSumDerivatives == NULL) ?
+                                           NULL : outSumDerivatives + operations[nodeNum * numOpsP + 4];
+        double* outSumSquaredDerivativesForNode = (outSumSquaredDerivatives == NULL) ?
+                                                  NULL : outSumSquaredDerivatives + operations[nodeNum * numOpsP + 4];
+
+        resetDerivativeTemporaries(threadOffset);
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Almost almost finished Job = " << operations[nodeNum * numOpsP + 4] <<std::endl;
+#endif
+
+        if (tipStates != NULL) {
+
+            calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
+                                         secondDerivativeIndex, categoryRates, categoryWeights,
+                                         outDerivativesForNode,
+                                         outSumDerivativesForNode,
+                                         outSumSquaredDerivativesForNode, threadOffset);
+
+        } else {
+
+            const REALTYPE *postOrderPartial = gPartials[operations[nodeNum * numOpsP]];
+            calcEdgeLogDerivativesPartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
+                                           secondDerivativeIndex, categoryRates, categoryWeights,
+                                           scalingFactorsIndex,
+                                           outDerivativesForNode,
+                                           outSumDerivativesForNode,
+                                           outSumSquaredDerivativesForNode, threadOffset);
+        }
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Almost finished Job = " << operations[nodeNum * numOpsP + 4] <<std::endl;
+#endif
+
+        accumulateDerivatives(outDerivativesForNode,
+                              outSumDerivativesForNode,
+                              outSumSquaredDerivativesForNode, threadOffset);
+
+#ifdef BEAGLE_DEBUG_FLOW
+        std::cerr<<"Finished Job = " << operations[nodeNum * numOpsP + 4] << ", current / count = " << nodeNum << "/" << count <<std::endl;
+#endif
+
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    std::cerr<<"Reached return!" <<std::endl;
+#endif
+
+    return returnCode;
+}
+
+
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBufferIndices,
                                                               const int *preBufferIndices,
                                                               const int *firstDerivativeIndices,
@@ -2136,30 +2386,30 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
         double* outSumSquaredDerivativesForNode = (outSumSquaredDerivatives == NULL) ?
                 NULL : outSumSquaredDerivatives + nodeNum;
 
-        resetDerivativeTemporaries();
+        resetDerivativeTemporaries(0);
 
         if (tipStates != NULL) {
 
             calcEdgeLogDerivativesStates(tipStates, preOrderPartial, firstDerivativeIndex,
-                                        secondDerivativeIndex, categoryRates, categoryWeights,
-                                        outDerivativesForNode,
-                                        outSumDerivativesForNode,
-                                        outSumSquaredDerivativesForNode);
+                                         secondDerivativeIndex, categoryRates, categoryWeights,
+                                         outDerivativesForNode,
+                                         outSumDerivativesForNode,
+                                         outSumSquaredDerivativesForNode, 0);
 
         } else {
 
             const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
             calcEdgeLogDerivativesPartials(postOrderPartial, preOrderPartial, firstDerivativeIndex,
-                                       secondDerivativeIndex, categoryRates, categoryWeights,
-                                       scalingFactorsIndex,
-                                       outDerivativesForNode,
-                                       outSumDerivativesForNode,
-                                       outSumSquaredDerivativesForNode);
+                                           secondDerivativeIndex, categoryRates, categoryWeights,
+                                           scalingFactorsIndex,
+                                           outDerivativesForNode,
+                                           outSumDerivativesForNode,
+                                           outSumSquaredDerivativesForNode, 0);
         }
 
         accumulateDerivatives(outDerivativesForNode,
-                outSumDerivativesForNode,
-                outSumSquaredDerivativesForNode);
+                              outSumDerivativesForNode,
+                              outSumSquaredDerivativesForNode, 0);
 
     }
 
@@ -2167,16 +2417,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivatives(const int *postBuf
 }
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(double *outDerivatives,
+                                                                  double *outSumDerivatives,
+                                                                  double *outSumSquaredDerivatives,
+                                                                  int offset) {
 
     REALTYPE sum = 0.0;
     REALTYPE sumSquared = 0.0;
 
     for (int k = 0; k < kPatternCount; k++) {
-        REALTYPE derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        REALTYPE derivative = grandNumeratorDerivTmp[offset + k] / grandDenominatorDerivTmp[offset + k];
         if (DoDerivatives) {
             outDerivatives[k] = derivative;
         }
@@ -2198,65 +2448,69 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesImpl(
 }
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives, bool DoSum>
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch2(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void
+BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch2(double *outDerivatives,
+                                                                  double *outSumDerivatives,
+                                                                  double *outSumSquaredDerivatives,
+                                                                  int offset) {
 
     if (outSumSquaredDerivatives == NULL) {
         accumulateDerivativesImpl<DoDerivatives, DoSum, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesImpl<DoDerivatives, DoSum, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 BEAGLE_CPU_TEMPLATE template <bool DoDerivatives>
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch1(
-        double* outDerivatives,
-        double* outSumDerivatives,
-        double* outSumSquaredDerivatives) {
+void
+BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivativesDispatch1(double *outDerivatives,
+                                                                  double *outSumDerivatives,
+                                                                  double *outSumSquaredDerivatives,
+                                                                  int offset) {
 
     if (outSumDerivatives == NULL) {
         accumulateDerivativesDispatch2<DoDerivatives, false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch2<DoDerivatives, true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetDerivativeTemporaries() {
-        std::fill(grandNumeratorDerivTmp, grandNumeratorDerivTmp + kPaddedPatternCount, 0);
-        std::fill(grandDenominatorDerivTmp, grandDenominatorDerivTmp + kPaddedPatternCount, 0);
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetDerivativeTemporaries(int offset) {
+        std::fill(grandNumeratorDerivTmp + offset, grandNumeratorDerivTmp + offset + kPaddedPatternCount, 0);
+        std::fill(grandDenominatorDerivTmp + offset, grandDenominatorDerivTmp + offset + kPaddedPatternCount, 0);
 }
 
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives(double* outDerivatives,
-                                                              double* outSumDerivatives,
-                                                              double* outSumSquaredDerivatives) {
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateDerivatives(double *outDerivatives,
+                                                              double *outSumDerivatives,
+                                                              double *outSumSquaredDerivatives,
+                                                              int offset) {
     if (outDerivatives == NULL) {
         accumulateDerivativesDispatch1<false>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     } else {
         accumulateDerivativesDispatch1<true>(
-                outDerivatives, outSumDerivatives, outSumSquaredDerivatives);
+                outDerivatives, outSumDerivatives, outSumSquaredDerivatives, offset);
     }
 }
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *tipStates,
-                                                                     const REALTYPE *preOrderPartial,
-                                                                     const int firstDerivativeIndex,
-                                                                     const int secondDerivativeIndex,
-                                                                     const double *categoryRates,
-                                                                     const REALTYPE *categoryWeights,
-                                                                     double *outDerivatives,
-                                                                     double *outSumDerivatives,
-                                                                     double *outSumSquaredDerivatives) {
+void
+BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *tipStates, const REALTYPE *preOrderPartial,
+                                                                const int firstDerivativeIndex,
+                                                                const int secondDerivativeIndex,
+                                                                const double *categoryRates,
+                                                                const REALTYPE *categoryWeights,
+                                                                double *outDerivatives,
+                                                                double *outSumDerivatives,
+                                                                double *outSumSquaredDerivatives,
+                                                                int cacheOffset) {
 
     const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
 
@@ -2277,8 +2531,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const int *
                              preOrderPartial[patternIndex * kPartialsPaddedStateCount + k];
             }
 
-            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            grandNumeratorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * numerator;
+            grandDenominatorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * denominator;
         }
     }
 }
@@ -2409,10 +2663,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
                                                                        const double *categoryRates,
                                                                        const REALTYPE *categoryWeights,
                                                                        const int scalingFactorsIndex,
-//                                                                       const REALTYPE *cumulativeScaleBuffer,
                                                                        double *outDerivatives,
                                                                        double *outSumDerivatives,
-                                                                       double *outSumSquaredDerivatives) {
+                                                                       double *outSumSquaredDerivatives,
+                                                                       int cacheOffset) {
 
     const REALTYPE *firstDerivMatrix = gTransitionMatrices[firstDerivativeIndex];
 
@@ -2443,8 +2697,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(const REA
                 denominator += postOrderPartial[v + k] * preOrderPartial[v + k];
             }
 
-            grandNumeratorDerivTmp[pattern] += weight * numerator;
-            grandDenominatorDerivTmp[pattern] += weight * denominator;
+            grandNumeratorDerivTmp[cacheOffset + pattern] += weight * numerator;
+            grandDenominatorDerivTmp[cacheOffset + pattern] += weight * denominator;
         }
     }
 }
@@ -4707,11 +4961,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(REALTYPE* destP,
     int stateCountModFour = (kStateCount / 4) * 4;
     REALTYPE* tmpdestPtr = destP;
     //clean up the partial first, set every entry to 0
-    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
+//    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+        int v = l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*startPattern;
+        std::fill(destP + v, destP + l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*endPattern, 0);
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
         const REALTYPE* partials2Ptr = &partials2[v];
@@ -4934,11 +5189,12 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* destP,
     int stateCountModFour = (kStateCount / 4) * 4;
     REALTYPE* tmpdestPtr = destP;
     //clean up the partial first, set every entry to 0
-    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
+//    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0);
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+        int v = l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*startPattern;
+        std::fill(destP + v, destP + l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*endPattern, 0);
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
 

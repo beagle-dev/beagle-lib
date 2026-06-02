@@ -126,7 +126,8 @@ private:
     Dim3Int bgReorderPatternsGrid;
 	Dim3Int bgMultiNodeSumBlock;
 	Dim3Int bgMultiNodeSumGrid;
-
+	Dim3Int bgCrossProductBlock;
+	Dim3Int bgCrossProductGrid;
 
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
@@ -349,7 +350,8 @@ public:
                                                    unsigned int categoryCount,
                                                    bool synchronize,
                                                    unsigned int nodeBlocks,
-                                                   unsigned int patterBlocks);
+                                                   unsigned int patterBlocks,
+                                                   unsigned int missingState);
 
 	void PartialsPartialsCrossProducts(GPUPtr out,
                                                    GPUPtr partials,

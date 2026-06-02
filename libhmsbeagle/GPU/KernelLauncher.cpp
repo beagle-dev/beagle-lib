@@ -129,6 +129,16 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         bgLikelihoodGrid  = Dim3Int(kPatternCount);
     }
 
+    // Set up block/grid for cross-product computation
+    if (kPaddedStateCount == 4) {
+        bgCrossProductBlock = Dim3Int(16,1,1);
+        bgCrossProductGrid = Dim3Int(1,1,1);
+    } else {
+        bgCrossProductBlock = Dim3Int(256, 1, 1);
+        const int array = kPaddedStateCount / 16;
+        bgCrossProductGrid = Dim3Int(1,1, array * array);
+    }
+
     // Set up block/grid for derivative computation
     if (kPaddedStateCount == 4) {
         if (kCPUImplementation) {
@@ -723,7 +733,6 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
-
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
@@ -738,7 +747,6 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
     }
 
     bgDerivativeGrid.y = saved;
-
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesEdgeFirstDerivatives\n");
 #endif
@@ -797,30 +805,30 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
                                                    unsigned int categoryCount,
                                                    bool accumulate,
                                                    unsigned int nodeBlocks,
-                                                   unsigned int patternBlocks) {
+                                                   unsigned int patternBlocks,
+                                                   unsigned int missingState) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesCrossProducts\n");
 #endif
 
-    Dim3Int block(16, 1, 1);
-    Dim3Int grid(patternBlocks, nodeBlocks, 1);
+    Dim3Int grid = bgCrossProductGrid;  // Dim3Int(patternBlocks, nodeBlocks, 1);
+    grid.x = patternBlocks;
+    grid.y = nodeBlocks;
 
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
-//    fprintf(stderr, "block = %d %d\n", block.x, block.y);
+//    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
 //    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
 
     gpu->LaunchKernel(fPartialsStatesCrossProducts,
-                      block, grid,
-                      7, 13,
-                      out, states0, partials, lengths, instructions,
+                      bgCrossProductBlock, grid,
+                      7, 14,
+                      out, states0, partials, lengths, instructions, 
                       categoryWeights, patternWeights,
-                      instructionOffset,
-                      patternCount, nodeCount, categoryCount, rateOffset, accumulate);
-
+                      instructionOffset, 
+                      patternCount, nodeCount, categoryCount, rateOffset, accumulate, missingState);
 
     gpu->SynchronizeDevice();
-
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesCrossProducts\n");
@@ -846,19 +854,17 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsCrossProducts\n");
 #endif
 
-    // unsigned int saved = bgDerivativeGrid.y;
-    // bgDerivativeGrid.y = nodeCount;
-
-    Dim3Int block(16, 1, 1);
-    Dim3Int grid(patternBlocks, nodeBlocks, 1);
+    Dim3Int grid = bgCrossProductGrid;  // Dim3Int(patternBlocks, nodeBlocks, 1);
+    grid.x = patternBlocks;
+    grid.y = nodeBlocks;
 
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
-//    fprintf(stderr, "block = %d %d\n", block.x, block.y);
-//    fprintf(stderr, "grid  = %d %d\n", grid.x, grid.y);
+//    fprintf(stderr, "block = %d %d\n", bgCrossProductBlock.x, bgCrossProductBlock.y);
+//    fprintf(stderr, "grid  = %d %d %d\n", grid.x, grid.y, grid.z);
 //    fprintf(stderr, "accumulate = %d\n", accumulate);
 
     gpu->LaunchKernel(fPartialsPartialsCrossProducts,
-                      block, grid,
+                      bgCrossProductBlock, grid,
                       6, 12,
                       out, partials, lengths, instructions,
                       categoryWeights, patternWeights,

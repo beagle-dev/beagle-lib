@@ -44,9 +44,21 @@ jobs:
         sudo apt-get install -y cmake file
 
     - name: Build
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        make -j
-        file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          --volume "${PWD}:/beagle-lib"
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y cmake gcc g++ openjdk-11-jdk file
+        run: |
+          export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64
+          cd /beagle-lib
+          mkdir build
+          cd build
+          cmake ..
+          make -j
+          file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
