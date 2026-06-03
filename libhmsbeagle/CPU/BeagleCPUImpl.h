@@ -448,7 +448,8 @@ public:
                                       const int *eigenIndices,
                                       const int *categoryRatesIndices,
                                       const int *categoryWeightsIndices,
-                                      const double *edgeLengths,
+                                      const int rootPostOrderIndex,
+                                      const int stateFrequenciesIndex,
                                       int count,
                                       double *outSumDerivatives,
                                       double *outSumSquaredDerivatives);
@@ -554,7 +555,8 @@ protected:
                                          const int *eigenIndices,
                                          const int *categoryRatesIndices,
                                          const int *categoryWeightsIndices,
-                                         const double *edgeLengths,
+                                         const int rootPostOrderIndex,
+                                         const int stateFrequenciesIndex,
                                          int count,
                                          double *outSumDerivatives,
                                          double *outSumSquaredDerivatives);
@@ -589,7 +591,8 @@ protected:
                                            int operationCount);
 
     virtual int upPrePartialsByPartitionAsync(const int* operations,
-                                              int operationCount);
+                                              int operationCount,
+                                              BeaglePartialsType partialsType);
 
     virtual int reorderPatternsByPartition();
 

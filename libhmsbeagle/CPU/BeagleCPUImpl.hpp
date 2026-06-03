@@ -1364,13 +1364,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
                                         cumulativeScaleIndex);
         count *= kPartitionCount;
         returnCode = upPrePartialsByPartitionAsync((const int*) gAutoPartitionOperations,
-                                                count);
+                                                count,
+                                                partialsType);
     } else {
         bool byPartition = false;
         returnCode = upPrePartials(byPartition,
                                    operations,
                                    count,
-                                   cumulativeScaleIndex);
+                                   cumulativeScaleIndex,
+                                   partialsType);
     }
 
     return returnCode;
@@ -1481,13 +1483,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
 //                                                count);
 
         for (int i=0; i<kPartitionCount; i++) {
-            std::packaged_task<void()> threadTask(
-                    std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsync, this,
+            auto b1485 = std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesByAutoPartitionAsync, this,
                               (const int*) gThreadOperations[i],
                               gThreadOpCounts[i],
                               outDerivatives,
                               outSumDerivatives,
-                              outSumSquaredDerivatives));
+                              outSumSquaredDerivatives);
+            std::packaged_task<void()> threadTask([b = std::move(b1485)]() mutable { b(); });
 
             gFutures[i] = threadTask.get_future();
             threadData* td = &gThreads[i];
@@ -1543,7 +1545,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      const int *eigenIndices,
                                                                      const int *categoryRatesIndices,
                                                                      const int *categoryWeightsIndices,
-                                                                     const double *edgeLengths,
+                                                                     const int rootPostOrderIndex,
+                                                                     const int stateFrequenciesIndex,
                                                                      int count,
                                                                      double *outSumDerivatives,
                                                                      double *outSumSquaredDerivatives) {
@@ -1552,7 +1555,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
             eigenIndices,
             categoryRatesIndices,
             categoryWeightsIndices,
-            edgeLengths,
+            rootPostOrderIndex,
+            stateFrequenciesIndex,
             count,
             outSumDerivatives,
             outSumSquaredDerivatives);
@@ -1564,7 +1568,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
                                                                 const int *eigenIndices,
                                                                 const int *categoryRatesIndices,
                                                                 const int *categoryWeightsIndices,
-                                                                const double *edgeLengths,
+                                                                const int rootPostOrderIndex,
+                                                                const int stateFrequenciesIndex,
                                                                 int count,
                                                                 double *outSumDerivatives,
                                                                 double *outSumSquaredDerivatives) {
@@ -1601,7 +1606,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* o
 
     if (kThreadingEnabled) {
         returnCode = upPrePartialsByPartitionAsync(operations,
-                                                   count);
+                                                   count,
+                                                   partialsType);
     } else {
         bool byPartition = true;
         returnCode = upPrePartials(byPartition,
@@ -1651,13 +1657,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsByPartitionAsync(const int* ope
     }
 
     for (int i=0; i<kNumThreads; i++) {
-        std::packaged_task<void()> threadTask(
-            std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials, this,
+        auto b1658 = std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials, this,
                       true,
                       (const int*) gThreadOperations[i],
                       gThreadOpCounts[i],
                       BEAGLE_OP_NONE,
-                      BEAGLE_PARTIALS_BOTTOM));
+                      BEAGLE_PARTIALS_BOTTOM);
+        std::packaged_task<void()> threadTask([b = std::move(b1658)]() mutable { b(); });
 
         gFutures[i] = threadTask.get_future();
         threadData* td = &gThreads[i];
@@ -1678,7 +1684,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartialsByPartitionAsync(const int* ope
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsByPartitionAsync(const int* operations,
-                                                                     int count) {
+                                                                     int count,
+                                                                     BeaglePartialsType partialsType) {
 
     int numOps = BEAGLE_PARTITION_OP_COUNT;
 
@@ -1693,12 +1700,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartialsByPartitionAsync(const int* 
     }
 
     for (int i=0; i<kNumThreads; i++) {
-        std::packaged_task<void()> threadTask(
-                std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials, this,
+        auto b1700 = std::bind(&BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPrePartials, this,
                           true,
                           (const int*) gThreadOperations[i],
                           gThreadOpCounts[i],
-                          BEAGLE_OP_NONE));
+                          BEAGLE_OP_NONE,
+                          partialsType);
+        std::packaged_task<void()> threadTask([b = std::move(b1700)]() mutable { b(); });
 
         gFutures[i] = threadTask.get_future();
         threadData* td = &gThreads[i];

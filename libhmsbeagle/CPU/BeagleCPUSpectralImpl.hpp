@@ -873,7 +873,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
         const int *branchEigenIndices,
         const int *categoryRatesIndices,
         const int *categoryWeightsIndices,
-        const double *edgeLengths,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
         int count,
         double *outSumDerivatives,
         double *outSumSquaredDerivatives) {
@@ -895,14 +896,13 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
 
     for (int nodeNum = 0; nodeNum < count; nodeNum++) {
 
-        const double edgeLength = edgeLengths[nodeNum];
+        const int branchEigenIndex = branchEigenIndices[nodeNum];
+        const double edgeLength = gBranchEigenInfo[branchEigenIndex].branchLength;
 
         const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
 
         const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
         const REALTYPE *postOrderPartial = (tipStates == nullptr) ? gPartials[postBufferIndices[nodeNum]] : nullptr;
-
-        const int branchEigenIndex = branchEigenIndices[nodeNum];
 
         const int patternOffset = nodeNum * kPatternCount;
 

@@ -151,7 +151,8 @@ namespace beagle {
                                             const int *eigenIndices,
                                             const int *categoryRatesIndices,
                                             const int *categoryWeightsIndices,
-                                            const double *edgeLengths,
+                                            const int rootPostOrderIndex,
+                                            const int stateFrequenciesIndex,
                                             int count,
                                             double *outSumDerivatives,
                                             double *outSumSquaredDerivatives);

@@ -502,7 +502,8 @@ public class GeneralBeagleImpl implements Beagle {
                                            		          final int[] eigenIndices,
                                            		          final int[] categoryRateIndices,
                                            		          final int[] categoryWeightsIndices,
-                                           		          final double[] edgeLengths,
+                                                          final int rootPostOrderIndex,
+                                                          final int stateFrequenciesIndex,
                                            		          int count,
                                            		          double[] outSumDerivatives,
                                            		          double[] outSumSquaredDerivatives) {
