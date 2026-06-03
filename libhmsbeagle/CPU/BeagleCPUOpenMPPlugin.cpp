@@ -17,14 +17,17 @@ namespace beagle {
 namespace cpu {
 
 BeagleCPUOpenMPPlugin::BeagleCPUOpenMPPlugin() :
-Plugin("CPU-SSE-OpenMP", "CPU-SSE-OpenMP")
+Plugin("CPU-OpenMP", "CPU-OpenMP")
 {
 	BeagleResource resource;
-        resource.name = (char*) "CPU";
-        resource.description = (char*) "";
+#ifdef __aarch64__
+        resource.name = (char*) "CPU (arm64)";
+#else
+        resource.name = (char*) "CPU (x86_64)";
+#endif
+        resource.description = (char*) "CPU implementation with OpenMP threading support";
         resource.supportFlags = BEAGLE_FLAG_COMPUTATION_SYNCH |
                                          BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-                                         BEAGLE_FLAG_THREADING_NONE |
                                          BEAGLE_FLAG_PROCESSOR_CPU |
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
                                          BEAGLE_FLAG_VECTOR_NONE |
@@ -34,6 +37,7 @@ Plugin("CPU-SSE-OpenMP", "CPU-SSE-OpenMP")
                                          BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                          BEAGLE_FLAG_FRAMEWORK_CPU;
         resource.supportFlags |= BEAGLE_FLAG_VECTOR_SSE;
+        resource.supportFlags |= BEAGLE_FLAG_THREADING_NONE;
         resource.supportFlags |= BEAGLE_FLAG_THREADING_OPENMP;
         resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
 	beagleResources.push_back(resource);

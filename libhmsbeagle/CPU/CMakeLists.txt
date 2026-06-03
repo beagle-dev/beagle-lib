@@ -57,3 +57,7 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 endif(BUILD_SSE)
+
+if(BUILD_OPENMP)
+	add_subdirectory("CMake_OpenMP")
+endif(BUILD_OPENMP)

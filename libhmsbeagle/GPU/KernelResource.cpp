@@ -27,6 +27,9 @@ KernelResource::KernelResource(
         int inBlockPeelingSize,
         int inSlowReweighing,
         int inMultiplyBlockSize,
+        int inSumIntervalBlockSize,
+        int inSumAcrossBlockSize,
+        int inBlockPeelingSizeSCA,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -39,6 +42,9 @@ KernelResource::KernelResource(
     blockPeelingSize = inBlockPeelingSize,
     slowReweighing = inSlowReweighing;
     multiplyBlockSize = inMultiplyBlockSize;
+    sumIntervalBlockSize = inSumIntervalBlockSize;
+    sumAcrossBlockSize = inSumAcrossBlockSize;
+    blockPeelingSizeSCA = inBlockPeelingSizeSCA;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
     unpaddedPatternCount = inUnpaddedPatternCount;
@@ -54,6 +60,9 @@ KernelResource::KernelResource(const KernelResource& krIn,
     blockPeelingSize = krIn.blockPeelingSize,
     slowReweighing = krIn.slowReweighing;
     multiplyBlockSize = krIn.multiplyBlockSize;
+    sumIntervalBlockSize= krIn.sumIntervalBlockSize;
+    sumAcrossBlockSize= krIn.sumAcrossBlockSize;
+    blockPeelingSizeSCA = krIn.blockPeelingSizeSCA;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
     unpaddedPatternCount = krIn.unpaddedPatternCount;
@@ -72,6 +81,9 @@ KernelResource* KernelResource::copy(void) {
             blockPeelingSize,
             slowReweighing,
             multiplyBlockSize,
+            sumIntervalBlockSize,
+            sumAcrossBlockSize,
+            blockPeelingSizeSCA,
             categoryCount,
             patternCount,
             unpaddedPatternCount,

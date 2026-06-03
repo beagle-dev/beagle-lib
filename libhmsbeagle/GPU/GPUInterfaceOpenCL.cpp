@@ -48,6 +48,9 @@
             BLOCK_PEELING_SIZE_##prec##_##state##impl2, \
             SLOW_REWEIGHING_##prec##_##state, \
             MULTIPLY_BLOCK_SIZE_##prec##impl3, \
+            BASTA_SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
+            BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
+			BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
             0,0,0,0);
 
 namespace opencl_device {

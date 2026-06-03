@@ -28,6 +28,9 @@ public:
         int inBlockPeelingSize,
         int inSlowReweighing,
         int inMultiplyBlockSize,
+        int inSumIntervalBlockSize,
+        int inSumAcrossBlockSize,
+        int inBlockPeelingSizeSCA,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -46,6 +49,9 @@ public:
     char* kernelCode;
     int patternBlockSize;
     int matrixBlockSize;
+    int sumIntervalBlockSize;
+    int sumAcrossBlockSize;
+    int blockPeelingSizeSCA;
     int blockPeelingSize;
     int isPowerOfTwo;
     int smallestPowerOfTwo;

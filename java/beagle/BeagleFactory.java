@@ -162,7 +162,7 @@ public class BeagleFactory {
         );
     }
 
-    private static BeagleJNIWrapper getBeagleJNIWrapper() {
+    protected static BeagleJNIWrapper getBeagleJNIWrapper() {
         if (BeagleJNIWrapper.INSTANCE == null) {
             try {
                 BeagleJNIWrapper.loadBeagleLibrary();

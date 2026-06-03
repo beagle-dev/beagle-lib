@@ -1114,7 +1114,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int 
 
             for (int category = 0; category < kCategoryCount; category++) {
 
-                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+                const REALTYPE scale = categoryRates[category] * static_cast<REALTYPE>(edgeLength);
 
                 const REALTYPE weight = categoryWeights[category];
                 const int patternIndex = category * kPatternCount + pattern;
@@ -1504,6 +1504,9 @@ const long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
                   BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                   BEAGLE_FLAG_FRAMEWORK_CPU;
 
+#ifdef BEAGLE_OPENMP_ENABLED
+    flags |= BEAGLE_FLAG_THREADING_OPENMP;
+#endif
     if (DOUBLE_PRECISION)
     	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else

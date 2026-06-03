@@ -1,7 +1,7 @@
 /**
  * @file beagle.h
  *
- * Copyright 2009-2013 Phylogenetic Likelihood Working Group
+ * Copyright 2009-2024 Phylogenetic Likelihood Working Group
  *
  * This file is part of BEAGLE.
  *
@@ -202,6 +202,7 @@ enum BeagleBenchmarkFlags {
 enum BeagleOpCodes {
     BEAGLE_OP_COUNT              = 7, /**< Total number of integers per beagleUpdatePartials operation */
     BEAGLE_PARTITION_OP_COUNT    = 9, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
+    BEAGLE_BASTA_OP_COUNT        = 8,
     BEAGLE_OP_NONE               = -1 /**< Specify no use for indexed buffer */
 };
 
@@ -721,6 +722,12 @@ BEAGLE_DLLEXPORT int beagleTransposeTransitionMatrices(int instance,
  *
  * @return error code
  */
+
+BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesGrad(int instance,
+                                   const int* probabilityIndices,
+                                   const double* edgeLengths,
+                                   int count);
+
 BEAGLE_DLLEXPORT int beagleUpdateTransitionMatrices(int instance,
                                    int eigenIndex,
                                    const int* probabilityIndices,
@@ -1398,6 +1405,68 @@ BEAGLE_DLLEXPORT int beagleGetSiteLogLikelihoods(int instance,
 BEAGLE_DLLEXPORT int beagleGetSiteDerivatives(int instance,
                                     double* outFirstDerivatives,
                                     double* outSecondDerivatives);
+                                    
+// START OF BASTA                                    
+                                    
+typedef struct {
+    int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+    int child1Partials;         /**< index of first child partials buffer */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+    int child2Partials;         /**< index of second child partials buffer */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int accumulation1Partials;
+    int accumulation2Partials2;
+    int intervalNumber;
+} BastaOperation;                                    
+                                                                
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount,
+                                               const int* intervalStarts,
+                                               int intervalCount,
+                                               int populationSizeIndex,
+                                               int coalescentIndex);
+
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartialsGrad(const int instance,
+                                               const BastaOperation* operations,
+                                               int operationCount,
+                                               const int* intervalStarts,
+                                               int intervalCount,
+                                               int populationSizeIndex,
+                                               int coalescentIndex);
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials(const int instance,
+                                                   const BastaOperation* operations,
+                                                   int operationCount,
+                                                   const int* intervalStarts,
+                                                   int intervalCount,
+                                                   const double* intervalLengths,
+                                                   const int populationSizesIndex,
+                                                   int coalescentIndex,
+                                                   double* out);
+
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
+                                                   const BastaOperation* operations,
+                                                   int operationCount,
+                                                   const int* intervalStarts,
+                                                   int intervalCount,
+                                                   const double* intervalLengths,
+                                                   const int populationSizesIndex,
+                                                   int coalescentIndex,
+                                                   double* out);
+
+BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
+                                                const int bufferCount,
+                                                const int bufferLength,
+                                                const int partialsCount,
+                                                const int initial,
+                                                const int numThreads);
+
+BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
+                                          const int bufferIndex,
+                                          double* out);
+
+// END OF BASTA
 
 /* using C calling conventions so that C programs can successfully link the beagle library
  * (closing brace)
