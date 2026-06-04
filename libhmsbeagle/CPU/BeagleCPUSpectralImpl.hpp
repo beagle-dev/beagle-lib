@@ -37,6 +37,7 @@
 #include "libhmsbeagle/CPU/AdjointMethods.h"
 
 #define UNROLL_MV
+#define TEST_COLLECTOR
 
 namespace beagle {
 namespace cpu {
@@ -423,7 +424,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
         if (tipStates2 != NULL) {
             if constexpr (std::is_same_v<T, Top>) {
                 if (branchEigenIndex1 < 0) { // Parent node is root
-                    calcPrePartialsStates<T, Root>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                    calcPrePartialsStates<T, Root>(destPartials, partials1, 0, tipStates2, branchEigenIndex2,
                                               startPattern, endPattern);
                 } else {
                     calcPrePartialsStates<T, NotRoot>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
@@ -436,7 +437,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
         } else {
             if constexpr (std::is_same_v<T, Top>) {
                 if (branchEigenIndex1 < 0) { // Parent node is root
-                    calcPrePartialsPartials<T, Root>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                    calcPrePartialsPartials<T, Root>(destPartials, partials1, 0, partials2, branchEigenIndex2,
                         startPattern, endPattern);
                 } else {
                     calcPrePartialsPartials<T, NotRoot>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
@@ -476,6 +477,27 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
 
  // TODO: do not init with eigenIndex == -1 \
 
+#ifdef TEST_EB
+#define INIT_TRANSPOSE1(ifo,evr,evi,evec,ievc,bl,cr) \
+    const BranchEigenInfo& ifo##_1 = gBranchEigenInfo[branchEigenIndex1]; \
+    const BranchEigenInfo& ifo##_2 = gBranchEigenInfo[branchEigenIndex2]; \
+    \
+    const REALTYPE* evr##2 = gEigenDecomposition->getEigenValuesPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* evi##2 = evr##2 + kStateCount; \
+    \
+    const REALTYPE* evec##1 = gEigenDecomposition->getBackwardsEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* evec##2 = gEigenDecomposition->getEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE* ievc##1 = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(ifo##_1.eigenIndex); \
+    const REALTYPE* ievc##2 = gEigenDecomposition->getInverseEigenVectorsPtr(ifo##_2.eigenIndex); \
+    \
+    const REALTYPE bl##1 = ifo##_1.branchLength; \
+    const REALTYPE bl##2 = ifo##_2.branchLength; \
+    \
+    const double* cr##1 = gCategoryRates[ifo##_1.categoryRatesIndex]; \
+    const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
+#else
 #define INIT_TRANSPOSE1(ifo,evr,evi,evec,ievc,bl,cr) \
     const BranchEigenInfo& ifo##_1 = gBranchEigenInfo[branchEigenIndex1]; \
     const BranchEigenInfo& ifo##_2 = gBranchEigenInfo[branchEigenIndex2]; \
@@ -497,6 +519,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
     \
     const double* cr##1 = gCategoryRates[ifo##_1.categoryRatesIndex]; \
     const double* cr##2 = gCategoryRates[ifo##_2.categoryRatesIndex];
+#endif
 
 // #define FORM_EXPAT(et, evr, sbl) \
 //     const REALTYPE et##1 = std::exp(evr##1[i] * sbl##1); \
@@ -866,6 +889,60 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple(
     }
 }
 
+double proportionRepeated(const int* branchEigenIndices, const int count) {
+    double sum = 0.0;
+    int last = branchEigenIndices[0];
+    for (int i = 1; i < count; ++i) {
+        const int index = branchEigenIndices[i];
+        if (index == last) {
+            ++sum;
+        } else {
+            last = index;
+        }
+    }
+    return sum / (double) count;
+}
+
+template <typename REALTYPE>
+void computePerSiteLikelihoods(
+        const REALTYPE* rootPostOrderPartial,
+        const REALTYPE* stateFrequencies,
+        const REALTYPE* categoryWeights,
+        const int kStateCount,
+        const int kStateCountModFour,
+        const int kPatternCount,
+        const int kCategoryCount,
+        const int kPartialsPaddedStateCount,
+        REALTYPE* perSiteLikelihoods) {
+
+    for (int pattern = 0; pattern < kPatternCount; ++pattern) {
+
+        REALTYPE likelihood = REALTYPE(0);
+        for (int category = 0; category < kCategoryCount; ++category) {
+            const int patternIndex = category * kPatternCount * pattern;
+            const int v = patternIndex * kPartialsPaddedStateCount;
+
+            int k = 0;
+            REALTYPE categoryLikelihood1 = REALTYPE(0), categoryLikelihood2 = REALTYPE(0);
+            for ( ; k < kStateCountModFour; k += 4) {
+                categoryLikelihood1 += rootPostOrderPartial[v + k + 0] * stateFrequencies[k + 0];
+                categoryLikelihood2 += rootPostOrderPartial[v + k + 1] * stateFrequencies[k + 1];
+                categoryLikelihood1 += rootPostOrderPartial[v + k + 2] * stateFrequencies[k + 2];
+                categoryLikelihood2 += rootPostOrderPartial[v + k + 3] * stateFrequencies[k + 3];
+            }
+
+            for ( ; k < kStateCount; k++) {
+                categoryLikelihood1 += rootPostOrderPartial[v + k] * stateFrequencies[k];
+            }
+
+            const REALTYPE weight = categoryWeights[category];
+            likelihood += (categoryLikelihood1 + categoryLikelihood2) * weight;
+        }
+
+        perSiteLikelihoods[pattern] = likelihood;
+    }
+}
+
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
         const int *postBufferIndices,
@@ -884,6 +961,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
     const int secondDerivativeIndex = BEAGLE_OP_NONE;
     const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
     const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
+    const REALTYPE *stateFrequencies = gStateFrequencies[stateFrequenciesIndex];
 
     REALTYPE* buffer;
     std::vector<REALTYPE> realTypeBuffer;
@@ -894,35 +972,95 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
         buffer = outSumDerivatives;
     }
 
-    for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+    if (gPatternScaleTmp.size() < kPatternCount) {
+        gPatternScaleTmp.resize(kPatternCount);
+    }
+    REALTYPE* perSiteLikelihoods = gPatternScaleTmp.data();
 
-        const int branchEigenIndex = branchEigenIndices[nodeNum];
-        const double edgeLength = gBranchEigenInfo[branchEigenIndex].branchLength;
+    computePerSiteLikelihoods(gPartials[rootPostOrderIndex],
+        stateFrequencies,
+        categoryWeights,
+        kStateCount, kStateCountModFour, kPatternCount, kCategoryCount, kPartialsPaddedStateCount,
+        perSiteLikelihoods);
 
-        const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+    const int MAGIC_COUNT = 1;
+    const double MAGIC_PROP = 0.1;
 
-        const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
-        const REALTYPE *postOrderPartial = (tipStates == nullptr) ? gPartials[postBufferIndices[nodeNum]] : nullptr;
+    bool useMultiCollector = (kPatternCount > MAGIC_COUNT ||
+        proportionRepeated(branchEigenIndices, count) > MAGIC_PROP);
 
-        const int patternOffset = nodeNum * kPatternCount;
+    useMultiCollector = true;
 
-        if (tipStates != nullptr) {
+    if (useMultiCollector && gOuterProductTmp.size() < kStateCount * kStateCount) {
+         gOuterProductTmp.resize(kStateCount * kStateCount);
+    }
 
-            calcAdjointCrossProducts<States,WithRotation>(
-                postOrderPartial, tipStates, preOrderPartial,
-                branchEigenIndex,
-                categoryRates, categoryWeights,
-                edgeLength,
-                buffer, nullptr);
+    for (int category = 0; category < kCategoryCount; ++category) {
 
+        const REALTYPE categoryRate = static_cast<REALTYPE>(categoryRates[category]);
+        const int infoOffset = category * kPartialsPaddedStateCount;
+        const REALTYPE categoryWeight = categoryWeights[category];
+
+        auto iterateOverNodes = [&](auto& collector) {
+
+            auto setupCollector = [&](const int branchEigenIndex) {
+                const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
+                AdjointMethods<REALTYPE>* plan = gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
+                plan->setTime(categoryRate * info.branchLength,
+                    info.expat + infoOffset,
+                    info.cosbt + infoOffset, info.sinbt + infoOffset,
+                    info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
+                collector.setPlan(plan);
+                collector.flush();
+            };
+
+            setupCollector(branchEigenIndices[0]);
+            int lastBranchEigenIndex = branchEigenIndices[0];
+
+            for (int nodeNum = 0; nodeNum < count; nodeNum++) {
+
+                const int branchEigenIndex = branchEigenIndices[nodeNum];
+
+                if (branchEigenIndex != lastBranchEigenIndex) {
+                    collector.accumulateEigenBasisGradient();
+                    setupCollector(branchEigenIndex);
+                    lastBranchEigenIndex = branchEigenIndex;
+                }
+
+                const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+                const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
+
+                if (tipStates != nullptr) {
+
+                    calcAdjointCrossProducts<States,WithRotation>(
+                        nullptr, tipStates, preOrderPartial,
+                        branchEigenIndex,
+                        perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector);
+
+                } else {
+
+                    const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+
+                    calcAdjointCrossProducts<Partials,WithRotation>(
+                        postOrderPartial, nullptr, preOrderPartial,
+                        branchEigenIndex,
+                        perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector);
+                }
+            }
+
+            collector.accumulateEigenBasisGradient(); // End case
+        };
+
+        if (useMultiCollector) {
+            MultipleCollector<REALTYPE> collector(buffer, gOuterProductTmp.data(), kStateCount, kStateCount);
+            iterateOverNodes(collector);
         } else {
-
-            calcAdjointCrossProducts<Partials,WithRotation>(
-                postOrderPartial, tipStates, preOrderPartial,
-                branchEigenIndex,
-                categoryRates, categoryWeights,
-                edgeLength,
-                buffer, nullptr);
+            SimpleCollector<REALTYPE> collector(buffer, kStateCount, kStateCount);
+            iterateOverNodes(collector);
         }
     }
 
@@ -982,47 +1120,14 @@ inline REALTYPE branchLikelihoodInEigenBasis(
     return sum;
 }
 
-BEAGLE_CPU_TEMPLATE template <typename T, typename V>
+BEAGLE_CPU_TEMPLATE template <typename T, typename V, typename CC>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         const REALTYPE* inPartialsPost, const int* tipsPost,
         const REALTYPE* inPartialsPre,
         const int branchEigenIndex,
-        const double* categoryRates,
-        const REALTYPE* categoryWeights,
-        const double edgeLength,
-        REALTYPE* first,
-        REALTYPE* second) {
-
-    // TODO follow calcCrossProductsPartials()
-
-    // for (int pattern = 0; pattern < kPatternCount; pattern++) {
-
-    //     std::vector<REALTYPE> tmp(kStateCount * kStateCount, 0.0);
-
-    //     REALTYPE patternDenominator = 0.0;
-
-    //     for (int category = 0; category < kCategoryCount; category++) {
-
-    //         const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
-    //         const REALTYPE weight = categoryWeights[category];
-
-    //         const int patternIndex = category * kPatternCount + pattern;
-    //         const int v = patternIndex * kPartialsPaddedStateCount;
-
-    //         REALTYPE denominator = 0.0;
-
-    //         // compute denominator for this pattern and category
-
-    //         patternDenominator += denominator * weight;
-
-    //         // accumulate cross products for this pattern and category into tmp[k * kStateCount + j]
-
-    //     }
-
-    //     const auto patternWeight = gPatternWeights[pattern] / patternDenominator;
-
-    //     // accumulate into outCrossProducts[k * kStateCount + j] from tmp[k * kStateCount + j] with pattern
-    // }
+        const REALTYPE* perSiteLikelihoods,
+        const int category, const REALTYPE categoryWeight,
+        CC& collector) {
 
     const int startPattern = 0;
     const int endPattern = kPatternCount;
@@ -1034,105 +1139,75 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
 
     // fprintf(stderr, "matrix = %d @ %f\n", branchEigenIndex, info.branchLength);
 
-    const REALTYPE* evalR = gEigenDecomposition->getEigenValuesPtr(info.eigenIndex);
-    const REALTYPE* evalI = evalR + kStateCount;
-
-    const REALTYPE* evec = gEigenDecomposition->getEigenVectorsPtr(info.eigenIndex);
     const REALTYPE* ievc = gEigenDecomposition->getInverseEigenVectorsPtr(info.eigenIndex);
-
-    const REALTYPE* tevalR = gEigenDecomposition->getBackwardsEigenValuesPtr(info.eigenIndex);
-    const REALTYPE* tevalI = tevalR + kStateCount;
-
-    const REALTYPE* tevec = gEigenDecomposition->getBackwardsEigenVectorsPtr(info.eigenIndex);
     const REALTYPE* tievc = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(info.eigenIndex);
 
-    const REALTYPE time = info.branchLength;
-    const double* rates = gCategoryRates[info.categoryRatesIndex];
-    const REALTYPE* weights = gCategoryWeights[info.categoryRatesIndex];
+    // const REALTYPE* weights = gCategoryWeights[info.categoryRatesIndex];
+    const int v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
 
-    AdjointMethods<REALTYPE>* adj = gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
+    const REALTYPE* preOrderPartials = &inPartialsPre[v];
+    const REALTYPE* postOrderPartials = &inPartialsPost[v];
 
-    if (kCategoryCount > 1) {
-        fprintf(stderr, "kCategoryCount > 1 not yet implemented\n");
-    }
+    for (int k = startPattern; k < endPattern; k++) {
 
-#if defined(_OPENMP)
-    #pragma omp parallel for num_threads(kCategoryCount)
-#endif
-    for (int l = 0; l < kCategoryCount; l++) {
+        REALTYPE *lhs, *rhs;
 
-        int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+        if constexpr (std::is_same_v<V, WithRotation>) {
 
-        const REALTYPE scaledTime = static_cast<REALTYPE>(rates[l]) * time;
-#ifdef TEST_EB
-        adj->setTime(scaledTime,
-            info.expat,
-            info.cosbt, info.sinbt,
-            info.expatcosbt, info.expatsinbt);
-#else
-        adj->setTime(scaledTime);
-#endif
+            lhs = gPartialTmp1.data();
+            rhs = gPartialTmp2.data();
 
-        const REALTYPE* preOrderPartials = &inPartialsPre[v];
-        const REALTYPE* postOrderPartials = &inPartialsPost[v];
+            if constexpr (std::is_same_v<T, States>) {
 
-        for (int k = startPattern; k < endPattern; k++) {
+                const int state2 = tipsPost[k];
 
-            REALTYPE *lhs, *rhs;
+                matVecDual<Partials, States>(
+                    tievc, preOrderPartials, 0,
+                    ievc, nullptr, state2,
+                    matrixIncr,
+                    [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                        lhs[i] = s1;
+                        rhs[i] = s2;
+                    });
 
-            if constexpr (std::is_same_v<V, WithRotation>) {
+            } else if constexpr (std::is_same_v<T, Partials>) {
 
-                lhs = gPartialTmp1.data();
-                rhs = gPartialTmp2.data();
+                matVecDual<Partials, Partials>(
+                    tievc, preOrderPartials, 0,
+                    ievc, postOrderPartials, 0,
+                    matrixIncr,
+                    [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                        lhs[i] = s1;
+                        rhs[i] = s2;
+                    });
 
-                if constexpr (std::is_same_v<T, States>) {
-
-                    const int state2 = tipsPost[k];
-
-                    matVecDual<Partials, States>(
-                        tievc, preOrderPartials, 0,
-                        ievc, nullptr, state2,
-                        matrixIncr,
-                        [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
-                            lhs[i] = s1;
-                            rhs[i] = s2;
-                        });
-
-                } else if constexpr (std::is_same_v<T, Partials>) {
-
-                    matVecDual<Partials, Partials>(
-                        tievc, preOrderPartials, 0,
-                        ievc, postOrderPartials, 0,
-                        matrixIncr,
-                        [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
-                            lhs[i] = s1;
-                            rhs[i] = s2;
-                        });
-
-                } else {
-                    fprintf(stderr, "Unknown input type\n");
-                    exit(-1);
-                }
-
-                // printVector("post-order-rotated ", 0, rhs, kStateCount);
-                // printVector("pre-order-rotated  ", 0, lhs, kStateCount);
             } else {
-                static_assert(always_false<V>::value, "Unsupported lack of rotation");
+                fprintf(stderr, "Unknown input type\n");
+                exit(-1);
             }
 
-            const REALTYPE denominator = adj->branchLikelihoodInEigenBasis(lhs, rhs);
-
-            const REALTYPE scale = gPatternWeights[k] * weights[l] / denominator;
-            // fprintf(stderr, "likelihood = %.5e for %f with scale %f\n", denominator, scaledTime, scale);
-
-            adj->accumulateEigenBasisGradient(1, lhs, rhs, scale, first, kStateCount);
-
-            // printVector("beagle-acc ", 0, first, kStateCount * kStateCount);
-
-            preOrderPartials  += kPartialsPaddedStateCount;
-            postOrderPartials += kPartialsPaddedStateCount;
+            // printVector("post-order-rotated ", 0, rhs, kStateCount);
+            // printVector("pre-order-rotated  ", 0, lhs, kStateCount);
+        } else {
+            static_assert(always_false<V>::value, "Unsupported lack of rotation");
         }
+
+// #define USE_BRANCH_LIKELIHOOD
+
+#ifdef USE_BRANCH_LIKELIHOOD
+        const REALTYPE denominator = collector.getPlan()->branchLikelihoodInEigenBasis(lhs, rhs);
+        const REALTYPE scale = gPatternWeights[k] * categoryWeight] / denominator;
+#else
+        const REALTYPE scale = gPatternWeights[k] * categoryWeight / gPatternScaleTmp[k];
+#endif
+        // fprintf(stderr, "likelihood = %.5e for %f with scale %f\n", denominator, scaledTime, scale);
+
+        collector.accumulateScaledOuterProducts(lhs, rhs, scale);
+
+        preOrderPartials  += kPartialsPaddedStateCount;
+        postOrderPartials += kPartialsPaddedStateCount;
     }
+
 }
 
 #ifdef UNROLL_MV

@@ -136,6 +136,9 @@ namespace beagle {
             std::vector<REALTYPE> gPartialTmp1;
             std::vector<REALTYPE> gPartialTmp2;
 
+            std::vector<REALTYPE> gPatternScaleTmp;
+            std::vector<REALTYPE> gOuterProductTmp;
+
             int kStateCountModFour;
 
         protected:
@@ -224,16 +227,15 @@ namespace beagle {
                                        int startPattern,
                                        int endPattern);
 
-            template <typename T, typename V>
+            template <typename T, typename V, typename COLLECTOR>
             void calcAdjointCrossProducts(const REALTYPE* partialsPost,
                                           const int* tipsPost,
                                           const REALTYPE* partialsPre,
                                           const int branchIndex,
-                                          const double* categoryRates,
-                                          const REALTYPE* categoryWeights,
-                                          const double edgeLength,
-                                          REALTYPE* first,
-                                          REALTYPE* second);
+                                          const REALTYPE* perSiteLikelihoods,
+                                          const int category,
+                                          const REALTYPE categoryWeight,
+                                          COLLECTOR& collector);
 
             template <typename First, typename Second, typename Body>
             inline void matVecDual(
