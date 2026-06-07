@@ -91,42 +91,77 @@ private:
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
 #elif defined(FW_TINYGPU)
-    // Unix socket to TinyGPU.app daemon.
+    // ── TinyGPU socket ──────────────────────────────────────────────────────
     int      tgpuSock;
     uint32_t tgpuDevId;
+    bool     isNVIDIA;    // true = NV (CUDA driver path), false = AMD (PM4 path)
 
-    // PCI BAR info (addr + size) for up to 6 BARs, filled by Initialize().
+    // PCI BAR info cached from MAP_BAR at Initialize() time.
     struct BarInfo { uint64_t addr; uint64_t size; } tgpuBars[6];
 
-    // VRAM bump allocators.
-    uint64_t vramKernelTop;  // next free offset for kernel cubins
+    // Device descriptors.
+    struct DeviceInfo { uint32_t dev_id; uint16_t pci_vendor; uint16_t pci_device; bool supports_dp; };
+    std::vector<DeviceInfo> tgpuDevices;
+
+    // ── VRAM allocators (AMD path) ───────────────────────────────────────────
+    uint64_t vramKernelTop;  // next free offset for kernel binaries
     uint64_t vramDataTop;    // next free offset for data buffers
 
-    // Pinned host memory bookkeeping (for AllocatePinnedHostMemory).
+    // ── AMD compute queue state ──────────────────────────────────────────────
+    uint64_t amdRingVram;       // VRAM byte offset of PM4 ring buffer
+    uint32_t amdRingWptr;       // ring write pointer (in bytes)
+    uint64_t amdRptrAddr;       // host VA: GPU writes rptr here
+    uint64_t amdWptrAddr;       // host VA: CPU writes wptr here for GPU polling
+    uint64_t amdEopAddr;        // host VA: GPU writes EOP signal value here
+    uint64_t amdEopSignal;      // expected value at amdEopAddr after completion
+    void*    amdCompletionHost; // mmap'd control page
+    size_t   amdCompletionMapped;
+    int      amdCompletionFd;
+
+    // ── NVIDIA CUDA driver (dynamically loaded) ──────────────────────────────
+    struct NVCuda {
+        void* lib;
+        int (*cuInit)(unsigned int);
+        int (*cuDeviceGet)(int*, int);
+        int (*cuDevicePrimaryCtxRetain)(void**, int);
+        int (*cuCtxSetCurrent)(void*);
+        int (*cuModuleLoadData)(void**, const void*);
+        int (*cuModuleGetFunction)(void**, void*, const char*);
+        int (*cuMemAlloc)(uint64_t*, size_t);
+        int (*cuMemFree)(uint64_t);
+        int (*cuMemcpyHtoD)(uint64_t, const void*, size_t);
+        int (*cuMemcpyDtoH)(void*, uint64_t, size_t);
+        int (*cuMemcpyDtoD)(uint64_t, uint64_t, size_t);
+        int (*cuMemsetD16)(uint64_t, unsigned short, size_t);
+        int (*cuLaunchKernel)(void*, unsigned, unsigned, unsigned,
+                              unsigned, unsigned, unsigned,
+                              unsigned, void*, void**, void**);
+        int (*cuCtxSynchronize)();
+        int (*cuMemGetInfo)(size_t*, size_t*);
+    } nvCuda;
+    void*  nvCtx;    // CUcontext
+    void*  nvModule; // CUmodule
+
+    // ── Pinned host memory bookkeeping ───────────────────────────────────────
     struct PinnedBuf { void* host_ptr; size_t mapped_size; int fd; };
     std::vector<PinnedBuf> tgpuPinned;
 
-    // Loaded kernel entries, keyed by kernel name.
-    struct NVKernelEntry { uint64_t vram_addr; std::string name; };
-    std::map<std::string, NVKernelEntry*> tgpuKernels;
-
-    // Device descriptors filled during Initialize().
-    struct DeviceInfo {
-        uint32_t dev_id;
-        uint16_t pci_vendor;
-        uint16_t pci_device;
-        uint32_t nv_boot0;
-        bool     supports_dp;
+    // ── Per-kernel entries (vendor-neutral, keyed by kernel name) ────────────
+    struct KernelEntry {
+        uint64_t    code_vaddr;  // GPU address or VRAM offset
+        uint32_t    rsrc1, rsrc2, rsrc3;
+        bool        wave32;
+        std::string name;
+        void*       cu_func;     // CUfunction (NV)
     };
-    std::vector<DeviceInfo> tgpuDevices;
+    std::map<std::string, KernelEntry*> tgpuKernels;
 
-    // NV compute channel state.
-    uint64_t nvCubinVramBase;   // VRAM offset where the current cubin is loaded
-    uint64_t nvPushbufVram;     // VRAM offset of the pushbuffer ring
-    uint32_t nvPushbufSize;     // size of pushbuffer ring in bytes
-    uint32_t nvPbPut;           // current PUT (write) pointer
-
-    void NVLoadKernels();
+    // ── Private setup helpers ────────────────────────────────────────────────
+    void nvSetup();
+    void amdSetup();
+    void amdParseHsaco(const uint8_t* elf, size_t elf_sz, uint64_t code_vram_base);
+    void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
+                          int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 #endif
 
 public:
