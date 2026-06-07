@@ -72,6 +72,16 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+add_executable(tinygputest
+        tinygputest/tinygputest.cpp)
+target_link_libraries(tinygputest
+        hmsbeagle
+        hmsbeagle-cpu
+        ${CMAKE_DL_LIBS})
+if(BUILD_SSE)
+    target_link_libraries(tinygputest hmsbeagle-cpu-sse)
+endif()
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)
