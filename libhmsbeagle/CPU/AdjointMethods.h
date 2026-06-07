@@ -80,9 +80,7 @@ public:
 
     template <typename C>
     inline int accumulateEigenBasisGradient(
-            const int       matrixCount,
             const C& collector,
-            const REALTYPE  scale,
             REALTYPE*       outRateGradient,
             const int       S);
 
@@ -132,54 +130,50 @@ private:
             const int ls, const int rs,
             const REALTYPE lv, const REALTYPE rv,
             const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     inline void computeOneByTwoBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE rv1, const REALTYPE rv2,
             const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     inline void computeTwoByOneBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE lv2, const REALTYPE rv1,
             const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     inline void computeTwoByTwoBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE lv2,
             const REALTYPE rv1, const REALTYPE rv2,
             const REALTYPE sc,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeOneByOneBlock(
             const C& collector,
             const int ls, const int rs,
-            const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeOneByTwoBlock(
             const C& collector,
             const int ls, const int rs,
-            const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeTwoByOneBlock(
             const C& collector,
             const int ls, const int rs,
-            const REALTYPE scale,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeTwoByTwoBlock(
             const C& collector,
             const int ls, const int rs,
-            const REALTYPE sc,
-            REALTYPE* eigenBasisGrad, const int S);
+            REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
 
     static bool containsImagineryValues(const REALTYPE* eval, const int stateCount) {
@@ -214,7 +208,7 @@ struct SimpleCollector {
         this->rhs = rhs;
         this->scale = scale;
 
-        plan->accumulateEigenBasisGradient(1, *this, REALTYPE(1), gradient, stateCount);
+        plan->accumulateEigenBasisGradient(*this, gradient, stateCount);
     }
 
     inline void accumulateEigenBasisGradient() {
@@ -253,13 +247,17 @@ struct MultipleCollector {
         std::fill(buffer, buffer + stride * stateCount, REALTYPE(0));
     }
 
-    inline void accumulateScaledOuterProducts(const REALTYPE* lhs, const REALTYPE* rhs, const REALTYPE scale) {
+    inline void accumulateScaledOuterProducts(
+            const REALTYPE*  __restrict__ lhs,
+            const REALTYPE*  __restrict__ rhs,
+            const REALTYPE scale) {
         for (int i = 0; i < stateCount; ++i) {
             const int row_i = i * stride;
             const REALTYPE scaledLeft = lhs[i] * scale;
-            for (int j = 0; j < stateCount; ++j) { // TODO ensure this is vectorized or manually unroll
+
+            #pragma clang loop vectorize(enable)
+            for (int j = 0; j < stateCount; ++j) {
                 buffer[row_i + j] += scaledLeft * rhs[j];
-                // buffer[row_i + j] = scaledLeft * rhs[j];
             }
         }
     }
@@ -277,7 +275,7 @@ struct MultipleCollector {
     }
 
     inline void accumulateEigenBasisGradient() {
-        plan->accumulateEigenBasisGradient(1, *this, REALTYPE(1), gradient, stateCount);
+        plan->accumulateEigenBasisGradient(*this, gradient, stateCount);
     }
 };
 

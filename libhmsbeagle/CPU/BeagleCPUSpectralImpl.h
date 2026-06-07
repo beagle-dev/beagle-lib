@@ -75,6 +75,10 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gActiveScalingFactors;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gAutoScaleBuffers;
 
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kThreadingEnabled;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kAutoPartitioningEnabled;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartitionCount;
+
         public:
             // BeagleCPUSpectralImpl();
             virtual ~BeagleCPUSpectralImpl();
@@ -93,6 +97,8 @@ namespace beagle {
                               int pluginResourceNumber,
                               long preferenceFlags,
                               long requirementFlags);
+
+            int setCPUThreadCount(int threadCount);
 
         protected:
             virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
@@ -187,7 +193,7 @@ namespace beagle {
                                       const REALTYPE* scaleFactors,
                                       int startPattern,
                                       int endPattern,
-                                      bool isComplex);
+                                      int currentPartition);
 
             template <typename T>
             void calcStatesStates(REALTYPE *destP,
@@ -197,7 +203,8 @@ namespace beagle {
                                   const int branchEigenIndex2,
                                   const REALTYPE* scaleFactors,
                                   int startPattern,
-                                  int endPattern);
+                                  int endPattern,
+                                  int currentPartition);
 
             template <typename T>
             void calcStatesPartials(REALTYPE *destP,
@@ -207,7 +214,8 @@ namespace beagle {
                                     const int branchEigenIndex2,
                                     const REALTYPE* scaleFactors,
                                     int startPattern,
-                                    int endPattern);
+                                    int endPattern,
+                                    int currentPartition);
 
             template <typename T, typename V>
             void calcPrePartialsPartials(REALTYPE *destP,
@@ -216,7 +224,8 @@ namespace beagle {
                                          const REALTYPE *partials2,
                                          const int branchEigenIndex2,
                                          int startPattern,
-                                         int endPattern);
+                                         int endPattern,
+                                         int currentPartition);
 
             template <typename T, typename V>
             void calcPrePartialsStates(REALTYPE *destP,
@@ -225,7 +234,8 @@ namespace beagle {
                                        const int *states2,
                                        const int branchEigenIndex2,
                                        int startPattern,
-                                       int endPattern);
+                                       int endPattern,
+                                       int currentPartition);
 
             template <typename T, typename V, typename COLLECTOR>
             void calcAdjointCrossProducts(const REALTYPE* partialsPost,
@@ -235,7 +245,8 @@ namespace beagle {
                                           const REALTYPE* perSiteLikelihoods,
                                           const int category,
                                           const REALTYPE categoryWeight,
-                                          COLLECTOR& collector);
+                                          COLLECTOR& collector,
+                                          int currentPartition);
 
             template <typename First, typename Second, typename Body>
             inline void matVecDual(

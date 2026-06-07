@@ -53,7 +53,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv, const REALTYPE rv,
         const REALTYPE scale,
-        REALTYPE* eigenBasisGrad,
+        REALTYPE* __restrict__ eigenBasisGrad,
         const int S) {
 
     const REALTYPE la    = eval[ls];
@@ -70,8 +70,7 @@ template <typename C>
 void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const C& collector,
         const int ls, const int rs,
-        const REALTYPE scale,
-        REALTYPE* eigenBasisGrad,
+        REALTYPE* __restrict__ eigenBasisGrad,
         const int S) {
 
     const REALTYPE la    = eval[ls];
@@ -80,7 +79,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
             ? time * expat[ls]
             : (expat[ls] - expat[rs]) / (la - lb);
 
-    eigenBasisGrad[ls * S + rs] += collector.get(ls, rs) * scale * coeff;
+    eigenBasisGrad[ls * S + rs] += collector.get(ls, rs) * coeff;
 }
 
 // computeOneByTwoBlock: opt 1 — exp(t*sr) → expat[rs]/expat[ls]
@@ -89,7 +88,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE rv1, const REALTYPE rv2,
         const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE la  = eval[ls];
     const REALTYPE rr  = eval[rs];
@@ -123,8 +122,7 @@ template <typename C>
 void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const C& collector,
         const int ls, const int rs,
-        const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE la  = eval[ls];
     const REALTYPE rr  = eval[rs];
@@ -148,8 +146,8 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
     const REALTYPE c1  = expat[ls] * ic1;
     // const REALTYPE in0 = lv1 * rv1 * sc;
     // const REALTYPE in1 = lv1 * rv2 * sc;
-    const REALTYPE in0 = collector.get(ls, rs) * sc;
-    const REALTYPE in1 = collector.get(ls, rs + 1) * sc;
+    const REALTYPE in0 = collector.get(ls, rs);
+    const REALTYPE in1 = collector.get(ls, rs + 1);
 
     eigenBasisGrad[ls * S + rs]     +=  c0 * in0 + c1 * in1;
     eigenBasisGrad[ls * S + rs + 1] += -c1 * in0 + c0 * in1;
@@ -161,7 +159,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE lv2, const REALTYPE rv1,
         const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE lr  = eval[ls];
     const REALTYPE li  = eval[stateCount + ls];
@@ -203,8 +201,7 @@ template <typename C>
 void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const C& collector,
         const int ls, const int rs,
-        const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE lr  = eval[ls];
     const REALTYPE li  = eval[stateCount + ls];
@@ -234,8 +231,8 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
     const REALTYPE p2 =  es * ic0 - ec * ic1;
     const REALTYPE p3 =  es * ic1 + ec * ic0;
 
-    const REALTYPE in0 = collector.get(ls, rs) * sc;
-    const REALTYPE in1 = collector.get(ls + 1, rs) * sc;
+    const REALTYPE in0 = collector.get(ls, rs);
+    const REALTYPE in1 = collector.get(ls + 1, rs);
 
     eigenBasisGrad[ls * S + rs]       += p0 * in0 + p1 * in1;
     eigenBasisGrad[(ls + 1) * S + rs] += p2 * in0 + p3 * in1;
@@ -250,7 +247,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const REALTYPE lv1, const REALTYPE lv2,
         const REALTYPE rv1, const REALTYPE rv2,
         const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE lr = eval[ls];
     const REALTYPE li = eval[stateCount + ls];
@@ -332,8 +329,7 @@ template <typename CC>
 void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const CC& collector,
         const int ls, const int rs,
-        const REALTYPE sc,
-        REALTYPE* eigenBasisGrad, const int S) {
+        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
 
     const REALTYPE lr = eval[ls];
     const REALTYPE li = eval[stateCount + ls];
@@ -399,10 +395,10 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
     const REALTYPE C = 0.5 * (pi_ - mi_);
     const REALTYPE D = 0.5 * (mr_ - pr);
 
-    const REALTYPE in00 = collector.get(ls, rs) * sc;
-    const REALTYPE in01 = collector.get(ls, rs + 1) * sc;
-    const REALTYPE in10 = collector.get(ls + 1, rs) * sc;
-    const REALTYPE in11 = collector.get(ls + 1, rs + 1) * sc;
+    const REALTYPE in00 = collector.get(ls, rs);
+    const REALTYPE in01 = collector.get(ls, rs + 1);
+    const REALTYPE in10 = collector.get(ls + 1, rs);
+    const REALTYPE in11 = collector.get(ls + 1, rs + 1);
 
     eigenBasisGrad[ls * S + rs]           +=  A*in00 + B*in01 + C*in10 + D*in11;
     eigenBasisGrad[ls * S + rs + 1]       += -B*in00 + A*in01 - D*in10 + C*in11;
@@ -415,10 +411,10 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         const int       M,
-        const REALTYPE* lhs,
-        const REALTYPE* rhs,
+        const REALTYPE* __restrict__ lhs,
+        const REALTYPE* __restrict__ rhs,
         const REALTYPE  scale,
-        REALTYPE*       outRateGradient,
+        REALTYPE*       __restrict__ outRateGradient,
         const int       S) {
 
     REALTYPE* eigenBasisGrad = outRateGradient;
@@ -428,8 +424,15 @@ int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         if (allReal) {
 
             for (int ls = 0; ls < stateCount; ++ls) {
+                const REALTYPE lv = lhs[ls];
+                const REALTYPE la = eval[ls];
+                const REALTYPE ea = expat[ls];
                 for (int rs = 0; rs < stateCount; ++rs) {
-                    computeOneByOneBlock(ls, rs, lhs[ls], rhs[rs], scale, eigenBasisGrad, S);
+                    const REALTYPE lb    = eval[rs];
+                    const REALTYPE coeff = (time * std::abs(la - lb) < 1e-12)
+                            ? time * ea
+                            : (ea - expat[rs]) / (la - lb);
+                    eigenBasisGrad[ls * S + rs] += lv * rhs[rs] * scale * coeff;
                 }
             }
 
@@ -477,52 +480,53 @@ int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
 int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
-        const int       M,
         const C& collector,
-        const REALTYPE  scale,
-        REALTYPE*       outRateGradient,
-        const int       S) {
+        REALTYPE* __restrict__ outRateGradient,
+        const int S) {
 
     REALTYPE* eigenBasisGrad = outRateGradient;
 
-    for (int m = 0; m < M; m++) {
+    if (allReal) {
 
-        if (allReal) {
-
-            for (int l = 0; l < stateCount; ++l) {
-                for (int r = 0; r < stateCount; ++r) {
-                    computeOneByOneBlock(collector, l, r, scale, eigenBasisGrad, S);
-                }
+        for (int l = 0; l < stateCount; ++l) {
+            const REALTYPE la = eval[l];
+            const REALTYPE ea = expat[l];
+            for (int r = 0; r < stateCount; ++r) {
+                const REALTYPE lb    = eval[r];
+                const REALTYPE coeff = (time * std::abs(la - lb) < 1e-12)
+                        ? time * ea
+                        : (ea - expat[r]) / (la - lb);
+                eigenBasisGrad[l * S + r] += collector.get(l, r) * coeff;
             }
+        }
 
-        } else {
+    } else {
 
-            // OneOne: real × real
-            for (int li : realIdx) {
-                for (int ri : realIdx) {
-                    computeOneByOneBlock(collector, li, ri, scale, eigenBasisGrad, S);
-                }
+        // OneOne: real × real
+        for (int li : realIdx) {
+            for (int ri : realIdx) {
+                computeOneByOneBlock(collector, li, ri, eigenBasisGrad, S);
             }
+        }
 
-            // OneTwo: real × complex
-            for (int li : realIdx) {
-                for (int ri : complexIdx) {
-                    computeOneByTwoBlock(collector, li, ri, scale, eigenBasisGrad, S);
-                }
+        // OneTwo: real × complex
+        for (int li : realIdx) {
+            for (int ri : complexIdx) {
+                computeOneByTwoBlock(collector, li, ri, eigenBasisGrad, S);
             }
+        }
 
-            // TwoOne: complex × real
-            for (int li : complexIdx) {
-                for (int ri : realIdx) {
-                    computeTwoByOneBlock(collector, li, ri, scale, eigenBasisGrad, S);
-                }
+        // TwoOne: complex × real
+        for (int li : complexIdx) {
+            for (int ri : realIdx) {
+                computeTwoByOneBlock(collector, li, ri, eigenBasisGrad, S);
             }
+        }
 
-            // TwoTwo: complex × complex
-            for (int li : complexIdx) {
-                for (int ri : complexIdx) {
-                    computeTwoByTwoBlock(collector, li, ri, scale, eigenBasisGrad, S);
-                }
+        // TwoTwo: complex × complex
+        for (int li : complexIdx) {
+            for (int ri : complexIdx) {
+                computeTwoByTwoBlock(collector, li, ri, eigenBasisGrad, S);
             }
         }
     }
