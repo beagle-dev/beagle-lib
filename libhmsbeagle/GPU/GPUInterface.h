@@ -118,29 +118,25 @@ private:
     size_t   amdCompletionMapped;
     int      amdCompletionFd;
 
-    // ── NVIDIA CUDA driver (dynamically loaded) ──────────────────────────────
-    struct NVCuda {
-        void* lib;
-        int (*cuInit)(unsigned int);
-        int (*cuDeviceGet)(int*, int);
-        int (*cuDevicePrimaryCtxRetain)(void**, int);
-        int (*cuCtxSetCurrent)(void*);
-        int (*cuModuleLoadData)(void**, const void*);
-        int (*cuModuleGetFunction)(void**, void*, const char*);
-        int (*cuMemAlloc)(uint64_t*, size_t);
-        int (*cuMemFree)(uint64_t);
-        int (*cuMemcpyHtoD)(uint64_t, const void*, size_t);
-        int (*cuMemcpyDtoH)(void*, uint64_t, size_t);
-        int (*cuMemcpyDtoD)(uint64_t, uint64_t, size_t);
-        int (*cuMemsetD16)(uint64_t, unsigned short, size_t);
-        int (*cuLaunchKernel)(void*, unsigned, unsigned, unsigned,
-                              unsigned, unsigned, unsigned,
-                              unsigned, void*, void**, void**);
-        int (*cuCtxSynchronize)();
-        int (*cuMemGetInfo)(size_t*, size_t*);
-    } nvCuda;
-    void*  nvCtx;    // CUcontext
-    void*  nvModule; // CUmodule
+    // ── NVIDIA GSP state (open-source path, macOS + Linux) ──────────────────
+    // nvGspState is the primary owner. The fields below are mirrors set in
+    // nvSetup() and read by LaunchKernelImpl / SynchronizeHost.
+    int      nvRmFd = -1;         // unused (was NVRM /dev/nvidiactl)
+    int      nvDevFd = -1;        // unused (was NVRM /dev/nvidia0)
+    uint32_t nvRmClient = 0;      // unused
+    uint32_t nvWorkToken = 0;     // per-channel workSubmitToken
+    uint64_t* nvGpfifoHost = nullptr;         // CPU VA of GPFIFO ring
+    volatile uint32_t* nvUserdGpPut = nullptr;// USERD GPPut register
+    uint32_t nvGpfifoEntries = 0;
+    uint32_t nvGpfifoPut = 0;
+    uint64_t nvCubinVramBase = 0; // VRAM byte offset of compiled cubin
+    size_t   nvCubinSize = 0;
+    // Opaque pointer to NVGSPState (defined in GPUInterfaceTinyGPU.cpp).
+    // Holds all GSP boot/channel/RPC state for the open-source NVIDIA path.
+    void*  nvGspState = nullptr;
+    struct NVCuda { void* lib; } nvCuda;  // kept for layout compatibility; always null
+    void*  nvCtx    = nullptr;
+    void*  nvModule = nullptr;
 
     // ── Pinned host memory bookkeeping ───────────────────────────────────────
     struct PinnedBuf { void* host_ptr; size_t mapped_size; int fd; };
