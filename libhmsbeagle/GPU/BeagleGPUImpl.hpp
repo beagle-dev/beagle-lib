@@ -40,6 +40,8 @@ namespace gpu {
 
 #ifdef CUDA
     namespace cuda {
+#elif defined(FW_TINYGPU)
+    namespace tinygpu {
 #else
     namespace opencl {
 #endif
@@ -848,6 +850,16 @@ template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
     return (char*) "OpenCL-Single";
 }
+#elif defined(FW_TINYGPU)
+template<>
+char* BeagleGPUImpl<double>::getInstanceName() {
+    return (char*) "TinyGPU-Double";
+}
+
+template<>
+char* BeagleGPUImpl<float>::getInstanceName() {
+    return (char*) "TinyGPU-Single";
+}
 #endif
 
 BEAGLE_GPU_TEMPLATE
@@ -864,6 +876,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
         kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
 #elif defined(FW_OPENCL)
         kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
+#elif defined(FW_TINYGPU)
+        kFlags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU;
+        kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
         returnInfo->flags |= kFlags;
@@ -4669,6 +4684,15 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "SP-OpenCL";
 }
+#elif defined(FW_TINYGPU)
+template<>
+const char* BeagleGPUImplFactory<double>::getName() {
+    return "GPU-DP-TinyGPU";
+}
+template<>
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "GPU-SP-TinyGPU";
+}
 #endif
 
 template<>
@@ -4699,6 +4723,9 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 #elif defined(FW_OPENCL)
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
+#elif defined(FW_TINYGPU)
+    flags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU |
+             BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
     Real r = 0;

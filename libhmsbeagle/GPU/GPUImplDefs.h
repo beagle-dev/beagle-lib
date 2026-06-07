@@ -53,6 +53,8 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU = 9,
     BEAGLE_OPENCL_DEVICE_NVIDA_GPU       = 10,
     BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 11,
+    BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU     = 12,
+    BEAGLE_TINYGPU_DEVICE_AMD_GPU        = 13,
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
@@ -86,6 +88,29 @@ enum BeagleDeviceImplementationCodes {
 #ifdef CUDA
     #define BEAGLE_STREAM_COUNT 1024 // max stream count
     #define BEAGLE_MULTI_GRID_MAX  3126 // use multi-grid for fewer than this many sites
+    #define KW_GLOBAL_KERNEL __global__
+    #define KW_DEVICE_FUNC   __device__
+    #define KW_GLOBAL_VAR
+    #define KW_LOCAL_MEM     __shared__
+    #define KW_LOCAL_FENCE   __syncthreads()
+    #define KW_LOCAL_ID_0    threadIdx.x
+    #define KW_LOCAL_ID_1    threadIdx.y
+    #define KW_LOCAL_ID_2    threadIdx.z
+    #define KW_LOCAL_SIZE_0  blockDim.x
+    #define KW_LOCAL_SIZE_1  blockDim.y
+    #define KW_LOCAL_SIZE_2  blockDim.z
+    #define KW_GROUP_ID_0    blockIdx.x
+    #define KW_GROUP_ID_1    blockIdx.y
+    #define KW_GROUP_ID_2    blockIdx.z
+    #define KW_NUM_GROUPS_0  gridDim.x
+    #define KW_NUM_GROUPS_1  gridDim.y
+    #define KW_NUM_GROUPS_2  gridDim.z
+    #define KW_RESTRICT      __restrict__
+#elif defined(FW_TINYGPU)
+    // TinyGPU backend: single-stream, NVIDIA PTX execution model.
+    // BEAGLE_STREAM_COUNT and BEAGLE_MULTI_GRID_MAX match CUDA defaults.
+    #define BEAGLE_STREAM_COUNT    1
+    #define BEAGLE_MULTI_GRID_MAX  3126
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR

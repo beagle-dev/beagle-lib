@@ -15,3 +15,8 @@ if(BUILD_CUDA)
 		add_subdirectory("CMake_CUDA")
 	endif(CUDA_FOUND)
 endif(BUILD_CUDA)
+
+if(BUILD_TINYGPU)
+	message(STATUS "TinyGPU backend enabled (USB4/Thunderbolt eGPU via TinyGPU.app)")
+	add_subdirectory("CMake_TinyGPU")
+endif(BUILD_TINYGPU)

@@ -35,6 +35,8 @@
 
 #ifdef CUDA
 	using namespace cuda_device;
+#elif defined(FW_TINYGPU)
+	using namespace tinygpu_device;
 #else
 	using namespace opencl_device;
 #endif
@@ -44,6 +46,8 @@ namespace gpu {
 
 #ifdef CUDA
 	namespace cuda {
+#elif defined(FW_TINYGPU)
+	namespace tinygpu {
 #else
 	namespace opencl {
 #endif

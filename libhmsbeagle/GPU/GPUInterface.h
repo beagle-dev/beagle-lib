@@ -39,8 +39,7 @@
     typedef CUfunction GPUFunction;
 
     namespace cuda_device {
-#else
-#ifdef FW_OPENCL
+#elif defined(FW_OPENCL)
     #define CL_USE_DEPRECATED_OPENCL_1_1_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_1_2_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_2_0_APIS // to disable deprecation warnings
@@ -58,7 +57,19 @@
     typedef cl_kernel GPUFunction;
 
     namespace opencl_device {
-#endif
+#elif defined(FW_TINYGPU)
+    // Reuse pre-compiled CUDA PTX strings as the kernel source for TinyGPU.
+#   ifdef BEAGLE_XCODE
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
+#   else
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+#   endif
+    // GPUPtr: byte offset into VRAM (BAR2 offset used in MMIO_READ/WRITE).
+    typedef uint64_t GPUPtr;
+    // GPUFunction: opaque pointer to an NVKernelEntry (resolved at launch).
+    typedef void*    GPUFunction;
+
+    namespace tinygpu_device {
 #endif
 
 class GPUInterface {
@@ -79,6 +90,43 @@ private:
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
+#elif defined(FW_TINYGPU)
+    // Unix socket to TinyGPU.app daemon.
+    int      tgpuSock;
+    uint32_t tgpuDevId;
+
+    // PCI BAR info (addr + size) for up to 6 BARs, filled by Initialize().
+    struct BarInfo { uint64_t addr; uint64_t size; } tgpuBars[6];
+
+    // VRAM bump allocators.
+    uint64_t vramKernelTop;  // next free offset for kernel cubins
+    uint64_t vramDataTop;    // next free offset for data buffers
+
+    // Pinned host memory bookkeeping (for AllocatePinnedHostMemory).
+    struct PinnedBuf { void* host_ptr; size_t mapped_size; int fd; };
+    std::vector<PinnedBuf> tgpuPinned;
+
+    // Loaded kernel entries, keyed by kernel name.
+    struct NVKernelEntry { uint64_t vram_addr; std::string name; };
+    std::map<std::string, NVKernelEntry*> tgpuKernels;
+
+    // Device descriptors filled during Initialize().
+    struct DeviceInfo {
+        uint32_t dev_id;
+        uint16_t pci_vendor;
+        uint16_t pci_device;
+        uint32_t nv_boot0;
+        bool     supports_dp;
+    };
+    std::vector<DeviceInfo> tgpuDevices;
+
+    // NV compute channel state.
+    uint64_t nvCubinVramBase;   // VRAM offset where the current cubin is loaded
+    uint64_t nvPushbufVram;     // VRAM offset of the pushbuffer ring
+    uint32_t nvPushbufSize;     // size of pushbuffer ring in bytes
+    uint32_t nvPbPut;           // current PUT (write) pointer
+
+    void NVLoadKernels();
 #endif
 
 public:
