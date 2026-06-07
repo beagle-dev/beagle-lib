@@ -156,10 +156,22 @@ private:
     };
     std::map<std::string, KernelEntry*> tgpuKernels;
 
+    // GPU VRAM physical base (read from FB_LOCATION_BASE at SetDevice time)
+    uint64_t amdFbBase;
+    bool     amdPartialBoot;  // true = GPU was previously initialized (macOS + TinyGPU case)
+
     // ── Private setup helpers ────────────────────────────────────────────────
     void nvSetup();
     void amdSetup();
+
+    // AMD AM boot sequence (ported from tinygrad/runtime/support/am/ip.py)
+    void amdBuildPageTables(uint64_t fb_base);  // identity-map VRAM in GPU VA space
+    void amdGMCInit(uint64_t fb_base, uint64_t fb_end);  // GCVM L2 + VM_CONTEXT0 registers
+    void amdTlbFlush(uint32_t vmid);            // GCVM_INVALIDATE_ENG17 sequence
+    void amdMecReset();                          // soft-reset CP+CPC, re-enable MEC
+    void amdGFXInit();                           // RLC, SH_MEM, doorbell range setup
     void amdParseHsaco(const uint8_t* elf, size_t elf_sz, uint64_t code_vram_base);
+
     void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                           int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 #endif

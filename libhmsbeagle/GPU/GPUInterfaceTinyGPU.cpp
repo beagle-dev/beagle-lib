@@ -199,11 +199,102 @@ static void cfg_write(int sock, uint32_t dev_id, uint64_t off, uint64_t sz, uint
 
 // ─────────────────────────────────────────────────────────────────────────────
 // §3  AMD GPU constants (GFX10/11 — RDNA2/3)
-//     All register indices are DWORD offsets from BAR0 base.
+//     All register indices are DWORD offsets from BAR0 base (byte = index × 4).
 //     Sources: tinygrad/tinygrad/runtime/autogen/amd_gpu.py
-//              tinygrad/tinygrad/runtime/autogen/am/regs.py
-//              tinygrad/tinygrad/runtime/support/am/ip.py
+//              tinygrad/tinygrad/runtime/autogen/am/regs.py (field bit positions)
+//              tinygrad/tinygrad/runtime/support/am/ip.py  (boot sequence)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── AM boot detection ─────────────────────────────────────────────────────────
+static const uint32_t AMD_DEV_VERSION     = 0xA0000008;  // tinygrad AM signature in SCRATCH_REG7
+static const uint32_t AMD_SCRATCH_REG6   = 0x2046;
+static const uint32_t AMD_SCRATCH_REG7   = 0x2047;
+
+// ── VRAM layout ───────────────────────────────────────────────────────────────
+// Must leave space at offset 0 for page tables (2MB) before kernel binaries.
+static const uint64_t AMD_VRAM_PT_SIZE    = 2ULL << 20;    // page table region
+// AMD_VRAM_KERNEL_BASE, AMD_VRAM_RING_BASE, AMD_VRAM_DATA_BASE follow below.
+
+// ── Frame buffer location ─────────────────────────────────────────────────────
+static const uint32_t AMD_FB_LOCATION_BASE = 0x1678;  // (read & 0xFFFFFF) << 24 = fb_base
+static const uint32_t AMD_FB_LOCATION_TOP  = 0x1679;
+
+// ── GMC (Graphics Memory Controller) VM registers ────────────────────────────
+static const uint32_t AMD_GCMC_VM_AGP_TOP          = 0x167a;
+static const uint32_t AMD_GCMC_VM_AGP_BOT          = 0x167b;
+static const uint32_t AMD_GCMC_VM_AGP_BASE         = 0x167c;
+static const uint32_t AMD_GCMC_VM_SYS_APE_LOW      = 0x167d;
+static const uint32_t AMD_GCMC_VM_SYS_APE_HIGH     = 0x167e;
+static const uint32_t AMD_GCMC_VM_MX_L1_TLB_CNTL  = 0x167f;
+static const uint32_t AMD_GCMC_VM_SYS_APE_DEF_LSB  = 0x15a8;
+static const uint32_t AMD_GCMC_VM_SYS_APE_DEF_MSB  = 0x15a9;
+static const uint32_t AMD_GCVM_L2_CNTL             = 0x15bc;
+static const uint32_t AMD_GCVM_L2_CNTL2            = 0x15bd;
+static const uint32_t AMD_GCVM_L2_CNTL3            = 0x15be;
+static const uint32_t AMD_GCVM_L2_PROT_FAULT_CNTL2 = 0x15c5;
+static const uint32_t AMD_GCVM_L2_PROT_FAULT_DEF_LO = 0x15cb;
+static const uint32_t AMD_GCVM_L2_PROT_FAULT_DEF_HI = 0x15cc;
+static const uint32_t AMD_GCVM_IDENTITY_APE_LO_LO32 = 0x15ce;
+static const uint32_t AMD_GCVM_IDENTITY_APE_LO_HI32 = 0x15cf;
+static const uint32_t AMD_GCVM_IDENTITY_APE_HI_LO32 = 0x15d0;
+static const uint32_t AMD_GCVM_IDENTITY_APE_HI_HI32 = 0x15d1;
+static const uint32_t AMD_GCVM_IDENTITY_PHYS_LO    = 0x15d2;
+static const uint32_t AMD_GCVM_IDENTITY_PHYS_HI    = 0x15d3;
+static const uint32_t AMD_GCVM_L2_CNTL4            = 0x15d4;
+static const uint32_t AMD_GCVM_L2_CNTL5            = 0x15da;
+// VM_CONTEXT0 — DWORD indices for the GC hub
+static const uint32_t AMD_GCVM_CTX0_CNTL           = 0x1688;
+static const uint32_t AMD_GCVM_CTX0_PT_BASE_LO     = 0x16f3;
+static const uint32_t AMD_GCVM_CTX0_PT_BASE_HI     = 0x16f4;
+static const uint32_t AMD_GCVM_CTX0_PT_START_LO    = 0x1713;
+static const uint32_t AMD_GCVM_CTX0_PT_START_HI    = 0x1714;
+static const uint32_t AMD_GCVM_CTX0_PT_END_LO      = 0x1733;
+static const uint32_t AMD_GCVM_CTX0_PT_END_HI      = 0x1734;
+// TLB invalidation via ENG17 (GC compute hub)
+static const uint32_t AMD_GCVM_INVAL_ENG17_SEM     = 0x16aa;
+static const uint32_t AMD_GCVM_INVAL_ENG17_REQ     = 0x16bc;
+static const uint32_t AMD_GCVM_INVAL_ENG17_ACK     = 0x16ce;
+// ENG_n_ADDR_RANGE_LO = AMD_GCVM_INVAL_ENG_ADDR_BASE + n*2
+// ENG_n_ADDR_RANGE_HI = AMD_GCVM_INVAL_ENG_ADDR_BASE + n*2 + 1
+static const uint32_t AMD_GCVM_INVAL_ENG_ADDR_BASE = 0x16cf; // ENG0_LO = 0x16cf
+
+// ── GFX compute engine registers ─────────────────────────────────────────────
+static const uint32_t AMD_GRBM_CNTL                = 0x0da0;  // read_timeout[7:0]
+static const uint32_t AMD_GRBM_SOFT_RESET          = 0x0da8;  // soft_reset_cp[0]|soft_reset_cpc[18]
+static const uint32_t AMD_CP_MEC_RS64_CNTL         = 0x2904;  // mec_pipe0_active[26]|mec_halt[30]
+static const uint32_t AMD_RLC_CNTL                 = 0x4c00;  // rlc_enable_f32[0]
+static const uint32_t AMD_RLC_SRM_CNTL             = 0x4c80;  // srm_enable[0]|auto_incr_addr[1]
+static const uint32_t AMD_SH_MEM_CONFIG             = 0x09e4;  // address_mode[0]
+static const uint32_t AMD_SH_MEM_BASES             = 0x09e3;  // private_base[15:0]|shared_base[31:16]
+static const uint32_t AMD_CP_MEC_DOORBELL_LOWER    = 0x1dfc;  // doorbell_range_lower[11:2]
+static const uint32_t AMD_CP_MEC_DOORBELL_UPPER    = 0x1dfd;
+
+// ── Pre-computed register values ──────────────────────────────────────────────
+// VM_CONTEXT0_CNTL: enable_context[0]=1, page_table_depth[2:1]=3 (4-level),
+//   page_table_block_size[6:3]=0, range/dummy/pde0/valid/read/write/execute
+//   fault interrupt+default[22:9]=all-1, secure fault bits[24:23] (GFX11 compat)
+static const uint32_t AMD_GCVM_CTX0_CNTL_4LVL    = 0x01FFFE07;
+// L2 CNTL[0]=enable_l2_cache, [11]=enable_default_page_out, [20:19]=context1_identity=1
+static const uint32_t AMD_GCVM_L2_CNTL_ENABLE     = 0x00080801;
+static const uint32_t AMD_GCVM_L2_CNTL2_FLUSH     = 0x00000003;  // invalidate L1+L2
+// L2_CNTL3: bank_select[5:0]=9, l2_bigk_frag_size[19:15]=6, bigk_assoc[20]=1, 4k_assoc[31]=1
+static const uint32_t AMD_GCVM_L2_CNTL3_GFX10     = 0x80130009;
+static const uint32_t AMD_GCVM_L2_CNTL4_VAL       = 0x00000001;  // l2_4k_partition_count=1
+static const uint32_t AMD_GCVM_L2_CNTL5_VAL       = 0x00003FE0;  // walker_priority_client_id=0x1ff
+// MX_L1_TLB_CNTL: enable_l1_tlb[0]=1, system_access_mode[4:3]=3, enable_adv_driver[6]=1, mtype[13:11]=3(UC)
+static const uint32_t AMD_GCMC_MX_L1_TLB_CNTL_VAL = 0x00001859;
+static const uint32_t AMD_GCVM_L2_PROT_CNTL2_VAL  = 0x00040000;  // active_page_migration_pte_read_retry[18]
+// GRBM_SOFT_RESET: soft_reset_cp[0]=1, soft_reset_cpc[18]=1
+static const uint32_t AMD_GRBM_SOFT_RESET_MEC      = 0x00040001;
+// CP_MEC_RS64_CNTL: mec_pipe0_active[26]=1, all resets/halt=0
+static const uint32_t AMD_CP_MEC_RS64_ENABLE       = 0x04000000;
+// TLB invalidation REQ for VMID 0: per_vmid[0]=1, invalidate_l2_ptes[16]=1,
+//   invalidate_l2_pde0..2[17-19]=1, invalidate_l1_ptes[20]=1
+static const uint32_t AMD_TLB_INVAL_VMID0_FULL     = 0x001F0001;
+// PTE flags: VALID[0]=1, EXECUTE[6]=1, READ[7]=1, WRITE[8]=1
+static const uint64_t AMD_PTE_FLAGS               = 0x1C1ULL;
+// PDE flags: VALID[0]=1 (intermediate page table entry)
+static const uint64_t AMD_PDE_FLAGS               = 0x1ULL;
 
 // GRBM_GFX_CNTL — selects MEC/pipe/queue context for subsequent MMIO reg access
 // Bit fields: pipeid[1:0], meid[3:2], vmid[7:4], queueid[10:8]
@@ -254,10 +345,10 @@ static const uint32_t AMD_EOP_FLUSH_IDX    = 4;   // event_index for CS_PARTIAL_
 // BAR2 (doorbell64) byte offset = (doorbell_index * 2) * 8
 static const uint32_t AMD_NAVI10_DOORBELL_MEC_RING0 = 3;
 
-// VRAM layout for AMD path
-static const uint64_t AMD_VRAM_KERNEL_BASE = 0;
-static const uint64_t AMD_VRAM_RING_BASE   = 32ULL << 20;   // 32 MB: compute ring
-static const uint64_t AMD_VRAM_DATA_BASE   = 256ULL << 20;  // 256 MB: data buffers
+// VRAM layout for AMD path (page tables occupy the first 2 MB)
+static const uint64_t AMD_VRAM_KERNEL_BASE = AMD_VRAM_PT_SIZE;  // 2 MB: kernel binaries
+static const uint64_t AMD_VRAM_RING_BASE   = 32ULL << 20;       // 32 MB: compute ring
+static const uint64_t AMD_VRAM_DATA_BASE   = 256ULL << 20;      // 256 MB: data buffers
 
 static const uint32_t AMD_RING_SIZE        = 1u << 20;  // 1 MB compute ring
 
@@ -361,6 +452,7 @@ GPUInterface::GPUInterface()
       vramDataTop(AMD_VRAM_DATA_BASE),
       vramKernelTop(AMD_VRAM_KERNEL_BASE),
       amdRingWptr(0), amdEopSignal(0),
+      amdFbBase(0), amdPartialBoot(false),
       kernelResource(nullptr), resourceMap(nullptr),
       supportDoublePrecision(true)
 {
@@ -743,103 +835,338 @@ void GPUInterface::amdParseHsaco(const uint8_t* elf, size_t elf_sz,
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// §AM  AMD GPU boot sequence
+//      Port of tinygrad/tinygrad/runtime/support/am/ip.py (partial boot path)
+//      Reference: NVIDIA/AMD open-source driver, tinygrad autogen register defs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// amdBuildPageTables — construct a 4-level identity page table in VRAM.
+// Identity: GPU VA X maps to GPU PA (fb_base + X) for X in [0, map_size).
+// Page table layout in VRAM (starting at offset 0):
+//   [0x000000 .. 0x000FFF]  PDB2 root (512 entries)
+//   [0x001000 .. 0x001FFF]  PDB1      (512 entries, covers first 512 GB)
+//   [0x002000 .. 0x002FFF]  PDB0      (512 entries, covers first 1 GB)
+//   [0x003000 .. 0x002FFF + n*4096] n PTBs (each 2 MB, covers map_size)
+void GPUInterface::amdBuildPageTables(uint64_t fb_base) {
+    // Map the entire region that BEAGLE uses: 0 .. AMD_VRAM_DATA_BASE + 512MB.
+    const uint64_t MAP_SIZE = AMD_VRAM_DATA_BASE + (512ULL << 20);
+    const uint32_t NUM_PTBS = (uint32_t)((MAP_SIZE + ((2ULL<<20)-1)) / (2ULL<<20));
+    const uint32_t NUM_PDB0 = (NUM_PTBS + 511) / 512;  // PDB0 entries needed (≤1 for ≤1GB)
+
+    size_t pt_bytes = (3 + (size_t)NUM_PTBS) * 4096;
+    std::vector<uint64_t> pt(pt_bytes / 8, 0ULL);
+
+    uint64_t* pdb2 = pt.data();                          // offset 0x0000
+    uint64_t* pdb1 = pt.data() + 0x1000 / 8;            // offset 0x1000
+    uint64_t* pdb0 = pt.data() + 0x2000 / 8;            // offset 0x2000
+    // PTBs start at offset 0x3000
+
+    // PDB2[0] → PDB1 at GPU PA fb_base + 0x1000
+    pdb2[0] = (fb_base + 0x1000) | AMD_PDE_FLAGS;
+
+    // PDB1[0] → PDB0 at GPU PA fb_base + 0x2000
+    pdb1[0] = (fb_base + 0x2000) | AMD_PDE_FLAGS;
+
+    // PDB0[i] → PTB[i] at GPU PA fb_base + 0x3000 + i*4096
+    for (uint32_t i = 0; i < NUM_PTBS; ++i) {
+        pdb0[i] = (fb_base + 0x3000 + (uint64_t)i * 0x1000) | AMD_PDE_FLAGS;
+
+        // PTB[i][j]: identity-map page (i*512 + j) → GPU PA fb_base + page*4096
+        uint64_t* ptb = pt.data() + (0x3000 + (uint64_t)i * 0x1000) / 8;
+        for (uint32_t j = 0; j < 512; ++j) {
+            uint64_t pa = fb_base + ((uint64_t)i * 512 + j) * 0x1000;
+            ptb[j] = pa | AMD_PTE_FLAGS;
+        }
+    }
+
+    // Write the page table binary to VRAM via BAR0 MMIO at offset 0.
+    tgpu_mmio_write(tgpuSock, tgpuDevId, /*bar=*/0, 0, pt.data(), pt_bytes);
+    amdFbBase = fb_base;
+
+    fprintf(stderr, "TinyGPU/AMD: %u-PTB identity page table built "
+            "(covers %.0f MB, fb_base=0x%llx)\n",
+            NUM_PTBS, (double)MAP_SIZE / (1<<20),
+            (unsigned long long)fb_base);
+}
+
+// amdGMCInit — initialise the GC (compute) VM hub.
+// Direct port of AM_GMC.init_hub("GC") in tinygrad/runtime/support/am/ip.py.
+void GPUInterface::amdGMCInit(uint64_t fb_base, uint64_t fb_end) {
+    const uint64_t vm_base = 0;
+    const uint64_t vm_end  = AMD_VRAM_DATA_BASE + (512ULL << 20) - 1;
+    const uint64_t pt_root_pa = fb_base;  // PDB2 is at VRAM offset 0
+
+    // Scratch and dummy page: use first two physical pages in VRAM.
+    const uint64_t scratch_pa = fb_base;
+    const uint64_t dummy_pa   = fb_base + 0x1000;
+
+    // ── 1. System apertures (disable AGP, set FB aperture) ───────────────────
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_AGP_BASE, 0x0);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_AGP_BOT,  0x00FFFFFF); // 0xffffffffffff >> 24
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_AGP_TOP,  0x0);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_SYS_APE_LOW,  (uint32_t)(fb_base >> 18));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_SYS_APE_HIGH, (uint32_t)(fb_end  >> 18));
+
+    // System aperture default address (scratch page >> 12, split into LSB/MSB)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_SYS_APE_DEF_LSB,
+              (uint32_t)(scratch_pa >> 12));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_SYS_APE_DEF_MSB,
+              (uint32_t)(scratch_pa >> 44));
+
+    // Protection fault default address (dummy page)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_PROT_FAULT_DEF_LO,
+              (uint32_t)(dummy_pa >> 12));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_PROT_FAULT_DEF_HI,
+              (uint32_t)(dummy_pa >> 44));
+
+    // ── 2. L2 cache and TLB configuration ────────────────────────────────────
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_PROT_FAULT_CNTL2,
+              AMD_GCVM_L2_PROT_CNTL2_VAL);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCMC_VM_MX_L1_TLB_CNTL,
+              AMD_GCMC_MX_L1_TLB_CNTL_VAL);
+
+    // Read-modify-write L2_CNTL (OR in enable bits to preserve hardware defaults)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL,
+              bar0_rd32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL) | AMD_GCVM_L2_CNTL_ENABLE);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL2,
+              bar0_rd32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL2) | AMD_GCVM_L2_CNTL2_FLUSH);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL3,  AMD_GCVM_L2_CNTL3_GFX10);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL4,  AMD_GCVM_L2_CNTL4_VAL);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_L2_CNTL5,  AMD_GCVM_L2_CNTL5_VAL);
+
+    // ── 3. VMID 0 page table registration ────────────────────────────────────
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_START_LO,
+              (uint32_t)(vm_base >> 12));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_START_HI,
+              (uint32_t)(vm_base >> 44));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_END_LO,
+              (uint32_t)(vm_end >> 12));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_END_HI,
+              (uint32_t)(vm_end >> 44));
+    // Root PDB2 physical address with VALID bit
+    uint64_t pt_root_entry = pt_root_pa | AMD_PDE_FLAGS;
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_BASE_LO,
+              (uint32_t)(pt_root_entry));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_PT_BASE_HI,
+              (uint32_t)(pt_root_entry >> 32));
+    // Enable context with 4-level page table and all fault reporting
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_CTX0_CNTL, AMD_GCVM_CTX0_CNTL_4LVL);
+
+    // ── 4. Disable identity aperture (use real page tables via VMID 0) ────────
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_APE_LO_LO32, 0xFFFFFFFF);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_APE_LO_HI32, 0x0000000F);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_APE_HI_LO32, 0x00000000);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_APE_HI_HI32, 0x00000000);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_PHYS_LO, 0x00000000);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_IDENTITY_PHYS_HI, 0x00000000);
+
+    // ── 5. Invalidate address ranges for all 18 GC engines ───────────────────
+    // Write 0x1FFFFFFFFF (full range) to ENG_{n}_ADDR_RANGE_{LO,HI}32.
+    // ENG_n registers are sequential: ENG0_LO = AMD_GCVM_INVAL_ENG_ADDR_BASE + n*2.
+    for (uint32_t n = 0; n < 18; ++n) {
+        bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_INVAL_ENG_ADDR_BASE + n * 2,     0xFFFFFFFF);
+        bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_INVAL_ENG_ADDR_BASE + n * 2 + 1, 0x0000001F);
+    }
+
+    // ── 6. TLB flush for VMID 0 ──────────────────────────────────────────────
+    amdTlbFlush(0);
+
+    fprintf(stderr, "TinyGPU/AMD: GMC GC hub initialised (VM_CONTEXT0 active)\n");
+}
+
+// amdTlbFlush — invalidate the GCVM TLB for one VMID via ENG17.
+// Port of AM_GMC.flush_tlb("GC", vmid) in ip.py.
+void GPUInterface::amdTlbFlush(uint32_t vmid) {
+    // GC hub TLB invalidation: no semaphore needed (only MM hub uses semaphore).
+    uint32_t req = AMD_TLB_INVAL_VMID0_FULL;
+    if (vmid != 0) {
+        // For other VMIDs, replace bit 0 with the correct bit.
+        req = (req & ~0xFFFFU) | (1u << vmid);
+    }
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GCVM_INVAL_ENG17_REQ, req);
+
+    // Poll ENG17_ACK until the VMID's bit is set.
+    for (uint32_t t = 0; t < 1000000; ++t) {
+        if (bar0_rd32(tgpuSock, tgpuDevId, AMD_GCVM_INVAL_ENG17_ACK) & (1u << vmid))
+            return;
+        usleep(1);
+    }
+    fprintf(stderr, "TinyGPU/AMD: TLB flush ACK timeout for VMID %u\n", vmid);
+}
+
+// amdMecReset — soft-reset the CP and CPC, then re-activate MEC pipe 0.
+// Port of AM_GFX.reset_mec() in ip.py (GFX10+ path: RS64 MEC).
+void GPUInterface::amdMecReset() {
+    // Soft-reset CP and CPC.
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_SOFT_RESET, AMD_GRBM_SOFT_RESET_MEC);
+    usleep(50000);  // 50 ms — match tinygrad's time.sleep(0.05)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_SOFT_RESET, 0x0);
+
+    // Re-enable MEC pipe 0 via CP_MEC_RS64_CNTL (GFX10+ RS64 MEC path).
+    // mec_pipe0_active[26]=1, mec_halt[30]=0, all resets=0.
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_MEC_RS64_CNTL, AMD_CP_MEC_RS64_ENABLE);
+    usleep(50000);
+}
+
+// amdGFXInit — configure RLC, SH_MEM, and MEC doorbell range.
+// Port of AM_GFX.init_hw() non-firmware parts in ip.py.
+void GPUInterface::amdGFXInit() {
+    // GRBM read timeout.
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_CNTL, 0xFF);
+
+    // Enable RLC (RealTime Link Controller — manages compute scheduling).
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_RLC_CNTL,     0x1);  // rlc_enable_f32
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_RLC_SRM_CNTL, 0x3);  // srm_enable | auto_incr_addr
+
+    // Configure SH_MEM registers for all 16 VMIDs on MEC1/pipe0/queue0.
+    // SH_MEM_CONFIG: address_mode[0]=1 (flat 64-bit addressing).
+    // SH_MEM_BASES: private_base=0, shared_base=0.
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, 1u << 2);  // select MEC1
+    for (uint32_t vmid = 0; vmid < 16; ++vmid) {
+        bar0_wr32(tgpuSock, tgpuDevId, AMD_SH_MEM_CONFIG, 0x1);
+        bar0_wr32(tgpuSock, tgpuDevId, AMD_SH_MEM_BASES,  0x0);
+    }
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, 0x0);  // deselect
+
+    // MEC doorbell range for XCC 0: LOWER=0x0, UPPER=0xF8.
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_MEC_DOORBELL_LOWER, 0x00);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_MEC_DOORBELL_UPPER, 0xF8);
+
+    fprintf(stderr, "TinyGPU/AMD: GFX engine configured\n");
+}
+
 void GPUInterface::amdSetup() {
-    // ── 1. Compile OpenCL C kernels to AMD ISA ────────────────────────────────
-    const char* gpu = getenv("BEAGLE_TINYGPU_AMDGPU");
-    if (!gpu) gpu = "gfx1030";  // default: RDNA2 Navi21 (RX 6800/6900 etc.)
+    // ── 1. Read GPU VRAM frame buffer location from hardware ──────────────────
+    uint64_t fb_base = (uint64_t)(bar0_rd32(tgpuSock, 0, AMD_FB_LOCATION_BASE) & 0xFFFFFF) << 24;
+    uint64_t fb_end  = ((uint64_t)(bar0_rd32(tgpuSock, 0, AMD_FB_LOCATION_TOP) & 0xFFFFFF) + 1) << 24;
+    amdFbBase = fb_base;
+    fprintf(stderr, "TinyGPU/AMD: VRAM physical 0x%llx..0x%llx (%llu MB)\n",
+            (unsigned long long)fb_base, (unsigned long long)fb_end,
+            (unsigned long long)((fb_end - fb_base) >> 20));
+
+    // ── 2. Detect boot state (partial = GPU was previously init'd by macOS) ───
+    uint32_t scratch7  = bar0_rd32(tgpuSock, 0, AMD_SCRATCH_REG7);
+    uint32_t scratch6  = bar0_rd32(tgpuSock, 0, AMD_SCRATCH_REG6);
+    amdPartialBoot = (scratch7 == AMD_DEV_VERSION) && (scratch6 == 0)
+                     && !getenv("AM_RESET");
+    fprintf(stderr, "TinyGPU/AMD: %s boot (SCRATCH7=0x%08x)\n",
+            amdPartialBoot ? "partial" : "full", scratch7);
+
+    // ── 3. Build identity page tables in VRAM ────────────────────────────────
+    amdBuildPageTables(fb_base);
+
+    // ── 4. Initialise GMC GC hub (VMID 0 page table + L2 cache) ─────────────
+    amdGMCInit(fb_base, fb_end);
+
+    // ── 5. MEC reset (partial boot) or full GFX init (cold boot) ─────────────
+    if (amdPartialBoot) {
+        amdMecReset();   // fast path: reset CP, re-enable MEC pipe 0
+    } else {
+        // Cold boot: PSP has already loaded MEC firmware via ROM boot
+        // (macOS's AMD driver handles PSP boot before we connect via TinyGPU).
+        // If MEC is not running, PSP firmware files from AMD linux-firmware
+        // package are required — see amdGFXInit() comment.
+        amdGFXInit();
+        amdMecReset();   // ensure MEC is active even on first boot
+    }
+
+    // ── 6. Compile OpenCL C kernels to AMD ISA ────────────────────────────────
+    const char* gpu_target = getenv("BEAGLE_TINYGPU_AMDGPU");
+    if (!gpu_target) gpu_target = "gfx1030";  // default: RDNA2 Navi21 (RX 6800/6900)
 
     size_t hsaco_sz = 0;
     uint8_t* hsaco = ocl_to_hsaco(kernelResource->kernelCode,
                                    strlen(kernelResource->kernelCode),
-                                   gpu, &hsaco_sz);
+                                   gpu_target, &hsaco_sz);
     if (!hsaco) {
         fprintf(stderr, "TinyGPU/AMD: kernel compilation failed\n");
         return;
     }
 
-    // ── 2. Copy HSACO binary to VRAM (BAR0 at AMD_VRAM_KERNEL_BASE) ──────────
+    // ── 7. Copy HSACO binary to VRAM (BAR0 at AMD_VRAM_KERNEL_BASE) ──────────
     size_t aligned = (hsaco_sz + 0xfffULL) & ~0xfffULL;
     uint64_t code_vram = vramKernelTop;
     vramKernelTop += aligned;
     tgpu_mmio_write(tgpuSock, tgpuDevId, /*bar=*/0, code_vram, hsaco, hsaco_sz);
-
     amdParseHsaco(hsaco, hsaco_sz, code_vram);
     free(hsaco);
 
-    // ── 3. Allocate compute ring in VRAM ─────────────────────────────────────
+    // ── 8. Allocate compute ring in VRAM ─────────────────────────────────────
     amdRingVram = AMD_VRAM_RING_BASE;
     amdRingWptr = 0;
 
-    // ── 4. Allocate host-visible memory for rptr, wptr-poll, and EOP sig ─────
-    //    All three fit in a single MAP_SYSMEM_FD allocation (4 KiB minimum).
+    // ── 9. Allocate host-visible control memory (rptr / wptr-poll / EOP) ─────
     uint64_t mapped = 0;
     int      shm_fd = -1;
     if (!tgpu_rpc_fd(tgpuSock, tgpuDevId, 0x4000, 0, &mapped, &shm_fd)) {
-        fprintf(stderr, "TinyGPU/AMD: MAP_SYSMEM_FD failed for control memory\n");
+        fprintf(stderr, "TinyGPU/AMD: MAP_SYSMEM_FD failed\n");
         return;
     }
     void* ctrl = mmap(nullptr, (size_t)mapped, PROT_READ | PROT_WRITE,
                       MAP_SHARED, shm_fd, 0);
-    if (ctrl == MAP_FAILED) { perror("TinyGPU mmap ctrl"); close(shm_fd); return; }
+    if (ctrl == MAP_FAILED) { perror("TinyGPU/AMD mmap ctrl"); close(shm_fd); return; }
 
     amdCompletionHost   = ctrl;
     amdCompletionMapped = (size_t)mapped;
     amdCompletionFd     = shm_fd;
 
-    // Layout within ctrl page:
-    //   offset 0x000 = rptr report   (4 bytes)
-    //   offset 0x008 = wptr poll     (8 bytes)
-    //   offset 0x010 = EOP semaphore (8 bytes)
-    // Physical addresses are in the first 4KB of the mapped buffer as
-    // [paddr0, size0, paddr1, size1, ..., 0, 0] per MAP_SYSMEM_FD spec.
-    // We skip physical address extraction and use the virtual addr directly.
+    // Layout: [0x000] rptr (4B)  [0x008] wptr (8B)  [0x010] EOP semaphore (8B)
     uint64_t ctrl_va = (uint64_t)(uintptr_t)ctrl;
     amdRptrAddr  = ctrl_va + 0x000;
     amdWptrAddr  = ctrl_va + 0x008;
     amdEopAddr   = ctrl_va + 0x010;
     amdEopSignal = 0;
-    *(uint64_t*)(amdEopAddr) = 0;  // reset EOP semaphore
+    *(volatile uint64_t*)(amdEopAddr) = 0;
 
-    // ── 5. Select queue context via GRBM_GFX_CNTL, then write HQD registers ──
-    // GRBM_GFX_CNTL fields: pipeid[1:0], meid[3:2], vmid[7:4], queueid[10:8]
-    // For MEC1 (me=1), pipe=0, queue=0: value = 1<<2 = 4
-    uint32_t grbm_val = (1u << 2);  // meid=1 (MEC1), pipe=0, vmid=0, queue=0
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, grbm_val);
+    // ── 10. Configure HQD (Hardware Queue Descriptor) via GRBM ───────────────
+    // Select MEC1 (meid=1), pipe0, queue0: GRBM_GFX_CNTL = 1<<2 = 4
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, 1u << 2);
 
-    // Ring base: pass GPU physical address >> 8
-    uint64_t ring_pa = amdRingVram;  // physical = VRAM offset in BAR0 space
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_BASE,    (uint32_t)((ring_pa >> 8) & 0xFFFFFFFF));
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_BASE_HI, (uint32_t)((ring_pa >> 40) & 0xFF));
+    // Ring base address >> 8 (GPU PA = fb_base + ring VRAM offset)
+    uint64_t ring_pa = amdFbBase + amdRingVram;
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_BASE,
+              (uint32_t)((ring_pa >> 8) & 0xFFFFFFFF));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_BASE_HI,
+              (uint32_t)((ring_pa >> 40) & 0xFF));
 
-    // Rptr report address (host-visible so GPU can write rptr back to CPU)
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_RPTR_REPORT_ADDR,    (uint32_t)(amdRptrAddr & 0xFFFFFFFF));
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_RPTR_REPORT_ADDR_HI, (uint32_t)(amdRptrAddr >> 32));
+    // Read-pointer report address (host VA — GPU writes rptr here)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_RPTR_REPORT_ADDR,
+              (uint32_t)(amdRptrAddr));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_RPTR_REPORT_ADDR_HI,
+              (uint32_t)(amdRptrAddr >> 32));
 
-    // Wptr poll address (CPU writes wptr here; GPU polls it)
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_WPTR_POLL_ADDR,    (uint32_t)(amdWptrAddr & 0xFFFFFFFF));
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_WPTR_POLL_ADDR_HI, (uint32_t)(amdWptrAddr >> 32));
+    // Write-pointer poll address (host VA — CPU updates wptr here)
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_WPTR_POLL_ADDR,
+              (uint32_t)(amdWptrAddr));
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_WPTR_POLL_ADDR_HI,
+              (uint32_t)(amdWptrAddr >> 32));
 
-    // Doorbell: MEC_RING0 index=3; doorbell_offset field = index*2 = 6; enable bit 30
-    // doorbell_offset is 17-bit field at bits[27:11] of CP_HQD_PQ_DOORBELL_CONTROL
-    uint32_t doorbell_idx = AMD_NAVI10_DOORBELL_MEC_RING0;
-    uint32_t dbell_ctrl   = ((doorbell_idx * 2) << 11) | (1u << 30);  // enable at bit 30
+    // Doorbell control: NAVI10_DOORBELL_MEC_RING0=3, field doorbell_offset=3*2=6
+    // CP_HQD_PQ_DOORBELL_CONTROL bit layout (from am/regs.py):
+    //   doorbell_offset[27:11], doorbell_en[30]
+    uint32_t dbell_ctrl = ((AMD_NAVI10_DOORBELL_MEC_RING0 * 2) << 11) | (1u << 30);
     bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_DOORBELL_CONTROL, dbell_ctrl);
 
-    // Ring control: queue_size = log2(ring_dwords) - 1
+    // Ring size: queue_size field = log2(ring_dwords) - 2 (ip.py: bit_length()-2)
     uint32_t ring_dwords = AMD_RING_SIZE / 4;
-    uint32_t order = 0; for (uint32_t t = ring_dwords; t > 1; t >>= 1) ++order;
-    uint32_t pq_ctrl = (order - 1)            // queue_size[3:0]
-                     | (5u << 8);              // rptr_block_size = 5
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_CONTROL, pq_ctrl);
+    uint32_t qs = 0; { uint32_t t = ring_dwords; while (t > 1) { t >>= 1; ++qs; } }
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_PQ_CONTROL,
+              (qs - 2) | (5u << 8));  // queue_size | rptr_block_size=5
 
-    // Activate queue
+    // Activate the queue
     bar0_wr32(tgpuSock, tgpuDevId, AMD_CP_HQD_ACTIVE, 1);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, 0);  // deselect
 
-    // Reset GRBM select (me=0, pipe=0)
-    bar0_wr32(tgpuSock, tgpuDevId, AMD_GRBM_GFX_CNTL, 0);
+    // ── 11. Mark GPU as AM-initialised ───────────────────────────────────────
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_SCRATCH_REG6, 0);
+    bar0_wr32(tgpuSock, tgpuDevId, AMD_SCRATCH_REG7, AMD_DEV_VERSION);
 
-    fprintf(stderr, "TinyGPU/AMD: MEC1 compute queue active (ring@VRAM+0x%llx, %u KB)\n",
-            (unsigned long long)amdRingVram, AMD_RING_SIZE / 1024);
+    fprintf(stderr, "TinyGPU/AMD: MEC1 compute queue active "
+            "(ring@VRAM+0x%llx / PA=0x%llx, %u KB)\n",
+            (unsigned long long)amdRingVram,
+            (unsigned long long)ring_pa,
+            AMD_RING_SIZE / 1024);
 }
 
 // ── Streams ──────────────────────────────────────────────────────────────────
