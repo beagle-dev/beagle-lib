@@ -99,12 +99,13 @@ BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUSpectralImpl() {
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
 
-    // TODO gPartialsTmp are not yet thread-safe
-    // kThreadingEnabled = false;
-    // kAutoPartitioningEnabled = false;
+    int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(threadCount);
 
-    // return BEAGLE_SUCCESS;
-    return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(threadCount);
+    gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
+    gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
+    gAdjointPartitionBuffers.resize(kStateCount * kStateCount * kPartitionCount, REALTYPE(0));
+
+    return returnCode;
 }
 
 
@@ -779,6 +780,158 @@ void computePerSiteLikelihoods(
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
+        const int *postBufferIndices,
+        const int *preBufferIndices,
+        const int *branchEigenIndices,
+        const double *categoryRates,
+        const REALTYPE *categoryWeights,
+        const REALTYPE *perSiteLikelihoods,
+        REALTYPE *buffer,
+        int count,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    const double prop = proportionRepeated(branchEigenIndices, count);
+    const bool useMultiCollector = ((endPattern - startPattern) > 1 || prop > 0.1);
+
+    REALTYPE* outerProductTmp = gOuterProductTmp.data() + currentPartition * kStateCount * kStateCount;
+
+    for (int category = 0; category < kCategoryCount; ++category) {
+
+        const REALTYPE categoryRate   = static_cast<REALTYPE>(categoryRates[category]);
+        const int      infoOffset     = category * kPartialsPaddedStateCount;
+        const REALTYPE categoryWeight = categoryWeights[category];
+
+        auto iterateOverNodes = [&](auto& collector) {
+
+            auto setupCollector = [&](const int branchEigenIndex) {
+                const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
+                AdjointMethods<REALTYPE>* plan =
+                    gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
+                plan->setTime(categoryRate * info.branchLength,
+                    info.expat + infoOffset,
+                    info.cosbt + infoOffset, info.sinbt + infoOffset,
+                    info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
+                collector.setPlan(plan);
+                collector.flush();
+            };
+
+            setupCollector(branchEigenIndices[0]);
+            int lastBranchEigenIndex = branchEigenIndices[0];
+
+            for (int nodeNum = 0; nodeNum < count; ++nodeNum) {
+                const int branchEigenIndex = branchEigenIndices[nodeNum];
+                if (branchEigenIndex != lastBranchEigenIndex) {
+                    collector.accumulateEigenBasisGradient();
+                    setupCollector(branchEigenIndex);
+                    lastBranchEigenIndex = branchEigenIndex;
+                }
+
+                const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+                const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
+
+                if (tipStates != nullptr) {
+                    calcAdjointCrossProducts<States, WithRotation>(
+                        nullptr, tipStates, preOrderPartial,
+                        branchEigenIndex, perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector, startPattern, endPattern, currentPartition);
+                } else {
+                    const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+                    calcAdjointCrossProducts<Partials, WithRotation>(
+                        postOrderPartial, nullptr, preOrderPartial,
+                        branchEigenIndex, perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector, startPattern, endPattern, currentPartition);
+                }
+            }
+
+            collector.accumulateEigenBasisGradient();
+        };
+
+        if (useMultiCollector) {
+            MultipleCollector<REALTYPE> collector(buffer, outerProductTmp, kStateCount, kStateCount);
+            iterateOverNodes(collector);
+        } else {
+            SimpleCollector<REALTYPE> collector(buffer, kStateCount, kStateCount);
+            iterateOverNodes(collector);
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
+        const int *postBufferIndices,
+        const int *preBufferIndices,
+        const int *branchEigenIndices,
+        const double *categoryRates,
+        const REALTYPE *categoryWeights,
+        const REALTYPE *perSiteLikelihoods,
+        REALTYPE *buffer,
+        int count) {
+
+    const int gradSize = kStateCount * kStateCount;
+
+    std::fill(buffer, buffer + gradSize, REALTYPE(0));
+    if (kNumThreads > 1) {
+        std::fill(gAdjointPartitionBuffers.begin(), gAdjointPartitionBuffers.end(), REALTYPE(0));
+    }
+
+    memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
+    for (int p = 0; p < kPartitionCount; ++p) {
+        const int t = p % kNumThreads;
+        gThreadOperations[t][gThreadOpCounts[t]] = p;
+        ++gThreadOpCounts[t];
+    }
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        auto b = [this, i, count, gradSize, buffer,
+                  postBufferIndices, preBufferIndices, branchEigenIndices,
+                  categoryRates, categoryWeights, perSiteLikelihoods]() {
+            for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
+                const int p = gThreadOperations[i][opIdx];
+                const int startPattern = gPatternPartitionsStartPatterns[p];
+                const int endPattern   = gPatternPartitionsStartPatterns[p + 1];
+                REALTYPE* partBuffer = (i == 0) ? buffer
+                                                : gAdjointPartitionBuffers.data() + p * gradSize;
+                calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
+                                              categoryRates, categoryWeights, perSiteLikelihoods,
+                                              partBuffer, count,
+                                              startPattern, endPattern, p);
+            }
+        };
+        std::packaged_task<void()> threadTask(std::move(b));
+
+        gFutures[i] = threadTask.get_future();
+        threadData* td = &gThreads[i];
+        std::unique_lock<std::mutex> l(td->m);
+        td->jobs.push(std::move(threadTask));
+        l.unlock();
+        gThreads[i].cv.notify_one();
+    }
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        gFutures[i].wait();
+    }
+
+    if (kNumThreads > 1) {
+        for (int t = 1; t < kNumThreads; ++t) {
+            for (int opIdx = 0; opIdx < gThreadOpCounts[t]; ++opIdx) {
+                const int p = gThreadOperations[t][opIdx];
+                const REALTYPE* partBuffer = gAdjointPartitionBuffers.data() + p * gradSize;
+                for (int i = 0; i < gradSize; ++i) {
+                    buffer[i] += partBuffer[i];
+                }
+            }
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
         const int *postBufferIndices,
         const int *preBufferIndices,
@@ -820,90 +973,21 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
         perSiteLikelihoods);
 #endif
 
-    const int MAGIC_COUNT = 1;
-    const double MAGIC_PROP = 0.1;
-    const double prop = proportionRepeated(branchEigenIndices, count);
-
-    // fprintf(stderr, "prop = %f\n", prop);
-
-    bool useMultiCollector = (kPatternCount > MAGIC_COUNT ||
-         prop > MAGIC_PROP);
-
-    useMultiCollector = false;
-
-    if (useMultiCollector && gOuterProductTmp.size() < kStateCount * kStateCount) {
-         gOuterProductTmp.resize(kStateCount * kStateCount);
+    const int outerProductSize = kNumThreads * kStateCount * kStateCount;
+    if (static_cast<int>(gOuterProductTmp.size()) < outerProductSize) {
+        gOuterProductTmp.resize(outerProductSize);
     }
 
-    for (int category = 0; category < kCategoryCount; ++category) {
-
-        const REALTYPE categoryRate = static_cast<REALTYPE>(categoryRates[category]);
-        const int infoOffset = category * kPartialsPaddedStateCount;
-        const REALTYPE categoryWeight = categoryWeights[category];
-
-        auto iterateOverNodes = [&](auto& collector) {
-
-            auto setupCollector = [&](const int branchEigenIndex) {
-                const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
-                AdjointMethods<REALTYPE>* plan = gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
-                plan->setTime(categoryRate * info.branchLength,
-                    info.expat + infoOffset,
-                    info.cosbt + infoOffset, info.sinbt + infoOffset,
-                    info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
-                collector.setPlan(plan);
-                collector.flush();
-            };
-
-            const int currentPartition = 0;
-
-            setupCollector(branchEigenIndices[0]);
-            int lastBranchEigenIndex = branchEigenIndices[0];
-
-            for (int nodeNum = 0; nodeNum < count; nodeNum++) {
-
-                const int branchEigenIndex = branchEigenIndices[nodeNum];
-
-                if (branchEigenIndex != lastBranchEigenIndex) {
-                    collector.accumulateEigenBasisGradient();
-                    setupCollector(branchEigenIndex);
-                    lastBranchEigenIndex = branchEigenIndex;
-                }
-
-                const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
-                const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
-
-                if (tipStates != nullptr) {
-
-                    calcAdjointCrossProducts<States,WithRotation>(
-                        nullptr, tipStates, preOrderPartial,
-                        branchEigenIndex,
-                        perSiteLikelihoods,
-                        category, categoryWeight,
-                        collector, currentPartition);
-
-                } else {
-
-                    const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
-
-                    calcAdjointCrossProducts<Partials,WithRotation>(
-                        postOrderPartial, nullptr, preOrderPartial,
-                        branchEigenIndex,
-                        perSiteLikelihoods,
-                        category, categoryWeight,
-                        collector, currentPartition);
-                }
-            }
-
-            collector.accumulateEigenBasisGradient(); // End case
-        };
-
-        if (useMultiCollector) {
-            MultipleCollector<REALTYPE> collector(buffer, gOuterProductTmp.data(), kStateCount, kStateCount);
-            iterateOverNodes(collector);
-        } else {
-            SimpleCollector<REALTYPE> collector(buffer, kStateCount, kStateCount);
-            iterateOverNodes(collector);
-        }
+    if (kAutoPartitioningEnabled && kPartitionCount > 1) {
+        returnCode = calcAdjointCrossProductsByPartitionAsync(
+            postBufferIndices, preBufferIndices, branchEigenIndices,
+            categoryRates, categoryWeights, perSiteLikelihoods,
+            buffer, count);
+    } else {
+        std::fill(buffer, buffer + kStateCount * kStateCount, REALTYPE(0));
+        calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
+                                      categoryRates, categoryWeights, perSiteLikelihoods,
+                                      buffer, count, 0, kPatternCount, 0);
     }
 
     if constexpr (!std::is_same_v<REALTYPE, double>) {
@@ -970,10 +1054,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         const REALTYPE* perSiteLikelihoods,
         const int category, const REALTYPE categoryWeight,
         CC& collector,
+        int startPattern,
+        int endPattern,
         int currentPartition) {
-
-    const int startPattern = 0;
-    const int endPattern = kPatternCount;
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;

@@ -78,6 +78,12 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kThreadingEnabled;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kAutoPartitioningEnabled;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartitionCount;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kNumThreads;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreads;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gFutures;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreadOpCounts;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreadOperations;
+            using threadData = typename BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadData;
 
         public:
             // BeagleCPUSpectralImpl();
@@ -144,6 +150,7 @@ namespace beagle {
 
             std::vector<REALTYPE> gPatternScaleTmp;
             std::vector<REALTYPE> gOuterProductTmp;
+            std::vector<REALTYPE> gAdjointPartitionBuffers;
 
             int kStateCountModFour;
 
@@ -246,7 +253,32 @@ namespace beagle {
                                           const int category,
                                           const REALTYPE categoryWeight,
                                           COLLECTOR& collector,
+                                          int startPattern,
+                                          int endPattern,
                                           int currentPartition);
+
+            void calcAdjointCrossProductsRange(
+                                          const int *postBufferIndices,
+                                          const int *preBufferIndices,
+                                          const int *branchEigenIndices,
+                                          const double *categoryRates,
+                                          const REALTYPE *categoryWeights,
+                                          const REALTYPE *perSiteLikelihoods,
+                                          REALTYPE *buffer,
+                                          int count,
+                                          int startPattern,
+                                          int endPattern,
+                                          int currentPartition);
+
+            int calcAdjointCrossProductsByPartitionAsync(
+                                          const int *postBufferIndices,
+                                          const int *preBufferIndices,
+                                          const int *branchEigenIndices,
+                                          const double *categoryRates,
+                                          const REALTYPE *categoryWeights,
+                                          const REALTYPE *perSiteLikelihoods,
+                                          REALTYPE *buffer,
+                                          int count);
 
             template <typename First, typename Second, typename Body>
             inline void matVecDual(
