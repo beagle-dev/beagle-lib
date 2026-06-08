@@ -78,17 +78,13 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kThreadingEnabled;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kAutoPartitioningEnabled;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartitionCount;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kNumThreads;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreads;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gFutures;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreadOpCounts;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gThreadOperations;
-            using threadData = typename BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadData;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternScaleTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gOuterProductTmp;
 
         public:
             // BeagleCPUSpectralImpl();
-            virtual ~BeagleCPUSpectralImpl();
-            virtual const char *getName();
+            ~BeagleCPUSpectralImpl() override;
+            const char *getName() override;
 
             int createInstance(int tipCount,
                               int partialsBufferCount,
@@ -102,16 +98,16 @@ namespace beagle {
                               int resourceNumber,
                               int pluginResourceNumber,
                               long preferenceFlags,
-                              long requirementFlags);
+                              long requirementFlags) override;
 
-            int setCPUThreadCount(int threadCount);
+            int setCPUThreadCount(int threadCount) override;
 
         protected:
-            virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
+            EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
                     int decompositionCount,
                     int stateCount,
                     int categoryCount,
-                    long flags);
+                    long flags) override;
 
         private:
             struct BranchEigenInfo {
@@ -148,9 +144,6 @@ namespace beagle {
             std::vector<REALTYPE> gPartialTmp1;
             std::vector<REALTYPE> gPartialTmp2;
 
-            std::vector<REALTYPE> gPatternScaleTmp;
-            std::vector<REALTYPE> gOuterProductTmp;
-            std::vector<REALTYPE> gAdjointPartitionBuffers;
 
             int kStateCountModFour;
 
@@ -160,30 +153,31 @@ namespace beagle {
                                          const int* firstDerivativeIndices,
                                          const int* secondDerivativeIndices,
                                          const double* edgeLengths,
-                                         int count);
+                                         int count) override;
 
-            int calculateAdjointCrossProducts(const int *postBufferIndices,
-                                            const int *preBufferIndices,
-                                            const int *eigenIndices,
-                                            const int *categoryRatesIndices,
-                                            const int *categoryWeightsIndices,
-                                            const int rootPostOrderIndex,
-                                            const int stateFrequenciesIndex,
-                                            int count,
-                                            double *outSumDerivatives,
-                                            double *outSumSquaredDerivatives);
+            void calcAdjointCrossProductsRange(const int *postBufferIndices,
+                                               const int *preBufferIndices,
+                                               const int *branchEigenIndices,
+                                               const double *categoryRates,
+                                               const REALTYPE *categoryWeights,
+                                               const REALTYPE *perSiteLikelihoods,
+                                               REALTYPE *buffer,
+                                               int count,
+                                               int startPattern,
+                                               int endPattern,
+                                               int currentPartition) override;
 
-            virtual int upPartials(bool byPartition,
-                                   const int* operations,
-                                   int operationCount,
-                                   int cumulativeScalingIndex,
-                                   BeaglePartialsType partialsType);
+            int upPartials(bool byPartition,
+                           const int* operations,
+                           int operationCount,
+                           int cumulativeScalingIndex,
+                           BeaglePartialsType partialsType) override;
 
-            virtual int upPrePartials(bool byPartition,
-                                      const int* operations,
-                                      int count,
-                                      int cumulativeScaleIndex,
-                                      BeaglePartialsType preorderType);
+            int upPrePartials(bool byPartition,
+                              const int* operations,
+                              int count,
+                              int cumulativeScaleIndex,
+                              BeaglePartialsType preorderType) override;
 
             template <typename T>
             int upPrePartialsImpl(bool byPartition,
@@ -257,28 +251,6 @@ namespace beagle {
                                           int endPattern,
                                           int currentPartition);
 
-            void calcAdjointCrossProductsRange(
-                                          const int *postBufferIndices,
-                                          const int *preBufferIndices,
-                                          const int *branchEigenIndices,
-                                          const double *categoryRates,
-                                          const REALTYPE *categoryWeights,
-                                          const REALTYPE *perSiteLikelihoods,
-                                          REALTYPE *buffer,
-                                          int count,
-                                          int startPattern,
-                                          int endPattern,
-                                          int currentPartition);
-
-            int calcAdjointCrossProductsByPartitionAsync(
-                                          const int *postBufferIndices,
-                                          const int *preBufferIndices,
-                                          const int *branchEigenIndices,
-                                          const double *categoryRates,
-                                          const REALTYPE *categoryWeights,
-                                          const REALTYPE *perSiteLikelihoods,
-                                          REALTYPE *buffer,
-                                          int count);
 
             template <typename First, typename Second, typename Body>
             inline void matVecDual(

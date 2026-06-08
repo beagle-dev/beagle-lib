@@ -127,6 +127,10 @@ protected:
 //    REALTYPE* grandNumeratorUpperBoundDerivTmp;
 
     REALTYPE* outLogLikelihoodsTmp;
+
+    std::vector<REALTYPE> gPatternScaleTmp;
+    std::vector<REALTYPE> gAdjointPartitionBuffers;
+    std::vector<REALTYPE> gOuterProductTmp;
     REALTYPE* outFirstDerivativesTmp;
     REALTYPE* outSecondDerivativesTmp;
 
@@ -560,6 +564,27 @@ protected:
                                          int count,
                                          double *outSumDerivatives,
                                          double *outSumSquaredDerivatives);
+
+    virtual void calcAdjointCrossProductsRange(const int *postBufferIndices,
+                                               const int *preBufferIndices,
+                                               const int *branchEigenIndices,
+                                               const double *categoryRates,
+                                               const REALTYPE *categoryWeights,
+                                               const REALTYPE *perSiteLikelihoods,
+                                               REALTYPE *buffer,
+                                               int count,
+                                               int startPattern,
+                                               int endPattern,
+                                               int currentPartition) { }
+
+    int calcAdjointCrossProductsByPartitionAsync(const int *postBufferIndices,
+                                                 const int *preBufferIndices,
+                                                 const int *branchEigenIndices,
+                                                 const double *categoryRates,
+                                                 const REALTYPE *categoryWeights,
+                                                 const REALTYPE *perSiteLikelihoods,
+                                                 REALTYPE *buffer,
+                                                 int count);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,

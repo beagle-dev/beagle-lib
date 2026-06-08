@@ -75,9 +75,9 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
 
     const REALTYPE la    = eval[ls];
     const REALTYPE lb    = eval[rs];
-    const REALTYPE coeff = (time * std::abs(la - lb) < 1e-12)
-            ? time * expat[ls]
-            : (expat[ls] - expat[rs]) / (la - lb);
+    const REALTYPE coeff = (collector.time * std::abs(la - lb) < 1e-12)
+            ? collector.time * collector.expat[ls]
+            : (collector.expat[ls] - collector.expat[rs]) / (la - lb);
 
     eigenBasisGrad[ls * S + rs] += collector.get(ls, rs) * coeff;
 }
@@ -132,20 +132,18 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
 
     REALTYPE ic0, ic1;
     if (den < 1e-12) {
-        ic0 = time;
+        ic0 = collector.time;
         ic1 = 0.0;
     } else {
-        const REALTYPE ex = expat[rs] / expat[ls];  // opt 1: was std::exp(t * sr)
-        const REALTYPE cs = cosbt[rs];
-        const REALTYPE sn = sinbt[rs];
+        const REALTYPE ex = collector.expat[rs] / collector.expat[ls];
+        const REALTYPE cs = collector.cosbt[rs];
+        const REALTYPE sn = collector.sinbt[rs];
         ic0 = (ex * (sr * cs + ri * sn) - sr) / den;
         ic1 = (ex * (sr * sn - ri * cs) + ri) / den;
     }
 
-    const REALTYPE c0  = expat[ls] * ic0;
-    const REALTYPE c1  = expat[ls] * ic1;
-    // const REALTYPE in0 = lv1 * rv1 * sc;
-    // const REALTYPE in1 = lv1 * rv2 * sc;
+    const REALTYPE c0  = collector.expat[ls] * ic0;
+    const REALTYPE c1  = collector.expat[ls] * ic1;
     const REALTYPE in0 = collector.get(ls, rs);
     const REALTYPE in1 = collector.get(ls, rs + 1);
 
@@ -209,22 +207,22 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
     const REALTYPE sr  = rb - lr;
     const REALTYPE den = sr * sr + li * li;
 
-    const REALTYPE cI = cosbt[ls];
-    const REALTYPE sI = sinbt[ls];
+    const REALTYPE cI = collector.cosbt[ls];
+    const REALTYPE sI = collector.sinbt[ls];
 
     REALTYPE ic0, ic1;
     if (den < 1e-12) {
-        ic0 = time;
+        ic0 = collector.time;
         ic1 = 0.0;
     } else {
-        const REALTYPE ex = expat[rs] / expat[ls];  // opt 1: was std::exp(t * sr)
+        const REALTYPE ex = collector.expat[rs] / collector.expat[ls];
         ic0 = (ex * (sr * cI + li * sI) - sr) / den;
         ic1 = (ex * (sr * sI - li * cI) + li) / den;
     }
 
     // opt 3: was eR*cI, eR*(-sI), eR*sI, eR*cI with eR=expat[ls]
-    const REALTYPE ec = expatcosbt[ls];  // eR *  cI
-    const REALTYPE es = expatsinbt[ls];  // eR *  sI
+    const REALTYPE ec = collector.expatcosbt[ls];  // eR *  cI
+    const REALTYPE es = collector.expatsinbt[ls];  // eR *  sI
 
     const REALTYPE p0 =  ec * ic0 + es * ic1;
     const REALTYPE p1 =  ec * ic1 - es * ic0;
@@ -340,28 +338,28 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
     const REALTYPE si1 = li + ri;
     const REALTYPE si2 = ri - li;
 
-    const REALTYPE er = expatcosbt[ls];  // opt 3: was expat[ls] * cosbt[ls]
-    const REALTYPE ei = expatsinbt[ls];  // opt 3: was expat[ls] * sinbt[ls]
+    const REALTYPE er = collector.expatcosbt[ls];  // opt 3: was expat[ls] * cosbt[ls]
+    const REALTYPE ei = collector.expatsinbt[ls];  // opt 3: was expat[ls] * sinbt[ls]
 
     const REALTYPE sr2 = sr * sr;
     const REALTYPE d1  = sr2 + si1 * si1;
     const REALTYPE d2  = sr2 + si2 * si2;
 
-    const REALTYPE ex = (d1 >= 1e-12 || d2 >= 1e-12) ? expat[rs] / expat[ls] : 0.0;  // opt 1
+    const REALTYPE ex = (d1 >= 1e-12 || d2 >= 1e-12) ? collector.expat[rs] / collector.expat[ls] : 0.0;
 
     // opt 2: precompute shared products for angle-addition formulas
     // cos(t*(li+ri)) = cos(t*li)*cos(t*ri) - sin(t*li)*sin(t*ri)
     // sin(t*(li+ri)) = sin(t*li)*cos(t*ri) + cos(t*li)*sin(t*ri)
     // cos(t*(ri-li)) = cos(t*li)*cos(t*ri) + sin(t*li)*sin(t*ri)
     // sin(t*(ri-li)) = cos(t*li)*sin(t*ri) - sin(t*li)*cos(t*ri)
-    const REALTYPE clcr = cosbt[ls] * cosbt[rs];
-    const REALTYPE slsr = sinbt[ls] * sinbt[rs];
-    const REALTYPE clsr = cosbt[ls] * sinbt[rs];
-    const REALTYPE slcr = sinbt[ls] * cosbt[rs];
+    const REALTYPE clcr = collector.cosbt[ls] * collector.cosbt[rs];
+    const REALTYPE slsr = collector.sinbt[ls] * collector.sinbt[rs];
+    const REALTYPE clsr = collector.cosbt[ls] * collector.sinbt[rs];
+    const REALTYPE slcr = collector.sinbt[ls] * collector.cosbt[rs];
 
     REALTYPE int1r, int1i;
     if (d1 < 1e-12) {
-        int1r = time;
+        int1r = collector.time;
         int1i = 0.0;
     } else {
         const REALTYPE cs1       = clcr - slsr;        // opt 2: was std::cos(t * si1)
@@ -374,7 +372,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
 
     REALTYPE int2r, int2i;
     if (d2 < 1e-12) {
-        int2r = time;
+        int2r = collector.time;
         int2i = 0.0;
     } else {
         const REALTYPE cs2       = clcr + slsr;        // opt 2: was std::cos(t * si2)
@@ -490,12 +488,12 @@ int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
 
         for (int l = 0; l < stateCount; ++l) {
             const REALTYPE la = eval[l];
-            const REALTYPE ea = expat[l];
+            const REALTYPE ea = collector.expat[l];
             for (int r = 0; r < stateCount; ++r) {
                 const REALTYPE lb    = eval[r];
-                const REALTYPE coeff = (time * std::abs(la - lb) < 1e-12)
-                        ? time * ea
-                        : (ea - expat[r]) / (la - lb);
+                const REALTYPE coeff = (collector.time * std::abs(la - lb) < 1e-12)
+                        ? collector.time * ea
+                        : (ea - collector.expat[r]) / (la - lb);
                 eigenBasisGrad[l * S + r] += collector.get(l, r) * coeff;
             }
         }

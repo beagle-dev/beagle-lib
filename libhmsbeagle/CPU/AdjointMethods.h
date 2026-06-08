@@ -193,15 +193,32 @@ struct SimpleCollector {
     const int stateCount;
     const int stride;
 
-
     const REALTYPE* lhs;
     const REALTYPE* rhs;
     REALTYPE scale;
 
     AdjointMethods<REALTYPE>* plan;
 
+    REALTYPE  time;
+    REALTYPE* expat;
+    REALTYPE* cosbt;
+    REALTYPE* sinbt;
+    REALTYPE* expatcosbt;
+    REALTYPE* expatsinbt;
+
     SimpleCollector(REALTYPE* gradient, const int stateCount, const int stride)
             : gradient(gradient), stateCount(stateCount), stride(stride) { }
+
+    inline void setTime(REALTYPE t, REALTYPE* inExpat,
+            REALTYPE* inCosbt, REALTYPE* inSinbt,
+            REALTYPE* inExpatcosbt, REALTYPE* inExpatsinbt) {
+        time = t;
+        expat = inExpat;
+        cosbt = inCosbt;
+        sinbt = inSinbt;
+        expatcosbt = inExpatcosbt;
+        expatsinbt = inExpatsinbt;
+    }
 
     inline void accumulateScaledOuterProducts(const REALTYPE* lhs, const REALTYPE* rhs, const REALTYPE scale) {
         this->lhs = lhs;
@@ -240,8 +257,26 @@ struct MultipleCollector {
 
     AdjointMethods<REALTYPE>* plan;
 
+    REALTYPE  time;
+    REALTYPE* expat;
+    REALTYPE* cosbt;
+    REALTYPE* sinbt;
+    REALTYPE* expatcosbt;
+    REALTYPE* expatsinbt;
+
     MultipleCollector(REALTYPE* gradient, REALTYPE *buffer, const int stateCount, const int stride)
             : gradient(gradient), buffer(buffer), stateCount(stateCount), stride(stride) { }
+
+    inline void setTime(REALTYPE t, REALTYPE* inExpat,
+            REALTYPE* inCosbt, REALTYPE* inSinbt,
+            REALTYPE* inExpatcosbt, REALTYPE* inExpatsinbt) {
+        time = t;
+        expat = inExpat;
+        cosbt = inCosbt;
+        sinbt = inSinbt;
+        expatcosbt = inExpatcosbt;
+        expatsinbt = inExpatsinbt;
+    }
 
     inline void flush() {
         std::fill(buffer, buffer + stride * stateCount, REALTYPE(0));
