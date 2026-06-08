@@ -103,7 +103,6 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount
 
     gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
     gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
-    gAdjointPartitionBuffers.resize(kStateCount * kStateCount * kPartitionCount, REALTYPE(0));
 
     return returnCode;
 }
@@ -724,61 +723,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
     }
 }
 
-double proportionRepeated(const int* branchEigenIndices, const int count) {
-    double sum = 0.0;
-    int last = branchEigenIndices[0];
-    for (int i = 1; i < count; ++i) {
-        const int index = branchEigenIndices[i];
-        if (index == last) {
-            ++sum;
-        } else {
-            last = index;
-        }
-    }
-    return sum / (double) count;
-}
-
-template <typename REALTYPE>
-void computePerSiteLikelihoods(
-        const REALTYPE* __restrict__ rootPostOrderPartial,
-        const REALTYPE* __restrict__ stateFrequencies,
-        const REALTYPE* __restrict__ categoryWeights,
-        const int kStateCount,
-        const int kStateCountModFour,
-        const int kPatternCount,
-        const int kCategoryCount,
-        const int kPartialsPaddedStateCount,
-        REALTYPE* __restrict__ perSiteLikelihoods) {
-
-    for (int pattern = 0; pattern < kPatternCount; ++pattern) {
-
-        REALTYPE likelihood = REALTYPE(0);
-        for (int category = 0; category < kCategoryCount; ++category) {
-            const int patternIndex = category * kPatternCount + pattern;
-            const int v = patternIndex * kPartialsPaddedStateCount;
-
-            int k = 0;
-            REALTYPE categoryLikelihood1 = REALTYPE(0), categoryLikelihood2 = REALTYPE(0);
-            #pragma clang loop vectorize(enable)
-            for ( ; k < kStateCountModFour; k += 4) {
-                categoryLikelihood1 += rootPostOrderPartial[v + k + 0] * stateFrequencies[k + 0];
-                categoryLikelihood2 += rootPostOrderPartial[v + k + 1] * stateFrequencies[k + 1];
-                categoryLikelihood1 += rootPostOrderPartial[v + k + 2] * stateFrequencies[k + 2];
-                categoryLikelihood2 += rootPostOrderPartial[v + k + 3] * stateFrequencies[k + 3];
-            }
-
-            for ( ; k < kStateCount; k++) {
-                categoryLikelihood1 += rootPostOrderPartial[v + k] * stateFrequencies[k];
-            }
-
-            const REALTYPE weight = categoryWeights[category];
-            likelihood += (categoryLikelihood1 + categoryLikelihood2) * weight;
-        }
-
-        perSiteLikelihoods[pattern] = likelihood;
-    }
-}
-
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
         const int *postBufferIndices,
@@ -810,7 +754,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
                 const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
                 AdjointMethods<REALTYPE>* plan =
                     gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
-                plan->setTime(categoryRate * info.branchLength,
+                collector.setTime(categoryRate * info.branchLength,
                     info.expat + infoOffset,
                     info.cosbt + infoOffset, info.sinbt + infoOffset,
                     info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
@@ -859,142 +803,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
             iterateOverNodes(collector);
         }
     }
-}
-
-BEAGLE_CPU_TEMPLATE
-int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
-        const int *postBufferIndices,
-        const int *preBufferIndices,
-        const int *branchEigenIndices,
-        const double *categoryRates,
-        const REALTYPE *categoryWeights,
-        const REALTYPE *perSiteLikelihoods,
-        REALTYPE *buffer,
-        int count) {
-
-    const int gradSize = kStateCount * kStateCount;
-
-    std::fill(buffer, buffer + gradSize, REALTYPE(0));
-    if (kNumThreads > 1) {
-        std::fill(gAdjointPartitionBuffers.begin(), gAdjointPartitionBuffers.end(), REALTYPE(0));
-    }
-
-    memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
-    for (int p = 0; p < kPartitionCount; ++p) {
-        const int t = p % kNumThreads;
-        gThreadOperations[t][gThreadOpCounts[t]] = p;
-        ++gThreadOpCounts[t];
-    }
-
-    for (int i = 0; i < kNumThreads; ++i) {
-        auto b = [this, i, count, gradSize, buffer,
-                  postBufferIndices, preBufferIndices, branchEigenIndices,
-                  categoryRates, categoryWeights, perSiteLikelihoods]() {
-            for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
-                const int p = gThreadOperations[i][opIdx];
-                const int startPattern = gPatternPartitionsStartPatterns[p];
-                const int endPattern   = gPatternPartitionsStartPatterns[p + 1];
-                REALTYPE* partBuffer = (i == 0) ? buffer
-                                                : gAdjointPartitionBuffers.data() + p * gradSize;
-                calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
-                                              categoryRates, categoryWeights, perSiteLikelihoods,
-                                              partBuffer, count,
-                                              startPattern, endPattern, p);
-            }
-        };
-        std::packaged_task<void()> threadTask(std::move(b));
-
-        gFutures[i] = threadTask.get_future();
-        threadData* td = &gThreads[i];
-        std::unique_lock<std::mutex> l(td->m);
-        td->jobs.push(std::move(threadTask));
-        l.unlock();
-        gThreads[i].cv.notify_one();
-    }
-
-    for (int i = 0; i < kNumThreads; ++i) {
-        gFutures[i].wait();
-    }
-
-    if (kNumThreads > 1) {
-        for (int t = 1; t < kNumThreads; ++t) {
-            for (int opIdx = 0; opIdx < gThreadOpCounts[t]; ++opIdx) {
-                const int p = gThreadOperations[t][opIdx];
-                const REALTYPE* partBuffer = gAdjointPartitionBuffers.data() + p * gradSize;
-                for (int i = 0; i < gradSize; ++i) {
-                    buffer[i] += partBuffer[i];
-                }
-            }
-        }
-    }
-
-    return BEAGLE_SUCCESS;
-}
-
-BEAGLE_CPU_TEMPLATE
-int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(
-        const int *postBufferIndices,
-        const int *preBufferIndices,
-        const int *branchEigenIndices,
-        const int *categoryRatesIndices,
-        const int *categoryWeightsIndices,
-        const int rootPostOrderIndex,
-        const int stateFrequenciesIndex,
-        int count,
-        double *outSumDerivatives,
-        double *outSumSquaredDerivatives) {
-
-    int returnCode = BEAGLE_SUCCESS;
-
-    const int secondDerivativeIndex = BEAGLE_OP_NONE;
-    const double *categoryRates = gCategoryRates[categoryRatesIndices[0]]; // TODO Generalize
-    const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]]; // TODO Generalize
-    const REALTYPE *stateFrequencies = gStateFrequencies[stateFrequenciesIndex];
-
-    REALTYPE* buffer;
-    std::vector<REALTYPE> realTypeBuffer;
-    if constexpr (!std::is_same_v<REALTYPE, double>) {
-        realTypeBuffer.resize(kStateCount * kStateCount * kCategoryCount);
-        buffer = realTypeBuffer.data();
-    } else {
-        buffer = outSumDerivatives;
-    }
-
-    if (gPatternScaleTmp.size() < kPatternCount) {
-        gPatternScaleTmp.resize(kPatternCount);
-    }
-    REALTYPE* perSiteLikelihoods = gPatternScaleTmp.data();
-
-#ifndef USE_BRANCH_LIKELIHOOD
-    computePerSiteLikelihoods(gPartials[rootPostOrderIndex],
-        stateFrequencies,
-        categoryWeights,
-        kStateCount, kStateCountModFour, kPatternCount, kCategoryCount, kPartialsPaddedStateCount,
-        perSiteLikelihoods);
-#endif
-
-    const int outerProductSize = kNumThreads * kStateCount * kStateCount;
-    if (static_cast<int>(gOuterProductTmp.size()) < outerProductSize) {
-        gOuterProductTmp.resize(outerProductSize);
-    }
-
-    if (kAutoPartitioningEnabled && kPartitionCount > 1) {
-        returnCode = calcAdjointCrossProductsByPartitionAsync(
-            postBufferIndices, preBufferIndices, branchEigenIndices,
-            categoryRates, categoryWeights, perSiteLikelihoods,
-            buffer, count);
-    } else {
-        std::fill(buffer, buffer + kStateCount * kStateCount, REALTYPE(0));
-        calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
-                                      categoryRates, categoryWeights, perSiteLikelihoods,
-                                      buffer, count, 0, kPatternCount, 0);
-    }
-
-    if constexpr (!std::is_same_v<REALTYPE, double>) {
-        beagleMemCpy(outSumDerivatives, buffer, kStateCount * kStateCount * kCategoryCount);
-    }
-
-    return returnCode;
 }
 
 template <typename REALTYPE>
