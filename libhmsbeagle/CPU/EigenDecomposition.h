@@ -99,7 +99,7 @@ public:
 
     virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
 
-    virtual AdjointMethods<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const { return nullptr; };
+    virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const { return nullptr; };
 };
 
 }

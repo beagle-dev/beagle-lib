@@ -20,21 +20,13 @@ namespace beagle {
 namespace cpu {
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-class AdjointMethods {
+class AdjointIntegralPlan {
 
     const REALTYPE* eval;
     const int       stateCount;
     const bool      allReal;
 
-    // Per-index precomputed values (indexed by base eigenvalue position)
-    std::vector<REALTYPE> gexpat;        // exp(t * evalR[i])
-    std::vector<REALTYPE> gcosbt;        // cos(t * evalI[i])   -- complex indices only
-    std::vector<REALTYPE> gsinbt;        // sin(t * evalI[i])   -- complex indices only
-    std::vector<REALTYPE> gexpatcosbt;   // expat[i] * cosbt[i] -- complex indices only
-    std::vector<REALTYPE> gexpatsinbt;   // expat[i] * sinbt[i] -- complex indices only
-
-    REALTYPE *expat, *cosbt, *sinbt, *expatcosbt, *expatsinbt;
-
+    const REALTYPE  *expat, *cosbt, *sinbt, *expatcosbt, *expatsinbt;
     REALTYPE time;
 
 #ifdef OPT5
@@ -44,13 +36,9 @@ class AdjointMethods {
 #endif
 
 public:
-    AdjointMethods(const REALTYPE* eval, const int stateCount, const bool onlyReal)
+    AdjointIntegralPlan(const REALTYPE* eval, const int stateCount, const bool onlyReal)
         : eval(eval), stateCount(stateCount),
-          gexpat(stateCount), allReal(onlyReal || !containsImagineryValues(eval, stateCount)),
-          gcosbt(allReal ? 0 : stateCount), gsinbt(allReal ? 0 : stateCount),
-          gexpatcosbt(allReal ? 0 : stateCount), gexpatsinbt(allReal ? 0 : stateCount),
-          expat(gexpat.data()), cosbt(gcosbt.data()), sinbt(gsinbt.data()),
-          expatcosbt(gexpatcosbt.data()), expatsinbt(gexpatsinbt.data()) {
+          allReal(onlyReal || !containsImagineryValues(eval, stateCount)) {
 
 #ifdef OPT5
         for (int i = 0; i < stateCount; ) {
@@ -81,41 +69,8 @@ public:
     template <typename C>
     inline int accumulateEigenBasisGradient(
             const C& collector,
-            REALTYPE*       outRateGradient,
-            const int       S);
-
-    inline void setTime(const REALTYPE inTime,
-            REALTYPE* inExpat,
-            REALTYPE* inCosbt, REALTYPE* inSinbt,
-            REALTYPE* inExpatcosbt, REALTYPE* inExpatsinbt) {
-        time = inTime;
-        expat = inExpat;
-        cosbt = inCosbt;
-        sinbt = inSinbt;
-        expatcosbt = inExpatcosbt;
-        expatsinbt = inExpatsinbt;
-    }
-
-    inline void setTime(const REALTYPE inTime) {
-        time = inTime;
-        for (int i = 0; i < stateCount; ++i) {
-            expat[i] = std::exp(time * eval[i]);
-        }
-        if (!allReal) {
-            for (int i = 0; i < stateCount; ++i) {
-                const REALTYPE imag = eval[stateCount + i];
-                if (!isReal(imag)) {
-                    const REALTYPE c = std::cos(time * imag);
-                    const REALTYPE s = std::sin(time * imag);
-                    cosbt[i]      = c;
-                    sinbt[i]      = s;
-                    expatcosbt[i] = expat[i] * c;
-                    expatsinbt[i] = expat[i] * s;
-                    ++i;
-                }
-            }
-        }
-    }
+            REALTYPE* outRateGradient,
+            const int stride);
 
     inline static bool isReal(const REALTYPE value) {
         return value == static_cast<REALTYPE>(0);
@@ -175,7 +130,6 @@ private:
             const int ls, const int rs,
             REALTYPE* __restrict__ eigenBasisGrad, const int S);
 
-
     static bool containsImagineryValues(const REALTYPE* eval, const int stateCount) {
         for (int i = 0; i < stateCount; ++i) {
             if (!isReal(eval[stateCount + i])) {
@@ -187,31 +141,27 @@ private:
 };
 
 template <typename REALTYPE>
-struct SimpleCollector {
+struct CollectorBase {
 
     REALTYPE* gradient;
     const int stateCount;
     const int stride;
 
-    const REALTYPE* lhs;
-    const REALTYPE* rhs;
-    REALTYPE scale;
+    AdjointIntegralPlan<REALTYPE>* plan;
 
-    AdjointMethods<REALTYPE>* plan;
+    REALTYPE time;
+    const REALTYPE* expat;
+    const REALTYPE* cosbt;
+    const REALTYPE* sinbt;
+    const REALTYPE* expatcosbt;
+    const REALTYPE* expatsinbt;
 
-    REALTYPE  time;
-    REALTYPE* expat;
-    REALTYPE* cosbt;
-    REALTYPE* sinbt;
-    REALTYPE* expatcosbt;
-    REALTYPE* expatsinbt;
-
-    SimpleCollector(REALTYPE* gradient, const int stateCount, const int stride)
+    CollectorBase(REALTYPE* gradient, const int stateCount, const int stride)
             : gradient(gradient), stateCount(stateCount), stride(stride) { }
 
-    inline void setTime(REALTYPE t, REALTYPE* inExpat,
-            REALTYPE* inCosbt, REALTYPE* inSinbt,
-            REALTYPE* inExpatcosbt, REALTYPE* inExpatsinbt) {
+    inline void setTime(const REALTYPE t, const REALTYPE* inExpat,
+            const REALTYPE* inCosbt, const REALTYPE* inSinbt,
+            const REALTYPE* inExpatcosbt, const REALTYPE* inExpatsinbt) {
         time = t;
         expat = inExpat;
         cosbt = inCosbt;
@@ -219,6 +169,26 @@ struct SimpleCollector {
         expatcosbt = inExpatcosbt;
         expatsinbt = inExpatsinbt;
     }
+
+    inline void setPlan(AdjointIntegralPlan<REALTYPE>* inPlan) {
+        plan = inPlan;
+    }
+};
+
+template <typename REALTYPE>
+struct SimpleCollector : CollectorBase<REALTYPE> {
+    using Base = CollectorBase<REALTYPE>;
+    using Base::gradient;
+    using Base::stateCount;
+    using Base::stride;
+    using Base::plan;
+
+    const REALTYPE* lhs;
+    const REALTYPE* rhs;
+    REALTYPE scale;
+
+    SimpleCollector(REALTYPE* gradient, const int stateCount, const int stride)
+            : Base(gradient, stateCount, stride) { }
 
     inline void accumulateScaledOuterProducts(const REALTYPE* lhs, const REALTYPE* rhs, const REALTYPE scale) {
         this->lhs = lhs;
@@ -236,47 +206,21 @@ struct SimpleCollector {
         return lhs[i] * rhs[j] * scale;
     }
 
-    inline void setPlan(AdjointMethods<REALTYPE>* plan) {
-        this->plan = plan;
-    }
-
-    inline AdjointMethods<REALTYPE>* getPlan() {
-        return plan;
-    }
-
     inline void flush() { }
 };
 
 template <typename REALTYPE>
-struct MultipleCollector {
+struct MultipleCollector : CollectorBase<REALTYPE> {
+    using Base = CollectorBase<REALTYPE>;
+    using Base::gradient;
+    using Base::stateCount;
+    using Base::stride;
+    using Base::plan;
 
-    REALTYPE* gradient;
     REALTYPE* buffer;
-    const int stateCount;
-    const int stride;
-
-    AdjointMethods<REALTYPE>* plan;
-
-    REALTYPE  time;
-    REALTYPE* expat;
-    REALTYPE* cosbt;
-    REALTYPE* sinbt;
-    REALTYPE* expatcosbt;
-    REALTYPE* expatsinbt;
 
     MultipleCollector(REALTYPE* gradient, REALTYPE *buffer, const int stateCount, const int stride)
-            : gradient(gradient), buffer(buffer), stateCount(stateCount), stride(stride) { }
-
-    inline void setTime(REALTYPE t, REALTYPE* inExpat,
-            REALTYPE* inCosbt, REALTYPE* inSinbt,
-            REALTYPE* inExpatcosbt, REALTYPE* inExpatsinbt) {
-        time = t;
-        expat = inExpat;
-        cosbt = inCosbt;
-        sinbt = inSinbt;
-        expatcosbt = inExpatcosbt;
-        expatsinbt = inExpatsinbt;
-    }
+            : Base(gradient, stateCount, stride), buffer(buffer) { }
 
     inline void flush() {
         std::fill(buffer, buffer + stride * stateCount, REALTYPE(0));
@@ -299,14 +243,6 @@ struct MultipleCollector {
 
     inline const REALTYPE get(int i, int j) const {
         return buffer[i * stride + j];
-    }
-
-    inline void setPlan(AdjointMethods<REALTYPE>* plan) {
-        this->plan = plan;
-    }
-
-    inline AdjointMethods<REALTYPE>* getPlan() {
-        return plan;
     }
 
     inline void accumulateEigenBasisGradient() {

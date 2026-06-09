@@ -752,7 +752,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
 
             auto setupCollector = [&](const int branchEigenIndex) {
                 const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
-                AdjointMethods<REALTYPE>* plan =
+                AdjointIntegralPlan<REALTYPE>* plan =
                     gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
                 collector.setTime(categoryRate * info.branchLength,
                     info.expat + infoOffset,

@@ -107,7 +107,7 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition
     rescale(tIvec.data(), eval.data(), 2.0);
 #endif
 
-    adjointMethodsStorage[eigenIndex] = std::make_shared<AdjointMethods<REALTYPE>>(
+    adjointMethodsStorage[eigenIndex] = std::make_shared<AdjointIntegralPlan<REALTYPE>>(
         eigenValuesStorage[eigenIndex].data(), kStateCount, false);
 }
 
@@ -206,7 +206,7 @@ const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwar
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
-AdjointMethods<REALTYPE>* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getAdjointMethodsPtr(
+AdjointIntegralPlan<REALTYPE>* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getAdjointMethodsPtr(
         int eigenIndex) const {
     return adjointMethodsStorage[eigenIndex].get();
 }

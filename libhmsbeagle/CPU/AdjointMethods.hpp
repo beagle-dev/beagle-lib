@@ -15,7 +15,7 @@ namespace cpu {
 
 // branchLikelihoodInEigenBasis: uses expcosbt/expsinbt instead of per-call multiply
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-REALTYPE AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEigenBasis(
+REALTYPE AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEigenBasis(
         const REALTYPE* lhs,
         const REALTYPE* rhs) {
 
@@ -49,7 +49,7 @@ REALTYPE AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEigenBas
 
 // computeOneByOneBlock: unchanged from AdjointMethods2 — already uses precomputed expat
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv, const REALTYPE rv,
         const REALTYPE scale,
@@ -67,7 +67,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const C& collector,
         const int ls, const int rs,
         REALTYPE* __restrict__ eigenBasisGrad,
@@ -84,7 +84,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
 
 // computeOneByTwoBlock: opt 1 — exp(t*sr) → expat[rs]/expat[ls]
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE rv1, const REALTYPE rv2,
         const REALTYPE sc,
@@ -119,7 +119,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const C& collector,
         const int ls, const int rs,
         REALTYPE* __restrict__ eigenBasisGrad, const int S) {
@@ -153,7 +153,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
 
 // computeTwoByOneBlock: opt 1 — exp(t*sr) → expat[rs]/expat[ls]; opt 3 — expcosbt/expsinbt
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE lv2, const REALTYPE rv1,
         const REALTYPE sc,
@@ -196,7 +196,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const C& collector,
         const int ls, const int rs,
         REALTYPE* __restrict__ eigenBasisGrad, const int S) {
@@ -240,7 +240,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
 //            opt 2 — 4 cos/sin calls → angle-addition using cosbt/sinbt
 //            opt 3 — expcosbt/expsinbt for er/ei
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE lv2,
         const REALTYPE rv1, const REALTYPE rv2,
@@ -324,7 +324,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename CC>
-void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
+void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const CC& collector,
         const int ls, const int rs,
         REALTYPE* __restrict__ eigenBasisGrad, const int S) {
@@ -407,7 +407,7 @@ void AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
 #ifdef OPT5
 // accumulateEigenBasisGradient: opt 5 — pre-classified indices eliminate inner branches
 BEAGLE_CPU_ADJOINT3_TEMPLATE
-int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
+int AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         const int       M,
         const REALTYPE* __restrict__ lhs,
         const REALTYPE* __restrict__ rhs,
@@ -477,7 +477,7 @@ int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
 
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
-int AdjointMethods<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
+int AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         const C& collector,
         REALTYPE* __restrict__ outRateGradient,
         const int S) {
