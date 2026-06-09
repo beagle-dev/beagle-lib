@@ -37,7 +37,7 @@ private:
     std::vector<std::vector<REALTYPE>> transposedEigenVectorsStorage;
     std::vector<std::vector<REALTYPE>> transposedInverseEigenVectorsStorage;
 
-    std::vector<std::shared_ptr<AdjointMethods<REALTYPE>>> adjointMethodsStorage;
+    std::vector<std::shared_ptr<AdjointIntegralPlan<REALTYPE>>> adjointMethodsStorage;
 
 public:
     EigenDecompositionSpectral(int decompositionCount,
@@ -81,7 +81,7 @@ public:
 
     const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const override;
 
-    AdjointMethods<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const override;
+    AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const override;
 
 private:
     void rescale(REALTYPE* rowVectors, const REALTYPE* eval, REALTYPE scalar);
