@@ -1772,34 +1772,28 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
         int count) {
 
     const int gradSize = kStateCount * kStateCount;
-    const double prop = proportionRepeated(branchEigenIndices, 0, count);
 
     std::fill(buffer, buffer + gradSize, REALTYPE(0));
     if (kNumThreads > 1) {
         std::fill(gAdjointPartitionBuffers.begin(), gAdjointPartitionBuffers.end(), REALTYPE(0));
     }
 
-    memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
-    for (int p = 0; p < kPartitionCount; ++p) {
-        const int t = p % kNumThreads;
-        gThreadOperations[t][gThreadOpCounts[t]] = p;
-        ++gThreadOpCounts[t];
-    }
+    const int chunkSize = (count + kNumThreads - 1) / kNumThreads;
 
     for (int i = 0; i < kNumThreads; ++i) {
-        auto b = [this, i, count, gradSize, buffer, prop,
+        const int startNode = i * chunkSize;
+        const int endNode   = std::min(startNode + chunkSize, count);
+        auto b = [this, i, gradSize, buffer,
                   postBufferIndices, preBufferIndices, branchEigenIndices,
-                  categoryRates, categoryWeights, perSiteLikelihoods]() {
-            for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
-                const int p = gThreadOperations[i][opIdx];
-                const int startPattern = gPatternPartitionsStartPatterns[p];
-                const int endPattern   = gPatternPartitionsStartPatterns[p + 1];
-                REALTYPE* partBuffer = (i == 0) ? buffer
-                                                : gAdjointPartitionBuffers.data() + p * gradSize;
+                  categoryRates, categoryWeights, perSiteLikelihoods,
+                  startNode, endNode]() {
+            REALTYPE* partBuffer = (i == 0) ? buffer
+                                            : gAdjointPartitionBuffers.data() + i * gradSize;
+            if (startNode < endNode) {
                 calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
                                               categoryRates, categoryWeights, perSiteLikelihoods,
                                               partBuffer,
-                                              0, count, startPattern, endPattern, p);
+                                              startNode, endNode, 0, kPatternCount, i);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1818,12 +1812,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
 
     if (kNumThreads > 1) {
         for (int t = 1; t < kNumThreads; ++t) {
-            for (int opIdx = 0; opIdx < gThreadOpCounts[t]; ++opIdx) {
-                const int p = gThreadOperations[t][opIdx];
-                const REALTYPE* partBuffer = gAdjointPartitionBuffers.data() + p * gradSize;
-                for (int i = 0; i < gradSize; ++i) {
-                    buffer[i] += partBuffer[i];
-                }
+            const REALTYPE* partBuffer = gAdjointPartitionBuffers.data() + t * gradSize;
+            for (int i = 0; i < gradSize; ++i) {
+                buffer[i] += partBuffer[i];
             }
         }
     }
