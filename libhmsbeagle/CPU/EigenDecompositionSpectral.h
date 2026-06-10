@@ -33,7 +33,7 @@ private:
     std::vector<std::vector<REALTYPE>> eigenVectorsStorage;
     std::vector<std::vector<REALTYPE>> inverseEigenVectorsStorage;
 
-    std::vector<std::vector<REALTYPE>> transposedEigenValuesStorage;
+    // std::vector<std::vector<REALTYPE>> transposedEigenValuesStorage;
     std::vector<std::vector<REALTYPE>> transposedEigenVectorsStorage;
     std::vector<std::vector<REALTYPE>> transposedInverseEigenVectorsStorage;
 
@@ -75,7 +75,7 @@ public:
 
     const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const override;
 
-    const REALTYPE* getBackwardsEigenValuesPtr(int eigenIndex) const override;
+    // const REALTYPE* getBackwardsEigenValuesPtr(int eigenIndex) const override;
 
     const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const override;
 

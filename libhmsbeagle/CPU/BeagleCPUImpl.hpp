@@ -497,6 +497,19 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         }
     }
 
+    gBranchEigenInfo.resize(kMatrixCount);
+
+    gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
+    gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
+    gTime.resize(kMatrixCount * kCategoryCount);
+
+    const int eigenComputationLength = kMatrixCount * kCategoryCount * kPartialsPaddedStateCount;
+    gExpAt.resize(eigenComputationLength);
+    gCosBt.resize(eigenComputationLength);
+    gSinBt.resize(eigenComputationLength);
+    gExpAtCosBt.resize(eigenComputationLength);
+    gExpAtSinBt.resize(eigenComputationLength);
+
     return BEAGLE_SUCCESS;
 }
 
@@ -569,6 +582,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
             kAutoPartitioningEnabled = true;
         }
     }
+
+    gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
+    gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
 
     return BEAGLE_SUCCESS;
 }
@@ -1260,8 +1276,68 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
     //     printf("uTM %d %d %f %d\n", eigenIndex, probabilityIndices[i], edgeLengths[i], 0);
     // }
 
+    updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
+
     gEigenDecomposition->updateTransitionMatrices(eigenIndex,probabilityIndices,firstDerivativeIndices,secondDerivativeIndices,
                                                   edgeLengths,gCategoryRates[0],gTransitionMatrices,count);
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
+                                                             const int* probabilityIndices,
+                                                             const double* edgeLengths,
+                                                             int count) {
+    for (int i = 0; i < count; i++) {
+        const int index = probabilityIndices[i];
+        auto& info = gBranchEigenInfo[index];
+        info.branchLength = edgeLengths[i];
+        info.eigenIndex = eigenIndex;
+        info.categoryRatesIndex = 0; // TODO: Implement category rates index
+
+        REALTYPE* __restrict__ times = &gTime[index * kCategoryCount];
+        REALTYPE* __restrict__ expat = &gExpAt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        REALTYPE* __restrict__ cosbt = &gCosBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        REALTYPE* __restrict__ sinbt = &gSinBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        REALTYPE* __restrict__ expatcosbt = &gExpAtCosBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        REALTYPE* __restrict__ expatsinbt = &gExpAtSinBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        const REALTYPE* __restrict__ eval = gEigenDecomposition->getEigenValuesPtr(eigenIndex);
+
+        for (int j = 0; j < kCategoryCount; ++j) {
+            const REALTYPE time = info.branchLength * gCategoryRates[info.categoryRatesIndex][j];
+            times[j] = time;
+
+            const int offset = j * kPartialsPaddedStateCount;
+
+            for (int i = 0; i < kStateCount; ++i) {
+                const REALTYPE e = std::exp(time * eval[i]);
+                expat[offset + i] = e;
+
+                const REALTYPE imag = eval[kStateCount + i];
+                if (std::abs(imag) != REALTYPE(0)){
+                    const REALTYPE c = std::cos(time * imag);
+                    const REALTYPE s = std::sin(time * imag);
+                    cosbt[offset + i]      = c;
+                    sinbt[offset + i]      = s;
+                    expatcosbt[offset + i] = e * c;
+                    expatsinbt[offset + i] = e * s;
+                    ++i;
+                } else {
+                    cosbt[offset + i] = REALTYPE(1);
+                    sinbt[offset + i] = REALTYPE(0);
+                }
+            }
+        }
+
+        info.eval = eval;
+        info.time = times;
+        info.expat = expat;
+        info.cosbt = cosbt;
+        info.sinbt = sinbt;
+        info.expatcosbt = expatcosbt;
+        info.expatsinbt = expatsinbt;
+    }
+
     return BEAGLE_SUCCESS;
 }
 
@@ -1543,7 +1619,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateCrossProducts(const int *postBuf
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *postBufferIndices,
                                                                      const int *preBufferIndices,
-                                                                     const int *eigenIndices,
+                                                                     const int *transitionIndices,
                                                                      const int *categoryRatesIndices,
                                                                      const int *categoryWeightsIndices,
                                                                      const int rootPostOrderIndex,
@@ -1553,7 +1629,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      double *outSumSquaredDerivatives) {
     return calcAdjointCrossProducts(
             postBufferIndices, preBufferIndices,
-            eigenIndices,
+            transitionIndices,
             categoryRatesIndices,
             categoryWeightsIndices,
             rootPostOrderIndex,
@@ -1563,10 +1639,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
             outSumSquaredDerivatives);
 }
 
-inline double proportionRepeated(const int* branchEigenIndices, const int count) {
+inline double proportionRepeated(const int* branchEigenIndices, const int start, const int end) {
     double sum = 0.0;
-    int last = branchEigenIndices[0];
-    for (int i = 1; i < count; ++i) {
+    int last = branchEigenIndices[start];
+    for (int i = start + 1; i < end; ++i) {
         const int index = branchEigenIndices[i];
         if (index == last) {
             ++sum;
@@ -1574,7 +1650,7 @@ inline double proportionRepeated(const int* branchEigenIndices, const int count)
             last = index;
         }
     }
-    return sum / (double) count;
+    return sum / (double) (end - start);
 }
 
 template <typename REALTYPE>
@@ -1584,12 +1660,14 @@ void computePerSiteLikelihoods(
         const REALTYPE* __restrict__ categoryWeights,
         const int kStateCount,
         const int kStateCountModFour,
+        const int patternStart,
+        const int patternEnd,
         const int kPatternCount,
         const int kCategoryCount,
         const int kPartialsPaddedStateCount,
         REALTYPE* __restrict__ perSiteLikelihoods) {
 
-    for (int pattern = 0; pattern < kPatternCount; ++pattern) {
+    for (int pattern = patternStart; pattern < patternEnd; ++pattern) {
 
         REALTYPE likelihood = REALTYPE(0);
         for (int category = 0; category < kCategoryCount; ++category) {
@@ -1621,7 +1699,7 @@ void computePerSiteLikelihoods(
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postBufferIndices,
                                                                 const int *preBufferIndices,
-                                                                const int *branchEigenIndices,
+                                                                const int *transitionIndices,
                                                                 const int *categoryRatesIndices,
                                                                 const int *categoryWeightsIndices,
                                                                 const int rootPostOrderIndex,
@@ -1653,7 +1731,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
 #ifndef USE_BRANCH_LIKELIHOOD
     computePerSiteLikelihoods(gPartials[rootPostOrderIndex],
         stateFrequencies, categoryWeights,
-        kStateCount, (kStateCount / 4) * 4, kPatternCount, kCategoryCount, kPartialsPaddedStateCount,
+        kStateCount, (kStateCount / 4) * 4, 0, kPatternCount, kPatternCount, kCategoryCount, kPartialsPaddedStateCount,
         perSiteLikelihoods);
 #endif
 
@@ -1664,14 +1742,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
 
     if (kAutoPartitioningEnabled && kPartitionCount > 1) {
         returnCode = calcAdjointCrossProductsByPartitionAsync(
-            postBufferIndices, preBufferIndices, branchEigenIndices,
+            postBufferIndices, preBufferIndices, transitionIndices,
             categoryRates, categoryWeights, perSiteLikelihoods,
             buffer, count);
     } else {
         std::fill(buffer, buffer + kStateCount * kStateCount, REALTYPE(0));
-        calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
+        calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, transitionIndices,
                                       categoryRates, categoryWeights, perSiteLikelihoods,
-                                      buffer, count, 0, kPatternCount, 0);
+                                      buffer,
+                                      0, count, 0, kPatternCount, 0);
     }
 
     if constexpr (!std::is_same_v<REALTYPE, double>) {
@@ -1682,7 +1761,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
 }
 
 BEAGLE_CPU_TEMPLATE
-int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
         const int *postBufferIndices,
         const int *preBufferIndices,
         const int *branchEigenIndices,
@@ -1693,7 +1772,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
         int count) {
 
     const int gradSize = kStateCount * kStateCount;
-    const double prop = proportionRepeated(branchEigenIndices, count);
+    const double prop = proportionRepeated(branchEigenIndices, 0, count);
 
     std::fill(buffer, buffer + gradSize, REALTYPE(0));
     if (kNumThreads > 1) {
@@ -1719,8 +1798,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
                                                 : gAdjointPartitionBuffers.data() + p * gradSize;
                 calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
                                               categoryRates, categoryWeights, perSiteLikelihoods,
-                                              partBuffer, count,
-                                              startPattern, endPattern, p);
+                                              partBuffer,
+                                              0, count, startPattern, endPattern, p);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1750,6 +1829,312 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
     }
 
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
+        const int *postBufferIndices,
+        const int *preBufferIndices,
+        const int *branchEigenIndices,
+        const double *categoryRates,
+        const REALTYPE *categoryWeights,
+        const REALTYPE *perSiteLikelihoods,
+        REALTYPE *buffer,
+        int count) {
+
+    const int gradSize = kStateCount * kStateCount;
+    const double prop = proportionRepeated(branchEigenIndices, 0, count);
+
+    std::fill(buffer, buffer + gradSize, REALTYPE(0));
+    if (kNumThreads > 1) {
+        std::fill(gAdjointPartitionBuffers.begin(), gAdjointPartitionBuffers.end(), REALTYPE(0));
+    }
+
+    memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
+    for (int p = 0; p < kPartitionCount; ++p) {
+        const int t = p % kNumThreads;
+        gThreadOperations[t][gThreadOpCounts[t]] = p;
+        ++gThreadOpCounts[t];
+    }
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        auto b = [this, i, count, gradSize, buffer, prop,
+                  postBufferIndices, preBufferIndices, branchEigenIndices,
+                  categoryRates, categoryWeights, perSiteLikelihoods]() {
+            for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
+                const int p = gThreadOperations[i][opIdx];
+                const int startPattern = gPatternPartitionsStartPatterns[p];
+                const int endPattern   = gPatternPartitionsStartPatterns[p + 1];
+                REALTYPE* partBuffer = (i == 0) ? buffer
+                                                : gAdjointPartitionBuffers.data() + p * gradSize;
+                calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
+                                              categoryRates, categoryWeights, perSiteLikelihoods,
+                                              partBuffer,
+                                              0, count, startPattern, endPattern, p);
+            }
+        };
+        std::packaged_task<void()> threadTask(std::move(b));
+
+        gFutures[i] = threadTask.get_future();
+        threadData* td = &gThreads[i];
+        std::unique_lock<std::mutex> l(td->m);
+        td->jobs.push(std::move(threadTask));
+        l.unlock();
+        gThreads[i].cv.notify_one();
+    }
+
+    for (int i = 0; i < kNumThreads; ++i) {
+        gFutures[i].wait();
+    }
+
+    if (kNumThreads > 1) {
+        for (int t = 1; t < kNumThreads; ++t) {
+            for (int opIdx = 0; opIdx < gThreadOpCounts[t]; ++opIdx) {
+                const int p = gThreadOperations[t][opIdx];
+                const REALTYPE* partBuffer = gAdjointPartitionBuffers.data() + p * gradSize;
+                for (int i = 0; i < gradSize; ++i) {
+                    buffer[i] += partBuffer[i];
+                }
+            }
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
+        const int *postBufferIndices,
+        const int *preBufferIndices,
+        const int *branchEigenIndices,
+        const double *categoryRates,
+        const REALTYPE *categoryWeights,
+        const REALTYPE *perSiteLikelihoods,
+        REALTYPE *buffer,
+        int startNode,
+        int endNode,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    const double prop = proportionRepeated(branchEigenIndices, startNode, endNode);
+    const bool useMultiCollector = ((endPattern - startPattern) > 1 || prop > 0.1);
+
+    REALTYPE* outerProductTmp = gOuterProductTmp.data() + currentPartition * kStateCount * kStateCount;
+
+    for (int category = 0; category < kCategoryCount; ++category) {
+
+        const REALTYPE categoryRate   = static_cast<REALTYPE>(categoryRates[category]);
+        const int      infoOffset     = category * kPartialsPaddedStateCount;
+        const REALTYPE categoryWeight = categoryWeights[category];
+
+        auto iterateOverNodes = [&](auto& collector) {
+
+            auto setupCollector = [&](const int branchEigenIndex) {
+                const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
+                AdjointIntegralPlan<REALTYPE>* plan =
+                    gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex);
+                collector.setTime(categoryRate * info.branchLength,
+                    info.expat + infoOffset,
+                    info.cosbt + infoOffset, info.sinbt + infoOffset,
+                    info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
+                collector.setPlan(plan);
+                collector.flush();
+            };
+
+            setupCollector(branchEigenIndices[0]);
+            int lastBranchEigenIndex = branchEigenIndices[0];
+
+            for (int nodeNum = startNode; nodeNum < endNode; ++nodeNum) {
+                const int branchEigenIndex = branchEigenIndices[nodeNum];
+                if (branchEigenIndex != lastBranchEigenIndex) {
+                    collector.accumulateEigenBasisGradient();
+                    setupCollector(branchEigenIndex);
+                    lastBranchEigenIndex = branchEigenIndex;
+                }
+
+                const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
+                const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
+
+                if (tipStates != nullptr) {
+                    calcAdjointCrossProducts<States, WithRotation>(
+                        nullptr, tipStates, preOrderPartial,
+                        branchEigenIndex, perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector, startPattern, endPattern, currentPartition);
+                } else {
+                    const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
+                    calcAdjointCrossProducts<Partials, WithRotation>(
+                        postOrderPartial, nullptr, preOrderPartial,
+                        branchEigenIndex, perSiteLikelihoods,
+                        category, categoryWeight,
+                        collector, startPattern, endPattern, currentPartition);
+                }
+            }
+
+            collector.accumulateEigenBasisGradient();
+        };
+
+        if (useMultiCollector) {
+            MultipleCollector<REALTYPE> collector(buffer, outerProductTmp, kStateCount, kStateCount);
+            iterateOverNodes(collector);
+        } else {
+            SimpleCollector<REALTYPE> collector(buffer, kStateCount, kStateCount);
+            iterateOverNodes(collector);
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE template <typename T, typename V, typename CC>
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
+        const REALTYPE* inPartialsPost, const int* tipsPost,
+        const REALTYPE* inPartialsPre,
+        const int branchEigenIndex,
+        const REALTYPE* perSiteLikelihoods,
+        const int category, const REALTYPE categoryWeight,
+        CC& collector,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    const int matrixIncr = kStateCount + T_PAD;
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+    const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndex];
+
+    const REALTYPE* ievc = gEigenDecomposition->getInverseEigenVectorsPtr(info.eigenIndex);
+    const REALTYPE* tievc = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(info.eigenIndex);
+
+    const int v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+    const REALTYPE* preOrderPartials = &inPartialsPre[v];
+    const REALTYPE* postOrderPartials = &inPartialsPost[v];
+
+    for (int k = startPattern; k < endPattern; k++) {
+
+        REALTYPE *lhs, *rhs;
+
+        if constexpr (std::is_same_v<V, WithRotation>) {
+
+            lhs = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+            rhs = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+
+            if constexpr (std::is_same_v<T, States>) {
+
+                const int state2 = tipsPost[k];
+
+                matVecDual<Partials, States>(
+                    tievc, preOrderPartials, 0,
+                    ievc, nullptr, state2,
+                    matrixIncr,
+                    [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                        lhs[i] = s1;
+                        rhs[i] = s2;
+                    });
+
+            } else if constexpr (std::is_same_v<T, Partials>) {
+
+                matVecDual<Partials, Partials>(
+                    tievc, preOrderPartials, 0,
+                    ievc, postOrderPartials, 0,
+                    matrixIncr,
+                    [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                        lhs[i] = s1;
+                        rhs[i] = s2;
+                    });
+
+            } else {
+                fprintf(stderr, "Unknown input type\n");
+                exit(-1);
+            }
+
+        } else {
+            static_assert(always_false<V>::value, "Unsupported lack of rotation");
+        }
+
+#ifdef USE_BRANCH_LIKELIHOOD
+        const REALTYPE denominator = collector.getPlan()->branchLikelihoodInEigenBasis(lhs, rhs);
+        const REALTYPE scale = gPatternWeights[k] * categoryWeight / denominator;
+#else
+        const REALTYPE scale = gPatternWeights[k] * categoryWeight / gPatternScaleTmp[k];
+#endif
+
+        collector.accumulateScaledOuterProducts(lhs, rhs, scale);
+
+        preOrderPartials  += kPartialsPaddedStateCount;
+        postOrderPartials += kPartialsPaddedStateCount;
+    }
+
+}
+
+BEAGLE_CPU_TEMPLATE template <typename First, typename Second, typename Body>
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::matVecDual(
+        const REALTYPE* __restrict__ mat1, const REALTYPE* __restrict__ vec1, const int state1,
+        const REALTYPE* __restrict__ mat2, const REALTYPE* __restrict__ vec2, const int state2,
+        const int matrixIncr,
+        Body body) {
+
+    if constexpr (
+        !(std::is_same_v<First,  None> || std::is_same_v<First,  States> || std::is_same_v<First,  Partials>) ||
+        !(std::is_same_v<Second, None> || std::is_same_v<Second, States> || std::is_same_v<Second, Partials>)
+        ) {
+        static_assert(always_false<First>::value, "Unsupported type T");
+    }
+
+    const int stateCountModFour = (kStateCount / 4) * 4;
+
+    for (int i = 0; i < kStateCount; i++) {
+
+        const REALTYPE* __restrict__ row1 = mat1 + i * matrixIncr;
+        const REALTYPE* __restrict__ row2 = mat2 + i * matrixIncr;
+
+        REALTYPE sum1A, sum1B, sum2A, sum2B;
+        if constexpr (std::is_same_v<First, States>) {
+            sum1A = row1[state1];
+            sum1B = REALTYPE(0);
+        } else if constexpr (std::is_same_v<First, Partials>) {
+            sum1A = REALTYPE(0);
+            sum1B = REALTYPE(0);
+        }
+
+        if constexpr (std::is_same_v<Second, States>) {
+            sum2A = row2[state2];
+            sum2B = REALTYPE(0);
+        } else if constexpr (std::is_same_v<Second, Partials>) {
+            sum2A = REALTYPE(0);
+            sum2B = REALTYPE(0);
+        }
+
+        int j = 0;
+        #pragma clang loop vectorize(enable)
+        for ( ; j < stateCountModFour; j += 4) {
+            if constexpr (std::is_same_v<First, Partials>) {
+                sum1A += row1[j + 0] * vec1[j + 0];
+                sum1B += row1[j + 1] * vec1[j + 1];
+
+                sum1A += row1[j + 2] * vec1[j + 2];
+                sum1B += row1[j + 3] * vec1[j + 3];
+            }
+            if constexpr (std::is_same_v<Second, Partials>) {
+                sum2A += row2[j + 0] * vec2[j + 0];
+                sum2B += row2[j + 1] * vec2[j + 1];
+
+                sum2A += row2[j + 2] * vec2[j + 2];
+                sum2B += row2[j + 3] * vec2[j + 3];
+            }
+        }
+
+        for ( ; j < kStateCount; j++) {
+            if constexpr (std::is_same_v<First, Partials>) {
+                sum1A += row1[j] * vec1[j];
+            }
+            if constexpr (std::is_same_v<Second, Partials>) {
+                sum2A += row2[j] * vec2[j];
+            }
+        }
+
+        body(i, sum1A + sum1B, sum2A + sum2B);
+    }
 }
 
 BEAGLE_CPU_TEMPLATE

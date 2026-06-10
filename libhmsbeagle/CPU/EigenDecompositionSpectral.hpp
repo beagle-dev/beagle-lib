@@ -27,7 +27,7 @@ EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSpectral
                                                    eigenValuesStorage(kEigenDecompCount, std::vector<REALTYPE>(kEigenValuesSize)),
                                                    eigenVectorsStorage(kEigenDecompCount, std::vector<REALTYPE>(kMatrixStride * kStateCount)),
                                                    inverseEigenVectorsStorage(kEigenDecompCount, std::vector<REALTYPE>(kMatrixStride * kStateCount)),
-                                                   transposedEigenValuesStorage(kEigenDecompCount, std::vector<REALTYPE>(kEigenValuesSize)),
+                                                //    transposedEigenValuesStorage(kEigenDecompCount, std::vector<REALTYPE>(kEigenValuesSize)),
                                                    transposedEigenVectorsStorage(kEigenDecompCount, std::vector<REALTYPE>(kMatrixStride * kStateCount)),
                                                    transposedInverseEigenVectorsStorage(kEigenDecompCount, std::vector<REALTYPE>(kMatrixStride * kStateCount)),
                                                    adjointMethodsStorage(kEigenDecompCount) {
@@ -45,11 +45,6 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition
         const double* inEigenVectors,
         const double* inInverseEigenVectors,
         const double* inEigenValues) {
-
-    // if (kMatrixStride == kStateCount) {
-    //     fprintf(stderr, "Error: EigenDecompositionSpectral::setEigenDecomposition: matrixStride= %d matches stateCount\n", kMatrixStride);
-    //     exit(-1);
-    // }
 
     auto& eval = eigenValuesStorage[eigenIndex];
 
@@ -80,32 +75,17 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition
         }
     }
 
-    auto& tEval = transposedEigenValuesStorage[eigenIndex];
+    // auto& tEval = transposedEigenValuesStorage[eigenIndex];
     auto& tEvec = transposedEigenVectorsStorage[eigenIndex];
     auto& tIvec = transposedInverseEigenVectorsStorage[eigenIndex];
 
-// #define WRONG
-
-    memcpy(tEval.data(), eval.data(), kEigenValuesSize * sizeof(REALTYPE)); // TODO fix for real-only values
-#ifndef WRONG
-    for (int i = 0; i < kStateCount; ++i) {
-        if (tEval[kStateCount + i] != 0.0) {
-            tEval[kStateCount + i] = -tEval[kStateCount + i];
-        }
-    }
-#endif
+    // memcpy(tEval.data(), eval.data(), kEigenValuesSize * sizeof(REALTYPE));
 
     memcpy(tEvec.data(), ivec.data(), kMatrixStride * kStateCount * sizeof(REALTYPE));
-#ifdef WRONG
-    rescale(tEvec.data(), eval.data(), 0.5); // TODO fix via transposing conjugate eigenvalues
-#endif
     transposeInPlace(tEvec.data());
 
     memcpy(tIvec.data(), evec.data(), kMatrixStride * kStateCount * sizeof(REALTYPE));
     transposeInPlace(tIvec.data());
-#ifdef WRONG
-    rescale(tIvec.data(), eval.data(), 2.0);
-#endif
 
     adjointMethodsStorage[eigenIndex] = std::make_shared<AdjointIntegralPlan<REALTYPE>>(
         eigenValuesStorage[eigenIndex].data(), kStateCount, false);
@@ -187,11 +167,11 @@ const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getInverse
     return inverseEigenVectorsStorage[eigenIndex].data();
 }
 
-BEAGLE_CPU_EIGEN_TEMPLATE
-const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenValuesPtr(
-        int eigenIndex) const {
-    return transposedEigenValuesStorage[eigenIndex].data();
-}
+// BEAGLE_CPU_EIGEN_TEMPLATE
+// const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenValuesPtr(
+//         int eigenIndex) const {
+//     return transposedEigenValuesStorage[eigenIndex].data();
+// }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenVectorsPtr(
