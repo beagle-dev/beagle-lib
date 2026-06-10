@@ -81,6 +81,17 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPatternScaleTmp;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gOuterProductTmp;
 
+            using typename BeagleCPUImpl<BEAGLE_CPU_GENERIC>::BranchEigenInfo;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gBranchEigenInfo;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartialTmp1;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartialTmp2;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTime;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAt;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCosBt;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gSinBt;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAtCosBt;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAtSinBt;
+
         public:
             // BeagleCPUSpectralImpl();
             ~BeagleCPUSpectralImpl() override;
@@ -100,7 +111,7 @@ namespace beagle {
                               long preferenceFlags,
                               long requirementFlags) override;
 
-            int setCPUThreadCount(int threadCount) override;
+            // int setCPUThreadCount(int threadCount) override;
 
         protected:
             EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
@@ -110,41 +121,6 @@ namespace beagle {
                     long flags) override;
 
         private:
-            struct BranchEigenInfo {
-                REALTYPE branchLength;
-
-                int eigenIndex;
-                int categoryRatesIndex;
-
-                bool allReal;
-
-#ifdef TEST_EB
-                REALTYPE* time;
-
-                REALTYPE* expat;
-                REALTYPE* cosbt;
-                REALTYPE* sinbt;
-                REALTYPE* expatcosbt;
-                REALTYPE* expatsinbt;
-
-                const REALTYPE* eval;
-#endif
-            };
-            std::vector<BranchEigenInfo> gBranchEigenInfo;
-
-#ifdef TEST_EB
-            std::vector<REALTYPE> gTime;
-            std::vector<REALTYPE> gExpAt;
-            std::vector<REALTYPE> gCosBt;
-            std::vector<REALTYPE> gSinBt;
-            std::vector<REALTYPE> gExpAtCosBt;
-            std::vector<REALTYPE> gExpAtSinBt;
-#endif
-
-            std::vector<REALTYPE> gPartialTmp1;
-            std::vector<REALTYPE> gPartialTmp2;
-
-
             int kStateCountModFour;
 
         protected:
@@ -154,18 +130,6 @@ namespace beagle {
                                          const int* secondDerivativeIndices,
                                          const double* edgeLengths,
                                          int count) override;
-
-            void calcAdjointCrossProductsRange(const int *postBufferIndices,
-                                               const int *preBufferIndices,
-                                               const int *branchEigenIndices,
-                                               const double *categoryRates,
-                                               const REALTYPE *categoryWeights,
-                                               const REALTYPE *perSiteLikelihoods,
-                                               REALTYPE *buffer,
-                                               int count,
-                                               int startPattern,
-                                               int endPattern,
-                                               int currentPartition) override;
 
             int upPartials(bool byPartition,
                            const int* operations,
@@ -238,26 +202,6 @@ namespace beagle {
                                        int endPattern,
                                        int currentPartition);
 
-            template <typename T, typename V, typename COLLECTOR>
-            void calcAdjointCrossProducts(const REALTYPE* partialsPost,
-                                          const int* tipsPost,
-                                          const REALTYPE* partialsPre,
-                                          const int branchIndex,
-                                          const REALTYPE* perSiteLikelihoods,
-                                          const int category,
-                                          const REALTYPE categoryWeight,
-                                          COLLECTOR& collector,
-                                          int startPattern,
-                                          int endPattern,
-                                          int currentPartition);
-
-
-            template <typename First, typename Second, typename Body>
-            inline void matVecDual(
-                    const REALTYPE* mat1, const REALTYPE* vec1, const int state1,
-                    const REALTYPE* mat2, const REALTYPE* vec2, const int state2,
-                    const int matrixIncr,
-                    Body body);
 
             // template <typename T>
             // void calcPrePartialsPartialsRoot(REALTYPE *destP,
@@ -336,15 +280,7 @@ namespace beagle {
             virtual const long getFlags();
         };
 
-        template <typename T>
-        struct always_false : std::false_type {};
-
-        struct States {};
-        struct Partials {};
-        struct None {};
-
         struct NoRotation {};
-        struct WithRotation {};
 
         struct Top {};
         struct Bottom {};

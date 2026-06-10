@@ -25,6 +25,7 @@
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/CPU/Precision.h"
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
+#include "libhmsbeagle/CPU/AdjointMethods.h"
 
 #include <vector>
 #include <thread>
@@ -51,6 +52,15 @@
 
 namespace beagle {
 namespace cpu {
+
+template <typename T>
+struct always_false : std::false_type {};
+
+struct States {};
+struct Partials {};
+struct None {};
+
+struct WithRotation {};
 
 BEAGLE_CPU_TEMPLATE
 class BeagleCPUImpl : public BeagleImpl {
@@ -131,6 +141,37 @@ protected:
     std::vector<REALTYPE> gPatternScaleTmp;
     std::vector<REALTYPE> gAdjointPartitionBuffers;
     std::vector<REALTYPE> gOuterProductTmp;
+
+    struct BranchEigenInfo {
+        REALTYPE branchLength;
+
+        int eigenIndex;
+        int categoryRatesIndex;
+
+        bool allReal;
+
+        REALTYPE* time;
+
+        REALTYPE* expat;
+        REALTYPE* cosbt;
+        REALTYPE* sinbt;
+        REALTYPE* expatcosbt;
+        REALTYPE* expatsinbt;
+
+        const REALTYPE* eval;
+    };
+    std::vector<BranchEigenInfo> gBranchEigenInfo;
+
+    std::vector<REALTYPE> gTime;
+    std::vector<REALTYPE> gExpAt;
+    std::vector<REALTYPE> gCosBt;
+    std::vector<REALTYPE> gSinBt;
+    std::vector<REALTYPE> gExpAtCosBt;
+    std::vector<REALTYPE> gExpAtSinBt;
+
+    std::vector<REALTYPE> gPartialTmp1;
+    std::vector<REALTYPE> gPartialTmp2;
+
     REALTYPE* outFirstDerivativesTmp;
     REALTYPE* outSecondDerivativesTmp;
 
@@ -288,6 +329,11 @@ public:
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
+
+    int updateBranchEigenInfo(int eigenIndex,
+                              const int* probabilityIndices,
+                              const double* edgeLengths,
+                              int count);
 
     int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
@@ -572,10 +618,31 @@ protected:
                                                const REALTYPE *categoryWeights,
                                                const REALTYPE *perSiteLikelihoods,
                                                REALTYPE *buffer,
-                                               int count,
+                                               int startNode,
+                                               int endNode,
                                                int startPattern,
                                                int endPattern,
-                                               int currentPartition) { }
+                                               int currentPartition);
+
+    template <typename T, typename V, typename COLLECTOR>
+    void calcAdjointCrossProducts(const REALTYPE* partialsPost,
+                                  const int* tipsPost,
+                                  const REALTYPE* partialsPre,
+                                  const int branchIndex,
+                                  const REALTYPE* perSiteLikelihoods,
+                                  const int category,
+                                  const REALTYPE categoryWeight,
+                                  COLLECTOR& collector,
+                                  int startPattern,
+                                  int endPattern,
+                                  int currentPartition);
+
+    template <typename First, typename Second, typename Body>
+    inline void matVecDual(
+            const REALTYPE* mat1, const REALTYPE* vec1, const int state1,
+            const REALTYPE* mat2, const REALTYPE* vec2, const int state2,
+            const int matrixIncr,
+            Body body);
 
     int calcAdjointCrossProductsByPartitionAsync(const int *postBufferIndices,
                                                  const int *preBufferIndices,
@@ -585,6 +652,15 @@ protected:
                                                  const REALTYPE *perSiteLikelihoods,
                                                  REALTYPE *buffer,
                                                  int count);
+
+    int calcAdjointCrossProductsByNodeAsync(const int *postBufferIndices,
+                                            const int *preBufferIndices,
+                                            const int *branchEigenIndices,
+                                            const double *categoryRates,
+                                            const REALTYPE *categoryWeights,
+                                            const REALTYPE *perSiteLikelihoods,
+                                            REALTYPE *buffer,
+                                            int count);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,
@@ -676,7 +752,7 @@ protected:
                                          const int* states2,
                                          const REALTYPE* matrices2,
                                          int startPattern,
-                                         int endPattern);                                         
+                                         int endPattern);
 
     virtual void calcPrePartialsPartialsTop(REALTYPE* destP,
                                          const REALTYPE* partials1,
@@ -692,7 +768,7 @@ protected:
                                          const REALTYPE* partials2,
                                          const REALTYPE* matrices2,
                                          int startPattern,
-                                         int endPattern);                                         
+                                         int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
@@ -843,7 +919,7 @@ protected:
                                                    const REALTYPE* matrices2,
                                                    const REALTYPE* scaleFactors,
                                                    int startPattern,
-                                                   int endPattern);                                               
+                                                   int endPattern);
 
     virtual void calcPartialsPartialsFixedScaling(REALTYPE *destP,
                                             const REALTYPE *child0States,
